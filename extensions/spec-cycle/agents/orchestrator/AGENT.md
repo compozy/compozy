@@ -2,7 +2,7 @@
 name: orchestrator
 display_name: Orchestrator
 description: Accepts small work and supervises isolated delivery.
-kind: stays_on
+kind: always_on
 permissions: auto
 category_path: [CompozyOS]
 appearance:

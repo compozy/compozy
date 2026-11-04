@@ -1,0 +1,223 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { UIProvider } from "@compozy/ui";
+
+import { AgentCreateHostProvider } from "@/systems/agent";
+import { agentFixtures, agentInstanceFixture } from "@/systems/agent/mocks";
+import { workspaceFixtures } from "@/systems/workspace/mocks/fixtures";
+
+import { AlwaysOnCreateMenu } from "../always-on-create-menu";
+
+const { mockApi } = vi.hoisted(() => ({
+  mockApi: {
+    instances: vi.fn(),
+    create: vi.fn(),
+    catalog: vi.fn(),
+    workspaces: vi.fn(),
+  },
+}));
+
+const WORKSPACES = [
+  { ...workspaceFixtures[0]!, id: "ws-compozy", name: "compozy", archived_at: null },
+  { ...workspaceFixtures[0]!, id: "ws-site", name: "site", archived_at: null },
+];
+
+vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace/adapters/workspace-api")>()),
+  fetchWorkspaces: () => mockApi.workspaces(),
+}));
+
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: await mockApi.instances(), capacity: {} }),
+  createAgentInstance: mockApi.create,
+}));
+
+vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-api")>()),
+  fetchAgentCatalog: mockApi.catalog,
+}));
+
+vi.mock("@/systems/settings/hooks/use-settings-collections", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/settings/hooks/use-settings-collections")>()),
+  useSettingsProviders: () => ({ data: { providers: [] } }),
+}));
+
+function grouped(name: string, label: string, kind = "always_on") {
+  return {
+    name,
+    label,
+    kind,
+    definition_digest: "d",
+    scopes: [],
+    active: 0,
+    agent: { ...agentFixtures[0]!, name, label },
+  };
+}
+
+const openDialog = vi.fn();
+
+function renderMenu(
+  alwaysOn: Parameters<typeof AlwaysOnCreateMenu>[0]["alwaysOn"] = {
+    place: "ws-compozy",
+    name: "compozy",
+  }
+) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <AgentCreateHostProvider openDialog={openDialog} openForDuplicate={vi.fn()}>
+          {children}
+        </AgentCreateHostProvider>
+      </UIProvider>
+    </QueryClientProvider>
+  );
+  const menu = (target: typeof alwaysOn) => (
+    <AlwaysOnCreateMenu onNewSession={vi.fn()} alwaysOn={target} testId="group" />
+  );
+  const { rerender } = render(menu(alwaysOn), { wrapper });
+  return { client, rescope: (target: typeof alwaysOn) => rerender(menu(target)) };
+}
+
+async function openPicker(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("group-new"));
+  await user.click(await screen.findByTestId("group-add-always-on"));
+}
+
+describe("Project + Add always-on agent", () => {
+  beforeEach(() => {
+    openDialog.mockReset();
+    for (const call of Object.values(mockApi)) call.mockReset();
+    mockApi.instances.mockResolvedValue([agentInstanceFixture()]);
+    mockApi.workspaces.mockResolvedValue(WORKSPACES);
+    mockApi.create.mockResolvedValue(agentInstanceFixture({ agent_name: "scout" }));
+    mockApi.catalog.mockResolvedValue({
+      items: [
+        grouped("triage", "Triage Lead"),
+        grouped("scout", "Scout"),
+        grouped("general", "General", "on_demand"),
+      ],
+      page: { has_more: false },
+    });
+  });
+
+  it("Should list only always-on agents not yet in this project, and add the one picked", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openPicker(user);
+
+    expect(await screen.findByText("Scout")).toBeInTheDocument();
+    expect(screen.queryByText("Triage Lead")).toBeNull();
+    expect(screen.queryByText("General")).toBeNull();
+
+    await user.click(screen.getByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({
+        agent: "scout",
+        workspace: "ws-compozy",
+      })
+    );
+  });
+
+  it("Should open the create screen on that project from Create new", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openPicker(user);
+    await user.click(await screen.findByText("Create new"));
+
+    expect(openDialog).toHaveBeenCalledWith({ place: "ws-compozy" });
+  });
+
+  // Invariant: a list spanning several places asks where the agent lives before adding it,
+  // preselecting a place and accepting another.
+  it("Should ask where the agent lives when the list spans several places", async () => {
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+
+    expect(await screen.findByText("Global")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /compozy/ })).toHaveAttribute("data-checked", "true");
+    // Enter accepts the preselected place, not the first row.
+    expect(screen.getByRole("option", { name: /compozy/ })).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
+    await user.click(screen.getByRole("option", { name: /site/ }));
+    expect(await screen.findByText("Add to site")).toBeInTheDocument();
+    await user.click(screen.getByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
+    );
+    expect(mockApi.catalog.mock.calls.at(-1)?.[0]).toMatchObject({ workspace: "ws-site" });
+  });
+
+  it("Should add a Global agent with no project in the catalog read", async () => {
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+    await user.click(await screen.findByRole("option", { name: /Global/ }));
+    await user.click(await screen.findByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "@user" })
+    );
+    expect(mockApi.catalog.mock.calls.at(-1)?.[0]).not.toHaveProperty("workspace");
+  });
+
+  it("Should say the projects didn't load, keep Global, and retry", async () => {
+    mockApi.workspaces.mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+    expect(await screen.findByText("Couldn't load projects.")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Global/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /compozy/ })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("option", { name: /compozy/ })).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
+    expect(screen.queryByText("Couldn't load projects.")).toBeNull();
+  });
+
+  it("Should add to the new scope when the list changes scope while the picker is open", async () => {
+    const user = userEvent.setup();
+    const { rescope } = renderMenu();
+
+    await openPicker(user);
+    expect(await screen.findByText("Add to compozy")).toBeInTheDocument();
+    rescope({ place: "ws-site", name: "site" });
+    await user.click(await screen.findByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
+    );
+  });
+
+  it("Should keep the loaded projects when a later refetch fails", async () => {
+    const user = userEvent.setup();
+    const { client } = renderMenu(null);
+
+    await openPicker(user);
+    expect(await screen.findByRole("option", { name: /compozy/ })).toBeInTheDocument();
+    mockApi.workspaces.mockRejectedValueOnce(new Error("offline"));
+    await act(() => client.refetchQueries());
+
+    expect(screen.queryByText("Couldn't load projects.")).toBeNull();
+    expect(screen.getByRole("option", { name: /site/ })).toBeInTheDocument();
+  });
+});

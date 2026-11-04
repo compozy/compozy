@@ -56,7 +56,7 @@ const meta: Meta<typeof AgentProfileSetup> = {
     docs: {
       description: {
         component:
-          "How a stays-on agent is set up. The Model row is the runtime selector itself: a pick saves at once.",
+          "How an always-on agent is set up. The Model row is the runtime selector itself: a pick saves at once.",
       },
     },
   },
@@ -68,7 +68,7 @@ const meta: Meta<typeof AgentProfileSetup> = {
     ),
   ],
   args: {
-    staysOn: true,
+    alwaysOn: true,
     readOnly: false,
     model: modelView(),
     summaries: {
@@ -76,7 +76,7 @@ const meta: Meta<typeof AgentProfileSetup> = {
       checkIns: "On in 1 project",
       memory: "3 notes",
       tools: "Everything it's allowed",
-      permissions: "Edit on its own",
+      permissions: "Accept edits",
     },
     onOpenBehavior: fn(),
     onOpenCheckIns: fn(),

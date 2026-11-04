@@ -80,7 +80,7 @@ their monogram well and corner dot. Expected text only; status fields untouched.
    Cancel, and Archive instead. Confirm removal only for disposable lab data.
 7. Repeat archive/list/unarchive through CLI, HTTP, UDS and native tools. Explicit new session
    admission while archived must fail with `workspace_archived`; history reads must succeed.
-8. Place a Stays on instance in a disposable project. Archiving the project must name an
+8. Place an always-on instance in a disposable project. Archiving the project must name an
    `instance` blocker even with its main session stopped. Removing the project must archive
    the instance before deleting sessions, clear its main-session pointer, and retain its reports.
    A refused removal must preserve the instance and its main-session pointer.

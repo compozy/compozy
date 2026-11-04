@@ -64,7 +64,7 @@ CREATE TABLE agent_heartbeat_wake_events (
 					'source_poll_in_flight', 'digest_empty',
 					'digest_unchanged',
 					'policy_disabled',
-					'definition_not_stays_on',
+					'definition_not_always_on',
 					'definition_missing',
 					'no_slot',
 					'hook_cancelled',

@@ -21,4 +21,4 @@ Decide a permission by hand, then let an automation trigger one. Compare the pag
 The log is the newest 1,000 decisions; past that the section says Latest 1,000 and the totals stay
 exact.
 
-QA impact 2026-11-01 (stays-on F3): Focused suites own the states. Not walked.
+QA impact 2026-11-01 (always-on F3): Focused suites own the states. Not walked.

@@ -20,7 +20,7 @@ import { AgentSettingsAccessSection } from "../agent-settings-access-section";
 import { AgentSettingsMcpSection } from "../agent-settings-mcp-section";
 
 const TITLES: Record<AgentProfilePanel, string> = {
-  tools: "What it can use",
+  tools: "Tools",
 };
 
 function PanelBody({

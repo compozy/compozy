@@ -2019,7 +2019,7 @@ describe("SessionList folders and manual order", () => {
     expect(items.map(item => item.textContent)).toEqual([
       "New session",
       "New folder",
-      "Add stays-on agentStays here and checks in on its own",
+      "Add always-on agentStays here and checks in on its own",
     ]);
     await user.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onNewSession).toHaveBeenCalledWith();
@@ -3079,14 +3079,14 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
-  // Invariant: the toolbar + offers Add stays-on agent in any grouping, and a list spanning
+  // Invariant: the toolbar + offers Add always-on agent in any grouping, and a list spanning
   // several projects asks where the agent lives first (#1181).
-  it("Should offer Add stays-on agent from the toolbar + of a grouped All projects list", async () => {
+  it("Should offer Add always-on agent from the toolbar + of a grouped All projects list", async () => {
     const user = userEvent.setup();
     renderList({ sessions: [], view: grouped() });
 
     await user.click(screen.getByTestId("session-sidebar-new"));
-    await user.click(await screen.findByTestId("session-sidebar-add-stays-on"));
+    await user.click(await screen.findByTestId("session-sidebar-add-always-on"));
 
     for (const place of ["Global", "Alpha", "Beta"]) {
       expect(await screen.findByRole("option", { name: new RegExp(place) })).toBeInTheDocument();

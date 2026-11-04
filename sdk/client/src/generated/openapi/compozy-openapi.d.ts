@@ -14,7 +14,7 @@ export interface paths {
     /** List agent instances */
     get: operations["listAgentInstances"];
     put?: never;
-    /** Create a stays-on agent instance */
+    /** Create an always-on agent instance */
     post: operations["createAgentInstance"];
     delete?: never;
     options?: never;
@@ -1364,6 +1364,23 @@ export interface paths {
     };
     /** Stream declarative command palette view patches */
     get: operations["streamCmdPaletteView"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/daemon/profile/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Capture a runtime profile over the local socket */
+    get: operations["captureDaemonProfile"];
     put?: never;
     post?: never;
     delete?: never;
@@ -9368,8 +9385,11 @@ export interface components {
       description?: string | null;
       display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
-      /** @enum {string} */
-      kind?: "on_demand" | "stays_on";
+      /**
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @enum {string}
+       */
+      kind?: "on_demand" | "always_on" | "stays_on";
       label?: string;
       model?: string;
       name: string;
@@ -9677,7 +9697,11 @@ export interface components {
       deny_tools?: string[];
       description?: string | null;
       display_name?: string | null;
-      kind?: string;
+      /**
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @enum {string}
+       */
+      kind?: "on_demand" | "always_on" | "stays_on";
       model?: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
@@ -9697,8 +9721,11 @@ export interface components {
       workspace_access?: string;
     };
     DuplicateAgentRequest: {
-      /** @enum {string} */
-      kind?: "on_demand" | "stays_on";
+      /**
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @enum {string}
+       */
+      kind?: "on_demand" | "always_on" | "stays_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */
@@ -26077,7 +26104,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26182,7 +26209,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26287,7 +26314,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26392,7 +26419,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26497,7 +26524,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26597,7 +26624,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26702,7 +26729,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26807,7 +26834,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -26912,7 +26939,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      /** @description agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
       422: {
         headers: {
           [name: string]: unknown;
@@ -29646,6 +29673,58 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CmdPaletteError"];
+        };
+      };
+    };
+  };
+  captureDaemonProfile: {
+    parameters: {
+      query?: {
+        /** @description Capture window for cpu, mutex and block only; snapshot profiles reject this parameter */
+        seconds?: number;
+      };
+      header?: never;
+      path: {
+        kind: "cpu" | "heap" | "allocs" | "goroutine" | "mutex" | "block" | "threadcreate";
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Raw gzip-compressed pprof protobuf */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/octet-stream": string;
+        };
+      };
+      /** @description daemon_profile_invalid: unsupported kind or duration */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description profile_busy: CPU or contention capture already active */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description profile_failed: capture canceled or failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
     };
@@ -37204,7 +37283,7 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
-        /** @description Exclude stays-on main sessions from the page and its total */
+        /** @description Exclude always-on main sessions from the page and its total */
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;
@@ -51692,7 +51771,7 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
-        /** @description Exclude stays-on main sessions from the page and its total */
+        /** @description Exclude always-on main sessions from the page and its total */
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;

@@ -75,7 +75,7 @@ export function agentInstanceCheckInsOptions(ref: AgentInstanceRef) {
   });
 }
 
-/** All of today's check-ins for Check-ins' strip; the hover card keeps its short read. */
+/** All of today's heartbeats for the Heartbeat page's strip; the hover card keeps its short read. */
 export function agentInstanceDayCheckInsOptions(ref: AgentInstanceRef) {
   return queryOptions({
     queryKey: agentKeys.instanceDayCheckIns(ref.id),
@@ -155,9 +155,9 @@ async function fetchAgentTeam(workspace: string, profile: string, signal: AbortS
   return agents;
 }
 
-async function fetchStaysOnAgents(workspace: string, profile: string, signal: AbortSignal) {
+async function fetchAlwaysOnAgents(workspace: string, profile: string, signal: AbortSignal) {
   const agents = await fetchAgentTeam(workspace, profile, signal);
-  return agents.filter(agent => agent.kind === "stays_on");
+  return agents.filter(agent => agent.kind === "always_on");
 }
 
 /** Every agent of a scope, one per definition, across pages; the page filters and counts them. */
@@ -187,11 +187,11 @@ export function agentActivityOptions(
   });
 }
 
-/** The stays-on agents a scope resolves; `""` reads the User scope. */
-export function staysOnAgentsOptions(workspace: string, profile = "default", enabled = true) {
+/** The always-on agents a scope resolves; `""` reads the User scope. */
+export function alwaysOnAgentsOptions(workspace: string, profile = "default", enabled = true) {
   return queryOptions({
-    queryKey: agentKeys.staysOnCatalog(workspace, profile),
-    queryFn: ({ signal }) => fetchStaysOnAgents(workspace, profile, signal),
+    queryKey: agentKeys.alwaysOnCatalog(workspace, profile),
+    queryFn: ({ signal }) => fetchAlwaysOnAgents(workspace, profile, signal),
     staleTime: 5_000,
     enabled,
   });

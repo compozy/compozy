@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/managedsidecar"
@@ -22,9 +23,7 @@ const instanceSourceDeclarationCacheLimit = 128
 type instanceSourceDeclarationKey struct {
 	path, root   string
 	config, body [32]byte
-	size         int64
-	modified     time.Time
-	mode         os.FileMode
+	file         filesnap.Snapshot
 	packageOwned bool
 }
 
@@ -39,14 +38,21 @@ func (c *instanceSourceDeclarations) resolve(
 	artifacts *session.AgentArtifacts,
 	target heartbeat.AuthoringTarget,
 ) ([]source.Ref, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	key, err := instanceSourceKey(artifacts, target)
 	if err != nil {
 		return nil, err
 	}
 	if c != nil {
 		c.mu.Lock()
-		defer c.mu.Unlock()
-		if refs, ok := c.refs[key]; ok {
+		refs, ok := c.refs[key]
+		c.mu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if ok {
 			return refs, nil
 		}
 	}
@@ -70,8 +76,13 @@ func (c *instanceSourceDeclarations) resolve(
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	refs := policy.Preferences.Context.Sources
 	if c != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
 		if c.refs == nil || len(c.refs) >= instanceSourceDeclarationCacheLimit {
 			c.refs = make(map[instanceSourceDeclarationKey][]source.Ref)
 		}
@@ -129,6 +140,6 @@ func instanceSourceKey(
 	if err != nil {
 		return key, err
 	}
-	key.size, key.modified, key.mode = info.Size(), info.ModTime(), info.Mode()
+	key.file = filesnap.FromInfo(path, info)
 	return key, nil
 }

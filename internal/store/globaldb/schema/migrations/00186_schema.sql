@@ -24,10 +24,10 @@ CREATE TABLE `new_agent_heartbeat_wake_events` (`id` text NULL, `workspace_id` t
 					'quiet',
 					'reported',
 					'cancelled',
-					'source_poll_in_flight', 'digest_empty',
+					'digest_empty',
 					'digest_unchanged',
 					'policy_disabled',
-					'definition_not_stays_on',
+					'definition_not_always_on',
 					'definition_missing',
 					'no_slot',
 					'hook_cancelled',
@@ -40,7 +40,7 @@ CREATE TABLE `new_agent_heartbeat_wake_events` (`id` text NULL, `workspace_id` t
 				)
 			), CHECK (denied_calls >= 0));
 -- copy rows from old table "agent_heartbeat_wake_events" to new temporary table "new_agent_heartbeat_wake_events"
-INSERT INTO `new_agent_heartbeat_wake_events` (`id`, `workspace_id`, `agent_name`, `session_id`, `policy_snapshot_id`, `source`, `result`, `reason`, `detail`, `denied_calls`, `occurrence_id`, `instance_id`, `synthetic_prompt_id`, `created_at`, `expires_at`) SELECT `id`, `workspace_id`, `agent_name`, `session_id`, `policy_snapshot_id`, `source`, `result`, `reason`, `detail`, `denied_calls`, `occurrence_id`, `instance_id`, `synthetic_prompt_id`, `created_at`, `expires_at` FROM `agent_heartbeat_wake_events`;
+INSERT INTO `new_agent_heartbeat_wake_events` (`id`, `workspace_id`, `agent_name`, `session_id`, `policy_snapshot_id`, `source`, `result`, `reason`, `detail`, `denied_calls`, `occurrence_id`, `instance_id`, `synthetic_prompt_id`, `created_at`, `expires_at`) SELECT `id`, `workspace_id`, `agent_name`, `session_id`, `policy_snapshot_id`, `source`, `result`, CASE `reason` WHEN 'definition_not_stays_on' THEN 'definition_not_always_on' ELSE `reason` END, `detail`, `denied_calls`, `occurrence_id`, `instance_id`, `synthetic_prompt_id`, `created_at`, `expires_at` FROM `agent_heartbeat_wake_events`;
 -- drop trigger "agent_heartbeat_wake_events_workspace_insert_guard" before applying its declarative change
 DROP TRIGGER IF EXISTS `agent_heartbeat_wake_events_workspace_insert_guard`;
 -- drop trigger "agent_heartbeat_wake_events_workspace_update_guard" before applying its declarative change
@@ -57,10 +57,6 @@ CREATE INDEX `idx_agent_heartbeat_wake_events_agent_created` ON `agent_heartbeat
 CREATE INDEX `idx_agent_heartbeat_wake_events_expires` ON `agent_heartbeat_wake_events` (`expires_at`);
 -- create index "idx_agent_heartbeat_wake_events_session" to table: "agent_heartbeat_wake_events"
 CREATE INDEX `idx_agent_heartbeat_wake_events_session` ON `agent_heartbeat_wake_events` (`session_id`);
--- create "agent_instance_source_states" table
-CREATE TABLE `agent_instance_source_states` (`instance_id` text NOT NULL, `source_id` text NOT NULL, `ref_digest` text NOT NULL, `state_generation` integer NOT NULL DEFAULT 0, `committed_state` text NULL, `committed_at` text NULL, `pending_state` text NULL, `pending_occurrence_id` text NULL, `last_polled_at` text NULL, `last_success_at` text NULL, `last_item_count` integer NOT NULL DEFAULT 0, `last_error_code` text NULL, `last_error_detail` text NULL, `failure_streak` integer NOT NULL DEFAULT 0, `next_poll_at` text NULL, `updated_at` text NOT NULL, PRIMARY KEY (`instance_id`, `source_id`), CONSTRAINT `0` FOREIGN KEY (`instance_id`) REFERENCES `agent_instances` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE, CHECK (committed_state IS NULL OR json_valid(committed_state)), CHECK (pending_state IS NULL OR json_valid(pending_state)));
--- create "heartbeat_source_script_approvals" table
-CREATE TABLE `heartbeat_source_script_approvals` (`profile_id` text NOT NULL, `definition_dir` text NOT NULL, `script_name` text NOT NULL, `sha256` text NOT NULL, `approved_at` text NOT NULL, `approved_via` text NOT NULL, PRIMARY KEY (`profile_id`, `definition_dir`, `script_name`), CONSTRAINT `0` FOREIGN KEY (`profile_id`) REFERENCES `profiles` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION, CHECK (approved_via IN ('cli', 'web', 'http', 'uds')));
 -- enable back the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = on;
 -- apply declarative trigger "agent_heartbeat_wake_events_workspace_insert_guard" on table "agent_heartbeat_wake_events"
@@ -121,3 +117,6 @@ BEGIN
 	DELETE FROM skill_exposures WHERE workspace_id = OLD.id;
 END;
 -- +goose StatementEnd
+-- The v0.5.0 stays_on agent kind is renamed to always_on (#1199).
+UPDATE agent_instances SET pause_reason = 'definition_not_always_on' WHERE pause_reason = 'definition_not_stays_on';
+UPDATE resource_records SET spec_json = json_set(spec_json, '$.kind', 'always_on') WHERE kind = 'agent' AND json_extract(spec_json, '$.kind') = 'stays_on';

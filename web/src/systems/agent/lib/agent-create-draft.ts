@@ -27,7 +27,7 @@ export type AgentCreatePermissionChoice = "" | AgentCreatePermission;
 
 export { agentCreateAppearance, agentCreateSlug, agentSlugFor } from "./agent-create-identity";
 
-export type AgentCreateKind = "on_demand" | "stays_on";
+export type AgentCreateKind = "on_demand" | "always_on";
 
 /** `Decide later`: the agent is created with no instance. A place is otherwise a scope selector. */
 export const AGENT_PLACE_LATER = "later";
@@ -42,7 +42,7 @@ export interface AgentCreateDialogDraft {
   /** `null` until someone picks: the face follows the slug. */
   appearance: AgentAvatarAppearance | null;
   kind: AgentCreateKind;
-  /** Where a Stays on agent starts: a workspace id, `@user`, or `later`. */
+  /** Where an always-on agent starts: a workspace id, `@user`, or `later`. */
   place: string;
   categoryPath: string;
   provider: string;
@@ -132,15 +132,7 @@ export function updateAgentCreateScope(
   scope: AgentCreateScope
 ): AgentCreateDialogDraft {
   if (draft.scope === scope) return draft;
-  return {
-    ...draft,
-    scope,
-    provider: "",
-    model: "",
-    reasoningEffort: "",
-    speed: "",
-    acpOptions: undefined,
-  };
+  return { ...draft, scope };
 }
 
 export function appendAgentCreateTokens(current: readonly string[], rawInput: string): string[] {
@@ -344,7 +336,7 @@ export function buildDraftFromAgentPayload(
     description: agent.description ?? "",
     name: "",
     appearance: agentAvatarAppearance(agent.appearance as AgentAppearanceInput, agent.name),
-    kind: agent.kind === "stays_on" ? "stays_on" : "on_demand",
+    kind: agent.kind === "always_on" ? "always_on" : "on_demand",
     place: AGENT_PLACE_LATER,
     categoryPath: joinAgentCategorySegments(agent.category_path ?? []),
     provider: agent.provider ?? "",

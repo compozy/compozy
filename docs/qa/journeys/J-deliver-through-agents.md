@@ -1,12 +1,12 @@
 # J-deliver-through-agents — Deliver a spec and small work by choosing an agent
 
 The operator delivers an approved spec by starting `spec_conductor`, and small work by talking to the
-stays-on `orchestrator`. No Loop, tool, or pasted procedure is involved. Spec files stay in the
+always-on `orchestrator`. No Loop, tool, or pasted procedure is involved. Spec files stay in the
 workspace root, and every session reads them by absolute path.
 
 ```mermaid
 flowchart TD
-    A[Entry: session new or stays-on main session] --> B{Size of the work}
+    A[Entry: session new or always-on main session] --> B{Size of the work}
     B -->|spec with _slices.md| C[spec_conductor creates or reuses the integration worktree]
     C --> D[Ready slices run in child sessions, each in its own worktree]
     D --> E[Monitor wake: conductor reads the report]

@@ -153,11 +153,12 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-describe("What it does", () => {
+describe("Instructions", () => {
   it("Should show the blank page with examples when there's no file", async () => {
     serveSoul(soulPayload({ present: false, body: "", frontmatter: {} }));
     renderEditor(<AgentWhatItDoesEditor {...props()} />);
     expect(await screen.findByText("Start from an example")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Instructions" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Keep issues moving" })).toBeTruthy();
   });
 
@@ -224,7 +225,7 @@ describe("What it does", () => {
         "This file has a table the editor can't show, so it opens here. Nothing gets lost."
       )
     ).toBeTruthy();
-    expect(screen.queryByRole("textbox", { name: "What it does" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Instructions" })).toBeNull();
     expect(screen.queryByText("How it should sound")).toBeNull();
     expect(
       (screen.getByRole("textbox", { name: "The file behind this page" }) as HTMLTextAreaElement)
@@ -284,7 +285,7 @@ describe("What it does", () => {
   });
 });
 
-describe("Check-ins", () => {
+describe("Heartbeat", () => {
   it("Should show that checks need a place when the agent runs nowhere", async () => {
     serveHeartbeat(heartbeatPayload());
     const onAddToProject = vi.fn();
@@ -309,14 +310,29 @@ describe("Check-ins", () => {
       ]);
       const user = userEvent.setup();
       renderEditor(<AgentCheckInsEditor {...props({ workspace })} />);
-      await user.click(await screen.findByRole("button", { name: "Turn on check-ins" }));
+      await user.click(await screen.findByRole("button", { name: "Turn on heartbeat" }));
       await waitFor(() =>
-        expect(screen.getByRole("switch", { name: "Check-ins" }).getAttribute("aria-checked")).toBe(
+        expect(screen.getByRole("switch", { name: "Heartbeat" }).getAttribute("aria-checked")).toBe(
           "true"
         )
       );
     }
   );
+
+  it("Should say the heartbeat is off once checks were turned off", async () => {
+    serveHeartbeat(heartbeatPayload());
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        checks_enabled: false,
+        last_wake_at: new Date().toISOString(),
+        next_wake_at: "",
+      }),
+    ]);
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    expect(await screen.findByText("Heartbeat is off")).toBeTruthy();
+    expect(screen.queryByText("Next heartbeat")).toBeNull();
+  });
 
   it("Should not claim a report for a real run that delivered nothing", async () => {
     serveHeartbeat(heartbeatPayload());
@@ -350,16 +366,16 @@ describe("Check-ins", () => {
     ]);
     const user = userEvent.setup();
     renderEditor(<AgentCheckInsEditor {...props()} />);
-    await user.click(await screen.findByRole("button", { name: "Turn on check-ins" }));
+    await user.click(await screen.findByRole("button", { name: "Turn on heartbeat" }));
     await waitFor(() =>
-      expect(screen.getByRole("switch", { name: "Check-ins" }).getAttribute("aria-checked")).toBe(
+      expect(screen.getByRole("switch", { name: "Heartbeat" }).getAttribute("aria-checked")).toBe(
         "true"
       )
     );
     expect(puts).toEqual([]);
   });
 
-  it("Should map reasons from real check-ins and a dry run's digest", async () => {
+  it("Should map reasons from real heartbeats and a dry run's digest", async () => {
     serveHeartbeat(heartbeatPayload());
     const now = new Date();
     seedAgentInstanceMock(
@@ -370,6 +386,9 @@ describe("Check-ins", () => {
     const user = userEvent.setup();
     renderEditor(<AgentCheckInsEditor {...props()} />);
     expect(await screen.findByText("It ran out of time.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Heartbeat" })).toBeTruthy();
+    expect(screen.getByText("Next heartbeat")).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Recent heartbeats" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Try it now" }));
     expect(await screen.findByText("It would look into 1 thing")).toBeTruthy();
@@ -394,7 +413,7 @@ describe("Check-ins", () => {
     );
     const user = userEvent.setup();
     renderEditor(<AgentCheckInsEditor {...props()} />);
-    expect(await screen.findByText("Check-ins will show up here once they start.")).toBeTruthy();
+    expect(await screen.findByText("Heartbeats will show up here once they start.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Try it now" }));
     expect(await screen.findByText("This can't run here yet.")).toBeTruthy();
   });
@@ -1048,7 +1067,7 @@ describe("Memory", () => {
 });
 
 describe("Permissions", () => {
-  const staysOn: AgentPayload = { ...agent, kind: "stays_on", provider: "claude" };
+  const alwaysOn: AgentPayload = { ...agent, kind: "always_on", provider: "claude" };
 
   function serveAgent(served: AgentPayload, onPut?: (body: unknown) => void) {
     server.use(
@@ -1079,17 +1098,17 @@ describe("Permissions", () => {
     );
   }
 
-  it("Should show five levels with unset as the stays-on default, and no Follow Settings", async () => {
-    serveAgent(staysOn);
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+  it("Should show five levels with unset as the always-on default, and no Follow Settings", async () => {
+    serveAgent(alwaysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     const levels = await screen.findByRole("radiogroup", { name: "Permission level" });
     const cards = levels.querySelectorAll('[role="radio"]');
     expect(Array.from(cards, card => card.textContent)).toEqual([
       expect.stringContaining("Ask before every action"),
       expect.stringContaining("Ask before changes"),
-      expect.stringContaining("Edit on its own"),
-      expect.stringContaining("Let a reviewer decide"),
-      expect.stringContaining("Never ask"),
+      expect.stringContaining("Accept edits"),
+      expect.stringContaining("Auto-review"),
+      expect.stringContaining("Full access"),
     ]);
     const edits = screen.getByTestId("agent-permissions-level-approve-edits");
     expect(edits).toHaveAttribute("aria-checked", "true");
@@ -1098,26 +1117,32 @@ describe("Permissions", () => {
     expect(screen.getByRole("radiogroup", { name: "Approval reach" })).toBeTruthy();
   });
 
-  it("Should let an on-demand agent follow Settings and name the current level", async () => {
-    const onDemand: AgentPayload = { ...agent, kind: "on_demand", permissions: undefined };
-    serveAgent(onDemand);
-    server.use(
-      http.get("*/api/settings/general", () =>
-        HttpResponse.json({ config: { permissions: { mode: "approve-all" } } })
-      )
-    );
-    renderEditor(<AgentPermissionsEditor {...props({ agent: onDemand })} />);
-    const follow = await screen.findByTestId("agent-permissions-level-settings");
-    expect(follow).toHaveAttribute("aria-checked", "true");
-    await waitFor(() => expect(follow).toHaveTextContent("Right now: Never ask."));
-    expect(screen.queryByRole("radiogroup", { name: "Approval reach" })).toBeNull();
-  });
+  it.each([
+    ["approve-edits", "Uses your Settings. Right now: Accept edits."],
+    ["approve-all", "Uses your Settings. Right now: Full access."],
+  ])(
+    "Should let an on-demand agent follow Settings at %s and name the current level",
+    async (mode, text) => {
+      const onDemand: AgentPayload = { ...agent, kind: "on_demand", permissions: undefined };
+      serveAgent(onDemand);
+      server.use(
+        http.get("*/api/settings/general", () =>
+          HttpResponse.json({ config: { permissions: { mode } } })
+        )
+      );
+      renderEditor(<AgentPermissionsEditor {...props({ agent: onDemand })} />);
+      const follow = await screen.findByTestId("agent-permissions-level-settings");
+      expect(follow).toHaveAttribute("aria-checked", "true");
+      await waitFor(() => expect(follow).toHaveTextContent(text));
+      expect(screen.queryByRole("radiogroup", { name: "Approval reach" })).toBeNull();
+    }
+  );
 
   it("Should mark Auto unavailable from the provider's empty reviewer_mode", async () => {
     const user = userEvent.setup();
-    serveAgent(staysOn);
+    serveAgent(alwaysOn);
     serveProvider("claude", "");
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     const auto = await screen.findByTestId("agent-permissions-level-auto");
     await waitFor(() => expect(auto).toHaveTextContent("Not available"));
     // As in the draft, the named alert explains the choice only once it is the selected level.
@@ -1126,28 +1151,28 @@ describe("Permissions", () => {
     expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
   });
 
-  it("Should name the provider with no reviewer for an agent saved at Let a reviewer decide", async () => {
-    const reviewer: AgentPayload = { ...staysOn, permissions: "auto" };
+  it("Should name the provider with no reviewer for an agent saved at Auto-review", async () => {
+    const reviewer: AgentPayload = { ...alwaysOn, permissions: "auto" };
     serveAgent(reviewer);
     serveProvider("claude", "");
     renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
     expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
     expect(screen.getByTestId("agent-permissions-no-reviewer")).toHaveTextContent(
-      "This agent will use Edit on its own instead."
+      "This agent will use Accept edits instead."
     );
   });
 
   it("Should not warn about the reviewer when an older daemon sends no reviewer_mode", async () => {
     const user = userEvent.setup();
-    serveAgent({ ...staysOn, permissions: "approve-reads" });
+    serveAgent({ ...alwaysOn, permissions: "approve-reads" });
     serveProvider("claude");
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     await user.click(await screen.findByTestId("agent-permissions-level-auto"));
     expect(screen.queryByTestId("agent-permissions-no-reviewer")).toBeNull();
   });
 
-  it("Should explain that Never ask on Codex keeps Codex's own reviewer", async () => {
-    const codex: AgentPayload = { ...staysOn, provider: "codex", permissions: "approve-all" };
+  it("Should explain that Full access on Codex keeps Codex's own reviewer", async () => {
+    const codex: AgentPayload = { ...alwaysOn, provider: "codex", permissions: "approve-all" };
     serveAgent(codex);
     serveProvider("codex", "agent");
     renderEditor(<AgentPermissionsEditor {...props({ agent: codex })} />);
@@ -1158,7 +1183,7 @@ describe("Permissions", () => {
     const user = userEvent.setup();
     const put = vi.fn();
     const withRules: AgentPayload = {
-      ...staysOn,
+      ...alwaysOn,
       permission_rules: [
         { kind: "edit", path: "docs/**", decision: "allow" },
         { kind: "delete", decision: "deny" },
@@ -1181,10 +1206,10 @@ describe("Permissions", () => {
   it("Should save the level, exceptions and approval reach with the definition", async () => {
     const user = userEvent.setup();
     const put = vi.fn();
-    serveAgent(staysOn, put);
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    serveAgent(alwaysOn, put);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     expect(screen.queryByTestId("agent-permission-rules-coverage")).toBeNull();
-    await user.click(await screen.findByTestId("agent-permissions-level-approve-reads"));
+    await user.click(await screen.findByRole("radio", { name: /Full access/ }));
     await user.click(screen.getByTestId("agent-permissions-reach-workspace"));
     await user.click(screen.getByRole("button", { name: "Add an exception" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Folder or file" }), {
@@ -1195,7 +1220,7 @@ describe("Permissions", () => {
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     expect(put.mock.calls[0]![0]).toMatchObject({
       agent: {
-        permissions: "approve-reads",
+        permissions: "approve-all",
         session_approval: "workspace",
         permission_rules: [{ kind: "edit", path: "infra/**", decision: "allow" }],
       },
@@ -1203,7 +1228,7 @@ describe("Permissions", () => {
   });
 
   it("Should say the reviewer fell back only for a running session", async () => {
-    const reviewer: AgentPayload = { ...staysOn, permissions: "auto" };
+    const reviewer: AgentPayload = { ...alwaysOn, permissions: "auto" };
     serveAgent(reviewer);
     serveProvider("claude", "auto");
     const serveSessions = (state: string) =>
@@ -1235,7 +1260,7 @@ describe("Permissions", () => {
 
   it("Should explain the Codex reviewer for an agent that inherits Codex", async () => {
     const inherits: AgentPayload = {
-      ...staysOn,
+      ...alwaysOn,
       provider: "",
       permissions: "approve-all",
       effective_runtime: {
@@ -1252,8 +1277,8 @@ describe("Permissions", () => {
   it("Should treat picking the default reach as no change, and round-trip a wider one", async () => {
     const user = userEvent.setup();
     const put = vi.fn();
-    serveAgent(staysOn, put);
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    serveAgent(alwaysOn, put);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     const children = await screen.findByTestId("agent-permissions-reach-children");
     expect(children).toHaveAttribute("aria-checked", "true");
     await user.click(children);
@@ -1271,8 +1296,8 @@ describe("Permissions", () => {
 
   it("Should move between levels with the arrow keys from one tab stop", async () => {
     const user = userEvent.setup();
-    serveAgent(staysOn);
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    serveAgent(alwaysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     const edits = await screen.findByTestId("agent-permissions-level-approve-edits");
     const levels = screen.getByRole("radiogroup", { name: "Permission level" });
     expect(levels.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
@@ -1285,8 +1310,8 @@ describe("Permissions", () => {
 
   it("Should follow the daemon's path rule, check glob syntax and tie the message to its row", async () => {
     const user = userEvent.setup();
-    serveAgent(staysOn);
-    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    serveAgent(alwaysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: alwaysOn })} />);
     await user.click(await screen.findByRole("button", { name: "Add an exception" }));
     const path = screen.getByRole("textbox", { name: "Folder or file" });
     fireEvent.change(path, { target: { value: "docs/../src/**" } });
@@ -1299,7 +1324,7 @@ describe("Permissions", () => {
   });
 
   it("Should be read-only for an extension-owned agent", async () => {
-    const owned: AgentPayload = { ...staysOn, package_owned: true };
+    const owned: AgentPayload = { ...alwaysOn, package_owned: true };
     serveAgent(owned);
     renderEditor(<AgentPermissionsEditor {...props({ agent: owned, readOnly: true })} />);
     expect(await screen.findByTestId("agent-permissions-read-only")).toBeTruthy();

@@ -354,7 +354,7 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 		{agentinstance.ErrExists, http.StatusConflict},
 		{agentinstance.ErrStarting, http.StatusConflict},
 		{agentinstance.ErrLimit, http.StatusTooManyRequests},
-		{agentinstance.ErrNotStaysOn, http.StatusUnprocessableEntity},
+		{agentinstance.ErrNotAlwaysOn, http.StatusUnprocessableEntity},
 	} {
 		if errors.Is(err, mapping.domain) {
 			limit := 0

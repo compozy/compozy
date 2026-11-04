@@ -33,7 +33,7 @@ export const LUNCH: readonly [number, number] = [12, 13];
 const ALL_DAY: readonly [number, number] = [0, 24];
 const DEFAULT_STOP = 2;
 
-/** HEARTBEAT.md as Check-ins shows it, with what the page must carry through a save. */
+/** HEARTBEAT.md as the Heartbeat page shows it, with what the page must carry through a save. */
 export interface CheckInSettings {
   stop: number;
   hours: readonly [number, number];

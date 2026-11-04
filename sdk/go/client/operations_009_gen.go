@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// GetAgentInstance Get an agent instance
+func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceAwayParams carries the path, query, and header parameters.
+type GetAgentInstanceAwayParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetAgentInstanceAway Read the operator's instance away digest
 func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstanceAwayParams) (*AgentInstanceAwayResponse, error) {
 	path := "/api/agent-instances/{id}/away"
@@ -415,34 +443,4 @@ type GetExtensionLogsParams struct {
 	Follow      *string `url:"follow"`
 	After       *string `url:"after"`
 	StreamEpoch *string `url:"stream_epoch"`
-}
-
-// GetExtensionLogs Read or follow redacted extension logs
-func (c *Client) GetExtensionLogs(ctx context.Context, params GetExtensionLogsParams) (*ExtensionLogsResponse, error) {
-	path := "/api/extensions/{name}/logs"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Follow != nil {
-		query.Set("follow", *params.Follow)
-	}
-	if params.After != nil {
-		query.Set("after", *params.After)
-	}
-	if params.StreamEpoch != nil {
-		query.Set("stream_epoch", *params.StreamEpoch)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionLogsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

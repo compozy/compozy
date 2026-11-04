@@ -14,9 +14,9 @@ import (
 // Suite owns the published resource inventory, agent kinds and portable payload contract.
 func TestEmbeddedResources(t *testing.T) {
 	t.Parallel()
-	t.Run("Should resolve the four published agent kinds and the stays-on level", func(t *testing.T) {
+	t.Run("Should resolve the four published agent kinds and the always-on level", func(t *testing.T) {
 		t.Parallel()
-		for name, kind := range map[string]string{"orchestrator": "stays_on", "spec_conductor": "on_demand", "code_implementer": "on_demand", "reviewer": "on_demand"} {
+		for name, kind := range map[string]string{"orchestrator": "always_on", "spec_conductor": "on_demand", "code_implementer": "on_demand", "reviewer": "on_demand"} {
 			data, err := fs.ReadFile(FS(), "agents/"+name+"/AGENT.md")
 			if err != nil {
 				t.Fatal(err)
@@ -28,9 +28,9 @@ func TestEmbeddedResources(t *testing.T) {
 			if agent.Name != name || agent.Kind != kind {
 				t.Fatalf("agent = %s/%s, want %s/%s", agent.Name, agent.Kind, name, kind)
 			}
-			// #1200: shipped stays-on agents run unattended at auto, which degrades
+			// #1200: shipped always-on agents run unattended at auto, which degrades
 			// to approve-edits on a provider without a reviewer mode.
-			if kind == "stays_on" && agent.Permissions != string(compozyconfig.PermissionModeAuto) {
+			if kind == "always_on" && agent.Permissions != string(compozyconfig.PermissionModeAuto) {
 				t.Fatalf("%s permissions = %q, want auto", name, agent.Permissions)
 			}
 			// A built-in reads as part of the app: an icon without its plate, never a generated face.

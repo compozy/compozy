@@ -1,5 +1,57 @@
 # Compozy Change Impact
 
+## Preserve agent runtime selection across kind changes — 2026-11-03
+
+The Web create draft keeps an explicit runtime when switching between workspace On-demand and
+global Always-on if the destination catalog contains its provider. A destination without that
+provider clears all runtime overrides. Native tools, CLI/HTTP/UDS contracts, hooks, configuration,
+SDKs, and stored data are unchanged. No migration or official skill change is needed. The owning
+QA scenario is `MS-web-agent-create-simple-advanced`; existing always-on browser journeys verify
+creation after choosing a model before changing kind.
+
+## Always-on vocabulary alignment (v0.5.1) — 2026-11-03
+
+Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in v0.5.2.
+
+- **Native tools / CLI / HTTP / UDS**
+  - Tool IDs, routes, verbs and hook names are unchanged.
+  - `kind` changes:
+    - Request enums accept `on_demand`, `always_on`, or the deprecated `stays_on`. `DuplicateAgentOverrides.kind` gains the enum.
+    - Responses emit `on_demand` or `always_on` on unchanged `string` fields.
+    - The deprecation is logged by the daemon (`source=request`) or written to CLI stderr. No result field is added.
+  - Error code `agent_not_stays_on` becomes `agent_not_always_on`.
+  - Reason `definition_not_stays_on` becomes `definition_not_always_on`.
+  - `--kind stays_on` is accepted with a stderr warning.
+  - The OpenAPI document, the TypeScript and Go SDKs, and the native tool catalog are regenerated.
+  - Tool descriptions and the startup section say always-on. The section is renamed `always_on_doctrine`.
+- **Extensibility / hooks / config**
+  - Extension AGENT.md files may keep `kind: stays_on` through v0.5.1.
+  - `[agents.stays_on]` is read as `[agents.always_on]`, with a warning.
+  - `compozy config` and `compozy__config_*` accept the old paths and write the new ones.
+  - No hook or manifest field is renamed. The `agent.instance.*` hook payload `reason` now carries `definition_not_always_on`, and the release note says so.
+- **User state / workspace isolation**
+  - One Goose migration:
+    - rebuilds the `agent_heartbeat_wake_events` reason CHECK, copying every row with the value mapped;
+    - updates `agent_instances.pause_reason`;
+    - updates `resource_records.spec_json` `$.kind` for agent rows.
+  - No row is dropped.
+  - Daemon-owned AGENT.md files (`$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<p>/agents`) are rewritten at boot. Only the top-level `kind` value changes.
+    - The rewrite is nofollow and compare-before-publish, and it preserves the file mode.
+    - Each rewrite and each skip is logged.
+  - Repository, workspace-profile, and extension AGENT.md files are never rewritten.
+  - `config unset` through either spelling clears both tables in the selected file.
+  - Isolation is unchanged.
+- **Official skill / Web / Docs**
+  - Updated:
+    - `skills/compozy/` (`SKILL.md`, `agent-definitions.md`, `runtime-operations.md`, `native-tools.md`, `configuration.md`, `tools-and-skills.md`, `agent-memory.md`)
+    - site docs (agents, sessions/permissions, sessions/subagents, configuration/config-toml, cli/agent, automation/events, examples, migration)
+    - glossary and `COPY.md` Surface Names rows
+    - the live QA scenarios listed in `_tests.md`, plus every `docs/qa/scenarios` file the vocabulary gate matched
+    - the v0.5.1 release note `.release-notes/always-on-vocabulary-v0.5.1.md` with Migration notes, and the root and site migration guides
+  - The web copy and identifiers are hard-cut.
+  - Permission labels now read Accept edits, Auto-review and Full access.
+  - Agent setup now reads Setup, Instructions, Heartbeat, Memory and Tools.
+
 ## Open transcript file paths in the editor — 2026-11-03
 
 Owner: spec `.compozy/tasks/open-paths-in-editor/` (issue #1167). Additive across every public

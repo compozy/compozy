@@ -11,7 +11,7 @@ function LoadedEditor({
   ...props
 }: AgentEditorProps & { payload: AgentHeartbeatPayload }) {
   const model = useCheckInsEditor(props.agent, props.workspace, payload, props.readOnly);
-  const guard = useUnsavedGuard({ dirty: model.document.changes > 0, entityName: "Check-ins" });
+  const guard = useUnsavedGuard({ dirty: model.document.changes > 0, entityName: "Heartbeat" });
   return (
     <>
       <AgentCheckInsView
@@ -33,5 +33,5 @@ export function AgentCheckInsEditor(props: AgentEditorProps) {
       <EditorLoadError onRetry={() => void heartbeat.refetch()} title="Couldn't load this page" />
     );
   }
-  return <EditorLoading label="Loading check-ins" />;
+  return <EditorLoading label="Loading heartbeat" />;
 }

@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .cache/qa-labs/compozy-pr-531-profile-scopes-20260902-170122-478233-lab/qa-artifacts/qa/notes/skill-gate.md; .cache/gate/logs/go-test-1788369547-28708.log; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence: .cache/qa-labs/compozy-pr-531-profile-scopes-20260902-170122-478233-lab/qa-artifacts/qa/notes/skill-gate.md; .cache/gate/logs/go-test-1788369547-28708.log; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: ET-001; ET-002; ET-003
 ---
@@ -45,9 +45,9 @@ QA impact 2026-09-02: profile-aware extension tool discovery changed the `requir
 
 2026-09-02: `pass` — the named-Profile catalog offered the skill, the default Profile reported the exact missing-tool reason, and disable/enable changed the following catalog projection without restarting the daemon.
 
-Stays-on hardening, 2026-11-03 — operator review before discovery:
+Always-on hardening, 2026-11-03 — operator review before discovery:
 
-1. In an isolated stays-on session, call `compozy__agent_skill_propose` with a new procedure.
+1. In an isolated always-on session, call `compozy__agent_skill_propose` with a new procedure.
 2. Confirm the native review is pending and the instance has a linked proposal report. Neither
    the session catalog nor the workspace skill scan may offer the pending draft.
 3. Inspect it with `compozy agent skill review show`. Confirm automatic contents and exact files
@@ -60,4 +60,4 @@ Focused backend owner: `TestInstanceSkillApprovalIntegration` (native proposal, 
 real ACP session and canonical offer-time catalog). Shared HTTP/UDS decision and paging boundaries:
 `TestAgentSkillReviews`. Web report-card interaction remains a separate UI scenario check.
 
-QA verification 2026-11-03 (stays-on hardening, soh/qa 583415ef5, isolated acpmock lab): Pass. A stays-on main called `compozy__agent_skill_propose` (`release-checklist` with `scripts/verify.sh`), which produced pending review `skr-c8734f73f505256e` with `runs_automatically.scripts=1` and a linked proposal card. `compozy agent skill review show` listed SKILL.md, references/notes.md and scripts/verify.sh. Pending drafts were absent from `compozy skill list`. With the main's agent credentials, approve and reject both returned 403 `skill_review_operator_only`. A stale digest returned `skill_review_stale` (CLI, and HTTP 409). An HTTP approve with the shown digest approved `deploy-notes`, and a fresh `curator` session's commands offered it. A rejected `scratch-notes`, proposed again with the same contents, stayed `rejected` with no new pending review. Evidence: `skill-decisions.txt`, `skill-catalog.txt`.
+QA verification 2026-11-03 (always-on hardening, soh/qa 583415ef5, isolated acpmock lab): Pass. An always-on main called `compozy__agent_skill_propose` (`release-checklist` with `scripts/verify.sh`), which produced pending review `skr-c8734f73f505256e` with `runs_automatically.scripts=1` and a linked proposal card. `compozy agent skill review show` listed SKILL.md, references/notes.md and scripts/verify.sh. Pending drafts were absent from `compozy skill list`. With the main's agent credentials, approve and reject both returned 403 `skill_review_operator_only`. A stale digest returned `skill_review_stale` (CLI, and HTTP 409). An HTTP approve with the shown digest approved `deploy-notes`, and a fresh `curator` session's commands offered it. A rejected `scratch-notes`, proposed again with the same contents, stayed `rejected` with no new pending review. Evidence: `skill-decisions.txt`, `skill-catalog.txt`.

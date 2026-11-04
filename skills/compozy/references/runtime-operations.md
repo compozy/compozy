@@ -624,13 +624,13 @@ and the carried context was sent instead. A failed clone request yields `seed: r
 
 ### Session attention and pending interactions
 
-For Stays on approval relay, use `compozy session pending <main-session-id> --descendants -o json`
+For always-on approval relay, use `compozy session pending <main-session-id> --descendants -o json`
 or `compozy__session_pending_interactions` with `session_id`, `workspace`, and `descendants: true`.
 HTTP/UDS expose the same read at
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions?descendants=true`.
 Keep each returned original `session_id` and `provider_request_id` when answering. Optional
 `expires_at` is the stored deadline; an absent value does not imply an unlimited wait.
-Instance sessions and descendants resolve `agents.stays_on.approval_timeout` per request
+Instance sessions and descendants resolve `agents.always_on.approval_timeout` per request
 (default 12h, range 1m–72h); ordinary sessions retain their existing approval waits.
 Held permissions prevent inactivity termination. Expiry denies and records an instance report;
 restart interruption records its report once. Read current state before answering a stale request.
@@ -1857,7 +1857,7 @@ for real checks. The same profile and workspace boundaries as instance reads app
 
 ### Unattended turn limit
 
-Configure `agents.stays_on.unattended_turn_limit` (default `300`, `0` disables)
+Configure `agents.always_on.unattended_turn_limit` (default `300`, `0` disables)
 and restart the daemon to apply it. Negative values fail validation. The counter
 tracks non-human turns on an instance lineage and each reported or failed check.
 Quiet checks and cancelled checks do not count; a replayed finalization does not
@@ -1878,7 +1878,7 @@ The instance list envelope includes `max_active_instances` and `active_count` fo
 the selected profile. The count includes starting and active instances across all
 workspaces, independent of list filters and pagination. `fatigue_limit` reflects
 `agents.heartbeat.fatigue_limit`; the active limit reflects
-`agents.stays_on.max_active_instances`. Clients should use these values for capacity
+`agents.always_on.max_active_instances`. Clients should use these values for capacity
 and fatigue messaging instead of assuming the defaults.
 
 Authenticated agent create/archive requests over HTTP or UDS require effective
@@ -1918,7 +1918,7 @@ failure reports, including work descending from a previous main session.
 
 Instance lifecycle hooks expose the pause cause as `reason`. Instance errors retain their
 stable machine codes alongside actionable messages; the limit message uses the configured
-`agents.stays_on.max_active_instances`. Human CLI mutation output identifies the agent and
+`agents.always_on.max_active_instances`. Human CLI mutation output identifies the agent and
 scope, and completed reported checks show proposal count and persisted delivery state.
 
 Triage sessions are internal: public session lists omit them and public by-ID session
@@ -1931,7 +1931,7 @@ retain approval requirements; `deny-all` still requires approval for every call.
 
 A repeated timer request in the same session with the same description and a
 deadline within one second reuses the active monitor. A successfully admitted
-monitor wake does not trigger an additional stays-on check; `monitors_fired`
+monitor wake does not trigger an additional always-on check; `monitors_fired`
 collects only undelivered and interrupted wakes.
 
 Instance reads expose optional `next_wake` with `kind`, `description`, and an
@@ -1940,23 +1940,30 @@ none has a time, an active monitor can still supply its description without
 an invented timestamp. `next_wake_at` remains the check schedule. The `now`
 field is empty unless the main session is working.
 
-Stays-on mains and their descendants receive daemon-composed doctrine about
+Always-on mains and their descendants receive daemon-composed doctrine about
 authorization, bounded follow-ups, daemon monitors, refusal handling, delegation,
 and durable context. Session identity and ancestry select it, not the agent name
 or Orchestrator role. Only the main receives the direction to start Goals in
-another session. This guidance does not itself enforce Goal refusal.
+another session. This guidance does not itself enforce Goal refusal. The startup
+section is `always_on_doctrine`, wrapped in `<compozy-always-on-doctrine>`.
+
+Instance, memory, and skill-proposal calls on an on-demand agent fail with
+`agent_not_always_on`. An instance paused because its agent became on-demand
+reports `pause_reason: "definition_not_always_on"`, and the `agent.instance.*`
+hook payload `reason` carries the same value. The v0.5.0 spellings are listed in
+"Identity and kind" in `references/agent-definitions.md`.
 
 The first prompt after a completed provider compaction includes a short notice
 and full situation sections. Subsequent prompts reuse unchanged sections again.
 This applies to all sessions and does not request compaction or replay input.
 
-When known context usage reaches `agents.stays_on.rotation_threshold`, the
-current stays-on main receives one reminder on its next prompt to preserve
+When known context usage reaches `agents.always_on.rotation_threshold`, the
+current always-on main receives one reminder on its next prompt to preserve
 durable facts and its next step. A usage drop re-arms the reminder and restores
 full situation sections. Unknown usage sends no reminder, and this mechanism
 starts no turn.
 
-Goal `set` and `replace` on the current stays-on main return
+Goal `set` and `replace` on the current always-on main return
 `goal_on_instance_main`; start the Goal in another session. Existing Goals keep
 their status and lifecycle controls. An active Goal also blocks main-session
 rotation until it settles.
@@ -1968,7 +1975,7 @@ dependency gate; a deferred report lists blocking dependencies, and reconciliati
 retries on later ticks. Active monitors, queued input, and active Goals can keep
 an exhausted main blocked until the operator resolves them.
 
-### Addressing stays-on peers
+### Addressing always-on peers
 
 During a work turn, `compozy__session_prompt` accepts either `session_id` or `agent` plus the normal
 `workspace` selector. The latter resolves the current main transactionally with admission, including
@@ -1985,3 +1992,32 @@ Read reachable peers with `compozy agent instance list --peers` or
 The `peers` array carries only the addressable `name`, `description`, `scope` and `state`.
 Workspace access filters rows before pagination. Omit workspace to inspect reachable scopes in the
 current profile, and retain filters with each `next_cursor`. No roster is injected into prompts.
+
+## Daemon profiles (experimental)
+
+Capture profiles from the running local daemon without restarting it:
+
+```bash
+compozy daemon profile cpu --seconds 30 --file cpu.pprof -o json
+compozy daemon profile heap --file heap.pprof
+compozy daemon profile goroutine --file goroutine.pprof
+go tool pprof -top cpu.pprof
+go tool pprof -http :0 cpu.pprof
+go tool pprof -tagfocus session_id=sess-example cpu.pprof
+```
+
+The experimental `GET /api/daemon/profile/{kind}` route exists only on UDS, never HTTP or
+Gateway listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
+`threadcreate`. CPU, mutex and block use `seconds` (default 30, range 1–120); snapshots
+reject `seconds`. A concurrent CPU capture returns `409 profile_busy`; mutex/block
+captures share a separate exclusive sampling window. Cancellation stops sampling.
+Mutex/block sampling is off outside capture windows; returned contention counters are
+runtime-cumulative, including earlier sampled windows. Heap/allocs use Go's default
+memory sampling. No background collector or profiling configuration is added.
+
+Labels are enabled during captures on session event processing, ACP callbacks, native tool
+dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`, `provider`,
+`tool`, `route` (route templates), and fixed `operation` names. They never contain prompts,
+file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
+allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
+artifact atomically; `-o json` reports its kind and path, not the binary payload.

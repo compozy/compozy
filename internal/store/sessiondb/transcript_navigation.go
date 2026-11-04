@@ -185,7 +185,7 @@ func readTranscriptNavigation(ctx context.Context, db *sql.DB, read func(*sqlcge
 	if err := read(sqlcgen.New(tx)); err != nil {
 		return fmt.Errorf("store: read transcript navigation: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
+	if err := commitTranscriptRead(ctx, tx); err != nil {
 		return fmt.Errorf("store: commit transcript navigation: %w", err)
 	}
 	return nil

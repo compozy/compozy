@@ -24,12 +24,11 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 			),
 			func(refreshCtx context.Context) error {
 				state.workspaceResolver.InvalidateAll()
+				var syncErr error
 				if agentSkillResources != nil {
-					if err := agentSkillResources.Sync(refreshCtx); err != nil {
-						return err
-					}
+					syncErr = agentSkillResources.Sync(refreshCtx)
 				}
-				return hookBindings.Sync(refreshCtx)
+				return errors.Join(syncErr, hookBindings.Sync(refreshCtx))
 			},
 		)
 		cleanup.add(func(cleanupCtx context.Context) error {

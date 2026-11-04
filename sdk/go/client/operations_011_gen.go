@@ -11,6 +11,48 @@ import (
 	"strings"
 )
 
+// GetLoopInputDefault Get one scoped Loop input default
+func (c *Client) GetLoopInputDefault(ctx context.Context, params GetLoopInputDefaultParams) (*LoopInputDefaultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopInputDefaultResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopInputDefaultsParams carries the path, query, and header parameters.
+type GetLoopInputDefaultsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Scope       string `url:"scope"`
+}
+
+// GetLoopInputDefaults Get one scoped Loop input-default table
+func (c *Client) GetLoopInputDefaults(ctx context.Context, params GetLoopInputDefaultsParams) (*LoopInputDefaultsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopInputDefaultsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetLoopRequestParams carries the path, query, and header parameters.
 type GetLoopRequestParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -404,40 +446,4 @@ type GetProfileSelectionsParams struct {
 type GetProfileSelectionsFrame struct {
 	Raw        json.RawMessage
 	StatusCode int `json:"-"`
-}
-
-var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
-
-var _ json.Marshaler = GetProfileSelectionsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
-	f.StatusCode = status
-}
-
-// AsVariant1 decodes this payload as Variant1.
-func (f GetProfileSelectionsFrame) AsVariant1() (*[]ProfileSelection, error) {
-	var out []ProfileSelection
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsProfileSelection decodes this payload as ProfileSelection.
-func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, error) {
-	var out ProfileSelection
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

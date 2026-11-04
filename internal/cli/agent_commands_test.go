@@ -1149,16 +1149,16 @@ func TestAgentIdentityFlags(t *testing.T) {
 		t.Parallel()
 		cmd := newAgentCreateCommand(commandDeps{})
 		if err := cmd.ParseFlags(
-			[]string{"--display-name", "Triage Lead", "--kind", "stays_on", "--appearance-emoji", "🦊"},
+			[]string{"--display-name", "Triage Lead", "--kind", "always_on", "--appearance-emoji", "🦊"},
 		); err != nil {
 			t.Fatal(err)
 		}
-		f := agentDefinitionFlags{displayName: "Triage Lead", kind: "stays_on", emoji: "🦊"}
+		f := agentDefinitionFlags{displayName: "Triage Lead", kind: "always_on", emoji: "🦊"}
 		p := contract.CreateAgentPayload{Name: "triage"}
 		if err := applyAgentIdentityFlags(cmd, &p, f); err != nil {
 			t.Fatal(err)
 		}
-		if p.DisplayName == nil || *p.DisplayName != "Triage Lead" || p.Kind != "stays_on" ||
+		if p.DisplayName == nil || *p.DisplayName != "Triage Lead" || p.Kind != "always_on" ||
 			p.Appearance["avatar"] != "emoji" {
 			t.Fatalf("identity flags: %#v", p)
 		}
@@ -1172,8 +1172,8 @@ func TestAgentInstanceCommands(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"create", []string{"create", "triage"}, "Triage Lead is stays-on in Global\nMain session: sess-main\n"},
-		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is stays-on in Global\nMain session: sess-main\n"},
+		{"create", []string{"create", "triage"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
+		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
 		{"pause", []string{"pause", "ainst-test"}, "Triage Lead paused in Global\n"},
 		{"resume", []string{"resume", "ainst-test"}, "Triage Lead resumed in Global\n"},
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
@@ -1658,4 +1658,78 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAgentKindFlagAlias owns UT-010, UT-011 and the UT-012 help text: --kind stays_on is sent as
+// always_on with a stderr warning, never trips the immutability check, and help names always_on.
+func TestAgentKindFlagAlias(t *testing.T) {
+	t.Parallel()
+
+	const warning = "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)"
+	t.Run("Should send always_on for a stays_on create and warn", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		cmd := newAgentCreateCommand(newTestDeps(t, client))
+		var stderr bytes.Buffer
+		cmd.SetErr(&stderr)
+		if err := cmd.ParseFlags([]string{"--kind", "stays_on", "--prompt", "Watch."}); err != nil {
+			t.Fatal(err)
+		}
+		request, err := createAgentRequestFromFlags(
+			cmd, newTestDeps(t, client), client, "triage", agentDefinitionFlags{kind: "stays_on", prompt: "Watch."},
+		)
+		if err != nil {
+			t.Fatalf("createAgentRequestFromFlags() error = %v", err)
+		}
+		if request.Agent.Kind != "always_on" || !strings.Contains(stderr.String(), warning) {
+			t.Fatalf("kind = %q stderr = %q, want always_on and the warning", request.Agent.Kind, stderr.String())
+		}
+	})
+
+	for _, tc := range []struct {
+		name, kind, wantErr string
+		warns               bool
+	}{
+		{name: "Should accept stays_on on an always-on agent", kind: "stays_on", warns: true},
+		{name: "Should reject on_demand on an always-on agent", kind: "on_demand", wantErr: "agent_kind_immutable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return AgentRecord{Name: "triage", Kind: "always_on", Prompt: "Watch."}, nil
+			}}
+			cmd := newAgentUpdateCommand(newTestDeps(t, client))
+			var stderr bytes.Buffer
+			cmd.SetErr(&stderr)
+			if err := cmd.ParseFlags([]string{"--kind", tc.kind}); err != nil {
+				t.Fatal(err)
+			}
+			request, err := updateAgentRequestFromFlags(
+				cmd, client, "triage", "", "sha256:digest", agentDefinitionFlags{kind: tc.kind},
+			)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("updateAgentRequestFromFlags() error = %v, want %s", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil || request.Agent.Kind != "always_on" {
+				t.Fatalf("update = %+v, %v; want always_on", request.Agent.Kind, err)
+			}
+			if strings.Contains(stderr.String(), warning) != tc.warns {
+				t.Fatalf("stderr = %q, want warning=%v", stderr.String(), tc.warns)
+			}
+		})
+	}
+
+	t.Run("Should describe always_on in the --kind help", func(t *testing.T) {
+		t.Parallel()
+
+		flag := newAgentCreateCommand(commandDeps{}).Flags().Lookup("kind")
+		if flag == nil || flag.Usage != "Agent kind: on_demand (default) or always_on; fixed at creation" {
+			t.Fatalf("--kind usage = %#v", flag)
+		}
+	})
 }

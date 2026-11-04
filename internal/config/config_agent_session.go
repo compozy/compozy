@@ -7,7 +7,7 @@ import (
 
 // AgentsConfig holds authored agent context settings.
 type AgentsConfig struct {
-	StaysOn   StaysOnConfig   `toml:"stays_on"`
+	AlwaysOn  AlwaysOnConfig  `toml:"always_on"`
 	Soul      SoulConfig      `toml:"soul"`
 	Heartbeat HeartbeatConfig `toml:"heartbeat"`
 }

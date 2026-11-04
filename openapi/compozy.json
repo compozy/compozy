@@ -6149,8 +6149,10 @@
             "type": "array"
           },
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
             "enum": [
               "on_demand",
+              "always_on",
               "stays_on"
             ],
             "type": "string"
@@ -7386,6 +7388,12 @@
             "type": "string"
           },
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
+            "enum": [
+              "on_demand",
+              "always_on",
+              "stays_on"
+            ],
             "type": "string"
           },
           "model": {
@@ -7466,8 +7474,10 @@
       "DuplicateAgentRequest": {
         "properties": {
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
             "enum": [
               "on_demand",
+              "always_on",
               "stays_on"
             ],
             "type": "string"
@@ -48076,7 +48086,7 @@
             "description": "Request failed"
           }
         },
-        "summary": "Create a stays-on agent instance",
+        "summary": "Create an always-on agent instance",
         "tags": [
           "agents"
         ],
@@ -54282,7 +54292,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54425,7 +54435,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54570,7 +54580,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54713,7 +54723,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54856,7 +54866,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54990,7 +55000,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -55135,7 +55145,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -55280,7 +55290,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -55425,7 +55435,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -59643,6 +59653,97 @@
           "http",
           "uds"
         ]
+      }
+    },
+    "/api/daemon/profile/{kind}": {
+      "get": {
+        "operationId": "captureDaemonProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cpu",
+                "heap",
+                "allocs",
+                "goroutine",
+                "mutex",
+                "block",
+                "threadcreate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Capture window for cpu, mutex and block only; snapshot profiles reject this parameter",
+            "in": "query",
+            "name": "seconds",
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "maximum": 120,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Raw gzip-compressed pprof protobuf"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "daemon_profile_invalid: unsupported kind or duration"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "profile_busy: CPU or contention capture already active"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "profile_failed: capture canceled or failed"
+          }
+        },
+        "summary": "Capture a runtime profile over the local socket",
+        "tags": [
+          "diagnostics"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-auth": {
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "uds"
+        ],
+        "x-stability": "experimental"
       }
     },
     "/api/doctor": {
@@ -70754,7 +70855,7 @@
             }
           },
           {
-            "description": "Exclude stays-on main sessions from the page and its total",
+            "description": "Exclude always-on main sessions from the page and its total",
             "in": "query",
             "name": "exclude_instance_main",
             "schema": {
@@ -92361,7 +92462,7 @@
             }
           },
           {
-            "description": "Exclude stays-on main sessions from the page and its total",
+            "description": "Exclude always-on main sessions from the page and its total",
             "in": "query",
             "name": "exclude_instance_main",
             "schema": {

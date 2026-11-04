@@ -22,7 +22,7 @@ const ACTIVITY: Record<string, PlaceActivity> = {
         description: "Token migration is stuck. A review has been waiting since Tuesday.",
         told: true,
       },
-      { time: "10:30 to 13:00", title: "4 quiet check-ins" },
+      { time: "10:30 to 13:00", title: "4 quiet heartbeats" },
       {
         time: "10:00",
         title: "Told you about 1 thing",
@@ -39,7 +39,7 @@ const ACTIVITY: Record<string, PlaceActivity> = {
       { hour: 13, cell: "quiet" },
       { hour: 14, cell: "quiet" },
     ],
-    recent: [{ time: "09:00 to 14:00", title: "5 quiet check-ins" }],
+    recent: [{ time: "09:00 to 14:00", title: "5 quiet heartbeats" }],
   },
 };
 

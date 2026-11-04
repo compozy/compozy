@@ -157,7 +157,7 @@ describe("HEARTBEAT.md form", () => {
   });
 });
 
-describe("the floor and the next check-in", () => {
+describe("the floor and the next heartbeat", () => {
   it("Should stop at the configured floor, or the first stop without one", () => {
     expect(floorStop("15m")).toBe(1);
     expect(floorStop("20m")).toBe(2);
@@ -354,7 +354,7 @@ describe("check-in activity", () => {
   const now = new Date(2026, 10, 1, 14, 12);
   const at = (hour: number, minute = 0) => new Date(2026, 10, 1, hour, minute).toISOString();
 
-  it("Should not call a skipped check-in quiet", () => {
+  it("Should not call a skipped heartbeat quiet", () => {
     const { recent } = checkInActivity(
       [{ id: "c1", result: "skipped", reason: "heartbeat_invalid", created_at: at(9) }],
       now
@@ -388,7 +388,7 @@ describe("check-in activity", () => {
     expect(recent.map(item => item.title)).toEqual([
       "Couldn't finish",
       "Told you something",
-      "2 quiet check-ins",
+      "2 quiet heartbeats",
     ]);
     expect(recent[0]?.description).toBe("It ran out of time.");
     expect(recent[1]?.description).toBe("Tokens are stuck.");

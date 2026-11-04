@@ -1280,7 +1280,7 @@ func TestInstanceDefinitionReconciliation(t *testing.T) {
 		reason  string
 	}{
 		{"Should pause an instance whose definition was removed", agentinstance.ErrDefinitionMissing, "definition_missing"},
-		{"Should pause an instance whose definition became on demand", agentinstance.ErrNotStaysOn, "definition_not_stays_on"},
+		{"Should pause an instance whose definition became on demand", agentinstance.ErrNotAlwaysOn, "definition_not_always_on"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -3775,7 +3775,7 @@ func TestInstanceCheckGates(t *testing.T) {
 		failed                         bool
 	}{
 		{name: "Should skip an empty digest without dispatch", reason: "digest_empty"},
-		{name: "Should skip an on demand definition with heartbeat guidance", gate: "definition_not_stays_on", body: "Check work", reason: "definition_not_stays_on"},
+		{name: "Should skip an on demand definition with heartbeat guidance", gate: "definition_not_always_on", body: "Check work", reason: "definition_not_always_on"},
 		{name: "Should honor hook cancellation for timer and manual check", hook: "denied", body: "Check work", reason: hookCanceledReason},
 		{name: "Should count dispatcher errors as failures", body: "Check work", reason: "triage_failed", failed: true},
 	} {

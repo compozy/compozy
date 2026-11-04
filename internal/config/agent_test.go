@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -1896,13 +1897,13 @@ func TestAgentIdentityContract(t *testing.T) {
 		t.Parallel()
 		a, err := ParseAgentDef(
 			[]byte(
-				"---\nname: triage-lead\ndisplay_name: '  Triage Lead  '\ndescription: Watches issues\nkind: stays_on\nappearance:\n  version: 99\n  unknown: [one, two]\n---\nYou triage.\n",
+				"---\nname: triage-lead\ndisplay_name: '  Triage Lead  '\ndescription: Watches issues\nkind: always_on\nappearance:\n  version: 99\n  unknown: [one, two]\n---\nYou triage.\n",
 			),
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if a.Label() != "Triage Lead" || a.EffectiveKind() != AgentKindStaysOn {
+		if a.Label() != "Triage Lead" || a.EffectiveKind() != AgentKindAlwaysOn {
 			t.Fatalf("identity: %#v", a)
 		}
 		resolved, err := a.ResolveAppearance()
@@ -2119,7 +2120,7 @@ func TestAgentIdentityContract(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "AGENT.md")
 		_, err := CreateAgentDefFile(
 			path,
-			AgentDefinitionDraft{Name: "triage", Kind: AgentKindStaysOn, Prompt: "Triage."},
+			AgentDefinitionDraft{Name: "triage", Kind: AgentKindAlwaysOn, Prompt: "Triage."},
 			false,
 		)
 		if err != nil {
@@ -2130,7 +2131,7 @@ func TestAgentIdentityContract(t *testing.T) {
 			t.Fatalf("mutation: %v", err)
 		}
 		a, err := LoadAgentDefFile(path)
-		if err != nil || a.EffectiveKind() != AgentKindStaysOn {
+		if err != nil || a.EffectiveKind() != AgentKindAlwaysOn {
 			t.Fatalf("persisted: %#v %v", a, err)
 		}
 	})
@@ -2199,4 +2200,102 @@ func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
 			t.Fatal("unknown authority accepted")
 		}
 	})
+}
+
+// TestCanonicalAgentKind owns UT-001: the one alias function maps only stays_on and reports it.
+func TestCanonicalAgentKind(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name, input, kind string
+		deprecated        bool
+	}{
+		{"Should keep always_on", "always_on", "always_on", false},
+		{"Should map the stays_on alias", "stays_on", "always_on", true},
+		{"Should keep on_demand", "on_demand", "on_demand", false},
+		{"Should keep an empty kind", "", "", false},
+		{"Should return unknown kinds unchanged", "sometimes", "sometimes", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			kind, deprecated := CanonicalAgentKind(tc.input)
+			if kind != tc.kind || deprecated != tc.deprecated {
+				t.Fatalf(
+					"CanonicalAgentKind(%q) = %q, %v; want %q, %v",
+					tc.input,
+					kind,
+					deprecated,
+					tc.kind,
+					tc.deprecated,
+				)
+			}
+		})
+	}
+	if got := (AgentDef{}).EffectiveKind(); got != AgentKindOnDemand {
+		t.Fatalf("EffectiveKind() of empty kind = %q, want on_demand", got)
+	}
+}
+
+// TestAgentKindAliasLoad owns UT-002: the pure parser canonicalizes stays_on without logging, and
+// the path-aware loader warns once per path. It swaps the process-wide deprecation logger, so it
+// does not run in parallel.
+func TestAgentKindAliasLoad(t *testing.T) {
+	var logs bytes.Buffer
+	RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
+
+	for name, content := range map[string]string{
+		"yaml": "---\nname: triage\nkind: stays_on\n---\nWatch.\n",
+		"toml": "---\nname = \"triage\"\nkind = \"stays_on\"\n---\nWatch.\n",
+	} {
+		agent, err := ParseAgentDef([]byte(content))
+		if err != nil || agent.Kind != AgentKindAlwaysOn {
+			t.Fatalf("ParseAgentDef(%s) = %q, %v; want always_on", name, agent.Kind, err)
+		}
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("ParseAgentDef logged %q, want a pure parser", logs.String())
+	}
+
+	workspace := filepath.Join(t.TempDir(), ".compozy", "agents", "triage", agentDefName)
+	extension := filepath.Join(t.TempDir(), "extensions", "fixture", "agents", "triage", agentDefName)
+	for _, path := range []string{workspace, extension} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, path, "---\nname: triage\nkind: stays_on\n---\nWatch.\n")
+		for range 2 {
+			agent, err := LoadAgentDefFile(path)
+			if err != nil || agent.Kind != AgentKindAlwaysOn {
+				t.Fatalf("LoadAgentDefFile(%s) = %q, %v; want always_on", path, agent.Kind, err)
+			}
+		}
+		lines := 0
+		for line := range strings.SplitSeq(logs.String(), "\n") {
+			if strings.Contains(line, "path="+path) {
+				lines++
+				if !strings.Contains(line, "use always_on") || !strings.Contains(line, "v0.5.2") {
+					t.Fatalf("warning = %q, want always_on and v0.5.2", line)
+				}
+			}
+		}
+		if lines != 1 {
+			t.Fatalf("warnings for %s = %d, want 1\n%s", path, lines, logs.String())
+		}
+	}
+}
+
+// TestAgentKindInvalid owns UT-003: an unknown kind is rejected with the always_on message.
+func TestAgentKindInvalid(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAgentDef([]byte("---\nname: triage\nkind: sometimes\n---\nWatch.\n"))
+	if !errors.Is(err, ErrAgentKindInvalid) {
+		t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
+	}
+	err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
+	if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != "agent kind must be on_demand or always_on" {
+		t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
+	}
 }

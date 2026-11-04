@@ -21,8 +21,8 @@ import { useAgentDetail, type UseAgentDetailResult } from "./use-agent-detail";
 import { useAgentDetailTopbar } from "./use-agent-detail-topbar";
 
 const PAGE_TITLES: Record<AgentEditorPage, string> = {
-  "what-it-does": "What it does",
-  "check-ins": "Check-ins",
+  "what-it-does": "Instructions",
+  "check-ins": "Heartbeat",
   memory: "Memory",
   where: "Where it works",
   permissions: "Permissions",

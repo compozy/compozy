@@ -21,8 +21,8 @@ import {
   runtimeSelectorStoryProviders,
 } from "@/systems/runtime/components/stories/runtime-selector-story-fixtures";
 
-import { DraftUnsavedPill } from "../stays-on-agents-shared/draft-shell";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { DraftUnsavedPill } from "../always-on-agents-shared/draft-shell";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
 import { PlanCard } from "./profile-activity";
 import type { ProfilePanel } from "./profile-setup";
 
@@ -99,7 +99,7 @@ function ToolsBody({ readOnly, onDirty }: { readOnly: boolean; onDirty: () => vo
 
 const TITLES: Record<ProfilePanel, string> = {
   model: "Model",
-  tools: "What it can use",
+  tools: "Tools",
 };
 
 export function ProfilePanels({

@@ -27,3 +27,11 @@ must remain available. A reconciliation failure must prevent startup from servin
 The owning daemon reconstruction test passed with real SQLite; the targeted public discovery walk is recorded below.
 
 PR636 targeted public result 2026-09-14: retained ClawHub body/provenance, restart and hot local-MCP publication passed in steps 169–181 and 313–322. Manual/local resource canaries remained; callable/stale-row behavior retains owning daemon integration evidence. See docs/qa/reports/2026-09-14-marketplace-review-public.md.
+
+Review regression 2026-11-03: remove read permission from a nested directory of an installed
+marketplace skill, then edit a healthy sibling skill. Discovery and watcher snapshots must continue;
+only the unreadable skill is omitted. Restore permission and confirm that skill is published again
+without editing its definition or provenance. `TestDiscoverReusesParsedDefinitionsWithoutChange`
+exercises this sequence against real filesystem permissions; the daemon sync suite uses real SQLite
+to verify healthy publication and preservation of both projection and subsequent sync/trigger errors.
+A public CLI/browser re-walk is not part of this host-limited review validation.

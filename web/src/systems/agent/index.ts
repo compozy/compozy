@@ -363,7 +363,7 @@ export {
   useAgentInstancesState,
   useAgentInstanceInScope,
   useCreateAgentInstance,
-  useStaysOnAgents,
+  useAlwaysOnAgents,
 } from "./hooks/use-agent-instances";
 export {
   agentPauseCopy,

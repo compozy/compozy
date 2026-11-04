@@ -18,7 +18,7 @@ export type OperatorNotificationEventPayload = Extract<
   { notification_id: string }
 >;
 export type SessionsQuery = OperationQuery<"listSessions"> & {
-  /** `_dx.md`: hides stays-on main sessions from rows, cards and counts. */
+  /** `_dx.md`: hides always-on main sessions from rows, cards and counts. */
   exclude_instance_main?: boolean;
 };
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;

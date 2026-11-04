@@ -92,3 +92,95 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 		})
 	}
 }
+
+// TestProductLanguageGuardAgentKind owns UT-020: Rule A keeps stays_on and CanonicalAgentKind at
+// the listed production alias files, and Rule B keeps the retired word off public surfaces. Each
+// fixture is classified as the repository-relative path it stands for.
+func TestProductLanguageGuardAgentKind(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, as, content string
+		allowed           bool
+	}{
+		{name: "Should reject stays_on in daemon production code", as: "internal/daemon/x.go",
+			content: "package daemon\n\nconst kind = \"stays_on\"\n"},
+		{name: "Should reject a CanonicalAgentKind call outside the boundary", as: "internal/daemon/x.go",
+			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
+		{name: "Should allow the alias in the identity file", as: "internal/config/agent_identity.go", allowed: true,
+			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
+		{name: "Should allow stays_on fixtures in tests", as: "internal/config/agent_test.go", allowed: true,
+			content: "package config\n\nconst fixture = \"stays_on\"\n"},
+		{name: "Should reject the upper-case spelling", as: "internal/daemon/x.go",
+			content: "package daemon\n\nconst STAYS_ON = 1\n"},
+		{name: "Should reject the retired word in web copy", as: "web/src/x.tsx",
+			content: "export const label = \"stays-on\";\n"},
+		{name: "Should allow the English phrase", as: "web/src/x.tsx", allowed: true,
+			content: "// the window stays on top\n"},
+		{name: "Should allow generated release notes", as: "RELEASE_NOTES.md", allowed: true,
+			content: "Renamed stays_on to always_on.\n"},
+		{name: "Should allow the site mirror of the migration guide",
+			as: "packages/site/content/docs/migration/index.mdx", allowed: true,
+			content: "Change `kind: stays_on` to `kind: always_on`.\n"},
+		{name: "Should reject the retired word in QA scenarios", as: "docs/qa/scenarios/X.md",
+			content: "Open the stays-on row.\n"},
+		{name: "Should allow history identifiers in QA scenarios", as: "docs/qa/scenarios/X.md", allowed: true,
+			content: "id: MS-web-stays-on-placement\nlast_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md\n" +
+				"bug_ids: BUG-20261103-link-trigger-stays-on-scope\n"},
+		{name: "Should reject prose next to a history identifier", as: "docs/qa/scenarios/X.md",
+			content: "See MS-web-stays-on-reports, then open the stays-on row.\n"},
+		{name: "Should allow a charter history identifier in QA scenarios", as: "docs/qa/scenarios/X.md",
+			allowed: true, content: "charter: CH-web-stays-on-fleet\n"},
+		{name: "Should reject the retired word in another v0.5.1 release fragment",
+			as: ".release-notes/other-change-v0.5.1.md", content: "Stays-on agents now pause.\n"},
+		{name: "Should reject stays_on in the central agent loader", as: "internal/config/agent.go",
+			content: "package config\n\nconst kind = \"stays_on\"\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), filepath.Base(tc.as))
+			if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			command := exec.CommandContext(t.Context(), "bash", "check-product-language.sh", path)
+			command.Env = append(os.Environ(), "PRODUCT_LANGUAGE_PATH_AS="+tc.as)
+			output, err := command.CombinedOutput()
+			if tc.allowed {
+				if err != nil || !strings.Contains(string(output), "Product language is consistent") {
+					t.Fatalf("approved %s rejected: %v\n%s", tc.as, err, output)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(string(output), "Retired agent-kind vocabulary") ||
+				!strings.Contains(string(output), tc.as) {
+				t.Fatalf("retired kind in %s not reported: %v\n%s", tc.as, err, output)
+			}
+		})
+	}
+}
+
+// TestProductLanguageGuardAgentKindFailsClosed owns UT-020's fail-closed edge: a ripgrep error in
+// the retired-kind scan fails the guard instead of reading as "no match".
+func TestProductLanguageGuardAgentKindFailsClosed(t *testing.T) {
+	t.Parallel()
+	realRG, err := exec.LookPath("rg")
+	if err != nil {
+		t.Fatalf("rg is required: %v", err)
+	}
+	dir := t.TempDir()
+	wrapper := "#!/usr/bin/env bash\n" +
+		"for a in \"$@\"; do [[ \"$a\" == *CanonicalAgentKind* ]] && { echo 'rg: simulated failure' >&2; exit 2; }; done\n" +
+		"exec " + realRG + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "rg"), []byte(wrapper), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fixture := filepath.Join(dir, "x.md")
+	if err := os.WriteFile(fixture, []byte("Plain copy.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), "bash", "check-product-language.sh", fixture)
+	command.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "Retired agent-kind scan (Rule A) failed") {
+		t.Fatalf("rg failure did not fail the guard: %v\n%s", err, output)
+	}
+}

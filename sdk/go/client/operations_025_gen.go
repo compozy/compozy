@@ -6,9 +6,69 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// MintTerminalAttachTicketParams carries the path, query, and header parameters.
+type MintTerminalAttachTicketParams struct {
+	WorkspaceID             string  `url:"workspace_id"`
+	ID                      string  `url:"id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
+}
+
+// MintTerminalAttachTicket Mint a single-use terminal attach ticket
+func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	if params.XCompozyClientToken != nil {
+		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
+	}
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalAttachTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionParams carries the path, query, and header parameters.
+type MoveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MoveSession Move a session into a folder or back to the workspace root
+func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // MoveSessionToLaterParams carries the path, query, and header parameters.
 type MoveSessionToLaterParams struct {
@@ -378,66 +438,4 @@ func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfile
 type PrepareWorktreeExitPlanParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	WorktreeID  string `url:"worktree_id"`
-}
-
-// PrepareWorktreeExitPlan Resolve forge capabilities and prepare the worktree exit plan
-func (c *Client) PrepareWorktreeExitPlan(ctx context.Context, params PrepareWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	var out WorktreeExitPlanResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewExtensionEnableParams carries the path, query, and header parameters.
-type PreviewExtensionEnableParams struct {
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// PreviewExtensionEnable Preview one extension enablement change
-func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExtensionEnableParams) (*ExtensionEnablePreviewPayload, error) {
-	path := "/api/extensions/{name}/preview"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionEnablePreviewPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewExtensionInstallParams carries the path, query, and header parameters.
-type PreviewExtensionInstallParams struct {
-	Profile *string `url:"profile"`
-}
-
-// PreviewExtensionInstall Preview an extension install without changing state
-func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
-	path := "/api/extensions/preview-install"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInstallPreviewPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

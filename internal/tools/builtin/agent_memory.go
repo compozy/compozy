@@ -13,10 +13,10 @@ func agentMemoryDescriptors() []toolspkg.Descriptor {
 		name, title, description, schema string
 		read                             bool
 	}{
-		{toolspkg.ToolIDAgentMemoryAdd, "agent_memory_add", "Add Agent Memory", "Save a dated, source-scoped note in the calling stays-on agent's memory. Experimental.", `{"type":"object","required":["text"],"properties":{"text":{"type":"string","minLength":1,"maxLength":1000},"until":{"type":"string","format":"date"}},"additionalProperties":false}`, false},
-		{toolspkg.ToolIDAgentMemoryReplace, "agent_memory_replace", "Replace Agent Memory", "Replace matching text in the calling stays-on agent's memory. Experimental.", `{"type":"object","required":["match","text"],"properties":{"match":{"type":"string","minLength":1},"text":{"type":"string","minLength":1,"maxLength":1000}},"additionalProperties":false}`, false},
-		{toolspkg.ToolIDAgentMemoryRemove, "agent_memory_remove", "Remove Agent Memory", "Remove matching notes from the calling stays-on agent's memory. Experimental.", `{"type":"object","required":["match"],"properties":{"match":{"type":"string","minLength":1}},"additionalProperties":false}`, false},
-		{toolspkg.ToolIDAgentMemorySearch, "agent_memory_search", "Search Agent Memory", "Search the calling stays-on agent's current and archived notes. Experimental.", `{"type":"object","required":["query"],"properties":{"query":{"type":"string","minLength":1},"include_sessions":{"type":"boolean","default":false}},"additionalProperties":false}`, true},
+		{toolspkg.ToolIDAgentMemoryAdd, "agent_memory_add", "Add Agent Memory", "Save a dated, source-scoped note in the calling always-on agent's memory. Experimental.", `{"type":"object","required":["text"],"properties":{"text":{"type":"string","minLength":1,"maxLength":1000},"until":{"type":"string","format":"date"}},"additionalProperties":false}`, false},
+		{toolspkg.ToolIDAgentMemoryReplace, "agent_memory_replace", "Replace Agent Memory", "Replace matching text in the calling always-on agent's memory. Experimental.", `{"type":"object","required":["match","text"],"properties":{"match":{"type":"string","minLength":1},"text":{"type":"string","minLength":1,"maxLength":1000}},"additionalProperties":false}`, false},
+		{toolspkg.ToolIDAgentMemoryRemove, "agent_memory_remove", "Remove Agent Memory", "Remove matching notes from the calling always-on agent's memory. Experimental.", `{"type":"object","required":["match"],"properties":{"match":{"type":"string","minLength":1}},"additionalProperties":false}`, false},
+		{toolspkg.ToolIDAgentMemorySearch, "agent_memory_search", "Search Agent Memory", "Search the calling always-on agent's current and archived notes. Experimental.", `{"type":"object","required":["query"],"properties":{"query":{"type":"string","minLength":1},"include_sessions":{"type":"boolean","default":false}},"additionalProperties":false}`, true},
 	} {
 		risk := toolspkg.RiskMutating
 		if item.read {

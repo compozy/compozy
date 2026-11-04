@@ -125,7 +125,7 @@ func queryTranscriptPage(
 	if page.HasOlder && len(entries) > 0 {
 		page.NextBeforeSequence = entries[0].StartSequence
 	}
-	if err := tx.Commit(); err != nil {
+	if err := commitTranscriptRead(ctx, tx); err != nil {
 		return transcript.Page{}, fmt.Errorf("store: commit transcript page read: %w", err)
 	}
 	return page, nil
@@ -231,10 +231,18 @@ func queryTranscriptChanges(
 	} else {
 		page.NextAfter = query.AfterSequence
 	}
-	if err := tx.Commit(); err != nil {
+	if err := commitTranscriptRead(ctx, tx); err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: commit transcript changes read: %w", err)
 	}
 	return page, nil
+}
+
+func commitTranscriptRead(ctx context.Context, tx *sql.Tx) error {
+	err := tx.Commit()
+	if errors.Is(err, sql.ErrTxDone) && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
 }
 
 func materializedChangeEntries(

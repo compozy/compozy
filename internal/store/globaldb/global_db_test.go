@@ -476,7 +476,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_schema.sql"))
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -115,6 +115,14 @@ func TestFromPath(t *testing.T) {
 func TestEqual(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should never reuse snapshots of unreadable entries", func(t *testing.T) {
+		t.Parallel()
+		snapshot := Uncacheable()
+		if snapshot.Equal(Uncacheable()) {
+			t.Fatal("uncacheable entry compared equal")
+		}
+	})
+
 	modTime := time.Date(2026, 4, 6, 22, 30, 0, 0, time.UTC)
 
 	t.Run("Should report equal maps as equal", func(t *testing.T) {

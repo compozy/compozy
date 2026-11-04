@@ -272,7 +272,7 @@ func (s *CatalogService) persistSourceRows(
 		}
 		status := sourceStatus(source, provider, now, len(providerRows), stale, lastError, state)
 		if stale {
-			if err := s.carryPriorFailureState(ctx, provider, executionContext, &status); err != nil {
+			if _, err := s.carryPriorFailureState(ctx, provider, executionContext, &status, false); err != nil {
 				return nil, err
 			}
 		}

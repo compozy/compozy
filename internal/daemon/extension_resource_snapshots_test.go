@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -456,3 +458,71 @@ func TestAgentSidecarsResolveAgentsWithinTheSameResourceScope(t *testing.T) {
 
 var _ extensionRuntime = (*resourceSnapshotRuntime)(nil)
 var _ scopedExtensionRuntime = (*resourceSnapshotRuntime)(nil)
+
+type profileProjectionFailureRuntime struct {
+	*fakeExtensionRuntime
+	failures map[string]error
+}
+
+func (r *profileProjectionFailureRuntime) ProjectForProfile(
+	_ context.Context,
+	key extensionpkg.InstanceKey,
+	_ extensionpkg.ProfileLens,
+) (*extensionpkg.Extension, bool, error) {
+	if err := r.failures[key.Name]; err != nil {
+		return nil, false, err
+	}
+	return &extensionpkg.Extension{
+		Info:     extensionpkg.ExtensionInfo{Name: key.Name, Enabled: true},
+		Status:   extensionpkg.ExtensionStatus{Name: key.Name, Enabled: true, Registered: true},
+		Manifest: &extensionpkg.Manifest{Name: key.Name, Format: extensionpkg.FormatCompozy},
+	}, true, nil
+}
+
+func TestExtensionProfileResourceSnapshotsIsolateProjectionFailures(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep healthy extensions and report only the broken extension until it recovers", func(t *testing.T) {
+		t.Parallel()
+
+		registry := extensionpkg.NewRegistry(openDaemonTestGlobalDB(t).DB())
+		rootErr := errors.New("extension: resolve resource root symlink: missing root")
+		runtime := &profileProjectionFailureRuntime{
+			fakeExtensionRuntime: &fakeExtensionRuntime{},
+			failures:             map[string]error{"broken-kit": rootErr},
+		}
+		infos := []extensionpkg.ExtensionInfo{{Name: "broken-kit"}, {Name: "healthy-kit"}}
+
+		snapshots, err := extensionProfileResourceSnapshots(t.Context(), registry, runtime, infos, nil)
+		if !errors.Is(err, rootErr) || !isExtensionProjectionError(err) ||
+			!strings.Contains(err.Error(), `"broken-kit"`) {
+			t.Fatalf("extensionProfileResourceSnapshots() error = %v, want isolated broken-kit failure", err)
+		}
+		if len(snapshots) != 1 || snapshots[0].extension.Info.Name != "healthy-kit" {
+			t.Fatalf("extensionProfileResourceSnapshots() = %#v, want only healthy-kit", snapshots)
+		}
+
+		delete(runtime.failures, "broken-kit")
+		snapshots, err = extensionProfileResourceSnapshots(t.Context(), registry, runtime, infos, nil)
+		if err != nil || len(snapshots) != 2 {
+			t.Fatalf("extensionProfileResourceSnapshots() after recovery = %d snapshots, %v; want 2, nil", len(snapshots), err)
+		}
+	})
+
+	t.Run("Should stop on cancellation instead of isolating it", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		runtime := &profileProjectionFailureRuntime{
+			fakeExtensionRuntime: &fakeExtensionRuntime{},
+			failures:             map[string]error{"broken-kit": context.Canceled},
+		}
+		_, err := installedExtensionProfileSnapshots(
+			ctx, runtime, []extensionpkg.ExtensionInfo{{Name: "broken-kit"}},
+			[]extensionpkg.ProfileLens{{ID: "default", Name: "default"}},
+		)
+		if !errors.Is(err, context.Canceled) || isExtensionProjectionError(err) {
+			t.Fatalf("installedExtensionProfileSnapshots() error = %v, want bare cancellation", err)
+		}
+	})
+}

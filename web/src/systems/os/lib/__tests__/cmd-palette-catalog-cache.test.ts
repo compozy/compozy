@@ -7,7 +7,7 @@
 // Boundary OUT: hydration policy, availability evaluation, and network reads.
 import "fake-indexeddb/auto";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   dropCatalogRecord,
@@ -123,6 +123,7 @@ describe("cmd-palette catalog record", () => {
 });
 
 describe("cmd-palette catalog cache", () => {
+  afterEach(() => vi.restoreAllMocks());
   beforeEach(async () => {
     await clearStore();
   });
@@ -135,6 +136,19 @@ describe("cmd-palette catalog cache", () => {
       "window.close",
       "shortcuts.cheatsheet",
     ]);
+  });
+
+  it("Should persist an identical catalog only once across connections and concurrent writers", async () => {
+    const put = vi.spyOn(IDBObjectStore.prototype, "put");
+    const record = toCatalogRecord(WORKSPACE, "default", servedCatalog());
+    await Promise.all([writeCatalogRecord(record), writeCatalogRecord(structuredClone(record))]);
+    await writeCatalogRecord(structuredClone(record));
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(await readCatalogRecord(WORKSPACE, "default")).toEqual(record);
+    const changed = { ...record, catalogRevision: "sha256:catalog-2" };
+    await writeCatalogRecord(changed);
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(await readCatalogRecord(WORKSPACE, "default")).toEqual(changed);
   });
 
   it("Should keep one bounded record per workspace", async () => {

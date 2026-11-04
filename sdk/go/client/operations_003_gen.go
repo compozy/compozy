@@ -228,6 +228,30 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }
 
+// CaptureDaemonProfileParams carries the path, query, and header parameters.
+type CaptureDaemonProfileParams struct {
+	Kind    string `url:"kind"`
+	Seconds *int   `url:"seconds"`
+}
+
+// CaptureDaemonProfile Capture a runtime profile over the local socket Experimental: pin the exact SDK version.
+func (c *Client) CaptureDaemonProfile(ctx context.Context, params CaptureDaemonProfileParams) (*[]byte, error) {
+	path := "/api/daemon/profile/{kind}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	query := url.Values{}
+	if params.Seconds != nil {
+		query.Set("seconds", strconv.Itoa(*params.Seconds))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/octet-stream"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CheckAgentInstanceParams carries the path, query, and header parameters.
 type CheckAgentInstanceParams struct {
 	ID      string  `url:"id"`
@@ -417,24 +441,4 @@ func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams
 type CloseCmdPaletteViewSessionParams struct {
 	Session             string `url:"session"`
 	XCompozyClientToken string `url:"X-Compozy-Client-Token"`
-}
-
-// CloseCmdPaletteViewSession Close one programmable command palette view
-func (c *Client) CloseCmdPaletteViewSession(ctx context.Context, params CloseCmdPaletteViewSessionParams) (*CmdPaletteViewSessionClosed, error) {
-	path := "/api/cmd-palette/view-sessions/{session}"
-	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
-	var out CmdPaletteViewSessionClosed
-	if err := c.doContent(ctx, "DELETE", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompactSessionParams carries the path, query, and header parameters.
-type CompactSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

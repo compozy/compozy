@@ -2,7 +2,7 @@ import { LOOP_TARGET_KIND, type AutomationLoopTarget } from "./automation-drafts
 
 interface AutomationTargetSource {
   agent_name: string;
-  /** Optional for a stays-on agent target, whose check reads the event itself. */
+  /** Optional for an always-on agent target, whose check reads the event itself. */
   prompt?: string;
   target_kind?: string | null;
   loop_target?: AutomationLoopTarget | null;

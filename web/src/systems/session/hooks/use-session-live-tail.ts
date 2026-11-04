@@ -16,7 +16,6 @@ import {
   retainSessionStreamLiveness,
 } from "../lib/session-stream-liveness";
 import type { SessionTransportSnapshot } from "../lib/session-transport";
-import { useSessionWindowPresentation } from "./use-session-window-presentation";
 import {
   createSessionLiveTailRuntime,
   SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS,
@@ -44,8 +43,7 @@ export function useSessionLiveTail({
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
   const store = useStore(sessionLiveTailLogic);
-  const catalogDeltaRefreshMs =
-    useSessionWindowPresentation() === "window" ? 0 : SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS;
+  const catalogDeltaRefreshMs = SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS;
   const queryEnabled = sessionId.trim() !== "";
   const projectLiveEnabled = enabled && workspaceId.trim() !== "";
   const sessionState = useQuery({

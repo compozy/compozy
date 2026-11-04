@@ -10,6 +10,26 @@ import (
 	"strings"
 )
 
+// FailAgentTaskRun Fail a claimed task run for the calling agent
+func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunParams, body AgentTaskFailRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/fail"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FailTaskRunParams carries the path, query, and header parameters.
+type FailTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // FailTaskRun Fail one task run
 func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body FailTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/task-runs/{id}/fail"
@@ -406,34 +426,6 @@ func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHea
 
 // GetAgentInstanceParams carries the path, query, and header parameters.
 type GetAgentInstanceParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAgentInstance Get an agent instance
-func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceAwayParams carries the path, query, and header parameters.
-type GetAgentInstanceAwayParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`

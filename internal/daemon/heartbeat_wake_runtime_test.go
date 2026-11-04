@@ -1082,7 +1082,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 	if err != nil {
 		t.Fatal(err)
 	}
-	def.Kind = compozyconfig.AgentKindStaysOn
+	def.Kind = compozyconfig.AgentKindAlwaysOn
 	cfg := compozyconfig.DefaultWithHome(home)
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(registered.Command)
 	cfg.Agents.Heartbeat.Sources.Timeout = 10 * time.Second
@@ -1419,6 +1419,62 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		payload, err = api.Payload(t.Context(), h.instance)
 		if err != nil || len(payload.Sources) != 0 || resolver.reads.Load() != 4 {
 			t.Fatalf("source-free payload=%+v reads=%d err=%v", payload.Sources, resolver.reads.Load(), err)
+		}
+	})
+
+	// Invariant: production artifact policies invalidate on file identity or shipped body changes.
+	// Owner and canonical suite: daemon instance payload projection in heartbeat source runtime.
+	t.Run("Should refresh production artifact source declarations", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		resolver := &artifactInstancePolicyResolver{AgentResolver: h.env.definitions.agents}
+		h.env.definitions.agents = resolver
+		read := func(want string) {
+			t.Helper()
+			payload, err := h.env.definitions.instancePayload(t.Context(), h.instance, h.db.Instances())
+			if err != nil || len(payload.Sources) != 1 || payload.Sources[0].ID != want {
+				t.Fatalf("sources=%+v err=%v", payload.Sources, err)
+			}
+		}
+		read("s")
+		read("s")
+		path := filepath.Join(h.dir, "HEARTBEAT.md")
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = bytes.Replace(body, []byte("id: s"), []byte("id: x"), 1)
+		replacement := path + ".replacement"
+		if err := os.WriteFile(replacement, body, info.Mode()); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(replacement, info.ModTime(), info.ModTime()); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(replacement, path); err != nil {
+			t.Fatal(err)
+		}
+		read("x")
+		resolver.packageOwned = true
+		resolver.body = string(bytes.Replace(body, []byte("id: x"), []byte("id: y"), 1))
+		read("y")
+		read("y")
+		resolver.body = strings.Replace(resolver.body, "id: y", "id: z", 1)
+		read("z")
+	})
+
+	// Invariant: cancelled reads stop before resolving even a cached policy.
+	t.Run("Should cancel source declaration reads", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err := h.env.definitions.sourceDeclarations.resolve(ctx, h.env.definitions.agents, nil,
+			heartbeat.AuthoringTarget{})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err=%v", err)
 		}
 	})
 
@@ -2393,4 +2449,26 @@ func (r *countingInstancePolicyResolver) ResolveHeartbeatPolicy(
 ) (heartbeat.ResolvedPolicy, bool, error) {
 	r.reads.Add(1)
 	return heartbeat.ResolvedPolicy{}, false, nil
+}
+
+// artifactInstancePolicyResolver exercises the catalog artifact branch with real local files.
+type artifactInstancePolicyResolver struct {
+	session.AgentResolver
+	packageOwned bool
+	body         string
+}
+
+func (r *artifactInstancePolicyResolver) ResolveAgentArtifacts(
+	name string, workspace *workspacepkg.ResolvedWorkspace,
+) (session.AgentArtifacts, error) {
+	agent, err := r.ResolveAgent(name, workspace)
+	path := filepath.Join(filepath.Dir(agent.SourcePath), "HEARTBEAT.md")
+	if r.packageOwned {
+		path = ".compozy/bundles/source-agent/HEARTBEAT.md"
+	}
+	return session.AgentArtifacts{
+		Agent: agent, PackageOwned: r.packageOwned,
+		HeartbeatSourcePath: path,
+		HeartbeatBody:       r.body,
+	}, err
 }

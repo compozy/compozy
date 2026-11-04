@@ -17,8 +17,8 @@ export interface SessionListCreateMenuProps {
   onNewFolder?: () => void;
   /** Why folders cannot be added here; shows New folder disabled with the reason. */
   newFolderUnavailable?: string | null;
-  /** Adds the Add stays-on agent item; its overlay may ask where the agent lives first. */
-  onAddStaysOn?: () => void;
+  /** Adds the Add always-on agent item; its overlay may ask where the agent lives first. */
+  onAddAlwaysOn?: () => void;
   /** Rendered over the `+`: the picker that item opens. */
   overlay?: ReactNode;
   /** Accessible name of the single-action button and of the menu trigger. */
@@ -42,7 +42,7 @@ export function SessionListCreateMenu({
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
-  onAddStaysOn,
+  onAddAlwaysOn,
   overlay,
   label = DEFAULT_LABEL,
   variant = "secondary",
@@ -50,7 +50,7 @@ export function SessionListCreateMenu({
   className,
   testId,
 }: SessionListCreateMenuProps) {
-  if (!onNewFolder && !newFolderUnavailable && !onAddStaysOn) {
+  if (!onNewFolder && !newFolderUnavailable && !onAddAlwaysOn) {
     return (
       <Button
         type="button"
@@ -109,11 +109,11 @@ export function SessionListCreateMenu({
               )}
             </DropdownMenuItem>
           ) : null}
-          {onAddStaysOn ? (
-            <DropdownMenuItem data-testid={`${testId}-add-stays-on`} onClick={onAddStaysOn}>
+          {onAddAlwaysOn ? (
+            <DropdownMenuItem data-testid={`${testId}-add-always-on`} onClick={onAddAlwaysOn}>
               <Icon as={UserPlus} size="sm" />
               <span className="flex flex-col">
-                Add stays-on agent
+                Add always-on agent
                 <span className="text-eyebrow text-subtle">
                   Stays here and checks in on its own
                 </span>

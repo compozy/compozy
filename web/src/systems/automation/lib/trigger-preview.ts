@@ -212,7 +212,7 @@ function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>):
 }
 
 /**
- * The project a link lives in: only a link that tells a stays-on agent keeps one (the daemon then
+ * The project a link lives in: only a link that tells an always-on agent keeps one (the daemon then
  * serves it under `/api/webhooks/workspaces/{workspace_id}/…`); every other link is global.
  */
 function linkWorkspace(draft: Draft): string {

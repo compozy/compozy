@@ -213,6 +213,16 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 - Different filenames, different purposes. Do not conflate.
 - The standardization path (extension to AGENTS.md under AAIF, vs. standalone) is open per RFC 001 §6.6.
 
+### Always-on agent / On-demand agent
+
+The two agent kinds, set by the AGENT.md `kind` field and fixed at creation. Wire values are `on_demand` (the default; runs only when someone starts a session) and `always_on` (keeps a main session per scope and runs its Heartbeat). UI labels are "On-demand" and "Always-on", hyphenated as labels and before nouns ("an always-on agent"). Duplicating is how you switch kind.
+
+`stays_on` is the v0.5.0 spelling of `always_on`. Through v0.5.1 it is accepted on input (AGENT.md, `[agents.stays_on]`, `agents.stays_on.*` config paths, `--kind`, HTTP/UDS, and native tools) with a deprecation warning, and it is never emitted. It is removed in v0.5.2. The kind is a renamed wire value, not a UI alias, so it lives here and not in Surface Names.
+
+### `always_on` (skill source preset)
+
+A different concept from the agent kind: a boolean on a skill source preset meaning "always loaded" (`internal/config/skill_source_presets.go`). Settings → Skill sources keeps its own wording, and no agent copy reuses it.
+
 ---
 
 ## Identity
@@ -249,6 +259,10 @@ resources.
 ### `task_run`
 
 The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, the owning `session_id`, and the run's execution identity. **Never duplicated by a parallel queue.**
+
+### Heartbeat (task lease)
+
+The `heartbeat_at` lease renewal a worker sends while it holds a `task_run` (`compozy__task_run_heartbeat`), shown as "Heartbeat" in the task-run inspector. A different concept from an always-on agent's Heartbeat, the scheduled check an agent runs from `HEARTBEAT.md` (wire noun `check_ins`).
 
 ### `claim_token` / `claim_token_hash`
 
@@ -505,6 +519,12 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | fork (built-in Loop) | "Copy and edit" | UI verb for forking a built-in Loop into the project. |
 | extension dev overlay | "local development copy" | Menu verb "Unlink local copy". |
 | session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", … | Display words only; the token stays on `data-badge`/aria. Color only states that need the user. |
+| permission `approve-edits` / `auto` / `approve-all` | "Accept edits" / "Auto-review" / "Full access" | Labels only; wire values are unchanged, and `deny-all` and `approve-reads` keep their labels. Exception to one-step-deeper: the value is reachable in the site docs, `packages/site/content/docs/sessions/permissions.mdx` (a label → value table), not in the UI. |
+| agent setup section | "Setup" | Section label on the agent home. No canonical wire noun. |
+| `SOUL.md`, page slug `what-it-does` | "Instructions" | Setup row, page title, editor head, and aria. Exception: reachable at the page URL (`what-it-does`) and `agents/soul.mdx` in the site docs, not in the UI. Never "What it does" or "How it behaves". |
+| `HEARTBEAT.md`, `check_ins`, page slug `check-ins` | "Heartbeat"; one scheduled run is "a heartbeat" | Setup row and page title; copy reads "Next heartbeat", "Recent heartbeats", "Heartbeat is off". Exception: reachable at the page URL (`check-ins`) and `agents/heartbeat.mdx` in the site docs, not in the UI. Code identifiers (`checkIns`, `check-ins-view.tsx`) keep the wire noun. Not the task-lease Heartbeat. |
+| `MEMORY.md` | "Memory" | Setup row and page title; entries stay "notes" in copy. Exception: reachable in `skills/compozy/references/agent-memory.md` and the site agents docs, not in the UI. Never "What it remembers". |
+| agent tools setup row | "Tools" | Setup row and panel title. No canonical wire noun. Never "What it can use". |
 
 `Roles`, `Hooks`, and `Extensions` keep their names — glossary terms that already read plainly.
 
@@ -519,4 +539,4 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 
 ### Check-in source
 
-Something outside the built-in facts that a stays-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.
+Something outside the built-in facts that an always-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.

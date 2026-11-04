@@ -10,7 +10,7 @@ export function agentFromOrphanInstance(instance: AgentInstancePayload): AgentPa
   return {
     name: instance.agent_name,
     label: instance.label,
-    kind: "stays_on",
+    kind: "always_on",
     provider: instance.provider,
     prompt: "",
     origin: "global",

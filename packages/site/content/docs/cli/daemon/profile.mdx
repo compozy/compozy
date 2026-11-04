@@ -1,0 +1,63 @@
+---
+title: "compozy daemon profile"
+description: "Capture a runtime profile over the local daemon socket (experimental)"
+---
+
+## compozy daemon profile
+
+Capture a runtime profile over the local daemon socket (experimental)
+
+### Synopsis
+
+Capture cpu, heap, allocs, goroutine, mutex, block or threadcreate as a raw .pprof file.
+Experimental; local UDS only. CPU, mutex and block captures sample for 1–120 seconds.
+Mutex/block sampling is enabled only during the capture. Profiles contain runtime stacks,
+counts and ID labels, without prompt or file contents. Concurrent CPU captures return
+profile_busy. Snapshot profiles reject --seconds. Inspect with go tool pprof; use -tags
+to list labels and -tagfocus session_id=\<id> to select one active session.
+
+```
+compozy daemon profile <kind> [flags]
+```
+
+### Examples
+
+```
+  compozy daemon profile cpu --seconds 30 --file cpu.pprof
+  compozy daemon profile heap --file heap.pprof
+  go tool pprof -top cpu.pprof
+  go tool pprof -http :0 cpu.pprof
+  go tool pprof -tagfocus session_id=sess-example cpu.pprof
+```
+
+### Options
+
+```
+      --file string   Destination .pprof file (required)
+  -h, --help          help for profile
+      --seconds int   Capture duration for cpu, mutex and block (1–120 seconds) (default 30)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy daemon profile <kind> -o json
+```

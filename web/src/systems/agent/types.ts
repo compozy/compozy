@@ -92,7 +92,7 @@ export type AgentInstancePauseReason =
   | "manual"
   | "fatigue"
   | "unattended"
-  | "definition_not_stays_on"
+  | "definition_not_always_on"
   | "definition_missing";
 
 /**
@@ -132,7 +132,7 @@ export interface AgentInstancePayload {
   fatigue_limit: number;
   /** Non-human steps since you last engaged; the brake pauses at `unattended_turn_limit`. */
   unattended_turns?: number;
-  /** `agents.stays_on.unattended_turn_limit`; 0 disables the brake. */
+  /** `agents.always_on.unattended_turn_limit`; 0 disables the brake. */
   unattended_turn_limit?: number;
   /** Non-human input held while paused, delivered on resume. */
   held_wakes?: number;
@@ -147,7 +147,7 @@ export type AgentInstanceWirePayload = Omit<AgentInstancePayload, "profile_name"
 export interface AgentInstancesResponse {
   instances: AgentInstanceWirePayload[];
   next_cursor: string;
-  /** `agents.stays_on.max_active_instances`. */
+  /** `agents.always_on.max_active_instances`. */
   max_active_instances: number;
   /** Instances of this profile holding a slot. */
   active_count: number;
@@ -227,6 +227,6 @@ export interface AgentInstanceAway {
   reports: AgentInstanceReport[];
 }
 
-/** A skill a stays-on agent proposed, with its exact contents (S9). */
+/** A skill an always-on agent proposed, with its exact contents (S9). */
 export type AgentSkillReviewPayload = OperationResponse<"getAgentSkillReview", 200>["review"];
 export type AgentSkillReviewState = "pending" | "approved" | "rejected";

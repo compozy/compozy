@@ -140,7 +140,7 @@ function NotStartedCard({
         action={
           action ? (
             <Button onClick={action} type="button">
-              {nowhere ? "Add it to a project" : "Turn on check-ins"}
+              {nowhere ? "Add it to a project" : "Turn on heartbeat"}
             </Button>
           ) : undefined
         }
@@ -151,7 +151,7 @@ function NotStartedCard({
         }
         fill={false}
         icon={<AgentMark {...agentEditorMark(agent)} quietIdle size={40} state="paused" />}
-        title={nowhere ? "Nowhere to check in yet" : "No check-ins yet"}
+        title={nowhere ? "Nowhere to check in yet" : "No heartbeats yet"}
       />
     </EditorCard>
   );
@@ -246,12 +246,12 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
         agent={agent}
         state={pose(model, state)}
         subtitle={paused ? "Waiting for you" : scheduleSummary(settings, on)}
-        title="Check-ins"
+        title="Heartbeat"
       >
         <div className="flex items-center gap-2.5 text-body text-fg">
           {active ? "On" : "Off"}
           <Switch
-            aria-label="Check-ins"
+            aria-label="Heartbeat"
             checked={active}
             disabled={nowhere || paused}
             onCheckedChange={model.turnOn}

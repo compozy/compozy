@@ -170,7 +170,7 @@ export function automationFormDoes(
   draft: Pick<AutomationFormDraft, "start" | "target_kind" | "task">
 ): AutomationDoes {
   if (draft.start === "schedule" && draft.task) return "task";
-  if (draft.target_kind === AGENT_INSTANCE_TARGET_KIND) return "stays-on";
+  if (draft.target_kind === AGENT_INSTANCE_TARGET_KIND) return "always-on";
   return automationTargetMode(draft) === "loop" ? "loop" : "agent";
 }
 
@@ -192,7 +192,7 @@ export function setAutomationFormStart(
   if (start !== "schedule" && next.task) {
     next.task = undefined;
   }
-  // Scheduled jobs cannot reach a stays-on agent; they ask the agent instead.
+  // Scheduled jobs cannot reach an always-on agent; they ask the agent instead.
   if (start === "schedule" && next.target_kind === AGENT_INSTANCE_TARGET_KIND) {
     next.target_kind = "agent";
     next.target_instance_scope = undefined;
@@ -227,7 +227,7 @@ export function setAutomationFormDoes(
       loop_target: draft.loop_target ?? emptyLoopTarget(loopWorkspaceId),
     };
   }
-  if (does === "stays-on") {
+  if (does === "always-on") {
     return {
       ...draft,
       task: undefined,
@@ -272,7 +272,7 @@ export function automationFormJobDraft(draft: AutomationFormDraft): CreateAutoma
 
 /**
  * Whether a link start keeps the automation's project. Links live in User, except when they tell a
- * stays-on agent: the daemon resolves that instance in the trigger's own scope, and accepts
+ * always-on agent: the daemon resolves that instance in the trigger's own scope, and accepts
  * project links at `/api/webhooks/workspaces/{workspace_id}/…`.
  */
 export function automationLinkKeepsScope(

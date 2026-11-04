@@ -189,7 +189,7 @@ function TryResult({
 
 function stoppedReason({ standing, failedInARow, pauseCopy, instance }: CheckInsEditorModel) {
   if (standing === "failed") {
-    const count = failedInARow > 0 ? `${failedInARow} check-ins` : "Too many check-ins";
+    const count = failedInARow > 0 ? `${failedInARow} heartbeats` : "Too many heartbeats";
     return `${count} in a row failed, so it stopped trying.`;
   }
   const manual = "You paused it. It waits until you start it again.";
@@ -235,7 +235,7 @@ function StandingStatement({
         {next ? `${next.day} at ${next.time}` : "None planned"}
       </span>
       <span className="text-small-body text-muted-foreground">
-        {next ? (next.distance ?? "When its hours start") : "Check-ins are off"}
+        {next ? (next.distance ?? "When its hours start") : "Heartbeat is off"}
       </span>
     </div>
   );
@@ -250,7 +250,7 @@ export function NextCard({ model }: { model: CheckInsEditorModel }) {
   return (
     <EditorCard className="gap-5">
       <div className="-my-1 flex items-center justify-between gap-2">
-        <Eyebrow>{running ? "Next check-in" : "Check-ins"}</Eyebrow>
+        <Eyebrow>{running ? "Next heartbeat" : "Heartbeat"}</Eyebrow>
         {instance ? (
           <PlacePicker onChange={model.setPlace} place={instance} places={places} />
         ) : null}
@@ -269,7 +269,7 @@ export function NextCard({ model }: { model: CheckInsEditorModel }) {
           </span>
           {told > 0 ? <span>{told} worth telling you</span> : null}
         </div>
-        <DayStrip cells={cells} label={`${done} of ${total} check-ins done today`} />
+        <DayStrip cells={cells} label={`${done} of ${total} heartbeats done today`} />
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {standing === "failed" ? (
             <DayStripKey cell="failed">Failed</DayStripKey>
@@ -310,12 +310,12 @@ export function RecentCard({ activity }: { activity: CheckInsEditorModel["activi
       <h2 className="text-item-title font-medium text-fg">Today so far</h2>
       {activity === null ? (
         <p className="text-small-body text-muted-foreground">
-          Check-ins will show up here once they start.
+          Heartbeats will show up here once they start.
         </p>
       ) : activity.recent.length === 0 ? (
         <p className="text-small-body text-muted-foreground">Nothing yet today.</p>
       ) : (
-        <Timeline ariaLabel="Recent check-ins">
+        <Timeline ariaLabel="Recent heartbeats">
           {activity.recent.map(item => (
             <TimelineEvent
               description={item.description}

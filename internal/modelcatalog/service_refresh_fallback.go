@@ -32,6 +32,8 @@ func (s *CatalogService) recordEmptySourceFailure(
 	}
 	statuses := make([]SourceStatus, 0, len(providers))
 	staleCount := 0
+	permanent := IsPermanentSourceFailure(sourceErr)
+	sameContext := executionContextIsEmpty(previousExecutionContext)
 	for _, provider := range providers {
 		previous, listErr := s.store.ListRows(ctx, ListOptions{
 			ProviderID:       provider,
@@ -53,8 +55,22 @@ func (s *CatalogService) recordEmptySourceFailure(
 		}
 		staleRows := markRowsStale(previous, redacted)
 		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		if err := s.carryPriorFailureState(ctx, provider, historyExecutionContext, &status); err != nil {
+		previousStatus, err := s.carryPriorFailureState(
+			ctx,
+			provider,
+			historyExecutionContext,
+			&status,
+			permanent,
+		)
+		if err != nil {
 			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
+		}
+		// Repeated identical permanent failures preserve the parked row without a write.
+		if permanent && sameContext && unchangedPermanentFailure(previousStatus, status) {
+			previousStatus.RetainContextPartitions = status.RetainContextPartitions
+			staleCount += previousStatus.RowCount
+			statuses = append(statuses, previousStatus)
+			continue
 		}
 		if err := s.store.ReplaceSourceRows(
 			ctx,

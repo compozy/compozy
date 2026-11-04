@@ -10,17 +10,17 @@ func ErrorMessage(err error, activeLimit int) string {
 	if errors.Is(err, ErrLimit) {
 		if activeLimit > 0 {
 			return fmt.Sprintf(
-				"You have %d active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`.",
+				"You have %d active always-on agents. Pause one or raise `agents.always_on.max_active_instances`.",
 				activeLimit,
 			)
 		}
-		return "The active stays-on agent limit has been reached. Pause one or raise `agents.stays_on.max_active_instances`."
+		return "The active always-on agent limit has been reached. Pause one or raise `agents.always_on.max_active_instances`."
 	}
 	for _, item := range []struct {
 		domain  error
 		message string
 	}{
-		{ErrNotStaysOn, "This agent is on-demand. Only stays-on agents have instances."},
+		{ErrNotAlwaysOn, "This agent is on-demand. Only always-on agents have instances."},
 		{ErrForbidden, "An agent can only act on its own instance, within its limits."},
 		{ErrDepth, "An instance created by an agent can't create more instances."},
 		{ErrWorkspaceAccessDenied, "This agent can't reach that workspace."},

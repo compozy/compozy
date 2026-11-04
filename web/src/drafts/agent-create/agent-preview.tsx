@@ -5,8 +5,8 @@ import { Button, CatalogCard, Pill, StatusDot } from "@compozy/ui";
 
 import { AgentFleetNewSessionButton } from "@/systems/agent/components/agent-fleet-new-session-button";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
 
 import { PLACE_LATER, placeLabel, type Draft } from "./model";
 
@@ -20,7 +20,7 @@ export function AgentPreview({
   stateLabel?: string;
 }) {
   const name = draft.name.trim() || "Your agent";
-  const stays = draft.mode === "stays-on";
+  const stays = draft.mode === "always-on";
   return (
     <CatalogCard>
       <div className="flex min-w-0 items-start gap-3">

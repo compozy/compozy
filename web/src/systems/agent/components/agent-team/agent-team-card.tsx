@@ -1,5 +1,5 @@
 import { useIntentPreload } from "@/hooks/use-intent-preload";
-/** The two ways to meet a teammate: a big stays-on card and a lighter on-demand card. */
+/** The two ways to meet a teammate: a big always-on card and a lighter on-demand card. */
 import { CatalogCard, Sparkline } from "@compozy/ui";
 
 import { agentLastCheckIn } from "../../lib/agent-profile";
@@ -72,7 +72,7 @@ function Pulse({ member }: { member: AgentTeamMember }) {
   );
 }
 
-export function AgentStaysOnCard({
+export function AgentAlwaysOnCard({
   member,
   actions,
 }: {

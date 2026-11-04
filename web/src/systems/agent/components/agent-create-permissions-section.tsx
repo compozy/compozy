@@ -7,7 +7,7 @@ import {
   AGENT_PERMISSION_LEVELS,
   FOLLOW_SETTINGS_LABEL,
   isAgentPermissionLevel,
-  STAYS_ON_DEFAULT_PERMISSION,
+  ALWAYS_ON_DEFAULT_PERMISSION,
 } from "../lib/agent-permissions";
 
 /** The radio value for "Follow Settings", which stores no `permissions`. */
@@ -20,17 +20,17 @@ export interface AgentCreatePermissionsSectionProps {
 
 /**
  * Advanced tier: the permission level every session inherits. An on-demand agent can leave it to
- * Settings by omitting `permissions`; a stays-on agent with nothing set runs at Edit on its own.
+ * Settings by omitting `permissions`; an always-on agent with nothing set runs at Accept edits.
  */
 export function AgentCreatePermissionsSection({
   draft,
   onDraftChange,
 }: AgentCreatePermissionsSectionProps) {
-  const staysOn = draft.kind === "stays_on";
+  const alwaysOn = draft.kind === "always_on";
   const unset = draft.permissions === "";
-  const shown = unset ? (staysOn ? STAYS_ON_DEFAULT_PERMISSION : INHERIT) : draft.permissions;
+  const shown = unset ? (alwaysOn ? ALWAYS_ON_DEFAULT_PERMISSION : INHERIT) : draft.permissions;
   const options: RadioCardGroupOption<string>[] = [
-    ...(staysOn
+    ...(alwaysOn
       ? []
       : [
           {
@@ -48,7 +48,7 @@ export function AgentCreatePermissionsSection({
       icon: option.icon,
       "data-testid": `agent-create-permissions-${option.value}`,
       badge:
-        staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
+        alwaysOn && unset && option.value === ALWAYS_ON_DEFAULT_PERMISSION ? (
           <Pill size="sm" tone="neutral">
             Default
           </Pill>

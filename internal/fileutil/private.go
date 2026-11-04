@@ -71,7 +71,7 @@ func AtomicWritePrivateFile(path string, contents []byte) (err error) {
 	if err := directory.checkPrivateReplacement(name); err != nil {
 		return err
 	}
-	return directory.atomicWriteFile(name, contents, 0o600, true, true)
+	return directory.atomicWriteFile(name, contents, 0o600, true, true, nil)
 }
 
 func (d *Directory) checkPrivateReplacement(name string) (err error) {

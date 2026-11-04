@@ -46,8 +46,10 @@ func generateSDKSamples() ([]byte, error) {
 		kind := sdkOperationKind(operation)
 		sample := sdkSample{Kind: kind, Resource: sdkResourceName(operation), AppAccess: operation.AppAccess}
 		if kind != sdkKindWebSocket {
-			sample.TypeScript = "import { Compozy } from \"@compozy/client\";\n\n" +
-				"const compozy = await Compozy.connect();\n" + sdkTypeScriptSample(operation, kind)
+			if slices.Contains(operation.Transports, spec.TransportHTTP) {
+				sample.TypeScript = "import { Compozy } from \"@compozy/client\";\n\n" +
+					"const compozy = await Compozy.connect();\n" + sdkTypeScriptSample(operation, kind)
+			}
 			connection := "client.New(ctx)"
 			if !slices.Contains(operation.Transports, spec.TransportUDS) {
 				connection = `client.New(ctx, client.WithBaseURL("http://127.0.0.1:2123"))`

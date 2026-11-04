@@ -69,7 +69,7 @@ func agentMemoryOperations() []OperationSpec {
 				},
 				{
 					Status:      422,
-					Description: "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input",
+					Description: "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input",
 					Body:        contract.ErrorPayload{},
 				},
 				{Status: 500, Description: "Memory persistence failed", Body: contract.ErrorPayload{}},

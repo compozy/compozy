@@ -3836,6 +3836,55 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 
 func TestRequestLoggingLevels(t *testing.T) {
 	t.Parallel()
+	t.Run("Should record a disconnected HTTP client as 499", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		started, finished := make(chan struct{}), make(chan struct{})
+		engine := gin.New()
+		engine.Use(func(c *gin.Context) { c.Next(); close(finished) })
+		engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(&logs, nil))))
+		engine.GET("/api/cancel", func(c *gin.Context) {
+			close(started)
+			<-c.Request.Context().Done()
+			core.RespondError(c, http.StatusInternalServerError, c.Request.Context().Err(), true)
+		})
+		server := httptest.NewServer(engine)
+		t.Cleanup(server.Close)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		request := httptest.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/cancel", http.NoBody)
+		request.RequestURI = ""
+		client := &http.Client{Timeout: time.Second}
+		result := make(chan error, 1)
+		go func() {
+			response, err := client.Do(request)
+			if response != nil {
+				err = errors.Join(err, response.Body.Close())
+			}
+			result <- err
+		}()
+		select {
+		case <-started:
+		case <-t.Context().Done():
+			t.Fatal("request did not reach handler")
+		}
+		cancel()
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("client = %v", err)
+		}
+		select {
+		case <-finished:
+		case <-t.Context().Done():
+			t.Fatal("request did not finish")
+		}
+		var entry map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+			t.Fatal(err)
+		}
+		if entry["status"] != float64(499) || entry["level"] != "WARN" {
+			t.Fatalf("canceled request log = %s", logs.String())
+		}
+	})
 	for _, tc := range []struct {
 		name, method, wantLevel string
 		status                  int
@@ -3846,6 +3895,7 @@ func TestRequestLoggingLevels(t *testing.T) {
 		{"Should omit successful preflights at info", http.MethodOptions, "", http.StatusOK, slog.LevelInfo},
 		{"Should retain mutations at info", http.MethodPost, "INFO", http.StatusOK, slog.LevelInfo},
 		{"Should retain rejected reads at warn", http.MethodGet, "WARN", http.StatusForbidden, slog.LevelInfo},
+		{"Should report client cancellations at warn", http.MethodGet, "WARN", 499, slog.LevelInfo},
 		{"Should retain failed reads at error", http.MethodGet, "ERROR", http.StatusServiceUnavailable, slog.LevelInfo},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

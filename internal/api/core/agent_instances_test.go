@@ -172,8 +172,8 @@ func TestAgentInstanceErrorResponses(t *testing.T) {
 		{"Should report a missing definition", agentinstance.ErrDefinitionMissing, 404, "This agent's definition is gone. Reinstall it to resume. Its memory is kept."},
 		{"Should report an existing instance", agentinstance.ErrExists, 409, "This agent already runs in that scope."},
 		{"Should report an instance still starting", agentinstance.ErrStarting, 409, "This agent is already starting there."},
-		{"Should report the active instance cap", agentinstance.ErrLimit, 429, "You have 7 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`."},
-		{"Should report an on demand definition", agentinstance.ErrNotStaysOn, 422, "This agent is on-demand. Only stays-on agents have instances."},
+		{"Should report the active instance cap", agentinstance.ErrLimit, 429, "You have 7 active always-on agents. Pause one or raise `agents.always_on.max_active_instances`."},
+		{"Should report an on demand definition", agentinstance.ErrNotAlwaysOn, 422, "This agent is on-demand. Only always-on agents have instances."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1141,7 +1141,7 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 				case operation == "create":
 					var body contract.ErrorPayload
 					decodeJSON(t, response.Body.Bytes(), &body)
-					if response.Code != 422 || body.Code != agentinstance.ErrNotStaysOn.Error() {
+					if response.Code != 422 || body.Code != agentinstance.ErrNotAlwaysOn.Error() {
 						t.Fatalf("definition admission: %d %s", response.Code, response.Body.String())
 					}
 				case response.Code != 204:
@@ -1178,7 +1178,7 @@ func (i instanceAPIInputs) ResolveCreate(
 			CreatedByKind:     "human",
 		}, nil
 	}
-	return agentinstance.Instance{}, agentinstance.ErrNotStaysOn
+	return agentinstance.Instance{}, agentinstance.ErrNotAlwaysOn
 }
 func (i instanceAPIInputs) Start(ctx context.Context, req agentinstance.StartMainSession) (string, error) {
 	if i.db != nil {

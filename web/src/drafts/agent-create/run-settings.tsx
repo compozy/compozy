@@ -22,8 +22,8 @@ import {
   LimitMeter,
   PlaceList,
   ProjectMark,
-} from "../stays-on-agents-shared/add-pickers";
-import { WORKSPACES } from "../stays-on-agents-shared/fixtures";
+} from "../always-on-agents-shared/add-pickers";
+import { WORKSPACES } from "../always-on-agents-shared/fixtures";
 
 import {
   ACTIVE_LIMIT,
@@ -95,7 +95,7 @@ function LimitCard() {
       <LimitMeter />
       <p className="text-small-body text-muted-foreground">
         <span className="text-fg">
-          {ACTIVE_LIMIT} of {ACTIVE_LIMIT} agents are staying on.
+          {ACTIVE_LIMIT} of {ACTIVE_LIMIT} always-on agents are active.
         </span>{" "}
         Create this one now, and start it once you've paused another.
       </p>
@@ -149,17 +149,17 @@ export function RunSettings({
           iconWellSize="lg"
           onSelect={() => onMode("on-demand")}
           selected={draft.mode === "on-demand"}
-          title="On demand, runs when you ask"
+          title="On-demand: runs when you ask"
         />
         <RadioCard
           icon={Eye}
           iconWellSize="lg"
-          onSelect={() => onMode("stays-on")}
-          selected={draft.mode === "stays-on"}
-          title="Stays on and watches for you"
+          onSelect={() => onMode("always-on")}
+          selected={draft.mode === "always-on"}
+          title="Always-on: watches for you"
         />
       </div>
-      {draft.mode === "stays-on" ? (
+      {draft.mode === "always-on" ? (
         <Labeled id={whereId} label="Where it works">
           {atLimit ? (
             <LimitCard />
@@ -201,7 +201,7 @@ const FACT_ICON = "size-4 shrink-0 text-muted-foreground";
 
 /** The same facts as the choices above, for an agent that can't be changed here. */
 export function RunFacts({ draft, owner }: { draft: Draft; owner?: string }) {
-  const stays = draft.mode === "stays-on";
+  const stays = draft.mode === "always-on";
   const ModeIcon = stays ? Eye : Clock3;
   return (
     <ImmutableIdentity
@@ -221,7 +221,7 @@ export function RunFacts({ draft, owner }: { draft: Draft; owner?: string }) {
           label: "How it works",
           value: (
             <Fact mark={<ModeIcon aria-hidden="true" className={FACT_ICON} />}>
-              {stays ? "Stays on" : "On demand"}
+              {stays ? "Always-on" : "On-demand"}
             </Fact>
           ),
         },

@@ -31,7 +31,7 @@ export interface SessionsBoardViewProps {
   /** Folded columns by id: one fold covers the column in every swimlane. */
   collapsedColumns: SessionsBoardRow["collapsedColumns"];
   onColumnCollapsedChange: SessionsBoardRow["onColumnCollapsedChange"];
-  /** Above the columns or lanes: the board's stays-on row. */
+  /** Above the columns or lanes: the board's always-on row. */
   header?: ReactNode;
   /** One swimlane per Group-by group; each lane reads its own columns. */
   renderLane?: (

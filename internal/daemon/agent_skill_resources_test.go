@@ -34,7 +34,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			t.Fatal(err)
 		}
 		personal, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
-			Name: "triage", Kind: "stays_on", Provider: "codex", Prompt: "Personal profile agent",
+			Name: "triage", Kind: "always_on", Provider: "codex", Prompt: "Personal profile agent",
 		}, false)
 		if err != nil {
 			t.Fatal(err)
@@ -973,6 +973,83 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		triggered[skillspkg.SkillResourceKind] != 2 ||
 		triggered[compozyconfig.MCPServerResourceKind] != 2 {
 		t.Fatalf("triggered after replacement = %#v, want stale-delete/update triggers", triggered)
+	}
+}
+
+func TestAgentSkillSourceSyncerIsolatesExtensionProjectionFailures(t *testing.T) {
+	t.Parallel()
+
+	for _, failure := range []string{"none", "sync", "trigger"} {
+		t.Run("Should preserve projection errors with "+failure+" failures", func(t *testing.T) {
+			t.Parallel()
+			laterErr := errors.New("later failure")
+
+			rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+				skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+			skillDecl := func(name string) skillPublicationInput {
+				return skillPublicationInput{
+					sourceKey: "test/skill/" + name,
+					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+					spec: skillspkg.SkillResourceSpec{
+						Name:        name,
+						Description: name + " skill",
+						Source:      skillspkg.SkillSourceName(skillspkg.SourceUser),
+						Enabled:     true,
+					},
+				}
+			}
+			rootErr := errors.New("extension: resolve resource root symlink: missing root")
+			var projectionErr error = &extensionProjectionError{failures: []error{rootErr}}
+			syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+				raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+				agentProjector: newAgentProjector(newResourceCatalog(cloneAgentDef)),
+				soulStore:      soulStore, soulCodec: soulCodec,
+				heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+				skillStore: skillStore, skillCodec: skillCodec,
+				mcpStore: mcpStore, mcpCodec: mcpCodec,
+				actor: agentSkillSyncActor(), logger: discardLogger(),
+				providers: []agentSkillDeclarationProvider{
+					func(context.Context) (agentSkillDeclarations, error) {
+						return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("healthy-extension")}},
+							projectionErr
+					},
+					func(context.Context) (agentSkillDeclarations, error) {
+						return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("global")}}, nil
+					},
+				},
+			})
+
+			if failure == "sync" {
+				syncer.agentProjector = &retryingAgentProjector{buildErrors: []error{laterErr, nil}}
+			}
+			if failure == "trigger" {
+				syncer.trigger = func(context.Context, resources.ResourceKind, resources.ReconcileReason) error { return laterErr }
+			}
+
+			err := syncer.Sync(t.Context())
+			if !errors.Is(err, rootErr) || !isExtensionProjectionError(err) {
+				t.Fatalf("Sync() error = %v, want isolated extension projection error", err)
+			}
+			if failure != "none" {
+				if !errors.Is(err, laterErr) {
+					t.Fatalf("Sync() error = %v, want later failure too", err)
+				}
+				syncer.trigger = nil
+				projectionErr = nil
+				if err := syncer.Sync(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+
+			assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
+
+			projectionErr = nil
+			if err := syncer.Sync(t.Context()); err != nil {
+				t.Fatalf("Sync() after recovery error = %v", err)
+			}
+			assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
+		})
 	}
 }
 

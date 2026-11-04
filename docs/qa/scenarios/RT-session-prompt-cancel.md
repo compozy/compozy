@@ -49,3 +49,8 @@ QA 2026-09-06 — sessions-stability selected scope: PASS for the selected turn-
 QA re-walk 2026-09-06: Known-session cancellation remains nothing-in-flight when process exit races the stop claim. The deterministic canonical case fails before the production fix and passes afterward; real subprocess stop/resume integration and the complete session race suite pass. See BUG-20260906-cancel-exited-session-race and the integrated report.
 
 QA impact 2026-09-10: cancellation worker ordering now preserves the accepted provider signal when the stream drains before execution and reports nothing-in-flight for a subsequent request after the turn ends. The existing session cancellation suite owns the deterministic scheduling-gap regression. Current verification is recorded in `docs/qa/reports/2026-09-10-release-integration-repair.md`.
+
+2026-11-03 transport retest: abort a session/transcript read at the HTTP client. The access log
+must report `499` at WARN and omit `api: request failed` at ERROR. Cancel between a transcript
+read and its commit as well. A live-context double commit, deadline and SQLite lock error must
+remain server failures. This read cancellation must not cancel the agent's execution.

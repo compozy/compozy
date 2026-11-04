@@ -14,7 +14,7 @@ import {
 } from "../adapters/agent-instance-api";
 import {
   agentInstancesOptions,
-  staysOnAgentsOptions,
+  alwaysOnAgentsOptions,
   agentTeamOptions,
 } from "../lib/query-options";
 import { resumeInOrder } from "../lib/agent-instance-resume";
@@ -78,7 +78,7 @@ export function useAgentInstancesState(): {
   };
 }
 
-/** Every stays-on instance of the active view; no route behind it yet reads as none, so no row shows. */
+/** Every always-on instance of the active view; no route behind it yet reads as none, so no row shows. */
 export function useAgentInstances(): readonly AgentInstancePayload[] {
   return useAgentInstancesRead()?.instances ?? NO_INSTANCES;
 }
@@ -92,10 +92,10 @@ export function useAgentInstanceCapacity(profile?: string) {
   return agentInstanceCapacity(useAgentInstancesRead()?.capacity[profile ?? destination]);
 }
 
-/** The stays-on agents a scope can start; `""` is Global. Reads only while a picker is open. */
-export function useStaysOnAgents(workspaceId: string, enabled: boolean) {
+/** The always-on agents a scope can start; `""` is Global. Reads only while a picker is open. */
+export function useAlwaysOnAgents(workspaceId: string, enabled: boolean) {
   const { destination } = useProfileReadScope();
-  return useQuery(staysOnAgentsOptions(workspaceId, destination, enabled));
+  return useQuery(alwaysOnAgentsOptions(workspaceId, destination, enabled));
 }
 
 /** `failure` null leaves the error to a caller that says so in place. */

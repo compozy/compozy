@@ -88,15 +88,18 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	s.syncMu.Lock()
 	defer s.syncMu.Unlock()
 
-	desired, err := s.desiredResources(ctx)
-	if err != nil {
-		return err
+	desired, projectionErr := s.desiredResources(ctx)
+	if projectionErr != nil && !isExtensionProjectionError(projectionErr) {
+		return projectionErr
 	}
 	changes, err := s.syncIndexedAgentSkillResources(ctx, desired)
 	if err != nil {
-		return err
+		return errors.Join(err, projectionErr)
 	}
-	return s.triggerAgentSkillChanges(ctx, changes)
+	if err := s.triggerAgentSkillChanges(ctx, changes); err != nil {
+		return errors.Join(err, projectionErr)
+	}
+	return projectionErr
 }
 
 type agentSkillSyncChanges struct {
@@ -198,9 +201,9 @@ func (s *agentSkillSourceSyncer) SyncSkills(ctx context.Context) error {
 	}
 	s.syncMu.Lock()
 	defer s.syncMu.Unlock()
-	desired, err := s.desiredResources(ctx)
-	if err != nil {
-		return err
+	desired, projectionErr := s.desiredResources(ctx)
+	if projectionErr != nil && !isExtensionProjectionError(projectionErr) {
+		return projectionErr
 	}
 	skillChanged, err := s.syncSkills(ctx, desired.skills)
 	if err != nil {
@@ -214,7 +217,7 @@ func (s *agentSkillSourceSyncer) SyncSkills(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	return projectionErr
 }
 
 func (s *agentSkillSourceSyncer) projectSkills(ctx context.Context) error {

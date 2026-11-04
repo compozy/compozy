@@ -1,9 +1,9 @@
 ---
 title: Watch new GitHub issues
-description: Give a stays-on agent a New GitHub issues check-in source, try it without consuming anything, read its status, and use an approved script when no extension fits.
+description: Give an always-on agent a New GitHub issues check-in source, try it without consuming anything, read its status, and use an approved script when no extension fits.
 ---
 
-A stays-on agent checks in on its own schedule. A **check-in source** tells that check what is new
+An always-on agent checks in on its own schedule. A **check-in source** tells that check what is new
 outside CompozyOS before any model runs. When the source has nothing new, the check stops there:
 no model turn, no tokens, no noise.
 
@@ -18,7 +18,7 @@ end, the agent looks at GitHub once an hour and only speaks up when an issue nob
 - A GitHub sign-in the daemon can use: run `gh auth login` in the environment that starts the
   daemon, or bind a token with `compozy extension secrets set forge-github --env GITHUB_TOKEN`. See
   [GitHub provider setup](/docs/worktrees/assisted-exit#github-provider-setup).
-- A stays-on agent named `issue-watch` with an instance in that workspace. Create one with
+- An always-on agent named `issue-watch` with an instance in that workspace. Create one with
   `compozy agent instance create issue-watch --workspace my-project`.
 
 Every daemon that reads this agent must understand check-in sources. Upgrade the daemon before you

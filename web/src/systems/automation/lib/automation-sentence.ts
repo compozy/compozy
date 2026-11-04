@@ -19,9 +19,9 @@ import { humanizeFireWindow } from "./automation-formatters";
 import type { AutomationJob, AutomationSchedule, AutomationTrigger } from "../types";
 
 export type AutomationStart = "schedule" | "event" | "webhook";
-export type AutomationDoes = "agent" | "stays-on" | "loop" | "task";
-/** The list's server-side `target` filter; stays-on triggers have no filter value yet. */
-export type AutomationListTarget = Exclude<AutomationDoes, "stays-on">;
+export type AutomationDoes = "agent" | "always-on" | "loop" | "task";
+/** The list's server-side `target` filter; always-on triggers have no filter value yet. */
+export type AutomationListTarget = Exclude<AutomationDoes, "always-on">;
 
 export interface AutomationSentenceSegment {
   text: string;
@@ -232,9 +232,9 @@ function doesSegments(
         ...(owner ? [plain(" for "), strong(owner)] : []),
       ];
     }
-    case "stays-on": {
+    case "always-on": {
       const agent = target.agentName?.trim();
-      if (!agent) return [missing("tell a stays-on agent")];
+      if (!agent) return [missing("tell an always-on agent")];
       return [
         plain("tell "),
         strong(ctx.agentLabel?.(agent) ?? agent),
@@ -360,7 +360,7 @@ function entityTarget(input: AutomationJob | AutomationTrigger): AutomationDraft
     };
   }
   if (input.target_kind === AGENT_INSTANCE_TARGET_KIND) {
-    return { kind: "stays-on", agentName: input.agent_name, prompt: input.prompt };
+    return { kind: "always-on", agentName: input.agent_name, prompt: input.prompt };
   }
   return { kind: "agent", agentName: input.agent_name, prompt: input.prompt };
 }

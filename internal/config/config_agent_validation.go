@@ -42,20 +42,20 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
-	if c.StaysOn.ApprovalTimeout < time.Minute || c.StaysOn.ApprovalTimeout > 72*time.Hour {
-		return fmt.Errorf("agents.stays_on.approval_timeout must be between 1m and 72h")
+	if c.AlwaysOn.ApprovalTimeout < time.Minute || c.AlwaysOn.ApprovalTimeout > 72*time.Hour {
+		return fmt.Errorf("agents.always_on.approval_timeout must be between 1m and 72h")
 	}
-	if c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 {
-		return fmt.Errorf("agents.stays_on requires positive triage limits and max_proposals between 1 and 20")
+	if c.AlwaysOn.MaxProposals < 1 || c.AlwaysOn.MaxProposals > 20 || c.AlwaysOn.TriageTimeout <= 0 {
+		return fmt.Errorf("agents.always_on requires positive triage limits and max_proposals between 1 and 20")
 	}
-	if !(c.StaysOn.RotationThreshold > 0 && c.StaysOn.RotationThreshold <= 1) {
-		return fmt.Errorf("agents.stays_on.rotation_threshold must be greater than zero and at most one")
+	if !(c.AlwaysOn.RotationThreshold > 0 && c.AlwaysOn.RotationThreshold <= 1) {
+		return fmt.Errorf("agents.always_on.rotation_threshold must be greater than zero and at most one")
 	}
-	if c.StaysOn.UnattendedTurnLimit < 0 {
-		return fmt.Errorf("agents.stays_on.unattended_turn_limit must be nonnegative")
+	if c.AlwaysOn.UnattendedTurnLimit < 0 {
+		return fmt.Errorf("agents.always_on.unattended_turn_limit must be nonnegative")
 	}
-	if c.StaysOn.MaxActiveInstances <= 0 {
-		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
+	if c.AlwaysOn.MaxActiveInstances <= 0 {
+		return fmt.Errorf("agents.always_on.max_active_instances must be positive")
 	}
 	if err := c.Soul.Validate(); err != nil {
 		return err

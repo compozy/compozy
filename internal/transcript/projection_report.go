@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// ReportEventType is the durable event a stays-on agent's report lands as. It starts no turn.
+// ReportEventType is the durable event an always-on agent's report lands as. It starts no turn.
 const ReportEventType = "session.report"
 
 const reportPartType = "data-compozy-report"

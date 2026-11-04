@@ -70,7 +70,7 @@ export const ACTIVITY_ENTRIES_LIMIT = 1000;
 export const STARTER_LABEL: Record<ActivityStarter, string> = {
   human: "You",
   automation: "Automation",
-  daemon: "Check-in",
+  daemon: "Heartbeat",
   extension: "Extension",
   agent_session: "Another agent",
   app: "App",
@@ -80,7 +80,7 @@ export const STARTER_LABEL: Record<ActivityStarter, string> = {
 const STARTER_GROUP: Record<ActivityStarter, string> = {
   ...STARTER_LABEL,
   automation: "Automations",
-  daemon: "Check-ins",
+  daemon: "Heartbeats",
   extension: "Extensions",
   agent_session: "Other agents",
   app: "Apps",

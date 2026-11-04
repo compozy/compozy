@@ -15,16 +15,18 @@ import (
 )
 
 const (
-	AgentKindOnDemand    = "on_demand"
-	AgentKindStaysOn     = "stays_on"
-	agentAvatarGenerated = "generated"
+	AgentKindOnDemand = "on_demand"
+	AgentKindAlwaysOn = "always_on"
+	// AgentKindStaysOnAlias accepts the v0.5.0 spelling. Removal: v0.5.2.
+	AgentKindStaysOnAlias = "stays_on"
+	agentAvatarGenerated  = "generated"
 )
 
 var (
 	ErrAgentKindImmutable = errors.New(
 		"an agent's kind is fixed at creation; duplicate it to choose another kind",
 	)
-	ErrAgentKindInvalid        = errors.New("agent kind must be on_demand or stays_on")
+	ErrAgentKindInvalid        = errors.New("agent kind must be on_demand or always_on")
 	ErrAgentDisplayNameInvalid = errors.New("display names can have up to 80 characters")
 	ErrAgentDescriptionInvalid = errors.New("descriptions can have up to 280 characters")
 	ErrAgentAppearanceInvalid  = errors.New(
@@ -141,7 +143,7 @@ func (a AgentDef) ValidateIdentity() error {
 	if utf8.RuneCountInString(a.Description) > 280 {
 		return ErrAgentDescriptionInvalid
 	}
-	if a.EffectiveKind() != AgentKindOnDemand && a.EffectiveKind() != AgentKindStaysOn {
+	if a.EffectiveKind() != AgentKindOnDemand && a.EffectiveKind() != AgentKindAlwaysOn {
 		return ErrAgentKindInvalid
 	}
 	// Appearance is decoded loosely; read projections diagnose invalid or future values.
@@ -254,4 +256,12 @@ func agentAppearanceString(value any) string {
 		return text
 	}
 	return ""
+}
+
+// CanonicalAgentKind normalizes input aliases. Removal of the alias: v0.5.2.
+func CanonicalAgentKind(raw string) (kind string, deprecated bool) {
+	if raw == AgentKindStaysOnAlias {
+		return AgentKindAlwaysOn, true
+	}
+	return raw, false
 }

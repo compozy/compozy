@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -4168,6 +4169,42 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
+	// IT-003: the exact _dx.md body with the v0.5.0 kind spelling creates an always-on agent.
+	t.Run("Should create an always-on agent from a stays_on request", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveForProfileFn: func(_ context.Context, ref string, profileName string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						ID: "ws-compozy", Name: ref, RootDir: workspaceRoot, ProfileName: profileName,
+						Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}},
+					}, nil
+				},
+			},
+		)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		body := []byte(`{ "scope": "workspace", "workspace": "compozy",
+  "agent": { "name": "triage", "provider": "claude", "kind": "stays_on",
+             "prompt": "Watch the repository and report what needs attention." } }`)
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("create status = %d, want 201; body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Name != "triage" || payload.Agent.Kind != "always_on" {
+			t.Fatalf("created agent = %#v, want always_on triage", payload.Agent)
+		}
+		if strings.Contains(resp.Body.String(), "stays_on") {
+			t.Fatalf("create body = %s, want no stays_on", resp.Body.String())
+		}
+	})
+
 	t.Run("Should create an AGENT.md in the selected workspace profile layer", func(t *testing.T) {
 		t.Parallel()
 
@@ -7113,7 +7150,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				Prompt:      "Triage.",
 				DisplayName: "Triage Lead",
 				Description: "Watches issues",
-				Kind:        "stays_on",
+				Kind:        "always_on",
 				Appearance:  map[string]any{"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#123456"},
 			},
 			false,
@@ -7135,7 +7172,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 		}
 		var updated contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &updated)
-		if updated.Agent.Label != "Triage Lead" || updated.Agent.Kind != "stays_on" ||
+		if updated.Agent.Label != "Triage Lead" || updated.Agent.Kind != "always_on" ||
 			updated.Agent.Appearance["emoji"] != "🦊" {
 			t.Fatalf("PUT identity: %#v", updated.Agent)
 		}
@@ -7148,7 +7185,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 			t.Fatalf("kind mutation: %d %#v", resp.Code, failure)
 		}
 		stored, err := compozyconfig.LoadAgentDefFile(path)
-		if err != nil || stored.Kind != "stays_on" || stored.Description != "Watches issues" {
+		if err != nil || stored.Kind != "always_on" || stored.Description != "Watches issues" {
 			t.Fatalf("stored identity: %#v %v", stored, err)
 		}
 		resp = performRequest(
@@ -7167,6 +7204,125 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 			t.Fatalf("copy: %#v", copied.Agent)
 		}
 	})
+	// UT-023: the v0.5.0 stays_on spelling is an input alias on PUT and both duplicate kinds.
+	t.Run("Should accept stays_on on update and duplicate and write always_on", func(t *testing.T) {
+		logs := &lockedLogBuffer{}
+		compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(logs, nil)))
+		t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "scout", compozyconfig.AgentDefinitionFileName)
+		initial, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
+			Name: "scout", Provider: "codex", Prompt: "Scout.", Kind: "always_on",
+		}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(initial)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/scout",
+			mustJSON(t, contract.UpdateAgentRequest{
+				ExpectedDigest: digest,
+				Agent: contract.CreateAgentPayload{
+					Name:     "scout",
+					Provider: "codex",
+					Prompt:   "Updated.",
+					Kind:     "stays_on",
+				},
+			}),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("PUT stays_on: %d %s", resp.Code, resp.Body.String())
+		}
+		assertAgentFileKind(t, path, "always_on")
+		for _, tc := range []struct {
+			name    string
+			request contract.DuplicateAgentRequest
+		}{
+			{"scout-top", contract.DuplicateAgentRequest{Name: "scout-top", Kind: "stays_on"}},
+			{"scout-override", contract.DuplicateAgentRequest{
+				Name: "scout-override", Overrides: &contract.DuplicateAgentOverrides{Kind: "stays_on"},
+			}},
+		} {
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/agents/scout/duplicate",
+				mustJSON(t, tc.request),
+			)
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("duplicate %s: %d %s", tc.name, resp.Code, resp.Body.String())
+			}
+			var copied contract.AgentResponse
+			decodeJSON(t, resp.Body.Bytes(), &copied)
+			if copied.Agent.Kind != "always_on" {
+				t.Fatalf("duplicate %s kind = %q, want always_on", tc.name, copied.Agent.Kind)
+			}
+			assertAgentFileKind(
+				t,
+				filepath.Join(fixture.HomePaths.AgentsDir, tc.name, compozyconfig.AgentDefinitionFileName),
+				"always_on",
+			)
+			if got := logs.count("source=request", "agent="+tc.name); got != 1 {
+				t.Fatalf("duplicate %s warnings = %d, want 1\n%s", tc.name, got, logs.String())
+			}
+		}
+	})
+}
+
+// lockedLogBuffer collects slog lines from concurrent handlers.
+type lockedLogBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedLogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *lockedLogBuffer) count(fragments ...string) int {
+	total := 0
+	for line := range strings.SplitSeq(b.String(), "\n") {
+		matched := line != ""
+		for _, fragment := range fragments {
+			matched = matched && strings.Contains(line, fragment)
+		}
+		if matched {
+			total++
+		}
+	}
+	return total
+}
+
+func assertAgentFileKind(t *testing.T, path string, want string) {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "kind: "+want) || strings.Contains(string(body), "stays_on") {
+		t.Fatalf("%s = %q, want kind: %s", path, body, want)
+	}
 }
 
 type draftInstructionsSessions struct {

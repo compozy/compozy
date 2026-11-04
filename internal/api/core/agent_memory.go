@@ -56,8 +56,8 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 		if entry.Def.Name != name {
 			continue
 		}
-		if entry.Def.EffectiveKind() != compozyconfig.AgentKindStaysOn {
-			return agentmemory.Key{}, "", errors.New("agent_not_stays_on")
+		if entry.Def.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
+			return agentmemory.Key{}, "", errors.New("agent_not_always_on")
 		}
 		if callerOrigin != "" && callerOrigin != entry.MemoryOrigin {
 			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
@@ -162,8 +162,8 @@ func (h *BaseHandlers) respondAgentMemoryError(c *gin.Context, err error) {
 		code = "agent_memory_budget_exceeded"
 	case errors.Is(err, agentmemory.ErrEntryTooLarge):
 		code = "agent_memory_entry_too_large"
-	case err.Error() == "agent_not_stays_on":
-		code = "agent_not_stays_on"
+	case err.Error() == "agent_not_always_on":
+		code = "agent_not_always_on"
 	case err.Error() == "agent_instance_forbidden":
 		code = "agent_instance_forbidden"
 	}

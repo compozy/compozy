@@ -142,6 +142,9 @@ import type {
   CancelWorktreeExitActionData,
   CancelWorktreeExitActionErrors,
   CancelWorktreeExitActionResponses,
+  CaptureDaemonProfileData,
+  CaptureDaemonProfileErrors,
+  CaptureDaemonProfileResponses,
   CheckAgentInstanceData,
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponses,
@@ -1674,7 +1677,7 @@ export class agents extends HeyApiClient {
   }
 
   /**
-   * Create a stays-on agent instance
+   * Create an always-on agent instance
    */
   public createAgentInstance<ThrowOnError extends boolean = true>(
     options: Options<CreateAgentInstanceData, ThrowOnError>
@@ -4051,6 +4054,31 @@ export class cmdPalette extends HeyApiClient {
 }
 
 export class diagnostics extends HeyApiClient {
+  /**
+   * Capture a runtime profile over the local socket
+   *
+   * @stability experimental
+   */
+  public captureDaemonProfile<ThrowOnError extends boolean = true>(
+    options: Options<CaptureDaemonProfileData, ThrowOnError>
+  ): RequestResult<
+    CaptureDaemonProfileResponses,
+    CaptureDaemonProfileErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      CaptureDaemonProfileResponses,
+      CaptureDaemonProfileErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/daemon/profile/{kind}",
+      ...options,
+    });
+  }
+
   /**
    * Run runtime diagnostics
    */

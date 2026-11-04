@@ -20,7 +20,7 @@ type CountedReason = "" | "fatigue" | "unattended";
 
 const PAUSE_COPY: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "Paused by you.",
-  definition_not_stays_on: "Paused because this agent no longer stays on.",
+  definition_not_always_on: "Paused because this agent is no longer always-on.",
   definition_missing: "Paused because this agent's definition is gone. Its memory is kept.",
 };
 
@@ -52,7 +52,7 @@ export function agentPauseCopy(instance: AgentPauseFacts) {
 }
 
 const WAKE_KIND: Record<string, string> = {
-  check: "Its next check-in",
+  check: "Its next heartbeat",
   timer: "A timer it set",
   terminal: "A terminal it's watching",
   pull_request: "A pull request it's watching",
@@ -92,7 +92,7 @@ export function agentInstancePausedUnattended(
 export function agentInstanceResumeBlocked(instance: AgentInstancePayload) {
   return (
     instance.pause_reason === "definition_missing" ||
-    instance.pause_reason === "definition_not_stays_on"
+    instance.pause_reason === "definition_not_always_on"
   );
 }
 
@@ -156,7 +156,7 @@ export function agentInstanceCapacity(
 }
 
 export function agentLimitLine({ active, limit }: AgentInstanceCapacity) {
-  return `${active} of ${limit} agents are staying on`;
+  return `${active} of ${limit} always-on agents are active`;
 }
 
 /**

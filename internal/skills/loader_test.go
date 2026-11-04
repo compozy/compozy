@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -185,35 +186,59 @@ func TestParseSkillContentErrors(t *testing.T) {
 }
 
 func TestParseSkillContentWarnsOnUnknownFields(t *testing.T) {
-	original := slog.Default()
-	var logs bytes.Buffer
-	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() {
-		slog.SetDefault(original)
+	t.Run("Should bound warning history across removed workspace paths", func(t *testing.T) {
+		t.Parallel()
+		var cache unknownFieldWarningCache
+		for i := range 2049 {
+			path := strconv.Itoa(i)
+			if !cache.first(path, "extra") || cache.first(path, "extra") {
+				t.Fatal("expected one warning per new path")
+			}
+			if len(cache.seen) > 1024 {
+				t.Fatalf("warning history = %d, want bounded storage", len(cache.seen))
+			}
+		}
 	})
+	t.Run("Should deduplicate unknown field warnings for repeated parses", func(t *testing.T) {
+		original := slog.Default()
+		var logs bytes.Buffer
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() {
+			slog.SetDefault(original)
+		})
 
-	content := strings.Join([]string{
-		"---",
-		"name: warning-test",
-		"description: unknown fields are allowed",
-		"extra: true",
-		"---",
-		"body",
-	}, "\n")
+		content := strings.Join([]string{
+			"---",
+			"name: warning-test",
+			"description: unknown fields are allowed",
+			"extra: true",
+			"---",
+			"body",
+		}, "\n")
 
-	meta, body, err := parseSkillContent([]byte(content))
-	if err != nil {
-		t.Fatalf("parseSkillContent() error = %v", err)
-	}
-	if meta.Name != "warning-test" {
-		t.Fatalf("parseSkillContent() meta.Name = %q, want %q", meta.Name, "warning-test")
-	}
-	if body != "body" {
-		t.Fatalf("parseSkillContent() body = %q, want %q", body, "body")
-	}
-	if !strings.Contains(logs.String(), "unknown frontmatter field") || !strings.Contains(logs.String(), "extra") {
-		t.Fatalf("expected unknown field warning in logs, got %q", logs.String())
-	}
+		path := filepath.Join(t.TempDir(), skillFileName)
+		meta, body, err := parseSkillContent([]byte(content), path)
+		if err != nil {
+			t.Fatalf("parseSkillContent() error = %v", err)
+		}
+		if meta.Name != "warning-test" {
+			t.Fatalf("parseSkillContent() meta.Name = %q, want %q", meta.Name, "warning-test")
+		}
+		if body != "body" {
+			t.Fatalf("parseSkillContent() body = %q, want %q", body, "body")
+		}
+		if !strings.Contains(logs.String(), "unknown frontmatter field") || !strings.Contains(logs.String(), "extra") {
+			t.Fatalf("expected unknown field warning in logs, got %q", logs.String())
+		}
+		for range 3 {
+			if _, _, err := parseSkillContent([]byte(content), path); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if strings.Count(logs.String(), "unknown frontmatter field") != 1 || !strings.Contains(logs.String(), path) {
+			t.Fatalf("expected one warning identifying %s, got %s", path, logs.String())
+		}
+	})
 }
 
 func TestParseSkillContentAcceptsEcosystemFrontmatterWithoutWarnings(t *testing.T) {

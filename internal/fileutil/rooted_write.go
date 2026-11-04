@@ -153,13 +153,35 @@ func (d *Directory) Chmod(mode os.FileMode) error {
 	return nil
 }
 
+// ErrPublishedNotDurable marks an error raised after the new contents were published: the
+// target already holds them, but closing the file or syncing the directory failed.
+var ErrPublishedNotDurable = errors.New("fileutil: published file is not durable")
+
 // AtomicWriteFile writes a direct child through a temporary file and publishes it atomically.
 // When replace is false, publication fails if a child with name already exists.
 func (d *Directory) AtomicWriteFile(name string, contents []byte, perm os.FileMode, replace bool) (err error) {
-	return d.atomicWriteFile(name, contents, perm, replace, false)
+	return d.atomicWriteFile(name, contents, perm, replace, false, nil)
 }
 
-func (d *Directory) atomicWriteFile(name string, contents []byte, perm os.FileMode, replace, private bool) (err error) {
+// AtomicWriteFileIf replaces a direct child like AtomicWriteFile, but runs precondition after the
+// temporary file is written and synced and publishes only when it returns nil. A failed
+// precondition removes the temporary file, leaves the target untouched, and is returned as is.
+func (d *Directory) AtomicWriteFileIf(
+	name string,
+	contents []byte,
+	perm os.FileMode,
+	precondition func() error,
+) error {
+	return d.atomicWriteFile(name, contents, perm, true, false, precondition)
+}
+
+func (d *Directory) atomicWriteFile(
+	name string,
+	contents []byte,
+	perm os.FileMode,
+	replace, private bool,
+	precondition func() error,
+) (err error) {
 	if d == nil || d.file == nil {
 		return fmt.Errorf("%w: directory is closed", ErrInvalidPath)
 	}
@@ -194,15 +216,20 @@ func (d *Directory) atomicWriteFile(name string, contents []byte, perm os.FileMo
 	if err := writeAndSyncFile(temporary, contents, perm); err != nil {
 		return fmt.Errorf("fileutil: prepare temporary file %q: %w", temporaryName, err)
 	}
+	if precondition != nil {
+		if err := precondition(); err != nil {
+			return err
+		}
+	}
 	if err := publishNoFollowAt(d.file, temporary, temporaryName, name, replace); err != nil {
 		return fmt.Errorf("fileutil: publish file %q: %w", name, err)
 	}
 	cleanup = false
 	if err := temporaryOwner.closeWithError(err, fmt.Sprintf("fileutil: close published file %q", name)); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrPublishedNotDurable, err)
 	}
 	if err := d.Sync(); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrPublishedNotDurable, err)
 	}
 	return nil
 }

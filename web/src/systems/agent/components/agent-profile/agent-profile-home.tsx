@@ -22,7 +22,7 @@ import { AgentAddPlace, AgentWorkingNow } from "./agent-where-it-works";
 
 function MainAction({ page, state }: { page: UseAgentProfile; state: AgentAvatarState }) {
   const { identity, places } = page;
-  if (!identity.staysOn) {
+  if (!identity.alwaysOn) {
     return (
       <Button
         data-testid="agent-page-new-session"
@@ -85,7 +85,7 @@ function Stopped({ places }: { places: readonly AgentTeamPlace[] }) {
   return (
     <Alert data-testid="agent-profile-stopped" variant="warning">
       <AlertTitle>
-        {agentCanResume(stopped.pauseReason) ? "Check-ins kept failing" : "It can't resume"}
+        {agentCanResume(stopped.pauseReason) ? "Heartbeats kept failing" : "It can't resume"}
       </AlertTitle>
       <AlertDescription>{agentPausePlain(stopped.instance)}</AlertDescription>
     </Alert>
@@ -96,13 +96,13 @@ function Going({ page }: { page: UseAgentProfile }) {
   const { activity, identity, fresh } = page;
   if (activity === undefined) return null;
   if (activity === null) return <AgentActivityUnavailable />;
-  if (fresh) return <AgentFirstDay name={identity.label} staysOn={identity.staysOn} />;
+  if (fresh) return <AgentFirstDay name={identity.label} alwaysOn={identity.alwaysOn} />;
   return (
     <>
       <AgentActivitySection
         activity={activity}
         label={identity.label}
-        onDemand={!identity.staysOn}
+        onDemand={!identity.alwaysOn}
       />
       <AgentRhythmSection activity={activity} />
     </>
@@ -126,7 +126,7 @@ export function AgentProfileHome({ page }: { page: UseAgentProfile }) {
       <Stopped places={places} />
       <div className="grid grid-cols-1 items-start gap-5 @5xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {identity.staysOn && places.length > 0 ? (
+          {identity.alwaysOn && places.length > 0 ? (
             <AgentWorkingNow
               actions={page.placeActions}
               add={page.add}
@@ -151,7 +151,7 @@ export function AgentProfileHome({ page }: { page: UseAgentProfile }) {
             onOpenTools={() => page.setPanel("tools")}
             owner={identity.owner}
             readOnly={identity.readOnly}
-            staysOn={identity.staysOn}
+            alwaysOn={identity.alwaysOn}
             summaries={page.summaries}
           />
         </aside>

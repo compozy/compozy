@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/compozy/compozy/internal/profiling"
+
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -119,11 +121,16 @@ func buildHostedProjection(
 	registry tools.Registry,
 	record *hostedBindRecord,
 ) (HostedProjectionResponse, error) {
-	views, err := registry.List(ctx, record.scope())
-	if err != nil {
-		return HostedProjectionResponse{}, err
-	}
-	return hostedProjectionResponse(views, record.digestMemo), nil
+	var response HostedProjectionResponse
+	var err error
+	profiling.Do(ctx, func(ctx context.Context) {
+		var views []tools.ToolView
+		views, err = registry.List(ctx, record.scope())
+		if err == nil {
+			response = hostedProjectionResponse(views, record.digestMemo)
+		}
+	}, "operation", "hosted_mcp_projection", "session_id", record.sessionID)
+	return response, err
 }
 
 // load returns the shared immutable snapshot cached for the exact bind generation.
