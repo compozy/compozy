@@ -1,307 +1,337 @@
-## 0.5.0 - 2026-11-03
+## 0.5.1 - 2026-11-04
 
 ### Bug Fixes
 
-- Deliver late hosted MCP tools and bound projection discovery (#1135)
-- Recover cold npm adapter starts before ACP initialization (#1136)
-- Recover superseded extensions and interrupted installs (#1137)
-- Preserve shared composer images and recover missing attachments (#1144)
-- Strip label prefixes from automatic session titles (#1145)
-- Keep QA provider credentials opt-in and remove lab copies on teardown (#1150)
-- Run stays-on agents at their configured permission level (#1157)
-- Keep allowed permission receipts with their tool (#1158)
-- Coalesce monitor wakes outside the operator input queue (#1159)
-- Suspend Goal turns while external work is pending (#1151)
-- Resolve merge train review findings on main
-- Claim subagent wakes parked during a parent resume
-- Release Goal waits after wait-mode children and keep wakes in generation
-- Clear the remaining main lint and integration failures
-- Keep finished automation groups reachable from a grouped search
-- Keep the linked work list open after an unlink leaves one item
-- Keep the linked work list open when Undo is pressed in its toast
-- Use CompozyOS product language and format the skill references
-- Close cross-scope review gaps in approve-all session reads (#1173)
-- Keep store failures out of the masked profile conflict
-- Repair main CI after the stays-on merge
-- Install an approved skill before recording the approval
-- Use CompozyOS product language in the permissions draft
-- Keep scenario-configured model discovery in mock-agent E2E daemons
-- Drop the builtin reviewer mode when a provider is routed to another runtime
-- Match attributed delegated child prompts in the subagent CLI fixture
-- Match the attributed delegated child prompt in the update work fixture
-- Keep permission requests lost to a disconnect askable after recovery
+- Let the mouse wheel scroll the transcript over Mermaid diagrams (#1176)
+- Apply the normal removal policy when a worktree's base ref was deleted (#1177)
+- Stop reporting a lost wake-up when a session cancels its own monitor (#1190)
+- Keep session_prompt output schema in sync with its receipt (#1188)
+- Open a profile-scoped agent in its own profile from All profiles (#1189)
+- Close another profile's session windows when switching into a profile (#1197)
+- Show N linked PRs instead of one PR chip plus +N in the session header (#1207)
+- Offer Add stays-on agent from the session list toolbar (#1187)
+- Pick a stays-on agent's model inline on its home (#1201)
+- Stop stays-on agents asking for every CompozyOS tool call (#1206)
+- Allow comparison and logic builtins in CompozyOS Loop templates (#1213)
+- Require approval for destructive session profile moves
+- Compare Loop template numbers exactly
+- Apply review follow-ups to profile-switch window sweep (#1221)
+- Start the CompozyOS daemon when a profile is archived (#1214)
+- Save agent avatar and color changes and never fail an agent read on appearance (#1208)
+- Reject unsupported agent avatar backgrounds and clarify validation
+- Resume a desk's interrupted profile-switch sweep
+- Align generated clients and validation after main merges
+- Cover profile-switch rollback during owner reads
+- Preserve newer session attention when marking it seen
+- Enforce session profile on workspace routes (#1218)
+- Scope the command palette client directory to the caller's profile (#1217)
+- Keep document-wide streams and queued clicks out of the HTTP/1.1 pool (#1212)
+- Validate window manager bindings in the client profile
+- Declutter the session list rows and give built-in agents icons (#1215)
+- Preserve scoped session row identity and accessible runtime details
+- Bound CI change detection to compared commits
+- Match subagent navigation against accessible runtime labels
+- Recover an interrupted move to another profile after a daemon restart (#1222)
+- Let agent duplicate drop an unsupported saved appearance (#1225)
+- Keep session row actions working after a profile rename (#1228)
+- Close another profile's terminal, agent and automation windows on a profile switch (#1226)
+- Sweep a desk again when an owner read failed during a profile switch (follow-up from #1221)
+- Preserve provider auth recovery boundaries
+- Keep an encoded colon in a file href's name (follow-up from #1223)
+- Name gallery runtimes like the live row, no model for provider-only (follow-up from #1215)
+- Reset the declutter draft thread segment on direction switch (follow-up from #1215)
+- Draw the built-in General icon before the agent catalog loads (follow-up from #1215)
+- Apply one all_profiles read contract to terminal, agent-instance and agent reads (#1238)
+- Use a non-auth ACP error for rate-limit recovery fixture
+- Advertise the model in the desktop open-paths fixture
+- Format profile authority regression tests
+- Omit HTTP-only SDK examples for UDS profile capture
+- Simplify profiling test context error selector
+- Select the agent runtime after its creation scope
+- Preserve palette catalog writes and refresh User catalogs
+- Assert always-on agent creation succeeds
+- Preserve agent runtime when changing creation scope
+- Exercise runtime retention across agent scope changes
+- Isolate skill refresh failures and scope catalog diagnostics
+- Classify agent exits during daemon shutdown as interrupted, not crashed (#1245)
+- Repair CI diagnostics and scope agent page title assertions
+- Satisfy scoped Go lint after catalog performance changes
+- Preserve revocation errors on canceled mutation requests
+- Resolve native instance creation approval in integration journey
+- Keep one page heading in agent setup editors
+- Assert unique headings after correcting agent editor hierarchy
+- Preserve canceled turns across daemon restart races
+- Address PR review feedback on the Check-ins source UI
+- Harden heartbeat source polling and SDK compatibility
+- Preserve optional heartbeat source fields in extension SDK
+- Retain persisted heartbeat hook cancellation reason in regression
+- Keep extension runtime within the source size limit
+- Register safe file reads in heartbeat source boundaries
+- Format source status client contract coverage
+- Collect usage for provider aliases and keep live native_cli sign-in verdicts (#1250)
+- Reject ambiguous usage routes and edit refreshed provider settings
+- Preserve heartbeat contract names while satisfying focused lint
+- Persist restart skip before acknowledging shutdown cancellation
+- Align source fixtures with profile ownership and post-poll skips
+- Verify heartbeat source provide conformance in SDK integration
+- Align provider auth contract coverage with probe timestamps
+- Keep shutdown cancellation responsive without resuming canceled turns
+- Decode instance response envelopes in source catalog coverage
+- Allow telemetry for registered workspace identities after deletion
+- Bound checkpoint shutdown and reject reduced benchmark throughput
+- Preserve overflow proposal details in check-in reports
+- Read durable cancellation marker envelopes during restart recovery
+- Verify telemetry ownership after workspace re-registration
+- Seed historical workspace fixtures before head migrations
+- Preserve workspace registration before telemetry migration
+- Isolate automation history fixture from recursive stop triggers
+- Preserve agent error exports in settings skills mock
 
 ### Features
 
-- Let archive and delete include child sessions (#1131)
-- Add one View options menu with Collapse all and Kanban lane folds (#1133)
-- Add stays-on agents and agent identity
-- Reveal subagent model, kind and activity in the composer panel (#1147)
-- Let a session monitor wait on other sessions (#1146)
-- Add a pull_request session monitor (#1156)
-- Simplify spec-cycle to agents and spec authoring (#1152)
-- **BREAKING:** simplify spec-cycle to agents and spec authoring (#1152)
-- Hide finished automation sessions from the default list (#1163)
-- Link worktrees, branches and pull requests to sessions (#1161)
-- Let approve-all sessions read sessions across workspaces and profiles (#1171)
-- Make GitHub Copilot CLI a first-class provider (#1170)
-- Make stays-on agents safe to leave running (#1174)
+- Move a session to another profile (#1205)
+- Mark a session's Needs you as seen (#1210)
+- Open transcript file paths in the editor from the CompozyOS desktop app (#1223)
+- Wait for a lost provider sign-in and resume the turn (#1229)
+- Capture daemon runtime profiles over UDS (#1240)
+- Rename the Stays on agent kind to Always-on and align permission and setup labels (#1237)
+- Let always-on agents check external sources on each check-in (#1247)
 
 ### Performance Improvements
 
-- Improve responsiveness under concurrent sessions (#1141)
+- Reduce repeated skill, catalog and cache work (#1244)
+- Gate stream-covered interaction polls on catalog stream status (#1246)
+- Isolate telemetry and shorten SQLite write locks (#1241)
 
 ### Refactoring
 
-- Extract the skill approval ledger write
+- Import profile owner helpers from the profiles barrel (follow-up from #1215)
 
 ### Testing
 
-- Stop the stale-entry promotion hook from blocking its dispatch
-- Align integration expectations with merged Goal and instance contracts
-- Expect the authored level after instance context replacement
+- Synchronize reply-watch integration waits on runtime edges (#1178)
+- Cover a fresh derive that names the matching source profile (follow-up from #1218)
+- Assert a profile move carries messages and names its recovery (follow-up from #1205)
+- Assert the 8s window-manager command deadline (follow-up from #1212)
+- Cover mark-seen profile refusal and retained failure (follow-up from #1210)
+- Order two JSON number operands numerically (follow-up from #1213)
+- Keep a valid saved appearance in the instance projection (follow-up from #1208)
+- Assert move result fields and reach the sessionless move guard (follow-up from #1205)
+- Record runtime writes in the owner-profile route matrix (follow-up from #1218)
+- Cover the committed move response when enrichment fails (follow-up from #1205)
+- Assert the exact TOON moved header and value order (follow-up from #1205)
+- Return and store the requested worktree ID on create (follow-up from #1222)
+- Resume terminal catalog WebSocket streams from last_event_id (follow-up from #1212)
+- Format follow-up tests for the line-length lint
+- Resume the aggregate terminal stream with its selection-bound cursor (follow-up from #1212)
 
 ### Release Notes
 
-#### Breaking Changes
-
-##### Spec delivery moves from Loops to agents
-
-The `spec-cycle` extension now ships 4 agents and 2 skills, with no Loops and no tools. Deliver a spec by starting `spec_conductor`, and hand small work to the stays-on `orchestrator`, which stops for your approval when it writes unless you give it a higher level. Each agent carries its own procedure, so picking the agent is enough.
-
-- `cy-create-spec` now writes `_slices.md` and offers peer review after you approve a spec.
-- A new check-in source, `work_log`, surfaces accepted work in `.compozy/work-log.md` that never started.
-- Batuta leaves the catalog because it is built on the removed Loops. An installed copy keeps loading, and only `batuta-deliver` fails when run.
-
-### Migration
-
-This is a hard cut with no deprecation window, so the resources below are gone in this release. Upgrading needs no manual step: CompozyOS starts normally, and nothing under `~/.compozy` needs deleting. Existing sessions, automations, stored Loop overrides and `.compozy/tasks` files are kept.
-
-| Removed                                                                             | Use instead                               |
-| ----------------------------------------------------------------------------------- | ----------------------------------------- |
-| Loop `implement-tasks`                                                              | Agent `spec_conductor`                    |
-| Loop `review-and-fix`                                                               | Agent `reviewer`, then `code_implementer` |
-| Agent `review_fixer`                                                                | Agent `code_implementer`                  |
-| `ext__spec_cycle__import_tasks`                                                     | `_slices.md` read by `spec_conductor`     |
-| `ext__spec_cycle__write_review_artifacts`, `ext__spec_cycle__finalize_review_round` | Agent `reviewer` findings file            |
-| Skill `cy-create-tasks`                                                             | `_slices.md` in `cy-create-spec`          |
-| Skills `cy-execute-task`, `cy-final-verify`, `cy-workflow-memory`                   | Agent `code_implementer`                  |
-| Skill `cy-orchestrate-tasks`                                                        | Agent `spec_conductor`                    |
-| Skills `cy-review-round`, `cy-fix-reviews`                                          | Agents `reviewer` and `code_implementer`  |
-
-Anything pointing at a removed resource fails only when it is used:
-
-- Running a removed Loop, starting a session with a removed agent, or calling a removed tool fails with a not found error. Automations that target them stay saved, and each run fails on its own.
-- A run of a removed Loop that is active during the upgrade fails at its first removed step with a clear error. Its history stays, and other runs are unaffected.
-- A stays-on instance of a removed agent pauses as `definition_missing`, and nothing is deleted.
-- A workspace Loop with one of the removed names keeps working.
-
 #### Features
 
-##### Agents can wait for other sessions to finish
+##### Always-on agents check external sources on each check-in
 
-An agent can now hand work to several sessions, end its turn, and get one wake when they are done. Agents use it through `compozy__monitor_create` with `kind: session`, and the wake lists each session and its state. A session with an active monitor counts as having open work, so a quiet orchestrator is no longer stopped after 40 minutes.
+An always-on agent can now watch something outside CompozyOS, such as new GitHub issues, without paying for a model turn every time it looks. Declare **check-in sources** in `HEARTBEAT.md` under `context.sources`. On each check-in CompozyOS asks every source what is new, without a model, and starts the read-only check only when a source or a built-in fact returned something new. An empty or unchanged result never starts a model turn.
 
-- A monitor watches 1 to 32 sessions in the same project and profile, until `any` or `all` of them reach the states it asks for.
-- A stopped, failed, archived or deleted session always counts, so it can't leave the agent waiting.
-- A session waiting on its own background work, or with queued messages, doesn't count as idle yet.
-- It reads each session as it is now. If the condition already holds, the monitor fires right away.
-- The timeout is 2 hours by default and 6 at most, and a timeout still wakes the agent. Monitors survive a daemon restart.
+```yaml
+context:
+  sources:
+    - id: new-issues
+      kind: forge-github/issues
+      with:
+        repo: compozy/compozy
+        labels: [bug]
+```
 
-This monitor has no CLI command, and it can't watch sessions in another project.
+- **Two kinds of source.** Extensions provide source kinds through the new `heartbeat.source` provide surface, and the bundled `forge-github` extension ships `forge-github/issues`. You can also put your own scripts in the agent's `sources/` folder.
+- **Scripts run only after you approve them.** CompozyOS runs a script only when its exact hash matches your approval, and editing the script needs a new approval. Approve with `compozy agent heartbeat sources approve <agent> <script>`, revoke with `compozy agent heartbeat sources revoke`, or use the Check-ins page. Agents can't approve scripts.
+- **Nothing is missed.** A source's position advances only after a check has seen its items, so a failed or interrupted check sees the same items again. A source that has more items wakes the agent again at `agents.heartbeat.min_interval`.
+- **Failures are visible.** Each source reports a typed error and backs off on its own. After `failure_threshold` failures in a row, the check-in report says so.
+- **Where to find it:** `compozy agent heartbeat sources <agent>`, `sources` on `compozy agent instance show` and `check --dry-run`, the native tool `compozy__agent_heartbeat_sources`, the Check-ins page (add, edit, remove and approve sources), and Go/TS SDK helpers with a `heartbeat-source-go` scaffold. The new guide "Watch new GitHub issues" walks through a setup.
+- **Config:** `[agents.heartbeat.sources]` sets `scripts_enabled`, `timeout`, `max_concurrent_polls`, `max_per_agent`, `max_items`, `max_output_bytes`, `max_state_bytes`, `failure_threshold` and `env_allow`. It is daemon-wide and needs a restart.
 
-##### Agents can watch a pull request without a terminal
+Agents without sources work as before.
 
-An agent waiting on a pull request can now end its turn and let CompozyOS watch it. `compozy__monitor_create` with `kind: pull_request` wakes the agent when checks fail, when all checks finish, when a new review or unresolved thread arrives, and when the pull request merges or closes. The monitor stays armed across wakes and survives a restart. A plain `gh pr checks --watch` is now redirected to this monitor; one that names a pull request or another repository keeps the terminal path.
+### Migration notes
 
-CompozyOS reads the forge with its own connection and runs no agent-supplied command or URL. Forge extensions can report reviews as an optional addition; one that doesn't still supports checks, and each wake says what it couldn't observe.
+- The daemon applies two new database migrations at startup. No existing row or file changes.
+- Older daemons reject `context.sources`. Upgrade every daemon that reads a `HEARTBEAT.md` before you add sources to it.
 
-Limits:
+##### Capture runtime profiles from a running daemon
 
-- The timeout is 6 hours by default and 24 at most, with up to 64 wakes per monitor.
-- Pull requests from forks aren't visible to the monitor.
-- A rerun that passes on the same commit doesn't wake the agent, and neither do late checks or reviews on a replaced commit.
-- A stays-on agent's main session doesn't rotate while one of these monitors is active.
-- A Goal stays **Waiting** for as long as the monitor is active.
-- Each open pull request refresh costs one extra GitHub GraphQL read.
-- Review wakes were tested against a simulated forge and real GitHub reads, but not yet with a review arriving live on GitHub.
+When the daemon is slow or busy, you can now capture a Go runtime profile from it without restarting. Run `compozy daemon profile <kind> --file <path>`, where `<kind>` is `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block` or `threadcreate`.
 
-##### Approve-all agents read every project and profile
+```bash
+compozy daemon profile cpu --seconds 30 --file cpu.pprof
+go tool pprof -tagfocus session_id=<session-id> cpu.pprof
+```
 
-An agent session in `approve-all` mode can now read sessions in any project, in the User scope and in any profile, and can read the All projects lists, the way you can. Before, the same calls failed with `workspace_access_denied` or `agent_scope_denied`.
+- CPU, mutex and block captures sample for 1 to 120 seconds (30 by default). Mutex and block sampling is on only during the capture. Only one CPU capture runs at a time; another returns `profile_busy`.
+- Profiles are labeled by session, provider, tool and route, so you can narrow one to a single session. They don't include prompts, file contents, tool arguments or query strings.
+- The file is written with owner-only permissions, and an existing file is kept if the capture fails.
 
-- **Read by session id:** `compozy__session_status`, `compozy__session_history` and the other session tools accept just a `session_id`. CompozyOS finds where that session lives and checks access there, so the agent no longer has to pass `workspace`.
-- **Other profiles and All projects:** `profile`, `all_profiles` and `all_workspaces=true` reads follow the permission mode. `approve-reads` still asks you first, and `deny-all` still never leaves its own project.
-- **Secrets are redacted:** when an agent reads something outside its own project or profile, credential-shaped text in what comes back, such as API keys, bearer tokens, `password=` values and long random tokens, is replaced with `[REDACTED]`. This works by recognizing patterns, so a secret without a recognizable shape can still get through. Reads inside the agent's own project and profile don't change.
-- **Clearer denials:** a refused call now says which setting refused it and what would allow it. It never names the target, so a refused agent can't tell whether a session it asked about exists.
+This command is experimental. It works only over the local daemon socket: the `GET /api/daemon/profile/{kind}` route isn't served over HTTP or the Gateway, and app tokens can't use it.
 
-This widens what agents can see. `approve-all` is the built-in default, so unless you changed `[permissions] mode` or an agent's `permissions`, your agents can now read work in every profile. Set `approve-reads` to be asked first, or `deny-all` to keep a session inside its project. Changing work in another profile, or writing through an All projects route, still needs `workspace_access: unrestricted`, which only you can set.
+##### Mark a session's Needs you as seen
 
-##### Archive and delete can include child sessions
+A session in **Needs you** used to stay there until something changed, even after you had looked at it, and a failed session stayed until you archived it. Now you can mark it as seen from the session row menu, the Kanban card, or the button in the session header.
 
-Archiving or deleting a parent used to leave its child sessions behind, still running if they were live, without telling you they existed. Now a session with children asks first: archive offers a checked "Also archive N child sessions", and delete offers an unchecked "Also delete N child sessions". A session with no children works as before, and archive stays one click.
+- **What it clears:** a turn that ended early with no pull request and no open work, a session back from Later, and a failed session. A failed session then reads as stopped and keeps its failure record. The next failure, early stop or Later return raises Needs you again.
+- **What it keeps:** a pending permission, a question waiting for your answer, a missing provider sign-in, or a stop CompozyOS couldn't confirm still need you. Marking those as seen is refused, and the refusal names the answer still owed.
+- Marking a child session as seen never wakes its parent.
+- **From the terminal and agents:** `compozy session mark-seen <id>`, the native tool `compozy__session_mark_seen`, and HTTP/UDS `POST /api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen`. A refusal returns `attention_requires_action`. Session payloads gain `attention_dismissible`, which is true only while the current Needs you can be marked as seen.
 
-From the terminal, use `--with-children` on `compozy session archive` and `compozy session remove`. `compozy__session_archive` accepts `with_children`, and HTTP gains the same option plus a route that counts a session's descendants. Leaving the option out keeps today's behavior.
+### Migration notes
 
-Limits: unarchive brings back subagents only, so restore other children one at a time from the Archive view or with `compozy session unarchive <id>`. Delete isn't atomic: if it fails partway, the sessions it didn't reach stay and the error names the child.
+The daemon applies a new database migration at startup. Existing sessions are unchanged.
 
-##### Finished automation runs leave the session list
+##### Move a session to another profile
 
-Sessions started by an automation job or trigger now leave the session list, the board and their counts once they finish cleanly, so a weekly job no longer adds a permanent row. Nothing is archived or deleted: each run stays reachable from the Automations run view and through search, including a search in a grouped list.
+A session started in the wrong profile can now move to another one. **Move to profile** copies a stopped, top-level session into another active profile and archives the original. The copy keeps the agent, title and conversation, and uses the target profile's agents, credentials and config when it starts. The original keeps its history and past usage in its own profile.
 
-A run stays on the list if it failed, if it or a child session is waiting on you or still working, or if you prompted it yourself. A failed run stays until you archive it. Opening a finished run doesn't bring it back. Loop and Task sessions are unchanged, including automation runs handed to a Loop or a Task.
+- **Where:** the session row menu (**Move to profile**), `compozy session move-to-profile <id> <profile>`, and HTTP/UDS `POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`. Agents use `compozy__session_move_to_profile`, which needs the unrestricted workspace-access grant and can't move the agent's own session.
+- **Worktrees move too.** A session bound to a worktree gets a new worktree on the same branch in the target profile. Every commit, including unpushed ones, stays on the branch.
+- **What is refused:** running sessions (stop them first), sessions with child sessions, worktrees with uncommitted changes, and worktrees shared with another session. Each refusal returns a `session_move_to_profile_*` error that names the rule.
+- **Interrupted moves recover.** If a move fails partway, CompozyOS rolls it back. If the daemon stops in the middle, it finishes or rolls back the move at the next start. The session and its branch are never deleted.
 
-Migration notes: existing runs follow the same rule after upgrading, with no action needed. `compozy session list` and `compozy__session_list` keep returning every session. The API does too, unless a client passes the new `exclude_finished_automation=true` query parameter.
+`compozy session move` still moves a session between folders.
 
-##### GitHub Copilot CLI works as a full provider
+### Migration notes
 
-You can now sign in to GitHub Copilot CLI from CompozyOS, run sessions on it, and use CompozyOS native tools inside those sessions. Before this, `compozy provider auth login copilot` failed and Copilot sessions had no `compozy__*` tools. Setup steps are on the Providers docs page under "GitHub Copilot CLI".
+- The daemon applies a new database migration at startup. Existing worktrees keep their behavior.
+- Deleting a session now returns 409 while a move of that session is still being recovered. It succeeds once the move settles at the next daemon start or the next move of that session.
 
-- `compozy provider auth login copilot` runs `copilot login`. `compozy provider auth status copilot --remote` checks the sign-in with a session that sends no prompt.
-- The model picker lists the models and reasoning levels Copilot offers your account. Plans with a single model, such as Copilot Free, offer no model choice: Copilot picks the model, and asking for a specific model or level stops the session before its first prompt instead of being ignored.
-- Copilot ignores stdio MCP servers, so CompozyOS serves native tools to it on a local HTTP address protected by a per-session token. The address closes when the session's Copilot process exits. Any ACP provider can opt in with the new `session_mcp_transport = "http"` setting.
-- `permissions.provider_full_access` now covers Copilot by turning on its `allow_all` option. Copilot's Autopilot mode and `allow_all = on` count as unrestricted, so both need `approve-all`.
-- Starting a new session while its ACP provider is signed out now fails with a sign-in diagnostic naming `compozy provider auth login <provider>`, instead of a raw protocol error. This applies to every ACP provider: API and CLI errors now carry the `provider_not_authenticated` diagnostic. Resuming a stopped session still reports the provider's own error.
-- The GitHub Copilot mark appears wherever CompozyOS shows the provider.
+##### Open transcript file paths in your editor from the desktop app
 
-Copilot's ACP support is a public preview from GitHub, and CompozyOS was tested with Copilot CLI 1.0.105. Copilot can't run triage sessions, because it has no read-only mode. It can't take guidance during a running turn, so a message sent then cancels the turn unless you queue it. Copilot also reports no usage limits to CompozyOS.
+Agents often name files in their replies, such as `internal/mcp/hosted_proxy.go:42`. In the CompozyOS desktop app, **Cmd+click** (macOS) or **Ctrl+click** (Windows and Linux) a file path in an assistant message to open it at that line in your editor. An **Open in editor** button also appears on hover or focus.
 
-##### See the worktrees, branches and pull requests behind each session
+- CompozyOS detects paths in inline code and in links whose whole text is a path, with an optional `:line` or `:line:col`. Plain text isn't detected.
+- Relative paths resolve against the session's working directory, then its worktree, then the project root.
+- **Choose the editor** in **Settings › General › Editor command**, or run `compozy config set desktop.editor_command 'code -g {path}:{line}:{col}'`. The value is a command template with `{path}`, `{line}` and `{col}`. Left empty, the system text editor opens the file, without line support.
+- Files outside the session's worktree or project, and credential folders such as `~/.ssh` and `~/.aws`, ask you to confirm first. The dialog shows the full path, and Cancel is the default.
+- The browser and remote clients (LAN, phone, Gateway) show paths as before and can't start anything on the daemon's machine.
 
-A session now has **Linked work**: the worktrees, branches and pull requests that belong to it, separate from where its agent runs. A worktree a session creates with `compozy__worktree_create` shows up by itself, with no bind and no restart. Pull requests from child sessions also appear on the parent, read-only, as "From {child}".
+`desktop.editor_command` is set per machine; project and profile config can't set it, and agents can't change it. Single-session reads gain a read-only `working_dir` field.
 
-- The session header shows the most urgent item, and `+3 PRs` or `+3 more` opens the list. List rows show a count, Kanban cards show the lead pull request plus `+N`, and the command palette finds a session by pull request number or branch.
-- Paste a link or search by number, title or branch to link more by hand, or run `compozy session link <session-id> --pr-number 142`. `compozy session unlink` removes a link.
-- Agents can link what they made outside the worktree tool with `compozy__session_link` and `compozy__session_unlink`, on their own session only.
-- Unlinking removes the association and nothing else, and it offers **Undo**. An automatic link you unlink doesn't come back.
-- The pull request details tooltip is now a checklist of what stands between the pull request and merging.
+##### Turns wait for a lost provider sign-in and then continue
 
-Limits: a pull request from another project is refused, and one from a fork can't be linked yet. A branch holds one pull request, so linking a second replaces the first. Pull request search needs a connected forge; without one you can still link branches.
+Switching accounts in a provider CLI, such as signing out of a Claude Code or Codex account near its limit and into another, used to fail every session that sent a prompt in that moment with `Authentication required`. You then had to resume each one by hand. Now a turn that loses the provider sign-in waits for it to come back and continues by itself, for every ACP provider.
 
-Migration notes: one board behavior changes. A session that has settled with an open pull request linked directly to it now sits in **In review** instead of **Done**. A running session stays in **Working**, and so does one with queued input, so a session never enters **In review** while it works. Pull requests from child sessions never move the parent. With no open linked work, the column is the same as before. Existing `branch` and `pull_request` fields keep their meaning, session payloads gain an optional `linked_work`, and forge extensions need no change: without pull request search they still link branches.
+- The session shows "Waiting for the provider sign-in…" with "Retrying automatically · Attempt N of M".
+- Retries start after 15 seconds and double up to one a minute, for up to 10 minutes.
+- A turn that hadn't started work is sent again as it was. A turn that had already started work gets a short note that the sign-in dropped and that it should check what is done before repeating anything. Your message is never recorded twice.
+- If the sign-in doesn't come back in time, the turn fails as it did before. Later turns in that session then fail right away until one completes, instead of each waiting again. Cancelling the prompt ends the wait.
+- Session reads show the cause in `runtime.recovery.reason` (`provider_auth` or `runtime_exit`). The existing `session.runtime_recovery.*` hooks also fire for these waits.
 
-##### Stays-on agents run at their configured permission level
-
-A stays-on agent runs at the `permissions` level on its own definition, whether you or an agent created the instance.
-
-- **No level set:** it stays at `approve-reads`, or at `[permissions].mode` when that is narrower. The bundled `orchestrator` sets no level, so it stops for your approval when it writes.
-- **`approve-all`:** it acts without prompts.
-- **Sessions it starts:** they don't take its level. Each uses its own agent's `permissions`, then `[permissions].mode`, so a stays-on agent at `approve-reads` can start a session that runs at `approve-all`. A `permission_mode` above that session's level is refused.
-
-Tool, skill, MCP server and path limits still apply, and check-ins stay read-only. The level is read each time a session starts, so a session that can write the agent's `AGENT.md` or the project's `.compozy/config.toml` can change it. Treat write access to those files as authority over the level.
-
-### Migration
-
-Stays-on agents are new in this release, so upgrading from v0.4.8 changes nothing here. If you already run them on a pre-release build, each one moves to its configured level the next time its main session starts. A stays-on agent with no level stays at `approve-reads`. One set to `approve-all` used to be held at `approve-reads` and acts without prompts after upgrading.
-
-To keep one asking first, set `permissions: approve-reads` on it or remove the level. This covers only the agent's own actions, so set a level on the agents it starts as well.
-
-##### The subagent panel shows who is working, on what, and with which model
-
-Each row in the composer's subagent panel now shows the title, model and kind, the current action and the elapsed time, so a subagent no longer reads "general" and "Not reported". Click a row to slide the panel to that subagent: status, time, tools, tokens, what it was asked to do, its result and its tool activity. Back and Escape return to the row. A bar in the header shows one segment per subagent, filling as they finish, fail, work and queue.
-
-Limits: the provider reports a model alias, so a row reads `Sonnet`, not its full version. Token and tool counts exist only for subagents the provider runs itself. Nothing reports a percent or a per-subagent cost, so neither is shown.
-
-Migration notes: subagent payloads and `compozy__subagent_status` gain an optional `usage` field. On provider-run subagents, `role` now holds the subagent type instead of the fixed value `general`, so update any script that matches on it.
-
-##### One View options menu, with Collapse all and Kanban lane folds
-
-The separate Sort and Group by buttons are now one **View options** menu on the session list and the Kanban.
-
-- **Collapse all** and **Expand all** fold every folder, project group and child list in one step, including rows that haven't loaded yet. New items follow the choice, and the choice survives a reload.
-- Kanban project lanes now fold down to their name, count and live signal. A project folded in the list is folded on the board too.
-- **Show empty projects** now applies to the Kanban as well as the list.
-- **Hide child sessions** moved from the Kanban header into this menu.
-
-Collapse all is one choice per window, so using it on the board also folds the list. On the board it shows only while there are swimlanes. While a search is active, folds don't hide results.
+Configure it in the new global-only `[session.auth_recovery]` table (`enabled`, `window`, `initial_delay`, `max_delay`). It needs a restart. Set `session.auth_recovery.enabled = false` to fail right away, as before.
 
 #### Fixes
 
-##### Allowed permissions stay with their tool in the timeline
+##### Always-on agents run unattended at Accept edits and Auto-review
 
-An allowed permission no longer splits a tool group into `Used 2 tools / Allowed… / Used 2 tools`. It now sits under its tool, visible when you expand the group. Rejected, expired, pending and unmatched permissions keep their own row, and tool counts don't change.
+An always-on agent at **Accept edits** (`approve-edits`) or **Auto-review** (`auto`) used to ask you before almost every CompozyOS tool call, including monitors, child sessions, worktrees, status reads and skill reads. The built-in Orchestrator couldn't run unattended unless you copied it at **Full access**.
 
-Approvals of the native `compozy__terminal_exec` tool still show on their own row, because nothing links them to their tool call yet. In sessions that mostly run terminal commands, most allowed permissions will look the same as before.
+- At those levels, CompozyOS tools that change things without destroying them now run without asking. Examples are creating sessions and worktrees, binding a worktree, renaming and linking sessions, task bookkeeping and layouts.
+- These still ask: destructive and open-world tools, terminal commands, Loop and Automation tools, config, tool approvals, hooks, extensions, provider model changes, and creating, pausing or resuming agents.
+- A call you approve at the provider prompt is no longer asked about a second time.
+- CompozyOS tools now follow the session's own permission level, the same level the provider uses.
+- The built-in Orchestrator now ships with `permissions: auto`.
 
-##### Automatic session titles drop label prefixes
+`compozy__session_create` runs without asking at these levels and starts the child at the target agent's own level, which can be higher than the caller's.
 
-Automatic titles no longer keep a label the model put in front of them, such as `Título sugerido: Localizar resenhas` or `Suggested title: Checkout retry race`. CompozyOS now asks for the title alone, in the conversation's language, and strips these labels in English, Portuguese, Spanish, French, German and Italian. Titles that really contain a colon, such as `Fix title: colon handling`, stay whole.
+Other always-on agent fixes:
 
-A label in another language can still pass through, and a title that truly opens with a listed phrase, such as `Session title:`, loses it. Titles already stored are not rewritten.
+- The **Model** row on an agent's home is now the model picker itself. A change saves at once, and **Use default** clears the agent's own choice.
+- **Add always-on agent** is in the session list toolbar `+` in every view, not only in a project row.
+- Changing an agent's avatar or color from its profile header saves again instead of failing with `invalid agent definition appearance`. An unsupported saved appearance no longer fails an agent read or `compozy agent duplicate`; the copy gets the default face.
+- Cancelling your own monitor with `compozy__monitor_cancel` no longer reports "A wake-up didn't arrive".
 
-##### Removing a composer image no longer breaks another one
+##### Stopping the daemon no longer records running agents as crashed
 
-Removing an image from the composer could delete the stored file shared with another image, including a duplicate tile or one already sent, so Send then failed with `attachment not found`. Removing a tile now only removes the tile. Retention and session deletion clean up the stored file, so an abandoned upload can remain until retention runs.
+When the daemon was stopped from outside while a session was mid-turn, for example by logging out of the OS, shutting down or quitting the desktop app, the session was recorded as failed with "ACP subprocess exited unexpectedly". That also wrote a crash bundle, fired `agent.crashed`, tried to restart the agent and sent the parent a `failed` wake.
 
-A prompt refused for a missing attachment now reads as plain guidance instead of a raw error. Your text and files return to the composer, the file uploads again, and Send retries. The guidance stays with the draft until the message is accepted or you remove the attachment or discard the draft.
+Now an agent that exits while the daemon is shutting down is recorded as stopped by the daemon. No crash bundle or `agent.crashed` follows, the daemon doesn't restart agents while it stops, and a parent gets a `stopped` wake. After a restart, the interrupted turn still continues. An agent that exits while the daemon keeps running is still a crash.
 
-A full page reload still keeps only your draft text, not unsent files, so attach them again.
+##### Less repeated work when many sessions run
 
-##### Goals wait for external work instead of spending their turns
+A round of fixes from a performance review of many sessions running at once.
 
-A Goal could use up its turn limit while a monitor or subagent it started was still running. Now, while the session has a live monitor or subagent, the Goal shows **Waiting** and starts no new work, compaction or judge check. The turn that started the wait counts once, the wake consumes no Goal turn, and the Goal carries on when the wait ends. CompozyOS checks this itself, so an agent saying it is waiting isn't enough.
+- **Clicks no longer stall in the desktop app.** Clicks on sessions and window tabs could hang for tens of seconds and then apply all at once, with "Can't save window layout — retrying". Three long-lived streams held half of the browser's connections; they now use WebSocket. A window command still waiting after 8 seconds is dropped instead of replayed.
+- **Skills are reparsed only when they change.** A failed extension refresh no longer leaves skill discovery stale, and healthy profiles and projects stay usable when one fails.
+- **Fewer catalog reads and writes.** Window transcripts follow the 5-second refresh window, cached catalogs are written only when they change, and pending-answer views refresh from the live stream instead of polling every 5 or 15 seconds.
+- **Model discovery stops retrying sources that can't work,** such as a missing CLI. **Refresh** still tries them, and temporary failures still retry, backing off to at most 2 hours.
+- **The desktop app caps its HTTP cache at 256 MiB** and trims a larger one at launch. Your data and sign-ins are kept.
+- **Cancelled requests return 499** and no longer log as server errors.
 
-- A Goal waiting on a subagent survives a daemon restart, and picks up the result when the subagent finishes during the restart.
-- A subagent run in wait mode hands its result straight to the caller, so it no longer holds a Goal in **Waiting**.
-- **Pause** keeps working during a wait, and so do Stop and your own messages. Wall-clock budgets keep counting.
-- A wait that lasts 25 hours pauses the Goal for your attention with `goal_wait_timeout`. If the wait can't be read, it pauses with `goal_wait_unavailable`. Check the monitor or subagent before you resume.
-- A deliberate daemon stop pauses the Goal and stops its session. Resume the session first, then the Goal.
+##### Many sessions no longer wait on one database lock
 
-Migration notes: no action is needed, and existing Goals keep their progress. `waiting` is a new Goal status in HTTP, UDS, CLI output and the Goal tools, so update any client that switches on status.
+With around 30 active sessions, transcript updates, session health, model refreshes, process checks and a large event-summary log all waited on the same SQLite resources, so the app and agents slowed down together. CompozyOS now keeps that work apart.
 
-##### MCP tools that arrive late reach running agents, and tool lists load faster
+- Interactive writes, such as sending a prompt or changing a session, go ahead of background work, which waits in a bounded queue.
+- Global, profile and session reads have their own read pools, and transcript work is prepared before it takes the write lock.
+- Session health is written in batches every 500 ms and flushed on a clean shutdown.
+- Event summaries move to their own database, `$COMPOZY_HOME/compozy.db.telemetry.db`, which has its own write lock.
 
-An agent could finish listing its MCP tools before a server's tools were discovered, then never see them. CompozyOS now tells connected providers when the list changes, so they can pick up and call tools that arrive late. This was tested directly against the Claude adapter, not through a full session.
+CLI commands, HTTP/UDS routes, native tools, Observe filters and cursors, hooks and config keys are unchanged.
 
-Listing tools also no longer rediscovers every MCP server once per tool. With two slow local servers and 114 tools, the list went from 36 seconds to under a second. Other causes of a slow list may remain, since this fixes the one we reproduced.
+### Migration notes
 
-##### Monitor wakes no longer fill the session queue
+- On the first start after the upgrade, the daemon moves existing event summaries into `compozy.db.telemetry.db` in small batches and checks every row before it removes the old copy. On a large installation this first start takes longer and needs disk space for the new file. An interrupted move resumes at the next start.
+- Back up and restore `compozy.db`, `compozy.db.telemetry.db` and their `-wal` and `-shm` files together. The two databases carry a matching identity. If the telemetry file is missing, empty or comes from another installation, the daemon refuses to start instead of replacing it; restore both files from the same backup. See **Operations › Database** for a live backup recipe.
 
-Monitors that fire during a long turn now merge into one queue entry that reads "N monitors fired" and carries every outcome in firing order. Before, each wake took its own row, and the composer could show `10 queued · full` while your own messages were still welcome. Only your messages count toward `full` and `queue_cap` now.
+##### Profiles stay separate across windows, routes and reads
 
-On a provider that accepts input mid-turn, the merged wake goes into the running turn after `session.messaging.queue_promote_after` (2 minutes by default), behind anything you already queued. Other providers get it at the next turn boundary, as one turn. `compozy__session_inputs_list` also no longer fails on these entries.
+A review of how profiles are kept apart found and closed several gaps.
 
-Limits:
+- **Switching profiles closes the other profile's windows.** A session, terminal, agent or automation window opened under **All profiles** no longer stays on screen with "This session belongs to …" after you switch into one profile. It leaves the desk without stopping anything, so another profile's terminal keeps running, and you can reopen the window.
+- **Agents open in their own profile.** Opening an always-on agent owned by another profile from All profiles no longer shows "Agent not found". Its window, **New session** and **Duplicate** use the agent's profile.
+- **Routes check the session's profile.** Project session routes (prompt, transcript, stream, usage and the rest) now return 404 for a session owned by another profile when you select a profile. `all_profiles=true` allows reads and refuses writes with `profile_selection_conflict`. Without a selector, a route still uses the session's own profile.
+- **Agent-instance writes refuse `all_profiles=true`.** Pause, resume, check, archive and the other instance writes can no longer reach another profile's instance through the aggregate.
+- **One rule for `all_profiles` reads.** Terminal lists, details, streams and downloads, agent-instance lists and details, and the native tools `compozy__agent_list`, `compozy__agent_instance_get`, `compozy__agent_instance_list` and `compozy__agent_activity` accept `all_profiles` the same way, with rows labeled by `profile_name`. The instance list no longer returns 422.
+- **The command palette sees only your profile's clients.** A palette call can no longer list, read or send commands to a browser tab open on another profile. `compozy cmd-palette clients --all-profiles` and `GET /api/cmd-palette/clients?all_profiles=true` still list every profile.
+- **Renaming a profile keeps row actions working.** Rename, archive, Later and Move to profile on that profile's sessions no longer fail with `profile_not_found` until a reload.
+- **An archived profile no longer stops the daemon from starting.** The daemon used to exit with `start provider usage: profile "<name>" is archived`, which left the desktop app on its boot error screen.
 
-- Past 64 KiB, a wake keeps its outcome and drops its output tail, with a note to read the terminal.
-- Past 64 merged wakes, a new one waits and retries until the entry is delivered or its retry window ends.
-- After a restart, a wake whose delivery was never confirmed goes back in the queue, so the agent can see the same outcome twice. This is deliberate: repeating an outcome is safe, and losing one is not.
+### Migration notes
 
-Migration notes: no action is needed. Entries queued before the upgrade stay separate and deliver as before. `coalesced_wakes` is a new optional field on queue entries, and `input.pre_submit` hooks now also run for wakes delivered mid-turn.
+Scripts that called project session routes with `profile=<other>` for a session owned by a different profile now get 404. Name the owning profile, leave the selector out, or use `all_profiles=true` for reads. `GET /api/cmd-palette/clients` now defaults to your profile; pass `all_profiles=true` for the old list.
 
-##### Slow npm adapter installs no longer fail a session start
+##### Provider usage for extra accounts and verified native CLI sign-ins
 
-A first `npx -y <adapter>@latest` can take longer than the 30 seconds an adapter gets to start, so CompozyOS stopped the install before the adapter ever ran, and repeat starts could interrupt npm's own recovery. This also blocked Loop agent steps. The package now installs first, with its own five-minute limit, and the 30-second limit starts only after that. This covers built-in and custom providers.
+Two fixes for running more than one native CLI account.
 
-Starts that need an install take turns, and the wait counts toward the five minutes. Versions stay unpinned, nothing in your npm cache is deleted, and a failure now tells a temporary npm problem apart from a package that can't be resolved, in both the error and `compozy doctor`.
+- **Usage for custom providers.** A custom provider that points at a built-in, such as a second Claude account with `runtime_provider = "claude"` and `auth_mode = "native_cli"`, used to show `unsupported` / `no_collector` in Provider usage. It now uses the matching collector and shows as its own row. Usage collection also applies an `env NAME=value … cmd` launch prefix, so each account reads its own config folder, such as `CLAUDE_CONFIG_DIR=~/.claude-mm1`, instead of mixing with your main account.
+- **"Sign-in unverified" no longer sticks.** Settings › Providers and `compozy provider list` showed "Sign-in unverified" for every `native_cli` provider, even right after a sign-in check passed. The daemon now remembers the last result from `compozy provider auth status`, from **Check sign-in**, and from session starts, and shows when it checked. **Check sign-in** now checks in place instead of opening the editor. Changing the provider's config, or restarting the daemon, clears the remembered result.
 
-##### Extension upgrades recover from retired and half-installed packages
+##### Smaller fixes
 
-Upgrading no longer leaves the old `dev-cycle` extension in the way. CompozyOS moves its installs and profile enablement to `spec-cycle` in one step and keeps the old package files. If the old extension holds inputs, credentials, development links, profile markers or conflicting enablement that can't move safely, it stays registered and `compozy doctor` names its replacement and the exact removal command. Review that state before you remove it.
-
-One broken extension also no longer fails another extension's install, update, enablement, removal or rollback. Its failure stays visible in status and in `compozy doctor`. A package left with no install can now be cleared with `compozy extension remove <name> --global`.
-
-Migration notes: the `dev-cycle` to `spec-cycle` move runs automatically on upgrade and is scheduled for removal in v0.6.0, after the v0.5 migration window. Retired `ext__dev_cycle__*` tools have no alias and no tool replacement, because `spec-cycle` no longer ships tools in this release: see "Spec delivery moves from Loops to agents" for what to use instead. `cy-create-prd` and `cy-create-techspec` are now `cy-create-spec`, so review its inputs when you update scripts and Loop definitions.
-
-##### Switching sessions stays responsive while others stream
-
-With several sessions streaming, switching to another one could leave the previous conversation on screen, and still interactive, for more than five seconds. The new session or its loading state now appears as soon as you select it.
-
-The dashboard, Loop, task and worktree views also make far fewer repeat reads when many events arrive at once, the daemon does less repeated work on session, scheduler and worktree lists, and a closed About dialog no longer polls full status. These results come from controlled tests, so your gain depends on your load.
+- **Mermaid diagrams:** the mouse wheel scrolls the transcript when the pointer is over a diagram.
+- **Worktrees:** `compozy worktree remove` works when the worktree's base branch was merged and deleted, instead of failing with `worktree_safety_check_failed`. It checks for commits no other branch, tag or remote keeps.
+- **Agents sending prompts:** `compozy__session_prompt` no longer returns a schema error for a prompt that was queued, held or sent to another session. The prompt was always delivered.
+- **Loop templates** accept `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `not`, `and` and `or`, so a step can see which gate rejected the last attempt.
+- **Session list:** rows are less crowded, and built-in agents have icons.
+- **Session header:** a session with several linked pull requests shows one "N linked PRs" chip that opens the list, instead of one PR plus `+N`.
 
 #### Highlights
 
-##### Stays-on agents keep watch over your projects
+##### Stays on is now Always-on in v0.5.1
 
-Agents now come in two kinds. **On demand** agents work as before: they run when something starts them. **Stays on** agents hold a place in a project, or in Global, with one main session you come back to, regular check-ins, and notes that carry over between sessions.
+The agent kind that keeps running on its own is now called **Always-on**, and its value is `always_on`. Every CompozyOS surface uses the new name: the app, the CLI, `config.toml`, HTTP/UDS, native tools, the SDKs, the official skill, and the docs. On-demand agents are unchanged. The app now also uses the labels other agent tools use for permission levels and agent setup:
 
-- **Create one:** the new create screen covers both kinds, or run `compozy agent create triage --kind stays_on --prompt "Keep issues moving."` followed by `compozy agent instance create triage --workspace <project>`. The kind is fixed at creation; duplicate an agent to choose the other one. Each profile can run 10 active instances by default.
-- **See them:** avatars sit above each project's sessions and in its Kanban lane header, with anyone who needs you first.
-- **Check-ins:** on a schedule, the agent reviews its project in a hidden read-only session and reports only when it has something to say. Quiet checks back off, and repeated failures pause the agent (10 by default). Reports land in the main session without starting a turn, and after an absence a **While you were away** card sums up what happened. Check-ins are on for a new instance; `compozy agent instance checks` turns them off.
-- **Approvals:** requests from the agent and the sessions it starts reach you through its main session. An unanswered request is denied after 12 hours by default, and the agent records a report.
-- **Memory:** edit an agent's notes in the app or with `compozy agent memory`. Agents write notes on purpose; nothing is extracted automatically. Up to 200 lines or 24 KiB load at startup. User and extension agents share notes across projects, and agents defined in a repository keep their own.
-- **Identity:** a display name, description and avatar now follow an agent across sessions, tasks and automations, and the agent profile collects where it works, what it does, its Check-ins, Memory and activity.
+- Permission levels: **Accept edits** (`approve-edits`, was "Edit on its own"), **Auto-review** (`auto`, was "Let a reviewer decide"), and **Full access** (`approve-all`, was "Never ask"). Wire values are unchanged.
+- The agent page section is **Setup**: Instructions, Model, Heartbeat, Memory, Tools, and Permissions. A scheduled check now reads "heartbeat". Page URLs are unchanged.
 
-Check-ins need a provider with a confirmed read-only mode. Claude, Codex and OpenCode qualify; other providers fail those checks with `triage_unsupported`. The agent tools for instances and memory, such as `compozy__agent_instance_create` and `compozy__agent_memory_add`, are experimental for this release and may change without the usual notice.
+### Migration notes
 
-Migration notes: nothing changes for existing agents. They stay On demand, no `AGENT.md` is rewritten, and installing an extension never starts a stays-on agent. New settings live under `[agents.stays_on]` and `[agents.heartbeat]`, with working defaults. Older versions may reject the new `AGENT.md` keys, so keep a backup before downgrading.
+v0.5.1 upgrades in place: v0.5.0 files, config, request values, and stored rows keep working through v0.5.1. Readers of emitted `kind`, reason, and error values must update now (see below). Every alias below is removed in **v0.5.2**.
+
+- **Update the daemon together with the CLI.** The CLI doesn't check the daemon's version. A v0.5.1 CLI always sends `always_on`, which a v0.5.0 daemon rejects.
+- **AGENT.md `kind: stays_on` → `kind: always_on`.** The old value loads as `always_on` through v0.5.1, and the daemon logs one warning per file. On boot, the daemon rewrites the `kind` value of every AGENT.md under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`. It changes no other byte and logs each rewrite and each skip. AGENT.md files in a repository, a workspace profile, or an extension are never rewritten, so edit those yourself before v0.5.2.
+- **`[agents.stays_on]` → `[agents.always_on]`.** The old table is read with one warning per process, and a key set in `[agents.always_on]` wins. `compozy config get|set|unset` and `compozy__config_*` accept `agents.stays_on.*` paths, warn, and operate on `agents.always_on.*`. `unset` through either spelling clears the key from both tables in the file it edits. Defaults are unchanged.
+- **`--kind stays_on` → `--kind always_on`.** The CLI accepts the old value with a stderr warning.
+- **Request enums vs. emitted values.** Request `kind` fields (create, update, duplicate, its `overrides.kind`, and `compozy__agent_create`) accept `on_demand`, `always_on`, or the deprecated `stays_on`. The generated TypeScript and Go request types widen to match. Responses, events, tool results, and CLI `-o json` emit `always_on` from this release on, so readers that compare `kind` to `stays_on` break now.
+- **`definition_not_stays_on` → `definition_not_always_on`.** This changes at once in the instance API `pause_reason` field, the instance check `gate` (`compozy agent instance check` and `compozy__agent_instance_check`), the check-in history `reason`, and the `agent.instance.*` hook payload `reason`. Stored rows are migrated. Hook consumers that compare the old value break.
+- **`agent_not_stays_on` → `agent_not_always_on`.** The error code changes at once. The experimental agent memory routes break with no compatibility window.
+- **Startup section `stays_on_doctrine` → `always_on_doctrine`.** The tag is now `<compozy-always-on-doctrine>`. Startup-section diagnostics show the new name.
+- **Permission labels.** Only the labels changed. `deny-all`, `approve-reads`, `approve-edits`, `auto`, and `approve-all` are unchanged in files, config, and the API.
+- **v0.5.2 removes every shim.** That covers the `stays_on` kind alias, `[agents.stays_on]`, the `agents.stays_on.*` paths, the `stays_on` request enum value, and the boot rewrite. After that, `stays_on` fails with an error that names `always_on`.

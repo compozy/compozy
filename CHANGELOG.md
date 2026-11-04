@@ -5,6 +5,133 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 - 2026-11-04
+
+### Bug Fixes
+
+- Let the mouse wheel scroll the transcript over Mermaid diagrams (#1176)
+- Apply the normal removal policy when a worktree's base ref was deleted (#1177)
+- Stop reporting a lost wake-up when a session cancels its own monitor (#1190)
+- Keep session_prompt output schema in sync with its receipt (#1188)
+- Open a profile-scoped agent in its own profile from All profiles (#1189)
+- Close another profile's session windows when switching into a profile (#1197)
+- Show N linked PRs instead of one PR chip plus +N in the session header (#1207)
+- Offer Add stays-on agent from the session list toolbar (#1187)
+- Pick a stays-on agent's model inline on its home (#1201)
+- Stop stays-on agents asking for every CompozyOS tool call (#1206)
+- Allow comparison and logic builtins in CompozyOS Loop templates (#1213)
+- Require approval for destructive session profile moves
+- Compare Loop template numbers exactly
+- Apply review follow-ups to profile-switch window sweep (#1221)
+- Start the CompozyOS daemon when a profile is archived (#1214)
+- Save agent avatar and color changes and never fail an agent read on appearance (#1208)
+- Reject unsupported agent avatar backgrounds and clarify validation
+- Resume a desk's interrupted profile-switch sweep
+- Align generated clients and validation after main merges
+- Cover profile-switch rollback during owner reads
+- Preserve newer session attention when marking it seen
+- Enforce session profile on workspace routes (#1218)
+- Scope the command palette client directory to the caller's profile (#1217)
+- Keep document-wide streams and queued clicks out of the HTTP/1.1 pool (#1212)
+- Validate window manager bindings in the client profile
+- Declutter the session list rows and give built-in agents icons (#1215)
+- Preserve scoped session row identity and accessible runtime details
+- Bound CI change detection to compared commits
+- Match subagent navigation against accessible runtime labels
+- Recover an interrupted move to another profile after a daemon restart (#1222)
+- Let agent duplicate drop an unsupported saved appearance (#1225)
+- Keep session row actions working after a profile rename (#1228)
+- Close another profile's terminal, agent and automation windows on a profile switch (#1226)
+- Sweep a desk again when an owner read failed during a profile switch (follow-up from #1221)
+- Preserve provider auth recovery boundaries
+- Keep an encoded colon in a file href's name (follow-up from #1223)
+- Name gallery runtimes like the live row, no model for provider-only (follow-up from #1215)
+- Reset the declutter draft thread segment on direction switch (follow-up from #1215)
+- Draw the built-in General icon before the agent catalog loads (follow-up from #1215)
+- Apply one all_profiles read contract to terminal, agent-instance and agent reads (#1238)
+- Use a non-auth ACP error for rate-limit recovery fixture
+- Advertise the model in the desktop open-paths fixture
+- Format profile authority regression tests
+- Omit HTTP-only SDK examples for UDS profile capture
+- Simplify profiling test context error selector
+- Select the agent runtime after its creation scope
+- Preserve palette catalog writes and refresh User catalogs
+- Assert always-on agent creation succeeds
+- Preserve agent runtime when changing creation scope
+- Exercise runtime retention across agent scope changes
+- Isolate skill refresh failures and scope catalog diagnostics
+- Classify agent exits during daemon shutdown as interrupted, not crashed (#1245)
+- Repair CI diagnostics and scope agent page title assertions
+- Satisfy scoped Go lint after catalog performance changes
+- Preserve revocation errors on canceled mutation requests
+- Resolve native instance creation approval in integration journey
+- Keep one page heading in agent setup editors
+- Assert unique headings after correcting agent editor hierarchy
+- Preserve canceled turns across daemon restart races
+- Address PR review feedback on the Check-ins source UI
+- Harden heartbeat source polling and SDK compatibility
+- Preserve optional heartbeat source fields in extension SDK
+- Retain persisted heartbeat hook cancellation reason in regression
+- Keep extension runtime within the source size limit
+- Register safe file reads in heartbeat source boundaries
+- Format source status client contract coverage
+- Collect usage for provider aliases and keep live native_cli sign-in verdicts (#1250)
+- Reject ambiguous usage routes and edit refreshed provider settings
+- Preserve heartbeat contract names while satisfying focused lint
+- Persist restart skip before acknowledging shutdown cancellation
+- Align source fixtures with profile ownership and post-poll skips
+- Verify heartbeat source provide conformance in SDK integration
+- Align provider auth contract coverage with probe timestamps
+- Keep shutdown cancellation responsive without resuming canceled turns
+- Decode instance response envelopes in source catalog coverage
+- Allow telemetry for registered workspace identities after deletion
+- Bound checkpoint shutdown and reject reduced benchmark throughput
+- Preserve overflow proposal details in check-in reports
+- Read durable cancellation marker envelopes during restart recovery
+- Verify telemetry ownership after workspace re-registration
+- Seed historical workspace fixtures before head migrations
+- Preserve workspace registration before telemetry migration
+- Isolate automation history fixture from recursive stop triggers
+- Preserve agent error exports in settings skills mock
+
+### Features
+
+- Move a session to another profile (#1205)
+- Mark a session's Needs you as seen (#1210)
+- Open transcript file paths in the editor from the CompozyOS desktop app (#1223)
+- Wait for a lost provider sign-in and resume the turn (#1229)
+- Capture daemon runtime profiles over UDS (#1240)
+- Rename the Stays on agent kind to Always-on and align permission and setup labels (#1237)
+- Let always-on agents check external sources on each check-in (#1247)
+
+### Performance Improvements
+
+- Reduce repeated skill, catalog and cache work (#1244)
+- Gate stream-covered interaction polls on catalog stream status (#1246)
+- Isolate telemetry and shorten SQLite write locks (#1241)
+
+### Refactoring
+
+- Import profile owner helpers from the profiles barrel (follow-up from #1215)
+
+### Testing
+
+- Synchronize reply-watch integration waits on runtime edges (#1178)
+- Cover a fresh derive that names the matching source profile (follow-up from #1218)
+- Assert a profile move carries messages and names its recovery (follow-up from #1205)
+- Assert the 8s window-manager command deadline (follow-up from #1212)
+- Cover mark-seen profile refusal and retained failure (follow-up from #1210)
+- Order two JSON number operands numerically (follow-up from #1213)
+- Keep a valid saved appearance in the instance projection (follow-up from #1208)
+- Assert move result fields and reach the sessionless move guard (follow-up from #1205)
+- Record runtime writes in the owner-profile route matrix (follow-up from #1218)
+- Cover the committed move response when enrichment fails (follow-up from #1205)
+- Assert the exact TOON moved header and value order (follow-up from #1205)
+- Return and store the requested worktree ID on create (follow-up from #1222)
+- Resume terminal catalog WebSocket streams from last_event_id (follow-up from #1212)
+- Format follow-up tests for the line-length lint
+- Resume the aggregate terminal stream with its selection-bound cursor (follow-up from #1212)
+
 ## 0.5.0 - 2026-11-03
 
 ### Bug Fixes
@@ -1097,6 +1224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/compozy/compozy/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/compozy/compozy/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/compozy/compozy/compare/v0.4.6...v0.4.7
