@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
@@ -28,12 +29,17 @@ export function useScriptApprovals({ open = false }: { open?: boolean } = {}) {
     ...agentInstancesOptions(key, names),
     refetchInterval: visible ? (open ? OPEN_REREAD_MS : CLOSED_REREAD_MS) : false,
   });
+  const { refetch } = query;
+  // Every way the bell opens (click, toast, shortcut) rereads once, not just the trigger's own.
+  useEffect(() => {
+    if (open) void refetch();
+  }, [open, refetch]);
   const approve = useApproveWaitingScript();
   const navigate = useNavigate();
   return {
     items: scriptApprovalsFromInstances(query.data?.instances ?? []),
-    /** Rereads now, as the bell opens. */
-    refresh: () => void query.refetch(),
+    /** The list never loaded: the bell can't say whether anything waits. */
+    unavailable: query.isError && query.data === undefined,
     /** The key of the approval on its way, if any. */
     approving: approve.isPending ? (approve.variables?.key ?? null) : null,
     approve: (item: ScriptApprovalItem) => approve.mutate(item),

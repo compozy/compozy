@@ -148,9 +148,7 @@ export interface CheckInScriptRead {
 }
 
 /** A script the operator can approve now, whether or not a check has read it yet. */
-export function checkInScriptAwaitsApproval(
-  script: CheckInScriptRead | undefined
-): script is CheckInScriptRead {
+export function checkInScriptAwaitsApproval(script: CheckInScriptRead | undefined): boolean {
   return Boolean(script && script.executable && !script.approved);
 }
 
@@ -189,7 +187,8 @@ export function checkInSourceStatus(
   if (unread && script && !script.executable) {
     return { label: "Can't run: the file isn't executable", tone: "warning" };
   }
-  if (state?.status !== "disabled" && checkInScriptAwaitsApproval(script)) {
+  // A stored `disabled` predates the catalog's scripts_enabled above, so it can't hide the ask.
+  if (checkInScriptAwaitsApproval(script)) {
     return statusView("unapproved", source, state?.error, () => "");
   }
   if (!state) return { label: "Not checked yet", tone: "muted" };

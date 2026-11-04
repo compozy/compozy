@@ -328,10 +328,7 @@ function DesktopMenubarChrome({
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}
-          onOpenChange={open => {
-            if (open) scriptApprovals.refresh();
-            onOverlayOpenChange("bell", open);
-          }}
+          onOpenChange={open => onOverlayOpenChange("bell", open)}
         >
           <PopoverTrigger render={trigger} />
           <PopoverContent
@@ -342,6 +339,7 @@ function DesktopMenubarChrome({
           >
             <AttentionBell
               scriptCount={scriptApprovals.items.length}
+              scriptsUnavailable={scriptApprovals.unavailable}
               scripts={
                 <ScriptApprovalsBellSection
                   approving={scriptApprovals.approving}

@@ -1219,6 +1219,42 @@ describe("Heartbeat", () => {
     }
   );
 
+  it("Should ask again when scripts were turned back on after a disabled check", async () => {
+    serveHeartbeat(sourcesPayload([{ id: "deploys", script: "failed-deploys" }]));
+    server.use(
+      http.get("*/api/agents/:name/heartbeat/sources", () =>
+        HttpResponse.json({
+          agent: agent.name,
+          scripts_enabled: true,
+          limits: { max_per_agent: 16, max_items: 20 },
+          kinds: [],
+          scripts: [
+            {
+              name: "failed-deploys",
+              executable: true,
+              sha256: SCRIPT_SHA,
+              approved: false,
+              approved_sha256: null,
+            },
+          ],
+        })
+      )
+    );
+    // The last check ran while scripts were off; the stored status still says so.
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        sources: [{ id: "deploys", status: "disabled", failure_streak: 0, last_item_count: 0 }],
+      }),
+    ]);
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    expect(await screen.findByTestId("check-in-script-approval")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("check-in-source-row")).toHaveTextContent("Needs your approval")
+    );
+  });
+
   it("Should open a custom schedule in Advanced only", async () => {
     serveHeartbeat(
       heartbeatPayload({

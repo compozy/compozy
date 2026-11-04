@@ -294,6 +294,26 @@ describe("AttentionBell sections", () => {
     expect(screen.queryByTestId("os-bell-empty")).not.toBeInTheDocument();
   });
 
+  it("Should say it can't update instead of all quiet when the scripts list never loaded", () => {
+    render(
+      <Popover open>
+        <AttentionBell
+          loading={false}
+          onSelect={vi.fn()}
+          scriptsUnavailable
+          sections={{ needsYou: [], finished: [] }}
+          sessionsDisconnected={false}
+          tasksDisconnected={false}
+        />
+      </Popover>
+    );
+
+    expect(screen.queryByTestId("os-bell-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
+      "Some notifications can't update right now."
+    );
+  });
+
   it("Should render the quiet state at zero attention (US-005.EC-1)", () => {
     renderBell();
 
