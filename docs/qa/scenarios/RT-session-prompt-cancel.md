@@ -64,8 +64,8 @@ Focused SQLite verification is owned by `TestDaemonShutdownResumeSkip` and
 `TestResumeInterruptedSession`. Public-surface and live-provider re-walks remain deferred under the
 merge train's host-load restriction.
 
-CI regression 2026-11-04: shutdown cancellation must persist the restart-skip checkpoint before
-returning its acknowledgement. An asynchronous checkpoint write can race boot recovery and resume
-a turn the operator canceled. Keep the canonical
+CI regression 2026-11-04: restart recovery must reject a turn with a durable prompt-cancel marker
+even while its asynchronous restart-skip checkpoint is pending. Hold the skip append open: cancellation
+must return and the provider turn must quiesce before the append is released. Keep the canonical
 `TestResumeInterruptedSession/Should_not_continue_a_turn_the_user_canceled_during_shutdown`
 assertion unchanged; scoped checks run without local race instrumentation per host policy.

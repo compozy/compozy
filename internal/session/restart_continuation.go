@@ -115,6 +115,13 @@ func (m *Manager) pendingRestartCheckpoint(
 	if err != nil || !found || boundary.TurnID != checkpoint.TurnID {
 		return store.SessionRestartCheckpoint{}, false, err
 	}
+	// Cancellation is durable before acknowledgement, even while the asynchronous skip is pending.
+	canceled, err := m.Events(ctx, meta.ID, store.EventQuery{
+		TurnID: checkpoint.TurnID, Type: transcript.MarkerPromptCancel, Limit: 1,
+	})
+	if err != nil || len(canceled) > 0 {
+		return store.SessionRestartCheckpoint{}, false, err
+	}
 	for _, eventType := range []string{restartResumedEvent, restartSkippedEvent} {
 		settled, err := m.restartEventExists(ctx, meta.ID, checkpoint.TurnID, eventType)
 		if err != nil || settled {

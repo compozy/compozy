@@ -325,6 +325,12 @@ func TestDaemonShutdownResumeSkip(t *testing.T) {
 			if err != nil || !outcome.Quiesced {
 				t.Fatalf("quiescence = %#v, %v", outcome, err)
 			}
+			if tc.slow {
+				pending, err := h.manager.HasPendingRestart(ctx, target.ID)
+				if err != nil || pending {
+					t.Fatalf("restart pending while cancellation skip is blocked = %t, %v", pending, err)
+				}
+			}
 			unblock()
 			collectEvents(t, stream)
 			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
