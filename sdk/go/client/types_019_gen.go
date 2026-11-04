@@ -32,6 +32,7 @@ type SessionPullRequestLookupPayload struct {
 	Cause      string      `json:"cause"`
 	ObservedAt *time.Time  `json:"observed_at"`
 	Stale      bool        `json:"stale"`
+	RetryAfter *time.Time  `json:"retry_after,omitempty"`
 }
 
 // SessionPullRequestPayload is a daemon API value.

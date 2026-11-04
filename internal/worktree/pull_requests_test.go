@@ -101,6 +101,72 @@ func TestPullRequestService(t *testing.T) {
 		}
 	})
 
+	// Invariant: a removed branch never spends quota on a queued automatic refresh.
+	// Owner: PullRequestService admission; canonical service suite.
+	t.Run("Should discard queued automatic refreshes on removal", func(t *testing.T) {
+		t.Parallel()
+		entered := make(chan struct{}, 4)
+		release := make(chan struct{})
+		var removedCalls atomic.Int32
+		provider := pullRequestTestForge{
+			status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+				if request.Branch == "removed" {
+					removedCalls.Add(1)
+					return &ForgeStatus{}, nil
+				}
+				entered <- struct{}{}
+				select {
+				case <-release:
+					return &ForgeStatus{}, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			},
+		}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		for i := range 4 {
+			service.RequestRefresh(PullRequestKey{"ws", "github.com/acme/repo", fmt.Sprint(i)})
+		}
+		for range 4 {
+			<-entered
+		}
+		key := PullRequestKey{"ws", "github.com/acme/repo", "removed"}
+		service.RequestRefresh(key)
+		service.ForgetAutomatic(key)
+		close(release)
+		service.Close()
+		if removedCalls.Load() != 0 {
+			t.Fatal("removed branch reached the forge")
+		}
+	})
+	// Invariant: incomplete matches do not inherit confirmed absence backoff.
+	// Owner: PullRequestService refresh; canonical service suite.
+	t.Run("Should clear absence after an incomplete match", func(t *testing.T) {
+		t.Parallel()
+		incomplete := false
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			if incomplete {
+				return &ForgeStatus{Selection: pullRequestIncomplete}, nil
+			}
+			return &ForgeStatus{}, nil
+		}}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		key := PullRequestKey{"ws", "github.com/acme/repo", "topic"}
+		if _, err := service.Refresh(t.Context(), key); err != nil {
+			t.Fatal(err)
+		}
+		incomplete = true
+		entry, err := service.Refresh(t.Context(), key)
+		if err != nil || entry.LookupState != pullRequestIncomplete || entry.Facts.PRState != nil {
+			t.Fatalf("incomplete entry = %+v, %v", entry, err)
+		}
+		if !service.stale(key, entry, entry.Facts.FetchedAt.Add(time.Minute)) {
+			t.Fatal("incomplete match inherited absence window")
+		}
+	})
+
 	// Invariant: explicit requests take the next free slot, including promoted automatic flights.
 	t.Run("Should prioritize explicit refreshes over automatic backlog", func(t *testing.T) {
 		t.Parallel()
@@ -380,20 +446,109 @@ func TestPullRequestService(t *testing.T) {
 			t.Fatalf("reset=%#v %v", got, err)
 		}
 	})
-	t.Run("Should apply open and terminal freshness windows", func(t *testing.T) {
+	// Invariant: open PRs refresh every minute, terminal ones every 30 minutes, and branches
+	// without a PR start at 10 minutes and back off toward an hour.
+	t.Run("Should apply open, terminal, and absent freshness windows", func(t *testing.T) {
 		t.Parallel()
 		now := statusTestClock()
 		observed := now.Add(-time.Minute)
 		entry := PullRequestEntry{Facts: &ForgeStatus{PRState: new("open"), FetchedAt: &observed}}
-		if !pullRequestStale(entry, now) {
+		if !pullRequestStale(entry, now, 0) {
 			t.Fatal("open cache remained fresh")
 		}
 		entry.Facts.PRState = new("merged")
-		if pullRequestStale(entry, now) {
+		if pullRequestStale(entry, observed.Add(29*time.Minute), 0) {
 			t.Fatal("terminal cache expired early")
 		}
-		if !pullRequestStale(entry, observed.Add(10*time.Minute)) {
+		if !pullRequestStale(entry, observed.Add(30*time.Minute), 0) {
 			t.Fatal("terminal cache remained fresh")
+		}
+		retry := observed.Add(5 * time.Minute)
+		failed := PullRequestEntry{LookupState: "error", RetryAfter: &retry, Facts: entry.Facts}
+		if pullRequestStale(failed, retry.Add(-time.Second), 0) || !pullRequestStale(failed, retry, 0) {
+			t.Fatal("a failed lookup over terminal facts was not retried at its retry time")
+		}
+		entry.Facts.PRState = nil
+		for _, state := range []string{pullRequestIncomplete, "error"} {
+			entry.LookupState = state
+			if !pullRequestStale(entry, observed.Add(time.Minute), 3) {
+				t.Fatalf("a %s lookup took the confirmed no-PR window", state)
+			}
+		}
+		entry.LookupState = "ok"
+		for absent, window := range []time.Duration{
+			10 * time.Minute, 10 * time.Minute, 20 * time.Minute, 40 * time.Minute, time.Hour, time.Hour,
+		} {
+			if pullRequestStale(entry, observed.Add(window-time.Second), absent) ||
+				!pullRequestStale(entry, observed.Add(window), absent) {
+				t.Fatalf("absent=%d window != %s", absent, window)
+			}
+		}
+	})
+	t.Run("Should back off branches without a pull request until one appears", func(t *testing.T) {
+		t.Parallel()
+		now := statusTestClock()
+		key := PullRequestKey{"ws", "github.com/acme/repo", "quiet"}
+		var opened atomic.Bool
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			if opened.Load() {
+				return &ForgeStatus{PRNumber: new(7), PRState: new("open")}, nil
+			}
+			return &ForgeStatus{}, nil
+		}}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		service.now = func() time.Time { return now }
+		for range 3 {
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		later := service.Read(t.Context(), []PullRequestKey{key})[key]
+		service.now = func() time.Time { return now.Add(30 * time.Minute) }
+		if later.Stale || service.Read(t.Context(), []PullRequestKey{key})[key].Stale {
+			t.Fatal("third absent answer did not back off to 40 minutes")
+		}
+		opened.Store(true)
+		got, err := service.Refresh(t.Context(), key)
+		if err != nil || got.Facts.PRState == nil {
+			t.Fatalf("opened = %+v, %v", got, err)
+		}
+		service.now = func() time.Time { return now.Add(32 * time.Minute) }
+		if !service.Read(t.Context(), []PullRequestKey{key})[key].Stale {
+			t.Fatal("open pull request kept the absent window")
+		}
+	})
+	// Invariant: a refresh that only moves the fetch time publishes no catalog change, so clients do
+	// not re-read the list and schedule more refreshes.
+	t.Run("Should publish a change only when pull request facts change", func(t *testing.T) {
+		t.Parallel()
+		now := statusTestClock()
+		key := PullRequestKey{"ws", "github.com/acme/repo", "steady"}
+		var checks atomic.Int32
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			return &ForgeStatus{
+				PRNumber: new(7), PRState: new("open"),
+				Checks: &ForgeChecks{State: "pending", Pending: int(checks.Load())},
+			}, nil
+		}}
+		var wakes atomic.Int32
+		service := NewPullRequestService(
+			t.Context(), newPullRequestMemoryStore(), provider, nil, func(string) { wakes.Add(1) },
+		)
+		t.Cleanup(service.Close)
+		for minute := range 3 {
+			service.now = func() time.Time { return now.Add(time.Duration(minute) * time.Minute) }
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if wakes.Load() != 1 {
+			t.Fatalf("unchanged facts published %d changes, want 1", wakes.Load())
+		}
+		checks.Store(1)
+		if _, err := service.Refresh(t.Context(), key); err != nil || wakes.Load() != 2 {
+			t.Fatalf("changed checks published %d changes (err %v), want 2", wakes.Load(), err)
 		}
 	})
 	t.Run("Should normalize hosted subgroup repositories", func(t *testing.T) {

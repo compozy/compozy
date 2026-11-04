@@ -3253,9 +3253,16 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addSessionRouteProfileSelectors(t, baseline)
 		addRuntimeRecoveryReason(baseline)
+		if addApprovalAccessScope(baseline) == 0 {
+			t.Fatal("approved access_scope addition: no historical approval grant schemas found")
+		}
 		// #1249: settings provider auth status reports when its sign-in was last verified live.
 		if addSettingsProviderLastProbeAt(baseline) == 0 {
 			t.Fatal("approved settings last_probe_at addition: no historical provider auth status schema found")
+		}
+		// #1265: agent effective runtime reports the effective permission level and its source.
+		if addAgentEffectivePermissions(baseline) == 0 {
+			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
 		}
 		doc, err := Document()
 		if err != nil {
@@ -4356,7 +4363,8 @@ func addSessionsKanbanSchemas(t *testing.T, baseline map[string]any) {
 			"properties": {
 				"state":{"type":"string","enum":["ok","pending","error","incomplete"]},
 				"cause":{"type":"string"},"observed_at":{"type":"string","format":"date-time","nullable":true},
-				"stale":{"type":"boolean"}
+				"stale":{"type":"boolean"},
+				"retry_after":{"type":"string","format":"date-time","nullable":true}
 			}
 		},
 		"SessionBoardCountsPayload": {
@@ -5655,6 +5663,32 @@ func addSettingsProviderLastProbeAt(value any) int {
 	return count
 }
 
+func addAgentEffectivePermissions(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentEffectivePermissions(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentEffectivePermissions(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["permissions"] != nil {
+			return count
+		}
+		runtime := properties["sources"] != nil && properties["session_env_status"] != nil
+		sources := len(properties) == 4 && properties["provider"] != nil && properties["model"] != nil &&
+			properties["reasoning_effort"] != nil && properties["speed"] != nil
+		if runtime || sources {
+			properties["permissions"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
+}
+
 func addRuntimeRecoveryReason(baseline map[string]any) {
 	var walk func(any)
 	walk = func(value any) {
@@ -5935,4 +5969,25 @@ func agentKindRequestSchemaForTest() map[string]any {
 		"enum":        []any{"on_demand", "always_on", "stays_on"},
 		"description": agentKindRequestDescription,
 	}
+}
+
+func addApprovalAccessScope(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addApprovalAccessScope(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addApprovalAccessScope(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_digest"] != nil &&
+			properties["last_used_at"] != nil && properties["decision"] != nil {
+			properties["access_scope"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
 }

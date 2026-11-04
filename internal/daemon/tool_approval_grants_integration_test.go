@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -25,6 +26,73 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		"Should persist approval grants across restart and surfaces",
 		testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces,
 	)
+	t.Run("Should list and revoke User-owned read consent across surfaces", testUserOwnedReadApprovalGrant)
+}
+
+func testUserOwnedReadApprovalGrant(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	mockSpec := e2etest.MockAgentSpec{
+		FixturePath:  mockFixturePath(t, "tool_approval_grants_fixture.json"),
+		FixtureAgent: "tool-approval-grants",
+		AgentName:    "mock-user-read-grants",
+	}
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
+		MockAgents: []e2etest.MockAgentSpec{mockSpec},
+	})
+	targetWorkspaceID := harness.WorkspaceID
+	harness.WorkspaceID = workspaceaccess.UserSelector
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+		Scope: "user", AgentName: mockSpec.AgentName, Name: "user-read-grants",
+	})
+	if err != nil {
+		t.Fatalf("CreateSession(User) error = %v", err)
+	}
+	active, err := harness.WaitForSessionActive(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(User) error = %v", err)
+	}
+	bound := bindFixtureBackedSession(t, ctx, harness, active, "noop")
+	client := approvalGrantHostedClient(t, ctx, harness, mockSpec.AgentName)
+	defer func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("Close(User hosted MCP client) error = %v", err)
+		}
+	}()
+	arguments := map[string]any{"workspace": targetWorkspaceID}
+	result := callApprovalToolWithDecision(t, ctx, harness, bound.ID, client,
+		toolspkg.ToolIDWorkspaceInfo, "user-read-bootstrap", arguments, "allow-always")
+	if result == nil || result.IsError {
+		t.Fatalf("User cross-workspace read = %#v, want operator-approved read", result)
+	}
+	httpList := listApprovalGrantsHTTP(t, ctx, harness, workspaceaccess.UserSelector)
+	nativeList := listApprovalGrantsNative(t, ctx, client, "")
+	assertApprovalGrantListsEqual(t, httpList, nativeList)
+	if httpList.Total != 1 || len(httpList.Grants) != 1 {
+		t.Fatalf("User grants = %#v, want one remembered read", httpList)
+	}
+	grant := httpList.Grants[0]
+	wantScope := fmt.Sprintf("read:workspace:%s@%s", targetWorkspaceID, grant.ProfileID)
+	if grant.WorkspaceID != "" || grant.AgentName != mockSpec.AgentName || grant.AccessScope != wantScope {
+		t.Fatalf("User read grant = %#v, want caller-owned %s", grant, wantScope)
+	}
+	replayCtx, replayCancel := context.WithTimeout(ctx, 3*time.Second)
+	result, err = client.CallTool(replayCtx,
+		approvalToolCall(toolspkg.ToolIDWorkspaceInfo, "user-read-replay", arguments))
+	replayCancel()
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("remembered User read = %#v, %v, want no prompt", result, err)
+	}
+	deleteApprovalGrantHTTP(t, ctx, harness, workspaceaccess.UserSelector, grant.ID)
+	result = callApprovalToolWithDecision(t, ctx, harness, bound.ID, client,
+		toolspkg.ToolIDWorkspaceInfo, "user-read-after-revoke", arguments, "reject-once")
+	if result == nil || !result.IsError {
+		t.Fatalf("User read after revoke = %#v, want a newly prompted rejection", result)
+	}
 }
 
 func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
@@ -114,11 +182,22 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		"allow-once",
 	)
 	nativeSet := decodeNativeApprovalGrantSet(t, nativeSetResult)
+	targetWorkspace, err := first.ResolveWorkspace(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.WorkspaceID = workspaceID
+	readArguments := map[string]any{"workspace": targetWorkspace.ID}
+	readResult := callApprovalToolWithDecision(t, ctx, first, firstSession.ID, firstClient,
+		toolspkg.ToolIDWorkspaceInfo, "scope-read-bootstrap", readArguments, "allow-always")
+	if readResult == nil || readResult.IsError {
+		t.Fatalf("cross-workspace read = %#v, want operator-approved read", readResult)
+	}
 	if err := firstClient.Close(); err != nil {
 		t.Fatalf("Close(first hosted MCP client) error = %v", err)
 	}
 	beforeRestart := listApprovalGrantsHTTP(t, ctx, first, workspaceID)
-	if got, want := beforeRestart.Total, len(missingIDs)+4; got != want {
+	if got, want := beforeRestart.Total, len(missingIDs)+5; got != want {
 		t.Fatalf("grants before restart total = %d, want %d; grants=%#v", got, want, beforeRestart.Grants)
 	}
 
@@ -168,18 +247,46 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		t.Fatalf("post-restart exact revoke result = %#v, want handler not-found without a new prompt", autoApproved)
 	}
 
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	readResult, err = secondClient.CallTool(readCtx,
+		approvalToolCall(toolspkg.ToolIDWorkspaceInfo, "scope-read-after-restart", readArguments))
+	readCancel()
+	if err != nil || readResult == nil || readResult.IsError {
+		t.Fatalf("remembered read after restart = %#v, %v, want no prompt", readResult, err)
+	}
+
 	httpList := listApprovalGrantsHTTP(t, ctx, second, workspaceID)
 	udsList := listApprovalGrantsUDS(t, ctx, second, workspaceID)
 	cliList := listApprovalGrantsCLI(t, ctx, second, workspaceID)
 	nativeList := listApprovalGrantsNative(t, ctx, secondClient, workspaceID)
 	assertApprovalGrantListsEqual(t, httpList, udsList, cliList, nativeList)
-	if got, want := httpList.Total, len(missingIDs)+4; got != want {
+	if got, want := httpList.Total, len(missingIDs)+5; got != want {
 		t.Fatalf("grants after restart total = %d, want %d; grants=%#v", got, want, httpList.Grants)
 	}
 	assertApprovalGrantSurvivedRestart(t, httpList, httpSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, udsSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, cliSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, nativeSet)
+
+	var readGrantID string
+	for _, grant := range httpList.Grants {
+		if grant.AccessScope != "" {
+			readGrantID = grant.ID
+			if grant.WorkspaceID != workspaceID || grant.ToolID != toolspkg.ToolIDWorkspaceInfo ||
+				grant.AgentName != mockSpec.AgentName {
+				t.Fatalf("read grant = %#v, want caller-owned scoped approval", grant)
+			}
+		}
+	}
+	if readGrantID == "" {
+		t.Fatal("remembered read grant missing from approval surfaces")
+	}
+	deleteApprovalGrantHTTP(t, ctx, second, workspaceID, readGrantID)
+	readResult = callApprovalToolWithDecision(t, ctx, second, secondSession.ID, secondClient,
+		toolspkg.ToolIDWorkspaceInfo, "scope-read-after-revoke", readArguments, "reject-once")
+	if readResult == nil || !readResult.IsError {
+		t.Fatalf("read after revoke = %#v, want a newly prompted rejection", readResult)
+	}
 
 	isolatedWorkspace, err := second.ResolveWorkspace(ctx, t.TempDir())
 	if err != nil {
@@ -496,9 +603,13 @@ func listApprovalGrantsNative(
 ) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
+	arguments := map[string]any{}
+	if workspaceID != "" {
+		arguments["workspace"] = workspaceID
+	}
 	call := &sdkmcp.CallToolParams{
 		Name:      toolspkg.ToolIDToolApprovalsList.String(),
-		Arguments: map[string]any{"workspace": workspaceID},
+		Arguments: arguments,
 	}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {

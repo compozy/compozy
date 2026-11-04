@@ -17,7 +17,8 @@ func (h *BaseHandlers) RequireProjectReference(c *gin.Context, raw string) bool 
 	if !strings.Contains(path, "/worktrees") && c.Query("worktree") == "" && c.Query("worktree_id") == "" {
 		for segment := range strings.SplitSeq(path, "/") {
 			switch segment {
-			case "sessions",
+			case "tool-approval-grants",
+				"sessions",
 				"session-folders",
 				"session-order",
 				"window-manager",

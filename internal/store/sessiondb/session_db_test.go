@@ -425,6 +425,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			db.checkpointDB = sql.OpenDB(blocked)
 			db.checkpointDB.SetMaxOpenConns(1)
 			db.checkpointDB.SetMaxIdleConns(1)
+			if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+				t.Fatal(err)
+			}
 			completed := make(chan error, 1)
 			go func() {
 				if idle {
@@ -466,10 +469,12 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 					t.Fatal("checkpoint did not finish after I/O resumed")
 				}
 			}
-			fault := errors.New("checkpoint I/O failure")
-			err = db.checkpointWithLease(ctx, func(context.Context, *sql.Conn) error { return fault })
-			if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
-				t.Fatalf("failed checkpoint = %v, want original I/O error", err)
+			connection, err := db.checkpointDB.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := connection.Close(); err != nil {
+				t.Fatal(err)
 			}
 			after, err := os.ReadFile(db.path)
 			if err != nil || !bytes.Contains(after, marker) {
@@ -477,6 +482,27 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}
 		})
 	}
+
+	// Invariant: real PASSIVE I/O errors remain failures through the maintenance entry point.
+	t.Run("Should report PASSIVE checkpoint I/O failures without deferring", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-fault")
+		fault := errors.New("checkpoint I/O failure")
+		connector := &blockedSessionCheckpointConnector{
+			Connector: db.checkpointDB.Driver().(driver.Connector), fault: fault,
+		}
+		if err := db.checkpointDB.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db.checkpointDB = sql.OpenDB(connector)
+		if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		err := db.passiveCheckpoint(t.Context())
+		if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
+			t.Fatalf("PASSIVE checkpoint = %v, want original I/O failure", err)
+		}
+	})
 
 	// Invariant: a checkpoint blocked in filesystem I/O cannot reserve the session
 	// writer. Close bounds caller waiting and joins maintenance before releasing the database family.
@@ -501,6 +527,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			db.checkpointDB = sql.OpenDB(blocked)
 			db.checkpointDB.SetMaxOpenConns(1)
 			db.checkpointDB.SetMaxIdleConns(1)
+			if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+				t.Fatal(err)
+			}
 			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
 			events := make([]SessionEvent, sessionPassiveCheckpointEvery)
 			for i := range events {
@@ -618,6 +647,25 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 		events, err := db.Query(t.Context(), EventQuery{})
 		if err != nil || len(events) != 2 {
 			t.Fatalf("durable stop history = %#v, %v", events, err)
+		}
+	})
+
+	t.Run("Should defer timed out checkpoint execution while preserving real failures", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-execution-deadline")
+		err := db.checkpointWithLease(t.Context(), func(context.Context, *sql.Conn) error {
+			return fmt.Errorf("checkpoint execution: %w", context.DeadlineExceeded)
+		})
+		if !errors.Is(err, errSessionCheckpointDeferred) || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("checkpoint execution timeout = %v, want retryable deferral retaining deadline", err)
+		}
+		fault := errors.New("checkpoint I/O failure")
+		err = db.checkpointWithLease(t.Context(), func(context.Context, *sql.Conn) error { return fault })
+		if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
+			t.Fatalf("checkpoint I/O error = %v, want the original non-deferred failure", err)
+		}
+		if err := db.passiveCheckpoint(t.Context()); err != nil {
+			t.Fatalf("checkpoint after deferral = %v, want resources released for retry", err)
 		}
 	})
 
@@ -3826,6 +3874,7 @@ func (d *ownerReadFaultDriver) Open(name string) (driver.Conn, error) {
 // The driver boundary blocks only checkpoint I/O; all SQL runs on real SQLite.
 type blockedSessionCheckpointConnector struct {
 	driver.Connector
+	fault    error
 	entered  chan struct{}
 	released chan struct{}
 	once     sync.Once
@@ -3860,6 +3909,9 @@ func (c *blockedSessionCheckpointConnection) ExecContext(
 	ctx context.Context, query string, args []driver.NamedValue,
 ) (driver.Result, error) {
 	if query == "PRAGMA wal_checkpoint(PASSIVE)" {
+		if c.owner.fault != nil {
+			return nil, c.owner.fault
+		}
 		c.owner.once.Do(func() { close(c.owner.entered) })
 		// A filesystem sync already in progress cannot be interrupted by ctx.
 		<-c.owner.released

@@ -92,7 +92,7 @@ func (s *SessionDB) passiveCheckpointLoop() {
 			if err := s.passiveCheckpoint(s.writerCtx); err != nil && s.writerCtx.Err() == nil {
 				if errors.Is(err, errSessionCheckpointDeferred) {
 					slog.Default().
-						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
+						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred")
 					continue
 				}
 				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed",
@@ -263,5 +263,9 @@ func (s *SessionDB) checkpointWithLease(
 		return err
 	}
 	defer lease.Release()
-	return checkpoint(ctx, connection)
+	err = checkpoint(ctx, connection)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.Join(errSessionCheckpointDeferred, err)
+	}
+	return err
 }

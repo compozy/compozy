@@ -74,9 +74,21 @@ class AcceptanceTests(unittest.TestCase):
         self.assertFalse(comparison["read"]["baseline_complete"])
         self.assertIn("read", regressions)
 
+    def test_acceptance_rejects_missing_head_samples_even_when_median_recovers(self):
+        trials = {"baseline": [trial() for _ in range(4)],
+                  "head": [trial(n) for n in (0, 0, 200, 200)]}
+        self.assertEqual(acceptance_failures(trials, 20000)[2], [0, 1])
+
+    def test_acceptance_rejects_head_only_operations(self):
+        trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
+        for run in trials["baseline"]:
+            del run["latency"]["read"]
+        self.assertIn("read", acceptance_failures(trials, 20000)[1])
+
     def test_trace_failures_preserve_normal_acceptance_and_diagnostics(self):
         for error in (subprocess.CalledProcessError(1, "strace"),
-                      RuntimeError("incomplete write accounting"), ValueError("invalid trace result")):
+                      RuntimeError("incomplete write accounting"), ValueError("invalid trace result"),
+                      KeyError("end")):
             with self.subTest(error=error), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory)
                 source = output / "fixture"

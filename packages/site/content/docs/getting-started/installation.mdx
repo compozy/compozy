@@ -56,6 +56,20 @@ support is unavailable, such as inside some containers, use the built-in extract
 Open the app after installation. It first attaches to a healthy runtime already running on the
 machine. Otherwise it starts the installed runtime or verifies and installs the runtime bundled
 inside the app. A clean first run does not need a network connection.
+On macOS, the first launch also makes `compozy` available in a new terminal when it can
+safely create a link in the installer's directory: `/usr/local/bin`, or `~/.local/bin` when
+that fallback is already on your shell's `PATH`. The link points to the stable
+`~/.compozy/bin/compozy`, so desktop runtime upgrades keep the command usable.
+
+You can retry from **CompozyOS → Install compozy Command…**. If `/usr/local/bin` needs
+administrator access, the first launch offers installation before macOS displays its password
+prompt. Choosing the menu action requests that macOS prompt directly. Declining leaves the app
+usable. An existing `compozy` command is reported and left unchanged.
+No shell profiles are edited; if neither installer directory is on your `PATH`, add
+`~/.local/bin` using your shell's configuration, then retry the menu action. This also
+applies when your login shell and interactive shell differ, such as fish and zsh.
+Open a new terminal and run `compozy --version` to verify.
+
 Continue with [Desktop app](/docs/getting-started/desktop-app).
 
 ## Install the `compozy` command

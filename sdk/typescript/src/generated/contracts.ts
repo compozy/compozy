@@ -1800,6 +1800,7 @@ export interface ForgeCapabilitiesResponse {
   credential_source?: string;
   default_branch?: string;
   cause?: string;
+  retry_after?: ISODateTime;
 }
 
 export interface ForgePRCandidate {

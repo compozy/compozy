@@ -147,16 +147,7 @@ type bootstrapExecution struct {
 func (e *bootstrapExecution) resolveAndStart() error {
 	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
 	if err == nil && running {
-		replaced, replaceErr := e.replaceOutdatedDesktopRuntime(status)
-		if replaceErr != nil {
-			return writeBootstrapFailure(
-				e.cmd, bootstrapPhaseProvision, bootstrapProbeListeningUnhealthy, replaceErr,
-			)
-		}
-		if !replaced {
-			return writeAttachedBootstrap(e.cmd, e.options, status)
-		}
-		return e.start(bootstrapResolutionProvision, e.installedPath, true)
+		return e.attachRunning(status)
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
@@ -246,6 +237,9 @@ func (e *bootstrapExecution) start(resolution bootstrapResolution, runtimePath s
 		lastErr = startErr
 		if lastErr == nil {
 			return e.writeStarted(status, resolution, attempt, owned)
+		}
+		if busy, ok := errors.AsType[*bootstrapLockOwnerBusy](startErr); ok {
+			return e.attachBootingOwner(busy.pid)
 		}
 		if e.cmd.Context().Err() != nil || bootstrapShouldGiveUp(attempt) {
 			break
@@ -356,30 +350,8 @@ func probeBootstrapDaemon(
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 ) (DaemonStatus, bool, error) {
-	info, running, err := daemonInfo(homePaths, deps)
-	if err != nil || !running {
-		return DaemonStatus{}, false, err
-	}
-	target, err := resolveLocalClientTarget(deps, homePaths)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	client, err := deps.newClient(target)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	status, err := client.DaemonStatus(ctx)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
-		return status, false, errors.New("cli: running daemon did not report healthy status")
-	}
-	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
-		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(target.socketPath) {
-		return status, false, errors.New("cli: daemon status does not match the local discovery record")
-	}
-	return status, true, nil
+	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
+	return probe.status(ctx)
 }
 
 // runBootstrapDaemonDetached owns the startup mutation lock until readiness, exit, or cancellation.
@@ -405,13 +377,18 @@ func runBootstrapDaemonDetached(
 		}
 		return DaemonStatus{}, errors.Join(errors.New("cli: daemon is listening but unhealthy"), probeErr)
 	}
-	child, err := spawnDetachedDaemonProcess(ctx, homePaths, func() (string, error) {
-		return binaryPath, nil
-	})
+	child, err := deps.spawnBootstrapRuntime(ctx, homePaths, binaryPath)
 	if err != nil {
 		return DaemonStatus{}, err
 	}
-	return waitForDaemonStart(ctx, deps, child)
+	if child == nil {
+		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
+	}
+	status, err = waitForDaemonStart(ctx, deps, child)
+	if err != nil && ctx.Err() == nil {
+		return DaemonStatus{}, classifyBootstrapLockOwner(deps, homePaths, child.PID(), err)
+	}
+	return status, err
 }
 
 func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, appVersion string) error {

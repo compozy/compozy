@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/worktree"
@@ -99,6 +100,9 @@ func sessionPullRequestView(entry worktree.PullRequestEntry) session.PullRequest
 	if view.Lookup.State == "" {
 		view.Lookup.State = session.LookupPending
 		view.Lookup.Stale = true
+	}
+	if entry.LookupCause == extensioncontract.ForgeCauseRateLimited && entry.RetryAfter != nil {
+		view.Lookup.RetryAfter = new(*entry.RetryAfter)
 	}
 	facts := entry.Facts
 	if facts == nil {

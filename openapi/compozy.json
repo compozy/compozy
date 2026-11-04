@@ -613,6 +613,9 @@
           "model": {
             "type": "string"
           },
+          "permissions": {
+            "type": "string"
+          },
           "provider": {
             "type": "string"
           },
@@ -651,6 +654,9 @@
       "AgentEffectiveRuntimeSources": {
         "properties": {
           "model": {
+            "type": "string"
+          },
+          "permissions": {
             "type": "string"
           },
           "provider": {
@@ -27606,6 +27612,11 @@
             "nullable": true,
             "type": "string"
           },
+          "retry_after": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "stale": {
             "type": "boolean"
           },
@@ -40498,6 +40509,9 @@
       },
       "ToolApprovalGrantPayload": {
         "properties": {
+          "access_scope": {
+            "type": "string"
+          },
           "agent_name": {
             "type": "string"
           },

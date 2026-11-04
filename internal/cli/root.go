@@ -83,6 +83,7 @@ type commandDeps struct {
 	processAlive                func(pid int) bool
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
 	processOwnsFileLock         func(pid int, path string) (bool, error)
+	inspectDaemonLock           func(path string) (compozydaemon.LockOwner, error)
 	executable                  func() (string, error)
 	getwd                       func() (string, error)
 	getenv                      func(string) string
@@ -96,6 +97,8 @@ type commandDeps struct {
 	startTimeout                time.Duration
 	stopTimeout                 time.Duration
 	spawnDetached               func(context.Context, compozyconfig.HomePaths) (daemonProcess, error)
+	spawnBootstrapRuntime       func(context.Context, compozyconfig.HomePaths, string) (daemonProcess, error)
+	bootstrapAttachTimeout      time.Duration
 	newUpdateManager            func(compozyconfig.HomePaths) (updateManager, error)
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
@@ -116,8 +119,9 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	deps = deps.withDefaults()
 
 	cmd := &cobra.Command{
-		Use:   rootCompozyKey,
-		Short: "CompozyOS — the system around your agents, already built",
+		Use:     rootCompozyKey,
+		Version: version.Current().Version,
+		Short:   "CompozyOS — the system around your agents, already built",
 		Example: `  # Start the daemon and create a session in the current workspace
   compozy daemon start
   compozy session new --agent general
@@ -130,6 +134,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	cmd.SetVersionTemplate("compozy {{.Version}}\n")
+	cmd.InitDefaultVersionFlag()
 	if deps.commandContext == nil {
 		deps.commandContext = cmd.Context
 	}

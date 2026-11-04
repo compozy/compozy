@@ -96,7 +96,7 @@ def trace_diagnostic(binary, source, output, label):
         finally:
             if root.exists():
                 shutil.rmtree(root)
-    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:
+    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError, KeyError) as error:
         result = {"diagnostic_error": {"error": str(error), "type": type(error).__name__}}
         save(output / (label + "-writes-error.json"), result)
         return result
@@ -108,7 +108,7 @@ def throughput_comparison(baseline, head):
     baseline_rates = [operation_rates(run) for run in baseline]
     head_rates = [operation_rates(run) for run in head]
     comparison = {}
-    for name in sorted(set().union(*baseline_rates)):
+    for name in sorted(set().union(*baseline_rates, *head_rates)):
         ratios = [h.get(name, 0) / b[name] if b.get(name, 0) > 0 else 0
                   for b, h in zip(baseline_rates, head_rates)]
         comparison[name] = {
@@ -133,6 +133,7 @@ def acceptance_failures(trials, retention_rows):
                    if not values["baseline_complete"] or values["median_ratio"] < MIN_THROUGHPUT_RATIO}
     invalid = [i for i, run in enumerate(trials["head"])
                if load_failed(run, retention_rows)
+               or any(run["latency"].get(name, {}).get("count", 0) <= 0 for name in comparison)
                or run["latency"].get("retention_sweep", {}).get("max_ms", float("inf"))
                > MAX_RETENTION_SECONDS * 1000]
     return comparison, regressions, invalid

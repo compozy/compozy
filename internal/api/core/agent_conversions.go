@@ -129,6 +129,7 @@ func AgentPayloadFromEntryWithConfig(
 	if err != nil {
 		return payload
 	}
+	permissions, permissionsSource := effectivePermissions(entry.Def, &resolved)
 	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
 		SessionEnv:      SessionEnvToPayload(resolved.SessionEnv),
 		Provider:        resolved.Provider,
@@ -136,11 +137,13 @@ func AgentPayloadFromEntryWithConfig(
 		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
 		Speed:           resolved.SpeedValue(),
 		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
+		Permissions:     permissions,
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider.String()),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model.String()),
 			ReasoningEffort: contract.AgentRuntimeValueSource(resolved.RuntimeSources.ReasoningEffort.String()),
 			Speed:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Speed.String()),
+			Permissions:     permissionsSource,
 		},
 	}
 	return payload
@@ -286,4 +289,17 @@ func permissionRulesPayload(rules []compozyconfig.PermissionRule) []contract.Age
 		result[i] = contract.AgentPermissionRulePayload(rule)
 	}
 	return result
+}
+
+// effectivePermissions reports the level a new session of the definition starts at. An always-on
+// definition with no authored or overridden level runs its instance at the always-on default
+// rather than [permissions].mode.
+func effectivePermissions(
+	agent compozyconfig.AgentDef,
+	resolved *compozyconfig.ResolvedAgent,
+) (string, contract.AgentRuntimeValueSource) {
+	if agent.EffectiveKind() == compozyconfig.AgentKindAlwaysOn && !resolved.PermissionsConfigured {
+		return string(compozyconfig.AlwaysOnDefaultPermissionMode), contract.AgentRuntimeValueSourceAlwaysOnDefault
+	}
+	return resolved.Permissions, contract.AgentRuntimeValueSource(resolved.RuntimeSources.Permissions.String())
 }

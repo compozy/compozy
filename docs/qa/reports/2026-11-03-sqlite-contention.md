@@ -60,7 +60,9 @@ maintenance now retains the 200 ms admission limit and runs I/O under its owned
 worker lifetime on the dedicated connection. Foreground writes remain independent;
 shutdown cancels and joins maintenance before releasing the database family.
 Idle maintenance schedules PASSIVE on that same worker; only TRUNCATE remains
-on the writer with its existing 200 ms deadline. No I/O error is downgraded.
+on the writer with its existing 200 ms deadline. Non-deadline I/O failures stay visible; explicit caller deadlines retain the
+deferral classification merged from #1274. The owned worker has no artificial
+checkpoint execution deadline.
 The canonical real SQLite suite holds periodic I/O beyond the admission deadline,
 releases it and requires success; existing cases prove foreground progress and
 bounded close during stalled I/O.
@@ -119,6 +121,27 @@ cover these exceptions and cleanup. The real SQLite test seeds committed WAL-onl
 content and requires that content to reach the main database after the stalled
 checkpoint resumes, proving backfill rather than just a nil return.
 
+Passing acceptance evidence: run
+[41895071469](https://github.com/compozy/compozy/actions/runs/41895071469) on
+`a1421a738481853689797aeb6453133327058a4a`, artifacts `13356437933` (paired) and
+`13356255753` (daemon). All four head trials had zero operation errors and zero
+contention/checkpoint warnings, removed 43,169/43,169 eligible rows, and completed
+retention in 12.969/12.471/13.467/13.678 s. The minimum median paired ratio was
+0.984092 (transcript writes); regressions and invalid head trials were empty.
+The 830,020-row upgrade took 280.194 s and preserved the all-column SHA-256 above;
+reopen took 62.472 ms. The daemon exercise passed in 4m52s and the paired job in
+17m51s. These receipts cover that exact head, not later review-only tightening or
+main integration. The broader Verify run independently failed an existing model
+catalog parked-target synchronization case; it is not a passing CI receipt.
+
+CodeRabbit follow-up tightens per-trial sample completeness (a zero head count
+cannot be averaged away), compares head-only operations, isolates missing traced
+JSON fields, and exercises actual PASSIVE statement I/O errors. Ten Python tests
+own runner decisions. The lease/cold-open limitation remains explicit: physical
+opens serialize with checkpoint I/O, whose filesystem sync cannot be bounded by
+context cancellation. This repair preserves that identity-safety contract rather
+than restoring the deadline that repeatedly prevented backfill progress.
+
 Historical artifact analysis is not a passing run of the revised gate. Exact-head
 CI supplies that acceptance evidence; no local load, full Go/race suite or E2E was
 run for this investigation.
@@ -143,7 +166,8 @@ run for this investigation.
   `query_only` pool. Transcript reads and preparation use a separate guarded session pool.
   Periodic session checkpoints use a dedicated guarded connection and joined worker, so filesystem
   sync cannot occupy the event writer queue or borrow its last idle connection. Idle truncation
-  retains its existing delay, size bound and family lease; checkpoint deadlines remain unchanged.
+  retains its existing delay, size bound and family lease. Checkpoint admission and TRUNCATE keep
+  their 200 ms budgets; recurring PASSIVE I/O uses the owned worker lifetime.
 - Transcript event assignment, fold reduction and JSON encoding run in a read snapshot. The short
   publication transaction validates projection state and the next sequence before committing the
   canonical ledger and projection together. Concurrent append/archive/clear/rewind invalidates

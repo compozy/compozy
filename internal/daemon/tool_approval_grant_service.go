@@ -18,6 +18,7 @@ type approvalGrantEventContent struct {
 	AgentName   string                         `json:"agent_name,omitempty"`
 	ToolID      toolspkg.ToolID                `json:"tool_id"`
 	InputDigest string                         `json:"input_digest,omitempty"`
+	AccessScope string                         `json:"access_scope,omitempty"`
 	Decision    toolspkg.ApprovalGrantDecision `json:"decision"`
 }
 
@@ -128,6 +129,7 @@ func (s *toolApprovalGrantService) emitTransition(
 		AgentName:   grant.AgentName,
 		ToolID:      grant.ToolID,
 		InputDigest: grant.InputDigest,
+		AccessScope: grant.AccessScope,
 		Decision:    grant.Decision,
 	})
 	if err != nil {

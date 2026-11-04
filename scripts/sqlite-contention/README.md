@@ -35,7 +35,11 @@ request has a two-second deadline. Failed operations and long-lock/contention
 messages remain in the output and fail untraced head acceptance. The checkpoint worker retains a 200 ms admission budget, but its
 I/O runs under the owned worker lifetime so it can advance the WAL backfill
 pointer. It has a dedicated connection and never reserves the foreground writer.
-Shutdown cancels and joins it; genuine I/O errors remain warnings. Idle maintenance also schedules PASSIVE backfill on this worker; only its
+Shutdown cancels and joins it; non-deadline I/O errors remain warnings. The family lease still serializes
+physical connection opens with checkpoint I/O, so a cold pool open can wait on a
+slow sync until its own request deadline. A short SQLite deadline cannot interrupt
+a filesystem sync already in progress; interrupting backfill does not provide
+that cold-open guarantee. Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
 A below-limit idle PASSIVE deferred by a family guard retries on the next activity
@@ -57,8 +61,8 @@ Diagnostic process, JSON and write-accounting failures are recorded separately
 in `*-writes-error.json` and `results.json`, preserving normal acceptance.
 `trace_comparable=false` marks byte rates for incomplete work as unsuitable for
 efficiency comparisons. Untraced acceptance requires every operation's median
-paired head/baseline rate ratio to be at least 0.95. Missing head
-operations count as zero. Runs with operation errors fail independently, so counts
+paired head/baseline rate ratio to be at least 0.95. Every head trial must contain a positive sample count for every compared
+operation; missing head work cannot be hidden by a median. Runs with operation errors fail independently, so counts
 cannot hide failed work. Rates and regressions are retained in the report and JSON;
 latency and file-write comparisons remain visible alongside throughput.
 
@@ -69,7 +73,8 @@ order. Individual historical pairs varied by up to 6.3%; the median reduces
 that sensitivity but can still fail if two of four pairs are slow. For fixed-count
 work, 5% allows roughly 1.5 seconds of extra drain. This is an explicit noise
 budget, not a statistical confidence claim. Missing or zero baseline samples
-fail instead of silently reducing the paired sample count.
+fail instead of silently reducing the paired sample count, including operations
+observed only on head.
 The [four-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#ci-acceptance-investigation-2026-11-04)
 records the evidence and limitations. The head
 retention sweep is 7–10 times slower than baseline: bounded 64-row background

@@ -183,6 +183,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   session_env?: {
@@ -195,6 +196,7 @@ export type AgentEffectiveRuntimePayload = {
 
 export type AgentEffectiveRuntimeSources = {
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   speed?: string;
@@ -7556,6 +7558,7 @@ export type SessionPullRequestErrorPayload = {
 export type SessionPullRequestLookupPayload = {
   cause: string;
   observed_at: string | null;
+  retry_after?: string | null;
   stale: boolean;
   state: "ok" | "pending" | "error" | "incomplete";
 };
@@ -11234,6 +11237,7 @@ export type ToolApprovalGrantListResponse = {
 };
 
 export type ToolApprovalGrantPayload = {
+  access_scope?: string;
   agent_name?: string;
   created_at: string;
   decision: "allow" | "reject";

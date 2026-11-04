@@ -143,13 +143,14 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 		target.ProfileID = ""
 		target.AllProfiles = true
 	}
+	actor := workspaceaccess.ActorRef{
+		Kind:        workspaceaccess.ActorAgentSession,
+		SessionID:   scope.SessionID,
+		WorkspaceID: scope.WorkspaceID,
+		AgentName:   scope.AgentName,
+	}
 	decision, err := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{
-		Actor: workspaceaccess.ActorRef{
-			Kind:        workspaceaccess.ActorAgentSession,
-			SessionID:   scope.SessionID,
-			WorkspaceID: scope.WorkspaceID,
-			AgentName:   scope.AgentName,
-		},
+		Actor:    actor,
 		Target:   target,
 		ReadOnly: descriptor.ReadOnly,
 		Seam:     workspaceaccess.SeamTool,
@@ -158,13 +159,29 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 		return err
 	}
 	if !decision.Allowed && decision.PromptEligible && n.deps.WorkspaceAccessPrompter != nil {
+		prompt := workspaceAccessPrompt{
+			label:           nativeProfilePromptLabel(selection, targetProfile),
+			remember:        !decision.NeedsGrantAfterConsent,
+			targetWorkspace: targetWorkspace,
+		}
+		if prompt.targetWorkspace == "" {
+			prompt.targetWorkspace = workspaceaccess.UserSelector
+		}
+		if prompt.remember {
+			prompt.grant = workspaceAccessReadGrantKey(scope, req, descriptor, actor, target)
+		}
 		allowed, promptErr := n.deps.WorkspaceAccessPrompter.RequestWorkspaceAccess(
-			ctx, scope, req, descriptor, nativeProfilePromptLabel(selection, targetProfile),
+			ctx, scope, req, descriptor, prompt,
 		)
 		if promptErr != nil {
 			return errors.Join(nativeWorkspaceAccessDecisionError(req.ToolID, decision), promptErr)
 		}
 		decision.Allowed = allowed && !decision.NeedsGrantAfterConsent
+		if decision.Allowed {
+			recordWorkspaceReadConsent(ctx, n.deps.WorkspaceAccess, workspaceaccess.Request{
+				Actor: actor, Target: target, ReadOnly: descriptor.ReadOnly, Seam: workspaceaccess.SeamTool,
+			})
+		}
 		switch {
 		case !allowed:
 			decision.Denial = workspaceaccess.DenialConsentRejected

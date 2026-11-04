@@ -86,9 +86,14 @@ function setRequestFromDraft(draft: ToolApprovalGrantSetDraft): ToolApprovalGran
  * confirmation lifecycle (target, pending, error) so the component stays presentational.
  */
 export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
-  const { runtimeWorkspaceId, hasHydrated, isLoading: workspacesLoading } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
-  const hasWorkspace = workspaceId !== "";
+  const {
+    runtimeWorkspaceId,
+    dataScope,
+    hasHydrated,
+    isLoading: workspacesLoading,
+  } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? (dataScope?.kind === "user" ? "@user" : "");
+  const hasWorkspace = workspaceId !== "" && workspaceId !== "@user";
 
   const { data, error: queryErrorRaw, isLoading, refetch } = useToolApprovalGrants(workspaceId);
   const grants = data?.grants ?? [];
@@ -97,7 +102,7 @@ export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
 
   const resolvingWorkspace = !hasHydrated || workspacesLoading;
   const state: ToolApprovalGrantsState =
-    resolvingWorkspace || (hasWorkspace && isLoading)
+    resolvingWorkspace || (workspaceId !== "" && isLoading)
       ? "loading"
       : queryError
         ? "error"
@@ -148,7 +153,7 @@ function useToolApprovalGrantRevokeModel(): ToolApprovalGrantsRevokeViewModel {
       // confirmation time — a workspace switch between opening and confirming must
       // not revoke against (or invalidate) the wrong workspace's list.
       mutation.mutate(
-        { id: target.id, workspaceId: target.workspace_id },
+        { id: target.id, workspaceId: target.workspace_id || "@user" },
         { onSuccess: () => setTarget(null) }
       );
     },

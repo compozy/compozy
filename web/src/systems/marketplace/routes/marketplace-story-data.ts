@@ -18,7 +18,7 @@ import {
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =
-  "data:image/svg+xml;utf8," +
+  "data:image/svg+xml," +
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" rx="6" fill="#2f6df6"/><path d="M7 14.5l4.5 4.5L21 9.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   );
