@@ -21,6 +21,16 @@ Runtime configuration starts from $COMPOZY_HOME/config.toml, then workspace conf
 
 Workspace definitions shadow same-name global definitions; CompozyOS never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
+To change only `permissions` (or `provider`, `model`, `reasoning_effort`, `speed`) of a bundled,
+extension, or global agent, the operator adds `[agents.overrides.<name>]` to a `config.toml` layer
+instead of copying its AGENT.md; the prompt, appearance, and other fields keep tracking the source.
+The override applies to whichever definition wins for that name, layers merge per field, and session
+runtime selections and `[roles.<role>]` routes still win for the fields they set. Reads keep the
+authored values and report the result in `effective_runtime` with source `config_override`. The table
+is operator-only: `compozy__config_set`/`compozy__config_unset` refuse it with
+`config_trust_root_forbidden`, and `compozy config set` inside an agent session refuses it with
+`agent_override_operator_only`. Never ask an agent to raise its own level.
+
 ## Minimal AGENT.md
 
     ---
@@ -257,6 +267,7 @@ never rendered into a session, and CompozyOS does not rewrite the file.
 - Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
   definition, or `[permissions].mode`. A delegation that omits `permission_mode` or sets `inherit` gets
   that level; a lower `permission_mode` is kept; a higher one fails with `permission_escalation_denied`.
+- An operator `[agents.overrides.<name>].permissions` counts as the level set on the definition.
 - Only the level comes from the definition. Tool, skill, MCP server, and path ceilings still narrow
   descendants exactly as before. Triage sessions stay read-only at every level.
 - The level is read when a session starts and has no frozen ceiling, unlike `workspace_access`. A session

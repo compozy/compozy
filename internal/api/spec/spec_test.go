@@ -3257,6 +3257,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addSettingsProviderLastProbeAt(baseline) == 0 {
 			t.Fatal("approved settings last_probe_at addition: no historical provider auth status schema found")
 		}
+		// #1265: agent effective runtime reports the effective permission level and its source.
+		if addAgentEffectivePermissions(baseline) == 0 {
+			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -5650,6 +5654,32 @@ func addSettingsProviderLastProbeAt(value any) int {
 		if ok && properties["status_command"] != nil && properties["login"] != nil &&
 			properties["home_policy"] != nil && properties["last_probe_at"] == nil {
 			properties["last_probe_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			count++
+		}
+	}
+	return count
+}
+
+func addAgentEffectivePermissions(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentEffectivePermissions(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentEffectivePermissions(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["permissions"] != nil {
+			return count
+		}
+		runtime := properties["sources"] != nil && properties["session_env_status"] != nil
+		sources := len(properties) == 4 && properties["provider"] != nil && properties["model"] != nil &&
+			properties["reasoning_effort"] != nil && properties["speed"] != nil
+		if runtime || sources {
+			properties["permissions"] = map[string]any{"type": "string"}
 			count++
 		}
 	}

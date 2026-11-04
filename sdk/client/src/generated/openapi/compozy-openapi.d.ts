@@ -7916,6 +7916,7 @@ export interface components {
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       session_env?: {
@@ -7928,6 +7929,7 @@ export interface components {
     };
     AgentEffectiveRuntimeSources: {
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       speed?: string;

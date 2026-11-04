@@ -185,11 +185,14 @@ func TestRoleResolver(t *testing.T) {
 		for _, testCase := range []struct {
 			name          string
 			roleModel     string
+			overrideModel string
 			agentModel    string
 			providerModel string
 			want          string
 		}{
 			{name: "role model", roleModel: "role-model", agentModel: "agent-model", providerModel: "provider-model", want: "role-model"},
+			{name: "role model over the operator override", roleModel: "role-model", overrideModel: "override-model", agentModel: "agent-model", want: "role-model"},
+			{name: "operator override model", overrideModel: "override-model", agentModel: "agent-model", providerModel: "provider-model", want: "override-model"},
 			{name: "agent model", agentModel: "agent-model", providerModel: "provider-model", want: "agent-model"},
 			{name: "provider default", providerModel: "provider-model", want: "provider-model"},
 		} {
@@ -204,6 +207,11 @@ func TestRoleResolver(t *testing.T) {
 				}
 				cfg.Roles.Coordinator.Agent = "my-curator"
 				cfg.Roles.Coordinator.Model = testCase.roleModel
+				if testCase.overrideModel != "" {
+					cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+						"my-curator": {Model: testCase.overrideModel},
+					}
+				}
 				resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
 					agents: map[string]compozyconfig.AgentDef{
 						"my-curator": {
@@ -223,6 +231,95 @@ func TestRoleResolver(t *testing.T) {
 					t.Fatalf("Resolve(coordinator) model = %q, want %q", resolved.Model, testCase.want)
 				}
 			})
+		}
+	})
+
+	t.Run("Should drop the override model when the role selects another provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
+		cfg.Providers["other"] = compozyconfig.ProviderConfig{
+			Command: "other-acp",
+			Models:  compozyconfig.ProviderModelsConfig{Default: "other-default"},
+		}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Provider = "other"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {Provider: "mock", Model: "override-model"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Provider != "other" || resolved.Model != "other-default" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want other/other-default", resolved.Provider, resolved.Model)
+		}
+	})
+
+	t.Run("Should drop the override effort when the role selects another model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Model = "role-model"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {Model: "override-model", ReasoningEffort: "high"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Provider: "mock", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Model != "role-model" || resolved.ReasoningEffort != "" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want role-model with no reasoning effort",
+				resolved.Model, resolved.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep the override effort when the role selects the effective model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{
+			Command: "mock-acp",
+			Models: compozyconfig.ProviderModelsConfig{
+				Default:   "provider-model",
+				Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyACPOption},
+			},
+		}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Model = "provider-model"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {ReasoningEffort: "high"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Provider: "mock", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Model != "provider-model" || resolved.ReasoningEffort != "high" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want provider-model/high", resolved.Model, resolved.ReasoningEffort)
 		}
 	})
 

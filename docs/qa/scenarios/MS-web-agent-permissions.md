@@ -34,3 +34,9 @@ QA verification 2026-11-03 (always-on hardening S5/S6/S15, soh/qa 583415ef5, iso
 Re-walk 2026-11-03 on 4056dbcc2 (S5/S15): BUG-20261103-reviewer-mode-omitted is verified fixed. `GET /api/providers` sends `reviewer_mode: ""` for providers without a reviewer, and an always-on Gemini agent's Permissions page marks Auto-review as Not available (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/05-s5-permissions-levels.png`). Settings → General now shows the same level icons as the agent page (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/15-s15-settings-levels.png`). Difference from the draft: a pill replaces the draft's alert naming the provider. Still not walked: the `../secrets` block, Follow Settings and an extension-installed agent.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the levels read Ask before every action, Ask before changes, Accept edits, Auto-review and Full access in the agent Permissions page, Settings → General and New agent's Advanced section; the saved values (`deny-all` … `approve-all`) are unchanged. The agent home lists Permissions under Setup. Not walked; S4 walks it on the integration head.
+
+QA impact 2026-11-04 (#1265 agent permission override): an operator `[agents.overrides.<agent>]`
+changes the effective level without changing the authored `permissions`. The agent payload reports it
+in `effective_runtime.permissions` with source `config_override`; this page still reads the authored
+level. Walk the page against an overridden agent once the Web shows the effective level; see
+ET-agent-permission-override.

@@ -613,6 +613,9 @@
           "model": {
             "type": "string"
           },
+          "permissions": {
+            "type": "string"
+          },
           "provider": {
             "type": "string"
           },
@@ -651,6 +654,9 @@
       "AgentEffectiveRuntimeSources": {
         "properties": {
           "model": {
+            "type": "string"
+          },
+          "permissions": {
             "type": "string"
           },
           "provider": {
