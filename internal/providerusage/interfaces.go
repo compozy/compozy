@@ -33,6 +33,13 @@ type ResolvedRoute struct {
 	KeychainAccess bool              // operator consent recorded in config
 }
 
+// AccountSelector is implemented by native-CLI collectors whose account is chosen by a route
+// variable. SelectorKey names the variable the credential lookup uses for env, after the
+// collector's own precedence; "" means the collector has no such variable.
+type AccountSelector interface {
+	SelectorKey(env []string) string
+}
+
 // TargetResolver lists the enabled targets for one profile.
 type TargetResolver interface {
 	Targets(ctx context.Context, profileID string) ([]Target, error)

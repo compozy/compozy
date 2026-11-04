@@ -432,6 +432,43 @@ func TestCollectorBoundaries(t *testing.T) {
 	})
 }
 
+func TestAccountSelector(t *testing.T) {
+	t.Run("Should name the variable the credential lookup reads UT-008", func(t *testing.T) {
+		t.Parallel()
+		registry := DefaultRegistry(RegistryOptions{})
+		cases := []struct {
+			collector, key, path string
+			env                  []string
+		}{
+			{"claude", "CLAUDE_CONFIG_DIR", "/b/.credentials.json", []string{"HOME=/h", "CLAUDE_CONFIG_DIR=/b"}},
+			{"claude", "CLAUDE_CONFIG_DIR", "/h/.claude/.credentials.json", []string{"HOME=/h"}},
+			{
+				"claude", "CLAUDE_SECURESTORAGE_CONFIG_DIR", "/c/.credentials.json",
+				[]string{"HOME=/h", "CLAUDE_CONFIG_DIR=/b", "CLAUDE_SECURESTORAGE_CONFIG_DIR=/c"},
+			},
+			{"codex", "CODEX_HOME", "/b/auth.json", []string{"HOME=/h", "CODEX_HOME=/b"}},
+			{"codex", "CODEX_HOME", "/h/.codex/auth.json", []string{"HOME=/h"}},
+			{"cursor", "XDG_CONFIG_HOME", "/x/cursor/auth.json", []string{"HOME=/h", "XDG_CONFIG_HOME=/x"}},
+			{"cursor", "HOME", "/h/.config/cursor/auth.json", []string{"HOME=/h", "XDG_CONFIG_HOME="}},
+			{"gemini", "HOME", "/h/.gemini/oauth_creds.json", []string{"HOME=/h"}},
+			{"kimi-cli", "KIMI_CODE_HOME", "/k/credentials/kimi-code.json", []string{"HOME=/h", "KIMI_CODE_HOME=/k"}},
+			{"kimi-cli", "KIMI_CODE_HOME", "/h/.kimi-code/credentials/kimi-code.json", []string{"HOME=/h"}},
+		}
+		for _, tc := range cases {
+			selector, ok := registry[tc.collector].(AccountSelector)
+			requireEqual(t, true, ok)
+			requireEqual(t, tc.key, selector.SelectorKey(tc.env))
+			target := Target{ProviderID: tc.collector + "-alias", CollectorID: tc.collector}
+			target.Route.Env = tc.env
+			requireEqual(t, tc.path, credentialEvidencePaths(target)[0])
+		}
+		moonshot, _ := registry["moonshot"].(AccountSelector)
+		if moonshot != nil && moonshot.SelectorKey([]string{"KIMI_CODE_HOME=/k"}) != "" {
+			t.Fatal("bound-secret Moonshot must not expose an account selector")
+		}
+	})
+}
+
 func TestCollectorIsolation(t *testing.T) {
 	for _, id := range []string{"cursor", "gemini", "kimi-cli"} {
 		t.Run("Should reject absent and malformed "+id+" stores without ambient fallback", func(t *testing.T) {

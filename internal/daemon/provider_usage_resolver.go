@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ type providerUsageResolver struct {
 	secrets    modelcatalog.ProviderSecretResolver
 	metadata   providers.VaultRefResolver
 	collectors providerusage.Registry
+	logger     *slog.Logger
 }
 
 // Targets skips archived and reserved profiles so they cannot block reconciliation.
@@ -147,10 +149,13 @@ func (r *providerUsageResolver) route(
 		)
 	}
 	// Session startup applies the home policy first and the launch command's environment last.
-	env, err = applyLaunchEnvironment(env, parsed)
+	env, owned, err := applyLaunchEnvironment(env, parsed)
 	if err != nil {
 		usageErr := providerusage.NewUsageError(providerusage.ErrorCodeProviderUnavailable, id)
 		usageErr.Message = err.Error()
+		return providerusage.ResolvedRoute{}, "", usageErr
+	}
+	if usageErr := r.aliasSelectorError(id, collectorID, provider, env, owned); usageErr != nil {
 		return providerusage.ResolvedRoute{}, "", usageErr
 	}
 	// Declared credentials never remain in the general child environment.
@@ -196,6 +201,33 @@ func (r *providerUsageResolver) route(
 		route.NativeCommand,
 		fmt.Sprint(route.KeychainAccess),
 	), nil
+}
+
+// aliasSelectorError fails closed for a native-CLI alias whose effective account variable was not
+// assigned a non-empty value by its own launch command: inherited daemon values would read the
+// default account and publish its quota under the alias. The family-ID provider and bound-secret
+// aliases are exempt.
+func (r *providerUsageResolver) aliasSelectorError(
+	id, collectorID string, provider config.ProviderConfig, env []string, owned map[string]bool,
+) *providerusage.UsageError {
+	if id == collectorID || provider.EffectiveAuthMode() != config.ProviderAuthModeNativeCLI {
+		return nil
+	}
+	selector, ok := r.collectors[collectorID].(providerusage.AccountSelector)
+	if !ok {
+		return nil
+	}
+	key := selector.SelectorKey(env)
+	if key == "" || owned[key] {
+		return nil
+	}
+	if r.logger != nil {
+		r.logger.Warn("provider_usage.alias_selector_missing",
+			"provider", id, "collector", collectorID, "selector_key", key)
+	}
+	usageErr := providerusage.NewUsageError(providerusage.ErrorCodeAuthMissing, id)
+	usageErr.Message = "Set " + key + " in this provider's command so Compozy reads its own sign-in"
+	return usageErr
 }
 
 func (r *providerUsageResolver) bindSecrets(

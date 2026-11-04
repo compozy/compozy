@@ -28,8 +28,19 @@ func (c *KimiCollector) ProviderID() string {
 	}
 	return "moonshot"
 }
+
+// SelectorKey implements AccountSelector for the Kimi CLI; Moonshot binds an API key instead.
+func (c *KimiCollector) SelectorKey([]string) string {
+	if c.cli {
+		return kimiCodeHomeKey
+	}
+	return ""
+}
+
+const kimiCodeHomeKey = "KIMI_CODE_HOME"
+
 func (c *KimiCollector) credential(t Target) (collectorCredential, error) {
-	home, err := collectorHomePath(t, "KIMI_CODE_HOME", ".kimi-code")
+	home, err := collectorHomePath(t, kimiCodeHomeKey, ".kimi-code")
 	if err != nil {
 		return collectorCredential{}, err
 	}

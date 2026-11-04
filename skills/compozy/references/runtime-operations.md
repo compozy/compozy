@@ -1229,7 +1229,13 @@ repeated; `--max-age` only raises that floor.
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
 `kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
 its `runtime_provider`'s collector with its own launch environment (for example its own
-`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`). They
+`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`).
+A native-CLI alias must set its account variable to a non-empty value in its own `command` (a leading
+`NAME=value` or inside an `env` prefix): `CLAUDE_CONFIG_DIR` (or `CLAUDE_SECURESTORAGE_CONFIG_DIR`
+when present), `CODEX_HOME`, `KIMI_CODE_HOME`, `XDG_CONFIG_HOME`/`HOME` for Cursor, `HOME` for
+Gemini. Otherwise its row is `signed_out` (`auth_missing`, "Set <KEY> in this provider's command so
+Compozy reads its own sign-in") and no credential is read; inherited daemon values never count. Alias
+rows carry `collector_id` (the collector family) when it differs from `provider_id`. They
 use only the credentials the profile's route resolves and never write credential files (the Codex CLI
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.

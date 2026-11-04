@@ -17,8 +17,9 @@ type collectorCredential struct{ token, account, email, domain string }
 func (c collectorCredential) identity() CredentialIdentity {
 	return NewCredentialIdentity(SourceKindOAuthHTTP, []byte(c.token), c.account)
 }
-func routeEnvValue(t Target, key string) (string, bool) {
-	for _, entry := range slices.Backward(t.Route.Env) {
+func routeEnvValue(t Target, key string) (string, bool) { return envValue(t.Route.Env, key) }
+func envValue(env []string, key string) (string, bool) {
+	for _, entry := range slices.Backward(env) {
 		if value, ok := strings.CutPrefix(entry, key+"="); ok {
 			return value, true
 		}
@@ -26,14 +27,23 @@ func routeEnvValue(t Target, key string) (string, bool) {
 	return "", false
 }
 func routeEnv(t Target, key string) string { value, _ := routeEnvValue(t, key); return value }
-func collectorHomePath(t Target, override string, parts ...string) (string, error) {
+
+// homeSelectorKey is the variable a home-based collector reads its directory from: override when it
+// is set non-empty, otherwise HOME.
+func homeSelectorKey(env []string, override string) string {
 	if override != "" {
-		if value := routeEnv(t, override); value != "" {
-			if filepath.IsAbs(value) {
-				return value, nil
-			}
-			return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
+		if value, _ := envValue(env, override); value != "" {
+			return override
 		}
+	}
+	return "HOME"
+}
+func collectorHomePath(t Target, override string, parts ...string) (string, error) {
+	if key := homeSelectorKey(t.Route.Env, override); key != "HOME" {
+		if value := routeEnv(t, key); filepath.IsAbs(value) {
+			return value, nil
+		}
+		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 	}
 	home := routeEnv(t, "HOME")
 	if home == "" {

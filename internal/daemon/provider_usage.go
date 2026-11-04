@@ -31,6 +31,7 @@ func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanu
 	resolver := &providerUsageResolver{
 		cfg: config.CloneConfig(&state.cfg), home: d.homePaths, baseEnv: os.Environ(),
 		profiles: state.profiles, secrets: d.modelCatalogSecretResolver(state), collectors: registry,
+		logger: state.logger,
 	}
 	if state.providerVault != nil {
 		resolver.metadata = state.providerVault
