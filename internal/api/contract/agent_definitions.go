@@ -73,6 +73,9 @@ const (
 	AgentRuntimeValueSourceModelDefault    AgentRuntimeValueSource = "model_default"
 	// AgentRuntimeValueSourceConfigOverride is an operator [agents.overrides.<name>] value.
 	AgentRuntimeValueSourceConfigOverride AgentRuntimeValueSource = "config_override"
+	// AgentRuntimeValueSourceAlwaysOnDefault is the level an always-on instance runs at when
+	// nothing sets one.
+	AgentRuntimeValueSourceAlwaysOnDefault AgentRuntimeValueSource = "always_on_default"
 )
 
 // AgentEffectiveRuntimeSources reports provenance for effective agent runtime values.

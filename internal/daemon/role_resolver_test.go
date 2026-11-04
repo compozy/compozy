@@ -234,6 +234,36 @@ func TestRoleResolver(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop the override model when the role selects another provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
+		cfg.Providers["other"] = compozyconfig.ProviderConfig{
+			Command: "other-acp",
+			Models:  compozyconfig.ProviderModelsConfig{Default: "other-default"},
+		}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Provider = "other"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {Provider: "mock", Model: "override-model"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Provider != "other" || resolved.Model != "other-default" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want other/other-default", resolved.Provider, resolved.Model)
+		}
+	})
+
 	t.Run("Should reject providers that require an unresolved runtime model", func(t *testing.T) {
 		t.Parallel()
 

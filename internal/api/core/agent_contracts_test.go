@@ -141,6 +141,17 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	if got := codexPayload.EffectiveRuntime.Sources.Permissions; got != contract.AgentRuntimeValueSourceProjectDefault {
 		t.Fatalf("codex permissions source = %q, want project_default", got)
 	}
+	alwaysOn := compozyconfig.CloneAgentDef(agent)
+	alwaysOn.Kind = compozyconfig.AgentKindAlwaysOn
+	alwaysOnEntry := core.AgentCatalogEntry{Def: alwaysOn, Origin: contract.AgentOriginGlobal}
+	approveAllConfig := codexConfig
+	approveAllConfig.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	alwaysOnPayload := core.AgentPayloadFromEntryWithConfig(&alwaysOnEntry, &approveAllConfig)
+	if alwaysOnPayload.EffectiveRuntime == nil ||
+		alwaysOnPayload.EffectiveRuntime.Permissions != string(compozyconfig.AlwaysOnDefaultPermissionMode) ||
+		alwaysOnPayload.EffectiveRuntime.Sources.Permissions != contract.AgentRuntimeValueSourceAlwaysOnDefault {
+		t.Fatalf("always-on effective permissions = %#v, want the always-on default", alwaysOnPayload.EffectiveRuntime)
+	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
 	}

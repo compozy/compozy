@@ -248,6 +248,7 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	}
 	// Role routing is narrower than the operator's per-agent override, so it layers on top.
 	route := cfg.ApplyAgentOverride(compozyconfig.CloneAgentDef(resolved.AgentDef))
+	dropForeignProviderRuntime(cfg, common.Provider, &route)
 	route.Provider = firstRoleValue(common.Provider, route.Provider)
 	route.Model = firstRoleValue(common.Model, route.Model)
 	route.ReasoningEffort = firstRoleValue(common.ReasoningEffort, route.ReasoningEffort)
@@ -280,6 +281,23 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	resolved.ReasoningEffort = runtime.ReasoningEffort
 	resolved.setRuntime(runtime.SpeedValue(), runtime.ACPOptionsValue())
 	return nil
+}
+
+// dropForeignProviderRuntime mirrors the session provider-switch rule: a role that selects a
+// different provider owns its complete runtime, so the definition's command, model, and effort
+// (authored or overridden) never leak to that provider.
+func dropForeignProviderRuntime(cfg *compozyconfig.Config, roleProvider string, route *compozyconfig.AgentDef) {
+	selected := compozyconfig.CanonicalProviderName(roleProvider)
+	if selected == "" {
+		return
+	}
+	current := strings.TrimSpace(route.Provider)
+	if current == "" && cfg != nil {
+		current = cfg.Defaults.Provider
+	}
+	if selected != compozyconfig.CanonicalProviderName(current) {
+		route.Command, route.Model, route.ReasoningEffort = "", "", ""
+	}
 }
 
 func roleConfig(roles *compozyconfig.RolesConfig, role compozyconfig.RoleName) (compozyconfig.RoleConfig, error) {

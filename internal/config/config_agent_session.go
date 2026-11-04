@@ -153,6 +153,10 @@ const (
 	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
 
+// AlwaysOnDefaultPermissionMode is the level an always-on instance session runs at when neither
+// its definition nor an operator override sets one.
+const AlwaysOnDefaultPermissionMode = PermissionModeApproveEdits
+
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {
 	Mode               PermissionMode `toml:"mode"`
