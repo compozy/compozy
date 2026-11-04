@@ -313,10 +313,71 @@ The focused extension projection case passed (0.198 s), parked-catalog preflight
 HTTP committed-child cancellation case (0.045 s), discovery failure classification (0.018 s),
 and workspace skill rescan (0.015 s). No broad local gate was run.
 
-The same CI run found fresh stores replaying all historical migrations under race instrumentation.
-Fresh initialization now uses the existing declarative bootstrap with an atomic core identity and
-pending marker. Startup binds the auxiliary file before exposing repositories and removes that
-marker only after the durable binding. Interrupted creation/binding resumes; foreign siblings
-remain rejected. Existing databases retain the ordered lossless export path. The relocation suite
-including those interruption cases passes in 1.015 s, and the previously timed-out Tailscale
-integration function passes in 0.105 s without changing its deadline.
+### Daemon acceptance fixture repair
+
+[Daemon job 126322979263](https://github.com/compozy/compozy/actions/runs/41753188676/job/126322979263)
+started the fresh global store in 16 ms and created all thirty sessions, but every prompt returned
+HTTP 422 because the scripted ACP peer named a model without advertising its required model
+configuration option. This is a failed acceptance run; it reached neither the load window nor the
+restart assertions. The strict auditor correctly reported missing API/CLI evidence, and teardown
+reported `clean: true`.
+
+The fixture now advertises the same model through the ACP configuration contract. The owning
+runtime test also reports an early prompt failure immediately and joins prompt goroutines on
+failure. Its invariant remains thirty overlapping streams, successful interactive requests and
+preserved accepted content after clean restart. Compilation passed (0.040 s) and tagged focused
+lint passed with zero issues; actual execution remains CI-owned.
+
+The tagged taint analyzer traced trusted bootstrap-manifest paths and loopback URLs into five
+shared E2E helper files. The configuration exception is restricted to those exact test helpers and
+G703/G704, matching the existing test-file boundary. It excludes no production path or other rule.
+The experiment also rejects long-hold diagnostics in the traced head trial, in addition to the
+untraced trials; tracing overhead is not an excuse for accepting an observed long hold.
+
+### Declarative bootstrap schema parity
+
+[Race shard 3](https://github.com/compozy/compozy/actions/runs/41753188407/job/126323432940)
+found that fresh declarative bootstrap placed `automation_jobs.grant_ceiling` first, whereas the
+published migration appends it last. Checking the existing owning assertions also found ordering
+drift in `automation_scheduler_state`, `tasks` and `sessions`. Their declarative definitions now
+match the existing upgraded schema, with sqlc regenerated from the matching static query columns.
+The canonical schema/index assertions are unchanged; published migrations remain immutable.
+
+### Second paired experiment: zero untraced errors, remaining long commits
+
+[Paired job 126322979504](https://github.com/compozy/compozy/actions/runs/41753188676/job/126322979504)
+compared the same baseline with `d36eb473f`. The 1 GiB upgrade again preserved all 830,020 rows,
+every column and the same hash/cursors/Observe results. Open/upgrade/reopen took
+39.0 / 280,875.4 / 50.2 ms. Each untraced trial swept all 43,169 eligible summaries while streaming.
+
+| Second measurement | Baseline | Candidate |
+| --- | ---: | ---: |
+| Transcript p99, median of three untraced trials | 2,085.904 ms | 165.846 ms |
+| Catalog p99, median of three untraced trials | 99.064 ms | 133.020 ms |
+| Core write commit hooks/s | 155.83 | 58.41 |
+| Core file-write bytes/min, traced | 484,845,593 | 43,301,696 |
+| Operation failures, untraced including warmup | 708 | 0 |
+| Long-hold/contention warnings, untraced | 570 | 2 |
+
+**FAIL:** the candidate recorded a 1,381 ms coalesced transaction and a 1,000 ms interactive
+state transaction in the second untraced trial. Neither generated a request error, but both
+violate the lock-duration criterion. The traced candidate also had 133 operation failures,
+four long transactions and an incomplete retention sweep (39,424/43,169 rows at its one-minute
+deadline); its write rate does not establish equal completed throughput. The stricter runner
+now checks traced warnings explicitly as well. These failed receipts remain evidence for the
+next repair, not a passing performance claim. Long-hold diagnostics now include a code-owned database kind, callback duration and commit
+duration, without logging a path or request data, to distinguish the remaining cause.
+
+Focused receipts for this checkpoint: unchanged automation schema/index assertions 0.275 s,
+task schema/index assertions 0.274 s, session registration/schema assertions 0.256 s, global
+migration fresh/reopen/ahead/equivalence 6.227 s, and write owner/cancellation semantics 0.165 s.
+Owning Atlas/sqlc generation completed without a new migration or changed historical checksum;
+focused store/globaldb lint passed with zero issues.
+
+The integrated vocabulary browser case failed because its global heading selector matched both
+the window chrome and editor content. Its existing invariant belongs to the Agents E2E suite:
+setup rows, the editor and window title retain the same noun through the old public slug. The
+selector is now scoped to the existing page-content boundary, and both the window title and
+content heading are asserted for Heartbeat and Instructions. No count/visibility assertion is
+relaxed; browser execution remains CI-owned. The runtime E2E lane and Web shards 2/4 and 4/4
+passed on `d36eb473f`; this is historical, not final-head acceptance.

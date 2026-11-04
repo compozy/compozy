@@ -202,7 +202,8 @@ func executeWriteAttempt(
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
 	}
 	releaseOwner := trackWriteOwner(db, operation)
-	defer releaseOwner()
+	var callbackElapsed, commitElapsed time.Duration
+	defer func() { releaseOwner(callbackElapsed, commitElapsed) }()
 	active := true
 	defer func() {
 		if !active {
@@ -219,8 +220,11 @@ func executeWriteAttempt(
 	}()
 
 	tx := &WriteTx{conn: conn}
-	if err := fn(ctx, tx); err != nil {
-		return fmt.Errorf("store: execute sqlite write callback: %w", err)
+	callbackStarted := time.Now()
+	callbackErr := fn(ctx, tx)
+	callbackElapsed = time.Since(callbackStarted)
+	if callbackErr != nil {
+		return fmt.Errorf("store: execute sqlite write callback: %w", callbackErr)
 	}
 	if err := validateMutationCommitFence(ctx); err != nil {
 		return fmt.Errorf("store: mutation commit fence: %w", err)
@@ -229,8 +233,11 @@ func executeWriteAttempt(
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}
 	// Once commit starts, cancellation must not disguise a durable write as retryable failure.
-	if _, err := conn.ExecContext(context.WithoutCancel(ctx), sqliteCommitStatement); err != nil {
-		return fmt.Errorf("store: commit sqlite write: %w", err)
+	commitStarted := time.Now()
+	_, commitErr := conn.ExecContext(context.WithoutCancel(ctx), sqliteCommitStatement)
+	commitElapsed = time.Since(commitStarted)
+	if commitErr != nil {
+		return fmt.Errorf("store: commit sqlite write: %w", commitErr)
 	}
 	active = false
 	return nil

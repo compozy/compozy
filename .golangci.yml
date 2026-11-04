@@ -115,6 +115,11 @@ linters:
       - linters: [gosec]
         path: "^cmd/compozy-catalog/"
         text: "G703:"
+      # These shared E2E helpers accept trusted fixture/lab paths and loopback URLs,
+      # including the CI bootstrap manifest. They have the same boundary as *_test.go.
+      - linters: [gosec]
+        path: '^internal/testutil/e2e/(artifacts_(files|storage)|runtime_harness(_sessions|_transport)?)\.go$'
+        text: "G70[34]:"
       - linters:
           - dupl
           - errcheck

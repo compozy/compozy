@@ -1,13 +1,13 @@
 -- name: GetAutomationSchedulerState :one
-SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
 FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);
 
 -- name: ListAutomationSchedulerStates :many
-SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
 FROM automation_scheduler_state ORDER BY job_id ASC;
 
 -- name: UpsertAutomationSchedulerState :exec

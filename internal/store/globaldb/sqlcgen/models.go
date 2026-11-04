@@ -233,7 +233,6 @@ type AttentionWorkspaceMute struct {
 }
 
 type AutomationJob struct {
-	GrantCeiling     string         `json:"grant_ceiling"`
 	ID               string         `json:"id"`
 	ProfileID        string         `json:"profile_id"`
 	Scope            string         `json:"scope"`
@@ -254,6 +253,7 @@ type AutomationJob struct {
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
+	GrantCeiling     string         `json:"grant_ceiling"`
 }
 
 type AutomationJobCatalogEntry struct {
@@ -307,7 +307,6 @@ type AutomationRun struct {
 }
 
 type AutomationSchedulerState struct {
-	DeferredUntil             sql.NullString `json:"deferred_until"`
 	JobID                     string         `json:"job_id"`
 	NextRunAt                 sql.NullString `json:"next_run_at"`
 	LastRunAt                 sql.NullString `json:"last_run_at"`
@@ -320,6 +319,7 @@ type AutomationSchedulerState struct {
 	LastMisfireAt             sql.NullString `json:"last_misfire_at"`
 	MisfireCount              int64          `json:"misfire_count"`
 	UpdatedAt                 string         `json:"updated_at"`
+	DeferredUntil             sql.NullString `json:"deferred_until"`
 }
 
 type AutomationSuggestion struct {
@@ -1497,11 +1497,6 @@ type SchedulerPause struct {
 }
 
 type Session struct {
-	InitiatorKind            string         `json:"initiator_kind"`
-	InitiatorID              string         `json:"initiator_id"`
-	InstanceID               sql.NullString `json:"instance_id"`
-	Branch                   string         `json:"branch"`
-	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
 	ProfileID                string         `json:"profile_id"`
 	Name                     sql.NullString `json:"name"`
@@ -1574,11 +1569,16 @@ type Session struct {
 	LineageKind              string         `json:"lineage_kind"`
 	OriginMessageID          sql.NullString `json:"origin_message_id"`
 	OriginAgentName          string         `json:"origin_agent_name"`
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
+	Branch                   string         `json:"branch"`
 	EndedEarlyTurnID         string         `json:"ended_early_turn_id"`
 	ParkedAt                 sql.NullString `json:"parked_at"`
 	ParkReason               string         `json:"park_reason"`
 	ParkUntil                sql.NullString `json:"park_until"`
 	LaterReturnedAt          sql.NullString `json:"later_returned_at"`
+	InstanceID               sql.NullString `json:"instance_id"`
+	InitiatorKind            string         `json:"initiator_kind"`
+	InitiatorID              string         `json:"initiator_id"`
 	FailureSeenAt            sql.NullString `json:"failure_seen_at"`
 }
 
@@ -1937,7 +1937,6 @@ type SkillExposure struct {
 }
 
 type Task struct {
-	GrantCeiling          string         `json:"grant_ceiling"`
 	ID                    string         `json:"id"`
 	ProfileID             string         `json:"profile_id"`
 	Identifier            sql.NullString `json:"identifier"`
@@ -1982,6 +1981,7 @@ type Task struct {
 	NeedsAttentionByKind  sql.NullString `json:"needs_attention_by_kind"`
 	NeedsAttentionByRef   sql.NullString `json:"needs_attention_by_ref"`
 	WakeCreator           int64          `json:"wake_creator"`
+	GrantCeiling          string         `json:"grant_ceiling"`
 }
 
 type TaskBlock struct {

@@ -148,10 +148,11 @@ def main():
               "Traced timings are excluded from the latency comparison. These are synthetic store measurements, not HTTP/browser or live-provider latency guarantees."]
     (args.output / "report.md").write_text("\n".join(lines) + "\n")
     # Preserve receipts even if an acceptance condition fails.
-    invalid = [r for r in trials["head"] if r["failures"] or r["contention_diagnostics"]]
-    incomplete_retention = [r for r in trials["head"] + [traced["head"]]
+    head_runs = trials["head"] + [traced["head"]]
+    invalid = [r for r in head_runs if r["failures"] or r["contention_diagnostics"]]
+    incomplete_retention = [r for r in head_runs
                             if r["retention"]["DeletedEventSummaries"] != retention_rows]
-    if invalid or traced["head"]["failures"] or incomplete_retention:
+    if invalid or incomplete_retention:
         raise RuntimeError("head acceptance failed; inspect results.json and per-trial logs")
     shutil.rmtree(fixture)
     shutil.rmtree(upgraded)

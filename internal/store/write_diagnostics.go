@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,19 +79,40 @@ func writeCallerOperation() string {
 	return defaultWriteOperation
 }
 
-func trackWriteOwner(db *sql.DB, operation string) func() {
+func trackWriteOwner(db *sql.DB, operation string) func(time.Duration, time.Duration) {
 	owner := writeOwner{operation: operation, id: writeTransactionSequence.Add(1), started: time.Now()}
 	writeOwners.Lock()
 	writeOwners.active[db] = owner
 	writeOwners.Unlock()
-	return func() {
+	return func(callbackElapsed, commitElapsed time.Duration) {
 		writeOwners.Lock()
 		delete(writeOwners.active, db)
 		writeOwners.Unlock()
 		if elapsed := time.Since(owner.started); elapsed >= time.Second {
 			slog.Warn("sqlite write transaction held for at least one second",
-				"operation", owner.operation, "transaction_id", owner.id, "elapsed_ms", elapsed.Milliseconds())
+				"operation", owner.operation, "transaction_id", owner.id, "elapsed_ms", elapsed.Milliseconds(),
+				"database", writeDatabaseKind(db), "callback_ms", callbackElapsed.Milliseconds(),
+				"commit_ms", commitElapsed.Milliseconds())
 		}
+	}
+}
+
+func writeDatabaseKind(db *sql.DB) string {
+	type identified interface{ SQLiteFileIdentity() os.FileInfo }
+	driver, ok := db.Driver().(identified)
+	if !ok || driver.SQLiteFileIdentity() == nil {
+		return "other"
+	}
+	name := driver.SQLiteFileIdentity().Name()
+	switch {
+	case strings.HasSuffix(name, ".telemetry.db"):
+		return "telemetry"
+	case name == "compozy.db":
+		return "core"
+	case name == "events.db":
+		return "session"
+	default:
+		return "other"
 	}
 }
 

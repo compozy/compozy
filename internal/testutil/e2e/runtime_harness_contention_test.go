@@ -25,6 +25,7 @@ import (
 )
 
 const contentionAgent = "contention-stream"
+const contentionModel = "contention-model"
 const contentionEnd = "contention stream completed"
 
 // Suite: real runtime HTTP/SSE/UDS/CLI load (opt-in CI acceptance).
@@ -137,7 +138,12 @@ func writeContentionFixture(t *testing.T, path string) {
 	}
 	steps = append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: contentionEnd})
 	writeContentionJSON(t, path, acpmock.Fixture{Version: acpmock.FixtureVersion, Agents: []acpmock.AgentFixture{{
-		Name: contentionAgent, Provider: "mock", Model: "contention-model", Turns: []acpmock.TurnFixture{{
+		Name: contentionAgent, Provider: "mock", Model: contentionModel,
+		ConfigOptions: []acpmock.SessionConfigOptionFixture{{
+			ID: "model", Name: "Model", Category: "model", Current: contentionModel,
+			Values: []acpmock.SessionConfigOptionValueFixture{{Value: contentionModel, Label: "Contention model"}},
+		}},
+		Turns: []acpmock.TurnFixture{{
 			Match: acpmock.TurnMatch{UserTextContains: "stream"}, Steps: steps,
 		}},
 	}}})
@@ -239,6 +245,10 @@ func exerciseContentionStreams(t *testing.T, h *RuntimeHarness, ids []string, ou
 	first := make(chan string, len(ids))
 	errorsCh := make(chan error, len(ids))
 	var prompts sync.WaitGroup
+	defer func() {
+		cancel()
+		prompts.Wait()
+	}()
 	for _, id := range ids {
 		prompts.Go(func() {
 			var once sync.Once
@@ -261,6 +271,8 @@ func exerciseContentionStreams(t *testing.T, h *RuntimeHarness, ids []string, ou
 			if firstChunkAt.IsZero() {
 				firstChunkAt = time.Now()
 			}
+		case err := <-errorsCh:
+			t.Fatalf("stream ended before all thirty sessions started: %v", err)
 		case <-ctx.Done():
 			t.Fatal("not all thirty sessions produced a chunk: ", ctx.Err())
 		}
