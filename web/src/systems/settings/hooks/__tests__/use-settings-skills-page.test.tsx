@@ -24,7 +24,8 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   },
 }));
 
-vi.mock("@/systems/agent/adapters/agent-api", () => ({
+vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-api")>()),
   fetchAgents: vi.fn(),
 }));
 
