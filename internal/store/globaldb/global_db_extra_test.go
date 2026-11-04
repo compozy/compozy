@@ -1263,6 +1263,10 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 		db := openTestGlobalDB(t)
 		ctx := t.Context()
 		workspaceID := registerWorkspaceForGlobalTests(t, db, "telemetry-deletion", t.TempDir())
+		workspace, err := db.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		summary := store.EventSummary{
 			ID:          "deleted-workspace-event",
 			ProfileID:   store.DefaultProfileID,
@@ -1298,6 +1302,17 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 			Scan(&physical); err != nil ||
 			physical != 0 {
 			t.Fatalf("final cleanup = %d, %v", physical, err)
+		}
+		if err := db.InsertWorkspace(ctx, workspace); err != nil {
+			t.Fatal(err)
+		}
+		summary.ID = "registered-again"
+		if err := db.WriteEventSummary(ctx, summary); err != nil {
+			t.Fatal(err)
+		}
+		rows, err = db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
+		if err != nil || len(rows) != 1 || rows[0].ID != summary.ID {
+			t.Fatalf("re-registered telemetry = %#v, %v; want only the new observation", rows, err)
 		}
 	})
 	t.Run("Should retain and replay a committed outbox after delivery fails", func(t *testing.T) {
