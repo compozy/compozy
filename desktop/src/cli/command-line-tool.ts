@@ -20,7 +20,7 @@ export type CommandLineToolState =
   | { readonly status: "conflict"; readonly path: string }
   | { readonly status: "needs_admin"; readonly path: string }
   | { readonly status: "directory_unavailable"; readonly path: string }
-  | { readonly status: "install_failed"; readonly path: string }
+  | { readonly status: "install_failed" }
   | { readonly status: "path_required"; readonly path: string }
   | { readonly status: "no_runtime" };
 

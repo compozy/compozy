@@ -290,7 +290,6 @@ func TestVersionCommandFormats(t *testing.T) {
 			t.Fatalf("version flag = %q, want %q", output, humanOut)
 		}
 	})
-
 }
 
 func newOutputTestCommand(t *testing.T, mode OutputFormat) (*cobra.Command, *bytes.Buffer) {

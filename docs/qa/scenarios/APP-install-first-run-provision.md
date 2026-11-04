@@ -72,6 +72,9 @@ QA impact 2026-11-04 — #1257 (macOS command exposure):
 - Cancel or fail the macOS administrator prompt. Confirm the result states that installation
   failed or was cancelled and points to the desktop log, rather than asking for the same
   access without acknowledging the failed attempt.
+- Force an unexpected command-link failure during the automatic attempt. Confirm a warning
+  appears, the error is logged, and a failed-attempt marker prevents silent retries on
+  relaunch. The menu action remains available for an explicit retry.
 - With only `~/.local/bin` on PATH, make that directory unwritable or block its creation.
   Confirm first launch records the attempt and reports directory access, not a missing PATH.
   While the automatic check is pending, choose the menu action and confirm visible feedback.

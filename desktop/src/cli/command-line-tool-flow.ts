@@ -72,6 +72,17 @@ function resultDialog(state: CommandLineToolState): MessageBoxOptions {
   }
 }
 
+async function checkCommandLineTool(deps: CommandLineToolFlowDeps): Promise<CommandLineToolState> {
+  try {
+    return await deps.ensure();
+  } catch (error) {
+    deps.log("check compozy command", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { status: "install_failed" };
+  }
+}
+
 /** Runs the administrator prompt for a link the user asked for, then reports the final state. */
 async function linkAsAdministrator(
   deps: CommandLineToolFlowDeps,
@@ -84,13 +95,13 @@ async function linkAsAdministrator(
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  const state = await deps.ensure();
-  return state.status === "needs_admin" ? { status: "install_failed", path } : state;
+  const state = await checkCommandLineTool(deps);
+  return state.status === "needs_admin" ? { status: "install_failed" } : state;
 }
 
 /** The app-menu action: always explicit, so it may raise the administrator prompt directly. */
 export async function installCommandLineTool(deps: CommandLineToolFlowDeps): Promise<void> {
-  let state = await deps.ensure();
+  let state = await checkCommandLineTool(deps);
   if (state.status === "needs_admin") state = await linkAsAdministrator(deps, state.path);
   deps.log("install compozy command", { status: state.status });
   await deps.showMessageBox(resultDialog(state));
@@ -104,7 +115,7 @@ export async function exposeCommandLineToolOnFirstRun(
   deps: CommandLineToolFlowDeps
 ): Promise<void> {
   if (await deps.attempted()) return;
-  const state = await deps.ensure();
+  const state = await checkCommandLineTool(deps);
   deps.log("expose compozy command on first run", { status: state.status });
   if (state.status === "no_runtime") return;
   await deps.recordAttempt(state);

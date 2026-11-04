@@ -172,6 +172,23 @@ describe("desktop command installation", () => {
     }
   );
 
+  it("Should record and display an unexpected automatic installation failure without inventing a path", async () => {
+    const deps = flow();
+    vi.mocked(deps.ensure).mockRejectedValue(new Error("link permission denied"));
+    await exposeCommandLineToolOnFirstRun(deps);
+    expect(deps.recordAttempt).toHaveBeenCalledWith({ status: "install_failed" });
+    expect(deps.log).toHaveBeenCalledWith("check compozy command", {
+      error: "link permission denied",
+    });
+    expect(deps.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "warning", message: "The compozy command was not installed" })
+    );
+    expect(deps.linkWithAdministratorPrivileges).not.toHaveBeenCalled();
+    vi.mocked(deps.attempted).mockResolvedValue(true);
+    await exposeCommandLineToolOnFirstRun(deps);
+    expect(deps.ensure).toHaveBeenCalledOnce();
+  });
+
   it("Should show failed or cancelled elevation without repeating the access request", async () => {
     const deps = flow();
     vi.mocked(deps.linkWithAdministratorPrivileges).mockRejectedValue(
