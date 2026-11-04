@@ -197,6 +197,48 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     }
   );
 
+  it.each(["pending", "failed"] as const)(
+    "Should persist the pending catalog when the attached client read stays %s",
+    async outcome => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const put = vi.spyOn(IDBObjectStore.prototype, "put");
+      vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() =>
+        outcome === "failed"
+          ? Promise.reject(new CmdPaletteApiError("Unavailable", 503, "daemon"))
+          : new Promise(() => {})
+      );
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", null),
+        catalog("sha256:before-attachment", ["Workspace row"])
+      );
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { rerender, unmount } = renderHook(
+        ({ clientId }) => useCmdPaletteCatalog({ workspaceId: WORKSPACE, clientId }),
+        { wrapper, initialProps: { clientId: null as string | null } }
+      );
+      expect(put).not.toHaveBeenCalled();
+      await act(async () => {
+        rerender({ clientId: CLIENT });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
+      });
+      await act(async () => {
+        await expect(readCatalogRecord(WORKSPACE, "default")).resolves.toMatchObject({
+          catalogRevision: "sha256:before-attachment",
+          workspaceId: WORKSPACE,
+          profileKey: "default",
+        });
+      });
+      expect(put).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should carry a catalog only across client attachment in the same workspace", async () => {
     let releaseClientCatalog: (value: CmdPaletteCatalogResponse) => void = () => {};
     vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(

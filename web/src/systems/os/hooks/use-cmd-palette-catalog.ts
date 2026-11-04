@@ -46,7 +46,11 @@ function usePersistedCatalog(
   // Leaving a scope flushes its final revision rather than discarding the pending write.
   useEffect(() => () => flush(), [profileKey, workspace]);
   useEffect(() => {
-    if (workspace === "" || served === undefined) return undefined;
+    if (workspace === "" || served === undefined) {
+      // A client-specific read can replace served data without leaving this scope.
+      flush();
+      return undefined;
+    }
     pending.current = toCatalogRecord(workspace, profileKey, served);
     clearTimeout(timer.current);
     timer.current = setTimeout(flush, 250);
