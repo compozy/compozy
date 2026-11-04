@@ -37,42 +37,45 @@ async function request(path: string, payload: unknown): Promise<WireResponse> {
 }
 
 async function windowsPermissions(path: string, pipe = false) {
-  return JSON.parse(
-    (
-      await promisify(execFile)(
-        join(
-          process.env.SystemRoot || "C:\\Windows",
-          "System32",
-          "WindowsPowerShell",
-          "v1.0",
-          "powershell.exe"
-        ),
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          [
-            "$ErrorActionPreference = 'Stop'",
-            "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
-            ...(pipe
-              ? [
-                  "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_PRIVATE_DIRECTORY, [System.IO.Pipes.PipeAccessRights]::ReadPermissions, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
-                  "try { $pipe.Connect(5000); $acl = $pipe.GetAccessControl() } finally { $pipe.Dispose() }",
-                ]
-              : ["$acl = Get-Acl -LiteralPath $env:COMPOZY_PRIVATE_DIRECTORY"]),
-            "$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
-            "@{ user = $user; owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected = $acl.AreAccessRulesProtected; allowed = @($rules | ForEach-Object { $_.IdentityReference.Value }) } | ConvertTo-Json -Compress",
-          ].join("; "),
-        ],
-        {
-          encoding: "utf8",
-          env: { ...process.env, COMPOZY_PRIVATE_DIRECTORY: path },
-          timeout: 10_000,
-          windowsHide: true,
-        }
-      )
-    ).stdout
-  ) as { user: string; owner: string; protected: boolean; allowed: string[] };
+  const command = promisify(execFile)(
+    join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    ),
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      [
+        "$ErrorActionPreference = 'Stop'",
+        "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
+        ...(pipe
+          ? [
+              "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_PRIVATE_DIRECTORY, [System.IO.Pipes.PipeAccessRights]::ReadPermissions, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
+              "try { $pipe.Connect(5000); $acl = $pipe.GetAccessControl() } finally { $pipe.Dispose() }",
+            ]
+          : ["$acl = Get-Acl -LiteralPath $env:COMPOZY_PRIVATE_DIRECTORY"]),
+        "$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
+        "@{ user = $user; owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected = $acl.AreAccessRulesProtected; allowed = @($rules | ForEach-Object { $_.IdentityReference.Value }) } | ConvertTo-Json -Compress",
+      ].join("; "),
+    ],
+    {
+      encoding: "utf8",
+      env: { ...process.env, COMPOZY_PRIVATE_DIRECTORY: path },
+      timeout: 10_000,
+      windowsHide: true,
+    }
+  );
+  command.child.stdin?.end();
+  return JSON.parse((await command).stdout) as {
+    user: string;
+    owner: string;
+    protected: boolean;
+    allowed: string[];
+  };
 }
 
 // Invariant: the control channel accepts only the current owner token and keeps files, messages, and methods bounded.

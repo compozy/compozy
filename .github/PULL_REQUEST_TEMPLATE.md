@@ -44,16 +44,17 @@ Passing local evidence so far:
 - Focused TypeScript lint, Go lint for macOS and Windows targets, and Actions workflow validation.
 - Focused Go CLI bootstrap/provisioning tests with real process execution.
 - Race-enabled release workflow contract tests, including all nine compatibility inventory entries.
-- Cross-compilation and focused lint of the Windows process-owner suite, whose native execution
-  queries a real LocalSystem service. Runtime verification remains CI-owned and pending.
+- Cross-compilation and focused lint of the Windows process-owner suite. Native Windows CI also
+  passed the real LocalSystem process-owner check, CLI bootstrap/provisioning, update and desktop
+  release suites; the final-head rerun remains pending.
 
 The Go test-shape checker passes the changed CLI and release suites. Its whole-file scan also flags
 the unchanged Homebrew renderer test in `internal/config/release_config_test.go`; this pre-existing
 shape finding is outside the desktop changes.
 
 The Windows installer/update/uninstall journey and all repository-wide gates run in CI. Native
-Windows results, final-head CI and review receipts are pending; cross-compilation is not runtime
-proof. The installed-app journey checks a path with spaces and non-ASCII characters, same-home CLI
+control/ACL results, installer execution, final-head CI and review receipts are pending;
+cross-compilation is not runtime proof. The installed-app journey checks a path with spaces and non-ASCII characters, same-home CLI
 control, actual NSIS update/relaunch, matching daemon version, archived update success and retained
 configuration/workspace data after uninstall.
 

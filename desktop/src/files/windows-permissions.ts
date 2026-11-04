@@ -58,7 +58,7 @@ async function executeSecurityScript(
   script: string,
   environment: Record<string, string>
 ): Promise<void> {
-  await execute(
+  const command = execute(
     join(
       process.env.SystemRoot || "C:\\Windows",
       "System32",
@@ -74,4 +74,7 @@ async function executeSecurityScript(
       maxBuffer: 64 * 1024,
     }
   );
+  // The script is supplied in argv; signal EOF instead of leaving PowerShell waiting on input.
+  command.child.stdin?.end();
+  await command;
 }
