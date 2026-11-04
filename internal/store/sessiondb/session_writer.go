@@ -89,13 +89,14 @@ func (s *SessionDB) passiveCheckpointLoop() {
 		case <-s.writerCtx.Done():
 			return
 		case <-s.checkpointWake:
-			if err := s.passiveCheckpoint(s.writerCtx); err != nil && s.writerCtx.Err() == nil {
+			if err := s.periodicPassiveCheckpoint(); err != nil && s.writerCtx.Err() == nil {
 				if errors.Is(err, errSessionCheckpointDeferred) {
 					slog.Default().
 						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
 					continue
 				}
-				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed",
+					"session_id", s.owner.SessionID, "error", err)
 			}
 		}
 	}
@@ -176,6 +177,15 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 	default:
 		return 0
 	}
+}
+
+func (s *SessionDB) periodicPassiveCheckpoint() error {
+	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALCheckpointWait)
+	defer cancel()
+	return s.checkpointWithLease(ctx, func(_ context.Context, connection *sql.Conn) error {
+		// Dedicated maintenance must finish I/O to advance the WAL backfill pointer.
+		return store.CheckpointPassiveConnection(s.writerCtx, connection)
+	})
 }
 
 func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {

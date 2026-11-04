@@ -13,6 +13,10 @@ import subprocess
 from data import inspect_data, seed_large
 from trace import write_bytes
 
+TRIALS = 4
+MIN_THROUGHPUT_RATIO = 0.95
+MAX_RETENTION_SECONDS = 30
+
 
 def save(path, value):
     path.write_text(json.dumps(value, indent=2) + "\n")
@@ -83,14 +87,40 @@ def operation_rates(result):
             for name, sample in result["latency"].items()}
 
 
-def throughput_regressions(baseline, head):
+def throughput_comparison(baseline, head):
+    if len(baseline) != len(head) or not baseline:
+        raise ValueError("throughput requires nonempty paired trials")
     baseline_rates = [operation_rates(run) for run in baseline]
     head_rates = [operation_rates(run) for run in head]
-    return {name: {"baseline": statistics.median(run.get(name, 0) for run in baseline_rates),
-                   "head": statistics.median(run.get(name, 0) for run in head_rates)}
-            for name in set().union(*baseline_rates)
-            if statistics.median(run.get(name, 0) for run in head_rates)
-            < statistics.median(run.get(name, 0) for run in baseline_rates)}
+    comparison = {}
+    for name in sorted(set().union(*baseline_rates)):
+        ratios = [h.get(name, 0) / b[name] if b.get(name, 0) > 0 else 0
+                  for b, h in zip(baseline_rates, head_rates)]
+        comparison[name] = {
+            "baseline": statistics.median(run.get(name, 0) for run in baseline_rates),
+            "head": statistics.median(run.get(name, 0) for run in head_rates),
+            "paired_ratios": ratios,
+            "pair_count": len(ratios),
+            "median_ratio": statistics.median(ratios),
+            "baseline_complete": all(run.get(name, 0) > 0 for run in baseline_rates),
+        }
+    return comparison
+
+
+def load_failed(result, retention_rows):
+    return bool(result["failures"] or result["contention_diagnostics"]
+                or result["retention"]["DeletedEventSummaries"] != retention_rows)
+
+
+def acceptance_failures(trials, retention_rows):
+    comparison = throughput_comparison(trials["baseline"], trials["head"])
+    regressions = {name: values for name, values in comparison.items()
+                   if not values["baseline_complete"] or values["median_ratio"] < MIN_THROUGHPUT_RATIO}
+    invalid = [i for i, run in enumerate(trials["head"])
+               if load_failed(run, retention_rows)
+               or run["latency"].get("retention_sweep", {}).get("max_ms", float("inf"))
+               > MAX_RETENTION_SECONDS * 1000]
+    return comparison, regressions, invalid
 
 
 def main():
@@ -128,7 +158,7 @@ def main():
         raise RuntimeError("Observe changed on second reopen")
     trials = {"baseline": [], "head": []}
     # Alternate order to expose rather than hide runner drift and cache effects.
-    for trial in range(3):
+    for trial in range(TRIALS):
         for label in (("baseline", "head") if trial % 2 == 0 else ("head", "baseline")):
             source = fixture if label == "baseline" else upgraded
             root = args.output / "trial-data"
@@ -153,21 +183,26 @@ def main():
     result = {"environment": environment, "seed": seed, "upgrade": {"rows": before["rows"], "sha256": before["sha256"],
               "baseline_open_ms": baseline_view["open_ms"], "upgrade_ms": head_view["open_ms"], "reopen_ms": reopened["open_ms"]},
               "trials": trials, "traced": traced}
-    regressions = {"untraced": throughput_regressions(trials["baseline"], trials["head"]),
-                   "traced": throughput_regressions([traced["baseline"]], [traced["head"]])}
+    comparison, regressions, invalid = acceptance_failures(trials, retention_rows)
+    result["throughput_comparison"] = comparison
+    result["min_throughput_ratio"] = MIN_THROUGHPUT_RATIO
     result["throughput_regressions"] = regressions
+    result["invalid_head_trials"] = invalid
+    result["max_retention_seconds"] = MAX_RETENTION_SECONDS
+    result["trace_comparable"] = not any(load_failed(run, retention_rows) for run in traced.values())
     save(args.output / "results.json", result)
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
              "4 Hz health and 2 Hz summaries/state per session; 20 Hz catalog reads; 1,500 model rows",
              "and 90 process observations refreshed every two seconds. Each measured phase also",
              f"sweeps {retention_rows:,} retained summaries older than the fixed six-hour boundary.",
-             "Five-second warmup, three",
-             "30-second untraced trials; separate 15-second strace trials for actual file-write bytes.", "",
+             f"Five-second warmup, {TRIALS} balanced-order paired",
+             "30-second untraced trials; separate 15-second strace diagnostics for actual file-write bytes.",
+             f"Acceptance requires median paired throughput ratio >= {MIN_THROUGHPUT_RATIO:.0%} for every operation.", "",
              "| Metric | Baseline | Head |", "| --- | ---: | ---: |"]
     for metric in ("transcript_read", "catalog_read"):
         values = {label: [r["latency"][metric]["p99_ms"] for r in runs] for label, runs in trials.items()}
-        lines.append(f"| {metric} p99 ms (median; three values) | {statistics.median(values['baseline']):.3f}; {values['baseline']} | {statistics.median(values['head']):.3f}; {values['head']} |")
+        lines.append(f"| {metric} p99 ms (median; {TRIALS} values) | {statistics.median(values['baseline']):.3f}; {values['baseline']} | {statistics.median(values['head']):.3f}; {values['head']} |")
     for name in sorted(set().union(*(operation_rates(run) for run in trials["baseline"]))):
         values = {label: statistics.median(operation_rates(run).get(name, 0) for run in runs)
                   for label, runs in trials.items()}
@@ -175,9 +210,17 @@ def main():
     for kind in ("core", "telemetry"):
         values = {label: statistics.median(r["transactions_per_second"][kind] for r in runs) for label, runs in trials.items()}
         lines.append(f"| {kind} write commit hooks/s | {values['baseline']:.2f} | {values['head']:.2f} |")
+    for label, runs in trials.items():
+        lines.append(f"| {label} retention sweep seconds (limit {MAX_RETENTION_SECONDS}s on head) | "
+                     + ", ".join(f"{run['latency']['retention_sweep']['max_ms'] / 1000:.3f}" for run in runs) + " | |")
     for kind in ("core", "telemetry", "sessions"):
-        lines.append(f"| {kind} file-write bytes/min (traced) | {traced['baseline']['file_writes']['bytes_per_minute'][kind]:.0f} | {traced['head']['file_writes']['bytes_per_minute'][kind]:.0f} |")
-    lines += ["", "Throughput regressions (untraced medians and traced pair): " + json.dumps(regressions), ""]
+        values = [f"{traced[label]['file_writes']['bytes_per_minute'][kind]:.0f}"
+                  if result["trace_comparable"] else "n/a (incomplete)" for label in ("baseline", "head")]
+        lines.append(f"| {kind} file-write bytes/min (traced) | {values[0]} | {values[1]} |")
+    lines += ["", "Throughput regressions (median of untraced paired ratios): " + json.dumps(regressions),
+              "Paired ratios by operation: " + json.dumps(comparison),
+              f"Traced byte comparison valid (both runs error-free, retention complete): {result['trace_comparable']}. "
+              "If false, byte rates describe incomplete work and must not support an efficiency claim.", ""]
     for label, runs in trials.items():
         lines += ["", f"{label}: {sum(sum(map(len,r['failures'].values())) for r in runs)} operation failures; {sum(len(r['contention_diagnostics']) for r in runs)} long-hold/contention warnings."]
         lines += [f"Retention rows removed: {[r['retention']['DeletedEventSummaries'] for r in runs]}."]
@@ -188,14 +231,11 @@ def main():
               "Session commit counts are not instrumented: the guarded session connector owns a separate driver. Session file-write bytes are captured by the syscall tracer.",
               "Fixture copies are fsynced before launch. Errors and long-hold warnings include warmup; latency and file-write rates use the measured interval.",
               "File-write bytes sum successful write/pwrite64 return values for each .db and -wal, including clean drain/checkpoint. They exclude shm mmap dirtying and physical filesystem/device amplification.",
-              "Traced timings are excluded from the latency comparison. These are synthetic store measurements, not HTTP/browser or live-provider latency guarantees."]
+              "Strace perturbs scheduling and I/O; its runs are diagnostics only, excluded from throughput and deadline acceptance. Raw errors and retention results remain in results.json.",
+              "These are synthetic store measurements, not HTTP/browser or live-provider latency guarantees."]
     (args.output / "report.md").write_text("\n".join(lines) + "\n")
     # Preserve receipts even if an acceptance condition fails.
-    head_runs = trials["head"] + [traced["head"]]
-    invalid = [r for r in head_runs if r["failures"] or r["contention_diagnostics"]]
-    incomplete_retention = [r for r in head_runs
-                            if r["retention"]["DeletedEventSummaries"] != retention_rows]
-    if invalid or incomplete_retention or any(regressions.values()):
+    if invalid or regressions:
         # Keep failed acceptance unchanged. A separate diagnostic run attributes
         # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
         diagnose_failure(args.head, upgraded, args.output)

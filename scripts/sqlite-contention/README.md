@@ -22,17 +22,22 @@ refreshes, exercising both replacement and unchanged-content paths.
 Each measured phase also sweeps the first six hours of retained synthetic
 summaries (at least 20,000 rows), while the streams and interactive routes run.
 The report records exact eligible/deleted counts. The whole sweep has a one-minute
-deadline; each interactive operation retains its two-second deadline. The sweep
+deadline, with a stricter 30-second acceptance ceiling on every untraced head sweep; each interactive operation retains its two-second deadline. The sweep
 must complete and each individual write transaction must remain below one second.
 
-Three 30-second trials follow five-second warmups, alternating baseline/head
-order. Every trial starts from a fresh copy of the same fixture. Each fixture
+Four 30-second pairs follow five-second warmups, alternating baseline/head
+order equally (AB, BA, AB, BA). Every trial starts from a fresh copy of the same fixture. Each fixture
 copy is fsynced before process launch so its bulk copy does not become work in
 SQLite's first commit. The stop
 boundary stops admission and waits for requests, health flush and checkpoints;
 it never cancels accepted work to manufacture clean latency results. Each
 request has a two-second deadline. Failed operations and long-lock/contention
-messages remain in the output and fail head acceptance.
+messages remain in the output and fail untraced head acceptance. The periodic checkpoint worker retains a 200 ms admission budget, but its
+I/O runs under the owned worker lifetime so it can advance the WAL backfill
+pointer. It has a dedicated connection and never reserves the foreground writer.
+Shutdown cancels and joins it; genuine I/O errors remain warnings. Idle writer
+maintenance keeps its existing 200 ms I/O budget. Foreground deadlines and
+one-second write holds remain failures.
 
 The modernc commit hook counts write commit attempts by core and telemetry
 database. Session connectors own a separate driver, so session commit counts are
@@ -42,12 +47,36 @@ A separate pair of 15-second runs uses seccomp-filtered `strace` to sum successf
 `pwrite64` return values for `.db` and `-wal`. This measures actual application
 file-write volume, including clean shutdown, rather than file-size growth. It
 excludes shared-memory mmap dirtying and filesystem/device amplification.
-Traced latencies are excluded from the p99 comparison. Acceptance also requires
-no decrease in completed operations/second for any baseline operation: compare
-three-trial medians for untraced runs and the separate traced pair. Missing head
+Traced runs are diagnostics only: ptrace changes scheduling and I/O enough to
+exhaust deadlines in this workload. They cannot measure production throughput or
+deadline compliance. Raw failures and retention counts remain in the artifact;
+`trace_comparable=false` marks byte rates for incomplete work as unsuitable for
+efficiency comparisons. Untraced acceptance requires every operation's median
+paired head/baseline rate ratio to be at least 0.95. Missing head
 operations count as zero. Runs with operation errors fail independently, so counts
 cannot hide failed work. Rates and regressions are retained in the report and JSON;
 latency and file-write comparisons remain visible alongside throughput.
+
+The 5% relative budget covers the observed 0.6–2.0% median shared-runner/drain variation
+without accepting a sustained 6% loss. Ratios are computed within each pair before
+taking the median, retaining local runner conditions; four pairs balance run
+order. Individual historical pairs varied by up to 6.3%; the median reduces
+that sensitivity but can still fail if two of four pairs are slow. For fixed-count
+work, 5% allows roughly 1.5 seconds of extra drain. This is an explicit noise
+budget, not a statistical confidence claim. Missing or zero baseline samples
+fail instead of silently reducing the paired sample count.
+The [four-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#ci-acceptance-investigation-2026-11-04)
+records the evidence and limitations. The head
+retention sweep is 7–10 times slower than baseline: bounded 64-row background
+items prioritize interactive work, which has no errors on head. This intentional
+#1241 scheduling trade-off now has its own 30-second acceptance ceiling; the
+count-1 throughput metric cannot measure sweep duration. The baseline remains fixed deliberately to
+retain the pre-change upgrade fixture and historical contention comparison.
+
+The runner's decision suite is `python3 -m unittest discover -s
+scripts/sqlite-contention -p '*_test.py' -v`, also run by the workflow before the
+experiment. It owns pairing, relative budgets, missing operations and strict
+correctness rejection.
 
 After a failed acceptance run, the runner preserves its result and replays the
 head separately with `-runtime-trace <path>`. The Go execution trace records named

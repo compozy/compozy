@@ -387,6 +387,54 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: periodic checkpoint I/O outlives admission expiry and still makes progress.
+	t.Run("Should complete periodic checkpoint I/O after the admission deadline", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-budget")
+		blocked := &blockedSessionCheckpointConnector{
+			Connector: db.checkpointDB.Driver().(driver.Connector),
+			entered:   make(chan struct{}), released: make(chan struct{}),
+		}
+		unblock := sync.OnceFunc(func() { close(blocked.released) })
+		defer unblock()
+		if err := db.checkpointDB.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db.checkpointDB = sql.OpenDB(blocked)
+		db.checkpointDB.SetMaxOpenConns(1)
+		db.checkpointDB.SetMaxIdleConns(1)
+		completed := make(chan error, 1)
+		go func() { completed <- db.periodicPassiveCheckpoint() }()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		select {
+		case <-blocked.entered:
+		case <-ctx.Done():
+			t.Fatal("checkpoint did not enter I/O")
+		}
+		timer := time.NewTimer(2 * sessionWALCheckpointWait)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			t.Fatal("test deadline expired before admission budget")
+		}
+		unblock()
+		select {
+		case err := <-completed:
+			if err != nil {
+				t.Fatalf("checkpoint after admission deadline = %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("checkpoint did not finish after I/O resumed")
+		}
+		fault := errors.New("checkpoint I/O failure")
+		err := db.checkpointWithLease(t.Context(), func(context.Context, *sql.Conn) error { return fault })
+		if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
+			t.Fatalf("failed checkpoint = %v, want original I/O error", err)
+		}
+	})
+
 	// Invariant: a checkpoint blocked in filesystem I/O cannot reserve the session
 	// writer. Close bounds caller waiting and joins maintenance before releasing the database family.
 	// Owner: SessionDB maintenance lifecycle; canonical passive-checkpoint suite.
