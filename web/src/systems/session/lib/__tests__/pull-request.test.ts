@@ -12,6 +12,7 @@ import {
   pullRequestMenuModel,
   type PullRequestExitPlanView,
 } from "../pull-request-actions";
+import { formatMessageTimestamp } from "../format-timestamp";
 import { pullRequestChipModel, pullRequestPill } from "../pull-request-signal";
 import {
   parseSessionLinkInput,
@@ -227,6 +228,19 @@ describe("pullRequestChipModel", () => {
       })
     );
     expect(failed).toMatchObject({ stale: true, causeText: "Rate limited by GitHub" });
+    const retryAfter = "2026-11-04T16:05:00Z";
+    const limited = prChip(
+      facts(DX_PR, {
+        state: "error",
+        cause: "rate_limited",
+        observed_at: OK.observed_at,
+        stale: true,
+        retry_after: retryAfter,
+      })
+    );
+    expect(limited.causeText).toBe(
+      `Rate limited by GitHub until ${formatMessageTimestamp(Date.parse(retryAfter))}`
+    );
     expect(failed.signals.every(signal => signal.tone === null)).toBe(true);
     // An unknown draft flag never assembles Ready, whatever the daemon flag says.
     expect(prChip(facts({ ...READY_PR, draft: null })).signals[0]?.id).not.toBe("ready");

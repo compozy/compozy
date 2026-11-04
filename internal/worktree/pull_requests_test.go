@@ -380,20 +380,97 @@ func TestPullRequestService(t *testing.T) {
 			t.Fatalf("reset=%#v %v", got, err)
 		}
 	})
-	t.Run("Should apply open and terminal freshness windows", func(t *testing.T) {
+	// Invariant: open PRs refresh every minute, terminal ones every 30 minutes, and branches
+	// without a PR start at 10 minutes and back off toward an hour.
+	t.Run("Should apply open, terminal, and absent freshness windows", func(t *testing.T) {
 		t.Parallel()
 		now := statusTestClock()
 		observed := now.Add(-time.Minute)
 		entry := PullRequestEntry{Facts: &ForgeStatus{PRState: new("open"), FetchedAt: &observed}}
-		if !pullRequestStale(entry, now) {
+		if !pullRequestStale(entry, now, 0) {
 			t.Fatal("open cache remained fresh")
 		}
 		entry.Facts.PRState = new("merged")
-		if pullRequestStale(entry, now) {
+		if pullRequestStale(entry, observed.Add(29*time.Minute), 0) {
 			t.Fatal("terminal cache expired early")
 		}
-		if !pullRequestStale(entry, observed.Add(10*time.Minute)) {
+		if !pullRequestStale(entry, observed.Add(30*time.Minute), 0) {
 			t.Fatal("terminal cache remained fresh")
+		}
+		entry.Facts.PRState = nil
+		for absent, window := range []time.Duration{
+			10 * time.Minute, 10 * time.Minute, 20 * time.Minute, 40 * time.Minute, time.Hour, time.Hour,
+		} {
+			if pullRequestStale(entry, observed.Add(window-time.Second), absent) ||
+				!pullRequestStale(entry, observed.Add(window), absent) {
+				t.Fatalf("absent=%d window != %s", absent, window)
+			}
+		}
+	})
+	t.Run("Should back off branches without a pull request until one appears", func(t *testing.T) {
+		t.Parallel()
+		now := statusTestClock()
+		key := PullRequestKey{"ws", "github.com/acme/repo", "quiet"}
+		var opened atomic.Bool
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			if opened.Load() {
+				return &ForgeStatus{PRNumber: new(7), PRState: new("open")}, nil
+			}
+			return &ForgeStatus{}, nil
+		}}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		service.now = func() time.Time { return now }
+		for range 3 {
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		later := service.Read(t.Context(), []PullRequestKey{key})[key]
+		service.now = func() time.Time { return now.Add(30 * time.Minute) }
+		if later.Stale || service.Read(t.Context(), []PullRequestKey{key})[key].Stale {
+			t.Fatal("third absent answer did not back off to 40 minutes")
+		}
+		opened.Store(true)
+		got, err := service.Refresh(t.Context(), key)
+		if err != nil || got.Facts.PRState == nil {
+			t.Fatalf("opened = %+v, %v", got, err)
+		}
+		service.now = func() time.Time { return now.Add(32 * time.Minute) }
+		if !service.Read(t.Context(), []PullRequestKey{key})[key].Stale {
+			t.Fatal("open pull request kept the absent window")
+		}
+	})
+	// Invariant: a refresh that only moves the fetch time publishes no catalog change, so clients do
+	// not re-read the list and schedule more refreshes.
+	t.Run("Should publish a change only when pull request facts change", func(t *testing.T) {
+		t.Parallel()
+		now := statusTestClock()
+		key := PullRequestKey{"ws", "github.com/acme/repo", "steady"}
+		var checks atomic.Int32
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			return &ForgeStatus{
+				PRNumber: new(7), PRState: new("open"),
+				Checks: &ForgeChecks{State: "pending", Pending: int(checks.Load())},
+			}, nil
+		}}
+		var wakes atomic.Int32
+		service := NewPullRequestService(
+			t.Context(), newPullRequestMemoryStore(), provider, nil, func(string) { wakes.Add(1) },
+		)
+		t.Cleanup(service.Close)
+		for minute := range 3 {
+			service.now = func() time.Time { return now.Add(time.Duration(minute) * time.Minute) }
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if wakes.Load() != 1 {
+			t.Fatalf("unchanged facts published %d changes, want 1", wakes.Load())
+		}
+		checks.Store(1)
+		if _, err := service.Refresh(t.Context(), key); err != nil || wakes.Load() != 2 {
+			t.Fatalf("changed checks published %d changes (err %v), want 2", wakes.Load(), err)
 		}
 	})
 	t.Run("Should normalize hosted subgroup repositories", func(t *testing.T) {

@@ -103,21 +103,7 @@ func (c githubClient) requestWithHeaders(
 		return errors.New("github forge: response exceeds size limit")
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		failure := classifyGitHubStatus(response.StatusCode)
-		if apiErr, ok := errors.AsType[*githubAPIError](
-			failure,
-		); ok &&
-			apiErr.cause == extensioncontract.ForgeCauseRateLimited {
-			if reset, parseErr := strconv.ParseInt(
-				response.Header.Get("X-RateLimit-Reset"),
-				10,
-				64,
-			); parseErr == nil &&
-				reset > 0 {
-				apiErr.retryAfter = new(time.Unix(reset, 0).UTC())
-			}
-		}
-		return failure
+		return classifyGitHubResponse(response.StatusCode, response.Header, payload, time.Now())
 	}
 	if responseBody == nil || len(payload) == 0 {
 		return nil
@@ -128,15 +114,43 @@ func (c githubClient) requestWithHeaders(
 	return nil
 }
 
-func classifyGitHubStatus(status int) error {
-	cause := ""
-	switch status {
-	case http.StatusUnauthorized:
-		cause = extensioncontract.ForgeCauseCredentialExpired
-	case http.StatusForbidden, http.StatusTooManyRequests:
-		cause = extensioncontract.ForgeCauseRateLimited
+// classifyGitHubResponse separates rate limits from other refusals. GitHub answers both primary and
+// secondary limits with 403 or 429; a 403 is a rate limit only when its headers or message say so,
+// so a permission refusal is not mistaken for one.
+func classifyGitHubResponse(status int, header http.Header, payload []byte, now time.Time) error {
+	failure := &githubAPIError{status: status}
+	switch {
+	case status == http.StatusUnauthorized:
+		failure.cause = extensioncontract.ForgeCauseCredentialExpired
+	case status == http.StatusTooManyRequests ||
+		(status == http.StatusForbidden && githubRateLimitSignalled(header, payload)):
+		failure.cause = extensioncontract.ForgeCauseRateLimited
+		failure.retryAfter = githubRetryAfter(header, now)
 	}
-	return &githubAPIError{cause: cause, status: status}
+	return failure
+}
+
+func githubRateLimitSignalled(header http.Header, payload []byte) bool {
+	return strings.TrimSpace(header.Get("X-RateLimit-Remaining")) == "0" ||
+		strings.TrimSpace(header.Get("Retry-After")) != "" ||
+		strings.Contains(strings.ToLower(string(payload)), "rate limit")
+}
+
+// githubRetryAfter prefers Retry-After, which secondary limits send, over the primary-limit reset.
+// Nil leaves the wait to the daemon's fallback.
+func githubRetryAfter(header http.Header, now time.Time) *time.Time {
+	if value := strings.TrimSpace(header.Get("Retry-After")); value != "" {
+		if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
+			return new(now.Add(time.Duration(seconds) * time.Second).UTC())
+		}
+		if at, err := http.ParseTime(value); err == nil {
+			return new(at.UTC())
+		}
+	}
+	if reset, err := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64); err == nil && reset > 0 {
+		return new(time.Unix(reset, 0).UTC())
+	}
+	return nil
 }
 
 func repositoryAPIPath(repo repository, suffix string) string {

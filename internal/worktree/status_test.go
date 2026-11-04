@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -252,6 +253,55 @@ func TestServiceStatus(t *testing.T) {
 		if err != nil || status == nil || strings.Contains(status.ReadError, secret) ||
 			!strings.Contains(status.ReadError, "[REDACTED]") {
 			t.Fatalf("Status(secret failure) = %#v, %v, want redacted read_error", status, err)
+		}
+	})
+
+	// Invariant: a list read refreshes display PRs only for pending and ready worktrees; removed,
+	// dismissed, missing, and failed rows show cached facts without contacting the forge.
+	// Owner: worktree display hydration; canonical status suite.
+	t.Run("Should refresh display pull requests only for active worktrees", func(t *testing.T) {
+		t.Parallel()
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			if strings.Join(call.args, " ") == "remote get-url origin" {
+				return gitResponse{stdout: []byte("https://github.com/acme/repo.git\n")}
+			}
+			return gitResponse{err: errors.New("unexpected Git call")}
+		}}
+		var calls atomic.Int32
+		forge := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			calls.Add(1)
+			return &ForgeStatus{}, nil
+		}}
+		service := NewService(newMemoryWorktreeStore(), runner)
+		base := statusTestWorktree()
+		cache := attachTestPullRequests(t, service, base, forge)
+		inactive := []State{StateRemoved, StateDismissed, StateMissing, StateFailed}
+		inspections := make([]Inspection, 0, 403)
+		for index := range 400 {
+			item := base
+			item.ID, item.Branch = fmt.Sprintf("wt-old-%d", index), fmt.Sprintf("old/%d", index)
+			item.State = inactive[index%len(inactive)]
+			inspections = append(inspections, Inspection{Worktree: item})
+		}
+		for _, state := range []State{StateReady, StateReady, StatePending} {
+			item := base
+			item.ID, item.Branch, item.State = "wt-"+string(state)+fmt.Sprint(len(inspections)),
+				fmt.Sprintf("live/%d", len(inspections)), state
+			inspections = append(inspections, Inspection{Worktree: item})
+		}
+		merged := PullRequestKey{base.WorkspaceID, "github.com/acme/repo", "old/0"}
+		if err := cache.SavePullRequest(t.Context(), PullRequestEntry{
+			Key: merged, LookupState: "ok", Facts: &ForgeStatus{PRNumber: new(9), PRState: new("merged")},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		service.hydrateDisplayPullRequests(t.Context(), inspections)
+		service.pullRequests.Close()
+		if got := calls.Load(); got != 3 {
+			t.Fatalf("one list read made %d forge calls for 400 inactive + 3 active worktrees, want 3", got)
+		}
+		if facts := inspections[0].ForgeStatus; facts == nil || facts.PRNumber == nil || *facts.PRNumber != 9 {
+			t.Fatalf("removed worktree lost its cached pull request: %#v", facts)
 		}
 	})
 

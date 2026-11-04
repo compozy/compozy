@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -130,14 +129,11 @@ func (p *Provider) graphRequest(
 		for i := range result.Errors {
 			e := &result.Errors[i]
 			if e.Type == "RATE_LIMITED" {
-				failure := &githubAPIError{
-					cause:  extensioncontract.ForgeCauseRateLimited,
-					status: http.StatusTooManyRequests,
+				return result, &githubAPIError{
+					cause:      extensioncontract.ForgeCauseRateLimited,
+					status:     http.StatusTooManyRequests,
+					retryAfter: githubRetryAfter(headers, p.now()),
 				}
-				if reset, err := strconv.ParseInt(headers.Get("X-RateLimit-Reset"), 10, 64); err == nil && reset > 0 {
-					failure.retryAfter = new(time.Unix(reset, 0).UTC())
-				}
-				return result, failure
 			}
 			unsupported = unsupported && graphErrorMeansUnsupported(e)
 		}

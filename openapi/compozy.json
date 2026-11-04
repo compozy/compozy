@@ -27606,6 +27606,11 @@
             "nullable": true,
             "type": "string"
           },
+          "retry_after": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "stale": {
             "type": "boolean"
           },

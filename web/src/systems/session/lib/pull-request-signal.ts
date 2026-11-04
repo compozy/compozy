@@ -8,6 +8,7 @@
  */
 import type { PillTone } from "@compozy/ui";
 
+import { formatMessageTimestamp } from "./format-timestamp";
 import { middleTruncate } from "./middle-truncate";
 import type {
   SessionPullRequest,
@@ -122,9 +123,18 @@ const LOOKUP_CAUSE_TEXT: Record<string, string> = {
   repository_changed: "This project now points at another repository",
 };
 
-/** Plain words for a sanitized lookup cause; an unrecognized cause stays generic. */
-export function pullRequestCauseText(cause: string | null | undefined): string {
-  return (cause && LOOKUP_CAUSE_TEXT[cause]) || "Couldn't look up the pull request";
+/**
+ * Plain words for a sanitized lookup cause; an unrecognized cause stays generic. A rate limit
+ * names the time lookups resume when the daemon knows it.
+ */
+export function pullRequestCauseText(
+  cause: string | null | undefined,
+  retryAfter?: string | null
+): string {
+  const text = (cause && LOOKUP_CAUSE_TEXT[cause]) || "Couldn't look up the pull request";
+  const resumesAt = retryAfter ? Date.parse(retryAfter) : Number.NaN;
+  if (cause !== "rate_limited" || !Number.isFinite(resumesAt)) return text;
+  return `${text} until ${formatMessageTimestamp(resumesAt)}`;
 }
 
 /** One line of the details: a plain sentence and a mark, in the signal grammar of the chip. */
@@ -231,7 +241,10 @@ function branchDetail(lookup: SessionPullRequestLookup | null | undefined): {
     case "pending":
       return { marker: "pending", detail: "Looking up a pull request for this branch" };
     case "error":
-      return { marker: "unavailable", detail: pullRequestCauseText(lookup.cause) };
+      return {
+        marker: "unavailable",
+        detail: pullRequestCauseText(lookup.cause, lookup.retry_after),
+      };
     case "incomplete":
       return { marker: "incomplete", detail: "Couldn't match a PR for this branch" };
     default:
@@ -273,7 +286,8 @@ export function pullRequestChipModel(facts: SessionPullRequestFacts): PullReques
     lines: pr.state === "open" ? pullRequestDetailLines(pr, pullRequestFactsFresh(lookup)) : [],
     failedNames,
     failedMore: failedNames.length > 0 ? Math.max(pr.checks.failed - failedNames.length, 0) : 0,
-    causeText: lookup.state === "error" ? pullRequestCauseText(lookup.cause) : null,
+    causeText:
+      lookup.state === "error" ? pullRequestCauseText(lookup.cause, lookup.retry_after) : null,
     observedAt: lookup.observed_at,
     ariaLabel: `Pull request #${pr.number}, ${word}`,
   };

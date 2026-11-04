@@ -70,12 +70,20 @@ func (m *Manager) ForgeCapabilities(
 	if err != nil {
 		return extensioncontract.ForgeCapabilitiesResponse{}, err
 	}
-	names, err := m.forgeProviderNames(ctx)
+	names, generation, err := m.forgeProviderNames(ctx)
 	if err != nil {
 		return extensioncontract.ForgeCapabilitiesResponse{}, err
 	}
+	key := forgeCapabilitiesKey(generation, remotes)
+	if cached, ok := m.forgeQuota.cachedCapabilities(key, m.now()); ok {
+		return cached, nil
+	}
 	var providerErrors error
 	for _, name := range names {
+		if until, limited := m.forgeQuota.limitedUntil(name, m.now()); limited {
+			providerErrors = errors.Join(providerErrors, forgeRateLimitedError(until))
+			continue
+		}
 		process, resolvedName, processErr := m.extensionServiceProcess(
 			ctx, name, extensionprotocol.ExtensionServiceMethodForgeCapabilities,
 		)
@@ -101,14 +109,25 @@ func (m *Manager) ForgeCapabilities(
 		}
 		response.Winner = resolvedName
 		response.TemplatePaths = slices.Clone(response.TemplatePaths)
-		return response, validateForgeCapabilitiesResponse(response)
+		if err := validateForgeCapabilitiesResponse(response); err != nil {
+			return response, err
+		}
+		switch {
+		case response.Cause == extensioncontract.ForgeCauseRateLimited:
+			response.RetryAfter = new(m.forgeQuota.limit(resolvedName, response.RetryAfter, m.now()))
+		case response.Available:
+			m.forgeQuota.storeCapabilities(key, response, m.now())
+		}
+		return response, nil
 	}
 	if providerErrors != nil {
 		return extensioncontract.ForgeCapabilitiesResponse{}, providerErrors
 	}
-	return extensioncontract.ForgeCapabilitiesResponse{
+	unsupported := extensioncontract.ForgeCapabilitiesResponse{
 		Cause: extensioncontract.ForgeCauseUnsupportedRemote,
-	}, nil
+	}
+	m.forgeQuota.storeCapabilities(key, unsupported, m.now())
+	return unsupported, nil
 }
 
 func (m *Manager) ForgeStatus(
@@ -130,6 +149,9 @@ func (m *Manager) ForgeStatus(
 	if err := requireAvailableForgeProvider(capabilities); err != nil {
 		return extensioncontract.ForgeStatusResponse{}, err
 	}
+	if until, limited := m.forgeQuota.limitedUntil(capabilities.Winner, m.now()); limited {
+		return extensioncontract.ForgeStatusResponse{}, forgeRateLimitedError(until)
+	}
 	process, name, err := m.extensionServiceProcess(
 		ctx, capabilities.Winner, extensionprotocol.ExtensionServiceMethodForgeStatus,
 	)
@@ -149,6 +171,11 @@ func (m *Manager) ForgeStatus(
 		response.Provider = name
 	}
 	if response.Cause != "" {
+		if response.Cause == extensioncontract.ForgeCauseRateLimited {
+			return extensioncontract.ForgeStatusResponse{}, forgeRateLimitedError(
+				m.forgeQuota.limit(capabilities.Winner, response.RetryAfter, m.now()),
+			)
+		}
 		failure := forgeProviderFailure(response.Cause)
 		if typed, ok := errors.AsType[*ForgeProviderError](failure); ok {
 			typed.RetryAfter = response.RetryAfter
@@ -215,15 +242,17 @@ func (m *Manager) ForgeCreatePR(
 	return response, nil
 }
 
-func (m *Manager) forgeProviderNames(ctx context.Context) ([]string, error) {
+// forgeProviderNames lists enabled forge providers in selection order. The generation identifies
+// that set, including each provider's start, so cached capabilities never outlive a restart.
+func (m *Manager) forgeProviderNames(ctx context.Context) ([]string, string, error) {
 	if ctx == nil {
-		return nil, ErrContextRequired
+		return nil, "", ErrContextRequired
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if m == nil {
-		return nil, ErrManagerRequired
+		return nil, "", ErrManagerRequired
 	}
 	m.mu.RLock()
 	type candidate struct {
@@ -251,13 +280,15 @@ func (m *Manager) forgeProviderNames(ctx context.Context) ([]string, error) {
 		return strings.Compare(left.name, right.name)
 	})
 	names := make([]string, len(candidates))
+	generations := make([]string, len(candidates))
 	for index, candidate := range candidates {
 		names[index] = candidate.name
+		generations[index] = forgeProviderGeneration(candidate.name, candidate.startedAt)
 	}
 	if len(names) == 0 {
-		return nil, &ForgeProviderError{cause: "provider_disabled", unavailable: true}
+		return nil, "", &ForgeProviderError{cause: "provider_disabled", unavailable: true}
 	}
-	return names, nil
+	return names, strings.Join(generations, ","), nil
 }
 
 func normalizeForgeRemoteURLs(values []string) ([]string, error) {
@@ -306,7 +337,14 @@ func requireAvailableForgeProvider(value extensioncontract.ForgeCapabilitiesResp
 	if cause == "" {
 		cause = extensioncontract.ForgeCauseUnsupportedRemote
 	}
-	return forgeProviderFailure(cause)
+	failure := forgeProviderFailure(cause)
+	if typed, ok := errors.AsType[*ForgeProviderError](
+		failure,
+	); ok &&
+		cause == extensioncontract.ForgeCauseRateLimited {
+		typed.RetryAfter = value.RetryAfter
+	}
+	return failure
 }
 
 func forgeProviderFailure(cause string) error {

@@ -1,6 +1,9 @@
 package worktree
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 type StatusDetails struct {
 	WorktreeID  string
@@ -76,6 +79,7 @@ func (s *Service) hydrateDisplayPullRequests(ctx context.Context, inspections []
 	}
 	repositories := make(map[string]string)
 	keys := make([]PullRequestKey, 0, len(inspections))
+	active := make(map[PullRequestKey]bool)
 	for _, inspection := range inspections {
 		item := inspection.Worktree
 		if item.Branch == "" {
@@ -94,30 +98,75 @@ func (s *Service) hydrateDisplayPullRequests(ctx context.Context, inspections []
 			repositories[item.WorkspaceID] = repo
 		}
 		if repo != "" {
-			keys = append(keys, PullRequestKey{item.WorkspaceID, repo, item.Branch})
+			key := PullRequestKey{item.WorkspaceID, repo, item.Branch}
+			keys = append(keys, key)
+			if displayRefreshes(item.State) {
+				active[key] = true
+			}
 		}
 	}
 	if len(keys) == 0 {
 		return
 	}
-	entries := s.pullRequests.Read(ctx, keys)
+	entries := s.readDisplayPullRequests(ctx, keys, active)
+	for index := range inspections {
+		item := inspections[index].Worktree
+		key := PullRequestKey{item.WorkspaceID, repositories[item.WorkspaceID], item.Branch}
+		inspections[index].ForgeStatus = entries[key].Facts
+	}
+}
+
+// displayRefreshes reports whether a list read may refresh a worktree's pull request. Removed,
+// dismissed, missing, and failed rows show their last cached facts without contacting the forge.
+func displayRefreshes(state State) bool {
+	return state == StatePending || state == StateReady
+}
+
+// readDisplayPullRequests refreshes stale keys in active and only peeks at the rest. A failed batch
+// read falls back to one read per key so one bad row does not blank the list.
+func (s *Service) readDisplayPullRequests(
+	ctx context.Context,
+	keys []PullRequestKey,
+	active map[PullRequestKey]bool,
+) map[PullRequestKey]PullRequestEntry {
+	read := func(batch []PullRequestKey) map[PullRequestKey]PullRequestEntry {
+		refresh, peek := make([]PullRequestKey, 0, len(batch)), make([]PullRequestKey, 0, len(batch))
+		for _, key := range batch {
+			if active[key] {
+				refresh = append(refresh, key)
+			} else {
+				peek = append(peek, key)
+			}
+		}
+		var entries map[PullRequestKey]PullRequestEntry
+		if len(refresh) > 0 {
+			if entries = s.pullRequests.Read(ctx, refresh); entries == nil {
+				return nil
+			}
+		}
+		if len(peek) > 0 {
+			peeked := s.pullRequests.Peek(ctx, peek)
+			if peeked == nil {
+				return nil
+			}
+			if entries == nil {
+				return peeked
+			}
+			maps.Copy(entries, peeked)
+		}
+		return entries
+	}
+	entries := read(keys)
 	if entries == nil && len(keys) > 1 && ctx.Err() == nil {
 		entries = make(map[PullRequestKey]PullRequestEntry, len(keys))
 		for _, key := range keys {
 			if ctx.Err() != nil {
 				break
 			}
-			if _, attempted := entries[key]; attempted {
-				continue
-			}
-			entries[key] = s.pullRequests.Read(ctx, []PullRequestKey{key})[key]
+			entries[key] = read([]PullRequestKey{key})[key]
 		}
 	}
-	for index := range inspections {
-		item := inspections[index].Worktree
-		key := PullRequestKey{item.WorkspaceID, repositories[item.WorkspaceID], item.Branch}
-		inspections[index].ForgeStatus = entries[key].Facts
-	}
+	return entries
 }
 
 func (s *Service) requestPullRequestRefresh(ctx context.Context, item Worktree) {

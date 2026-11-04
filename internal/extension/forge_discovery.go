@@ -42,6 +42,9 @@ func (m *Manager) forgeDiscoveryCall(
 	if err := requireAvailableForgeProvider(capabilities); err != nil {
 		return err
 	}
+	if until, limited := m.forgeQuota.limitedUntil(capabilities.Winner, m.now()); limited {
+		return forgeRateLimitedError(until)
+	}
 	if !capabilities.SupportsPRDiscovery {
 		return errors.New("extension: pull request discovery unsupported")
 	}

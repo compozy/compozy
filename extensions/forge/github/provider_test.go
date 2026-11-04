@@ -468,20 +468,41 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	// Invariant: only a refusal GitHub marks as a rate limit is classified as one, and its reset
+	// travels with the capability answer so the daemon can hold every read until then.
 	for _, testCase := range []struct {
 		name       string
 		statusCode int
+		header     map[string]string
+		message    string
 		cause      string
+		retryAfter int64
 	}{
 		{name: "expired credentials", statusCode: http.StatusUnauthorized, cause: extensioncontract.ForgeCauseCredentialExpired},
-		{name: "rate limiting", statusCode: http.StatusForbidden, cause: extensioncontract.ForgeCauseRateLimited},
+		{
+			name: "an exhausted primary rate limit", statusCode: http.StatusForbidden,
+			header: map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1800000000"},
+			cause:  extensioncontract.ForgeCauseRateLimited, retryAfter: 1800000000,
+		},
+		{
+			name: "a secondary rate limit message", statusCode: http.StatusForbidden,
+			message: "You have exceeded a secondary rate limit", cause: extensioncontract.ForgeCauseRateLimited,
+		},
+		{
+			name: "a secondary rate limit with Retry-After", statusCode: http.StatusTooManyRequests,
+			header: map[string]string{"Retry-After": "Fri, 15 Jan 2027 08:00:00 GMT", "X-RateLimit-Reset": "1"},
+			cause:  extensioncontract.ForgeCauseRateLimited, retryAfter: 1800000000,
+		},
 	} {
 		t.Run("Should classify "+testCase.name+" without retrying", func(t *testing.T) {
 			t.Parallel()
 			var calls atomic.Int32
 			provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 				calls.Add(1)
-				writeJSON(t, w, testCase.statusCode, map[string]string{"message": testCase.name})
+				for key, value := range testCase.header {
+					w.Header().Set(key, value)
+				}
+				writeJSON(t, w, testCase.statusCode, map[string]string{"message": testCase.message})
 			})
 			defer closeServer()
 			got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
@@ -490,8 +511,42 @@ func TestProvider(t *testing.T) {
 			if err != nil || got.Cause != testCase.cause || calls.Load() != 1 {
 				t.Fatalf("Capabilities() = %#v, %v; calls=%d", got, err, calls.Load())
 			}
+			if (testCase.retryAfter == 0) != (got.RetryAfter == nil) ||
+				(got.RetryAfter != nil && got.RetryAfter.Unix() != testCase.retryAfter) {
+				t.Fatalf("RetryAfter = %v, want unix %d", got.RetryAfter, testCase.retryAfter)
+			}
 		})
 	}
+	t.Run("Should not mistake a permission refusal for a rate limit", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "4000")
+			writeJSON(
+				t,
+				w,
+				http.StatusForbidden,
+				map[string]string{"message": "Resource not accessible by integration"},
+			)
+		})
+		defer closeServer()
+		got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
+			RemoteURLs: []string{"https://github.com/acme/repo.git"},
+		})
+		if err == nil || got.Cause != "" {
+			t.Fatalf("Capabilities() = %#v, %v; want an unclassified failure", got, err)
+		}
+	})
+	t.Run("Should read a Retry-After delay in seconds from now", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, time.November, 4, 15, 0, 0, 0, time.UTC)
+		failure := classifyGitHubResponse(
+			http.StatusForbidden, http.Header{"Retry-After": []string{"90"}}, nil, now,
+		).(*githubAPIError)
+		if failure.cause != extensioncontract.ForgeCauseRateLimited || failure.retryAfter == nil ||
+			!failure.retryAfter.Equal(now.Add(90*time.Second)) {
+			t.Fatalf("classified = %#v", failure)
+		}
+	})
 
 	t.Run("Should return an existing open pull request without creating another", func(t *testing.T) {
 		t.Parallel()
@@ -1493,6 +1548,9 @@ func issueTestProvider(t *testing.T, issues []map[string]any, status int) *Provi
 		if !strings.Contains(query.Query, "issues(states:OPEN") ||
 			!strings.Contains(query.Query, "CROSS_REFERENCED_EVENT") {
 			t.Errorf("unexpected query: %s", query.Query)
+		}
+		if status == http.StatusForbidden {
+			w.Header().Set("X-RateLimit-Remaining", "0")
 		}
 		writeJSON(
 			t,

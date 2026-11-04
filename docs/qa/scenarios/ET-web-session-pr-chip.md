@@ -44,3 +44,12 @@ Release regression 2026-10-24: the Fix failing checks journey must send exactly
 one user message naming the PR and failing check, and the fixture agent must
 accept it and answer. A provider error echo is not evidence of successful prompt
 handling. The existing E2E-003 owns this check; CI re-walk is pending.
+
+QA impact 2026-11-04 (#1263, forge quota): when the forge reports a rate limit the
+chip keeps its cached facts with the stale clock and the tooltip and Refresh toast read
+"Rate limited by GitHub until HH:MM". Until that time Refresh, the turn-end check and
+list reads return cached facts without calling GitHub. Branches without a PR are
+looked up again after 10 minutes, backing off to an hour; removed worktrees show their
+cached PR without a lookup. Focused evidence: `TestManagerForgeQuota`,
+`TestPullRequestService`, `TestServiceStatus` (400 removed + 3 active worktrees make 3
+forge calls per list read), and `lib/__tests__/pull-request.test.ts`.

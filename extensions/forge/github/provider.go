@@ -94,6 +94,9 @@ func (p *Provider) Capabilities(
 		ctx, http.MethodGet, repositoryAPIPath(repo, ""), credential.token, nil, &repositoryDetails,
 	); err != nil {
 		if response.Cause = githubErrorCause(err); response.Cause != "" {
+			if apiErr, ok := errors.AsType[*githubAPIError](err); ok {
+				response.RetryAfter = apiErr.retryAfter
+			}
 			return response, nil
 		}
 		return response, err
