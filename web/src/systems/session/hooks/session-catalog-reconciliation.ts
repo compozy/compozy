@@ -155,7 +155,7 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
  * Interaction reads whose every change upserts a session on the catalog stream: a main
  * session's relayed asks (the asking descendant upserts) and its restart-expired asks
  * (the expiring session upserts, and the reconnect after a restart wakes every scope).
- * These reads stop polling while the stream is live, so its wake re-reads them.
+ * While the stream is live these reads keep only a safety cadence, so its wake re-reads them.
  */
 const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "canceled"]);
 
@@ -242,7 +242,7 @@ export function createCatalogReconciler(queryClient: QueryClient) {
         { cancelRefetch: false }
       );
     }
-    // A covered interaction read has no poll while the stream is live, so one in flight
+    // A covered interaction read has only a safety cadence while the stream is live, so one in flight
     // (it may predate this change) or recently failed is retained for a trailing read.
     void queryClient.invalidateQueries(
       { predicate: query => coveredInteraction(query) && predicate(query) },

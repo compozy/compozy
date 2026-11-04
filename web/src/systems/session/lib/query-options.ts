@@ -199,7 +199,7 @@ export function sessionClarificationsOptions(workspace: string, id: string, enab
  * receipts without polling, and a session with nothing undecided never asks. A restart
  * expiry changes the session's pending counts, which upserts it on the catalog stream, and
  * the reconnect after the restart wakes every open read; so while that stream is live for
- * the read's scope its wakes replace the poll.
+ * the read's scope its wakes replace the fast poll, leaving the safety cadence.
  */
 export function sessionExpiredInteractionsOptions(
   workspace: string,
@@ -207,7 +207,7 @@ export function sessionExpiredInteractionsOptions(
   options: {
     enabled?: boolean;
     undecidedRequestIds?: ReadonlySet<string>;
-    /** The catalog stream is live for this read's scope; its wakes replace the poll. */
+    /** The catalog stream is live for this read's scope; its wakes replace the fast poll. */
     streamCovered?: boolean;
   } = {}
 ) {
@@ -217,18 +217,15 @@ export function sessionExpiredInteractionsOptions(
     queryFn: ({ signal }) =>
       fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
     refetchInterval: query => {
-      if (options.streamCovered) {
-        return catalogStreamCoveredRefetchInterval(
-          true,
-          query.state.status === "error",
-          SESSION_LIVE_REFETCH_INTERVAL_MS
-        );
-      }
+      const cadence = catalogStreamCoveredRefetchInterval(
+        options.streamCovered ?? false,
+        SESSION_LIVE_REFETCH_INTERVAL_MS
+      );
       const rows = query.state.data;
-      if (!rows) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+      if (!rows) return cadence;
       const settled = expiredInteractionsByRequest(rows);
       for (const requestId of undecided) {
-        if (!settled.has(requestId)) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+        if (!settled.has(requestId)) return cadence;
       }
       return false;
     },

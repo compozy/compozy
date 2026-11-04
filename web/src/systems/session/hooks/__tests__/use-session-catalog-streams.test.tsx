@@ -234,8 +234,9 @@ describe("useSessionCatalogStreams", () => {
     client.clear();
   });
 
-  // Invariant: a poll the catalog stream covers stops while that stream is live for the
-  // read's profile scope, is re-read by the stream's wake, and resumes once it goes stale.
+  // Invariant: a poll the catalog stream covers drops to the safety cadence while that
+  // stream is live for the read's profile scope, is re-read by the stream's wake, and
+  // resumes its fallback poll once the stream goes stale.
   it("Should replace covered interaction polls with stream wakes only while the stream is live", async () => {
     vi.useFakeTimers();
     vi.mocked(fetchSessionPendingWithDescendants).mockResolvedValue([]);
@@ -273,7 +274,8 @@ describe("useSessionCatalogStreams", () => {
     await settle(5_000);
     const relayedLive = relayed.mock.calls.length;
     const expiredLive = expired.mock.calls.length;
-    await settle(60_000);
+    // Only the 30s safety cadence remains, so neither 5s nor 15s fallback poll fires.
+    await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive);
     expect(expired).toHaveBeenCalledTimes(expiredLive);
 
@@ -285,7 +287,7 @@ describe("useSessionCatalogStreams", () => {
         session_id: "sess_other",
       })
     );
-    await settle(5_000);
+    await settle(1);
     expect(relayed).toHaveBeenCalledTimes(relayedLive);
     act(() =>
       source!.emit("session_catalog_changed", {
@@ -311,8 +313,8 @@ describe("useSessionCatalogStreams", () => {
     client.clear();
   });
 
-  // Invariant: with its poll stopped, a covered read still observes a change that arrives
-  // during an older read, and a failed read keeps a bounded retry while the stream is live.
+  // Invariant: with its fast poll stopped, a covered read still observes a change that
+  // arrives during an older read, and a failed read keeps a bounded retry.
   it("Should trail an in-flight covered read and retry a failed one while the stream is live", async () => {
     vi.useFakeTimers();
     let release: (rows: []) => void = () => {};
@@ -349,14 +351,12 @@ describe("useSessionCatalogStreams", () => {
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(baseline + 2);
 
-    // A failed read retries on the bounded error cadence, then stops once healthy.
+    // A failed read is repaired by the bounded safety cadence without another wake.
     relayed.mockRejectedValueOnce(new Error("relayed unavailable"));
     act(() => source!.emit("session_catalog_changed", upsert));
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(baseline + 3);
     await settle(30_000);
-    expect(relayed).toHaveBeenCalledTimes(baseline + 4);
-    await settle(60_000);
     expect(relayed).toHaveBeenCalledTimes(baseline + 4);
 
     unmount();

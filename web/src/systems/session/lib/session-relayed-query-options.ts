@@ -9,7 +9,7 @@ const RELAYED_INTERACTIONS_REFETCH_INTERVAL_MS = 15_000;
 /**
  * Asks reaching a main session from the sessions it started. A new ask needs no prompt to
  * show: every pending-ask change upserts the asking session on the catalog stream, whose
- * wake re-reads this list, so the poll only runs while that stream is not live.
+ * wake re-reads this list, so while that stream is live only the safety cadence remains.
  */
 export function sessionRelayedInteractionsOptions(
   workspace: string,
@@ -21,12 +21,10 @@ export function sessionRelayedInteractionsOptions(
     queryKey: sessionKeys.interactions(workspace, id, "descendants"),
     queryFn: ({ signal }) => fetchSessionPendingWithDescendants(workspace, id, signal),
     enabled,
-    refetchInterval: query =>
-      catalogStreamCoveredRefetchInterval(
-        streamCovered,
-        query.state.status === "error",
-        RELAYED_INTERACTIONS_REFETCH_INTERVAL_MS
-      ),
+    refetchInterval: catalogStreamCoveredRefetchInterval(
+      streamCovered,
+      RELAYED_INTERACTIONS_REFETCH_INTERVAL_MS
+    ),
     retry: false,
   });
 }
