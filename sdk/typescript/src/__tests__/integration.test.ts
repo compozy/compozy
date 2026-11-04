@@ -289,6 +289,7 @@ describe("SDK integration", () => {
     expect(provides).toEqual([
       "connectivity.provider",
       "forge.provider",
+      "heartbeat.source",
       "loop.watch_source",
       "model.source",
       "tool.provider",
