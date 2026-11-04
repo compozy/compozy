@@ -221,3 +221,30 @@ Main integration receipts: relocation suite 7.555 s; all production migration st
 main's Always-on upgrade suite 8.306 s; focused globaldb/ACP lint zero issues. Owning Atlas/sqlc
 generation completed. All main migration bytes and checksum entries through version 186 match
 origin/main. The relocation tail is now 187–190, with export at 188 and completion at 189.
+
+### Dedicated acceptance lanes (pending execution)
+
+`scripts/sqlite-contention/` and the `SQLite contention acceptance` workflow own the paired
+baseline/head experiment. The identical Go workload runs against both commits on one Linux
+runner, with sequential alternating trials. It records actual successful write-syscall bytes
+separately from untraced latency; all-column upgrade hashes, Observe results, retired cursors,
+index page counts/plans and startup times accompany the report. No numerical result is claimed
+until the artifacts are inspected. Harness compilation, focused lint and a bounded trace-parser
+check passed locally; no representative load ran on the shared host.
+
+The separate daemon lane uses the existing runtime harness and an `eng-qa-bootstrap` targeted
+manifest for API, CLI and runtime surfaces. The opt-in `contentionload` suite exercises thirty
+scripted ACP streams, concurrent transcript/catalog reads and renames, then clean restart with
+retained transcript and health reads. It records full daemon logs, strict audit and manifest-owned
+teardown. This is a real daemon/storage/transport exercise; the ACP peer is scripted, with no
+live-provider latency, authentication or full browser UX claim.
+
+The tagged daemon acceptance suite compiles and its focused lint reports zero issues. Python
+syntax, test-shape checks and workflow formatting pass. This validates the runner setup only;
+the daemon load itself has not run locally. Commits bypass the repository-wide pre-commit hook
+under the operator's CI-only gate rule, after the named focused checks.
+
+| Acceptance walk | Current status | Evidence owner |
+| --- | --- | --- |
+| Paired 30-session store workload and 1 GiB upgrade | Pending | Dedicated CI report and raw artifacts |
+| Real daemon HTTP/SSE/UDS/CLI load and clean restart | Pending | `TestSQLiteContentionDaemonLoad`, bootstrap audit and teardown |

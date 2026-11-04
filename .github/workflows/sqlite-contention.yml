@@ -5,7 +5,16 @@ on:
     paths:
       - ".github/workflows/sqlite-contention.yml"
       - "scripts/sqlite-contention/**"
+      - "internal/store/**"
+      - "internal/session/**"
+      - "internal/sessionprocess/**"
+      - "internal/profile/**"
+      - "internal/observe/**"
+      - "internal/daemon/**"
       - "internal/testutil/e2e/runtime_harness_contention_test.go"
+      - "docs/qa/reports/2026-11-03-sqlite-contention.md"
+      - "go.mod"
+      - "go.sum"
   workflow_dispatch:
 
 permissions:
@@ -74,5 +83,39 @@ jobs:
             ${{ runner.temp }}/sqlite-contention/*.log
             ${{ runner.temp }}/sqlite-contention/*.md
             ${{ runner.temp }}/sqlite-contention/*.strace
+          retention-days: 14
+          if-no-files-found: error
+
+  daemon-load:
+    name: SQLite real daemon thirty-session exercise
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+      - name: Build daemon and scripted ACP transport
+        run: |
+          mkdir -p "$RUNNER_TEMP/sqlite-bin"
+          go build -p 2 -o "$RUNNER_TEMP/sqlite-bin/compozy" ./cmd/compozy
+          go build -p 2 -o "$RUNNER_TEMP/sqlite-bin/acpmock-driver" ./internal/testutil/acpmock/cmd/acpmock-driver
+      - name: Exercise the isolated public surfaces and clean restart
+        run: |
+          python3 scripts/sqlite-contention/qa.py \
+            --binary "$RUNNER_TEMP/sqlite-bin/compozy" \
+            --driver "$RUNNER_TEMP/sqlite-bin/acpmock-driver" \
+            --output "$RUNNER_TEMP/sqlite-daemon-qa"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sqlite-daemon-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/sqlite-daemon-qa/*.json
+            ${{ runner.temp }}/sqlite-daemon-qa/*.log
+            ${{ runner.temp }}/sqlite-daemon-qa/manifest-path.txt
+            ${{ runner.temp }}/sqlite-daemon-qa/labs/**/qa-artifacts/**
           retention-days: 14
           if-no-files-found: error

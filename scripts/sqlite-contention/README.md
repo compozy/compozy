@@ -49,3 +49,24 @@ The report and raw receipts are CI artifacts. Copy the inspected conclusions
 into `docs/qa/reports/2026-11-03-sqlite-contention.md`. These measurements are
 synthetic store workload evidence; the separate isolated daemon exercise owns
 public HTTP/SSE/UDS/CLI behavior. Neither is a live-model latency claim.
+
+The workflow's second job builds the daemon and the existing ACP fixture driver.
+`qa.py` provisions one canonical `eng-qa-bootstrap` targeted lab, then runs the
+opt-in `TestSQLiteContentionDaemonLoad` suite (`contentionload` build tag). Thirty
+scripted ACP peers stream for at least 30 seconds while HTTP transcript/catalog
+reads and session renames have two-second deadlines. Public UDS reads and CLI
+status/Observe are captured before and after a clean restart. All accepted
+transcript content must survive, health must remain readable, and no SQLite
+exhaustion or one-second hold diagnostic is accepted. A forced process kill
+fails the clean-restart assertion. Raw route samples and process logs are kept.
+
+The canonical strict evidence auditor and exact manifest teardown command run
+before a passing result; teardown must report `clean: true`. No operator home,
+provider login, or live model is used. The heavy lab runs in CI, separately from
+ordinary runtime tests. On a dedicated CI runner, reproduce with:
+
+```sh
+python3 scripts/sqlite-contention/qa.py \
+  --binary /path/to/compozy --driver /path/to/acpmock-driver \
+  --output /new/isolated/daemon-results
+```
