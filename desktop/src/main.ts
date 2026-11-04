@@ -18,6 +18,7 @@ import {
 } from "electron";
 
 import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
+import { createDesktopCommandLineTool } from "./cli/electron-command-line-tool";
 import type { DesktopBuildChannel } from "./release/build-channel";
 import { verifyRuntimeBundle } from "./bootstrap/bundle-integrity";
 import { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
@@ -83,6 +84,7 @@ let cleanupComplete = false;
 let installerOwnsQuit = false;
 const bootstrapAbort = new AbortController();
 let bootstrapFlow: Promise<void> | null = null;
+const commandLineTool = createDesktopCommandLineTool(paths, logger, __COMPOZY_DESKTOP_E2E_BUILD__);
 
 async function waitForE2EProductReady(): Promise<void> {
   const readyPath = process.env.COMPOZY_DESKTOP_E2E_READY_FILE?.trim();
@@ -253,7 +255,7 @@ async function start(): Promise<void> {
     theme: windowTheme,
     onError: error => logger.error("load boot window", error),
   });
-  installApplicationMenu(() => product);
+  installApplicationMenu(() => product, commandLineTool?.install);
   await statePublisher.publish({ state: "resolving" });
 
   const controlHandler = createControlHandler(statePublisher, {
@@ -376,6 +378,7 @@ async function start(): Promise<void> {
       await waitForE2EProductReady();
       if (bootstrapAbort.signal.aborted) return;
       await product.create();
+      commandLineTool?.firstRun();
     } catch (error) {
       if (bootstrapAbort.signal.aborted) return;
       logger.error("bootstrap runtime", error);
