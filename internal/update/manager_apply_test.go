@@ -163,6 +163,8 @@ func TestManagerApplyRelease(t *testing.T) {
 
 	t.Run("Should preserve executable mode when archive mode is not executable", func(t *testing.T) {
 		t.Parallel()
+		// Invariant: preserve the installed file's executable permissions on its actual filesystem.
+		// Owner: Manager.ApplyRelease; canonical suite: TestManagerApplyRelease.
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
@@ -181,12 +183,16 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(t.Context(), release)
+		installed, err := os.Stat(executablePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = manager.ApplyRelease(t.Context(), release)
 		if err != nil {
 			t.Fatalf("ApplyRelease() error = %v", err)
 		}
-		if applier.targetPath != executablePath || applier.mode != 0o755 {
-			t.Fatalf("binary apply = %#v, want target %q mode 0755", applier, executablePath)
+		if applier.targetPath != executablePath || applier.mode != installed.Mode().Perm() {
+			t.Fatalf("binary apply = %#v, want target %q mode %04o", applier, executablePath, installed.Mode().Perm())
 		}
 	})
 
@@ -646,6 +652,8 @@ func TestSelfBinaryApplierCleanup(t *testing.T) {
 func TestManagerRestore(t *testing.T) {
 	t.Run("Should restore backup executable mode when target mode is broken", func(t *testing.T) {
 		t.Parallel()
+		// Invariant: restoration uses backup permissions, not the damaged target's permissions.
+		// Owner: Manager.Restore; canonical suite: TestManagerRestore.
 
 		applier := &recordingBinaryApplier{}
 		manager, executablePath := newManagerWithExecutable(t, &Config{
@@ -653,23 +661,39 @@ func TestManagerRestore(t *testing.T) {
 			RuntimeArch:   runtimeArchAMD64,
 			BinaryApplier: applier,
 		})
-		if err := os.Chmod(executablePath, 0o644); err != nil {
+		brokenMode := os.FileMode(0o644)
+		if runtime.GOOS == runtimeOSWindows {
+			// Windows chmod represents only the read-only attribute, not POSIX execute bits.
+			brokenMode = 0o444
+		}
+		if err := os.Chmod(executablePath, brokenMode); err != nil {
 			t.Fatalf("Chmod(%q) error = %v", executablePath, err)
 		}
 		backupPath := filepath.Join(filepath.Dir(executablePath), ".compozy.backup")
 		if err := os.WriteFile(backupPath, []byte("backup-binary"), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", backupPath, err)
 		}
+		backup, err := os.Stat(backupPath)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		err := manager.Restore(AppliedBinary{TargetPath: executablePath, BackupPath: backupPath})
+		err = manager.Restore(AppliedBinary{TargetPath: executablePath, BackupPath: backupPath})
 		if err != nil {
 			t.Fatalf("Restore() error = %v", err)
 		}
 		if applier.restoreCalls != 1 {
 			t.Fatalf("RestoreBinary() calls = %d, want 1", applier.restoreCalls)
 		}
-		if applier.targetPath != executablePath || applier.backupPath != backupPath || applier.mode != 0o755 {
-			t.Fatalf("binary restore = %#v, want backup %q target %q mode 0755", applier, backupPath, executablePath)
+		if applier.targetPath != executablePath || applier.backupPath != backupPath ||
+			applier.mode != backup.Mode().Perm() {
+			t.Fatalf(
+				"binary restore = %#v, want backup %q target %q mode %04o",
+				applier,
+				backupPath,
+				executablePath,
+				backup.Mode().Perm(),
+			)
 		}
 	})
 
