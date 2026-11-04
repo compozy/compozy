@@ -158,6 +158,68 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		assertApprovalGrantLookup(t, globalDB, approvalGrantTestKey(workspaceID, "claude", otherDigest), "", "")
 	})
 
+	t.Run("Should match access scope grants exactly and keep them out of tool approval", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "approval-access-scope", t.TempDir())
+		globalDB.now = approvalGrantTestTime
+		scopeKey := approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("scope-a"))
+		scopeKey.AccessScope = "read:workspace:ws_target_a@default"
+		created := putApprovalGrantForTest(t, globalDB, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: scopeKey,
+			Decision:         toolspkg.ApprovalGrantAllow,
+		})
+		if created.AccessScope != scopeKey.AccessScope {
+			t.Fatalf("PutApprovalGrant() access scope = %q, want %q", created.AccessScope, scopeKey.AccessScope)
+		}
+		found, ok, err := globalDB.LookupApprovalGrant(ctx, scopeKey)
+		if err != nil || !ok || found.ID != created.ID || found.AccessScope != scopeKey.AccessScope {
+			t.Fatalf("LookupApprovalGrant(scope) = %#v, %t, %v, want the stored scope grant", found, ok, err)
+		}
+
+		// A tool-wide grant for the same agent never stands in for a scope grant.
+		putApprovalGrantForTest(t, globalDB, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: approvalGrantTestKey(workspaceID, "codex", ""),
+			Decision:         toolspkg.ApprovalGrantAllow,
+		})
+		otherScope := approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("scope-b"))
+		otherScope.AccessScope = "read:workspace:ws_target_b@default"
+		if _, ok, err := globalDB.LookupApprovalGrant(ctx, otherScope); err != nil || ok {
+			t.Fatalf("LookupApprovalGrant(other scope) = %t, %v, want miss", ok, err)
+		}
+		// And a scope grant never answers the tool approval gate for the same digest.
+		toolKey := scopeKey
+		toolKey.AccessScope = ""
+		toolMatch, ok, err := globalDB.LookupApprovalGrant(ctx, toolKey)
+		if err != nil || !ok || toolMatch.ID == created.ID || toolMatch.InputDigest != "" {
+			t.Fatalf("LookupApprovalGrant(tool) = %#v, %t, %v, want the tool-wide grant", toolMatch, ok, err)
+		}
+
+		listed, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("ListApprovalGrants() error = %v", err)
+		}
+		var listedScope string
+		for _, grant := range listed {
+			if grant.ID == created.ID {
+				listedScope = grant.AccessScope
+			}
+		}
+		if len(listed) != 2 || listedScope != scopeKey.AccessScope {
+			t.Fatalf("ListApprovalGrants() = %#v, want the scope grant visible with its scope", listed)
+		}
+		if err := globalDB.RevokeApprovalGrant(ctx, store.DefaultProfileID, workspaceID, created.ID); err != nil {
+			t.Fatalf("RevokeApprovalGrant() error = %v", err)
+		}
+		if _, ok, err := globalDB.LookupApprovalGrant(ctx, scopeKey); err != nil || ok {
+			t.Fatalf("LookupApprovalGrant(revoked) = %t, %v, want miss", ok, err)
+		}
+	})
+
 	t.Run("Should isolate list and revoke by workspace and cascade on workspace deletion", func(t *testing.T) {
 		t.Parallel()
 

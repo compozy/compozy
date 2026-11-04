@@ -1,11 +1,11 @@
 ---
 id: ET-workspace-access-prompt-outcomes
 area: ET
-title: Resolve a cross-workspace prompt and expire its session answer
+title: Resolve a cross-workspace prompt, remember a read, and expire a session answer
 persona: Bruno
 journey: J-cross-workspace-access
-expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
-entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
+expected: An approve-reads session hitting the native-tool boundary raises one pending permission; a read offers allow_once, allow_always, reject_once, and reject_session, and a write offers allow_once, allow_session, reject_once, and reject_session. Once answers apply to that call only; an operator allow_always on a read stores a revocable tool approval scoped to the agent, tool, and target workspace/profile that later sessions reuse without prompting; session answers apply to every seam for the rest of the session, and stopping the session clears them.
+entry_points: compozy__workspace_info; compozy__session_status; compozy tool approvals list; compozy tool approvals revoke; Settings → Tool approvals; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
 qa_status: skipped
 bug_ids: BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
@@ -75,3 +75,14 @@ A `profile` or `all_profiles` read raises the same four options titled `Read pro
 
 
 QA result 2026-11-03 (#1169): targeted isolated acpmock walk over hosted MCP and HTTP passed for the journeys above; Web and live providers were not walked. Evidence: `docs/qa/evidence/2026-11-03-issue-1169/verification-report.md`.
+
+QA impact 2026-11-04 (#1270): an operator "Always allow" on a read prompt (`allow_always`) now
+persists. Walk: answer `allow-always` on `Read session <id> outside this workspace or profile` from
+an always-on agent, then confirm `compozy tool approvals list --workspace <actor-ws>` shows one
+grant with `ACCESS SCOPE read:workspace:<target-ws>@<profile>` for that agent and tool, and Web
+Settings → Tool approvals labels it `Reads in project <target-ws>`. A later read of another session
+in the same target project — including from a new session of the same agent or after a daemon
+restart — does not prompt. A different tool, target project, profile, or agent, and any write,
+still prompts; writes still offer `allow_session`. Revoke the grant and confirm the next read
+prompts again. An always-on agent answering another session's prompt with `allow-always` leaves no
+grant. A missing session id raises the same read prompt and leaves no grant.

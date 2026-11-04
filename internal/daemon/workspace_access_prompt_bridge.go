@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 const (
 	workspaceAccessAllowOnceID     acpsdk.PermissionOptionId = "allow_once"
 	workspaceAccessAllowSessionID  acpsdk.PermissionOptionId = "allow_session"
+	workspaceAccessAllowAlwaysID   acpsdk.PermissionOptionId = "allow_always"
 	workspaceAccessRejectOnceID    acpsdk.PermissionOptionId = "reject_once"
 	workspaceAccessRejectSessionID acpsdk.PermissionOptionId = "reject_session"
 )
@@ -26,14 +28,25 @@ type workspaceAccessPrompter interface {
 		scope toolspkg.Scope,
 		call toolspkg.CallRequest,
 		descriptor toolspkg.Descriptor,
-		targetWorkspaceID string,
+		prompt workspaceAccessPrompt,
 	) (bool, error)
+}
+
+// workspaceAccessPrompt is one consent question. A read crossing offers "Always allow"; grant is
+// the durable key that answer leaves for the same agent, tool, and target scope. A target that
+// resolves to no owner has no key, yet asks the same question so the prompt reveals nothing.
+type workspaceAccessPrompt struct {
+	label    string
+	remember bool
+	grant    *toolspkg.ApprovalGrantKey
 }
 
 type workspaceAccessPromptBridge struct {
 	sessions func() sessionPermissionRequester
 	timeout  time.Duration
 	consent  workspaceaccess.SessionConsentCache
+	grants   toolspkg.ApprovalGrantStore
+	logger   *slog.Logger
 }
 
 var _ workspaceAccessPrompter = (*workspaceAccessPromptBridge)(nil)
@@ -42,8 +55,19 @@ func newWorkspaceAccessPromptBridge(
 	sessions func() sessionPermissionRequester,
 	timeout time.Duration,
 	consent workspaceaccess.SessionConsentCache,
+	grants toolspkg.ApprovalGrantStore,
+	logger *slog.Logger,
 ) *workspaceAccessPromptBridge {
-	return &workspaceAccessPromptBridge{sessions: sessions, timeout: timeout, consent: consent}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &workspaceAccessPromptBridge{
+		sessions: sessions,
+		timeout:  timeout,
+		consent:  consent,
+		grants:   grants,
+		logger:   logger,
+	}
 }
 
 func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
@@ -51,12 +75,23 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 	scope toolspkg.Scope,
 	call toolspkg.CallRequest,
 	descriptor toolspkg.Descriptor,
-	targetWorkspaceID string,
+	prompt workspaceAccessPrompt,
 ) (bool, error) {
 	if ctx == nil {
 		return false, errors.New("daemon: workspace access prompt context is required")
 	}
-	if b == nil || b.sessions == nil {
+	if b == nil {
+		return false, errors.New("daemon: workspace access prompt channel is unavailable")
+	}
+	remember := b.grants != nil && prompt.remember && descriptor.ReadOnly
+	var grant *toolspkg.ApprovalGrantKey
+	if remember {
+		grant = prompt.grant
+	}
+	if b.rememberedAllow(ctx, grant) {
+		return true, nil
+	}
+	if b.sessions == nil {
 		return false, errors.New("daemon: workspace access prompt channel is unavailable")
 	}
 	sessions := b.sessions()
@@ -81,11 +116,11 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 		SessionId: acpsdk.SessionId(sessionID),
 		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call)),
-			Title:      new(workspaceAccessPromptTitle(targetWorkspaceID, descriptor.ReadOnly)),
-			RawInput:   workspaceAccessPromptInput(descriptor.ID, targetWorkspaceID),
+			Title:      new(workspaceAccessPromptTitle(prompt.label, descriptor.ReadOnly)),
+			RawInput:   workspaceAccessPromptInput(descriptor.ID, prompt.label),
 			Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 		},
-		Options: workspaceAccessPromptOptions(),
+		Options: workspaceAccessPromptOptions(remember),
 	})
 	if err != nil {
 		if errors.Is(promptCtx.Err(), context.DeadlineExceeded) {
@@ -93,12 +128,21 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 		}
 		return false, fmt.Errorf("daemon: workspace access prompt failed: %w", err)
 	}
-	return b.applyWorkspaceAccessOutcome(promptCtx, sessionID, response.Outcome)
+	return b.applyWorkspaceAccessOutcome(promptCtx, sessionID, workspaceAccessAnswer{
+		remember: remember, grant: grant,
+	}, response.Outcome)
+}
+
+// workspaceAccessAnswer is what an "Always allow" answer to one prompt may leave behind.
+type workspaceAccessAnswer struct {
+	remember bool
+	grant    *toolspkg.ApprovalGrantKey
 }
 
 func (b *workspaceAccessPromptBridge) applyWorkspaceAccessOutcome(
 	ctx context.Context,
 	sessionID string,
+	answer workspaceAccessAnswer,
 	outcome acpsdk.RequestPermissionOutcome,
 ) (bool, error) {
 	if err := outcome.Validate(); err != nil {
@@ -112,7 +156,22 @@ func (b *workspaceAccessPromptBridge) applyWorkspaceAccessOutcome(
 		return true, nil
 	case workspaceAccessRejectOnceID:
 		return false, nil
+	case workspaceAccessAllowAlwaysID:
+		if !answer.remember {
+			return false, errors.New("daemon: workspace access prompt selected an unavailable option")
+		}
+		if answer.grant == nil {
+			// An unresolved target has no scope to remember; the handler reports it as not found.
+			return true, nil
+		}
+		if err := b.rememberAllow(ctx, *answer.grant); err != nil {
+			return false, err
+		}
+		return true, nil
 	case workspaceAccessAllowSessionID:
+		if answer.remember {
+			return false, errors.New("daemon: workspace access prompt selected an unavailable option")
+		}
 		if b.consent == nil {
 			return false, errors.New("daemon: workspace access consent cache is unavailable")
 		}
@@ -129,14 +188,20 @@ func (b *workspaceAccessPromptBridge) applyWorkspaceAccessOutcome(
 	}
 }
 
-func workspaceAccessPromptOptions() []acpsdk.PermissionOption {
+// workspaceAccessPromptOptions offers a remembered "Always allow" for a read crossing; writes keep
+// the per-session answer.
+func workspaceAccessPromptOptions(remember bool) []acpsdk.PermissionOption {
+	allow := acpsdk.PermissionOption{
+		Kind:     acpsdk.PermissionOptionKindAllowAlways,
+		Name:     "Allow for this session",
+		OptionId: workspaceAccessAllowSessionID,
+	}
+	if remember {
+		allow.Name, allow.OptionId = "Always allow", workspaceAccessAllowAlwaysID
+	}
 	return []acpsdk.PermissionOption{
 		{Kind: acpsdk.PermissionOptionKindAllowOnce, Name: "Allow once", OptionId: workspaceAccessAllowOnceID},
-		{
-			Kind:     acpsdk.PermissionOptionKindAllowAlways,
-			Name:     "Allow for this session",
-			OptionId: workspaceAccessAllowSessionID,
-		},
+		allow,
 		{Kind: acpsdk.PermissionOptionKindRejectOnce, Name: "Reject once", OptionId: workspaceAccessRejectOnceID},
 		{
 			Kind:     acpsdk.PermissionOptionKindRejectAlways,

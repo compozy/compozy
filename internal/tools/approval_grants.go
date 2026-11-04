@@ -111,6 +111,10 @@ type ApprovalGrantKey struct {
 	AgentName   string `json:"agent_name,omitempty"`
 	ToolID      ToolID `json:"tool_id"`
 	InputDigest string `json:"input_digest,omitempty"`
+	// AccessScope names the target workspace or profile one cross-scope read grant covers. A grant
+	// with an access scope only answers the workspace boundary for that exact scope; it never
+	// approves the tool itself, and tool approval grants never widen reach.
+	AccessScope string `json:"access_scope,omitempty"`
 }
 
 // Normalize returns a canonical approval grant key.
@@ -120,6 +124,7 @@ func (k ApprovalGrantKey) Normalize() ApprovalGrantKey {
 	k.AgentName = strings.TrimSpace(k.AgentName)
 	k.ToolID = ToolID(strings.TrimSpace(k.ToolID.String()))
 	k.InputDigest = strings.TrimSpace(k.InputDigest)
+	k.AccessScope = strings.TrimSpace(k.AccessScope)
 	return k
 }
 
@@ -137,6 +142,12 @@ func (k ApprovalGrantKey) Validate() error {
 	}
 	if k.InputDigest != "" && !strings.HasPrefix(k.InputDigest, "sha256:") {
 		return fmt.Errorf("%w: input_digest must use sha256", ErrApprovalGrantInvalid)
+	}
+	if k.AccessScope != "" && (k.AgentName == "" || k.InputDigest == "") {
+		return fmt.Errorf(
+			"%w: an access scope grant requires agent_name and input_digest",
+			ErrApprovalGrantInvalid,
+		)
 	}
 	return nil
 }

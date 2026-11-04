@@ -13,7 +13,23 @@ export interface ToolApprovalGrantRowProps {
   onRevoke: (grant: ToolApprovalGrant) => void;
 }
 
+/**
+ * Reads the daemon's `read:<target>@<profile>` access scope: a remembered answer to a
+ * cross-project or cross-profile read prompt, never a tool approval.
+ */
+function accessScopeLabel(accessScope: string): string {
+  const separator = accessScope.lastIndexOf("@");
+  const target = separator < 0 ? accessScope : accessScope.slice(0, separator);
+  const anyProfile = separator >= 0 && accessScope.slice(separator + 1) === "*";
+  const suffix = anyProfile ? ", any profile" : "";
+  if (target === "read:user") return `Reads in User scope${suffix}`;
+  if (target === "read:all-projects") return `Reads across All projects${suffix}`;
+  const workspace = target.replace(/^read:workspace:/, "");
+  return `Reads in project ${workspace}${suffix}`;
+}
+
 function approvalGrantScopeLabel(grant: ToolApprovalGrant): string {
+  if (grant.access_scope) return accessScopeLabel(grant.access_scope);
   if (grant.input_digest) {
     return grant.agent_name ? "Only this exact request" : "Only this exact request, any agent";
   }
@@ -34,6 +50,7 @@ export function ToolApprovalGrantRow({ grant, onRevoke }: ToolApprovalGrantRowPr
     <ListingRow
       data-testid="tool-approval-grant-row"
       data-grant-id={grant.id}
+      data-access-scope={grant.access_scope || undefined}
       data-input-digest={grant.input_digest || undefined}
       data-tool-id={grant.tool_id}
       interactive={false}

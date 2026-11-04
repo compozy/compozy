@@ -27,13 +27,26 @@ func (g *ApprovalGrantRepo) LookupApprovalGrant(
 	if err := key.Validate(); err != nil {
 		return toolspkg.ApprovalGrant{}, false, err
 	}
+	lastUsedAt := store.FormatTimestamp(g.now().UTC())
 	row, err := executeWriteQueryResult(
 		ctx,
 		g.repoBase,
 		"globaldb.LookupApprovalGrant",
 		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalGrant, error) {
+			if key.AccessScope != "" {
+				// A cross-scope read grant matches exactly; no wider tool grant stands in for it.
+				return queries.LookupAccessScopeGrant(ctx, sqlcgen.LookupAccessScopeGrantParams{
+					LastUsedAt:  lastUsedAt,
+					ProfileID:   key.ProfileID,
+					WorkspaceID: key.WorkspaceID,
+					AgentName:   key.AgentName,
+					ToolID:      key.ToolID.String(),
+					InputDigest: key.InputDigest,
+					AccessScope: key.AccessScope,
+				})
+			}
 			return queries.LookupApprovalGrant(ctx, sqlcgen.LookupApprovalGrantParams{
-				LastUsedAt:  store.FormatTimestamp(g.now().UTC()),
+				LastUsedAt:  lastUsedAt,
 				ProfileID:   key.ProfileID,
 				WorkspaceID: key.WorkspaceID,
 				ToolID:      key.ToolID.String(),
@@ -101,6 +114,7 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 				Decision:    string(grant.Decision),
 				CreatedAt:   store.FormatTimestamp(grant.CreatedAt),
 				LastUsedAt:  store.FormatTimestamp(grant.LastUsedAt),
+				AccessScope: grant.AccessScope,
 			})
 		},
 	)
@@ -182,7 +196,7 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 	}
 	statement, args := store.BuildWhereQuery(
 		`SELECT g.id, g.profile_id, g.workspace_id, g.agent_name,
-		g.tool_id, g.input_digest, g.decision, g.created_at, g.last_used_at,
+		g.tool_id, g.input_digest, g.decision, g.created_at, g.last_used_at, g.access_scope,
 		p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''), p.state = 'archived'
 		FROM tool_approval_grants g JOIN profiles p ON p.id = g.profile_id`,
 		` ORDER BY g.created_at DESC, g.id`,
@@ -204,7 +218,7 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 		var owner toolspkg.ApprovalGrant
 		if err := rows.Scan(
 			&row.ID, &row.ProfileID, &row.WorkspaceID, &row.AgentName, &row.ToolID,
-			&row.InputDigest, &row.Decision, &row.CreatedAt, &row.LastUsedAt,
+			&row.InputDigest, &row.Decision, &row.CreatedAt, &row.LastUsedAt, &row.AccessScope,
 			&owner.ProfileName, &owner.ProfileColor, &owner.ProfileIcon, &owner.ProfileEmoji,
 			&owner.ProfileArchived,
 		); err != nil {
@@ -277,6 +291,7 @@ func approvalGrantFromRow(row sqlcgen.ToolApprovalGrant) (toolspkg.ApprovalGrant
 		AgentName:   row.AgentName,
 		ToolID:      toolspkg.ToolID(row.ToolID),
 		InputDigest: row.InputDigest,
+		AccessScope: row.AccessScope,
 		Decision:    toolspkg.ApprovalGrantDecision(row.Decision),
 		CreatedAt:   createdAt,
 		LastUsedAt:  lastUsedAt,

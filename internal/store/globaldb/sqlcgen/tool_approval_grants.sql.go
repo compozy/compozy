@@ -10,7 +10,7 @@ import (
 )
 
 const listApprovalGrants = `-- name: ListApprovalGrants :many
-SELECT id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+SELECT id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope
 FROM tool_approval_grants
 WHERE profile_id = ?1
 	AND workspace_id = ?2
@@ -41,6 +41,7 @@ func (q *Queries) ListApprovalGrants(ctx context.Context, arg ListApprovalGrants
 			&i.Decision,
 			&i.CreatedAt,
 			&i.LastUsedAt,
+			&i.AccessScope,
 		); err != nil {
 			return nil, err
 		}
@@ -55,6 +56,56 @@ func (q *Queries) ListApprovalGrants(ctx context.Context, arg ListApprovalGrants
 	return items, nil
 }
 
+const lookupAccessScopeGrant = `-- name: LookupAccessScopeGrant :one
+UPDATE tool_approval_grants
+SET last_used_at = ?1
+WHERE profile_id = ?2
+  AND workspace_id = ?3
+  AND agent_name = ?4
+  AND tool_id = ?5
+  AND input_digest = ?6
+  AND access_scope = ?7
+  AND access_scope <> ''
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope
+`
+
+type LookupAccessScopeGrantParams struct {
+	LastUsedAt  string `json:"last_used_at"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	ToolID      string `json:"tool_id"`
+	InputDigest string `json:"input_digest"`
+	AccessScope string `json:"access_scope"`
+}
+
+// Matches one cross-scope read grant exactly: a remembered tool decision never widens reach.
+func (q *Queries) LookupAccessScopeGrant(ctx context.Context, arg LookupAccessScopeGrantParams) (ToolApprovalGrant, error) {
+	row := q.db.QueryRowContext(ctx, lookupAccessScopeGrant,
+		arg.LastUsedAt,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ToolID,
+		arg.InputDigest,
+		arg.AccessScope,
+	)
+	var i ToolApprovalGrant
+	err := row.Scan(
+		&i.ID,
+		&i.ProfileID,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.ToolID,
+		&i.InputDigest,
+		&i.Decision,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.AccessScope,
+	)
+	return i, err
+}
+
 const lookupApprovalGrant = `-- name: LookupApprovalGrant :one
 UPDATE tool_approval_grants
 SET last_used_at = ?1
@@ -66,6 +117,7 @@ WHERE id = (
     AND candidate.tool_id = ?4
     AND (candidate.agent_name = '' OR candidate.agent_name = ?5)
     AND (candidate.input_digest = '' OR candidate.input_digest = ?6)
+    AND candidate.access_scope = ''
   ORDER BY CASE
     WHEN candidate.agent_name <> '' AND candidate.input_digest <> '' THEN 4
     WHEN candidate.agent_name <> '' THEN 3
@@ -74,7 +126,7 @@ WHERE id = (
   END DESC
   LIMIT 1
 )
-RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope
 `
 
 type LookupApprovalGrantParams struct {
@@ -106,6 +158,7 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 		&i.Decision,
 		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.AccessScope,
 	)
 	return i, err
 }
@@ -113,18 +166,20 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 const putApprovalGrant = `-- name: PutApprovalGrant :one
 INSERT INTO tool_approval_grants (
   profile_id,
-  id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+  id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope
 ) VALUES (
   ?1,
   ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9
+  ?6, ?7, ?8, ?9,
+  ?10
 )
 ON CONFLICT DO UPDATE SET
   decision = excluded.decision,
   created_at = excluded.created_at,
-  last_used_at = excluded.last_used_at
+  last_used_at = excluded.last_used_at,
+  access_scope = excluded.access_scope
 WHERE tool_approval_grants.profile_id = excluded.profile_id
-RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope
 `
 
 type PutApprovalGrantParams struct {
@@ -137,6 +192,7 @@ type PutApprovalGrantParams struct {
 	Decision    string `json:"decision"`
 	CreatedAt   string `json:"created_at"`
 	LastUsedAt  string `json:"last_used_at"`
+	AccessScope string `json:"access_scope"`
 }
 
 func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantParams) (ToolApprovalGrant, error) {
@@ -150,6 +206,7 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 		arg.Decision,
 		arg.CreatedAt,
 		arg.LastUsedAt,
+		arg.AccessScope,
 	)
 	var i ToolApprovalGrant
 	err := row.Scan(
@@ -162,6 +219,7 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 		&i.Decision,
 		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.AccessScope,
 	)
 	return i, err
 }

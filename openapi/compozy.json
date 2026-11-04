@@ -40498,6 +40498,9 @@
       },
       "ToolApprovalGrantPayload": {
         "properties": {
+          "access_scope": {
+            "type": "string"
+          },
           "agent_name": {
             "type": "string"
           },

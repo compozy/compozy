@@ -58,6 +58,7 @@ type ToolApprovalGrantPayload struct {
 	AgentName       string                `json:"agent_name,omitempty"`
 	ToolID          ToolID                `json:"tool_id"`
 	InputDigest     string                `json:"input_digest,omitempty"`
+	AccessScope     string                `json:"access_scope,omitempty"`
 	Decision        ApprovalGrantDecision `json:"decision"`
 	CreatedAt       time.Time             `json:"created_at"`
 	LastUsedAt      time.Time             `json:"last_used_at"`

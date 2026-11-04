@@ -112,6 +112,9 @@ Authority matrix (HTTP, UDS, and native tools enforce the same rules):
 
 "Permission mode + consent" means `approve-all` allows, `approve-reads` asks the operator at the
 native-tool seam (and honors an `allow_session` answer at every seam), and `deny-all` never crosses.
+An operator's "Always allow" on a read prompt is stored as a revocable tool approval scoped to the
+agent, tool, and target workspace or profile (`access_scope`), so later reads of that scope by the
+agent do not ask again; writes keep the per-session answer, and agents cannot create the grant.
 Since issue #1169 (owner decision 2026-11-03, superseding the part of User Scope Work ADR-003 that
 kept profiles and aggregates out of `approve-all`), an `approve-all` session reads other profiles
 and All projects as the operator would; changing another profile, or writing through an aggregate

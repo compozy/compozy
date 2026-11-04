@@ -19229,6 +19229,7 @@ export interface components {
       total: number;
     };
     ToolApprovalGrantPayload: {
+      access_scope?: string;
       agent_name?: string;
       /** Format: date-time */
       created_at: string;

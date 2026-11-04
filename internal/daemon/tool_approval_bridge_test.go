@@ -367,6 +367,8 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 			func() sessionPermissionRequester { return requester },
 			time.Second,
 			cache,
+			nil,
+			nil,
 		)
 		for attempt := range 2 {
 			allowed, err := bridge.RequestWorkspaceAccess(
@@ -374,7 +376,7 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 				scope,
 				call,
 				descriptor,
-				"ws-b",
+				workspaceAccessPrompt{label: "ws-b"},
 			)
 			if err != nil || !allowed {
 				t.Fatalf("RequestWorkspaceAccess(%d) = %v, %v, want allowed", attempt, allowed, err)
@@ -406,13 +408,15 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 				func() sessionPermissionRequester { return requester },
 				time.Second,
 				cache,
+				nil,
+				nil,
 			)
 			allowed, err := bridge.RequestWorkspaceAccess(
 				t.Context(),
 				scope,
 				call,
 				descriptor,
-				"ws-b",
+				workspaceAccessPrompt{label: "ws-b"},
 			)
 			if err != nil {
 				t.Fatalf("RequestWorkspaceAccess() error = %v", err)
@@ -463,12 +467,39 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 			func() sessionPermissionRequester { return requester },
 			time.Second,
 			newWorkspaceAccessConsentCache(),
+			nil,
+			nil,
 		)
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		allowed, err := bridge.RequestWorkspaceAccess(ctx, scope, call, descriptor, "ws-b")
+		allowed, err := bridge.RequestWorkspaceAccess(ctx, scope, call, descriptor, workspaceAccessPrompt{label: "ws-b"})
 		if err != nil || !allowed {
 			t.Fatalf("RequestWorkspaceAccess(canceled origin) = %v, %v, want allowed", allowed, err)
+		}
+	})
+
+	t.Run("Should deny an Always allow that cannot be remembered", func(t *testing.T) {
+		t.Parallel()
+
+		key := toolspkg.ApprovalGrantKey{
+			ProfileID: "p-1", WorkspaceID: "ws-a", AgentName: "codex", ToolID: descriptor.ID,
+			InputDigest: "sha256:00", AccessScope: "read:workspace:ws-b@p-1",
+		}
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return selectedPermissionRequester(workspaceAccessAllowAlwaysID) },
+			time.Second,
+			newWorkspaceAccessConsentCache(),
+			&recordingApprovalGrantStore{putErr: errors.New("disk full")},
+			nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(
+			t.Context(), scope, call, readDescriptor,
+			workspaceAccessPrompt{label: "ws-b", remember: true, grant: &key},
+		)
+		if err == nil || allowed || !strings.Contains(err.Error(), "remember workspace access grant") {
+			t.Fatalf("RequestWorkspaceAccess() = %v, %v, want a remember failure denial", allowed, err)
 		}
 	})
 
@@ -518,13 +549,15 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 					func() sessionPermissionRequester { return test.requester },
 					test.timeout,
 					cache,
+					nil,
+					nil,
 				)
 				allowed, err := bridge.RequestWorkspaceAccess(
 					t.Context(),
 					scope,
 					call,
 					descriptor,
-					"ws-b",
+					workspaceAccessPrompt{label: "ws-b"},
 				)
 				if err == nil || allowed {
 					t.Fatalf("RequestWorkspaceAccess() = %v, %v, want denial error", allowed, err)

@@ -144,6 +144,8 @@ describe("ToolApprovalGrantsSection", () => {
     expect(screen.getByText("Every request from this agent")).toBeInTheDocument();
     expect(screen.getByText("Every request, any agent")).toBeInTheDocument();
     expect(screen.getByText("Only this exact request")).toBeInTheDocument();
+    // A remembered cross-project read names its target, not "this exact request".
+    expect(screen.getByText("Reads in project ws_proto")).toBeInTheDocument();
     expect(
       screen.getByTestId(`tool-approval-grant-last-used-${allowGrant.id}`)
     ).toBeInTheDocument();
