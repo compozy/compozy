@@ -6,6 +6,7 @@ persona: Dora
 entry_points: extension scaffold; heartbeat source catalog; manual instance check
 expected: Scoped extension kinds appear in the catalog and poll before triage; invalid parameters and provider failures remain visible source statuses.
 qa_status: pending
+overlaps: MS-stays-on-check-in-sources
 ---
 
 1. Scaffold `heartbeat-source-go`, register an `issues` kind with a required string
@@ -47,4 +48,5 @@ Provider automation: `TestProviderIssues`, `TestProviderIssuesErrors`, and
 `TestProviderIssuesPagination` in `extensions/forge/github/provider_test.go` cover
 UT-050–UT-057 through the real HTTP client against an `httptest` GitHub server.
 `TestRunProviderForgeProtocolConformanceIT035` also checks source dispatch through
-SDK stdio. The live agent check-in journey remains integration QA owned by S5.
+SDK stdio. The live agent check-in journey (declare, Try it now, gate, approval, Web) is
+`MS-stays-on-check-in-sources`; this scenario keeps the authoring, scope and provider matrix.

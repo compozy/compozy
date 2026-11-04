@@ -1,0 +1,348 @@
+---
+title: Watch new GitHub issues
+description: Give a stays-on agent a New GitHub issues check-in source, try it without consuming anything, read its status, and use an approved script when no extension fits.
+---
+
+A stays-on agent checks in on its own schedule. A **check-in source** tells that check what is new
+outside CompozyOS before any model runs. When the source has nothing new, the check stops there:
+no model turn, no tokens, no noise.
+
+This guide gives an agent called `issue-watch` the bundled **New GitHub issues** source. At the
+end, the agent looks at GitHub once an hour and only speaks up when an issue nobody owns arrives.
+
+<OperatorNote label="Before you start">
+  You need:
+
+- The daemon running and a registered workspace whose `origin` remote is on GitHub. Both come
+  from [Installation](/docs/getting-started/installation).
+- A GitHub sign-in the daemon can use: run `gh auth login` in the environment that starts the
+  daemon, or bind a token with `compozy extension secrets set forge-github --env GITHUB_TOKEN`. See
+  [GitHub provider setup](/docs/worktrees/assisted-exit#github-provider-setup).
+- A stays-on agent named `issue-watch` with an instance in that workspace. Create one with
+  `compozy agent instance create issue-watch --workspace my-project`.
+
+Every daemon that reads this agent must understand check-in sources. Upgrade the daemon before you
+add `context.sources`; an older daemon rejects the file.
+
+</OperatorNote>
+
+The commands below use the workspace name `my-project`. Replace it with yours.
+
+## Step 1: See what the agent can look at
+
+```bash
+compozy agent heartbeat sources issue-watch --workspace my-project
+```
+
+Expected output:
+
+```text
+KIND	TITLE	FROM
+forge-github/issues	New GitHub issues	extension forge-github
+SCRIPT	EXECUTABLE	APPROVED
+(none)
+Scripts: enabled · Limits: 8 sources, 20 items per check
+```
+
+`forge-github/issues` comes from the bundled `forge-github` extension, which the daemon enables at
+boot. The last line shows how many sources one agent may declare and how many items one check can
+receive. Both come from `[agents.heartbeat.sources]` in
+[`config.toml`](/docs/configuration/config-toml).
+
+If the `KIND` table is missing, the extension is off in this workspace. Check it with
+`compozy extension status forge-github -o json`.
+
+## Step 2: Declare the source
+
+Write a `HEARTBEAT.md` file with this content:
+
+```markdown
+---
+version: 1
+preferences:
+  min_interval: "1h"
+  active_hours:
+    - timezone: "America/Sao_Paulo"
+      start: "08:00"
+      end: "22:00"
+context:
+  include: []
+  sources:
+    - id: new-issues
+      kind: forge-github/issues
+      with:
+        repo: my-org/my-repo
+        exclude_labels: [wontfix, duplicate]
+---
+
+For each new GitHub issue, look up sessions with `compozy__session_list` (q `#<number>`).
+Treat an issue as covered when it has an open linked pull request or a non-stopped
+session whose title names it. Propose each uncovered issue, titled "#<number> has no owner",
+citing its item key. Stay quiet for covered issues.
+```
+
+What each part does:
+
+| Part                  | Meaning                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `include: []`         | No built-in facts. Only the source can make this agent check in.                                                        |
+| `id: new-issues`      | Your local name for the source. Lowercase letters, digits and `-`, starting with a letter.                              |
+| `kind`                | The source to use, written `<extension>/<kind>`.                                                                        |
+| `with.repo`           | The repository as `owner/repo`. Leave it out to use the workspace's GitHub `origin` remote.                             |
+| `with.exclude_labels` | Skip issues carrying any of these labels. `labels` does the opposite: it keeps only issues carrying every listed label. |
+| The body              | Standing guidance for the check. It only runs when the source returned something new.                                   |
+
+Check the file before saving it:
+
+```bash
+compozy agent heartbeat validate issue-watch --workspace my-project --file HEARTBEAT.md
+```
+
+Expected output includes:
+
+```text
+Valid:          true
+```
+
+A mistake shows up as a diagnostic with a line and column, for example
+`heartbeat_source_ref_invalid` when an entry sets both `kind` and `script`, or
+`heartbeat_source_duplicate_id` when two entries share an `id`.
+
+## Step 3: Save it
+
+Saving goes through managed authoring, which guards against overwriting someone else's edit. Read
+the current digest first:
+
+```bash
+compozy agent heartbeat inspect issue-watch --workspace my-project
+```
+
+Copy the `Digest:` value (it starts with `sha256:`) and pass it to `write`:
+
+```bash
+compozy agent heartbeat write issue-watch --workspace my-project --file HEARTBEAT.md --if-match sha256:4be1...
+```
+
+Expected output includes a `Heartbeat Revision` section with the new digest. If the agent had no
+`HEARTBEAT.md` yet, `inspect` shows no digest and you can leave `--if-match` out. A
+`heartbeat_conflict` error means the file changed since you read it; run `inspect` again.
+
+You can also edit the same file on the agent's **Check-ins** page in the app.
+
+## Step 4: Try it now, without consuming anything
+
+```bash
+compozy agent instance check issue-watch --workspace my-project --dry-run
+```
+
+The first time, expected output is:
+
+```text
+digest_empty
+  new-issues  ok  0 items (412 ms)
+```
+
+That is correct. On its first check the source records the newest open issue and reports nothing
+older, so you are not flooded with the backlog. `digest_empty` means "nothing new, so no model
+turn".
+
+A dry run asks the source what is new but saves nothing: no cursor moves and the source's status
+does not change. Run it as often as you like.
+
+To see real items while you test, add `backfill: "24h"` under `with`, save, and try again. The
+first check then includes open issues created in the last 24 hours:
+
+```text
+would_run
+  new-issues  ok  1 items (512 ms)
+  source:new-issues:my-org/my-repo#1201  #1201 Terminal loses scrollback after resize
+```
+
+`would_run` means a real check would hand those items to the model. Each item key is
+`source:<id>:<owner>/<repo>#<number>`. Remove `backfill` again when you are done, or keep it if you
+want a first catch-up.
+
+## Step 5: Turn checks on
+
+```bash
+compozy agent instance checks on issue-watch --workspace my-project
+```
+
+Expected output:
+
+```text
+Checks on for Issue Watch in my-project
+```
+
+From now on the agent checks in about once an hour inside its active hours. In the app, the
+**Try it now** button on the agent's **Check-ins** page runs the same dry run as step 4 and lists
+each source's result above the items; **Run it for real** starts a real check.
+
+## Step 6: Read the source's status
+
+```bash
+compozy agent instance show issue-watch --workspace my-project -o json
+```
+
+Look at `instance.sources`:
+
+```json
+{
+  "id": "new-issues",
+  "kind": "forge-github/issues",
+  "status": "ok",
+  "last_polled_at": "2026-11-03T15:00:02Z",
+  "last_success_at": "2026-11-03T15:00:02Z",
+  "last_item_count": 0,
+  "failure_streak": 0,
+  "next_poll_at": "2026-11-03T16:00:41Z"
+}
+```
+
+| `status`             | Meaning                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `pending_first_poll` | Declared but not checked yet.                                                 |
+| `ok`                 | The last check worked. `last_item_count` says how many new items it returned. |
+| `failing`            | The last check failed. `error.code` and `error.detail` say why.               |
+| `unavailable`        | The kind's extension is not enabled in this workspace. This is not a failure. |
+| `disabled`           | A script source while scripts are turned off. This is not a failure.          |
+| `unapproved`         | A script that is new or changed since you approved it. It does not run.       |
+
+The **Check-ins** page shows the same thing as a row under **What it looks at**, such as
+"New GitHub issues · my-org/my-repo · Checked 2 min ago".
+
+To see what each check decided:
+
+```bash
+compozy agent instance check-ins issue-watch --workspace my-project -o json
+```
+
+Quiet hours read as skipped checks with reason `digest_empty` (nothing new) or `digest_unchanged`
+(the same items as last time). Neither starts a model turn.
+
+## Step 7: Act on what it finds
+
+When an issue nobody owns arrives, the check publishes a report in the agent's main session with a
+proposal titled "#1201 has no owner" and the issue link under **From New GitHub issues**. Nothing
+happens until you pick it. Picking sends the proposal's title to the main session as an ordinary
+message, and the agent follows its `AGENT.md` from there.
+
+Read the same reports from the CLI:
+
+```bash
+compozy agent instance reports issue-watch --workspace my-project -o json
+```
+
+Each proposal lists `item_keys` and `sources`. A source entry has `kind: "source"`, the
+`source_id`, the `source_ref` (`forge-github/issues`), the `item_key` and the issue `url`.
+
+## Use a script instead
+
+When no extension covers what you want to watch, point the source at a script in the agent's
+`sources/` folder. Any CLI works: `gh`, `curl`, `jq`. CompozyOS runs a script only after you approve
+its exact contents.
+
+Create `sources/new-issues` next to the agent's `AGENT.md` and make it executable
+(`chmod +x sources/new-issues`):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+req=$(cat)
+last=$(jq -r '.state.max_number // empty' <<<"$req")
+max=$(jq -r .limits.max_items <<<"$req")
+gh issue list -R my-org/my-repo --state open --limit 100 --json number,title,url \
+  | jq --arg last "$last" --argjson max "$max" '
+      sort_by(.number) as $all
+      | if $last == "" then
+          {items: [], state: {max_number: ($all | map(.number) | max // 0)}}
+        else
+          ($all | map(select(.number > ($last | tonumber)))) as $new
+          | ($new[:$max]) as $batch
+          | {items: ($batch | map({key: (.number | tostring), title: .title, url: .url})),
+             more: (($new | length) > $max),
+             state: {max_number: ([$batch[].number, ($last | tonumber)] | max)}}
+        end'
+```
+
+The script reads one JSON request on stdin with `source_id`, `params` (your `with` values), the
+saved `state`, `limits`, `workspace`, `now` and `dry_run`. It prints one JSON object: `items`, an
+optional new `state`, and `more` when it left items for the next check. `{"items":[]}` means
+nothing new. Never return more than `limits.max_items` items, and never move `state` past the items
+you returned.
+
+Point the source at the script instead of the kind:
+
+```yaml
+context:
+  include: []
+  sources:
+    - id: new-issues
+      script: new-issues
+```
+
+The script will not run yet. List it:
+
+```bash
+compozy agent heartbeat sources issue-watch --workspace my-project
+```
+
+```text
+SCRIPT	EXECUTABLE	APPROVED
+new-issues	true	false
+```
+
+Read the script, then approve it:
+
+```bash
+compozy agent heartbeat sources approve issue-watch new-issues --workspace my-project
+```
+
+Expected output:
+
+```text
+Script new-issues (issue-watch)
+  sha256:7f3a91c0...
+approve this exact script? [y/N] y
+approved new-issues
+```
+
+The approval covers that exact file. Any later edit, by you or by an agent, puts the source back
+to `unapproved` until you approve again. In a script or CI job, pass the hash you reviewed and skip
+the prompt with `--sha256 sha256:7f3a91c0... --yes`; a different hash fails with
+`source_script_changed`. Only you can approve: from inside an agent session the command fails with
+`source_approval_operator_only`. To withdraw an approval, run
+`compozy agent heartbeat sources revoke issue-watch new-issues --workspace my-project --yes`.
+
+In the app, an unapproved script's row on the **Check-ins** page reads "Waiting for your approval"
+with the short hash, and its **Approve** action approves the hash shown.
+
+Scripts run with the workspace as their working directory and a minimal environment: `PATH`,
+`HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and any names you list in
+`[agents.heartbeat.sources].env_allow`. They never receive a session's environment.
+
+## If something goes wrong
+
+| What you see                                                             | Cause                                                          | Fix                                                                 |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `failing` with `source_credential_absent`                                | The daemon has no GitHub sign-in.                              | Run `gh auth login` for the daemon's user, or bind `GITHUB_TOKEN`.  |
+| `failing` with `source_credential_expired`                               | GitHub rejected the token.                                     | Sign in again or update the bound token.                            |
+| `failing` with `source_rate_limited`                                     | GitHub's rate limit.                                           | Wait. The next check retries from the same place; no issue is lost. |
+| `failing` with `source_params_invalid`                                   | A bad `with` value, or no GitHub `origin` without `with.repo`. | Fix the field named in `error.detail`.                              |
+| `unavailable` with `source_kind_unavailable`                             | The extension is not enabled in this workspace.                | Enable it, then try again.                                          |
+| `unapproved` with `source_script_unapproved`                             | The script is new or changed.                                  | Review it and run `compozy agent heartbeat sources approve`.        |
+| `failing` with `source_script_missing` or `source_script_not_executable` | The file is missing or lacks the executable bit.               | Create it in `sources/` and `chmod +x` it.                          |
+| `failing` with `source_output_invalid`                                   | The script printed bad JSON or too many items.                 | Follow the output contract and page with `more`.                    |
+| A real check returns `source_poll_in_flight`                             | A check is already asking the sources.                         | Wait for it to finish. Nothing was started twice.                   |
+
+A failing source never blocks the agent's other sources. After three failures in a row (`failure_threshold`), the check
+tells the agent once, so the problem reaches you as a report instead of silence.
+
+## Next
+
+- [Agent Heartbeat → Check-in sources](/docs/agents/heartbeat#check-in-sources) for the full
+  script contract.
+- [Develop Extensions → New GitHub issues source](/docs/extensions/develop#new-github-issues-source)
+  for every parameter and item field of `forge-github/issues`.
+- [Develop Extensions](/docs/extensions/develop) to ship your own source kind.
+- [`config.toml`](/docs/configuration/config-toml) for `[agents.heartbeat.sources]` limits.

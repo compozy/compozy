@@ -366,7 +366,7 @@ descendants. Extension and MCP tools ask unless read-only. The built-in stays-on
 
 ## Check-in sources
 
-Declare external facts under `context.sources`. Each entry has a unique local `id`, exactly one of `script` or `kind`, and optional `with` data (up to 4 KiB). Scripts live in the agent definition's `sources/` folder. Kind names use `<extension>/<kind>`; kinds unavailable in the current workspace remain visible as unavailable.
+Declare external facts under `context.sources`. Each entry has a unique local `id`, exactly one of `script` or `kind`, and optional `with` data (up to 4 KiB). Scripts live in the agent definition's `sources/` folder. Kind names use `<extension>/<kind>`; kinds unavailable in the current workspace remain visible as unavailable. The bundled `forge-github` extension provides `forge-github/issues` (New GitHub issues; optional `with` keys `repo`, `labels`, `exclude_labels`, `backfill`); its first poll baselines at the newest open issue.
 
 ```yaml
 context:
