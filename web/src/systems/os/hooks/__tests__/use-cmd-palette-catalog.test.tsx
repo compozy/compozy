@@ -141,25 +141,38 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
   });
 
   it("Should coalesce served catalog revisions into one durable write", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const put = vi.spyOn(IDBObjectStore.prototype, "put");
-    vi.spyOn(api, "listCmdPaletteCommands").mockResolvedValue(catalog("sha256:first", ["First"]));
-    const { result, queryClient } = harness();
-    await waitFor(() => expect(result.current.daemonReachable).toBe(true));
+    vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() => new Promise(() => {}));
+    const { result, queryClient, unmount } = harness();
+    await act(async () => {
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+        catalog("sha256:first", ["First"])
+      );
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.daemonReachable).toBe(true);
     for (const revision of ["second", "third", "final"]) {
       await act(async () => {
         queryClient.setQueryData(
           cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
           catalog(`sha256:${revision}`, [revision])
         );
+        await vi.advanceTimersByTimeAsync(0);
       });
     }
-    await waitFor(async () => {
+    expect(put).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    await act(async () => {
       expect((await readCatalogRecord(WORKSPACE, "default"))?.catalogRevision).toBe("sha256:final");
     });
     expect(put).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
   });
 
-  it.each(["workspace", "profile", "unmount"] as const)(
+  it.each(["workspace", "profile", "unmount", "pagehide"] as const)(
     "Should persist the final pending catalog when leaving by %s",
     async transition => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -182,6 +195,7 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
         if (transition === "workspace") rerender({ workspaceId: OTHER_WORKSPACE });
         else if (transition === "profile")
           setProfileView({ kind: "profile", profile: "marketing" });
+        else if (transition === "pagehide") window.dispatchEvent(new Event("pagehide"));
         else unmount();
       });
       await act(async () => {
@@ -191,6 +205,8 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
           profileKey: "default",
         });
       });
+      expect(put).toHaveBeenCalledTimes(1);
+      await act(async () => vi.advanceTimersByTimeAsync(250));
       expect(put).toHaveBeenCalledTimes(1);
       unmount();
       queryClient.clear();

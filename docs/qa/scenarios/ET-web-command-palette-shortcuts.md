@@ -82,3 +82,10 @@ the remediation. The strict QA evidence audit passed and teardown was clean.
 Expected evidence: screenshots of the source-filtered table, the named-conflict block and flagged
 loser, the alias on a palette row, and the cheatsheet grouping; note the chord used for the live
 rebind check.
+
+QA impact 2026-11-03 (#1244 review follow-up): serve a new structural catalog and reload
+within its 250 ms persistence window. The pagehide handler attempts to persist the pending
+revision once; the next offline open should hydrate it if IndexedDB completed the write.
+Page termination does not guarantee completion. The existing catalog-hook suite covers
+pagehide persistence and controlled burst coalescing; a real reload/offline walk remains
+CI-owned under the host-overload restriction for this fix.

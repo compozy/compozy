@@ -43,6 +43,11 @@ function usePersistedCatalog(
     pending.current = null;
     if (record) void writeCatalogRecord(record);
   });
+  useEffect(() => {
+    const onPageHide = () => flush();
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, []);
   // Leaving a scope flushes its final revision rather than discarding the pending write.
   useEffect(() => () => flush(), [profileKey, workspace]);
   useEffect(() => {

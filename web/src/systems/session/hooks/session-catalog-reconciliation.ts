@@ -239,7 +239,7 @@ export function createCatalogReconciler(queryClient: QueryClient) {
     wake(workspace?: string, change?: CatalogChange) {
       changes.set(JSON.stringify([workspace, change?.profile_name, change?.kind]), change);
       workspaces.add("");
-      if (workspace !== undefined) workspaces.add(workspace);
+      if (workspace !== undefined) workspaces.add(workspace || "@user");
       else
         for (const query of queryClient
           .getQueryCache()

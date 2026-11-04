@@ -43,6 +43,7 @@ import {
   SESSION_DEBUG_EVENTS,
 } from "../../lib/session-observability";
 import { MAX_RECONNECT_ATTEMPTS } from "../session-live-tail-store-contract";
+import { createCatalogReconciler } from "../session-catalog-reconciliation";
 import { useSessionLiveTail } from "../use-session-live-tail";
 import type { SessionStreamEventSource } from "../use-session-live-tail";
 
@@ -1206,6 +1207,28 @@ describe("useSessionLiveTail", () => {
     await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
   });
 
+  it.each(["upserted", "deleted"])(
+    "Should reconcile the User catalog on a workspace-less %s wake",
+    kind => {
+      const queryClient = createQueryClient();
+      const userKey = [...sessionKeys.workspaceLists("@user"), { profile: "default" }];
+      const aggregateKey = [...sessionKeys.workspaceLists(""), { profile: "default" }];
+      const projectKey = [...sessionKeys.workspaceLists(WORKSPACE_ID), { profile: "default" }];
+      for (const key of [userKey, aggregateKey, projectKey])
+        queryClient.setQueryData(key, { sessions: [] });
+      const reconciler = createCatalogReconciler(queryClient);
+      try {
+        reconciler.wake("", { workspace_id: "", profile_name: "default", kind });
+        expect(queryClient.getQueryState(userKey)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(aggregateKey)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(projectKey)?.isInvalidated).toBe(false);
+      } finally {
+        reconciler.close();
+        queryClient.clear();
+      }
+    }
+  );
+
   it.each([
     ["window", false],
     ["board-drawer", false],
@@ -1249,7 +1272,13 @@ describe("useSessionLiveTail", () => {
       now.mockReturnValue(1_000_000);
       expect(await burst(2)).toBe(true);
       expect(await burst(3)).toBe(everyBurst);
+      // The live tail does not schedule a trailing catalog read. A quiet board
+      // relies on its own periodic reread; a new delta can refresh after the window.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       now.mockReturnValue(1_000_000 + SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS);
+      await act(async () => vi.advanceTimersByTimeAsync(SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS));
+      expect(queryClient.getQueryState(boardKey)?.isInvalidated).toBe(false);
+      vi.useRealTimers();
       expect(await burst(4)).toBe(true);
       now.mockRestore();
     }
