@@ -1851,7 +1851,6 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		d := newTestDaemon(t, home, nil)
 		seed(filepath.Join(home.AgentsDir, "retired", "AGENT.md"))
 		seed(filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"))
-		seed(filepath.Join(home.ExtensionDataRoot, "fixture", "agents", "retired", "AGENT.md"))
 		if err := d.boot(t.Context()); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) {
 			t.Fatalf("boot error = %v", err)
 		}

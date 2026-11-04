@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestLoadAgentResources(t *testing.T) {
@@ -124,7 +126,23 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 		name     string
 		setup    func(*testing.T, string)
 		contains []string
+		cause    error
 	}{
+		{
+			name: "Should reject a retired kind at a manifest-declared agent path",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				writeStaticAgentFixture(t, rootDir, "writer", false)
+				writeFile(
+					t,
+					filepath.Join(rootDir, "agents", "writer", "AGENT.md"),
+					"---\nname: writer\nkind: stays_on\n---\nWrite.\n",
+				)
+			},
+			contains: []string{"AGENT.md", "renamed to always_on in v0.5.1"},
+			cause:    compozyconfig.ErrAgentKindInvalid,
+		},
+
 		{
 			name: "Should reject loose markdown files",
 			setup: func(t *testing.T, rootDir string) {
@@ -227,6 +245,10 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 			if !errors.Is(err, ErrManifestInvalid) {
 				t.Fatalf("LoadAgentResources() error = %v, want ErrManifestInvalid", err)
 			}
+			if tc.cause != nil && !errors.Is(err, tc.cause) {
+				t.Fatalf("LoadAgentResources() error = %v, want %v", err, tc.cause)
+			}
+
 			for _, want := range tc.contains {
 				if !strings.Contains(err.Error(), want) {
 					t.Fatalf("LoadAgentResources() error = %v, want error containing %q", err, want)
