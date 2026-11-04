@@ -1,0 +1,78 @@
+name: SQLite contention acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/sqlite-contention.yml"
+      - "scripts/sqlite-contention/**"
+      - "internal/testutil/e2e/runtime_harness_contention_test.go"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sqlite-contention-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: 0
+  GOMAXPROCS: 2
+  BASELINE_SHA: d35c63c9a9f70806583d8595f0279f78c5dff84f
+
+jobs:
+  paired-load:
+    name: SQLite paired load and 1 GB upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+      - name: Install syscall tracer
+        run: |
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install --yes strace
+      - name: Check out the fixed baseline
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline
+          persist-credentials: false
+      - name: Build identical workload against both implementations
+        run: |
+          mkdir -p baseline/scripts/sqlite-contention
+          cp scripts/sqlite-contention/*.go baseline/scripts/sqlite-contention/
+          go build -p 2 -o "$RUNNER_TEMP/contention-head" ./scripts/sqlite-contention
+          cd baseline
+          go build -p 2 -o "$RUNNER_TEMP/contention-baseline" ./scripts/sqlite-contention
+      - name: Measure on the same runner, sequentially
+        env:
+          EXPERIMENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 scripts/sqlite-contention/run.py \
+            --baseline "$RUNNER_TEMP/contention-baseline" \
+            --head "$RUNNER_TEMP/contention-head" \
+            --baseline-sha "$BASELINE_SHA" --head-sha "$EXPERIMENT_HEAD" \
+            --output "$RUNNER_TEMP/sqlite-contention"
+      - name: Publish experiment summary
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/sqlite-contention/report.md"; then
+            cat "$RUNNER_TEMP/sqlite-contention/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sqlite-contention-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/sqlite-contention/*.json
+            ${{ runner.temp }}/sqlite-contention/*.log
+            ${{ runner.temp }}/sqlite-contention/*.md
+            ${{ runner.temp }}/sqlite-contention/*.strace
+          retention-days: 14
+          if-no-files-found: error
