@@ -7,6 +7,7 @@ import {
 
 import type {
   AgentHeartbeatHistoryResponse,
+  AgentHeartbeatSourceCatalog,
   AgentHeartbeatPayload,
   AgentHeartbeatStatusPayload,
   DeleteAgentHeartbeatParams,
@@ -224,4 +225,27 @@ export async function wakeAgentHeartbeat(
     );
   }
   return requireResponseData(data, response, `Failed to wake heartbeat for "${name}"`);
+}
+
+/** The source kinds and scripts the agent's check-ins can read, and the daemon's limits. */
+export async function fetchAgentHeartbeatSources(
+  name: string,
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  profile?: string
+): Promise<AgentHeartbeatSourceCatalog> {
+  const { data, error, response } = await apiClient.GET("/api/agents/{name}/heartbeat/sources", {
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(
+      defaultApiErrorMessage(`Failed to fetch check-in sources for "${name}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to fetch check-in sources for "${name}"`);
 }

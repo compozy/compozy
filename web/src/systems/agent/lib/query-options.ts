@@ -18,6 +18,7 @@ import {
 import {
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
+  fetchAgentHeartbeatSources,
   fetchAgentHeartbeatStatus,
   type FetchAgentHeartbeatStatusParams,
 } from "../adapters/agent-heartbeat-api";
@@ -320,6 +321,19 @@ export function agentHeartbeatHistoryOptions(
   return queryOptions({
     queryKey: agentKeys.heartbeatHistory(name, workspace, profile),
     queryFn: ({ signal }) => fetchAgentHeartbeatHistory(name, workspace, signal, profile),
+    staleTime: 30_000,
+    enabled: !!name,
+  });
+}
+
+export function agentHeartbeatSourcesOptions(
+  name: string,
+  workspace?: string | null,
+  profile = "default"
+) {
+  return queryOptions({
+    queryKey: agentKeys.heartbeatSources(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentHeartbeatSources(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });

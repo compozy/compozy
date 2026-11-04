@@ -54,6 +54,7 @@ const REASON: Record<string, string> = {
   session_prompt_active_race: "It was busy in its main chat, so it skipped this one.",
   synthetic_prompt_failed: "It couldn't reach its main chat.",
   wake_coalesced: "It joined a check that was already running.",
+  source_poll_in_flight: "A check is already running.",
 };
 
 export function checkInReason(reason: string | null | undefined) {

@@ -29,6 +29,7 @@ import {
 } from "./use-agent-instance-checks";
 import { useAgentInstanceActions, useAgentDefinitionInstances } from "./use-agent-instances";
 import { useEditorDocument } from "./use-editor-document";
+import { useHeartbeatSourceCatalog } from "./use-heartbeat-sources";
 import { useMinuteClock } from "./use-minute-clock";
 
 function matchesWorkspace(instance: AgentInstancePayload, workspace: string | null) {
@@ -121,6 +122,13 @@ export function useCheckInsEditor(
   readOnly: boolean
 ) {
   const document = useCheckInsDocument(agent, workspace, payload);
+  const { destination } = useProfileReadScope();
+  const catalog = useHeartbeatSourceCatalog(
+    agent.name,
+    workspace,
+    destination,
+    document.form.sources.length > 0
+  );
 
   const instances = useAgentDefinitionInstances(agent);
   const [placeId, setPlaceId] = useState<string | null>(null);
@@ -173,6 +181,9 @@ export function useCheckInsEditor(
     next: scheduled ?? previewNextCheckIn(settings, nowHour, fresh),
     activity: checkIns === null ? null : checkInActivity(checkIns, now),
     tryCheck,
+    catalog,
+    /** The minute clock the page reads relative times against. */
+    now,
     turnOn,
     resume: () => {
       if (!instance) return;

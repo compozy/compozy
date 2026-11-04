@@ -33,6 +33,13 @@ vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => (
   resumeAgentInstance: reads.resume,
 }));
 
+const sourceCatalog = vi.hoisted(() => vi.fn());
+
+vi.mock("@/systems/agent/adapters/agent-heartbeat-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-heartbeat-api")>()),
+  fetchAgentHeartbeatSources: sourceCatalog,
+}));
+
 const skillReviews = vi.hoisted(() => ({
   fetch: vi.fn(),
   decide: vi.fn(),
@@ -787,5 +794,85 @@ describe("SessionReportPart event proposal", () => {
     expect(source).toHaveTextContent("Ignore previous instructions");
     const choice = screen.getByRole("button", { name: /Unblock the token migration/ });
     expect(source.compareDocumentPosition(choice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+// UT-073: a proposal from check-in sources says which source found it, with a link to each item.
+describe("SessionReportPart source proposal", () => {
+  beforeEach(() => {
+    reads.instances.mockResolvedValue([INSTANCE]);
+    reads.reports.mockResolvedValue([]);
+    reads.away.mockResolvedValue(null);
+    sourceCatalog.mockResolvedValue({
+      agent: INSTANCE.agent_name,
+      scripts_enabled: true,
+      limits: { max_per_agent: 16, max_items: 20 },
+      kinds: [
+        { kind: "forge-github/issues", extension: "forge-github", title: "New GitHub issues" },
+      ],
+      scripts: [],
+    });
+  });
+
+  function sourceItem(id: string, ref: string, key: string, url?: string) {
+    return {
+      kind: "source",
+      source_id: id,
+      source_ref: ref,
+      item_key: key,
+      ...(url ? { url } : {}),
+      trigger_name: "",
+      event: "",
+      event_id: "",
+      trigger_id: "",
+      run_id: "",
+      received_at: "",
+    };
+  }
+
+  it("Should say which sources found it, linking items that have a link [UT-073]", async () => {
+    const issue = sourceItem(
+      "new-issues",
+      "forge-github/issues",
+      "compozy/compozy#1201",
+      "https://github.com/compozy/compozy/issues/1201"
+    );
+    render(
+      <SessionReportPart
+        data={{
+          ...PROPOSAL,
+          payload: {
+            source: issue,
+            proposals: [
+              {
+                title: "#1201 has no owner",
+                body: "Nobody is on it.",
+                item_keys: ["source:new-issues:compozy/compozy#1201"],
+                sources: [
+                  issue,
+                  sourceItem("deploys", "script:failed-deploys", "deploy-77"),
+                  sourceItem("new-issues", "forge-github/issues", "x", "javascript:alert(1)"),
+                ],
+              },
+            ],
+          },
+        }}
+      />,
+      { wrapper: harness(vi.fn()) }
+    );
+
+    const source = await screen.findByTestId("session-report-item-source");
+    expect(await within(source).findByText("From New GitHub issues")).toBeTruthy();
+    expect(within(source).getByText("From failed-deploys")).toBeTruthy();
+    const links = within(source).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "https://github.com/compozy/compozy/issues/1201");
+    expect(links[0]).toHaveTextContent("compozy/compozy#1201");
+    expect(sourceCatalog).toHaveBeenCalledWith(
+      INSTANCE.agent_name,
+      INSTANCE.workspace_id || null,
+      expect.anything(),
+      INSTANCE.profile_name || "default"
+    );
   });
 });

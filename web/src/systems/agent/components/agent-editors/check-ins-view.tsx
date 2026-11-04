@@ -11,7 +11,7 @@ import {
 } from "@compozy/ui/icons";
 import type { AgentAvatarState } from "@compozy/ui";
 
-import { Button, Empty, MarkdownEditor, Switch, toast } from "@compozy/ui";
+import { Button, Empty, Eyebrow, MarkdownEditor, Switch, toast } from "@compozy/ui";
 
 import type { CheckInsEditorModel } from "../../hooks/use-check-ins-editor";
 import {
@@ -22,9 +22,15 @@ import {
   scheduleSummary,
   type CheckInSettings,
 } from "../../lib/agent-check-in-form";
+import {
+  checkInSourceParams,
+  checkInSourceStatus,
+  checkInSourceTitle,
+} from "../../lib/agent-check-in-sources";
 import { agentEditorMark } from "../../lib/agent-editor-mark";
 import type { AgentPayload } from "../../types";
 import { AgentMark } from "../agent-mark";
+import { CheckInSourceRow } from "./check-in-source-row";
 import { NextCard, RecentCard } from "./check-ins-activity";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
@@ -41,6 +47,34 @@ const LOOKS_AT: readonly { id: string; label: string; icon: LucideIcon }[] = [
   { id: "monitors_fired", label: "Things it was asked to watch", icon: Radar },
   { id: "work_log", label: "Work that never got started", icon: Hourglass },
 ];
+
+/** The file's sources in order, each with how its last read went in the project on the page. */
+function SourceRows({ model }: { model: CheckInsEditorModel }) {
+  const { settings, instance, catalog } = model;
+  const now = model.now.getTime();
+  if (settings.sources.length === 0) return null;
+  const states = instance?.sources ?? [];
+  return (
+    <div className="flex flex-col pt-3">
+      <Eyebrow className="text-subtle">Sources</Eyebrow>
+      <div className="flex flex-col divide-y divide-line-soft">
+        {settings.sources.map(source => {
+          const hash = catalog?.scripts.find(script => script.name === source.script)?.sha256;
+          const state = states.find(item => item.id === source.id);
+          return (
+            <CheckInSourceRow
+              key={source.id}
+              params={checkInSourceParams(source)}
+              script={Boolean(source.script)}
+              status={checkInSourceStatus(source, state, now, hash)}
+              title={checkInSourceTitle(source, catalog)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disabled: boolean }) {
   const { settings, limit, floor, document, nowHour } = model;
@@ -105,6 +139,7 @@ function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disable
             />
           ))}
         </div>
+        <SourceRows model={model} />
       </SettingRow>
       <SettingRow title="Anything else to keep an eye on">
         <MarkdownEditor

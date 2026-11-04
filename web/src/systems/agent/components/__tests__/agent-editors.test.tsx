@@ -406,6 +406,190 @@ describe("Check-ins", () => {
     expect(screen.getByRole("button", { name: "Use theirs" })).toBeTruthy();
   });
 
+  const SOURCES = [
+    {
+      id: "new-issues",
+      kind: "forge-github/issues",
+      with: { repo: "compozy/compozy", exclude_labels: ["wontfix", "duplicate"], backfill: "0s" },
+    },
+    { id: "deploys", script: "failed-deploys", with: { env: "production", retry: { max: 3 } } },
+  ];
+
+  function sourcesPayload(sources: readonly object[] = SOURCES, digest = "beat-1") {
+    const base = heartbeatPayload();
+    return heartbeatPayload({
+      digest,
+      frontmatter: {
+        ...base.frontmatter,
+        context: { include: ["task"], sources },
+      } as AgentHeartbeatPayload["frontmatter"],
+    });
+  }
+
+  function serveSourceCatalog() {
+    server.use(
+      http.get("*/api/agents/:name/heartbeat/sources", () =>
+        HttpResponse.json({
+          agent: agent.name,
+          scripts_enabled: true,
+          limits: { max_per_agent: 16, max_items: 20 },
+          kinds: [
+            { kind: "forge-github/issues", extension: "forge-github", title: "New GitHub issues" },
+          ],
+          scripts: [],
+        })
+      )
+    );
+  }
+
+  it("Should open a file with sources in the form and keep them through a save [UT-070]", async () => {
+    serveHeartbeat(sourcesPayload());
+    serveSourceCatalog();
+    seedAgentInstanceMock([
+      agentInstanceFixture({ agent_name: agent.name, last_wake_at: new Date().toISOString() }),
+    ]);
+    const bodies: string[] = [];
+    server.use(
+      http.put("*/api/agents/:name/heartbeat", async ({ request }) => {
+        const { body } = (await request.json()) as { body: string };
+        bodies.push(body);
+        return HttpResponse.json({ heartbeat: sourcesPayload(SOURCES, "beat-2") });
+      })
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    expect(await screen.findByText("How often")).toBeTruthy();
+    expect(screen.queryByText(/has settings the editor can't show/)).toBeNull();
+    expect(await screen.findByText("New GitHub issues")).toBeTruthy();
+    expect(screen.getByText("failed-deploys")).toBeTruthy();
+
+    await user.click(screen.getByRole("switch", { name: "Tasks that got stuck" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      [
+        "context:",
+        "  include: []",
+        "  sources:",
+        '    - id: "new-issues"',
+        '      kind: "forge-github/issues"',
+        "      with:",
+        '        repo: "compozy/compozy"',
+        '        exclude_labels: ["wontfix","duplicate"]',
+        '        backfill: "0s"',
+        '    - id: "deploys"',
+        '      script: "failed-deploys"',
+        "      with:",
+        '        env: "production"',
+        '        retry: {"max":3}',
+      ].join("\n")
+    );
+  });
+
+  it("Should say how each source last went, never OK before its first read [UT-071]", async () => {
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+    const declared = [
+      { id: "fresh", kind: "forge-github/issues" },
+      { id: "issues", kind: "forge-github/issues", with: { repo: "compozy/compozy" } },
+      { id: "broken", kind: "forge-github/issues" },
+      { id: "deploys", script: "failed-deploys" },
+      { id: "off", kind: "forge-github/pulls" },
+    ];
+    serveHeartbeat(sourcesPayload(declared));
+    serveSourceCatalog();
+    const status = { failure_streak: 0, last_item_count: 0 };
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        last_wake_at: new Date().toISOString(),
+        sources: [
+          { ...status, id: "fresh", status: "pending_first_poll" },
+          {
+            ...status,
+            id: "issues",
+            status: "ok",
+            last_item_count: 1,
+            last_polled_at: minutesAgo(2.5),
+            last_success_at: minutesAgo(2.5),
+          },
+          {
+            ...status,
+            id: "broken",
+            status: "failing",
+            failure_streak: 3,
+            error: { code: "source_credential_expired", detail: "GitHub sign-in expired" },
+          },
+          {
+            ...status,
+            id: "deploys",
+            status: "disabled",
+            error: { code: "source_scripts_disabled", detail: "" },
+          },
+          {
+            ...status,
+            id: "off",
+            status: "unavailable",
+            error: { code: "source_kind_unavailable", detail: "" },
+          },
+        ],
+      }),
+    ]);
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    const rows = await screen.findAllByTestId("check-in-source-row");
+    expect(rows.map(row => row.textContent)).toEqual([
+      expect.stringContaining("Not checked yet"),
+      expect.stringContaining("Checked 2 min ago · 1 new"),
+      expect.stringContaining("Couldn't check: GitHub sign-in expired"),
+      expect.stringContaining("Scripts are turned off"),
+      expect.stringContaining("Extension forge-github is off"),
+    ]);
+    expect(rows[1]).toHaveTextContent("compozy/compozy");
+    expect(rows[0]).not.toHaveTextContent("Checked");
+  });
+
+  it("Should list each source's outcome above what it found, and say a check is running [UT-075]", async () => {
+    serveHeartbeat(sourcesPayload());
+    serveSourceCatalog();
+    seedAgentInstanceMock([
+      agentInstanceFixture({ agent_name: agent.name, last_wake_at: new Date().toISOString() }),
+    ]);
+    server.use(
+      http.post("*/api/agent-instances/:id/check", async ({ request }) => {
+        const { dry_run } = (await request.json()) as { dry_run: boolean };
+        if (!dry_run) return HttpResponse.json({ gate: "source_poll_in_flight" });
+        return HttpResponse.json({
+          gate: "would_run",
+          digest: [{ key: "source:new-issues:compozy/compozy#1201", summary: "#1201 No owner" }],
+          sources: [
+            { id: "new-issues", result: "ok", items: 1, more: false, duration_ms: 412 },
+            {
+              id: "deploys",
+              result: "failing",
+              items: 0,
+              more: false,
+              duration_ms: 9,
+              error: { code: "source_script_failed", detail: "exit status 2" },
+            },
+          ],
+        });
+      })
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    await user.click(await screen.findByRole("button", { name: "Try it now" }));
+
+    const outcomes = await screen.findByRole("list", { name: "Sources" });
+    expect(outcomes.textContent).toContain("1 new");
+    expect(outcomes.textContent).toContain("Couldn't check: exit status 2");
+    const item = screen.getByText("#1201 No owner");
+    expect(outcomes.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Run it for real" }));
+    expect(await screen.findByText("A check is already running.")).toBeTruthy();
+  });
+
   it("Should open a custom schedule in Advanced only", async () => {
     serveHeartbeat(
       heartbeatPayload({

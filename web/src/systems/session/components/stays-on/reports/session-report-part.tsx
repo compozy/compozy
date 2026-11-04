@@ -12,7 +12,9 @@ import {
   agentInstancePausedUnattended,
   agentInstanceCheckInsOptions,
   agentInstanceIndeterminateReportsOptions,
+  checkInSourceRefTitle,
   useAgentInstances,
+  useHeartbeatSourceCatalog,
   type AgentInstancePayload,
 } from "@/systems/agent";
 
@@ -33,7 +35,7 @@ import {
 import { ResumeAction, UnattendedPauseReport } from "./unattended-pause-report";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
 import { RotatedMarker } from "./rotated-marker";
-import { ReportEventSourceLine } from "./report-event-source";
+import { ReportEventSourceLine, ReportItemSourcesLine } from "./report-event-source";
 import { SkillReviewCard } from "./skill-review-card";
 
 const NO_INSTANCE = { id: "", profile_name: "" };
@@ -52,17 +54,45 @@ function AskButton({ prompt, children }: { prompt: string; children: ReactNode }
   );
 }
 
+/** Where a proposal came from: the event behind it, or the check-in source items it cites. */
+function ProposalSource({
+  data,
+  instance,
+}: {
+  data: SessionReportData;
+  instance: AgentInstancePayload | undefined;
+}) {
+  const { source, itemSources } = reportPayload(data);
+  const catalog = useHeartbeatSourceCatalog(
+    instance?.agent_name ?? "",
+    instance?.workspace_id || null,
+    instance?.profile_name || "default",
+    itemSources.length > 0
+  );
+  if (itemSources.length > 0) {
+    return (
+      <ReportItemSourcesLine
+        sources={itemSources}
+        titleOf={group => checkInSourceRefTitle(group.sourceRef, group.sourceId, catalog)}
+      />
+    );
+  }
+  return source ? <ReportEventSourceLine source={source} /> : null;
+}
+
 function Proposal({
   agent,
   data,
+  instance,
   unsure,
 }: {
   agent: ReportAgent;
   data: SessionReportData;
+  instance: AgentInstancePayload | undefined;
   unsure: boolean;
 }) {
   const send = use(SessionReportSendContext);
-  const { proposals, source } = reportPayload(data);
+  const { proposals, source, itemSources } = reportPayload(data);
   const picked = useAuiState(state =>
     pickedProposal(state.thread.messages, proposals, data.created_at)
   );
@@ -78,7 +108,11 @@ function Proposal({
       chosen={picked}
       footnote={unsure ? MAYBE_NOT_PICKED(agent.label) : undefined}
       onChoose={send ? choice => send(choice.title) : undefined}
-      source={source ? <ReportEventSourceLine source={source} /> : undefined}
+      source={
+        source || itemSources.length > 0 ? (
+          <ProposalSource data={data} instance={instance} />
+        ) : undefined
+      }
       when={reportClock(data.created_at)}
     />
   );
@@ -276,7 +310,7 @@ function ReportBody({
           when={reportClock(data.created_at)}
         />
       ) : (
-        <Proposal agent={agent} data={data} unsure={unsure} />
+        <Proposal agent={agent} data={data} instance={instance} unsure={unsure} />
       );
     }
     case "failure":

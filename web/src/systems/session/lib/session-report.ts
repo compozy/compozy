@@ -15,11 +15,24 @@ export interface ReportEventSource {
   summary?: string;
 }
 
+/**
+ * One item a check-in source returned that a proposal cites (`kind:"source"`). `sourceRef` is the
+ * kind or `script:<name>`; `url` is kept only when it is an http(s) link.
+ */
+export interface ReportItemSource {
+  sourceId: string;
+  sourceRef: string;
+  itemKey: string;
+  url?: string;
+}
+
 export interface ReportPayload {
   proposals: ReportProposal[];
   /** A proposed skill's review (S9); the card offers Review, not pick. */
   skillReviewId?: string;
   source?: ReportEventSource;
+  /** Every source item the proposals cite, in order, without repeats. */
+  itemSources: ReportItemSource[];
   detail?: string;
   sessionId?: string;
   tool?: string;
@@ -57,6 +70,49 @@ function eventSource(value: unknown): ReportEventSource | undefined {
   return { triggerName: triggerName ?? "", event: event ?? "", summary: text(raw.summary) };
 }
 
+function webLink(value: unknown) {
+  const url = text(value);
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function itemSource(value: unknown): ReportItemSource | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const raw = value as Record<string, unknown>;
+  const sourceId = text(raw.source_id);
+  if (raw.kind !== "source" || !sourceId) return undefined;
+  return {
+    sourceId,
+    sourceRef: text(raw.source_ref) ?? "",
+    itemKey: text(raw.item_key) ?? "",
+    url: webLink(raw.url),
+  };
+}
+
+/** The report's own source, then each proposal's, once each. */
+function itemSources(raw: Record<string, unknown>, proposals: readonly unknown[]) {
+  const candidates = [
+    raw.source,
+    ...proposals.flatMap(item => {
+      const sources = (item as { sources?: unknown } | null)?.sources;
+      return Array.isArray(sources) ? sources : [];
+    }),
+  ];
+  const seen = new Set<string>();
+  return candidates.flatMap(candidate => {
+    const source = itemSource(candidate);
+    const key = source ? `${source.sourceId}\u0000${source.itemKey}` : "";
+    if (!source || seen.has(key)) return [];
+    seen.add(key);
+    return [source];
+  });
+}
+
 /** The bounded per-kind payload, read defensively: a malformed field reads as absent. */
 export function reportPayload(data: SessionReportData): ReportPayload {
   const raw = (
@@ -70,6 +126,7 @@ export function reportPayload(data: SessionReportData): ReportPayload {
     }),
     skillReviewId: text(raw.skill_review_id),
     source: eventSource(raw.source),
+    itemSources: itemSources(raw, proposals),
     detail: text(raw.detail) ?? text(raw.reason),
     reason: text(raw.reason),
     cause: text(raw.cause),

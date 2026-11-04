@@ -129,6 +129,8 @@ export function checkInsModelFixture(
       ],
     },
     tryCheck: { state: { phase: "idle" }, tryIt: fn(), runForReal: fn(), reset: fn() },
+    catalog: null,
+    now: new Date("2026-11-01T14:12:00Z"),
     turnOn: fn(),
     resume: fn(),
     ...overrides,

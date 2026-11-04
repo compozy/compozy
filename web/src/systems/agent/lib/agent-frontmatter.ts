@@ -1,7 +1,7 @@
 /**
- * The small YAML subset SOUL.md and HEARTBEAT.md use: mappings, lists and plain or quoted
- * scalars. There's no YAML library in `web`, and the forms only need this much. Anything
- * outside it reads as `null`, so a file the subset can't hold stays in Advanced, untouched.
+ * The small YAML subset SOUL.md and HEARTBEAT.md use: mappings, lists, plain or quoted scalars
+ * and JSON flow values. There's no YAML library in `web`, and the forms only need this much.
+ * Anything outside it reads as `null`, so a file the subset can't hold stays in Advanced, untouched.
  */
 export type FrontmatterValue =
   | string
@@ -28,10 +28,23 @@ function parseFlowList(text: string): FrontmatterValue[] {
   );
 }
 
+function parseJsonFlow(text: string): FrontmatterValue | undefined {
+  try {
+    return JSON.parse(text) as FrontmatterValue;
+  } catch {
+    return undefined;
+  }
+}
+
 function parseScalar(text: string): FrontmatterValue {
   if (text === "" || text === "null" || text === "~") return null;
   if (text === "true") return true;
   if (text === "false") return false;
+  // JSON is valid YAML flow, and is how the forms write nested values such as a source's `with`.
+  if (/^[[{]/.test(text)) {
+    const json = parseJsonFlow(text);
+    if (json !== undefined) return json;
+  }
   if (text.startsWith("[") && text.endsWith("]")) return parseFlowList(text);
   if (text.startsWith('"')) {
     try {
