@@ -278,10 +278,12 @@ async function createAlwaysOnAgent(
     .locator('[contenteditable="true"]')
     .fill("Watch the repository and report what needs attention.");
 
+  // A runtime available in both scopes survives switching to Always-on's global scope.
   const alwaysOn = appPage.getByTestId("agent-create-kind-always-on");
   await expect(alwaysOn).toContainText("Always-on");
   await expect(appPage.getByTestId("agent-create-kind-on-demand")).toContainText("On-demand");
   await alwaysOn.click();
+  await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
   await appPage.getByTestId("agent-create-where").click();
   await appPage.getByText("Decide later", { exact: true }).click();
   await expect(appPage.getByTestId("agent-create-where")).toContainText("Decide later");
@@ -299,10 +301,23 @@ async function createAlwaysOnAgent(
   const createRequest = appPage.waitForRequest(
     request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"
   );
+  const createResponse = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/agents"
+  );
   await appPage.getByTestId("submit-agent-create").click();
   expect((await createRequest).postDataJSON()).toMatchObject({
-    agent: { name, kind: "always_on", ...(level ? { permissions: level } : {}) },
+    scope: "global",
+    agent: {
+      name,
+      kind: "always_on",
+      provider: mockAgentProvider,
+      model: reasoningCatalogModel,
+      ...(level ? { permissions: level } : {}),
+    },
   });
+  const response = await createResponse;
+  expect(response.ok(), await response.text()).toBe(true);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${name}`);
 }
 

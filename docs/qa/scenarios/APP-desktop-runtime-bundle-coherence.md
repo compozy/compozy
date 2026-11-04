@@ -30,3 +30,10 @@ the cached shell heuristically, so the new runtime's cards never loaded. The run
 shell and unversioned public files `no-cache`, and the product window loads the shell with
 `pragma: no-cache` so a shell cached by an older runtime is also skipped. Re-walk an N → N+1 update
 and confirm the reopened app requests the new `assets/index-*.js`.
+
+2026-11-03 cache retest: use a throwaway desktop home with an HTTP cache above 256 MiB.
+Launch twice and confirm the oversized HTTP cache is cleared asynchronously on the first launch,
+then kept under the Chromium 256 MiB limit (allowing eviction slack). Seed and re-read IndexedDB,
+localStorage, cookies and persisted window/layout state across both launches. Cleanup uses only
+`Session.clearCache()`. Code Cache (64 MB in the incident) and GPU caches (under 12 MB combined)
+remain Chromium-managed and are outside this HTTP-only budget. Daemon response headers are unchanged.

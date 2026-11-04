@@ -27,6 +27,7 @@ import {
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
 import { sessionCatalogStreamsLogic } from "../session-catalog-streams-store";
+import { sessionBoardPageOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 
 vi.mock("../../adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-api")>()),
@@ -410,6 +411,115 @@ describe("useSessionCatalogStreams", () => {
       { cancelRefetch: false }
     );
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: sessionKeys.byIdRoot("") });
+  });
+
+  it("Should reconcile only catalog scopes that can contain the changed session", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const keys = [
+      sessionBoardPageOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey,
+      sessionFacetsOptions({ workspace_id: "ws_alpha", profile: "marketing" }).queryKey,
+      sessionBoardPageOptions({ workspace_ids: ["ws_beta"], all_profiles: true }).queryKey,
+      sessionFacetsOptions({ profile: "default" }).queryKey,
+    ];
+    const reads = keys.map(() => vi.fn(async () => []));
+    const observers = keys.map(
+      (queryKey, index) =>
+        new QueryObserver(queryClient, {
+          queryKey,
+          queryFn: reads[index]!,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        })
+    );
+    const unsubscribe = observers.map(observer => observer.subscribe(() => {}));
+    let source: FakeCatalogEventSource;
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams({
+          eventSourceFactory: url => (source = new FakeCatalogEventSource(url)),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    await act(async () => {
+      for (let index = 0; index < 30; index++)
+        source.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: "ws_alpha",
+          profile_name: "default",
+          session_id: `sess_${index}`,
+        });
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(reads[0]).toHaveBeenCalled();
+    expect(reads[1]).not.toHaveBeenCalled();
+    expect(reads[2]).not.toHaveBeenCalled();
+    expect(reads[3]).toHaveBeenCalled();
+    await act(async () => source.emit("open"));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(reads[1]).toHaveBeenCalled();
+    expect(reads[2]).toHaveBeenCalled();
+    unmount();
+    for (const stop of unsubscribe) stop();
+    queryClient.clear();
+  });
+
+  it("Should keep workspace and profile paired across a coalesced catalog wake", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const keys = [
+      sessionBoardPageOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey,
+      sessionBoardPageOptions({ workspace_id: "ws_alpha", profile: "marketing" }).queryKey,
+      sessionFacetsOptions({ workspace_id: "ws_beta", profile: "default" }).queryKey,
+      sessionFacetsOptions({ workspace_id: "ws_beta", profile: "marketing" }).queryKey,
+      sessionKeys.folders("ws_alpha", "default"),
+      sessionKeys.folders("ws_alpha", "marketing"),
+      sessionKeys.folders("ws_beta", "default"),
+      sessionKeys.folders("ws_beta", "marketing"),
+    ];
+    const reads = keys.map(() => vi.fn(async () => []));
+    const observers = keys.map(
+      (queryKey, index) =>
+        new QueryObserver(queryClient, {
+          queryKey,
+          queryFn: reads[index]!,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        })
+    );
+    const unsubscribe = observers.map(observer => observer.subscribe(() => {}));
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      {
+        wrapper: wrapper(queryClient),
+      }
+    );
+    await act(async () => source.emit("open"));
+    for (const read of reads) read.mockClear();
+    await act(async () => {
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_alpha",
+        profile_name: "default",
+        session_id: "sess_alpha",
+      });
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_beta",
+        profile_name: "marketing",
+        session_id: "sess_beta",
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    for (const index of [0, 3, 4, 7]) expect(reads[index]).toHaveBeenCalledTimes(1);
+    for (const index of [1, 2, 5, 6]) expect(reads[index]).not.toHaveBeenCalled();
+    unmount();
+    for (const stop of unsubscribe) stop();
+    queryClient.clear();
   });
 
   // #1044: a project-folder change names no workspace or session; only the layout rereads.

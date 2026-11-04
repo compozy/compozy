@@ -105,3 +105,11 @@ walked by hover. Existing SessionList and intent-hook suites own these boundarie
 Real-daemon sidebar selection and matching transcript evidence are recorded in
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`; the full modal derive/delete
 journey remains separate from this loading slice.
+
+QA impact 2026-11-03 (#1244 review follow-up): an upsert/delete with an empty workspace ID
+must refresh the User catalog and aggregate catalogs without invalidating project catalogs.
+A transcript delta suppressed within the five-second freshness window does not schedule
+a trailing catalog read: a quiet visible board relies on its existing sixty-second periodic
+reread, while a later delta outside the window may refresh it sooner. Focused query tests
+cover scope invalidation and the absence of a trailing live-tail refresh. A real catalog/board
+walk remains CI-owned under the host-overload restriction for this fix.

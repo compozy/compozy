@@ -49,6 +49,7 @@ func extensionResourceSnapshots(
 		return strings.Compare(left.Name, right.Name)
 	})
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos))
+	var failures []error
 	for infoIndex := range infos {
 		if !infos[infoIndex].Enabled {
 			continue
@@ -58,13 +59,17 @@ func extensionResourceSnapshots(
 			continue
 		}
 		if loadErr != nil {
-			return nil, loadErr
+			failures = append(failures, loadErr)
+			continue
 		}
 		snapshots = append(snapshots, snapshot)
 	}
 
 	development, err := workspaceExtensionResourceSnapshots(registry, runtime, logger)
-	return append(snapshots, development...), err
+	if err != nil && !isExtensionProjectionError(err) {
+		return nil, err
+	}
+	return append(snapshots, development...), joinExtensionProjectionErrors(newExtensionProjectionError(failures), err)
 }
 
 func installedDefaultProfileResourceSnapshot(
@@ -107,6 +112,7 @@ func workspaceExtensionResourceSnapshots(
 	logger *slog.Logger,
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0)
+	var failures []error
 
 	keys, err := workspaceExtensionKeys(context.Background(), registry)
 	if err != nil {
@@ -136,12 +142,13 @@ func workspaceExtensionResourceSnapshots(
 				}
 				continue
 			}
-			return nil, fmt.Errorf(
+			failures = append(failures, fmt.Errorf(
 				"daemon: load workspace extension %q for workspace %q resource sync: %w",
 				key.Name,
 				key.WorkspaceID,
 				loadErr,
-			)
+			))
+			continue
 		}
 		if ext == nil || strings.TrimSpace(ext.Status.WorkspaceID) != key.WorkspaceID {
 			if logger != nil {
@@ -161,7 +168,7 @@ func workspaceExtensionResourceSnapshots(
 			},
 		})
 	}
-	return snapshots, nil
+	return snapshots, newExtensionProjectionError(failures)
 }
 
 func extensionResourceSnapshotsForProfiles(
@@ -214,15 +221,15 @@ func extensionProfileResourceSnapshots(
 		activeProfiles = activeExtensionProfileLenses(profileRows)
 	}
 
-	snapshots, err := installedExtensionProfileSnapshots(ctx, projector, infos, activeProfiles)
-	if err != nil {
-		return nil, err
+	snapshots, installedErr := installedExtensionProfileSnapshots(ctx, projector, infos, activeProfiles)
+	if installedErr != nil && !isExtensionProjectionError(installedErr) {
+		return nil, installedErr
 	}
 	development, err := workspaceExtensionProfileSnapshots(ctx, registry, projector, activeProfiles)
-	if err != nil {
+	if err != nil && !isExtensionProjectionError(err) {
 		return nil, err
 	}
-	return append(snapshots, development...), nil
+	return append(snapshots, development...), joinExtensionProjectionErrors(installedErr, err)
 }
 
 func installedExtensionProfileSnapshots(
@@ -232,6 +239,7 @@ func installedExtensionProfileSnapshots(
 	profiles []extensionpkg.ProfileLens,
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos)*len(profiles))
+	var failures []error
 	for infoIndex := range infos {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
@@ -243,11 +251,15 @@ func installedExtensionProfileSnapshots(
 				continue
 			}
 			if projectErr != nil {
-				return nil, fmt.Errorf(
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				failures = append(failures, fmt.Errorf(
 					"daemon: project installed extension %q for profile %q: %w", infos[infoIndex].Name,
 					profile.Name,
 					projectErr,
-				)
+				))
+				continue
 			}
 			if !enabled {
 				continue
@@ -262,7 +274,7 @@ func installedExtensionProfileSnapshots(
 			})
 		}
 	}
-	return snapshots, nil
+	return snapshots, newExtensionProjectionError(failures)
 }
 
 func workspaceExtensionProfileSnapshots(
@@ -276,6 +288,7 @@ func workspaceExtensionProfileSnapshots(
 		return nil, err
 	}
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(keys)*len(profiles))
+	var failures []error
 	for _, key := range keys {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
@@ -287,13 +300,17 @@ func workspaceExtensionProfileSnapshots(
 				continue
 			}
 			if projectErr != nil {
-				return nil, fmt.Errorf(
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				failures = append(failures, fmt.Errorf(
 					"daemon: project workspace extension %q for workspace %q and profile %q: %w",
 					key.Name,
 					key.WorkspaceID,
 					profile.Name,
 					projectErr,
-				)
+				))
+				continue
 			}
 			if !enabled || extension == nil || strings.TrimSpace(extension.Status.WorkspaceID) != key.WorkspaceID {
 				continue
@@ -308,7 +325,7 @@ func workspaceExtensionProfileSnapshots(
 			})
 		}
 	}
-	return snapshots, nil
+	return snapshots, newExtensionProjectionError(failures)
 }
 
 func activeExtensionProfileLenses(
@@ -370,4 +387,39 @@ func workspaceExtensionKeys(ctx context.Context, registry *extensionpkg.Registry
 		return strings.Compare(a.WorkspaceID, b.WorkspaceID)
 	})
 	return keys, nil
+}
+
+// Failed instances withdraw their resources without blocking healthy projections.
+type extensionProjectionError struct {
+	failures []error
+}
+
+func newExtensionProjectionError(failures []error) error {
+	if len(failures) == 0 {
+		return nil
+	}
+	return &extensionProjectionError{failures: slices.Clone(failures)}
+}
+
+func (e *extensionProjectionError) Error() string {
+	return errors.Join(e.failures...).Error()
+}
+
+func (e *extensionProjectionError) Unwrap() []error {
+	return e.failures
+}
+
+func isExtensionProjectionError(err error) bool {
+	_, ok := errors.AsType[*extensionProjectionError](err)
+	return ok
+}
+
+func joinExtensionProjectionErrors(errs ...error) error {
+	var failures []error
+	for _, err := range errs {
+		if projection, ok := errors.AsType[*extensionProjectionError](err); ok {
+			failures = append(failures, projection.failures...)
+		}
+	}
+	return newExtensionProjectionError(failures)
 }

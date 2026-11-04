@@ -8,9 +8,11 @@
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import * as api from "../../adapters/cmd-palette-api";
 import { CmdPaletteApiError } from "../../adapters/cmd-palette-api";
@@ -20,6 +22,7 @@ import {
   writeCatalogRecord,
 } from "../../lib/cmd-palette-catalog-cache";
 import { toCatalogRecord } from "../../lib/cmd-palette-catalog-record";
+import { cmdPaletteKeys } from "../../lib/cmd-palette-query-keys";
 import type { CmdPaletteCatalogResponse } from "../../lib/cmd-palette-types";
 import { useCmdPaletteCatalog } from "../use-cmd-palette-catalog";
 
@@ -85,6 +88,8 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    resetProfileViews();
     vi.restoreAllMocks();
   });
 
@@ -134,6 +139,121 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
       expect(command).not.toHaveProperty("reason");
     }
   });
+
+  it("Should coalesce served catalog revisions into one durable write", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const put = vi.spyOn(IDBObjectStore.prototype, "put");
+    vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() => new Promise(() => {}));
+    const { result, queryClient, unmount } = harness();
+    await act(async () => {
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+        catalog("sha256:first", ["First"])
+      );
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.daemonReachable).toBe(true);
+    for (const revision of ["second", "third", "final"]) {
+      await act(async () => {
+        queryClient.setQueryData(
+          cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+          catalog(`sha256:${revision}`, [revision])
+        );
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    }
+    expect(put).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    await act(async () => {
+      expect((await readCatalogRecord(WORKSPACE, "default"))?.catalogRevision).toBe("sha256:final");
+    });
+    expect(put).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each(["workspace", "profile", "unmount", "pagehide"] as const)(
+    "Should persist the final pending catalog when leaving by %s",
+    async transition => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const put = vi.spyOn(IDBObjectStore.prototype, "put");
+      vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() => new Promise(() => {}));
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+        catalog("sha256:final-pending", ["Final pending"])
+      );
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { rerender, unmount } = renderHook(
+        ({ workspaceId }) => useCmdPaletteCatalog({ workspaceId, clientId: CLIENT }),
+        { wrapper, initialProps: { workspaceId: WORKSPACE } }
+      );
+      expect(put).not.toHaveBeenCalled();
+      await act(async () => {
+        if (transition === "workspace") rerender({ workspaceId: OTHER_WORKSPACE });
+        else if (transition === "profile")
+          setProfileView({ kind: "profile", profile: "marketing" });
+        else if (transition === "pagehide") window.dispatchEvent(new Event("pagehide"));
+        else unmount();
+      });
+      await act(async () => {
+        await expect(readCatalogRecord(WORKSPACE, "default")).resolves.toMatchObject({
+          catalogRevision: "sha256:final-pending",
+          workspaceId: WORKSPACE,
+          profileKey: "default",
+        });
+      });
+      expect(put).toHaveBeenCalledTimes(1);
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(put).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
+  it.each(["pending", "failed"] as const)(
+    "Should persist the pending catalog when the attached client read stays %s",
+    async outcome => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const put = vi.spyOn(IDBObjectStore.prototype, "put");
+      vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() =>
+        outcome === "failed"
+          ? Promise.reject(new CmdPaletteApiError("Unavailable", 503, "daemon"))
+          : new Promise(() => {})
+      );
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", null),
+        catalog("sha256:before-attachment", ["Workspace row"])
+      );
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { rerender, unmount } = renderHook(
+        ({ clientId }) => useCmdPaletteCatalog({ workspaceId: WORKSPACE, clientId }),
+        { wrapper, initialProps: { clientId: null as string | null } }
+      );
+      expect(put).not.toHaveBeenCalled();
+      await act(async () => {
+        rerender({ clientId: CLIENT });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
+      });
+      await act(async () => {
+        await expect(readCatalogRecord(WORKSPACE, "default")).resolves.toMatchObject({
+          catalogRevision: "sha256:before-attachment",
+          workspaceId: WORKSPACE,
+          profileKey: "default",
+        });
+      });
+      expect(put).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
 
   it("Should carry a catalog only across client attachment in the same workspace", async () => {
     let releaseClientCatalog: (value: CmdPaletteCatalogResponse) => void = () => {};

@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"errors"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
@@ -109,7 +110,7 @@ func (r *Registry) ApplyConfigGeneration(
 	}
 	r.cfg = cloneRegistryConfig(*r.pendingConfig)
 	r.clearPendingConfigGenerationLocked()
-	r.globalSnapshots = filesnap.Clone(snapshots)
+	r.globalSnapshots, r.globalSnapshotRoots = filesnap.Clone(snapshots), slices.Clone(r.cfg.GlobalSkillRoots)
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalSkills = loaded
 	r.bundledRuntimeSkills = bundledRuntimeSkillsFromCandidates(commandCandidates)
@@ -188,16 +189,22 @@ func cloneWorkspaceDiagnosticMap(source map[string][]SkillDiagnostic) map[string
 }
 
 func (r *Registry) registryConfigSnapshot(ctx context.Context) RegistryConfig {
+	cfg, _ := r.registryConfigSnapshotWithGeneration(ctx)
+	return cfg
+}
+
+// Capture configuration and its publication fence under the same lock.
+func (r *Registry) registryConfigSnapshotWithGeneration(ctx context.Context) (RegistryConfig, int64) {
 	if r == nil {
-		return RegistryConfig{}
+		return RegistryConfig{}, 0
 	}
 	generation := ConfigGenerationFromContext(ctx)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if generation > 0 && generation == r.pendingGeneration && r.pendingConfig != nil {
-		return cloneRegistryConfig(*r.pendingConfig)
+		return cloneRegistryConfig(*r.pendingConfig), generation
 	}
-	return cloneRegistryConfig(r.cfg)
+	return cloneRegistryConfig(r.cfg), r.configGeneration.Load()
 }
 
 func cloneRegistryConfig(cfg RegistryConfig) RegistryConfig {

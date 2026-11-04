@@ -7,7 +7,6 @@ import {
   invalidateAgentInstances,
   type AgentInstanceWirePayload,
 } from "@/systems/agent";
-import { notificationKeys } from "@/systems/notifications";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
@@ -15,7 +14,10 @@ import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles
 
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
-import { createSessionReadReconciler } from "./session-catalog-reconciliation";
+import {
+  createCatalogReconciler,
+  createSessionReadReconciler,
+} from "./session-catalog-reconciliation";
 import type {
   OperatorNotificationEventPayload,
   SessionAttentionEventPayload,
@@ -119,100 +121,6 @@ export interface SessionCatalogStreamHandlers {
   onOperatorNotification?: (notification: OperatorNotificationEventPayload) => void;
 }
 
-// One wake window per stream, independent of the number of lifecycle/attention frames.
-// An in-flight read is allowed to finish; cancelling it on every frame amplified
-// one background transition into repeated full-catalog walks.
-function createCatalogReconciler(queryClient: QueryClient) {
-  const workspaces = new Set<string>();
-  const pending = new Set<string>();
-  let lastRead = -Infinity;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let focused = true;
-  const visible = () =>
-    focused && (typeof document === "undefined" || document.visibilityState !== "hidden");
-  const flush = () => {
-    timer = undefined;
-    if ((workspaces.size === 0 && pending.size === 0) || !visible()) return;
-    lastRead = Date.now();
-    const hashes = new Set(pending);
-    pending.clear();
-    const prefixes = [
-      ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
-      ...(workspaces.size > 0
-        ? [
-            sessionKeys.attentionSummary(),
-            notificationKeys.attentionRoot(),
-            sessionKeys.processesLeftRunning(),
-          ]
-        : []),
-    ];
-    workspaces.clear();
-    for (const queryKey of prefixes) {
-      for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
-        hashes.delete(query.queryHash);
-      }
-    }
-    // A retry retains only blocked identities. Healthy siblings require a new wake.
-    const predicate = (query: {
-      queryHash: string;
-      state: { status: string; errorUpdatedAt: number; fetchStatus: string };
-      getObserversCount: () => number;
-    }) => {
-      const blocked =
-        query.getObserversCount() > 0 &&
-        (query.state.fetchStatus === "fetching" ||
-          (query.state.status === "error" && Date.now() - query.state.errorUpdatedAt < 30_000));
-      if (blocked) pending.add(query.queryHash);
-      return !blocked;
-    };
-    for (const queryKey of prefixes) {
-      void queryClient.invalidateQueries({ queryKey, predicate }, { cancelRefetch: false });
-    }
-    if (hashes.size > 0) {
-      void queryClient.invalidateQueries(
-        { predicate: query => hashes.has(query.queryHash) && predicate(query) },
-        { cancelRefetch: false }
-      );
-    }
-    schedule();
-  };
-  const schedule = () => {
-    if (timer !== undefined || !visible() || (workspaces.size === 0 && pending.size === 0)) return;
-    const delay = Math.max(0, 5_000 - (Date.now() - lastRead));
-    if (delay === 0) flush();
-    else timer = setTimeout(flush, delay);
-  };
-  const onVisibility = () => schedule();
-  const onFocus = () => {
-    focused = true;
-    schedule();
-  };
-  const onBlur = () => {
-    focused = false;
-  };
-  if (typeof window !== "undefined") {
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
-  }
-  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
-  return {
-    wake(workspace?: string) {
-      workspaces.add("");
-      if (workspace !== undefined) workspaces.add(workspace);
-      schedule();
-    },
-    close() {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("focus", onFocus);
-        window.removeEventListener("blur", onBlur);
-      }
-      if (timer !== undefined) clearTimeout(timer);
-      if (typeof document !== "undefined")
-        document.removeEventListener("visibilitychange", onVisibility);
-    },
-  };
-}
-
 /** Trailing window for a parent's cold subagent list re-read. */
 export const SUBAGENT_LIST_WAKE_MS = 1_000;
 
@@ -314,7 +222,7 @@ function openSessionCatalogStream(
     const payload = parseSessionCatalogEvent(event);
     if (!payload) return;
     markLive();
-    reconciler.wake(payload.workspace_id);
+    reconciler.wake(payload.workspace_id, payload);
     if (payload.kind === "layout") {
       const ids = new Set<string>();
       for (const query of queryClient.getQueryCache().findAll({ queryKey: sessionKeys.all })) {
@@ -357,7 +265,7 @@ function openSessionCatalogStream(
     ]);
     if (!payload) return;
     markLive();
-    reconciler.wake(payload.workspace_id);
+    reconciler.wake(payload.workspace_id, payload);
     sessionReads.wake(payload.session_id);
     handlers.onAttentionEdge?.(payload);
   };

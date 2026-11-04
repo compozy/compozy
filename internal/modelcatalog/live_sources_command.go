@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -145,10 +146,16 @@ func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
 	if strings.TrimSpace(req.Command) == "" {
 		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command is required")
 	}
+	env := append([]string(nil), req.Env...)
+	dir := strings.TrimSpace(req.Dir)
+	executable, resolveErr := subprocess.ResolveExecutable(req.Command, env, dir)
+	if resolveErr != nil {
+		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: resolve discovery executable: %w", resolveErr)
+	}
 	// #nosec G204 -- discovery commands come from validated provider model discovery config.
-	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
-	cmd.Dir = strings.TrimSpace(req.Dir)
-	cmd.Env = append([]string(nil), req.Env...)
+	cmd := exec.CommandContext(ctx, executable, req.Args...)
+	cmd.Dir = dir
+	cmd.Env = env
 	// Use a regular file for stdout. Native CLIs can exit before asynchronous
 	// pipe writes drain (observed with large OpenCode --verbose catalogs).
 	// A file descriptor avoids publishing a successful but truncated generation.

@@ -132,15 +132,7 @@ export function updateAgentCreateScope(
   scope: AgentCreateScope
 ): AgentCreateDialogDraft {
   if (draft.scope === scope) return draft;
-  return {
-    ...draft,
-    scope,
-    provider: "",
-    model: "",
-    reasoningEffort: "",
-    speed: "",
-    acpOptions: undefined,
-  };
+  return { ...draft, scope };
 }
 
 export function appendAgentCreateTokens(current: readonly string[], rawInput: string): string[] {

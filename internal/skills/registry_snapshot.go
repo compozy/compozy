@@ -19,9 +19,10 @@ import (
 
 func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {
 	for _, skillPath := range paths {
+		skillDir := filepath.Dir(skillPath)
 		for _, sidecarPath := range []string{
-			filepath.Join(filepath.Dir(skillPath), sidecarFileName),
-			filepath.Join(filepath.Dir(skillPath), compozyconfig.MCPJSONName),
+			filepath.Join(skillDir, sidecarFileName),
+			filepath.Join(skillDir, compozyconfig.MCPJSONName),
 		} {
 			snapshot, err := filesnap.FromPath(sidecarPath)
 			if err != nil {
@@ -34,9 +35,33 @@ func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapsh
 
 			snapshots[sidecarPath] = snapshot
 		}
+		if _, hasProvenance := snapshots[filepath.Join(skillDir, sidecarFileName)]; hasProvenance {
+			recordSkillPayloadSnapshots(skillDir, snapshots)
+		}
 	}
 
 	return nil
+}
+
+// Marketplace verification hashes the whole payload, so auxiliary edits must invalidate discovery too.
+func recordSkillPayloadSnapshots(skillDir string, snapshots map[string]filesnap.Snapshot) {
+	// The callback handles entry errors so healthy payloads remain discoverable.
+	err := filepath.WalkDir(skillDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			snapshots[path] = filesnap.Uncacheable()
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			snapshots[path] = filesnap.Uncacheable()
+			return nil
+		}
+		snapshots[path] = filesnap.FromInfo(path, info)
+		return nil
+	})
+	if err != nil {
+		snapshots[skillDir] = filesnap.Uncacheable()
+	}
 }
 
 func hasCriticalWarning(warnings []Warning) bool {

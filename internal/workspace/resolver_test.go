@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,37 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
+
+func TestResolveErrorLogging(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+		warn bool
+	}{
+		{"Should omit cancellation from warning logs", context.Canceled, false},
+		{"Should retain genuine resolution failures", errors.New("unable to open database file"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs strings.Builder
+			r := newTestResolver(
+				t,
+				&mockWorkspaceStore{},
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
+			id, hit, resolved := "ws-test", false, ResolvedWorkspace{}
+			r.observeResolve(r.now(), &id, &hit, &resolved, &tc.err)
+			level := "level=DEBUG"
+			if tc.warn {
+				level = "level=WARN"
+			}
+			if !strings.Contains(logs.String(), "workspace.resolve.error") || !strings.Contains(logs.String(), level) {
+				t.Fatalf("expected resolution error at %s: %s", level, logs.String())
+			}
+		})
+	}
+}
 
 func TestResolveRoutesByIdentifierType(t *testing.T) {
 	t.Parallel()

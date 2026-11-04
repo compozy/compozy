@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,6 +44,7 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	status, err = requestErrorStatus(c, status, err)
 	if c.Request != nil {
 		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, gateway.ErrDeviceRevoked) {
 			RespondAppTokenError(c, err, true)
@@ -61,6 +63,14 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 			normalized.maskInternalErrors,
 		),
 	)
+}
+
+func requestErrorStatus(c *gin.Context, status int, err error) (int, error) {
+	if errors.Is(err, context.Canceled) ||
+		(c != nil && c.Request != nil && errors.Is(c.Request.Context().Err(), context.Canceled)) {
+		return statusClientClosedRequest, context.Canceled
+	}
+	return status, err
 }
 
 // ErrorPayloadForError builds a redacted error payload for stream frames and other non-status envelopes.
@@ -83,6 +93,9 @@ func ErrorPayloadForStatus(status int, err error, maskInternalErrors bool) contr
 }
 
 func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normalizedErrorStatus {
+	if errors.Is(err, context.Canceled) {
+		return normalizedErrorStatus{status: statusClientClosedRequest, err: err}
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		status = http.StatusUnprocessableEntity
 		maskInternalErrors = false
@@ -286,6 +299,7 @@ func StatusForAutomationError(err error) int {
 
 // RespondOpenAIError writes an OpenAI-compatible error response envelope.
 func RespondOpenAIError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	status, err = requestErrorStatus(c, status, err)
 	message := http.StatusText(status)
 	switch {
 	case maskInternalErrors && status >= http.StatusInternalServerError:

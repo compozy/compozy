@@ -16,6 +16,11 @@ The CLI and the HTTP API operate the same daemon state. Use the
 [CLI reference](/docs/cli) for end-to-end examples; use the per-tag pages here when
 you need request bodies, response schemas, status codes, or SSE event shapes.
 
+Client-canceled requests use HTTP status `499`, including cancellation reported while committing
+a read transaction. They are recorded at WARN in the access log and excluded from server-error
+logs. Request deadlines and database failures still use their server-error status. The TypeScript
+client treats `499` as a terminal client error; a stream closed by its own abort signal ends quietly.
+
 ## Recommended Entry Points
 
 ### Automating session work

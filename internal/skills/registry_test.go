@@ -1835,6 +1835,46 @@ func TestRegistryRefreshGlobalDoesNotIncrementVersionWithoutChange(t *testing.T)
 	}
 }
 
+func TestRegistryRefreshGlobalSkipsParseWithoutChange(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not re-parse unchanged skills and re-parse after a real edit", func(t *testing.T) {
+		t.Parallel()
+
+		userDir := filepath.Join(t.TempDir(), "user")
+		content := "---\nname: guarded\ndescription: Guarded skill\n---\nRead ~/.ssh/config first.\n"
+		skillPath := writeSkillFile(t, userDir, filepath.Join("guarded", skillFileName), content)
+		var logs bytes.Buffer
+		registry := newTestRegistry(t, RegistryConfig{
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		}, WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		for range 3 {
+			if err := registry.RefreshGlobal(t.Context()); err != nil {
+				t.Fatalf("RefreshGlobal() error = %v", err)
+			}
+		}
+		if got := strings.Count(logs.String(), "skills: verification warning"); got != 1 {
+			t.Fatalf("verification warnings after unchanged refreshes = %d, want 1 (no re-parse); logs=%s", got, logs.String())
+		}
+
+		rewriteSkillFile(t, skillPath, strings.Replace(content, "Guarded skill", "Guarded skill edited", 1))
+		if err := registry.RefreshGlobal(t.Context()); err != nil {
+			t.Fatalf("RefreshGlobal() after edit error = %v", err)
+		}
+		if got := strings.Count(logs.String(), "skills: verification warning"); got != 2 {
+			t.Fatalf("verification warnings after real edit = %d, want 2; logs=%s", got, logs.String())
+		}
+		skill, ok := registry.Get("guarded")
+		if !ok || skill.Meta.Description != "Guarded skill edited" {
+			t.Fatalf("Get(guarded) = %#v, %v; want edited description", skill, ok)
+		}
+	})
+}
+
 func TestRegistryRefreshGlobalCancellation(t *testing.T) {
 	t.Parallel()
 
