@@ -200,15 +200,13 @@ func (r *providerUsageResolver) aliasSelectorError(
 		return nil
 	}
 	key := selector.SelectorKey(env)
+	warnedKey := profileName + "\x00" + id
 	if key == "" || owned[key] {
-		r.selectorWarned.Delete(profileName + "\x00" + id)
+		r.selectorWarned.Delete(warnedKey)
 		return nil
 	}
-	if previous, logged := r.selectorWarned.Swap(
-		profileName+"\x00"+id,
-		key,
-	); (!logged || previous != key) &&
-		r.logger != nil {
+	previous, logged := r.selectorWarned.Swap(warnedKey, key)
+	if (!logged || previous != key) && r.logger != nil {
 		r.logger.Warn("provider_usage.alias_selector_missing",
 			"provider", id, "collector", collectorID, "selector_key", key)
 	}

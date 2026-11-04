@@ -66,8 +66,10 @@ numbers per account are covered by `TestProviderUsageAliasSelector` (real Claude
   by IT-001.
 - Packaged desktop/menubar popover not exercised; it renders the same row components as the Usage
   app walked here.
-- With collection off, the single-provider diagnostic read returns a synthetic `disabled` row without
-  `collector_id` (CLI-only surface; the Web panel is hidden while off).
+- During the walk, the single-provider read with collection off returned a synthetic `disabled` row
+  without `collector_id` (HTTP/UDS/CLI share that view). Peer review round 1 fixed it: the row now
+  names the alias family through `config.ProviderUsageFamily` (covered by `TestProviderUsageAliasSelector`);
+  not re-walked live.
 
 ## Final Status
 
