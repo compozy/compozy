@@ -592,8 +592,12 @@ describe("events", () => {
 });
 
 describe("source status contracts", () => {
- it("preserves palette fields alongside heartbeat fields", () => {
- expectTypeOf<SourceStatus>().toMatchTypeOf<{source: string; status: string; reason?: string}>();
- expectTypeOf<HeartbeatSourceStatus>().toMatchTypeOf<{id: string; status: string}>();
- });
+  it("preserves palette fields alongside heartbeat fields", () => {
+    expectTypeOf<SourceStatus>().toMatchTypeOf<{
+      source: string;
+      status: string;
+      reason?: string;
+    }>();
+    expectTypeOf<HeartbeatSourceStatus>().toMatchTypeOf<{ id: string; status: string }>();
+  });
 });
