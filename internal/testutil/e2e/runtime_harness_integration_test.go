@@ -22,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/kballard/go-shellquote"
@@ -42,22 +43,24 @@ func runtimeMigrationExpectations(
 	databasePath string,
 ) []runtimeMigrationExpectation {
 	t.Helper()
-	db, err := sql.Open("sqlite", databasePath)
-	if err != nil {
-		t.Fatalf("sql.Open(runtime database) error = %v", err)
+	// Each status entry must match its own persisted database, independently of the daemon reader.
+	streams := []struct {
+		stream store.MigrationStream
+		path   string
+	}{
+		{globaldb.MigrationStream(), databasePath},
+		{telemetrydb.MigrationStream(), telemetrydb.Path(databasePath)},
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(runtime database) error = %v", err)
-		}
-	}()
-
-	streams := []store.MigrationStream{globaldb.MigrationStream()}
 	expectations := make([]runtimeMigrationExpectation, 0, len(streams))
-	for _, stream := range streams {
-		status, err := store.Status(ctx, db, stream)
+	for _, item := range streams {
+		db, err := store.OpenSQLiteReadPool(ctx, item.path)
 		if err != nil {
-			t.Fatalf("store.Status(%q) error = %v", stream.Name, err)
+			t.Fatalf("open %s migration reader: %v", item.stream.Name, err)
+		}
+		status, err := store.Status(ctx, db, item.stream)
+		closeErr := db.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read %s status: %v; close: %v", item.stream.Name, err, closeErr)
 		}
 		expectations = append(expectations, runtimeMigrationExpectation{
 			stream:       status.Stream,

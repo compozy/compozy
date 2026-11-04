@@ -10,7 +10,6 @@ import (
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -107,7 +106,7 @@ func (g *AutomationRepo) GetSuggestion(
 	if err != nil {
 		return automation.Suggestion{}, err
 	}
-	row, err := g.queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
+	row, err := g.readQueries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
 		ProfileID:   profileID,
 		WorkspaceID: nullableAutomationString(workspaceID),
 		ID:          id,
@@ -142,14 +141,14 @@ func (g *AutomationRepo) ListSuggestions(
 	var rows []sqlcgen.AutomationSuggestion
 	var err error
 	if readScope.AllProfiles {
-		rows, err = g.queries.ListAutomationSuggestionsAllProfiles(
+		rows, err = g.readQueries.ListAutomationSuggestionsAllProfiles(
 			ctx,
 			sqlcgen.ListAutomationSuggestionsAllProfilesParams{
 				WorkspaceID: nullableAutomationString(workspaceID), Status: string(status),
 			},
 		)
 	} else {
-		rows, err = g.queries.ListAutomationSuggestions(ctx, sqlcgen.ListAutomationSuggestionsParams{
+		rows, err = g.readQueries.ListAutomationSuggestions(ctx, sqlcgen.ListAutomationSuggestionsParams{
 			ProfileID: readScope.ProfileID, WorkspaceID: nullableAutomationString(workspaceID), Status: string(status),
 		})
 	}
@@ -163,7 +162,7 @@ func (g *AutomationRepo) ListAcceptedSuggestions(ctx context.Context) ([]automat
 	if err := g.checkReady(ctx, "list accepted automation suggestions"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListAcceptedAutomationSuggestionsAllProfiles(ctx)
+	rows, err := g.readQueries.ListAcceptedAutomationSuggestionsAllProfiles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list accepted automation suggestions: %w", err)
 	}
@@ -191,6 +190,22 @@ func (g *AutomationRepo) ResolveSuggestion(
 		)
 	}
 	resolvedAt := g.now().UTC()
+	var observation store.EventSummary
+	if to == automation.SuggestionStatusDismissed {
+		// Source, dedup key and payload are immutable. Prepare the event before
+		// taking the writer; the conditional UPDATE still owns resolution races.
+		current, err := g.GetSuggestion(ctx, profileID, workspaceID, id)
+		if err != nil {
+			return automation.Suggestion{}, err
+		}
+		current.Status, current.ResolvedAt = to, &resolvedAt
+		observation, err = g.prepareSuggestionTransition(ctx, current, "")
+		if err != nil {
+			return automation.Suggestion{}, err
+		}
+		finishPublication := g.summaryPublications.begin(observation.ProfileID, observation.WorkspaceID)
+		defer finishPublication()
+	}
 	err = store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		affected, updateErr := queries.ResolveAutomationSuggestion(ctx, sqlcgen.ResolveAutomationSuggestionParams{
@@ -201,18 +216,7 @@ func (g *AutomationRepo) ResolveSuggestion(
 			return fmt.Errorf("store: resolve automation suggestion %q: %w", id, updateErr)
 		}
 		if affected == 0 {
-			_, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
-				ProfileID:   profileID,
-				WorkspaceID: nullableAutomationString(workspaceID),
-				ID:          id,
-			})
-			if errors.Is(lookupErr, sql.ErrNoRows) {
-				return automation.ErrSuggestionNotFound
-			}
-			if lookupErr != nil {
-				return fmt.Errorf("store: verify automation suggestion resolution %q: %w", id, lookupErr)
-			}
-			return automation.ErrSuggestionResolved
+			return suggestionResolutionConflict(ctx, queries, profileID, workspaceID, id)
 		}
 		row, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
 			ProfileID:   profileID,
@@ -227,12 +231,35 @@ func (g *AutomationRepo) ResolveSuggestion(
 			return mapErr
 		}
 		resolved = mapped
+		if to == automation.SuggestionStatusDismissed {
+			return insertEventSummary(ctx, queries, observation)
+		}
 		return nil
 	})
 	if err != nil {
 		return automation.Suggestion{}, err
 	}
+	if to == automation.SuggestionStatusDismissed {
+		g.drainCommittedEventSummaries(ctx, observation)
+	}
 	return resolved, nil
+}
+
+func suggestionResolutionConflict(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	profileID, workspaceID, id string,
+) error {
+	_, err := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
+		ProfileID: profileID, WorkspaceID: nullableAutomationString(workspaceID), ID: id,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return automation.ErrSuggestionNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("store: verify automation suggestion resolution %q: %w", id, err)
+	}
+	return automation.ErrSuggestionResolved
 }
 
 func (g *AutomationRepo) RollbackSuggestionAcceptance(
@@ -252,13 +279,20 @@ func (g *AutomationRepo) RollbackSuggestionAcceptance(
 	if resolvedAt.IsZero() {
 		return errors.New("store: automation suggestion resolved timestamp is required")
 	}
-	affected, err := g.queries.RollbackAutomationSuggestionAcceptance(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.RollbackAutomationSuggestionAcceptanceParams{
-			ProfileID:   profileID,
-			WorkspaceID: nullableAutomationString(workspaceID),
-			ID:          id,
-			ResolvedAt:  nullableAutomationTime(&resolvedAt),
+		g.repoBase,
+		"globaldb.RollbackAutomationSuggestionAcceptance",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RollbackAutomationSuggestionAcceptance(
+				ctx,
+				sqlcgen.RollbackAutomationSuggestionAcceptanceParams{
+					ProfileID:   profileID,
+					WorkspaceID: nullableAutomationString(workspaceID),
+					ID:          id,
+					ResolvedAt:  nullableAutomationTime(&resolvedAt),
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -266,59 +300,6 @@ func (g *AutomationRepo) RollbackSuggestionAcceptance(
 	}
 	if affected == 0 {
 		return automation.ErrSuggestionResolved
-	}
-	return nil
-}
-
-func (g *AutomationRepo) RecordSuggestionTransition(
-	ctx context.Context,
-	suggestion automation.Suggestion,
-	jobID string,
-) error {
-	if err := g.checkReady(ctx, "record automation suggestion transition"); err != nil {
-		return err
-	}
-	if err := suggestion.Validate("suggestion"); err != nil {
-		return err
-	}
-	if suggestion.Status != automation.SuggestionStatusAccepted &&
-		suggestion.Status != automation.SuggestionStatusDismissed {
-		return fmt.Errorf("store: cannot record pending automation suggestion transition %q", suggestion.ID)
-	}
-	if suggestion.ResolvedAt == nil || suggestion.ResolvedAt.IsZero() {
-		return errors.New("store: automation suggestion resolved timestamp is required")
-	}
-	jobID = strings.TrimSpace(jobID)
-	if suggestion.Status == automation.SuggestionStatusAccepted && jobID == "" {
-		return errors.New("store: accepted automation suggestion job id is required")
-	}
-	content, err := json.Marshal(suggestionTransitionContent{
-		WorkspaceID:  suggestion.WorkspaceID,
-		SuggestionID: suggestion.ID,
-		Source:       suggestion.Source,
-		DedupKey:     suggestion.DedupKey,
-		JobID:        jobID,
-	})
-	if err != nil {
-		return fmt.Errorf("store: marshal automation suggestion transition: %w", err)
-	}
-	eventType := events.AutomationSuggestionDismissed
-	summary := "automation suggestion dismissed"
-	if suggestion.Status == automation.SuggestionStatusAccepted {
-		eventType = events.AutomationSuggestionAccepted
-		summary = "automation suggestion accepted"
-	}
-	if err := g.queries.InsertAutomationSuggestionEventSummary(
-		ctx,
-		sqlcgen.InsertAutomationSuggestionEventSummaryParams{
-			ProfileID:   suggestion.ProfileID,
-			ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
-			WorkspaceID: suggestion.WorkspaceID, Type: eventType, ContentJson: string(content),
-			ActorID: suggestion.ID, Outcome: string(events.OutcomeFor(eventType)),
-			Summary: nullableObserveString(summary), Timestamp: store.FormatTimestamp(*suggestion.ResolvedAt),
-		},
-	); err != nil {
-		return fmt.Errorf("store: record automation suggestion transition %q: %w", suggestion.ID, err)
 	}
 	return nil
 }

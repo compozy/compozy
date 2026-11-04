@@ -134,5 +134,5 @@ func (g *SessionRepo) HumanSessionTurn(ctx context.Context, sessionID, turnID st
 	if err := g.checkReady(ctx, "read human session turn"); err != nil {
 		return false, err
 	}
-	return g.queries.HumanSessionTurn(ctx, sqlcgen.HumanSessionTurnParams{SessionID: sessionID, TurnID: turnID})
+	return g.readQueries.HumanSessionTurn(ctx, sqlcgen.HumanSessionTurnParams{SessionID: sessionID, TurnID: turnID})
 }

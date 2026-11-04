@@ -45,7 +45,7 @@ func (r *Registry) SnapshotRemovalState(ctx context.Context, name string) (Remov
 }
 
 func (r *Registry) removalEnablement(ctx context.Context, name string) (map[string]bool, error) {
-	rows, err := r.db.QueryContext(
+	rows, err := r.readDB.QueryContext(
 		ctx,
 		`SELECT profile_id, enabled FROM extension_profile_enablement WHERE extension_name = ?`,
 		name,
@@ -67,7 +67,7 @@ func (r *Registry) removalEnablement(ctx context.Context, name string) (map[stri
 }
 
 func (r *Registry) removalProfileMarkers(ctx context.Context, name string) ([]removalProfileMarker, error) {
-	rows, err := r.db.QueryContext(
+	rows, err := r.readDB.QueryContext(
 		ctx,
 		`SELECT profile_name, created_profile_id, created_at, created_by_extension FROM extension_profile_markers WHERE extension_name = ? ORDER BY profile_name`,
 		name,

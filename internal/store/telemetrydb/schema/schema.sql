@@ -1,7 +1,12 @@
+CREATE TABLE telemetry_identity (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    identity TEXT NOT NULL CHECK (length(identity) > 0)
+);
+
 CREATE TABLE event_summaries (
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
 			id                     TEXT NOT NULL UNIQUE,
-			profile_id             TEXT NOT NULL REFERENCES profiles(id),
+			profile_id             TEXT NOT NULL,
 			session_id             TEXT NOT NULL DEFAULT '',
 			workspace_id           TEXT NOT NULL DEFAULT '',
 			worktree_id            TEXT NOT NULL DEFAULT '',
@@ -29,15 +34,12 @@ CREATE TABLE event_summaries (
 
 CREATE INDEX idx_summaries_actor ON event_summaries(actor_kind, actor_id);
 
-CREATE INDEX idx_summaries_hook_event ON event_summaries(hook_event);
 
-CREATE INDEX idx_summaries_outcome_timestamp ON event_summaries(outcome, timestamp DESC);
+CREATE INDEX idx_summaries_failures_timestamp ON event_summaries(timestamp DESC, seq DESC) WHERE outcome IN ('failure', 'warning');
 
-CREATE INDEX idx_summaries_parent ON event_summaries(parent_session_id);
 
 CREATE INDEX idx_summaries_provider_timestamp ON event_summaries(provider, timestamp DESC);
 
-CREATE INDEX idx_summaries_root ON event_summaries(root_session_id);
 
 CREATE INDEX idx_summaries_run ON event_summaries(run_id);
 
@@ -49,8 +51,10 @@ CREATE INDEX idx_summaries_timestamp ON event_summaries(timestamp);
 
 CREATE INDEX idx_summaries_type ON event_summaries(type);
 
-CREATE INDEX idx_summaries_workflow ON event_summaries(workflow_id);
 
 CREATE INDEX idx_summaries_workspace ON event_summaries(workspace_id);
 
 CREATE INDEX idx_summaries_worktree ON event_summaries(worktree_id);
+
+CREATE INDEX idx_summaries_profile_timestamp ON event_summaries(profile_id, timestamp DESC, seq DESC);
+CREATE INDEX idx_summaries_profile_sequence ON event_summaries(profile_id, seq);

@@ -15,7 +15,7 @@ func (m *Manager) GetByName(ctx context.Context, name string) (Profile, error) {
 	if ctx == nil {
 		return Profile{}, errors.New("profile: get context is required")
 	}
-	return getProfileByName(ctx, m.store.DB(), strings.TrimSpace(name))
+	return getProfileByName(ctx, m.store.ReadDB(), strings.TrimSpace(name))
 }
 
 // GetWithCounts returns one profile with its ownership and credential summary.
@@ -23,15 +23,15 @@ func (m *Manager) GetWithCounts(ctx context.Context, name string) (WithCounts, e
 	if ctx == nil {
 		return WithCounts{}, errors.New("profile: get detail context is required")
 	}
-	profile, err := getProfileByName(ctx, m.store.DB(), strings.TrimSpace(name))
+	profile, err := getProfileByName(ctx, m.store.ReadDB(), strings.TrimSpace(name))
 	if err != nil {
 		return WithCounts{}, err
 	}
-	counts, err := m.profileCounts(ctx, m.store.DB(), profile.ID)
+	counts, err := m.profileCounts(ctx, m.store.ReadDB(), profile.ID)
 	if err != nil {
 		return WithCounts{}, err
 	}
-	requirements, err := listCredentialRequirements(ctx, m.store.DB(), profile.ID)
+	requirements, err := listCredentialRequirements(ctx, m.store.ReadDB(), profile.ID)
 	if err != nil {
 		return WithCounts{}, err
 	}
@@ -48,7 +48,7 @@ func (m *Manager) ListNames(ctx context.Context) (names []string, err error) {
 	if ctx == nil {
 		return nil, errors.New("profile: list names context is required")
 	}
-	rows, err := m.store.DB().QueryContext(ctx, `SELECT name FROM profiles ORDER BY name ASC`)
+	rows, err := m.store.ReadDB().QueryContext(ctx, `SELECT name FROM profiles ORDER BY name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("profile: list names: %w", err)
 	}
@@ -76,11 +76,11 @@ func (m *Manager) ProfileName(ctx context.Context, profileID string) (string, er
 	if ctx == nil {
 		return "", errors.New("profile: get name context is required")
 	}
-	profile, err := getProfileByID(ctx, m.store.DB(), strings.TrimSpace(profileID))
+	profile, err := getProfileByID(ctx, m.store.ReadDB(), strings.TrimSpace(profileID))
 	if err != nil {
 		return "", err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, true); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, true); err != nil {
 		return "", err
 	}
 	return profile.Name, nil
@@ -91,7 +91,7 @@ func (m *Manager) ListIdentities(ctx context.Context) (profiles []Profile, err e
 	if ctx == nil {
 		return nil, errors.New("profile: list context is required")
 	}
-	rows, err := m.store.DB().QueryContext(ctx, profileSelectSQL()+` ORDER BY name ASC`)
+	rows, err := m.store.ReadDB().QueryContext(ctx, profileSelectSQL()+` ORDER BY name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("profile: list: %w", err)
 	}
@@ -125,11 +125,11 @@ func (m *Manager) List(ctx context.Context) ([]WithCounts, error) {
 	for _, profile := range profilesByID {
 		profileIDs = append(profileIDs, profile.ID)
 	}
-	counts, err := m.profileCountsForProfiles(ctx, m.store.DB(), profileIDs)
+	counts, err := m.profileCountsForProfiles(ctx, m.store.ReadDB(), profileIDs)
 	if err != nil {
 		return nil, err
 	}
-	requirements, err := listCredentialRequirementsForProfiles(ctx, m.store.DB(), profileIDs)
+	requirements, err := listCredentialRequirementsForProfiles(ctx, m.store.ReadDB(), profileIDs)
 	if err != nil {
 		return nil, err
 	}

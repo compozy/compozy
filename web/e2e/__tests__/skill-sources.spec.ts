@@ -156,7 +156,17 @@ test.describe("skill sources", () => {
       await browserArtifacts.captureScreenshot("e2e-008-duplicate-source-refused", appPage);
 
       await sources.remove("team-skills").click();
+      // Desired config is visible before live publication finishes. Navigation
+      // must follow the apply acknowledgement, not just the persisted GET.
+      const removalResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === settingsPath()
+      );
       await sources.save.click();
+      const removed = await removalResponse;
+      expect(removed.status()).toBe(200);
+      expect(await removed.json()).toMatchObject({ applied: true });
       await expect
         .poll(
           async () =>

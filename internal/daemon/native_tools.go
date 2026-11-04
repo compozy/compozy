@@ -208,7 +208,7 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 		return nil, nil
 	}
 	provider, err := extensionpkg.NewExtensionToolProvider(
-		extensionpkg.NewRegistry(dbSource.DB()),
+		extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB())),
 		func() extensionpkg.ExtensionToolRuntime {
 			runtime := state.currentExtensionRuntime()
 			if runtime == nil {
@@ -244,7 +244,7 @@ func extensionRegistryDependency(registry Registry) *extensionpkg.Registry {
 	if !ok || dbSource.DB() == nil {
 		return nil
 	}
-	return extensionpkg.NewRegistry(dbSource.DB())
+	return extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB()))
 }
 
 func addNativeToolBindings(

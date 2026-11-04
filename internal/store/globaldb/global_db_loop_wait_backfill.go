@@ -18,16 +18,16 @@ func (g *LoopRepo) BackfillLoopWaitAdmissionDeadlines(ctx context.Context, limit
 	if limit <= 0 {
 		return 0, fmt.Errorf("store: wait deadline page limit must be positive")
 	}
-	rows, err := g.queries.ListExpirylessLoopEventWaits(ctx, int64(limit))
+	rows, err := g.readQueries.ListExpirylessLoopEventWaits(ctx, int64(limit))
 	if err != nil {
 		return 0, err
 	}
 	for _, row := range rows {
-		run, err := getLoopRunByIDWithExecutor(ctx, g.db, looppkg.RunID(row.LoopRunID))
+		run, err := getLoopRunByIDWithExecutor(ctx, g.readDB, looppkg.RunID(row.LoopRunID))
 		if err != nil {
 			return 0, err
 		}
-		resolved, err := loadWaitExecutedDefinition(ctx, g.db, run)
+		resolved, err := loadWaitExecutedDefinition(ctx, g.readDB, run)
 		if err != nil {
 			return 0, err
 		}
@@ -40,10 +40,17 @@ func (g *LoopRepo) BackfillLoopWaitAdmissionDeadlines(ctx context.Context, limit
 			return 0, err
 		}
 		deadline := row.CreatedAt.UTC().Add(lifecycle.AdmissionHorizon)
-		if _, err := g.queries.BackfillLoopEventWaitDeadline(ctx, sqlcgen.BackfillLoopEventWaitDeadlineParams{
-			LoopRunID: row.LoopRunID, Generation: row.Generation, NodeID: row.NodeID, ItemIndex: row.ItemIndex,
-			Deadline: sql.NullTime{Time: deadline, Valid: true},
-		}); err != nil {
+		if _, err := executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.BackfillLoopEventWaitDeadline",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.BackfillLoopEventWaitDeadline(ctx, sqlcgen.BackfillLoopEventWaitDeadlineParams{
+					LoopRunID: row.LoopRunID, Generation: row.Generation, NodeID: row.NodeID, ItemIndex: row.ItemIndex,
+					Deadline: sql.NullTime{Time: deadline, Valid: true},
+				})
+			},
+		); err != nil {
 			return 0, err
 		}
 	}

@@ -259,22 +259,48 @@ func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now
 	if err := g.checkReady(ctx, "fail stale dispatching session inputs"); err != nil {
 		return 0, err
 	}
-	rows, err := g.queries.ListStaleDispatchingSessionInputs(ctx)
+	rows, err := g.readQueries.ListStaleDispatchingSessionInputs(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: list stale dispatching session inputs: %w", err)
 	}
-	if err := g.queries.RecoverUncertainPromptReports(ctx); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.RecoverUncertainPromptReports",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.RecoverUncertainPromptReports(ctx)
+		},
+	); err != nil {
 		return 0, err
 	}
-	if err := g.queries.RecoverReservedPromptReports(ctx); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.RecoverReservedPromptReports",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.RecoverReservedPromptReports(ctx)
+		},
+	); err != nil {
 		return 0, err
 	}
 	failed := 0
 	var errs []error
-	if _, err := g.queries.RecoverStagedSessionSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
+	if _, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RecoverStagedSessionSteers",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RecoverStagedSessionSteers(ctx, store.FormatTimestamp(now.UTC()))
+		},
+	); err != nil {
 		errs = append(errs, fmt.Errorf("store: recover staged session steers: %w", err))
 	}
-	if _, err := g.queries.RecoverUnconfirmedWakeSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
+	if _, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RecoverUnconfirmedWakeSteers",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RecoverUnconfirmedWakeSteers(ctx, store.FormatTimestamp(now.UTC()))
+		},
+	); err != nil {
 		errs = append(errs, fmt.Errorf("store: recover unconfirmed wake steers: %w", err))
 	}
 	for _, row := range rows {

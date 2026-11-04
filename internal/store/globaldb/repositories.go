@@ -11,28 +11,37 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type repoBase struct {
-	db       *sql.DB
-	queries  *sqlcgen.Queries
-	path     string
-	now      func() time.Time
-	closed   *atomic.Int32
-	tasks    *TaskRepo
-	sessions *SessionRepo
+	db           *sql.DB
+	readDB       *sql.DB
+	queries      *sqlcgen.Queries
+	readQueries  *sqlcgen.Queries
+	background   *store.BackgroundWriter
+	telemetry    *telemetrydb.Store
+	healthBuffer *sessionHealthBuffer
+	path         string
+	now          func() time.Time
+	closed       *atomic.Int32
+	tasks        *TaskRepo
+	sessions     *SessionRepo
 
-	outboxSignals *outboxSignalHub
+	outboxSignals       *outboxSignalHub
+	summaryPublications eventSummaryPublications
 }
 
-func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
+func newRepoBase(db, readDB *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
 	return &repoBase{
-		db:      db,
-		queries: sqlcgen.New(db),
-		now:     now,
-		closed:  closed,
+		db:          db,
+		readDB:      readDB,
+		queries:     sqlcgen.New(db),
+		readQueries: sqlcgen.New(readDB),
+		now:         now,
+		closed:      closed,
 
 		outboxSignals: &outboxSignalHub{},
 	}
@@ -49,6 +58,15 @@ func (r *repoBase) checkReady(ctx context.Context, action string) error {
 		return fmt.Errorf("store: %s context is required", action)
 	}
 	return nil
+}
+
+func (r *repoBase) writeBackground(
+	ctx context.Context, operation string, fn func(context.Context, *store.WriteTx) error,
+) error {
+	if r.background == nil {
+		return store.ExecuteWriteOperation(ctx, r.db, operation, fn)
+	}
+	return r.background.Submit(ctx, operation, fn)
 }
 
 type WorkspaceRepo struct {
@@ -120,8 +138,14 @@ type CmdPaletteRepo struct{ *repoBase }
 type WorktreeRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories(config openConfig) {
-	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
+	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
+	base.background = g.background
+	base.telemetry = g.telemetry
+	if g.background != nil {
+		base.healthBuffer = newSessionHealthBuffer(base, config.healthFlushInterval)
+		g.healthBuffer = base.healthBuffer
+	}
 	g.WorkspaceRepo = &WorkspaceRepo{
 		repoBase:   base,
 		generateID: compozyworkspace.NewWorkspaceID,

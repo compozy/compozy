@@ -24,6 +24,17 @@ type MigrationBootstrap struct {
 	Initialize func(context.Context, *sql.Tx) error
 }
 
+// TryBootstrap initializes an untouched stream from its declarative schema.
+// Existing version tables always return false so cross-file migration owners
+// can retain their ordered upgrade steps without replaying history on fresh homes.
+func TryBootstrap(ctx context.Context, db *sql.DB, stream MigrationStream) (bool, error) {
+	inspection, err := inspectMigrationStream(ctx, db, stream)
+	if err != nil {
+		return false, err
+	}
+	return tryBootstrapMigrationStream(ctx, db, stream, inspection)
+}
+
 func tryBootstrapMigrationStream(
 	ctx context.Context,
 	db *sql.DB,

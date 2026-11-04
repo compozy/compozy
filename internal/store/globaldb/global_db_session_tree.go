@@ -27,7 +27,7 @@ func (g *SessionRepo) ListSessionDescendants(
 		return nil, errors.New("store: session descendants session id is required")
 	}
 	// A read snapshot keeps the walk consistent without holding the write lock.
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("store: begin session descendants read: %w", err)
 	}

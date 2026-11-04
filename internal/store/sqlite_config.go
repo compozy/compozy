@@ -56,6 +56,27 @@ func sqliteReadOnlyDSN(path string) string {
 	return u.String()
 }
 
+func sqliteQueryOnlyDSN(path string) string {
+	u := url.URL{Scheme: sqliteFileScheme, Path: SqliteFilePath(path)}
+	query := u.Query()
+	query.Set("mode", "ro")
+	query.Add("_pragma", "query_only(ON)")
+	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func sqliteCheckpointDSN(path string) string {
+	u := url.URL{Scheme: sqliteFileScheme, Path: SqliteFilePath(path)}
+	query := u.Query()
+	query.Set("mode", "rw")
+	query.Add("_pragma", "busy_timeout(0)")
+	query.Add("_pragma", "synchronous(NORMAL)")
+	query.Add("_pragma", "wal_autocheckpoint(0)")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
 func sqliteDSNWithPragmas(path string, runtimePragmas bool, extraPragmas ...string) string {
 	u := url.URL{
 		Scheme: sqliteFileScheme,

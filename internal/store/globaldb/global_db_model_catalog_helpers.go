@@ -121,25 +121,12 @@ func (s *modelCatalogRowScan) modelRow() (modelcatalog.ModelRow, error) {
 	return row, nil
 }
 
-func (g *ModelCatalogRepo) withModelCatalogImmediateTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec modelCatalogSQLExecutor) error,
-) error {
-	if err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
-		return run(tx)
-	}); err != nil {
-		return fmt.Errorf("store: %s transaction: %w", action, err)
-	}
-	return nil
-}
-
 func (g *ModelCatalogRepo) withModelCatalogReadTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec modelCatalogSQLExecutor) error,
 ) (err error) {
-	conn, err := g.db.Conn(ctx)
+	conn, err := g.readDB.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: open connection for %s: %w", action, err)
 	}

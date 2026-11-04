@@ -26,7 +26,6 @@ CREATE TABLE automation_job_overlays (
 	);
 
 CREATE TABLE automation_jobs (
- grant_ceiling TEXT NOT NULL DEFAULT '',
 		id           TEXT PRIMARY KEY,
 		profile_id   TEXT NOT NULL REFERENCES profiles(id),
 		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
@@ -47,6 +46,7 @@ CREATE TABLE automation_jobs (
 		loop_input_mapping TEXT,
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL,
+		grant_ceiling TEXT NOT NULL DEFAULT '',
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
@@ -88,7 +88,6 @@ CREATE TABLE automation_runs (
 	, fire_id TEXT, scheduled_at TEXT, delivery_error TEXT, delivery_error_at TEXT, metadata_json TEXT NOT NULL DEFAULT '{}');
 
 CREATE TABLE "automation_scheduler_state" (
-			deferred_until               TEXT,
 			job_id                       TEXT PRIMARY KEY,
 			next_run_at                  TEXT,
 			last_run_at                  TEXT,
@@ -104,7 +103,8 @@ CREATE TABLE "automation_scheduler_state" (
 			last_misfire_at              TEXT,
 			misfire_count                INTEGER NOT NULL DEFAULT 0
 				CHECK (misfire_count >= 0),
-			updated_at                   TEXT NOT NULL
+			updated_at                   TEXT NOT NULL,
+			deferred_until               TEXT
 		);
 
 CREATE TABLE automation_trigger_catalog_entries (

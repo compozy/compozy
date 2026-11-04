@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 )
 
 // GlobalDB owns the global session index and observability database.
@@ -40,8 +43,14 @@ type GlobalDB struct {
 	*CmdPaletteRepo
 	Worktrees *WorktreeRepo
 
-	db     *sql.DB
-	path   string
-	now    func() time.Time
-	closed atomic.Int32
+	db           *sql.DB
+	readDB       *sql.DB
+	background   *store.BackgroundWriter
+	checkpoint   *store.PassiveCheckpointer
+	telemetry    *telemetrydb.Store
+	healthBuffer *sessionHealthBuffer
+	summaryRetry *eventSummaryRetry
+	path         string
+	now          func() time.Time
+	closed       atomic.Int32
 }

@@ -133,8 +133,8 @@ func (o *Observer) loadTaskDependencyCounts(
 		return map[string]int{}, nil
 	}
 
-	if source, ok := o.registry.(interface{ DB() *sql.DB }); ok {
-		return queryTaskDependencyCounts(ctx, source.DB(), taskIDs)
+	if source, ok := o.registry.(interface{ ReadDB() *sql.DB }); ok {
+		return queryTaskDependencyCounts(ctx, source.ReadDB(), taskIDs)
 	}
 	return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
 }

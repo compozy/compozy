@@ -8,6 +8,7 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const deleteHeartbeatAgentHistory = `-- name: DeleteHeartbeatAgentHistory :exec
@@ -268,6 +269,17 @@ func (q *Queries) GetSessionHealth(ctx context.Context, sessionID string) (Sessi
 	return i, err
 }
 
+const getSessionHealthOwner = `-- name: GetSessionHealthOwner :one
+SELECT workspace_id FROM sessions WHERE id = ?1
+`
+
+func (q *Queries) GetSessionHealthOwner(ctx context.Context, sessionID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getSessionHealthOwner, sessionID)
+	var workspace_id string
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
+}
+
 const hasExpiredHeartbeatWakeEvents = `-- name: HasExpiredHeartbeatWakeEvents :one
 SELECT EXISTS (SELECT 1 FROM agent_heartbeat_wake_events WHERE expires_at < ?1)
 `
@@ -418,6 +430,48 @@ func (q *Queries) InsertHeartbeatWakeEvent(ctx context.Context, arg InsertHeartb
 		arg.ExpiresAt,
 	)
 	return err
+}
+
+const listSessionHealthOwners = `-- name: ListSessionHealthOwners :many
+SELECT id, workspace_id FROM sessions WHERE id IN (/*SLICE:session_ids*/?)
+`
+
+type ListSessionHealthOwnersRow struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) ListSessionHealthOwners(ctx context.Context, sessionIds []string) ([]ListSessionHealthOwnersRow, error) {
+	query := listSessionHealthOwners
+	var queryParams []any
+	if len(sessionIds) > 0 {
+		for _, v := range sessionIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:session_ids*/?", strings.Repeat(",?", len(sessionIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:session_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSessionHealthOwnersRow{}
+	for rows.Next() {
+		var i ListSessionHealthOwnersRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markSessionHealthStale = `-- name: MarkSessionHealthStale :execrows

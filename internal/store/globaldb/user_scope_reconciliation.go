@@ -2,11 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 type UserScopeMigration struct {
@@ -19,7 +20,7 @@ type UserScopeMigration struct {
 }
 
 func (g *GlobalDB) PendingUserScopeMigrations(ctx context.Context) (result []UserScopeMigration, resultErr error) {
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT source_workspace_id,source_root,disposition,profile_ids,journal_state,layout_state FROM user_scope_migrations WHERE registration_removed_at IS NULL AND disposition='migrate' ORDER BY source_workspace_id`,
 	)
@@ -49,86 +50,85 @@ func (g *GlobalDB) PendingUserScopeMigrations(ctx context.Context) (result []Use
 }
 
 func (g *GlobalDB) MarkUserScopeStoreVerified(ctx context.Context, id, kind string) error {
+	var statement string
 	switch kind {
 	case "journal":
-		_, err := g.db.ExecContext(
-			ctx,
-			"UPDATE user_scope_migrations SET journal_state='verified' WHERE source_workspace_id=?",
-			id,
-		)
-		return err
+		statement = "UPDATE user_scope_migrations SET journal_state='verified' WHERE source_workspace_id=?"
 	case "layout":
-		_, err := g.db.ExecContext(
-			ctx,
-			"UPDATE user_scope_migrations SET layout_state='verified' WHERE source_workspace_id=?",
-			id,
-		)
-		return err
+		statement = "UPDATE user_scope_migrations SET layout_state='verified' WHERE source_workspace_id=?"
 	default:
 		return errors.New("unknown User migration store")
 	}
+	return store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"verify User scope store",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			_, err := tx.ExecContext(ctx, statement, id)
+			return err
+		},
+	)
 }
 
 // CompleteUserScopeMigration refuses the cascade path while any table still references the source.
-func (g *GlobalDB) CompleteUserScopeMigration(ctx context.Context, id string) (resultErr error) {
-	tx, err := g.db.BeginTx(ctx, nil)
+func (g *GlobalDB) CompleteUserScopeMigration(ctx context.Context, id string) error {
+	// The schema is fixed after Open. Discover its foreign-key inventory without
+	// reserving the writer, then recheck every reference under the delete fence.
+	references, err := workspaceReferenceColumns(ctx, g.readDB)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			resultErr = errors.Join(resultErr, err)
-		}
-	}()
-	var ready int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM user_scope_migrations WHERE source_workspace_id=? AND disposition='migrate' AND sql_done_at IS NOT NULL AND journal_state IN ('verified','skipped') AND layout_state IN ('verified','skipped')`, id).
-		Scan(&ready); err != nil {
-		return err
-	}
-	if ready != 1 {
-		return errors.New("migration stores for the User scope are not verified")
-	}
-	references, err := workspaceReferenceColumns(ctx, tx)
-	if err != nil {
-		return err
-	}
-	for table, columns := range references {
-		for _, column := range columns {
-			var count int
-			query := "SELECT count(*) FROM " + quoteMigrationIdentifier(table) +
-				" WHERE " + quoteMigrationIdentifier(column) + "=?"
-			if err := tx.QueryRowContext(ctx, query, id).
-				Scan(&count); err != nil {
+	return store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"complete User scope migration",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var ready int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM user_scope_migrations WHERE source_workspace_id=? AND disposition='migrate' AND sql_done_at IS NOT NULL AND journal_state IN ('verified','skipped') AND layout_state IN ('verified','skipped')`, id).
+				Scan(&ready); err != nil {
 				return err
 			}
-			if count != 0 {
-				return fmt.Errorf(
-					"migration registration retained for the User scope: table %s column %s has %d references",
-					table,
-					column,
-					count,
-				)
+			if ready != 1 {
+				return errors.New("migration stores for the User scope are not verified")
 			}
-		}
-	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM workspaces WHERE id=?", id); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(
-		ctx,
-		"UPDATE user_scope_migrations SET registration_removed_at=datetime('now') WHERE source_workspace_id=?",
-		id,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
+			for table, columns := range references {
+				for _, column := range columns {
+					var present bool
+					query := "SELECT EXISTS(SELECT 1 FROM " + quoteMigrationIdentifier(
+						table,
+					) + " WHERE " + quoteMigrationIdentifier(
+						column,
+					) + "=?)"
+					if err := tx.QueryRowContext(ctx, query, id).Scan(&present); err != nil {
+						return err
+					}
+					if present {
+						return fmt.Errorf(
+							"migration registration retained for the User scope: table %s column %s has references",
+							table,
+							column,
+						)
+					}
+				}
+			}
+			if _, err := tx.ExecContext(ctx, "DELETE FROM workspaces WHERE id=?", id); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(
+				ctx,
+				"UPDATE user_scope_migrations SET registration_removed_at=datetime('now') WHERE source_workspace_id=?",
+				id,
+			)
+			return err
+		},
+	)
 }
 
 func quoteMigrationIdentifier(value string) string {
 	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
 }
 
-func workspaceReferenceColumns(ctx context.Context, tx *sql.Tx) (map[string][]string, error) {
+func workspaceReferenceColumns(ctx context.Context, tx globalSQLExecutor) (map[string][]string, error) {
 	rows, err := tx.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
 	if err != nil {
 		return nil, err

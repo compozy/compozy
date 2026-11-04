@@ -23,7 +23,7 @@ func (g *AppMetadataRepo) GetAppMetadata(ctx context.Context, key string) (strin
 		return "", false, errors.New("store: app metadata key is required")
 	}
 
-	value, err := g.queries.GetAppMetadata(ctx, trimmed)
+	value, err := g.readQueries.GetAppMetadata(ctx, trimmed)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", false, nil
@@ -43,9 +43,15 @@ func (g *AppMetadataRepo) SetAppMetadata(ctx context.Context, key string, value 
 		return errors.New("store: app metadata key is required")
 	}
 
-	if err := g.queries.UpsertAppMetadata(ctx, sqlcgen.UpsertAppMetadataParams{
-		Key: trimmed, Value: value, UpdatedAt: store.FormatTimestamp(g.now()),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertAppMetadata",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertAppMetadata(ctx, sqlcgen.UpsertAppMetadataParams{
+				Key: trimmed, Value: value, UpdatedAt: store.FormatTimestamp(g.now()),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: upsert app metadata %q: %w", trimmed, err)
 	}
 	return nil
@@ -109,7 +115,13 @@ func (g *AppMetadataRepo) DeleteAppMetadata(ctx context.Context, key string) err
 		return errors.New("store: app metadata key is required")
 	}
 
-	if err := g.queries.DeleteAppMetadata(ctx, trimmed); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteAppMetadata",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteAppMetadata(ctx, trimmed)
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete app metadata %q: %w", trimmed, err)
 	}
 	return nil

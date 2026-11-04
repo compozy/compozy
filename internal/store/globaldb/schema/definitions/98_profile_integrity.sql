@@ -90,13 +90,6 @@ CREATE TRIGGER tool_approval_grants_profile_owner_active BEFORE INSERT ON tool_a
 	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
 END;
 
-CREATE TRIGGER event_summaries_profile_owner_immutable BEFORE UPDATE OF profile_id ON event_summaries
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER event_summaries_profile_owner_active BEFORE INSERT ON event_summaries BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
 CREATE TRIGGER dead_entities_profile_owner_immutable BEFORE UPDATE OF profile_id ON dead_entities
 WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
 CREATE TRIGGER dead_entities_profile_owner_active BEFORE INSERT ON dead_entities BEGIN

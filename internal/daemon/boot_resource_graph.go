@@ -34,7 +34,7 @@ func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, erro
 		return nil, nil
 	}
 
-	kernel, err := resources.NewKernel(dbSource.DB())
+	kernel, err := resources.NewKernel(dbSource.DB(), resources.WithReadDB(dbSource.ReadDB()))
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create resource kernel: %w", err)
 	}

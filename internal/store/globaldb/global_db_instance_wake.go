@@ -17,14 +17,14 @@ var _ heartbeat.InstanceWakeStore = (*InstanceRepo)(nil)
 const instanceManualCheckSource = "instance_check"
 
 func (r *InstanceRepo) WakeState(ctx context.Context, id string) (heartbeat.InstanceWakeState, error) {
-	row, err := r.queries.GetInstanceWakeState(ctx, id)
+	row, err := r.readQueries.GetInstanceWakeState(ctx, id)
 	return instanceWakeState(row), err
 }
 func (r *InstanceRepo) Due(ctx context.Context, now time.Time, limit int) ([]heartbeat.InstanceWakeState, error) {
 	if limit < 1 {
 		return nil, errors.New("wake due limit must be positive")
 	}
-	rows, err := r.queries.ListDueInstanceWakes(
+	rows, err := r.readQueries.ListDueInstanceWakes(
 		ctx,
 		sqlcgen.ListDueInstanceWakesParams{Now: store.FormatTimestamp(now), PageLimit: int64(limit)},
 	)
@@ -38,7 +38,7 @@ func (r *InstanceRepo) Due(ctx context.Context, now time.Time, limit int) ([]hea
 	return result, nil
 }
 func (r *InstanceRepo) Inflight(ctx context.Context) ([]heartbeat.InstanceWakeState, error) {
-	rows, err := r.queries.ListInflightInstanceWakes(ctx)
+	rows, err := r.readQueries.ListInflightInstanceWakes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +109,16 @@ func (r *InstanceRepo) BindTriage(ctx context.Context, id, occurrence, sessionID
 	if id == "" || occurrence == "" || sessionID == "" {
 		return false, errors.New("triage binding requires instance occurrence and session")
 	}
-	count, err := r.queries.BindInstanceTriage(
+	count, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.BindInstanceTriageParams{InstanceID: id, OccurrenceID: occurrence, SessionID: sessionID},
+		r.repoBase,
+		"globaldb.BindInstanceTriage",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.BindInstanceTriage(
+				ctx,
+				sqlcgen.BindInstanceTriageParams{InstanceID: id, OccurrenceID: occurrence, SessionID: sessionID},
+			)
+		},
 	)
 	return count == 1, err
 }

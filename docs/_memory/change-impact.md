@@ -1,5 +1,34 @@
 # Compozy Change Impact
 
+## SQLite contention isolation — issue #1227
+
+Owner: `fix/issue-1227-sqlite-contention`; implementation and acceptance receipts:
+`docs/qa/reports/2026-11-03-sqlite-contention.md`.
+
+- Native tools, CLI verbs, HTTP/UDS DTOs, Observe filters/cursors, hooks, extension SDKs and config
+  keys retain their shapes. Interactive acknowledgements and mutation authorization fences retain
+  their commit boundaries. The existing status array gains a telemetry migration-stream entry.
+- Global/profile/transcript reads use independent read pools. Background producers batch writes,
+  health coalesces dirty observations and flushes on clean shutdown, and transcript reduction runs
+  before the publication write lock. Existing profile/workspace read boundaries remain enforced.
+  Core/telemetry PASSIVE checkpoints use owned maintenance connections outside writer admission
+  and are joined before final close; indexed telemetry cleanup is bounded to 64 rows per item.
+  Session periodic checkpoints also run on an owned, guarded maintenance connection outside the
+  event writer queue; successful close joins maintenance before releasing the database family.
+  An expired close returns its deadline error while owned cleanup retains active connections; a
+  later close can join that cleanup. Newly integrated check-in source writes share admission too.
+  If a failed callback destroys its transaction/savepoints, healthy queued peers retry separately
+  after rollback; ambiguous commit failures are never replayed by this recovery path.
+- Append-only migrations relocate event summaries into `compozy.db.telemetry.db`, preserving every
+  value and cursor with resumable verified copy/acknowledgement. Core outbox events preserve atomic
+  lifecycle durability. Deleted scopes are hidden immediately and cleaned in bounded batches.
+- Backup/file-location docs and `skills/compozy/references/runtime-operations.md` name the complete
+  database family and missing-file refusal. Web needs no new control or copy.
+- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`. CI owns the
+  paired 30-session/1 GiB experiment and isolated real-daemon walk. The upgrade and daemon walk
+  passed; remaining traced-retention failures and their repairs are explicit in the report.
+  Writer admission, file identity and supported secondary-client exclusion are inventoried there.
+
 ## Check-in sources for always-on agents — 2026-11-04
 
 Owner: spec `.compozy/tasks/heartbeat-sources/`. Always-on agents can ask an external system what is new on each check-in without a model turn.

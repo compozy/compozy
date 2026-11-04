@@ -46,9 +46,9 @@ func (q *Queries) DeleteAutomationTriggerCatalogTerms(ctx context.Context, trigg
 }
 
 const getAutomationSchedulerState = `-- name: GetAutomationSchedulerState :one
-SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
 FROM automation_scheduler_state WHERE job_id = ?1
 `
 
@@ -56,7 +56,6 @@ func (q *Queries) GetAutomationSchedulerState(ctx context.Context, jobID string)
 	row := q.db.QueryRowContext(ctx, getAutomationSchedulerState, jobID)
 	var i AutomationSchedulerState
 	err := row.Scan(
-		&i.DeferredUntil,
 		&i.JobID,
 		&i.NextRunAt,
 		&i.LastRunAt,
@@ -69,6 +68,7 @@ func (q *Queries) GetAutomationSchedulerState(ctx context.Context, jobID string)
 		&i.LastMisfireAt,
 		&i.MisfireCount,
 		&i.UpdatedAt,
+		&i.DeferredUntil,
 	)
 	return i, err
 }
@@ -266,9 +266,9 @@ func (q *Queries) InsertAutomationTriggerCatalogTerms(ctx context.Context, arg I
 }
 
 const listAutomationSchedulerStates = `-- name: ListAutomationSchedulerStates :many
-SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
 FROM automation_scheduler_state ORDER BY job_id ASC
 `
 
@@ -282,7 +282,6 @@ func (q *Queries) ListAutomationSchedulerStates(ctx context.Context) ([]Automati
 	for rows.Next() {
 		var i AutomationSchedulerState
 		if err := rows.Scan(
-			&i.DeferredUntil,
 			&i.JobID,
 			&i.NextRunAt,
 			&i.LastRunAt,
@@ -295,6 +294,7 @@ func (q *Queries) ListAutomationSchedulerStates(ctx context.Context) ([]Automati
 			&i.LastMisfireAt,
 			&i.MisfireCount,
 			&i.UpdatedAt,
+			&i.DeferredUntil,
 		); err != nil {
 			return nil, err
 		}

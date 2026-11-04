@@ -11,11 +11,18 @@ import (
 )
 
 const deleteTokenUsageDailyBefore = `-- name: DeleteTokenUsageDailyBefore :execrows
-DELETE FROM token_usage_daily WHERE day < ?1
+DELETE FROM token_usage_daily WHERE rowid IN (
+ SELECT u.rowid FROM token_usage_daily AS u WHERE u.day < ?1 LIMIT ?2
+)
 `
 
-func (q *Queries) DeleteTokenUsageDailyBefore(ctx context.Context, cutoffDay string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteTokenUsageDailyBefore, cutoffDay)
+type DeleteTokenUsageDailyBeforeParams struct {
+	CutoffDay string `json:"cutoff_day"`
+	BatchSize int64  `json:"batch_size"`
+}
+
+func (q *Queries) DeleteTokenUsageDailyBefore(ctx context.Context, arg DeleteTokenUsageDailyBeforeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteTokenUsageDailyBefore, arg.CutoffDay, arg.BatchSize)
 	if err != nil {
 		return 0, err
 	}

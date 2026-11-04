@@ -116,7 +116,7 @@ func (g *SessionRepo) ListPendingSessionInputClearTraces(
 	if err := g.checkReady(ctx, "list queue clear traces"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListPendingSessionInputClearTraces(ctx, strings.TrimSpace(sessionID))
+	rows, err := g.readQueries.ListPendingSessionInputClearTraces(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,13 @@ func (g *SessionRepo) MarkSessionInputClearTraceProjected(
 	if err := g.checkReady(ctx, "mark queue clear trace projected"); err != nil {
 		return err
 	}
-	return g.queries.MarkSessionInputClearTraceProjected(ctx, sqlcgen.MarkSessionInputClearTraceProjectedParams{
-		SessionID: sessionID, EntryID: entryID, Now: nullableSessionTime(now),
-	})
+	return g.executeWriteQuery(
+		ctx,
+		"globaldb.MarkSessionInputClearTraceProjected",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.MarkSessionInputClearTraceProjected(ctx, sqlcgen.MarkSessionInputClearTraceProjectedParams{
+				SessionID: sessionID, EntryID: entryID, Now: nullableSessionTime(now),
+			})
+		},
+	)
 }

@@ -66,11 +66,11 @@ func (g *LoopRepo) waitDueAdmissionAttempts(
 ) (int, error) {
 	resolved := definitions[cell.runID]
 	if resolved == nil {
-		run, err := getLoopRunByIDWithExecutor(ctx, g.db, cell.runID)
+		run, err := getLoopRunByIDWithExecutor(ctx, g.readDB, cell.runID)
 		if err != nil {
 			return 0, err
 		}
-		resolved, err = loadWaitExecutedDefinition(ctx, g.db, run)
+		resolved, err = loadWaitExecutedDefinition(ctx, g.readDB, run)
 		if err != nil {
 			return 0, err
 		}
@@ -112,7 +112,7 @@ func (g *LoopRepo) listDueLoopWaits(
 			"%w: wait due page limit must be between 1 and 1000", looppkg.ErrValidation,
 		)
 	}
-	rows, err := g.db.QueryContext(ctx, `SELECT run.workspace_id, wait.loop_run_id, wait.generation,
+	rows, err := g.readDB.QueryContext(ctx, `SELECT run.workspace_id, wait.loop_run_id, wait.generation,
 		wait.node_id, wait.item_index, wait.resume_at FROM loop_node_waits AS wait
 		JOIN loop_runs AS run ON run.id = wait.loop_run_id
 		JOIN loop_generation_outputs AS output ON output.loop_run_id = wait.loop_run_id

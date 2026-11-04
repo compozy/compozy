@@ -48,13 +48,25 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 		return existing, nil
 	}
 
-	affected, err := g.queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
-		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
-		SourcePath: normalized.SourcePath, Digest: normalized.Digest, ProfileJson: string(normalized.ProfileJSON),
-		Body: normalized.Body, Truncated: int64(soulBoolToInt(normalized.Truncated)),
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.InsertSoulSnapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
+				ID:          normalized.ID,
+				WorkspaceID: normalized.WorkspaceID,
+				ProfileID:   normalized.ProfileID,
+				AgentName:   normalized.AgentName,
+				SourcePath:  normalized.SourcePath,
+				Digest:      normalized.Digest,
+				ProfileJson: string(normalized.ProfileJSON),
+				Body:        normalized.Body,
+				Truncated:   int64(soulBoolToInt(normalized.Truncated)),
+				CreatedAt:   store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return soul.Snapshot{}, fmt.Errorf("store: insert soul snapshot %q: %w", normalized.ID, err)
 	}
@@ -91,7 +103,7 @@ func (g *SoulRepo) GetSoulSnapshot(ctx context.Context, id string) (soul.Snapsho
 		return soul.Snapshot{}, fmt.Errorf("%w: id is required", soul.ErrInvalidSnapshot)
 	}
 
-	row, err := g.queries.GetSoulSnapshot(ctx, trimmedID)
+	row, err := g.readQueries.GetSoulSnapshot(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Snapshot{}, fmt.Errorf("store: soul snapshot %q: %w", trimmedID, soul.ErrSnapshotNotFound)
 	}
@@ -126,7 +138,7 @@ func (g *SoulRepo) FindSoulSnapshotByDigest(
 		)
 	}
 
-	row, err := g.queries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
+	row, err := g.readQueries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
 		WorkspaceID: workspaceID, ProfileID: profileID, AgentName: agentName, Digest: digest,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -171,7 +183,7 @@ func (g *SoulRepo) ListSoulSnapshots(
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query soul snapshots: %w", err)
 	}
@@ -216,15 +228,21 @@ func (g *SoulRepo) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 		return soul.Revision{}, err
 	}
 
-	err := g.queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
-		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
-		SourcePath: normalized.SourcePath, Action: string(normalized.Action),
-		PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
-		DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
-		ActorID: normalized.ActorID, OriginKind: normalized.OriginKind, OriginRef: normalized.OriginRef,
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertSoulRevision",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
+				ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
+				ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
+				SourcePath: normalized.SourcePath, Action: string(normalized.Action),
+				PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
+				DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
+				ActorID: normalized.ActorID, OriginKind: normalized.OriginKind, OriginRef: normalized.OriginRef,
+				CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return soul.Revision{}, fmt.Errorf("store: append soul revision %q: %w", normalized.ID, err)
 	}
@@ -241,7 +259,7 @@ func (g *SoulRepo) GetSoulRevision(ctx context.Context, id string) (soul.Revisio
 		return soul.Revision{}, fmt.Errorf("%w: id is required", soul.ErrInvalidRevision)
 	}
 
-	row, err := g.queries.GetSoulRevision(ctx, trimmedID)
+	row, err := g.readQueries.GetSoulRevision(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Revision{}, fmt.Errorf("store: soul revision %q: %w", trimmedID, soul.ErrRevisionNotFound)
 	}
@@ -284,7 +302,7 @@ func (g *SoulRepo) ListSoulRevisions(
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query soul revisions: %w", err)
 	}
@@ -320,7 +338,7 @@ func (g *SoulRepo) FindSoulRevisionForRollback(
 		return soul.Revision{}, err
 	}
 
-	row, err := g.queries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
+	row, err := g.readQueries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
 		ProfileID: authoringProfileID(query.ProfileID), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 		AgentName:  strings.TrimSpace(query.AgentName),
 		SourcePath: strings.TrimSpace(query.SourcePath),
@@ -352,11 +370,22 @@ func (g *SoulRepo) UpdateSessionSoulSnapshot(ctx context.Context, update store.S
 	if updatedAt.IsZero() {
 		updatedAt = g.now()
 	}
-	affected, err := g.queries.UpdateSessionSoulSnapshot(ctx, sqlcgen.UpdateSessionSoulSnapshotParams{
-		SoulSnapshotID: nullableSessionString(update.SoulSnapshotID), SoulDigest: strings.TrimSpace(update.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(update.ParentSoulDigest), UpdatedAt: store.FormatTimestamp(updatedAt),
-		ID: strings.TrimSpace(update.ID),
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdateSessionSoulSnapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateSessionSoulSnapshot(ctx, sqlcgen.UpdateSessionSoulSnapshotParams{
+				SoulSnapshotID: nullableSessionString(
+					update.SoulSnapshotID,
+				),
+				SoulDigest:       strings.TrimSpace(update.SoulDigest),
+				ParentSoulDigest: strings.TrimSpace(update.ParentSoulDigest),
+				UpdatedAt:        store.FormatTimestamp(updatedAt),
+				ID:               strings.TrimSpace(update.ID),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update session soul snapshot %q: %w", update.ID, err)
 	}

@@ -164,11 +164,16 @@ func (s *Service) ResolveRef(ctx context.Context, ref string) (string, error) {
 
 // GetMetadata returns redacted metadata for one vault-backed ref.
 func (s *Service) GetMetadata(ctx context.Context, ref string) (Metadata, error) {
+	return ReadMetadata(ctx, s.store, ref)
+}
+
+// ReadMetadata returns redacted metadata from a read-only record source.
+func ReadMetadata(ctx context.Context, source ReadStore, ref string) (Metadata, error) {
 	normalized := NormalizeRef(ref)
 	if err := ValidateSecretRef(normalized); err != nil {
 		return Metadata{}, err
 	}
-	record, err := s.store.GetVaultSecret(ctx, normalized)
+	record, err := source.GetVaultSecret(ctx, normalized)
 	if err != nil {
 		return Metadata{}, err
 	}

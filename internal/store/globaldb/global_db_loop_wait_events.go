@@ -59,7 +59,7 @@ func (g *LoopRepo) listParkedLoopWaitEventSubscriptions(
 		args = append(args, runID)
 	}
 	query += " ORDER BY run.workspace_id, run.id, wait.generation, wait.node_id, wait.item_index"
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := g.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query parked Loop event waits: %w", err)
 	}

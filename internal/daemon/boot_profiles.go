@@ -37,7 +37,9 @@ func (d *Daemon) bootProfiles(
 		profile.WithClock(d.now),
 		profile.WithLogger(state.logger),
 		profile.WithEventRecorder(recorder),
-		profile.WithPlacementCatalog(extensionpkg.NewRegistry(database.DB())),
+		profile.WithPlacementCatalog(
+			extensionpkg.NewRegistry(database.DB(), extensionpkg.WithRegistryReadDB(database.ReadDB())),
+		),
 		profile.WithDesktopPartitionCatalog(profileDesktopPartitions{state: state}),
 		profile.WithUserJournalRemover(profileUserJournal{state: state}),
 		profile.WithAutomationReconciler(profileAutomationReconciler{state: state}),

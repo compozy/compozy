@@ -17,7 +17,7 @@ func (g *LoopRepo) ListNodeAttempts(
 	if err := g.checkReady(ctx, "list node attempts"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListLoopNodeAttempts(ctx, sqlcgen.ListLoopNodeAttemptsParams{
+	rows, err := g.readQueries.ListLoopNodeAttempts(ctx, sqlcgen.ListLoopNodeAttemptsParams{
 		WorkspaceID: string(workspaceID),
 		LoopRunID:   string(runID),
 	})

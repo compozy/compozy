@@ -28,7 +28,9 @@ func (g *HeartbeatRepo) UpsertHeartbeatWakeState(
 		return heartbeat.WakeState{}, err
 	}
 
-	if err := execHeartbeatWakeStateUpsert(ctx, g.db, normalized); err != nil {
+	if err := g.writeBackground(ctx, "upsert heartbeat wake state", func(ctx context.Context, tx *store.WriteTx) error {
+		return execHeartbeatWakeStateUpsert(ctx, tx, normalized)
+	}); err != nil {
 		return heartbeat.WakeState{}, fmt.Errorf("store: upsert heartbeat wake state %q: %w", normalized.SessionID, err)
 	}
 	return normalized, nil
@@ -54,7 +56,7 @@ func (g *HeartbeatRepo) GetHeartbeatWakeState(
 		)
 	}
 
-	row, err := g.queries.GetHeartbeatWakeState(ctx, sqlcgen.GetHeartbeatWakeStateParams{
+	row, err := g.readQueries.GetHeartbeatWakeState(ctx, sqlcgen.GetHeartbeatWakeStateParams{
 		WorkspaceID: workspaceID, AgentName: agentName, SessionID: sessionID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -100,7 +102,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeState(
 	sqlQuery += " ORDER BY updated_at DESC, session_id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat wake state: %w", err)
 	}
@@ -158,41 +160,18 @@ func (g *HeartbeatRepo) RecordHeartbeatWakeDecision(
 		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: begin heartbeat wake decision transaction: %w",
-			err,
-		)
-	}
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackTx(tx, "heartbeat wake decision"))
+	err = g.writeBackground(ctx, "commit heartbeat wake decision", func(ctx context.Context, tx *store.WriteTx) error {
+		if err := execHeartbeatWakeEventInsert(ctx, tx, normalizedEvent); err != nil {
+			return fmt.Errorf("store: append heartbeat wake event: %w", err)
 		}
-	}()
-
-	if err := execHeartbeatWakeEventInsert(ctx, tx, normalizedEvent); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: append heartbeat wake event %q: %w",
-			normalizedEvent.ID,
-			err,
-		)
+		if err := execHeartbeatWakeStateUpsert(ctx, tx, normalizedState); err != nil {
+			return fmt.Errorf("store: upsert heartbeat wake state: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
 	}
-	if err := execHeartbeatWakeStateUpsert(ctx, tx, normalizedState); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: upsert heartbeat wake state %q: %w",
-			normalizedState.SessionID,
-			err,
-		)
-	}
-	if err := tx.Commit(); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: commit heartbeat wake decision transaction: %w",
-			err,
-		)
-	}
-	finished = true
 	return normalizedEvent, normalizedState, nil
 }
 
@@ -219,7 +198,9 @@ func (g *HeartbeatRepo) AppendHeartbeatWakeEvent(
 		return heartbeat.WakeEvent{}, err
 	}
 
-	if err := execHeartbeatWakeEventInsert(ctx, g.db, normalized); err != nil {
+	if err := g.writeBackground(ctx, "append heartbeat wake event", func(ctx context.Context, tx *store.WriteTx) error {
+		return execHeartbeatWakeEventInsert(ctx, tx, normalized)
+	}); err != nil {
 		return heartbeat.WakeEvent{}, fmt.Errorf("store: append heartbeat wake event %q: %w", normalized.ID, err)
 	}
 	return normalized, nil
@@ -273,7 +254,7 @@ func (g *HeartbeatRepo) GetHeartbeatWakeEvent(ctx context.Context, id string) (h
 		return heartbeat.WakeEvent{}, fmt.Errorf("%w: id is required", heartbeat.ErrInvalidWakeEvent)
 	}
 
-	row, err := g.queries.GetHeartbeatWakeEvent(ctx, trimmedID)
+	row, err := g.readQueries.GetHeartbeatWakeEvent(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.WakeEvent{}, fmt.Errorf(
 			"store: heartbeat wake event %q: %w",
@@ -320,7 +301,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat wake events: %w", err)
 	}
@@ -355,7 +336,7 @@ func (g *HeartbeatRepo) SweepHeartbeatWakeEvents(ctx context.Context, cutoff tim
 	if limit <= 0 {
 		return 0, fmt.Errorf("%w: retention limit must be positive", heartbeat.ErrInvalidWakeEvent)
 	}
-	expired, err := g.queries.HasExpiredHeartbeatWakeEvents(ctx, store.FormatTimestamp(cutoff))
+	expired, err := g.readQueries.HasExpiredHeartbeatWakeEvents(ctx, store.FormatTimestamp(cutoff))
 	if err != nil {
 		return 0, fmt.Errorf("store: find expired heartbeat wake events: %w", err)
 	}

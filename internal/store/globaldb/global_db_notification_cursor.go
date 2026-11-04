@@ -21,7 +21,7 @@ func (n *NotificationRepo) GetCursor(ctx context.Context, key notifications.Curs
 	if err != nil {
 		return notifications.Cursor{}, err
 	}
-	cursor, found, err := loadNotificationCursor(ctx, n.queries, normalized)
+	cursor, found, err := loadNotificationCursor(ctx, n.readQueries, normalized)
 	if err != nil {
 		return notifications.Cursor{}, err
 	}
@@ -60,7 +60,7 @@ func (n *NotificationRepo) ListCursors(
 	sqlQuery += ` ORDER BY scope_kind ASC, profile_id ASC, workspace_id ASC, stream_name ASC, subject_id ASC, consumer_id ASC`
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
-	rows, err := n.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := n.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query notification cursors: %w", err)
 	}

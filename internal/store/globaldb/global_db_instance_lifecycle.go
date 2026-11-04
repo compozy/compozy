@@ -228,7 +228,7 @@ func (r *InstanceRepo) List(ctx context.Context, query agentinstance.ListQuery) 
 	if query.AllProfiles {
 		allProfiles = 1
 	}
-	rows, err := r.queries.ListAgentInstances(
+	rows, err := r.readQueries.ListAgentInstances(
 		ctx,
 		sqlcgen.ListAgentInstancesParams{
 			AllProfiles:   allProfiles,
@@ -259,20 +259,20 @@ func (r *InstanceRepo) CountActive(ctx context.Context, profileID string) (int64
 	if err := r.checkReady(ctx, "count active instances"); err != nil {
 		return 0, err
 	}
-	return r.queries.CountActiveAgentInstances(ctx, profileID)
+	return r.readQueries.CountActiveAgentInstances(ctx, profileID)
 }
 
 func (r *InstanceRepo) HeldWakes(ctx context.Context, instanceID string) (int64, error) {
 	if err := r.checkReady(ctx, "count held instance wakes"); err != nil {
 		return 0, err
 	}
-	return r.queries.CountInstanceHeldWakes(ctx, instanceID)
+	return r.readQueries.CountInstanceHeldWakes(ctx, instanceID)
 }
 
 func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (bool, error) {
 	if err := r.checkReady(ctx, "read instance attention"); err != nil {
 		return false, err
 	}
-	value, err := r.queries.InstanceNeedsAttention(ctx, instanceID)
+	value, err := r.readQueries.InstanceNeedsAttention(ctx, instanceID)
 	return value.Bool, err
 }

@@ -26,7 +26,7 @@ func (g *GatewayRepo) ProviderIdentity(ctx context.Context, name string) (gatewa
 	if err := g.checkReady(ctx, "load gateway provider identity"); err != nil {
 		return gateway.ProviderIdentity{}, err
 	}
-	row, err := g.queries.GetGatewayProvider(ctx, strings.TrimSpace(name))
+	row, err := g.readQueries.GetGatewayProvider(ctx, strings.TrimSpace(name))
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.ProviderIdentity{}, gateway.ErrProviderNotFound
 	}
@@ -48,7 +48,7 @@ func (g *GatewayRepo) Snapshot(ctx context.Context) (_ gateway.Snapshot, err err
 	if err := g.checkReady(ctx, "load gateway snapshot"); err != nil {
 		return gateway.Snapshot{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return gateway.Snapshot{}, fmt.Errorf("store: begin gateway snapshot: %w", err)
 	}

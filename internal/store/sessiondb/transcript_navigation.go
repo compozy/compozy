@@ -32,7 +32,7 @@ func (s *SessionDB) TranscriptSearch(
 	if s.state.Load() != sessionStateOpen {
 		return transcript.SearchResult{}, store.ErrClosed
 	}
-	return queryTranscriptSearch(ctx, s.db, query)
+	return queryTranscriptSearch(ctx, s.readDB, query)
 }
 
 // TranscriptOutline reads the operator-message trail from the retained projection.
@@ -45,7 +45,7 @@ func (s *SessionDB) TranscriptOutline(ctx context.Context) (transcript.OutlineRe
 	if s.state.Load() != sessionStateOpen {
 		return transcript.OutlineResult{}, store.ErrClosed
 	}
-	return queryTranscriptOutline(ctx, s.db)
+	return queryTranscriptOutline(ctx, s.readDB)
 }
 
 // TranscriptSearch reads matching messages without a live writer.

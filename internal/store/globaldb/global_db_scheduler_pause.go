@@ -26,7 +26,7 @@ func (g *TaskRepo) GetSchedulerPause(ctx context.Context) (taskpkg.SchedulerPaus
 	if err := g.checkReady(ctx, "get scheduler pause state"); err != nil {
 		return taskpkg.SchedulerPauseState{}, err
 	}
-	row, err := g.queries.GetSchedulerPause(ctx)
+	row, err := g.readQueries.GetSchedulerPause(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return taskpkg.SchedulerPauseState{}, nil
 	}
@@ -46,12 +46,18 @@ func (g *TaskRepo) SetSchedulerPaused(
 		return taskpkg.SchedulerPauseState{}, err
 	}
 	now := g.now().UTC()
-	if err := g.queries.SetSchedulerPaused(ctx, sqlcgen.SetSchedulerPausedParams{
-		PausedBy:  strings.TrimSpace(actor),
-		PausedAt:  sql.NullString{String: store.FormatTimestamp(now), Valid: true},
-		Reason:    strings.TrimSpace(reason),
-		UpdatedAt: store.FormatTimestamp(now),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.SetSchedulerPaused",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.SetSchedulerPaused(ctx, sqlcgen.SetSchedulerPausedParams{
+				PausedBy:  strings.TrimSpace(actor),
+				PausedAt:  sql.NullString{String: store.FormatTimestamp(now), Valid: true},
+				Reason:    strings.TrimSpace(reason),
+				UpdatedAt: store.FormatTimestamp(now),
+			})
+		},
+	); err != nil {
 		return taskpkg.SchedulerPauseState{}, fmt.Errorf("store: pause scheduler: %w", err)
 	}
 	return g.GetSchedulerPause(ctx)
@@ -63,7 +69,13 @@ func (g *TaskRepo) SetSchedulerResumed(ctx context.Context) (taskpkg.SchedulerPa
 		return taskpkg.SchedulerPauseState{}, err
 	}
 	now := g.now().UTC()
-	if err := g.queries.SetSchedulerResumed(ctx, store.FormatTimestamp(now)); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.SetSchedulerResumed",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.SetSchedulerResumed(ctx, store.FormatTimestamp(now))
+		},
+	); err != nil {
 		return taskpkg.SchedulerPauseState{}, fmt.Errorf("store: resume scheduler: %w", err)
 	}
 	return g.GetSchedulerPause(ctx)

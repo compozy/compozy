@@ -24,7 +24,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptions(
 	if err := g.checkReady(ctx, "list parked watch-events subscriptions"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListParkedWatchEventSubscriptions(ctx, sqlcgen.ListParkedWatchEventSubscriptionsParams{
+	rows, err := g.readQueries.ListParkedWatchEventSubscriptions(ctx, sqlcgen.ListParkedWatchEventSubscriptionsParams{
 		Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
 	})
 	if err != nil {
@@ -46,7 +46,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsForLoopRun(
 	if loopRunID == "" {
 		return []looppkg.ParkedWatchEventSubscription{}, nil
 	}
-	rows, err := g.queries.ListParkedWatchEventSubscriptionsForLoopRun(
+	rows, err := g.readQueries.ListParkedWatchEventSubscriptionsForLoopRun(
 		ctx,
 		sqlcgen.ListParkedWatchEventSubscriptionsForLoopRunParams{
 			Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
@@ -72,7 +72,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsPage(
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: parked watch-events page limit must be positive", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListParkedWatchEventSubscriptionsPage(
+	rows, err := g.readQueries.ListParkedWatchEventSubscriptionsPage(
 		ctx,
 		sqlcgen.ListParkedWatchEventSubscriptionsPageParams{
 			Status:     string(looppkg.StatusWatching),

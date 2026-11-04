@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 type globalSQLExecutor interface {
@@ -46,6 +47,37 @@ func joinCleanupError(target *error, cleanupErr error) {
 		return
 	}
 	*target = errors.Join(*target, cleanupErr)
+}
+
+// executeWriteQuery gives single-statement mutations the same admission,
+// cancellation and owner diagnostics as multi-statement repository operations.
+func (r *repoBase) executeWriteQuery(
+	ctx context.Context,
+	operation string,
+	run func(context.Context, *sqlcgen.Queries) error,
+) error {
+	return store.ExecuteWriteOperation(ctx, r.db, operation, func(ctx context.Context, tx *store.WriteTx) error {
+		return run(ctx, sqlcgen.New(tx))
+	})
+}
+
+func executeWriteQueryResult[T any](
+	ctx context.Context,
+	r *repoBase,
+	operation string,
+	run func(context.Context, *sqlcgen.Queries) (T, error),
+) (T, error) {
+	var result T
+	err := r.executeWriteQuery(ctx, operation, func(ctx context.Context, queries *sqlcgen.Queries) error {
+		var err error
+		result, err = run(ctx, queries)
+		return err
+	})
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return result, nil
 }
 
 func (r *repoBase) withImmediateTransaction(

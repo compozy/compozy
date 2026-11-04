@@ -1224,6 +1224,134 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should prepare without the writer and reject a stale comparison across handles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		other := openGlobalDBForTest(t, globalDB.Path())
+		executionContext := modelcatalog.GlobalCatalogExecutionContext()
+		status := modelCatalogStatus("builtin", "blackbox", modelcatalog.SourceKindBuiltin, 10)
+		row := modelCatalogRow("builtin", "blackbox", "default", modelcatalog.SourceKindBuiltin, 10)
+		if err := globalDB.ReplaceSourceRows(
+			ctx,
+			executionContext,
+			"builtin",
+			"blackbox",
+			[]modelcatalog.ModelRow{row},
+			status,
+		); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := normalizeModelCatalogBatchReplacement(modelcatalog.SourceRowsReplacement{
+			ExecutionContext: executionContext, SourceID: "builtin", ProviderID: "blackbox",
+			Rows: []modelcatalog.ModelRow{row}, Status: status,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn, err := globalDB.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepareCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		plan, prepareErr := globalDB.prepareModelCatalogReplacements(
+			prepareCtx,
+			[]normalizedModelCatalogReplacement{entry},
+		)
+		if err := conn.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if prepareErr != nil {
+			t.Fatalf("prepare with the sole writer connection occupied: %v", prepareErr)
+		}
+		changed := row
+		changed.DisplayName = "Changed by another handle"
+		if err := other.ReplaceSourceRows(
+			ctx,
+			executionContext,
+			"builtin",
+			"blackbox",
+			[]modelcatalog.ModelRow{changed},
+			status,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := globalDB.commitModelCatalogReplacements(ctx, "test prepared replacement", plan); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := globalDB.ListRows(
+			ctx,
+			modelcatalog.ListOptions{SourceID: "builtin", ProviderID: "blackbox", IncludeAll: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(stored) != 1 || stored[0].DisplayName != row.DisplayName {
+			t.Fatalf("published stale plan = %#v, want the requested original row", stored)
+		}
+	})
+
+	t.Run("Should restore a prepared partition pruned earlier in the same batch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sourceID := modelcatalog.SourceKindProviderLiveID("cursor")
+		contextB := modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive)
+		contextA := contextB
+		contextA.CommandFingerprint = modelcatalog.CatalogExecutionFingerprint("replacement-a")
+		row := modelCatalogRow(sourceID, "cursor", "model-b", modelcatalog.SourceKindProviderLive, 110)
+		status := modelCatalogStatus(sourceID, "cursor", modelcatalog.SourceKindProviderLive, 110)
+		if err := db.ReplaceSourceRows(
+			ctx,
+			contextB,
+			sourceID,
+			"cursor",
+			[]modelcatalog.ModelRow{row},
+			status,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{
+			{
+				ExecutionContext: contextA,
+				SourceID:         sourceID,
+				ProviderID:       "cursor",
+				Rows:             []modelcatalog.ModelRow{row},
+				Status:           status,
+			},
+			{
+				ExecutionContext: contextB,
+				SourceID:         sourceID,
+				ProviderID:       "cursor",
+				Rows:             []modelcatalog.ModelRow{row},
+				Status:           status,
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, expected := range []struct {
+			context modelcatalog.CatalogExecutionContext
+			count   int
+		}{{contextA, 0}, {contextB, 1}} {
+			rows, err := db.ListRows(ctx, modelcatalog.ListOptions{
+				ExecutionContext: expected.context, SourceID: sourceID, ProviderID: "cursor", IncludeAll: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != expected.count || (len(rows) > 0 && rows[0].ModelID != row.ModelID) {
+				t.Fatalf(
+					"context %s rows = %#v, want %d of %s",
+					expected.context.CommandFingerprint,
+					rows,
+					expected.count,
+					row.ModelID,
+				)
+			}
+		}
+	})
+
 	t.Run("Should touch unchanged source rows in place instead of rewriting them", func(t *testing.T) {
 		t.Parallel()
 

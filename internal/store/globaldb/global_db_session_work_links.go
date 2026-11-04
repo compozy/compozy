@@ -16,7 +16,7 @@ func (g *SessionRepo) SaveSessionWorkLink(ctx context.Context, link store.Sessio
 	}
 	var belongs bool
 	const belongsQuery = "SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ?)"
-	if err := g.db.QueryRowContext(ctx, belongsQuery, link.SessionID, link.WorkspaceID).
+	if err := g.readDB.QueryRowContext(ctx, belongsQuery, link.SessionID, link.WorkspaceID).
 		Scan(&belongs); err != nil {
 		return fmt.Errorf("store: validate linked session: %w", err)
 	}
@@ -33,9 +33,23 @@ func (g *SessionRepo) SaveSessionWorkLink(ctx context.Context, link store.Sessio
 	}
 	var err error
 	if automatic {
-		_, err = g.queries.SaveAutomaticSessionWorkLink(ctx, sqlcgen.SaveAutomaticSessionWorkLinkParams(params))
+		_, err = executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.SaveAutomaticSessionWorkLink",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.SaveAutomaticSessionWorkLink(ctx, sqlcgen.SaveAutomaticSessionWorkLinkParams(params))
+			},
+		)
 	} else {
-		_, err = g.queries.SaveSessionWorkLink(ctx, params)
+		_, err = executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.SaveSessionWorkLink",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.SaveSessionWorkLink(ctx, params)
+			},
+		)
 	}
 	if err != nil {
 		return fmt.Errorf("store: save session work link: %w", err)
@@ -47,17 +61,24 @@ func (g *SessionRepo) UnlinkSessionWork(ctx context.Context, link store.SessionW
 	if err := g.checkReady(ctx, "unlink session work"); err != nil {
 		return err
 	}
-	_, err := g.queries.UnlinkSessionWork(
+	_, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.UnlinkSessionWorkParams{
-			SessionID:    link.SessionID,
-			WorkspaceID:  link.WorkspaceID,
-			RepoKey:      link.Repository,
-			Branch:       link.Branch,
-			PrNumber:     sql.NullInt64{Int64: int64(link.PRNumber), Valid: link.PRNumber > 0},
-			WorktreeID:   link.WorktreeID,
-			WorktreeName: link.WorktreeName,
-			Provenance:   link.Provenance,
+		g.repoBase,
+		"globaldb.UnlinkSessionWork",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnlinkSessionWork(
+				ctx,
+				sqlcgen.UnlinkSessionWorkParams{
+					SessionID:    link.SessionID,
+					WorkspaceID:  link.WorkspaceID,
+					RepoKey:      link.Repository,
+					Branch:       link.Branch,
+					PrNumber:     sql.NullInt64{Int64: int64(link.PRNumber), Valid: link.PRNumber > 0},
+					WorktreeID:   link.WorktreeID,
+					WorktreeName: link.WorktreeName,
+					Provenance:   link.Provenance,
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -74,7 +95,7 @@ func (g *SessionRepo) SessionWorkLinks(ctx context.Context, ids []string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionWorkLinks(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionWorkLinks(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read session work links: %w", err)
 	}
@@ -107,7 +128,7 @@ func (g *SessionRepo) SessionPendingWork(ctx context.Context, ids []string) (map
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionPendingWork(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionPendingWork(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read pending session work: %w", err)
 	}
@@ -126,7 +147,7 @@ func (g *SessionRepo) SessionWorkFamily(ctx context.Context, ids []string) ([]st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionWorkFamily(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionWorkFamily(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read linked work family: %w", err)
 	}

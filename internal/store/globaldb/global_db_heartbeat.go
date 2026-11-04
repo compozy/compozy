@@ -52,14 +52,15 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 		return existing, nil
 	}
 
-	affected, err := g.queries.InsertHeartbeatSnapshot(ctx, sqlcgen.InsertHeartbeatSnapshotParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
-		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
-		SourcePath: normalized.SourcePath, SchemaVersion: int64(normalized.SchemaVersion), Digest: normalized.Digest,
-		ConfigDigest: normalized.ConfigDigest, Body: normalized.Body,
-		FrontmatterJson: string(normalized.FrontmatterJSON), ResolvedJson: string(normalized.ResolvedJSON),
-		DiagnosticsJson: string(normalized.DiagnosticsJSON), CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	params := heartbeatSnapshotInsertParams(normalized)
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.InsertHeartbeatSnapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.InsertHeartbeatSnapshot(ctx, params)
+		},
+	)
 	if err != nil {
 		return heartbeat.Snapshot{}, fmt.Errorf("store: insert heartbeat snapshot %q: %w", normalized.ID, err)
 	}
@@ -86,6 +87,16 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 	return normalized, nil
 }
 
+func heartbeatSnapshotInsertParams(snapshot heartbeat.Snapshot) sqlcgen.InsertHeartbeatSnapshotParams {
+	return sqlcgen.InsertHeartbeatSnapshotParams{
+		ID: snapshot.ID, WorkspaceID: snapshot.WorkspaceID, ProfileID: snapshot.ProfileID,
+		AgentName: snapshot.AgentName, SourcePath: snapshot.SourcePath, SchemaVersion: int64(snapshot.SchemaVersion),
+		Digest: snapshot.Digest, ConfigDigest: snapshot.ConfigDigest, Body: snapshot.Body,
+		FrontmatterJson: string(snapshot.FrontmatterJSON), ResolvedJson: string(snapshot.ResolvedJSON),
+		DiagnosticsJson: string(snapshot.DiagnosticsJSON), CreatedAt: store.FormatTimestamp(snapshot.CreatedAt),
+	}
+}
+
 // GetHeartbeatSnapshot returns a persisted Heartbeat snapshot by id.
 func (g *HeartbeatRepo) GetHeartbeatSnapshot(ctx context.Context, id string) (heartbeat.Snapshot, error) {
 	if err := g.checkReady(ctx, "get heartbeat snapshot"); err != nil {
@@ -96,7 +107,7 @@ func (g *HeartbeatRepo) GetHeartbeatSnapshot(ctx context.Context, id string) (he
 		return heartbeat.Snapshot{}, fmt.Errorf("%w: id is required", heartbeat.ErrInvalidSnapshot)
 	}
 
-	row, err := g.queries.GetHeartbeatSnapshot(ctx, trimmedID)
+	row, err := g.readQueries.GetHeartbeatSnapshot(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.Snapshot{}, fmt.Errorf(
 			"store: heartbeat snapshot %q: %w",
@@ -135,7 +146,7 @@ func (g *HeartbeatRepo) FindHeartbeatSnapshotByDigest(
 		)
 	}
 
-	row, err := g.queries.GetHeartbeatSnapshotByDigest(ctx, sqlcgen.GetHeartbeatSnapshotByDigestParams{
+	row, err := g.readQueries.GetHeartbeatSnapshotByDigest(ctx, sqlcgen.GetHeartbeatSnapshotByDigestParams{
 		WorkspaceID: workspaceID, ProfileID: profileID, AgentName: agentName, Digest: digest,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -279,7 +290,7 @@ func (g *HeartbeatRepo) ListHeartbeatSnapshots(
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat snapshots: %w", err)
 	}
@@ -327,24 +338,30 @@ func (g *HeartbeatRepo) AppendHeartbeatRevision(
 		return heartbeat.Revision{}, err
 	}
 
-	err := g.queries.InsertHeartbeatRevision(ctx, sqlcgen.InsertHeartbeatRevisionParams{
-		ID:          normalized.ID,
-		WorkspaceID: normalized.WorkspaceID, ProfileID: normalized.ProfileID,
-		AgentName:  normalized.AgentName,
-		SourcePath: normalized.SourcePath,
-		Operation:  string(normalized.Operation),
-		PreviousDigest: nullableHeartbeatString(
-			normalized.PreviousDigest,
-		),
-		NewDigest: nullableHeartbeatString(normalized.NewDigest),
-		NewSnapshotID: nullableHeartbeatString(
-			normalized.NewSnapshotID,
-		),
-		Body:      nullableHeartbeatText(normalized.Body),
-		ActorKind: string(normalized.ActorKind),
-		ActorID:   normalized.ActorID,
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertHeartbeatRevision",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertHeartbeatRevision(ctx, sqlcgen.InsertHeartbeatRevisionParams{
+				ID:          normalized.ID,
+				WorkspaceID: normalized.WorkspaceID, ProfileID: normalized.ProfileID,
+				AgentName:  normalized.AgentName,
+				SourcePath: normalized.SourcePath,
+				Operation:  string(normalized.Operation),
+				PreviousDigest: nullableHeartbeatString(
+					normalized.PreviousDigest,
+				),
+				NewDigest: nullableHeartbeatString(normalized.NewDigest),
+				NewSnapshotID: nullableHeartbeatString(
+					normalized.NewSnapshotID,
+				),
+				Body:      nullableHeartbeatText(normalized.Body),
+				ActorKind: string(normalized.ActorKind),
+				ActorID:   normalized.ActorID,
+				CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return heartbeat.Revision{}, fmt.Errorf("store: append heartbeat revision %q: %w", normalized.ID, err)
 	}
@@ -361,7 +378,7 @@ func (g *HeartbeatRepo) GetHeartbeatRevision(ctx context.Context, id string) (he
 		return heartbeat.Revision{}, fmt.Errorf("%w: id is required", heartbeat.ErrInvalidRevision)
 	}
 
-	row, err := g.queries.GetHeartbeatRevision(ctx, trimmedID)
+	row, err := g.readQueries.GetHeartbeatRevision(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.Revision{}, fmt.Errorf(
 			"store: heartbeat revision %q: %w",
@@ -409,7 +426,7 @@ func (g *HeartbeatRepo) ListHeartbeatRevisions(
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat revisions: %w", err)
 	}
@@ -445,7 +462,7 @@ func (g *HeartbeatRepo) FindHeartbeatRevisionForRollback(
 		return heartbeat.Revision{}, err
 	}
 
-	row, err := g.queries.GetHeartbeatRevisionForRollback(ctx, sqlcgen.GetHeartbeatRevisionForRollbackParams{
+	row, err := g.readQueries.GetHeartbeatRevisionForRollback(ctx, sqlcgen.GetHeartbeatRevisionForRollbackParams{
 		ProfileID: authoringProfileID(query.ProfileID), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 		AgentName:  strings.TrimSpace(query.AgentName),
 		SourcePath: strings.TrimSpace(query.SourcePath),

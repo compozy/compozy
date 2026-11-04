@@ -198,7 +198,7 @@ BEGIN
 	DELETE FROM session_derivations WHERE workspace_id = OLD.id;
 	DELETE FROM sessions WHERE workspace_id = OLD.id;
 	DELETE FROM token_usage_daily WHERE workspace_id = OLD.id;
-	DELETE FROM event_summaries WHERE workspace_id = OLD.id;
+	INSERT OR IGNORE INTO telemetry_deleted_scopes(kind, scope_id) VALUES ('workspace', OLD.id);
 	DELETE FROM tool_approval_grants WHERE workspace_id = OLD.id;
 	DELETE FROM dead_entities WHERE workspace_id = OLD.id;
 	DELETE FROM notification_cursors WHERE workspace_id = OLD.id;

@@ -25,6 +25,8 @@ import (
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
+	telemetryschema "github.com/compozy/compozy/internal/store/telemetrydb/schema"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	workspaceschema "github.com/compozy/compozy/internal/store/workspacedb/schema"
 	"github.com/compozy/compozy/internal/testutil"
@@ -56,10 +58,16 @@ func productionMigrationStreams() []productionMigrationStream {
 			schemaFS:          globalschema.Files,
 			declarativeSource: "definitions",
 		},
+		{
+			name: "telemetry", stream: telemetrydb.MigrationStream(),
+			schemaFS: telemetryschema.Files, declarativeSource: "schema.sql",
+		},
 	}
 }
 
 func migrationStreamsUnderTest() []productionMigrationStream {
+	// Invariant: each persisted SQLite stream has an independent, lossless migration
+	// history. The canonical migration suites also own the new telemetry file.
 	return append(productionMigrationStreams(), []productionMigrationStream{
 		{
 			name:              "session",
@@ -81,8 +89,8 @@ func TestProductionMigrationStreams(t *testing.T) {
 		t.Parallel()
 
 		production := productionMigrationStreams()
-		if len(production) != 1 || production[0].name != "global" {
-			t.Fatalf("production migration streams = %+v, want global", production)
+		if len(production) != 2 || production[0].name != "global" || production[1].name != "telemetry" {
+			t.Fatalf("production migration streams = %+v, want global and telemetry", production)
 		}
 		streams := migrationStreamsUnderTest()
 		seenTables := make(map[string]string)

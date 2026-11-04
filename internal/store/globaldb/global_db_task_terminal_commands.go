@@ -228,7 +228,7 @@ func (g *TaskRepo) ListTerminalRunCommands(
 	if err := g.checkReady(ctx, "list terminal run commands"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListTaskRunTerminalCommands(ctx)
+	rows, err := g.readQueries.ListTaskRunTerminalCommands(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list terminal run commands: %w", err)
 	}

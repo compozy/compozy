@@ -5,9 +5,70 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
+	"time"
 )
 
 var errSQLiteCheckpointBusy = errors.New("store: sqlite wal checkpoint is busy")
+
+// PassiveCheckpointer owns WAL maintenance independently of writer admission and
+// writer-pool capacity. Its owner disables wal_autocheckpoint on runtime writers
+// and closes this worker before the database's final shutdown checkpoint.
+type PassiveCheckpointer struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	err    error
+}
+
+// OpenPassiveCheckpointer starts periodic PASSIVE checkpoints on an existing
+// database. PASSIVE never waits for readers or the WAL writer; unfinished work
+// is retried on the next tick instead of extending a foreground COMMIT.
+func OpenPassiveCheckpointer(ctx context.Context, path string) (*PassiveCheckpointer, error) {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return nil, errors.New("store: checkpoint database path is required")
+	}
+	db, err := openSQLiteHandle(ctx, cleanPath, sqliteCheckpointDSN(cleanPath))
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	workerCtx, cancel := context.WithCancel(context.Background())
+	worker := &PassiveCheckpointer{cancel: cancel, done: make(chan struct{})}
+	go worker.run(workerCtx, db)
+	return worker, nil
+}
+
+func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
+	defer func() {
+		p.err = db.Close()
+		close(p.done)
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := CheckpointPassive(ctx, db); err != nil && ctx.Err() == nil && !IsSQLiteBusy(err) {
+				slog.Warn("sqlite passive checkpoint failed", "error", err)
+			}
+		}
+	}
+}
+
+// Close cancels and joins maintenance, then returns the connection-close error.
+func (p *PassiveCheckpointer) Close() error {
+	if p == nil {
+		return nil
+	}
+	p.cancel()
+	<-p.done
+	return p.err
+}
 
 // Checkpoint truncates the WAL for an open SQLite database.
 func Checkpoint(ctx context.Context, db *sql.DB) (retErr error) {

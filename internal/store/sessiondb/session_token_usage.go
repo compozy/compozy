@@ -38,7 +38,7 @@ func (s *SessionDB) ListTokenUsage(ctx context.Context) ([]store.TokenUsage, err
 	if ctx == nil {
 		return nil, errors.New("store: list token usage context is required")
 	}
-	rows, err := sqlcgen.New(s.db).ListTokenUsage(ctx)
+	rows, err := sqlcgen.New(s.readDB).ListTokenUsage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list token usage: %w", err)
 	}

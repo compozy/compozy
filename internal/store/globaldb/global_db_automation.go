@@ -22,7 +22,7 @@ func (g *AutomationRepo) GetTriggerByWebhookID(ctx context.Context, webhookID st
 		return automation.Trigger{}, err
 	}
 
-	row, err := g.queries.GetAutomationTriggerByWebhookID(ctx, nullableAutomationString(trimmedWebhookID))
+	row, err := g.readQueries.GetAutomationTriggerByWebhookID(ctx, nullableAutomationString(trimmedWebhookID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Trigger{}, automation.ErrTriggerNotFound
@@ -43,7 +43,13 @@ func (g *AutomationRepo) CreateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	if err := g.queries.InsertAutomationRun(ctx, params); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertAutomationRun(ctx, params)
+		},
+	); err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: create automation run %q: %w",
 			normalized.ID,
@@ -69,9 +75,16 @@ func (g *AutomationRepo) UpdateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	affected, err := g.queries.UpdateAutomationRun(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		automationRunUpdateParams(normalized, metadataJSON),
+		g.repoBase,
+		"globaldb.UpdateAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateAutomationRun(
+				ctx,
+				automationRunUpdateParams(normalized, metadataJSON),
+			)
+		},
 	)
 	if err != nil {
 		return automation.Run{}, fmt.Errorf(
@@ -104,7 +117,14 @@ func (g *AutomationRepo) DeleteRun(ctx context.Context, id string) error {
 		return err
 	}
 
-	affected, err := g.queries.DeleteAutomationRun(ctx, trimmedID)
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteAutomationRun(ctx, trimmedID)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: delete automation run %q: %w", trimmedID, err)
 	}
@@ -123,7 +143,7 @@ func (g *AutomationRepo) GetRun(ctx context.Context, id string) (automation.Run,
 		return automation.Run{}, err
 	}
 
-	row := g.db.QueryRowContext(ctx, `SELECT
+	row := g.readDB.QueryRowContext(ctx, `SELECT
 		id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
 		delivery_error, delivery_error_at, loop_run_id, metadata_json, workspace_id, attribution
@@ -174,7 +194,7 @@ func (g *AutomationRepo) ListRuns(
 	sqlQuery += " ORDER BY started_at IS NULL, started_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation runs: %w", err)
 	}
@@ -214,7 +234,7 @@ func (g *AutomationRepo) CountRuns(ctx context.Context, query automation.RunQuer
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 
 	var count int64
-	if err := g.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&count); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, sqlQuery, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count automation runs: %w", err)
 	}
 
@@ -267,7 +287,7 @@ func (g *AutomationRepo) GetJobEnabledOverlay(ctx context.Context, jobID string)
 		return automation.JobEnabledOverlay{}, err
 	}
 
-	row, err := g.queries.GetAutomationJobOverlay(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationJobOverlay(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.JobEnabledOverlay{}, automation.ErrJobOverlayNotFound
@@ -286,7 +306,7 @@ func (g *AutomationRepo) ListJobEnabledOverlays(
 		return nil, err
 	}
 
-	rows, err := g.queries.ListAutomationJobOverlays(ctx)
+	rows, err := g.readQueries.ListAutomationJobOverlays(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation job overlays: %w", err)
 	}
@@ -369,7 +389,7 @@ func (g *AutomationRepo) GetTriggerEnabledOverlay(
 		return automation.TriggerEnabledOverlay{}, err
 	}
 
-	row, err := g.queries.GetAutomationTriggerOverlay(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationTriggerOverlay(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.TriggerEnabledOverlay{}, automation.ErrTriggerOverlayNotFound
@@ -388,7 +408,7 @@ func (g *AutomationRepo) ListTriggerEnabledOverlays(
 		return nil, err
 	}
 
-	rows, err := g.queries.ListAutomationTriggerOverlays(ctx)
+	rows, err := g.readQueries.ListAutomationTriggerOverlays(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation trigger overlays: %w", err)
 	}

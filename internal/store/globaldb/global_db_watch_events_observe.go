@@ -16,6 +16,9 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
+	if err := g.summaryPublications.wait(ctx, query.readScope, query.workspaceID); err != nil {
+		return 0, err
+	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	scopeSQL, scopeArgs := watchEventsScopeClause("profile_id", query.readScope)
@@ -23,7 +26,7 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	args = append(args, kindArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	return scanWatchEventCursor(
-		g.db.QueryRowContext(
+		g.readDB.QueryRowContext(
 			ctx,
 			`SELECT COALESCE(MAX(rowid), 0)
 			   FROM event_summaries
@@ -43,6 +46,9 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	if len(query.kinds) == 0 {
 		return nil, nil
 	}
+	if err := g.summaryPublications.wait(ctx, query.readScope, query.workspaceID); err != nil {
+		return nil, err
+	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	scopeSQL, scopeArgs := watchEventsScopeClause("profile_id", query.readScope)
@@ -51,7 +57,7 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	args = append(args, kindArgs...)
 	args = append(args, query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT
 			rowid,

@@ -126,6 +126,107 @@ func TestStoreSQLHelpers(t *testing.T) {
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: WAL maintenance progresses without reserving writer capacity or
+	// waiting for a live write, and its owner joins it on close. Owner: SQLite
+	// connection lifecycle. Canonical suite: the checkpoint helpers in this file.
+	t.Run("Should checkpoint committed frames independently of an occupied writer", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "owned-checkpoint.db")
+		db, err := OpenSQLiteDatabaseWithPragmas(ctx, path, []string{"wal_autocheckpoint(0)"},
+			func(ctx context.Context, db *sql.DB) error {
+				_, err := db.ExecContext(ctx, "CREATE TABLE items (value INTEGER)")
+				return err
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		db.SetMaxOpenConns(1)
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+			t.Fatal(err)
+		}
+		probe, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := probe.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		var busy, frames, copied int
+		if err := probe.QueryRowContext(ctx, "PRAGMA wal_checkpoint(NOOP)").Scan(&busy, &frames, &copied); err != nil {
+			t.Fatal(err)
+		}
+		if frames <= copied {
+			t.Fatalf("WAL frames = %d, copied = %d, want pending committed work", frames, copied)
+		}
+		pendingFrames := frames
+		worker, err := OpenPassiveCheckpointer(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := worker.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		writer, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "INSERT INTO items VALUES (2)"); err != nil {
+			t.Fatal(err)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		for copied < pendingFrames {
+			select {
+			case <-waitCtx.Done():
+				t.Fatalf(
+					"maintenance copied %d/%d frames while writer occupied: %v",
+					copied,
+					pendingFrames,
+					waitCtx.Err(),
+				)
+			case <-ticker.C:
+				if err := probe.QueryRowContext(waitCtx, "PRAGMA wal_checkpoint(NOOP)").
+					Scan(&busy, &frames, &copied); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		closed := make(chan error, 1)
+		go func() { closed <- worker.Close() }()
+		select {
+		case err := <-closed:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-waitCtx.Done():
+			t.Fatal("maintenance close waited for the unrelated writer")
+		}
+		if err := writer.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 2 {
+			t.Fatalf("rows after maintenance shutdown = %d, %v, want both commits", count, err)
+		}
+	})
+
 	t.Run("Should report a retained reader preventing WAL truncation", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

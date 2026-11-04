@@ -65,7 +65,7 @@ func (g *LoopRepo) listDueLoopWaitEscalations(
 			"%w: wait escalation page limit must be between 1 and 1000", looppkg.ErrValidation,
 		)
 	}
-	rows, err := g.db.QueryContext(ctx, `SELECT wait.next_escalation_at, wait.loop_run_id,
+	rows, err := g.readDB.QueryContext(ctx, `SELECT wait.next_escalation_at, wait.loop_run_id,
 		wait.generation, wait.node_id, wait.item_index
 		FROM loop_node_waits AS wait
 		JOIN loop_runs AS run ON run.id = wait.loop_run_id

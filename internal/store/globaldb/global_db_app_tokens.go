@@ -51,7 +51,7 @@ func (g *GatewayRepo) ListAppTokens(
 	if err := g.checkReady(ctx, "list app tokens"); err != nil {
 		return nil, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("store: begin app token list: %w", err)
 	}
@@ -155,7 +155,7 @@ func (g *GatewayRepo) FindAppTokenByTokenHash(
 	if err := g.checkReady(ctx, "find app token"); err != nil {
 		return gateway.StoredAppToken{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return gateway.StoredAppToken{}, fmt.Errorf("store: begin app token lookup: %w", err)
 	}
@@ -191,9 +191,16 @@ func (g *GatewayRepo) TouchAppTokenLastSeen(
 	if err != nil {
 		return err
 	}
-	count, err := g.queries.TouchAppTokenLastSeen(ctx, sqlcgen.TouchAppTokenLastSeenParams{
-		ID: id, RevokeEpoch: value, LastSeenAt: nullableGatewayTime(now),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.TouchAppTokenLastSeen",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.TouchAppTokenLastSeen(ctx, sqlcgen.TouchAppTokenLastSeenParams{
+				ID: id, RevokeEpoch: value, LastSeenAt: nullableGatewayTime(now),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: touch app token last use: %w", err)
 	}
@@ -207,7 +214,7 @@ func (g *GatewayRepo) ListActiveAppTokenOrigins(ctx context.Context) ([]string, 
 	if err := g.checkReady(ctx, "list active app token origins"); err != nil {
 		return nil, err
 	}
-	origins, err := g.queries.ListActiveAppTokenOrigins(ctx)
+	origins, err := g.readQueries.ListActiveAppTokenOrigins(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list active app token origins: %w", err)
 	}

@@ -26,12 +26,18 @@ func (g *TaskRepo) PutTaskDesignationRollup(ctx context.Context, rollup store.Ta
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate task designation rollup: %w", err)
 	}
-	if err := g.queries.UpsertTaskDesignationRollup(ctx, sqlcgen.UpsertTaskDesignationRollupParams{
-		DesignationGroupID: normalized.DesignationGroupID,
-		TaskID:             normalized.TaskID,
-		SummaryJson:        string(normalized.SummaryJSON),
-		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertTaskDesignationRollup",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertTaskDesignationRollup(ctx, sqlcgen.UpsertTaskDesignationRollupParams{
+				DesignationGroupID: normalized.DesignationGroupID,
+				TaskID:             normalized.TaskID,
+				SummaryJson:        string(normalized.SummaryJSON),
+				CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: upsert task designation rollup: %w", err)
 	}
 	return nil
@@ -63,7 +69,7 @@ func (g *TaskRepo) ListTaskDesignationRollups(
 	sqlQuery += " ORDER BY created_at DESC, designation_group_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task designation rollups: %w", err)
 	}

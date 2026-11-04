@@ -341,10 +341,10 @@ func (g *GoalRepo) GetActiveSessionBinding(
 	if err := g.checkReady(ctx, "get active goal session binding"); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	if err := validateBindingRunWorkspace(ctx, g.db, key); err != nil {
+	if err := validateBindingRunWorkspace(ctx, g.readDB, key); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	binding, found, err := getActiveSessionBindingWithExecutor(ctx, g.db, key)
+	binding, found, err := getActiveSessionBindingWithExecutor(ctx, g.readDB, key)
 	if err != nil {
 		return goal.SessionBinding{}, err
 	}
@@ -363,10 +363,10 @@ func (g *GoalRepo) GetSessionBindingAttempt(
 	if err := g.checkReady(ctx, "get goal session binding attempt"); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	if err := validateBindingRunWorkspace(ctx, g.db, key); err != nil {
+	if err := validateBindingRunWorkspace(ctx, g.readDB, key); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	return getSessionBindingAttemptWithExecutor(ctx, g.db, key, epoch)
+	return getSessionBindingAttemptWithExecutor(ctx, g.readDB, key, epoch)
 }
 
 func validateReseedGrantForActivation(

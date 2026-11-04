@@ -23,7 +23,7 @@ func (s *SessionDB) TranscriptUserAnchor(ctx context.Context, messageID string) 
 	if s == nil {
 		return store.TranscriptUserAnchor{}, errors.New("store: session database is required")
 	}
-	return transcriptUserAnchor(ctx, s.db, messageID)
+	return transcriptUserAnchor(ctx, s.readDB, messageID)
 }
 
 // TranscriptUserAnchor resolves a durable user message to its turn.

@@ -12,7 +12,7 @@ import (
 )
 
 func (r *InstanceRepo) RotationAdmissionCount(ctx context.Context, sessionID string) (int64, error) {
-	return r.queries.InstanceRotationAdmissionCount(ctx, sessionID)
+	return r.readQueries.InstanceRotationAdmissionCount(ctx, sessionID)
 }
 
 // PublishRotation checks persisted dependencies while the caller holds admission against monitors and turns.
@@ -77,12 +77,12 @@ func (r *InstanceRepo) PublishRotation(ctx context.Context, req agentinstance.Ro
 }
 
 func (r *InstanceRepo) RotationPersistenceReady(ctx context.Context, sessionID string) (bool, error) {
-	ready, err := r.queries.InstanceRotationPersistenceReady(ctx, sessionID)
+	ready, err := r.readQueries.InstanceRotationPersistenceReady(ctx, sessionID)
 	return ready.Valid && ready.Bool, err
 }
 
 func (r *InstanceRepo) SupersededSessions(ctx context.Context, instanceID string) ([]string, error) {
-	return r.queries.ListSupersededInstanceSessions(ctx, instanceID)
+	return r.readQueries.ListSupersededInstanceSessions(ctx, instanceID)
 }
 
 func (r *InstanceRepo) RotationWaitingSince(
@@ -90,12 +90,19 @@ func (r *InstanceRepo) RotationWaitingSince(
 	instanceID, sessionID string,
 	now time.Time,
 ) (time.Time, error) {
-	value, err := r.queries.BeginInstanceRotationWait(
+	value, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.BeginInstanceRotationWaitParams{
-			InstanceID:    instanceID,
-			MainSessionID: sessionID,
-			StartedAt:     store.FormatTimestamp(now),
+		r.repoBase,
+		"globaldb.BeginInstanceRotationWait",
+		func(ctx context.Context, queries *sqlcgen.Queries) (string, error) {
+			return queries.BeginInstanceRotationWait(
+				ctx,
+				sqlcgen.BeginInstanceRotationWaitParams{
+					InstanceID:    instanceID,
+					MainSessionID: sessionID,
+					StartedAt:     store.FormatTimestamp(now),
+				},
+			)
 		},
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -108,9 +115,15 @@ func (r *InstanceRepo) RotationWaitingSince(
 }
 
 func (r *InstanceRepo) ClearRotationWait(ctx context.Context, instanceID, sessionID string) error {
-	return r.queries.ClearInstanceRotationWait(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.ClearInstanceRotationWaitParams{InstanceID: instanceID, MainSessionID: sessionID},
+		"globaldb.ClearInstanceRotationWait",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ClearInstanceRotationWait(
+				ctx,
+				sqlcgen.ClearInstanceRotationWaitParams{InstanceID: instanceID, MainSessionID: sessionID},
+			)
+		},
 	)
 }
 
@@ -120,5 +133,5 @@ func (r *InstanceRepo) RotationDueSession(ctx context.Context, id string) (strin
 }
 
 func (r *InstanceRepo) RotationBlockers(ctx context.Context, sessionID string) ([]string, error) {
-	return r.queries.InstanceRotationBlockers(ctx, sql.NullString{String: sessionID, Valid: true})
+	return r.readQueries.InstanceRotationBlockers(ctx, sql.NullString{String: sessionID, Valid: true})
 }

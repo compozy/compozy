@@ -15,7 +15,7 @@ func (g *TaskRepo) CountPausedTasks(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "count paused tasks"); err != nil {
 		return 0, err
 	}
-	count, err := g.queries.CountPausedTasks(ctx)
+	count, err := g.readQueries.CountPausedTasks(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: count paused tasks: %w", err)
 	}
@@ -27,7 +27,7 @@ func (g *TaskRepo) CountActiveTaskRunClaims(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "count active task-run claims"); err != nil {
 		return 0, err
 	}
-	count, err := g.queries.CountActiveTaskRunClaims(ctx, sqlcgen.CountActiveTaskRunClaimsParams{
+	count, err := g.readQueries.CountActiveTaskRunClaims(ctx, sqlcgen.CountActiveTaskRunClaimsParams{
 		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
 		StartingStatus: taskpkg.TaskRunStatusStarting.String(),
 		RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
@@ -44,7 +44,7 @@ func (g *TaskRepo) CountQueuedTaskRuns(ctx context.Context, includePaused bool) 
 		return 0, err
 	}
 	if includePaused {
-		count, err := g.queries.CountAllQueuedTaskRuns(ctx, taskpkg.TaskRunStatusQueued.String())
+		count, err := g.readQueries.CountAllQueuedTaskRuns(ctx, taskpkg.TaskRunStatusQueued.String())
 		if err != nil {
 			return 0, fmt.Errorf("store: count queued task runs: %w", err)
 		}
@@ -58,7 +58,7 @@ func (g *TaskRepo) CountQueuedTaskRuns(ctx context.Context, includePaused bool) 
 	args := []any{taskpkg.TaskRunStatusQueued.String()}
 	query += " AND " + effectiveTaskPauseExclusionSQL()
 	var count int
-	if err := g.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count queued task runs: %w", err)
 	}
 	return count, nil
@@ -78,7 +78,7 @@ func (g *TaskRepo) CountEscalatingQueuedTaskRuns(ctx context.Context) (int, erro
 		  AND t.status NOT IN (?, ?, ?, ?)
 		  AND ` + effectiveTaskPauseExclusionSQL()
 	var count int
-	if err := g.db.QueryRowContext(
+	if err := g.readDB.QueryRowContext(
 		ctx,
 		query,
 		taskpkg.TaskRunStatusQueued.String(),
@@ -97,7 +97,7 @@ func (g *TaskRepo) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error)
 	if err := g.checkReady(ctx, "count needs attention task runs"); err != nil {
 		return 0, err
 	}
-	count, err := g.queries.CountNeedsAttentionTaskRuns(ctx, taskpkg.TaskRunStatusNeedsAttention.String())
+	count, err := g.readQueries.CountNeedsAttentionTaskRuns(ctx, taskpkg.TaskRunStatusNeedsAttention.String())
 	if err != nil {
 		return 0, fmt.Errorf("store: count needs attention task runs: %w", err)
 	}
@@ -127,7 +127,7 @@ func (g *TaskRepo) SchedulerBacklog(
 		WHERE `)
 	countBuilder.WriteString(whereSQL)
 	countQuery := countBuilder.String()
-	if err := g.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return taskpkg.SchedulerBacklog{}, fmt.Errorf("store: count scheduler backlog: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (g *TaskRepo) SchedulerBacklog(
 	rowBuilder.WriteString(` DESC, tr.queued_at ASC, tr.id ASC`)
 	rowQuery := rowBuilder.String()
 	rowQuery, args = store.AppendLimit(rowQuery, args, normalized.Limit)
-	rows, err := g.db.QueryContext(ctx, rowQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, rowQuery, args...)
 	if err != nil {
 		return taskpkg.SchedulerBacklog{}, fmt.Errorf("store: query scheduler backlog: %w", err)
 	}

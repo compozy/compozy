@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"database/sql"
 
 	"errors"
@@ -78,13 +79,42 @@ const (
 )
 
 // NewRegistry constructs a registry over an existing SQLite connection.
-func NewRegistry(db *sql.DB) *Registry {
-	return &Registry{
-		db: db,
+func NewRegistry(db *sql.DB, options ...RegistryOption) *Registry {
+	registry := &Registry{
+		db: db, readDB: db,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 	}
+	for _, option := range options {
+		option(registry)
+	}
+	return registry
+}
+
+// RegistryOption configures the database pools owned by the composition root.
+type RegistryOption func(*Registry)
+
+// WithRegistryReadDB keeps catalog reads independent of the write connection.
+func WithRegistryReadDB(db *sql.DB) RegistryOption {
+	return func(r *Registry) {
+		if db != nil {
+			r.readDB = db
+		}
+	}
+}
+
+func (r *Registry) execWrite(ctx context.Context, operation, query string, args ...any) (sql.Result, error) {
+	var result sql.Result
+	err := store.ExecuteWriteOperation(ctx, r.db, operation, func(ctx context.Context, tx *store.WriteTx) error {
+		var err error
+		result, err = tx.ExecContext(ctx, query, args...)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // DB exposes the backing SQLite handle for composition-root integrations that
@@ -118,7 +148,12 @@ func (r *Registry) Uninstall(name string) error {
 	if err != nil {
 		return err
 	}
-	result, err := r.db.ExecContext(registryContext(), `DELETE FROM extensions WHERE name = ?`, trimmedName)
+	result, err := r.execWrite(
+		registryContext(),
+		"uninstall extension",
+		`DELETE FROM extensions WHERE name = ?`,
+		trimmedName,
+	)
 	if err != nil {
 		return fmt.Errorf("extension: uninstall %q: %w", trimmedName, err)
 	}
@@ -146,7 +181,7 @@ func (r *Registry) List() (extensions []ExtensionInfo, err error) {
 		return nil, err
 	}
 
-	rows, err := r.db.QueryContext(registryContext(), `
+	rows, err := r.readDB.QueryContext(registryContext(), `
 `+registrySelectColumns+`
 		FROM extensions
 		ORDER BY name ASC
@@ -186,7 +221,7 @@ func (r *Registry) Get(name string) (*ExtensionInfo, error) {
 		return nil, err
 	}
 
-	row := r.db.QueryRowContext(registryContext(), `
+	row := r.readDB.QueryRowContext(registryContext(), `
 `+registrySelectColumns+`
 		FROM extensions
 		WHERE name = ?

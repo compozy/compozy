@@ -9,6 +9,8 @@ import (
 )
 
 // Close drains queued writes, checkpoints the WAL, and closes the database.
+// If its deadline expires, cleanup retains ownership until active I/O stops;
+// another Close can join that cleanup with its own waiting deadline.
 func (s *SessionDB) Close(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -16,19 +18,29 @@ func (s *SessionDB) Close(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("store: close session database context is required")
 	}
-	if !s.state.CompareAndSwap(sessionStateOpen, sessionStateClosing) {
-		if s.state.Load() == sessionStateClosed {
-			return nil
-		}
-		return store.ErrClosed
+	owner := s.state.CompareAndSwap(sessionStateOpen, sessionStateClosing)
+	if !owner && s.state.Load() == sessionStateClosed {
+		return nil
 	}
 
 	drainCtx, cancel := context.WithTimeout(ctx, s.drainTimeout)
 	defer cancel()
-	if s.cancel != nil {
-		defer s.cancel()
+	if owner {
+		go s.close(drainCtx)
 	}
+	select {
+	case <-s.closeDone:
+		return s.closeErr
+	case <-drainCtx.Done():
+		if owner && s.cancel != nil {
+			s.cancel()
+		}
+		return fmt.Errorf("%w: %w", store.ErrDrainTimeout, drainCtx.Err())
+	}
+}
 
+func (s *SessionDB) close(drainCtx context.Context) {
+	defer close(s.closeDone)
 	s.acceptMu.Lock()
 	resultCh := make(chan error, 1)
 	s.shutdownCh <- sessionShutdownRequest{
@@ -39,13 +51,35 @@ func (s *SessionDB) Close(ctx context.Context) error {
 
 	writerErr := waitForShutdownResult(drainCtx, resultCh)
 	writerExitErr := waitForWriterExit(drainCtx, s.writerDone)
+	if s.cancel != nil {
+		s.cancel()
+	}
+	checkpointExitErr := waitForWriterExit(drainCtx, s.checkpointDone)
+	// Cancellation cannot interrupt a filesystem sync already in progress. This
+	// owned cleanup joins both workers before closing their connections, even if
+	// the caller has already received ErrDrainTimeout.
+	if s.writerDone != nil {
+		<-s.writerDone
+	}
+	if s.checkpointDone != nil {
+		<-s.checkpointDone
+	}
+	var readerCloseErr error
+	if s.readDB != nil {
+		readerCloseErr = s.readDB.Close()
+	}
 	// A retained reader must not turn optional WAL truncation into a shutdown failure.
 	checkpointErr := store.CheckpointPassive(drainCtx, s.db)
+	var maintenanceCloseErr error
+	if s.checkpointDB != nil {
+		maintenanceCloseErr = s.checkpointDB.Close()
+	}
 	closeErr := s.db.Close()
 
+	s.closeErr = errors.Join(
+		writerErr, writerExitErr, checkpointExitErr, readerCloseErr, checkpointErr, maintenanceCloseErr, closeErr,
+	)
 	s.state.Store(sessionStateClosed)
-
-	return errors.Join(writerErr, writerExitErr, checkpointErr, closeErr)
 }
 
 func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) error {
@@ -60,6 +94,8 @@ func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) e
 	case s.writeCh <- req:
 	case <-ctx.Done():
 		return fmt.Errorf("store: enqueue session write: %w", ctx.Err())
+	case <-s.writerDone:
+		return store.ErrClosed
 	}
 
 	select {
@@ -67,6 +103,15 @@ func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) e
 		return result.err
 	case <-ctx.Done():
 		return fmt.Errorf("store: wait for session write completion: %w", ctx.Err())
+	case <-s.writerDone:
+		// Preserve an already committed outcome when shutdown and acknowledgement
+		// become ready together. Unexecuted requests cannot wait on an exited worker.
+		select {
+		case result := <-req.result:
+			return result.err
+		default:
+			return store.ErrClosed
+		}
 	}
 }
 

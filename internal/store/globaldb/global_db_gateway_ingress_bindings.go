@@ -20,7 +20,7 @@ func (g *GatewayRepo) GetIngressBinding(
 	if err := g.checkReady(ctx, "load gateway ingress binding"); err != nil {
 		return gateway.IngressBinding{}, err
 	}
-	row, err := g.queries.GetGatewayIngressBinding(ctx, ingressBindingKey(ref))
+	row, err := g.readQueries.GetGatewayIngressBinding(ctx, ingressBindingKey(ref))
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
 	}
@@ -145,7 +145,7 @@ func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]gateway.Ingres
 	if err := g.checkReady(ctx, "list gateway ingress bindings"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListGatewayIngressBindings(ctx)
+	rows, err := g.readQueries.ListGatewayIngressBindings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list gateway ingress bindings: %w", err)
 	}
@@ -164,7 +164,14 @@ func (g *GatewayRepo) SweepOrphanedIngressBindings(ctx context.Context) (int64, 
 	if err := g.checkReady(ctx, "sweep orphaned gateway ingress bindings"); err != nil {
 		return 0, err
 	}
-	rows, err := g.queries.SweepOrphanedGatewayIngressBindings(ctx)
+	rows, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.SweepOrphanedGatewayIngressBindings",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SweepOrphanedGatewayIngressBindings(ctx)
+		},
+	)
 	if err != nil {
 		return 0, fmt.Errorf("store: sweep orphaned gateway ingress bindings: %w", err)
 	}

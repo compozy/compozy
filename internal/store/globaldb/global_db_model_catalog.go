@@ -49,13 +49,13 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 		return err
 	}
 
-	return g.withModelCatalogImmediateTransaction(
-		ctx,
-		"model catalog source replacement",
-		func(exec modelCatalogSQLExecutor) error {
-			return replaceModelCatalogSourceRows(ctx, exec, normalizedContext, normalizedRows, normalizedStatus)
-		},
-	)
+	plan, err := g.prepareModelCatalogReplacements(ctx, []normalizedModelCatalogReplacement{{
+		executionContext: normalizedContext, rows: normalizedRows, status: normalizedStatus,
+	}})
+	if err != nil {
+		return err
+	}
+	return g.commitModelCatalogReplacements(ctx, "model catalog source replacement", plan)
 }
 
 // ListRows returns deterministic catalog source rows matching the query.
@@ -179,7 +179,7 @@ func (g *ModelCatalogRepo) ListSourceStatus(
 	sqlQuery += ` ORDER BY provider_id ASC, source_id ASC`
 
 	// dynamic-sql: the provider filter is optional while stable ordering is preserved.
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query model catalog source status: %w", err)
 	}

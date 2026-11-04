@@ -111,7 +111,7 @@ func (g *VaultRepo) GetMCPAuthRegistration(
 	if err := target.Validate(); err != nil {
 		return mcpauth.ClientRegistration{}, fmt.Errorf("store: invalid MCP auth target: %w", err)
 	}
-	row, err := g.queries.GetMCPOAuthRegistration(ctx, mcpOAuthRegistrationTargetParams(target))
+	row, err := g.readQueries.GetMCPOAuthRegistration(ctx, mcpOAuthRegistrationTargetParams(target))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return mcpauth.ClientRegistration{}, mcpauth.ErrRegistrationNotFound

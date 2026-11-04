@@ -18,7 +18,7 @@ func (g *LoopRepo) ListNodeWaits(
 	if err := g.checkReady(ctx, "list node waits"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListLoopNodeWaits(ctx, sqlcgen.ListLoopNodeWaitsParams{
+	rows, err := g.readQueries.ListLoopNodeWaits(ctx, sqlcgen.ListLoopNodeWaitsParams{
 		WorkspaceID: string(workspaceID),
 		LoopRunID:   string(runID),
 	})

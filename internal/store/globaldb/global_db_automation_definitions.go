@@ -91,7 +91,14 @@ func (g *AutomationRepo) DeleteJob(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	affected, err := g.queries.DeleteAutomationJob(ctx, trimmedID)
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteAutomationJob",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteAutomationJob(ctx, trimmedID)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: delete automation job %q: %w",
@@ -116,7 +123,7 @@ func (g *AutomationRepo) GetJob(ctx context.Context, id string) (automation.Job,
 	if err != nil {
 		return automation.Job{}, err
 	}
-	row, err := g.queries.GetAutomationJob(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationJob(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Job{}, automation.ErrJobNotFound
@@ -263,33 +270,27 @@ func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) (err erro
 	if err != nil {
 		return err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin automation trigger deletion: %w", err)
-	}
-	defer rollbackAutomationDefinitionTx(&err, tx, "delete automation trigger")
-	queries := sqlcgen.New(tx)
-	if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
-		SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trimmedID,
-	}); err != nil {
-		return fmt.Errorf("store: delete webhook ingress binding %q: %w", trimmedID, err)
-	}
-	affected, err := queries.DeleteAutomationTrigger(ctx, trimmedID)
-	if err != nil {
-		return fmt.Errorf("store: delete automation trigger %q: %w", trimmedID, err)
-	}
-	if err := requireAutomationAffected(
-		affected,
-		automation.ErrTriggerNotFound,
-		trimmedID,
-		"automation trigger",
-	); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit automation trigger deletion %q: %w", trimmedID, err)
-	}
-	return nil
+	return g.withImmediateTransaction(ctx, "delete automation trigger", func(exec globalSQLExecutor) error {
+		queries := sqlcgen.New(exec)
+		if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+			SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trimmedID,
+		}); err != nil {
+			return fmt.Errorf("store: delete webhook ingress binding %q: %w", trimmedID, err)
+		}
+		affected, err := queries.DeleteAutomationTrigger(ctx, trimmedID)
+		if err != nil {
+			return fmt.Errorf("store: delete automation trigger %q: %w", trimmedID, err)
+		}
+		if err := requireAutomationAffected(
+			affected,
+			automation.ErrTriggerNotFound,
+			trimmedID,
+			"automation trigger",
+		); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // GetTrigger loads one persisted automation trigger definition by primary key.
@@ -301,7 +302,7 @@ func (g *AutomationRepo) GetTrigger(ctx context.Context, id string) (automation.
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	row, err := g.queries.GetAutomationTrigger(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationTrigger(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Trigger{}, automation.ErrTriggerNotFound
@@ -309,14 +310,4 @@ func (g *AutomationRepo) GetTrigger(ctx context.Context, id string) (automation.
 		return automation.Trigger{}, err
 	}
 	return automationTriggerFromGenerated(row)
-}
-
-func rollbackAutomationDefinitionTx(target *error, tx *sql.Tx, action string) {
-	if target == nil || tx == nil {
-		return
-	}
-	if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		rollbackErr := fmt.Errorf("store: rollback %s: %w", action, err)
-		*target = errors.Join(*target, rollbackErr)
-	}
 }

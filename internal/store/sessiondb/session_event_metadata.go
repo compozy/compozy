@@ -23,7 +23,7 @@ func (s *SessionDB) QueryEventMetadata(ctx context.Context, query store.EventQue
 	if s.state.Load() != sessionStateOpen {
 		return nil, store.ErrClosed
 	}
-	return queryEventMetadata(ctx, s.db, s.owner.SessionID, query)
+	return queryEventMetadata(ctx, s.readDB, s.owner.SessionID, query)
 }
 
 func (s *SessionDB) MaxEventSequence(ctx context.Context) (int64, error) {
@@ -38,7 +38,7 @@ func (s *SessionDB) MaxEventSequence(ctx context.Context) (int64, error) {
 	if s.state.Load() != sessionStateOpen {
 		return 0, store.ErrClosed
 	}
-	return currentMaxSequence(ctx, s.db)
+	return currentMaxSequence(ctx, s.readDB)
 }
 
 func queryEventMetadata(

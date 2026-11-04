@@ -28,10 +28,13 @@ func (g *PermissionRepo) WritePermissionLog(ctx context.Context, entry store.Per
 		entry.Timestamp = g.now()
 	}
 
-	if err := g.queries.InsertPermissionLog(ctx, sqlcgen.InsertPermissionLogParams{
+	params := sqlcgen.InsertPermissionLogParams{
 		ID: entry.ID, SessionID: entry.SessionID, AgentName: entry.AgentName,
 		Action: entry.Action, Resource: entry.Resource, Decision: entry.Decision,
 		PolicyUsed: entry.PolicyUsed, Timestamp: store.FormatTimestamp(entry.Timestamp),
+	}
+	if err := g.writeBackground(ctx, "write permission log", func(ctx context.Context, tx *store.WriteTx) error {
+		return sqlcgen.New(tx).InsertPermissionLog(ctx, params)
 	}); err != nil {
 		return fmt.Errorf("store: insert permission log entry: %w", err)
 	}
@@ -65,7 +68,7 @@ func (g *PermissionRepo) ListPermissionLog(
 	sqlQuery += " ORDER BY timestamp ASC, id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query permission log: %w", err)
 	}

@@ -12,7 +12,7 @@ func (r *InstanceRepo) Metrics(ctx context.Context, profileID, workspaceID strin
 	if err := r.checkReady(ctx, "read instance metrics"); err != nil {
 		return result, err
 	}
-	rows, err := r.queries.CountInstancePausesByReason(ctx, sqlcgen.CountInstancePausesByReasonParams{
+	rows, err := r.readQueries.CountInstancePausesByReason(ctx, sqlcgen.CountInstancePausesByReasonParams{
 		ProfileID: profileID, WorkspaceID: workspaceID,
 	})
 	if err != nil {
@@ -21,7 +21,7 @@ func (r *InstanceRepo) Metrics(ctx context.Context, profileID, workspaceID strin
 	for _, row := range rows {
 		result.PauseCounts[row.PauseReason] = row.Count
 	}
-	result.HeldInputCount, err = r.queries.CountScopedInstanceHeldInputs(
+	result.HeldInputCount, err = r.readQueries.CountScopedInstanceHeldInputs(
 		ctx,
 		sqlcgen.CountScopedInstanceHeldInputsParams{
 			ProfileID: profileID, WorkspaceID: workspaceID,

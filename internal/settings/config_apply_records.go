@@ -23,19 +23,54 @@ const (
 // ApplyRecordDBSource exposes the SQL connection needed by the apply-record repository.
 type ApplyRecordDBSource interface {
 	DB() *sql.DB
+	ReadDB() *sql.DB
 }
 
 // NewConfigApplyRecordRepository creates the SQLite-backed config_apply_records repository.
-func NewConfigApplyRecordRepository(db *sql.DB, now func() time.Time) ApplyRecordStore {
+func NewConfigApplyRecordRepository(db *sql.DB, now func() time.Time, options ...ApplyRecordOption) ApplyRecordStore {
 	if now == nil {
 		now = time.Now
 	}
-	return &configApplyRecordRepository{db: db, now: now}
+	repository := &configApplyRecordRepository{db: db, readDB: db, now: now}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
 }
 
 type configApplyRecordRepository struct {
-	db  *sql.DB
-	now func() time.Time
+	db     *sql.DB
+	readDB *sql.DB
+	now    func() time.Time
+}
+
+// ApplyRecordOption configures apply-record persistence dependencies.
+type ApplyRecordOption func(*configApplyRecordRepository)
+
+// WithConfigApplyReadDB supplies the independent global read pool.
+func WithConfigApplyReadDB(db *sql.DB) ApplyRecordOption {
+	return func(r *configApplyRecordRepository) {
+		if db != nil {
+			r.readDB = db
+		}
+	}
+}
+
+func (r *configApplyRecordRepository) execWrite(
+	ctx context.Context,
+	operation, query string,
+	args ...any,
+) (sql.Result, error) {
+	var result sql.Result
+	err := store.ExecuteWriteOperation(ctx, r.db, operation, func(ctx context.Context, tx *store.WriteTx) error {
+		var err error
+		result, err = tx.ExecContext(ctx, query, args...)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *configApplyRecordRepository) CreateApplyRecord(
@@ -53,8 +88,8 @@ func (r *configApplyRecordRepository) CreateApplyRecord(
 	if err != nil {
 		return ApplyRecord{}, err
 	}
-	_, err = r.db.ExecContext(
-		ctx,
+	_, err = r.execWrite(
+		ctx, "create config apply record",
 		`INSERT INTO config_apply_records (
 			id,
 			desired_config_hash,
@@ -102,8 +137,8 @@ func (r *configApplyRecordRepository) UpdateApplyRecord(
 	if err != nil {
 		return ApplyRecord{}, err
 	}
-	result, err := r.db.ExecContext(
-		ctx,
+	result, err := r.execWrite(
+		ctx, "update config apply record",
 		`UPDATE config_apply_records
 		 SET desired_config_hash = ?,
 		     active_config_hash = ?,
@@ -183,7 +218,7 @@ func (r *configApplyRecordRepository) ListApplyRecords(
 	query += " ORDER BY updated_at DESC, created_at DESC"
 	query, args = store.AppendLimit(query, args, normalizeApplyRecordLimit(filter.Limit))
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list config apply records: %w", err)
 	}
@@ -218,7 +253,7 @@ func (r *configApplyRecordRepository) LatestAppliedRecord(
 	if r == nil || r.db == nil {
 		return nil, errors.New("settings: config apply record database is required")
 	}
-	row := r.db.QueryRowContext(
+	row := r.readDB.QueryRowContext(
 		ctx,
 		`SELECT id,
 			desired_config_hash,

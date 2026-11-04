@@ -21,7 +21,7 @@ func (g *SessionRepo) GetSessionInputQueueEntryByID(
 	if target == "" {
 		return store.SessionInputQueueEntry{}, errors.New("store: session input queue entry id is required")
 	}
-	row, err := g.queries.GetSessionInputQueueEntryByID(ctx, target)
+	row, err := g.readQueries.GetSessionInputQueueEntryByID(ctx, target)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionInputQueueEntry{}, store.ErrSessionInputQueueEntryNotFound
 	}

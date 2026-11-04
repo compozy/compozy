@@ -20,14 +20,27 @@ Set the home path used by the commands below:
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 ```
 
-| Path                                            | Purpose                                                                                                                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, extensions, tasks, tool process checkpoints, and task projections. |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                             |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                             |
+| Path                                            | Purpose                                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, token totals, permission logs, automation, extensions, tasks, tool process checkpoints, and task projections. |
+| `$COMPOZY_HOME/compozy.db.telemetry.db`         | Cross-session event summaries and their indexes, with an independent write lock.                                                                       |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                            |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                            |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.
+
+## Event-summary relocation
+
+On upgrade, CompozyOS moves existing event summaries into `compozy.db.telemetry.db` in bounded
+batches. Every row and its sequence are verified in the new file before the old copy is removed.
+An interrupted migration resumes on the next start. The first start of a large installation needs
+space for the new file and can take longer while it copies the retained summaries.
+
+Keep `compozy.db`, `compozy.db.telemetry.db`, and their SQLite sidecars together when backing up or
+restoring. The two databases carry a matching identity. If the relocated telemetry file is missing,
+uninitialized, or belongs to a different core, startup refuses to replace or rebind it. Restore
+the complete family from a matching backup. The Observe API retains its filters and cursors.
 
 ## Session event store ownership
 
@@ -54,11 +67,12 @@ or replace database ownership.
 <Mermaid
   chart={`flowchart TD
   Home["$COMPOZY_HOME"] --> Global["compozy.db global catalog"]
+  Home --> Telemetry["compozy.db.telemetry.db event summaries"]
   Home --> Sessions["sessions/"]
   Sessions --> One["<session-id>/"]
   One --> Events["events.db event stream"]
   One --> Meta["meta.json session metadata"]
-  Global --> Summary["session rows and summaries"]
+  Global --> Summary["session rows and core state"]
   Events --> Replay["events, token usage, hook runs"]`}
   caption="CompozyOS separates global catalog state from per-session event history."
 />
@@ -78,7 +92,7 @@ cp -a "$COMPOZY_HOME/sessions" "$backup"/sessions
 compozy daemon start
 ```
 
-This captures the global database, any WAL sidecars, every per-session event database, and each
+This captures the global and telemetry databases, their WAL sidecars, every per-session event database, and each
 session metadata file.
 
 ## Back up a live daemon with SQLite
@@ -91,6 +105,7 @@ backup="$HOME/compozy-backups/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup/sessions"
 
 sqlite3 "$COMPOZY_HOME/compozy.db" ".backup '$backup/compozy.db'"
+sqlite3 "$COMPOZY_HOME/compozy.db.telemetry.db" ".backup '$backup/compozy.db.telemetry.db'"
 
 find "$COMPOZY_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
 while IFS= read -r -d '' db; do
@@ -101,7 +116,8 @@ while IFS= read -r -d '' db; do
 done
 ```
 
-This reads each database through SQLite instead of copying the main file without its WAL state.
+This reads each database through SQLite with its committed WAL state. Each file reflects its own
+backup time; use a stopped-daemon backup when you need one consistent restore point across files.
 
 ## Inspect the global catalog
 
@@ -144,11 +160,12 @@ ordered event stream for one session.
 
 CompozyOS versions each SQLite authority as an independent Goose migration stream:
 
-| Stream      | Database family                                  | Version table                |
-| ----------- | ------------------------------------------------ | ---------------------------- |
-| `global`    | `$COMPOZY_HOME/compozy.db` global runtime tables | `goose_db_version_global`    |
-| `session`   | Per-session `events.db`                          | `goose_db_version_session`   |
-| `workspace` | Workspace-local `.compozy/compozy.db`            | `goose_db_version_workspace` |
+| Stream      | Database family                                         | Version table                |
+| ----------- | ------------------------------------------------------- | ---------------------------- |
+| `global`    | `$COMPOZY_HOME/compozy.db` global runtime tables        | `goose_db_version_global`    |
+| `telemetry` | `$COMPOZY_HOME/compozy.db.telemetry.db` event summaries | `goose_db_version_telemetry` |
+| `session`   | Per-session `events.db`                                 | `goose_db_version_session`   |
+| `workspace` | Workspace-local `.compozy/compozy.db`                   | `goose_db_version_workspace` |
 
 Before CompozyOS runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
 `atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a

@@ -52,3 +52,14 @@ availability isolation, caller mutation, epoch changes, cancellation, and releas
 the existing UDS SSE path. `BenchmarkHostedStreamProjectionFanout` compares 1 and 16 streams
 with and without sharing. These checks do not certify the CPU-saturation journey above;
 its full walk remains unverified because local full/E2E execution is prohibited for this change.
+
+SQLite contention acceptance (#1227): in an isolated home, run approximately 30 concurrent
+sessions producing streaming transcripts, health updates, process observations and event
+summaries. During the load, send messages, update session state and repeatedly read transcript
+pages and the session catalog. Record before/after p99 read latency, transaction count per
+second and bytes written per minute to the global database on the same machine. Interactive
+requests must have zero cancellation/contention failures caused by background writes, and
+none of the reported hot operations may hold a write transaction for one second. Stop cleanly,
+reopen, and confirm accepted telemetry and latest health/cache state survive. Upgrade a large
+pre-relocation database and compare Observe results. This walk remains unverified until the
+[contention report](../reports/2026-11-03-sqlite-contention.md) contains its receipts.

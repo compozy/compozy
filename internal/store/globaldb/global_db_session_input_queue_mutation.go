@@ -75,7 +75,7 @@ func (g *SessionRepo) ListPendingSessionInputs(
 	if target == "" {
 		return nil, errors.New("store: session id is required")
 	}
-	rows, err := g.queries.ListPendingSessionInputs(ctx, sqlcgen.ListPendingSessionInputsParams{
+	rows, err := g.readQueries.ListPendingSessionInputs(ctx, sqlcgen.ListPendingSessionInputsParams{
 		SessionID:         target,
 		QueuedStatus:      store.SessionInputQueueStatusQueued,
 		DispatchingStatus: store.SessionInputQueueStatusDispatching,
@@ -92,12 +92,12 @@ func (g *SessionRepo) ListPendingSessionInputs(
 		entries = append(entries, entry)
 	}
 	if len(entries) > 0 {
-		caller, err := g.queries.GetInstanceCaller(ctx, target)
+		caller, err := g.readQueries.GetInstanceCaller(ctx, target)
 		if err != nil {
 			return nil, err
 		}
 		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" {
-			instance, err := g.queries.GetAgentInstance(ctx, id)
+			instance, err := g.readQueries.GetAgentInstance(ctx, id)
 			if err != nil {
 				return nil, err
 			}

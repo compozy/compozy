@@ -4762,7 +4762,7 @@ func TestInstanceActivity(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.DB().
+			if _, err := db.telemetry.DB().
 				ExecContext(ctx, `INSERT INTO event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp) VALUES (?,?,?,?,?,?)`, fmt.Sprintf("activity-%d", index), row.profile, row.workspace, row.agent, "session.done", row.day+"T12:00:00Z"); err != nil {
 				t.Fatal(err)
 			}
@@ -5522,6 +5522,112 @@ func TestInstanceCheckUnattendedPauseEffects(t *testing.T) {
 }
 
 func TestHeartbeatSourceTransactions(t *testing.T) {
+	// Invariant: source reads stay available while another writer owns SQLite, and
+	// source mutations wait in named admission. Owner: global repository transactions.
+	t.Run("Should isolate source reads and admit every source mutation", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_instances
+			(id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+			VALUES ('source-admission',?,'coder','active','human','operator',?,?)`,
+			store.DefaultProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now)); err != nil {
+			t.Fatal(err)
+		}
+		refs := []source.Ref{{ID: "s", Script: "poll"}}
+		if _, err := repo.SourceStates(t.Context(), "source-admission", refs, false, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.ApproveScript(
+			t.Context(),
+			store.DefaultProfileID,
+			"agents",
+			"poll",
+			"digest",
+			"cli",
+			now,
+		); err != nil {
+			t.Fatal(err)
+		}
+		entered, released := make(chan struct{}), make(chan struct{})
+		ownerResult := make(chan error, 1)
+		go func() {
+			ownerResult <- store.ExecuteWriteOperation(t.Context(), db.DB(), "held source writer", func(context.Context, *store.WriteTx) error {
+				close(entered)
+				<-released
+				return nil
+			})
+		}()
+		defer func() {
+			close(released)
+			if err := <-ownerResult; err != nil {
+				t.Error(err)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("writer did not acquire SQLite")
+		}
+		if hash, err := repo.ApprovedHash(
+			ctx,
+			store.DefaultProfileID,
+			"agents",
+			"poll",
+		); err != nil ||
+			hash != "digest" {
+			t.Fatalf("read approval during write: hash=%q, error=%v", hash, err)
+		}
+		if states, err := repo.SourceStates(ctx, "source-admission", refs, true, now); err != nil || len(states) != 1 {
+			t.Fatalf("dry source read during write: count=%d, error=%v", len(states), err)
+		}
+		if statuses, err := repo.SourceStatuses(ctx, "source-admission"); err != nil || len(statuses) != 1 {
+			t.Fatalf("source status during write: count=%d, error=%v", len(statuses), err)
+		}
+		operations := []struct {
+			name string
+			run  func(context.Context) error
+		}{
+			{"ApproveHeartbeatScript", func(ctx context.Context) error {
+				return repo.ApproveScript(ctx, store.DefaultProfileID, "agents", "poll", "changed", "cli", now)
+			}},
+			{"RevokeHeartbeatScript", func(ctx context.Context) error {
+				return repo.RevokeScript(ctx, store.DefaultProfileID, "agents", "poll")
+			}},
+			{"ResolveHeartbeatSource", func(ctx context.Context) error {
+				_, err := repo.SourceStates(ctx, "source-admission", refs, false, now)
+				return err
+			}},
+			{"DeleteRemovedHeartbeatSources", func(ctx context.Context) error {
+				_, err := repo.SourceStates(ctx, "source-admission", nil, false, now)
+				return err
+			}},
+			{"UpdateHeartbeatSourceStatus", func(ctx context.Context) error {
+				return repo.SourcePollStatus(ctx, "source-admission", heartbeat.PolledSource{Ref: refs[0]}, now, now)
+			}},
+			{"DeferInstanceSourceWake", func(ctx context.Context) error {
+				_, err := repo.DeferWake(ctx, "source-admission", "", now)
+				return err
+			}},
+			{"DeleteRemovedHeartbeatSources", func(ctx context.Context) error {
+				return repo.ClearRemovedSources(ctx, "source-admission")
+			}},
+		}
+		for _, operation := range operations {
+			waitCtx, stop := context.WithTimeout(t.Context(), 10*time.Millisecond)
+			err := operation.run(waitCtx)
+			stop()
+			contention, ok := errors.AsType[*store.WriteContentionError](err)
+			if !ok || contention.Phase != "admission" ||
+				contention.Operation != "globaldb."+operation.name || !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("%s: error=%v, want named admission deadline", operation.name, err)
+			}
+		}
+	})
+
 	for _, outcome := range []string{"quiet", "failed"} {
 		t.Run("Should commit only successful bound state "+outcome+" [UT-040 IT-003 IT-004]", func(t *testing.T) {
 			t.Parallel()

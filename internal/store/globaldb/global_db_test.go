@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/extensionenv"
+	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -103,11 +104,14 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	}()
 
 	ctx := context.Background()
-	path, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
+	_, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
 	if err != nil {
 		reportTestMainError("build global migration seeds error = %v", err)
 		return 1
 	}
+	// Historical SQL prefixes remain migration fixtures. The current family is
+	// created by its production owner, including the cross-file identity.
+	path := filepath.Join(dir, "current-"+GlobalDatabaseName)
 	globalDB, err := OpenGlobalDB(ctx, path)
 	if err != nil {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
@@ -131,6 +135,48 @@ func reportTestMainError(format string, args ...any) {
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep request reads independent of an exhausted writer pool", func(t *testing.T) {
+		t.Parallel()
+		g := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, g, "read-isolation", t.TempDir())
+		g.db.SetMaxOpenConns(1)
+		conn, err := g.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := conn.ExecContext(testutil.Context(t), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		workspace, err := g.GetWorkspace(ctx, workspaceID)
+		if err != nil || workspace.ID != workspaceID {
+			t.Fatalf("workspace read while writer held: %+v, %v", workspace, err)
+		}
+		page, err := g.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 30, Sort: sessionCatalogSortRecent,
+		})
+		if err != nil || len(page.Sessions) != 0 || page.Total != 0 {
+			t.Fatalf("catalog read while writer held: %+v, %v", page, err)
+		}
+		if _, err := g.GetSessionHealth(ctx, "missing-session"); !errors.Is(err, heartbeat.ErrSessionHealthNotFound) {
+			t.Fatalf("health read while writer held: %v", err)
+		}
+		if _, err := g.readDB.ExecContext(ctx, "DELETE FROM workspaces"); err == nil {
+			t.Fatal("read pool allowed a mutation")
+		}
+	})
+
 	t.Run("Should verify the permanent default profile without repairing invalid identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -259,7 +305,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"workspaces",
 			"sessions",
 			"session_pending_interactions",
-			"event_summaries",
+			"event_summary_outbox",
+			"telemetry_deleted_scopes",
 			"token_stats",
 			"permission_log",
 			"extensions",
@@ -300,7 +347,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"idx_session_pending_interactions_session_status",
 			"uq_session_pending_interactions_active_provider_request",
 		)
-		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.telemetry.DB(), "event_summaries", []string{"worktree_id"})
 		assertTableHasColumns(t, globalDB.db, "extensions", []string{"format", "ingest_diagnostics_json"})
 		assertTableHasColumns(
 			t,
@@ -319,7 +366,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		}
 		assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
 		assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
+		assertTableHasColumns(t, globalDB.telemetry.DB(), "event_summaries", []string{
 			"provider",
 			"outcome",
 		})
@@ -1984,7 +2031,7 @@ func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
 			}
 		})
 		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened)
-		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, nil, new(atomic.Int32))}
+		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, reopened, nil, new(atomic.Int32))}
 		health, err := healthRepo.GetSessionHealth(ctx, "home-session")
 		if err != nil {
 			t.Fatalf("GetSessionHealth(migrated Global session) error = %v", err)
@@ -6321,7 +6368,7 @@ func copyCurrentSchemaGlobalDBSeed(t *testing.T, targetPath string) {
 	if testGlobalDBCurrentSchemaSeedPath == "" {
 		t.Fatal("globaldb current schema seed path is empty")
 	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
+	for _, suffix := range []string{"", "-wal", "-shm", ".telemetry.db", ".telemetry.db-wal", ".telemetry.db-shm"} {
 		sourcePath := testGlobalDBCurrentSchemaSeedPath + suffix
 		data, err := os.ReadFile(sourcePath)
 		if err != nil {
@@ -6921,6 +6968,53 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 }
 
 func TestUserScopeMigration(t *testing.T) {
+	t.Run("Should reopen a home workspace upgrade after telemetry relocation", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		path := filepath.Join(home, GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00151_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('legacy',?,'home','2026-01-01','2026-01-01')`,
+			home,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO event_summaries(seq,id,profile_id,workspace_id,type,timestamp) VALUES(123,'legacy-event',?,'legacy','settings.changed','2026-01-01T00:00:00Z')`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatalf("open legacy home upgrade: %v", err)
+			}
+			rows, err := upgraded.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 122,
+			})
+			closeErr := upgraded.Close(context.Background())
+			if err != nil || closeErr != nil {
+				t.Fatalf("read upgraded summaries: %v; close: %v", err, closeErr)
+			}
+			if len(rows) != 1 || rows[0].ID != "legacy-event" || rows[0].Sequence != 123 || rows[0].WorkspaceID != "" {
+				t.Fatalf("legacy home summaries changed: %#v", rows)
+			}
+		}
+	})
 	t.Run("Should preserve profiles collisions aliases and registration until verification", func(t *testing.T) {
 		t.Parallel()
 		home := t.TempDir()
@@ -6994,7 +7088,7 @@ func TestUserScopeMigration(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		g := &GlobalDB{db: db}
+		g := &GlobalDB{db: db, readDB: db}
 		t.Cleanup(func() {
 			if err := db.Close(); err != nil {
 				t.Error(err)
@@ -7164,7 +7258,7 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 			if err := applyGlobalMigrationPrefix(t, db, MigrationStream()); err != nil {
 				t.Fatal(err)
 			}
-			repo := &WorkspaceRepo{repoBase: newRepoBase(db, nil, new(atomic.Int32))}
+			repo := &WorkspaceRepo{repoBase: newRepoBase(db, db, nil, new(atomic.Int32))}
 			for old, want := range map[string]string{"user": "user-project-2", "global": "global-project", "@x": "x"} {
 				got, err := repo.GetWorkspaceByName(t.Context(), old)
 				if err != nil || got.Name != want {

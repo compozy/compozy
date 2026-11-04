@@ -79,11 +79,16 @@ type Metadata struct {
 	UpdatedAt time.Time
 }
 
-// Store persists encrypted vault records.
-type Store interface {
-	PutVaultSecret(ctx context.Context, record Record) error
+// ReadStore observes encrypted vault records without requiring write access.
+type ReadStore interface {
 	GetVaultSecret(ctx context.Context, ref string) (Record, error)
 	ListVaultSecrets(ctx context.Context, prefix string) ([]Record, error)
+}
+
+// Store persists encrypted vault records.
+type Store interface {
+	ReadStore
+	PutVaultSecret(ctx context.Context, record Record) error
 	DeleteVaultSecret(ctx context.Context, ref string) error
 }
 

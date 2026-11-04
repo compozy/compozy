@@ -62,4 +62,6 @@ ON CONFLICT(day, profile_id, workspace_id, agent_name) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 -- name: DeleteTokenUsageDailyBefore :execrows
-DELETE FROM token_usage_daily WHERE day < sqlc.arg(cutoff_day);
+DELETE FROM token_usage_daily WHERE rowid IN (
+ SELECT u.rowid FROM token_usage_daily AS u WHERE u.day < sqlc.arg(cutoff_day) LIMIT sqlc.arg(batch_size)
+);

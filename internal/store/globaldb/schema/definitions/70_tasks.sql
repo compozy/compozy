@@ -87,7 +87,6 @@ CREATE TABLE task_triage_state (
 	);
 
 CREATE TABLE "tasks" (
- grant_ceiling TEXT NOT NULL DEFAULT '',
 		id              TEXT PRIMARY KEY,
 		profile_id      TEXT NOT NULL REFERENCES profiles(id),
 		identifier      TEXT,
@@ -156,6 +155,7 @@ CREATE TABLE "tasks" (
 		needs_attention_by_kind TEXT,
 		needs_attention_by_ref  TEXT,
 		wake_creator            INTEGER NOT NULL DEFAULT 1,
+		grant_ceiling           TEXT NOT NULL DEFAULT '',
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)

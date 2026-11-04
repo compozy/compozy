@@ -126,46 +126,6 @@ func (q *Queries) InsertAutomationSuggestion(ctx context.Context, arg InsertAuto
 	return err
 }
 
-const insertAutomationSuggestionEventSummary = `-- name: InsertAutomationSuggestionEventSummary :exec
-INSERT INTO event_summaries (
-  profile_id,
-  id, workspace_id, type, content_json, actor_kind, actor_id, outcome, summary, timestamp
-) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5,
-  'automation_suggestion', ?6, ?7, ?8,
-  ?9
-)
-ON CONFLICT(id) DO NOTHING
-`
-
-type InsertAutomationSuggestionEventSummaryParams struct {
-	ProfileID   string         `json:"profile_id"`
-	ID          string         `json:"id"`
-	WorkspaceID string         `json:"workspace_id"`
-	Type        string         `json:"type"`
-	ContentJson string         `json:"content_json"`
-	ActorID     string         `json:"actor_id"`
-	Outcome     string         `json:"outcome"`
-	Summary     sql.NullString `json:"summary"`
-	Timestamp   string         `json:"timestamp"`
-}
-
-func (q *Queries) InsertAutomationSuggestionEventSummary(ctx context.Context, arg InsertAutomationSuggestionEventSummaryParams) error {
-	_, err := q.db.ExecContext(ctx, insertAutomationSuggestionEventSummary,
-		arg.ProfileID,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.Type,
-		arg.ContentJson,
-		arg.ActorID,
-		arg.Outcome,
-		arg.Summary,
-		arg.Timestamp,
-	)
-	return err
-}
-
 const listAcceptedAutomationSuggestionsAllProfiles = `-- name: ListAcceptedAutomationSuggestionsAllProfiles :many
 SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions

@@ -20,7 +20,7 @@ func (r *InstanceRepo) LastSeen(ctx context.Context, instance, operator string) 
 	if instance == "" || operator == "" {
 		return nil, errors.New("instance and operator are required")
 	}
-	raw, err := r.queries.GetAgentInstanceSeen(
+	raw, err := r.readQueries.GetAgentInstanceSeen(
 		ctx,
 		sqlcgen.GetAgentInstanceSeenParams{InstanceID: instance, OperatorID: operator},
 	)

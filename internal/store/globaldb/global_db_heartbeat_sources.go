@@ -20,7 +20,7 @@ var errSourceCAS = errors.New("heartbeat source changed during collection")
 
 func sourceText(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
 func (r *InstanceRepo) ApprovedHash(ctx context.Context, profile, dir, name string) (string, error) {
-	hash, err := r.queries.GetHeartbeatScriptApproval(
+	hash, err := r.readQueries.GetHeartbeatScriptApproval(
 		ctx,
 		sqlcgen.GetHeartbeatScriptApprovalParams{ProfileID: profile, DefinitionDir: dir, ScriptName: name},
 	)
@@ -30,22 +30,34 @@ func (r *InstanceRepo) ApprovedHash(ctx context.Context, profile, dir, name stri
 	return hash, err
 }
 func (r *InstanceRepo) ApproveScript(ctx context.Context, profile, dir, name, hash, via string, now time.Time) error {
-	return r.queries.ApproveHeartbeatScript(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.ApproveHeartbeatScriptParams{
-			ProfileID:     profile,
-			DefinitionDir: dir,
-			ScriptName:    name,
-			Sha256:        hash,
-			ApprovedAt:    store.FormatTimestamp(now),
-			ApprovedVia:   via,
+		"globaldb.ApproveHeartbeatScript",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ApproveHeartbeatScript(
+				ctx,
+				sqlcgen.ApproveHeartbeatScriptParams{
+					ProfileID:     profile,
+					DefinitionDir: dir,
+					ScriptName:    name,
+					Sha256:        hash,
+					ApprovedAt:    store.FormatTimestamp(now),
+					ApprovedVia:   via,
+				},
+			)
 		},
 	)
 }
 func (r *InstanceRepo) RevokeScript(ctx context.Context, profile, dir, name string) error {
-	return r.queries.RevokeHeartbeatScript(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.RevokeHeartbeatScriptParams{ProfileID: profile, DefinitionDir: dir, ScriptName: name},
+		"globaldb.RevokeHeartbeatScript",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.RevokeHeartbeatScript(
+				ctx,
+				sqlcgen.RevokeHeartbeatScriptParams{ProfileID: profile, DefinitionDir: dir, ScriptName: name},
+			)
+		},
 	)
 }
 
@@ -65,19 +77,25 @@ func (r *InstanceRepo) SourceStates(
 		}
 		ids = append(ids, ref.ID)
 		if !dry {
-			if err := r.queries.ResolveHeartbeatSource(
+			if err := r.executeWriteQuery(
 				ctx,
-				sqlcgen.ResolveHeartbeatSourceParams{
-					InstanceID: id,
-					SourceID:   ref.ID,
-					RefDigest:  digest,
-					UpdatedAt:  store.FormatTimestamp(now),
+				"globaldb.ResolveHeartbeatSource",
+				func(ctx context.Context, queries *sqlcgen.Queries) error {
+					return queries.ResolveHeartbeatSource(
+						ctx,
+						sqlcgen.ResolveHeartbeatSourceParams{
+							InstanceID: id,
+							SourceID:   ref.ID,
+							RefDigest:  digest,
+							UpdatedAt:  store.FormatTimestamp(now),
+						},
+					)
 				},
 			); err != nil {
 				return nil, err
 			}
 		}
-		row, err := r.queries.GetHeartbeatSource(
+		row, err := r.readQueries.GetHeartbeatSource(
 			ctx,
 			sqlcgen.GetHeartbeatSourceParams{InstanceID: id, SourceID: ref.ID},
 		)
@@ -111,10 +129,7 @@ func (r *InstanceRepo) SourceStates(
 		if err != nil {
 			return nil, err
 		}
-		if err := r.queries.DeleteRemovedHeartbeatSources(
-			ctx,
-			sqlcgen.DeleteRemovedHeartbeatSourcesParams{InstanceID: id, SourceIds: string(data)},
-		); err != nil {
+		if err := r.deleteRemovedHeartbeatSources(ctx, id, string(data)); err != nil {
 			return nil, err
 		}
 	}
@@ -135,28 +150,41 @@ func (r *InstanceRepo) SourcePollStatus(
 	if p.Err != nil {
 		code, detail = string(p.Err.Code), p.Err.Detail
 	}
-	return r.queries.UpdateHeartbeatSourceStatus(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.UpdateHeartbeatSourceStatusParams{
-			InstanceID:  id,
-			SourceID:    p.Ref.ID,
-			RefDigest:   p.RefDigest,
-			Now:         sourceText(store.FormatTimestamp(now)),
-			ErrorCode:   sourceText(code),
-			ErrorDetail: sourceText(detail),
-			ItemCount:   int64(len(p.Result.Items)),
-			Streak:      p.FailureStreak,
-			NextPoll:    nextPoll,
+		"globaldb.UpdateHeartbeatSourceStatus",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpdateHeartbeatSourceStatus(
+				ctx,
+				sqlcgen.UpdateHeartbeatSourceStatusParams{
+					InstanceID:  id,
+					SourceID:    p.Ref.ID,
+					RefDigest:   p.RefDigest,
+					Now:         sourceText(store.FormatTimestamp(now)),
+					ErrorCode:   sourceText(code),
+					ErrorDetail: sourceText(detail),
+					ItemCount:   int64(len(p.Result.Items)),
+					Streak:      p.FailureStreak,
+					NextPoll:    nextPoll,
+				},
+			)
 		},
 	)
 }
 func (r *InstanceRepo) DeferWake(ctx context.Context, id, expected string, until time.Time) (bool, error) {
-	n, err := r.queries.DeferInstanceSourceWake(
+	n, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.DeferInstanceSourceWakeParams{
-			InstanceID:  id,
-			ExpectedDue: expected,
-			NextWake:    store.FormatTimestamp(until),
+		r.repoBase,
+		"globaldb.DeferInstanceSourceWake",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeferInstanceSourceWake(
+				ctx,
+				sqlcgen.DeferInstanceSourceWakeParams{
+					InstanceID:  id,
+					ExpectedDue: expected,
+					NextWake:    store.FormatTimestamp(until),
+				},
+			)
 		},
 	)
 	return n == 1, err
@@ -236,7 +264,7 @@ func finishHeartbeatSources(ctx context.Context, q *sqlcgen.Queries, req heartbe
 }
 
 func (r *InstanceRepo) SourceStatuses(ctx context.Context, id string) ([]heartbeat.HeartbeatSourceStatus, error) {
-	rows, err := r.queries.ListHeartbeatSources(ctx, id)
+	rows, err := r.readQueries.ListHeartbeatSources(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +291,22 @@ func (r *InstanceRepo) SourceStatuses(ctx context.Context, id string) ([]heartbe
 }
 
 func (r *InstanceRepo) ClearRemovedSources(ctx context.Context, id string) error {
-	rows, err := r.queries.ListHeartbeatSources(ctx, id)
+	rows, err := r.readQueries.ListHeartbeatSources(ctx, id)
 	if err != nil || len(rows) == 0 {
 		return err
 	}
-	return r.queries.DeleteRemovedHeartbeatSources(
+	return r.deleteRemovedHeartbeatSources(ctx, id, "[]")
+}
+
+func (r *InstanceRepo) deleteRemovedHeartbeatSources(ctx context.Context, id, sourceIDs string) error {
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.DeleteRemovedHeartbeatSourcesParams{InstanceID: id, SourceIds: "[]"},
+		"globaldb.DeleteRemovedHeartbeatSources",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteRemovedHeartbeatSources(
+				ctx,
+				sqlcgen.DeleteRemovedHeartbeatSourcesParams{InstanceID: id, SourceIds: sourceIDs},
+			)
+		},
 	)
 }

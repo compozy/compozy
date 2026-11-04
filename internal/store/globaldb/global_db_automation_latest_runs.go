@@ -26,7 +26,7 @@ func (g *AutomationRepo) LatestRunsByOwner(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode latest automation run owner ids: %w", err)
 	}
-	return readLatestAutomationRuns(ctx, g.db, query, owner, string(idsJSON))
+	return readLatestAutomationRuns(ctx, g.readDB, query, owner, string(idsJSON))
 }
 
 func automationLatestRunsSQL(owner automation.RunOwnerKind) (string, error) {

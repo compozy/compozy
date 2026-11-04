@@ -156,25 +156,42 @@ func persistProjectionEntry(
 	identity transcript.EntryIdentity,
 	entry *transcript.Entry,
 ) error {
+	params, err := prepareProjectionEntry(identity, entry)
+	if err != nil {
+		return err
+	}
+	if err := sqlcgen.New(db).UpsertTranscriptEntry(ctx, params); err != nil {
+		return fmt.Errorf("store: upsert transcript entry %q: %w", identity.Key, err)
+	}
+	return nil
+}
+
+func prepareProjectionEntry(
+	identity transcript.EntryIdentity,
+	entry *transcript.Entry,
+) (sqlcgen.UpsertTranscriptEntryParams, error) {
 	var messageJSON sql.NullString
 	var eventType string
 	var markerJSON sql.NullString
 	if entry != nil {
 		encoded, err := json.Marshal(entry.Message)
 		if err != nil {
-			return fmt.Errorf("store: marshal transcript message: %w", err)
+			return sqlcgen.UpsertTranscriptEntryParams{}, fmt.Errorf("store: marshal transcript message: %w", err)
 		}
 		messageJSON = sql.NullString{String: string(encoded), Valid: true}
 		eventType = entry.EventType
 		if entry.Marker != nil {
 			encodedMarker, markerErr := json.Marshal(entry.Marker)
 			if markerErr != nil {
-				return fmt.Errorf("store: marshal transcript marker: %w", markerErr)
+				return sqlcgen.UpsertTranscriptEntryParams{}, fmt.Errorf(
+					"store: marshal transcript marker: %w",
+					markerErr,
+				)
 			}
 			markerJSON = sql.NullString{String: string(encodedMarker), Valid: true}
 		}
 	}
-	if err := sqlcgen.New(db).UpsertTranscriptEntry(ctx, sqlcgen.UpsertTranscriptEntryParams{
+	return sqlcgen.UpsertTranscriptEntryParams{
 		EntryKey:        identity.Key,
 		Kind:            string(identity.Kind),
 		LogicalID:       identity.LogicalID,
@@ -187,10 +204,7 @@ func persistProjectionEntry(
 		MessageJson:     messageJSON,
 		EventType:       eventType,
 		MarkerJson:      markerJSON,
-	}); err != nil {
-		return fmt.Errorf("store: upsert transcript entry %q: %w", identity.Key, err)
-	}
-	return nil
+	}, nil
 }
 
 func allocateProjectionMessageID(
@@ -198,6 +212,7 @@ func allocateProjectionMessageID(
 	db projectionDB,
 	entryKey string,
 	base string,
+	reserved map[string]struct{},
 ) (string, error) {
 	base = strings.TrimSpace(base)
 	if base == "" {
@@ -207,6 +222,9 @@ func allocateProjectionMessageID(
 		candidate := base
 		if suffix > 1 {
 			candidate = fmt.Sprintf("%s-%d", base, suffix)
+		}
+		if _, used := reserved[candidate]; used {
+			continue
 		}
 		count, err := sqlcgen.New(db).CountTranscriptMessageIDConflicts(
 			ctx,

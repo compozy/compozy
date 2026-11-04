@@ -17,7 +17,7 @@ func (g *AutomationRepo) prepareAutomationRunInsert(
 		return automation.Run{}, sqlcgen.InsertAutomationRunParams{}, err
 	}
 	// Capture the parent's owner while it exists; run history outlives catalog entries.
-	err = g.db.QueryRowContext(ctx, `SELECT COALESCE(`+
+	err = g.readDB.QueryRowContext(ctx, `SELECT COALESCE(`+
 		automationOwnerProfileJobResourceSQL+`?),`+
 		automationOwnerProfileJobTableSQL+`?),`+
 		automationOwnerProfileTriggerResourceSQL+`?),`+

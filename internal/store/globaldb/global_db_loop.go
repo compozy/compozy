@@ -209,7 +209,7 @@ func (g *LoopRepo) GetLoopRun(
 	if err := g.checkReady(ctx, "get loop run"); err != nil {
 		return looppkg.Run{}, err
 	}
-	row, err := g.queries.GetLoopRun(ctx, sqlcgen.GetLoopRunParams{WorkspaceID: string(ws), ID: string(runID)})
+	row, err := g.readQueries.GetLoopRun(ctx, sqlcgen.GetLoopRunParams{WorkspaceID: string(ws), ID: string(runID)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return looppkg.Run{}, looppkg.ErrRunNotFound
@@ -224,7 +224,7 @@ func (g *LoopRepo) GetLoopRunByID(ctx context.Context, runID looppkg.RunID) (loo
 	if err := g.checkReady(ctx, "get loop run by id"); err != nil {
 		return looppkg.Run{}, err
 	}
-	row, err := g.queries.GetLoopRunByID(ctx, string(runID))
+	row, err := g.readQueries.GetLoopRunByID(ctx, string(runID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return looppkg.Run{}, looppkg.ErrRunNotFound
@@ -246,7 +246,7 @@ func (g *LoopRepo) FindActiveLoopRun(
 	if err := g.checkReady(ctx, "find active loop run"); err != nil {
 		return nil, err
 	}
-	return findActiveLoopRunWithExecutor(ctx, g.db, ws, profileID, loopName)
+	return findActiveLoopRunWithExecutor(ctx, g.readDB, ws, profileID, loopName)
 }
 
 func findActiveLoopRunWithExecutor(
@@ -367,7 +367,7 @@ func (g *LoopRepo) GetLoopConfig(
 	if err := g.checkReady(ctx, "get loop config"); err != nil {
 		return nil, err
 	}
-	row, err := g.queries.GetLoopConfig(ctx, sqlcgen.GetLoopConfigParams{
+	row, err := g.readQueries.GetLoopConfig(ctx, sqlcgen.GetLoopConfigParams{
 		ProfileID:   loopStateProfileID(ws, profileID),
 		WorkspaceID: string(ws), LoopName: strings.TrimSpace(loopName),
 	})

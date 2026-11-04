@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
+import { appWindow, ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { Page } from "@playwright/test";
 
@@ -367,13 +367,17 @@ test.describe("always-on agent vocabulary", () => {
 
     await appPage.getByTestId("agent-setup-check-ins").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/watch-setup/check-ins");
+    const agentsWindow = appWindow(appPage, "agents");
+    const content = agentsWindow.locator('[data-slot="page-content"]');
     await expect(appPage.getByRole("heading", { level: 1, name: "Heartbeat" })).toBeVisible();
+    await expect(content.getByRole("heading", { level: 2, name: "Heartbeat" })).toBeVisible();
 
     await appPage.goto(runtime.url("/agents/watch-setup/what-it-does"), {
       waitUntil: "domcontentloaded",
     });
     await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
     await expect(appPage.getByRole("heading", { level: 1, name: "Instructions" })).toBeVisible();
+    await expect(content.getByRole("heading", { level: 2, name: "Instructions" })).toBeVisible();
   });
 });
 

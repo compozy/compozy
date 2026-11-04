@@ -31,7 +31,7 @@ func (g *GoalRepo) GetSessionGoalProjection(
 			looppkg.ErrValidation,
 		)
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return goal.SessionProjection{}, fmt.Errorf("store: begin session Goal projection read: %w", err)
 	}

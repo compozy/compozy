@@ -36,7 +36,7 @@ func (g *AutomationRepo) ListJobDefinitions(
 		args = append(args, source)
 	}
 	statement += automationDefinitionOrderSQL
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation job definitions: %w", err)
 	}
@@ -79,7 +79,7 @@ func (g *AutomationRepo) ListTriggerDefinitions(
 		args = append(args, source)
 	}
 	statement += automationDefinitionOrderSQL
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation trigger definitions: %w", err)
 	}

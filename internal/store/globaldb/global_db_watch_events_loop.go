@@ -17,7 +17,7 @@ func (g *WatchEventsRepo) readLoopWatchEventsCursor(
 	placeholders, scopeSQL, args := loopWatchEventsEligibility(query)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	return scanWatchEventCursor(
-		g.db.QueryRowContext(
+		g.readDB.QueryRowContext(
 			ctx,
 			`SELECT COALESCE((
 				SELECT lre.watch_seq
@@ -44,7 +44,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 	placeholders, scopeSQL, args := loopWatchEventsEligibility(query)
 	args = append(args, query.streams[looppkg.WatchEventsLoopStream], query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT
 			lre.watch_seq,

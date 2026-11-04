@@ -31,7 +31,7 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 	}
 
 	// dynamic-sql: buildEventQuerySQL composes optional filters, cursor bounds, and recent-window limiting.
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := s.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session events: %w", err)
 	}
@@ -74,7 +74,7 @@ func currentMaxSequence(ctx context.Context, db *sql.DB) (int64, error) {
 	return sqlcgen.New(db).MaxEventSequence(ctx)
 }
 
-func nextEventSequence(ctx context.Context, tx *store.WriteTx) (int64, error) {
+func nextEventSequence(ctx context.Context, tx projectionDB) (int64, error) {
 	current, err := sqlcgen.New(tx).MaxEventSequence(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: query next session event sequence: %w", err)

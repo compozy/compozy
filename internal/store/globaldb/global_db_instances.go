@@ -13,14 +13,14 @@ import (
 type InstanceRepo struct{ *repoBase }
 
 func (g *GlobalDB) Instances() *InstanceRepo {
-	return &InstanceRepo{repoBase: newRepoBase(g.db, g.now, &g.closed)}
+	return &InstanceRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
 }
 
 func (r *InstanceRepo) Get(ctx context.Context, id string) (agentinstance.Instance, error) {
 	if err := r.checkReady(ctx, "get instance"); err != nil {
 		return agentinstance.Instance{}, err
 	}
-	row, err := r.queries.GetAgentInstance(ctx, id)
+	row, err := r.readQueries.GetAgentInstance(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return agentinstance.Instance{}, agentinstance.ErrNotFound
 	}
@@ -143,7 +143,7 @@ func (r *InstanceRepo) InstanceMainAttempt(ctx context.Context, instanceID strin
 	if err := r.checkReady(ctx, "read instance main attempt"); err != nil {
 		return "", err
 	}
-	id, err := r.queries.GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
+	id, err := r.readQueries.GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}

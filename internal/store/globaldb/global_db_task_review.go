@@ -92,7 +92,7 @@ func (g *TaskRunRepo) GetRunReview(ctx context.Context, reviewID string) (taskpk
 	if err != nil {
 		return taskpkg.RunReview{}, err
 	}
-	return getRunReviewByID(ctx, g.db, trimmedID)
+	return getRunReviewByID(ctx, g.readDB, trimmedID)
 }
 
 // BindRunReviewSession binds an active review request to a reviewer session.
@@ -147,7 +147,7 @@ func (g *TaskRunRepo) LookupRunReviewBySession(ctx context.Context, sessionID st
 		return taskpkg.RunReview{}, err
 	}
 
-	row, err := g.queries.LookupRunReviewBySession(ctx, sqlcgen.LookupRunReviewBySessionParams{
+	row, err := g.readQueries.LookupRunReviewBySession(ctx, sqlcgen.LookupRunReviewBySessionParams{
 		ReviewerSessionID: nullableTaskString(trimmedID),
 		RoutedStatus:      string(taskpkg.RunReviewStatusRouted),
 		InReviewStatus:    string(taskpkg.RunReviewStatusInReview),
@@ -174,7 +174,7 @@ func (g *TaskRunRepo) ListRunReviews(
 		return nil, err
 	}
 
-	rows, err := g.queries.ListRunReviews(ctx, sqlcgen.ListRunReviewsParams{
+	rows, err := g.readQueries.ListRunReviews(ctx, sqlcgen.ListRunReviewsParams{
 		TaskID: normalized.TaskID, RunID: normalized.RunID, Status: string(normalized.Status),
 		ReviewerSessionID: normalized.ReviewerSessionID, ResultLimit: taskQueryLimit(normalized.Limit),
 	})

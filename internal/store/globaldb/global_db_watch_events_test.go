@@ -1340,7 +1340,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 			}
 		})
 		now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+		prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: func() time.Time { return now }}
 		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "watch-cursor-migration", t.TempDir())
 		definition := compileLoopTerminalWatchEventsDefinitionForTest(t)
@@ -2116,7 +2116,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		)
 		appendTaskWatchEventForTest(ctx, t, globalDB, firstTask.ID, now.Add(2*time.Second), "blocked")
 		appendTaskWatchEventForTest(ctx, t, globalDB, secondTask.ID, now.Add(3*time.Second), "blocked")
-		if _, err := globalDB.db.ExecContext(ctx, `
+		if _, err := globalDB.telemetry.DB().ExecContext(ctx, `
 			CREATE TRIGGER fail_second_watch_events_wake_audit
 			BEFORE INSERT ON event_summaries
 			WHEN NEW.type = 'loop.watch_events.wake_enqueued'

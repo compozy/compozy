@@ -37,7 +37,7 @@ func (g *PermissionRepo) PermissionDailyRollups(
 	)
 	sqlQuery += " GROUP BY date(p.timestamp), p.agent_name, p.decision" +
 		" ORDER BY date(p.timestamp), p.agent_name, p.decision"
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query permission rollups: %w", err)
 	}
@@ -87,7 +87,7 @@ func (g *PermissionRepo) PermissionEntries(
 	)
 	sqlQuery += " ORDER BY p.timestamp DESC, p.id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query permission entries: %w", err)
 	}

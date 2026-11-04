@@ -107,7 +107,7 @@ func (g *LoopRepo) ListRequests(
 		"SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id",
 		where,
 	)
-	if err := g.db.QueryRowContext(ctx, countQuery, args...).
+	if err := g.readDB.QueryRowContext(ctx, countQuery, args...).
 		Scan(&page.Pending); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
 	}
@@ -176,12 +176,12 @@ func (g *LoopRepo) GetRequest(
 	if err := g.checkReady(ctx, "get Loop request"); err != nil {
 		return looppkg.Request{}, err
 	}
-	stored, err := getStoredRequest(ctx, g.db, workspaceID, ref)
+	stored, err := getStoredRequest(ctx, g.readDB, workspaceID, ref)
 	if err != nil {
 		return looppkg.Request{}, err
 	}
 	if full && stored.contextRef != "" {
-		contextPayload, loadErr := getLoopOutputByRefWithExecutor(ctx, g.db, stored.contextRef)
+		contextPayload, loadErr := getLoopOutputByRefWithExecutor(ctx, g.readDB, stored.contextRef)
 		if loadErr != nil {
 			return looppkg.Request{}, fmt.Errorf("store: load Loop request context: %w", loadErr)
 		}

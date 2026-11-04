@@ -22,7 +22,7 @@ func (g *SessionRepo) WorkspaceLayout(ctx context.Context, profileID string) (st
 	if err != nil {
 		return store.WorkspaceLayout{}, err
 	}
-	return readWorkspaceLayout(ctx, g.queries, profileID)
+	return readWorkspaceLayout(ctx, g.readQueries, profileID)
 }
 
 // CreateWorkspaceFolder inserts a root folder at the top of the folder order.

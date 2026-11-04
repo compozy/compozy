@@ -30,7 +30,7 @@ func (g *TaskRunRepo) ReserveRunLeaseSettlement(
 	}
 	for {
 		version := g.leaseRecoveryVersion.Load()
-		run, err := g.tasks.getTaskRunWithExecutor(ctx, g.db, runID)
+		run, err := g.tasks.getTaskRunWithExecutor(ctx, g.readDB, runID)
 		if err != nil {
 			return nil, err
 		}

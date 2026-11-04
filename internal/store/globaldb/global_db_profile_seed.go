@@ -25,7 +25,7 @@ func (g *GlobalDB) VerifyDefaultProfile(ctx context.Context) error {
 	}
 	var name string
 	var state string
-	if err := g.db.QueryRowContext(
+	if err := g.readDB.QueryRowContext(
 		ctx,
 		`SELECT name, state FROM profiles WHERE id = ?`,
 		store.DefaultProfileID,

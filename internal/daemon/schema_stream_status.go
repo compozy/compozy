@@ -17,11 +17,14 @@ type daemonSchemaStreamStatusReader struct {
 var _ core.SchemaStreamStatusReader = (*daemonSchemaStreamStatusReader)(nil)
 
 func newDaemonSchemaStreamStatusReader(registry Registry) core.SchemaStreamStatusReader {
+	if source, ok := registry.(core.SchemaStreamStatusReader); ok {
+		return source
+	}
 	source, ok := registry.(extensionDBSource)
 	if !ok {
 		return nil
 	}
-	return &daemonSchemaStreamStatusReader{db: source.DB()}
+	return &daemonSchemaStreamStatusReader{db: source.ReadDB()}
 }
 
 func (r *daemonSchemaStreamStatusReader) SchemaStreamStatuses(ctx context.Context) ([]store.StreamStatus, error) {

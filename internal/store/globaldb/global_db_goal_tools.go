@@ -23,7 +23,7 @@ func (g *GoalRepo) FindGoalReportTarget(
 	if err := g.checkReady(ctx, "find Goal report target"); err != nil {
 		return goal.ToolReportTarget{}, false, err
 	}
-	return findGoalReportTargetWithExecutor(ctx, g.db, workspaceID, sessionID)
+	return findGoalReportTargetWithExecutor(ctx, g.readDB, workspaceID, sessionID)
 }
 
 func findGoalReportTargetWithExecutor(
@@ -85,7 +85,7 @@ func (g *GoalRepo) ResolveActiveGoalOriginAlias(
 			looppkg.ErrValidation,
 		)
 	}
-	rows, err := sqlcgen.New(g.db).ResolveActiveGoalOriginAliases(ctx, sqlcgen.ResolveActiveGoalOriginAliasesParams{
+	rows, err := g.readQueries.ResolveActiveGoalOriginAliases(ctx, sqlcgen.ResolveActiveGoalOriginAliasesParams{
 		WorkspaceID: string(workspaceID), SessionID: sessionID,
 	})
 	if err != nil {

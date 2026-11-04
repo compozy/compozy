@@ -78,11 +78,11 @@ func migrateVaultKey(
 		return result, errors.New("cli: vault migration lock unavailable")
 	}
 	defer func() { recordVaultMigrationCleanup(&result, &err, lock.Unlock(), "unlock migration") }()
-	db, err := openLocalGlobalDatabase(ctx, home.DatabaseFile, "vault key migration")
+	db, err := openLocalVaultReader(ctx, home.DatabaseFile, "vault key migration")
 	if err != nil {
 		return result, err
 	}
-	defer func() { recordVaultMigrationCleanup(&result, &err, db.Close(ctx), "close database") }()
+	defer func() { recordVaultMigrationCleanup(&result, &err, db.Close(), "close database") }()
 	count, err := vault.MigrateToKeyring(ctx, home.HomeDir, db, deps.vaultKeyring, func() error {
 		return activateVaultKeyring(home, removeFile, deps.removeFile, &result.Warnings)
 	})

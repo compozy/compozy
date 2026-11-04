@@ -27,21 +27,28 @@ func (g *ApprovalPendingRepo) CreateApproval(
 	if len(targetJSON) == 0 {
 		targetJSON = json.RawMessage(`{}`)
 	}
-	row, err := g.queries.CreatePendingToolApproval(ctx, sqlcgen.CreatePendingToolApprovalParams{
-		ProfileID:    request.ProfileID,
-		ApprovalID:   approvalID,
-		WorkspaceID:  nullableApprovalString(request.WorkspaceID),
-		InvocationID: request.InvocationID,
-		TargetKind:   string(request.Target.Kind),
-		ToolID:       nullableApprovalString(string(request.Target.ToolID)),
-		TargetJson: string(
-			targetJSON,
-		),
-		CommandID:   nullableApprovalString(request.CommandID),
-		ArgsJson:    string(request.Args),
-		RequestedAt: requestedAt.UnixMilli(),
-		ExpiresAt:   request.ExpiresAt.UnixMilli(),
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CreatePendingToolApproval",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalPending, error) {
+			return queries.CreatePendingToolApproval(ctx, sqlcgen.CreatePendingToolApprovalParams{
+				ProfileID:    request.ProfileID,
+				ApprovalID:   approvalID,
+				WorkspaceID:  nullableApprovalString(request.WorkspaceID),
+				InvocationID: request.InvocationID,
+				TargetKind:   string(request.Target.Kind),
+				ToolID:       nullableApprovalString(string(request.Target.ToolID)),
+				TargetJson: string(
+					targetJSON,
+				),
+				CommandID:   nullableApprovalString(request.CommandID),
+				ArgsJson:    string(request.Args),
+				RequestedAt: requestedAt.UnixMilli(),
+				ExpiresAt:   request.ExpiresAt.UnixMilli(),
+			})
+		},
+	)
 	if err != nil {
 		return toolspkg.ApprovalStatus{}, fmt.Errorf("store: create pending tool approval %q: %w", approvalID, err)
 	}
@@ -58,7 +65,7 @@ func (g *ApprovalPendingRepo) GetApproval(
 	if err := g.requireApprovalOwner(ctx, approvalID); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
-	row, err := g.queries.GetPendingToolApproval(ctx, approvalID)
+	row, err := g.readQueries.GetPendingToolApproval(ctx, approvalID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
 	}
@@ -80,9 +87,16 @@ func (g *ApprovalPendingRepo) ResolveApproval(
 	if err := g.requireApprovalOwner(ctx, approvalID); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
-	row, err := g.queries.ResolvePendingToolApproval(ctx, sqlcgen.ResolvePendingToolApprovalParams{
-		ApprovalStatus: string(outcome), ResolvedAt: nullableMillis(resolvedAt), ApprovalID: approvalID,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.ResolvePendingToolApproval",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalPending, error) {
+			return queries.ResolvePendingToolApproval(ctx, sqlcgen.ResolvePendingToolApprovalParams{
+				ApprovalStatus: string(outcome), ResolvedAt: nullableMillis(resolvedAt), ApprovalID: approvalID,
+			})
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalStatus{}, g.approvalTransitionError(ctx, approvalID, toolspkg.ErrApprovalTerminal)
 	}
@@ -103,10 +117,17 @@ func (g *ApprovalPendingRepo) CompleteApprovalExecution(
 	if err := g.checkReady(ctx, "complete tool approval execution"); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
-	row, err := g.queries.CompleteToolApprovalExecution(ctx, sqlcgen.CompleteToolApprovalExecutionParams{
-		ExecutionStatus: nullableApprovalString(string(status)), ResultJson: nullableJSON(result),
-		ErrorJson: nullableJSON(errorPayload), ExecutedAt: nullableMillis(executedAt), ApprovalID: approvalID,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CompleteToolApprovalExecution",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalPending, error) {
+			return queries.CompleteToolApprovalExecution(ctx, sqlcgen.CompleteToolApprovalExecutionParams{
+				ExecutionStatus: nullableApprovalString(string(status)), ResultJson: nullableJSON(result),
+				ErrorJson: nullableJSON(errorPayload), ExecutedAt: nullableMillis(executedAt), ApprovalID: approvalID,
+			})
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalStatus{}, g.approvalTransitionError(
 			ctx, approvalID, toolspkg.ErrApprovalDispatchFenced,
@@ -125,7 +146,14 @@ func (g *ApprovalPendingRepo) ExpireApprovals(
 	if err := g.checkReady(ctx, "expire pending tool approvals"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ExpirePendingToolApprovals(ctx, nullableMillis(now))
+	rows, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.ExpirePendingToolApprovals",
+		func(ctx context.Context, queries *sqlcgen.Queries) ([]sqlcgen.ToolApprovalPending, error) {
+			return queries.ExpirePendingToolApprovals(ctx, nullableMillis(now))
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("store: expire pending tool approvals: %w", err)
 	}
@@ -139,7 +167,14 @@ func (g *ApprovalPendingRepo) RecoverDispatchingApprovals(
 	if err := g.checkReady(ctx, "recover dispatching tool approvals"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.RecoverDispatchingToolApprovals(ctx, nullableMillis(now))
+	rows, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RecoverDispatchingToolApprovals",
+		func(ctx context.Context, queries *sqlcgen.Queries) ([]sqlcgen.ToolApprovalPending, error) {
+			return queries.RecoverDispatchingToolApprovals(ctx, nullableMillis(now))
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("store: recover dispatching tool approvals: %w", err)
 	}
@@ -152,7 +187,7 @@ func (g *ApprovalPendingRepo) ListPendingApprovals(
 	if err := g.checkReady(ctx, "list pending tool approvals"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListPendingToolApprovals(ctx)
+	rows, err := g.readQueries.ListPendingToolApprovals(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list pending tool approvals: %w", err)
 	}
@@ -164,7 +199,7 @@ func (g *ApprovalPendingRepo) approvalTransitionError(
 	approvalID string,
 	transitionErr error,
 ) error {
-	_, err := g.queries.GetPendingToolApproval(ctx, approvalID)
+	_, err := g.readQueries.GetPendingToolApproval(ctx, approvalID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ErrApprovalNotFound
 	}
@@ -180,7 +215,7 @@ func (g *ApprovalPendingRepo) requireApprovalOwner(ctx context.Context, approval
 		return err
 	}
 	var storedProfileID string
-	if err := g.db.QueryRowContext(
+	if err := g.readDB.QueryRowContext(
 		ctx,
 		`SELECT profile_id FROM tool_approval_pending WHERE approval_id = ?`,
 		approvalID,

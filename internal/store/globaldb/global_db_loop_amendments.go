@@ -144,7 +144,7 @@ func (g *LoopRepo) ListNodeAmendments(
 	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
 ) ([]looppkg.NodeAmendment, error) {
-	rows, err := g.db.QueryContext(ctx, `SELECT amendment.workspace_id, amendment.loop_run_id,
+	rows, err := g.readDB.QueryContext(ctx, `SELECT amendment.workspace_id, amendment.loop_run_id,
 		amendment.generation, amendment.node_id, amendment.item_index, amendment.amendment_seq,
 		amendment.original_ref, amendment.amended_ref, amendment.actor_kind, amendment.actor_id,
 		COALESCE(amendment.reason, ''), amendment.created_at
@@ -164,11 +164,11 @@ func (g *LoopRepo) ListNodeAmendments(
 			&amendment.CreatedAt); err != nil {
 			return nil, errors.Join(fmt.Errorf("store: scan Loop node amendment: %w", err), rows.Close())
 		}
-		amendment.Original, err = getLoopOutputByRefWithExecutor(ctx, g.db, amendment.OriginalRef)
+		amendment.Original, err = getLoopOutputByRefWithExecutor(ctx, g.readDB, amendment.OriginalRef)
 		if err != nil {
 			return nil, errors.Join(err, rows.Close())
 		}
-		amendment.Amended, err = getLoopOutputByRefWithExecutor(ctx, g.db, amendment.AmendedRef)
+		amendment.Amended, err = getLoopOutputByRefWithExecutor(ctx, g.readDB, amendment.AmendedRef)
 		if err != nil {
 			return nil, errors.Join(err, rows.Close())
 		}
@@ -192,7 +192,7 @@ func (g *LoopRepo) ApplyGenerationOutputOverlays(
 	outputs []looppkg.GenerationOutput,
 ) ([]looppkg.GenerationOutput, error) {
 	view := append([]looppkg.GenerationOutput(nil), outputs...)
-	rows, err := g.db.QueryContext(ctx, `SELECT amendment.node_id, amendment.item_index, amendment.amended_ref
+	rows, err := g.readDB.QueryContext(ctx, `SELECT amendment.node_id, amendment.item_index, amendment.amended_ref
 		FROM loop_node_amendments AS amendment JOIN loop_runs AS run ON run.id = amendment.loop_run_id
 		WHERE run.workspace_id = ? AND amendment.loop_run_id = ? AND amendment.generation = ?
 		AND amendment.amendment_seq = (SELECT MAX(latest.amendment_seq) FROM loop_node_amendments AS latest

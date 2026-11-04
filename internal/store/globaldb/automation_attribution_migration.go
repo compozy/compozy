@@ -9,12 +9,12 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func applyGlobalMigrations(ctx context.Context, db *sql.DB) error {
+func applyGlobalMigrations(ctx context.Context, db *sql.DB, path string) error {
 	status, err := store.Status(ctx, db, MigrationStream())
 	if err != nil {
 		return fmt.Errorf("globaldb: inspect migration status: %w", err)
 	}
-	if err := store.Apply(ctx, db, MigrationStream()); err != nil {
+	if err := applyTelemetryRelocation(ctx, db, path, status.Version); err != nil {
 		return err
 	}
 	if status.Version >= 149 {

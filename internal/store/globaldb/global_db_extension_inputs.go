@@ -29,7 +29,7 @@ func (r *ExtensionInputRepo) List(
 	if err != nil {
 		return nil, err
 	}
-	return readExtensionInputs(ctx, r.queries, instance)
+	return readExtensionInputs(ctx, r.readQueries, instance)
 }
 
 // Apply verifies before-images and commits the complete batch in one transaction.

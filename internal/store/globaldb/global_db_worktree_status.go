@@ -26,14 +26,19 @@ func (g *WorktreeRepo) SaveStatus(
 	if persistedAhead == nil {
 		persistedAhead = status.AheadOfBase
 	}
-	count, err := g.queries.UpsertWorktreeStatus(ctx, sqlcgen.UpsertWorktreeStatusParams{
-		Branch: nullableString(status.Branch), Detached: nullableBool(status.Detached),
-		HeadSha: nullableString(status.HeadSHA), DirtyFiles: nullableInt(status.DirtyFiles),
-		Insertions: nullableInt(status.Insertions), Deletions: nullableInt(status.Deletions),
-		HasUpstream: nullableBool(status.HasUpstream), Ahead: nullableInt(persistedAhead),
-		Behind: nullableInt(status.Behind), ReadError: status.ReadError,
-		RefreshedAt: nullableTime(status.RefreshedAt), WorkspaceID: strings.TrimSpace(workspaceID),
-		WorktreeID: strings.TrimSpace(id),
+	var count int64
+	err := g.writeBackground(ctx, "refresh worktree status", func(ctx context.Context, tx *store.WriteTx) error {
+		var err error
+		count, err = sqlcgen.New(tx).UpsertWorktreeStatus(ctx, sqlcgen.UpsertWorktreeStatusParams{
+			Branch: nullableString(status.Branch), Detached: nullableBool(status.Detached),
+			HeadSha: nullableString(status.HeadSHA), DirtyFiles: nullableInt(status.DirtyFiles),
+			Insertions: nullableInt(status.Insertions), Deletions: nullableInt(status.Deletions),
+			HasUpstream: nullableBool(status.HasUpstream), Ahead: nullableInt(persistedAhead),
+			Behind: nullableInt(status.Behind), ReadError: status.ReadError,
+			RefreshedAt: nullableTime(status.RefreshedAt), WorkspaceID: strings.TrimSpace(workspaceID),
+			WorktreeID: strings.TrimSpace(id),
+		})
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("store: save worktree status: %w", err)
@@ -52,7 +57,7 @@ func (g *WorktreeRepo) GetStatus(
 	if err := g.checkReady(ctx, "get worktree status"); err != nil {
 		return nil, err
 	}
-	row, err := g.queries.GetWorktreeStatus(ctx, sqlcgen.GetWorktreeStatusParams{
+	row, err := g.readQueries.GetWorktreeStatus(ctx, sqlcgen.GetWorktreeStatusParams{
 		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -118,7 +123,7 @@ func (g *WorktreeRepo) ListRunningExitOperations(ctx context.Context) ([]worktre
 	if err := g.checkReady(ctx, "list running worktree exit operations"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListRunningWorktreeExitOperations(ctx)
+	rows, err := g.readQueries.ListRunningWorktreeExitOperations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list running worktree exit operations: %w", err)
 	}
@@ -151,10 +156,17 @@ func (g *WorktreeRepo) FinishExitOperation(
 	if err := g.checkReady(ctx, "finish worktree exit operation"); err != nil {
 		return false, err
 	}
-	count, err := g.queries.FinishWorktreeExitOperation(ctx, sqlcgen.FinishWorktreeExitOperationParams{
-		State: state, FinishedAt: nullableTime(&finishedAt), WorkspaceID: workspaceID,
-		WorktreeID: worktreeID, OpID: opID,
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.FinishWorktreeExitOperation",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.FinishWorktreeExitOperation(ctx, sqlcgen.FinishWorktreeExitOperationParams{
+				State: state, FinishedAt: nullableTime(&finishedAt), WorkspaceID: workspaceID,
+				WorktreeID: worktreeID, OpID: opID,
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: finish worktree exit operation: %w", err)
 	}
@@ -165,7 +177,13 @@ func (g *WorktreeRepo) FailRunningExitOperations(ctx context.Context, finishedAt
 	if err := g.checkReady(ctx, "fail running worktree exit operations"); err != nil {
 		return err
 	}
-	if err := g.queries.FailRunningWorktreeExitOperations(ctx, nullableTime(&finishedAt)); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.FailRunningWorktreeExitOperations",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.FailRunningWorktreeExitOperations(ctx, nullableTime(&finishedAt))
+		},
+	); err != nil {
 		return fmt.Errorf("store: fail running worktree exit operations: %w", err)
 	}
 	return nil

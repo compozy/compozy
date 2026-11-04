@@ -84,7 +84,7 @@ func (g *SessionRepo) SessionDerivationReceipt(
 			"store: session derivation workspace id and idempotency key are required",
 		)
 	}
-	row, err := g.queries.GetSessionDerivation(ctx, sqlcgen.GetSessionDerivationParams{
+	row, err := g.readQueries.GetSessionDerivation(ctx, sqlcgen.GetSessionDerivationParams{
 		WorkspaceID:    workspaceID,
 		IdempotencyKey: idempotencyKey,
 		ProfileID:      profileID,

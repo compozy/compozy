@@ -22,7 +22,7 @@ type InstanceEventRepo struct {
 var _ automation.InstanceEventSink = (*InstanceEventRepo)(nil)
 
 func (g *GlobalDB) InstanceEvents(minInterval time.Duration) *InstanceEventRepo {
-	return &InstanceEventRepo{repoBase: newRepoBase(g.db, g.now, &g.closed), minInterval: minInterval}
+	return &InstanceEventRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed), minInterval: minInterval}
 }
 
 func (r *InstanceEventRepo) Deliver(

@@ -23,7 +23,7 @@ func (r *VaultRepo) ListExtensionVaultMetadata(ctx context.Context, name string)
 	}
 	prefix := vault.ExtensionSecretOwnerPrefix(name, "")
 	segment := strings.TrimSuffix(strings.TrimPrefix(prefix, "vault:extensions/global/"), "/")
-	rows, err := r.queries.ListExtensionVaultMetadata(ctx, sqlcgen.ListExtensionVaultMetadataParams{
+	rows, err := r.readQueries.ListExtensionVaultMetadata(ctx, sqlcgen.ListExtensionVaultMetadataParams{
 		GlobalPrefix: prefix, GlobalEnd: vaultPrefixRangeEnd(prefix), OwnerSegment: segment,
 	})
 	if err != nil {

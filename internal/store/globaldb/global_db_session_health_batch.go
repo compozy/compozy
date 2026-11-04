@@ -28,7 +28,11 @@ func (g *SessionRepo) ListSessionHealthByIDs(
 		return []heartbeat.SessionHealth{}, nil
 	}
 
-	rows, err := g.queries.ListSessionHealthByIDs(ctx, ids)
+	if g.healthBuffer != nil {
+		g.healthBuffer.mu.Lock()
+		defer g.healthBuffer.mu.Unlock()
+	}
+	rows, err := g.readQueries.ListSessionHealthByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session health: %w", err)
 	}
@@ -39,6 +43,15 @@ func (g *SessionRepo) ListSessionHealthByIDs(
 			return nil, mapErr
 		}
 		healthRows = append(healthRows, health)
+	}
+	if g.healthBuffer != nil {
+		selected := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			selected[id] = true
+		}
+		return g.healthBuffer.mergeLocked(ctx, healthRows, func(health heartbeat.SessionHealth) bool {
+			return selected[health.SessionID]
+		})
 	}
 	return healthRows, nil
 }

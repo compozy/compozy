@@ -277,7 +277,8 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			if reason == looppkg.ReasonCodeGoalWaitDeferred {
 				wantDeferrals = 1
 			}
-			if checkpoint.WaitDeferrals != wantDeferrals || checkpoint.Phase != "preparing" || checkpoint.PromptAttempt != 1 ||
+			if checkpoint.WaitDeferrals != wantDeferrals || checkpoint.Phase != "preparing" ||
+				checkpoint.PromptAttempt != 1 ||
 				checkpoint.QueueEntryID != "" ||
 				checkpoint.PromptID != "" {
 				t.Fatalf("rejected checkpoint = %#v", checkpoint)

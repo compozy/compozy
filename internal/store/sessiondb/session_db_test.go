@@ -387,6 +387,112 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a checkpoint blocked in filesystem I/O cannot reserve the session
+	// writer. Close bounds caller waiting and joins maintenance before releasing the database family.
+	// Owner: SessionDB maintenance lifecycle; canonical passive-checkpoint suite.
+	for _, expire := range []bool{false, true} {
+		name := "Should persist a foreground event while periodic checkpoint I/O is blocked"
+		if expire {
+			name = "Should bound close while retaining ownership of blocked checkpoint I/O"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestSessionDB(t, "sess-checkpoint-io")
+			blocked := &blockedSessionCheckpointConnector{
+				Connector: db.checkpointDB.Driver().(driver.Connector),
+				entered:   make(chan struct{}), released: make(chan struct{}),
+			}
+			unblock := sync.OnceFunc(func() { close(blocked.released) })
+			defer unblock()
+			if err := db.checkpointDB.Close(); err != nil {
+				t.Fatal(err)
+			}
+			db.checkpointDB = sql.OpenDB(blocked)
+			db.checkpointDB.SetMaxOpenConns(1)
+			db.checkpointDB.SetMaxIdleConns(1)
+			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+			events := make([]SessionEvent, sessionPassiveCheckpointEvery)
+			for i := range events {
+				events[i] = SessionEvent{
+					TurnID:    "checkpoint",
+					Type:      "session.stop_escalated",
+					AgentName: "coder",
+					Content:   `{}`,
+				}
+			}
+			if _, err := db.RecordPersistedBatch(t.Context(), events); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			select {
+			case <-blocked.entered:
+			case <-ctx.Done():
+				t.Fatal("periodic checkpoint did not reach filesystem I/O")
+			}
+			if err := db.Record(ctx, SessionEvent{
+				TurnID: "checkpoint", Type: "session_stopped", AgentName: "coder", Content: `{}`,
+			}); err != nil {
+				t.Fatalf("foreground write waited behind checkpoint I/O: %v", err)
+			}
+			rows, err := db.Query(ctx, EventQuery{Type: "session_stopped"})
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("durable foreground event: rows=%d, error=%v", len(rows), err)
+			}
+			closeCtx := testutil.Context(t)
+			if expire {
+				var stop context.CancelFunc
+				closeCtx, stop = context.WithTimeout(closeCtx, 50*time.Millisecond)
+				defer stop()
+			}
+			closed := make(chan error, 1)
+			closeReturned := make(chan struct{})
+			go func() {
+				defer close(closeReturned)
+				closed <- db.Close(closeCtx)
+			}()
+			defer func() {
+				unblock()
+				<-closeReturned
+			}()
+			select {
+			case <-db.writerDone:
+			case <-ctx.Done():
+				t.Fatal("writer did not drain independently of maintenance")
+			}
+			if expire {
+				select {
+				case err := <-closed:
+					if !errors.Is(err, store.ErrDrainTimeout) || !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("expired Close = %v, want drain deadline", err)
+					}
+				case <-ctx.Done():
+					t.Fatal("Close ignored its deadline while checkpoint I/O remained blocked")
+				}
+			} else {
+				select {
+				case err := <-closed:
+					t.Fatalf("Close returned before checkpoint I/O ended: %v", err)
+				default:
+				}
+			}
+			if blocked.closed.Load() {
+				t.Fatal("checkpoint connection closed while I/O was still active")
+			}
+			unblock()
+			if expire {
+				if err := db.Close(testutil.Context(t)); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("join timed-out cleanup = %v", err)
+				}
+			} else if err := <-closed; err != nil {
+				t.Fatal(err)
+			}
+			if !blocked.closed.Load() {
+				t.Fatal("checkpoint connection remains open after cleanup joined")
+			}
+		})
+	}
+
 	// Invariant: background WAL maintenance cannot starve an already-open foreground writer.
 	// Owner: SessionDB writer scheduling; canonical passive-checkpoint suite.
 	t.Run("Should record a foreground event while a family guard defers idle maintenance", func(t *testing.T) {
@@ -404,7 +510,7 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			t.Fatal(err)
 		}
 		waiting := time.Now().Add(5 * time.Second)
-		for db.db.Stats().InUse == 0 {
+		for db.checkpointDB.Stats().InUse == 0 {
 			if time.Now().After(waiting) {
 				t.Fatal("idle maintenance never reached the held family guard")
 			}
@@ -513,7 +619,11 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 		go func() {
 			defer close(readerDone)
 			for readerCtx.Err() == nil {
-				_, _ = sessionDB.Query(readerCtx, EventQuery{Type: "usage"})
+				if _, err := sessionDB.Query(readerCtx, EventQuery{Type: "usage"}); err != nil &&
+					!errors.Is(err, context.Canceled) {
+					t.Errorf("polling reader during WAL maintenance: %v", err)
+					return
+				}
 			}
 		}()
 		t.Cleanup(func() {
@@ -617,7 +727,11 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Conn(reader) error = %v", err)
 		}
-		t.Cleanup(func() { _ = reader.Close() })
+		t.Cleanup(func() {
+			if err := reader.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		if _, err := reader.ExecContext(ctx, "BEGIN"); err != nil {
 			t.Fatalf("BEGIN(reader) error = %v", err)
 		}
@@ -1165,7 +1279,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 				t.Fatal(err)
 			}
 			at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
-			seed := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			seed := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
 			wantEvents, err := seed.writeEventBatch(ctx, []SessionEvent{
 				{ID: "archived", SessionID: owner.SessionID, TurnID: "old", Type: "user_message",
 					AgentName: "user", Content: `{"text":"retained archived bytes"}`, Archived: true, Timestamp: at},
@@ -1696,6 +1810,7 @@ func TestOpenSessionDBRejectsDifferentOwnerIdentity(t *testing.T) {
 		before := readOnlySessionDatabaseFamilyDigest(t, foreignPath)
 
 		expectedDB.db.SetMaxIdleConns(0)
+		expectedDB.readDB.SetMaxIdleConns(0)
 		if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-substitution")); err != nil {
 			t.Fatalf("os.Rename(expected backup) error = %v", err)
 		}
@@ -1709,6 +1824,17 @@ func TestOpenSessionDBRejectsDifferentOwnerIdentity(t *testing.T) {
 		}
 		if len(events) != 0 {
 			t.Fatalf("Query(substituted writable connection) events = %#v, want empty", events)
+		}
+		// Query now uses the independent reader. Exercise the writable connector
+		// explicitly as well, preserving the original physical-open invariant.
+		connection, err := expectedDB.db.Conn(ctx)
+		if connection != nil {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+		}
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("Conn(substituted writer) error = %v, want ErrSessionDBOwnerMismatch", err)
 		}
 		assertReadOnlySessionDatabaseUnchanged(t, expectedPath, before)
 	})
@@ -1805,6 +1931,114 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 	})
 	t.Parallel()
+
+	// Invariant: preparation and transcript reads do not need the writer; a
+	// changed durable prefix invalidates preparation before any row is published.
+	// Owner: SessionDB atomic append; canonical suite: TestSessionDBTranscriptProjection.
+	for _, mutation := range []string{"append", "archive", "clear"} {
+		t.Run("Should prepare outside the writer and reject stale "+mutation+" projections", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestSessionDB(t, "sess-prepare-"+mutation)
+			event := func(id string, kind string, text string) store.SessionEvent {
+				stored := canonicalStoreEvent(t, acp.AgentEvent{
+					Type: kind, SessionID: db.SessionID(), TurnID: "turn-prepare", Text: text,
+					Timestamp: time.Now().UTC(),
+				}, "coder")
+				stored.ID = id
+				return stored
+			}
+			seed, err := db.RecordPersistedBatch(ctx, []store.SessionEvent{
+				event("user", acp.EventTypeUserMessage, "question"),
+				event("answer", acp.EventTypeAgentMessage, "answer"),
+				event("done", acp.EventTypeDone, ""),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := OpenSessionDB(ctx, db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := other.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			db.db.SetMaxOpenConns(1)
+			writer, err := db.db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+					t.Error(err)
+				}
+			}()
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatal(err)
+			}
+			bounded, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			candidate := event("candidate", acp.EventTypeAgentMessage, "prepared answer")
+			plan, err := db.prepareTranscriptWrite(bounded, []store.SessionEvent{candidate}, false)
+			if err != nil {
+				t.Fatalf("prepare with occupied writer: %v", err)
+			}
+			if _, err := db.TranscriptPage(bounded, transcript.PageQuery{Limit: 10}); err != nil {
+				t.Fatalf("read with occupied writer: %v", err)
+			}
+			if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			switch mutation {
+			case "append":
+				err = other.Record(ctx, event("concurrent", acp.EventTypeAgentMessage, "concurrent answer"))
+			case "archive":
+				_, err = other.ArchiveEvents(ctx, store.EventArchiveRequest{
+					FromSequence: seed[0].Sequence, ToSequence: seed[len(seed)-1].Sequence,
+				})
+			case "clear":
+				err = other.Clear(ctx)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.commitTranscriptWrite(ctx, plan); !errors.Is(err, errTranscriptChanged) {
+				t.Fatalf("stale commit = %v, want invalidation", err)
+			}
+			if err := db.Record(ctx, candidate); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := db.Query(ctx, store.EventQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, row := range rows {
+				if row.ID == candidate.ID {
+					count++
+				}
+			}
+			if count != 1 {
+				t.Fatalf("candidate persisted %d times, want once", count)
+			}
+			page, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			visible := false
+			for _, entry := range page.Entries {
+				visible = visible || strings.Contains(transcript.UIMessageText(entry.Message), "prepared answer")
+			}
+			if !visible {
+				t.Fatalf("retried candidate missing from transcript: %#v", page.Entries)
+			}
+		})
+	}
 
 	t.Run("Should identify the exact projected part and field of a navigation hit", func(t *testing.T) {
 		t.Parallel()
@@ -3496,6 +3730,50 @@ func (d *ownerReadFaultDriver) Open(name string) (driver.Conn, error) {
 		owner:              d,
 		fail:               d.opens.Add(1) == 1,
 	}, nil
+}
+
+// The driver boundary blocks only checkpoint I/O; all SQL runs on real SQLite.
+type blockedSessionCheckpointConnector struct {
+	driver.Connector
+	entered  chan struct{}
+	released chan struct{}
+	once     sync.Once
+	closed   atomic.Bool
+}
+
+func (c *blockedSessionCheckpointConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := c.Connector.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	querier, ok := conn.(sqlite.ExecQuerierContext)
+	if !ok {
+		return nil, closeSessionSQLiteDriverConnection(conn, errors.New("missing contextual queries"))
+	}
+	return &blockedSessionCheckpointConnection{Conn: conn, ExecQuerierContext: querier, owner: c}, nil
+}
+
+type blockedSessionCheckpointConnection struct {
+	driver.Conn
+	sqlite.ExecQuerierContext
+	owner *blockedSessionCheckpointConnector
+}
+
+func (c *blockedSessionCheckpointConnection) Close() error {
+	err := c.Conn.Close()
+	c.owner.closed.Store(true)
+	return err
+}
+
+func (c *blockedSessionCheckpointConnection) ExecContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Result, error) {
+	if query == "PRAGMA wal_checkpoint(PASSIVE)" {
+		c.owner.once.Do(func() { close(c.owner.entered) })
+		// A filesystem sync already in progress cannot be interrupted by ctx.
+		<-c.owner.released
+	}
+	return c.ExecQuerierContext.ExecContext(ctx, query, args)
 }
 
 type ownerReadFaultConnection struct {

@@ -19,7 +19,7 @@ func (g *LoopRepo) ListNodeControls(
 	if err := g.checkReady(ctx, "list node controls"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListLoopNodeControls(ctx, sqlcgen.ListLoopNodeControlsParams{
+	rows, err := g.readQueries.ListLoopNodeControls(ctx, sqlcgen.ListLoopNodeControlsParams{
 		WorkspaceID: string(workspaceID),
 		LoopRunID:   string(runID),
 	})

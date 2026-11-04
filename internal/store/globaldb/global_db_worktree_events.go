@@ -41,6 +41,8 @@ func (g *GlobalDB) FinishExitOperationWithEvent(
 	if err := g.prepareEventSummary(ctx, &summary); err != nil {
 		return false, err
 	}
+	finishPublication := g.ObserveRepo.summaryPublications.begin(summary.ProfileID, summary.WorkspaceID)
+	defer finishPublication()
 	finished := false
 	err := g.Worktrees.withImmediateTransaction(
 		ctx,
@@ -66,6 +68,9 @@ func (g *GlobalDB) FinishExitOperationWithEvent(
 	)
 	if err != nil {
 		return false, err
+	}
+	if finished {
+		g.ObserveRepo.drainCommittedEventSummaries(ctx, summary)
 	}
 	return finished, nil
 }

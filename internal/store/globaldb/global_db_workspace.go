@@ -28,21 +28,27 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 		return err
 	}
 
-	if err := g.queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-		ID:           normalized.ID,
-		RootDir:      normalized.RootDir,
-		AddDirs:      addDirsJSON,
-		Name:         normalized.Name,
-		DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
-		CreatedAt: store.FormatTimestamp(
-			normalized.CreatedAt,
-		),
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
+				ID:           normalized.ID,
+				RootDir:      normalized.RootDir,
+				AddDirs:      addDirsJSON,
+				Name:         normalized.Name,
+				DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
+				CreatedAt: store.FormatTimestamp(
+					normalized.CreatedAt,
+				),
+				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf(
 			"store: insert workspace %q: %w",
 			normalized.ID,
-			mapWorkspaceWriteConstraintError(ctx, g.db, normalized, err),
+			mapWorkspaceWriteConstraintError(ctx, g.readDB, normalized, err),
 		)
 	}
 
@@ -60,18 +66,25 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 		return err
 	}
 
-	affected, err := g.queries.UpdateWorkspace(ctx, sqlcgen.UpdateWorkspaceParams{
-		RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
-		DefaultAgent: nullableWorkspaceString(
-			normalized.DefaultAgent,
-		),
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdateWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateWorkspace(ctx, sqlcgen.UpdateWorkspaceParams{
+				RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
+				DefaultAgent: nullableWorkspaceString(
+					normalized.DefaultAgent,
+				),
+				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: update workspace %q: %w",
 			normalized.ID,
-			mapWorkspaceWriteConstraintError(ctx, g.db, normalized, err),
+			mapWorkspaceWriteConstraintError(ctx, g.readDB, normalized, err),
 		)
 	}
 
@@ -99,9 +112,12 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		return errors.New("store: workspace id is required")
 	}
 
-	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
+	if err := store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID, store.FormatTimestamp(g.now()))
-	})
+	}); err != nil {
+		return err
+	}
+	return g.sweepDeletedTelemetry(ctx)
 }
 
 func ensureWorkspaceDeletionAllowed(
@@ -172,7 +188,7 @@ func (g *WorkspaceRepo) GetWorkspace(
 		return compozyworkspace.Workspace{}, errors.New("store: workspace id is required")
 	}
 
-	row, err := g.queries.GetWorkspace(ctx, trimmedID)
+	row, err := g.readQueries.GetWorkspace(ctx, trimmedID)
 	return workspaceFromGenerated(row, err)
 }
 
@@ -192,7 +208,7 @@ func (g *WorkspaceRepo) GetWorkspaceByPath(
 		)
 	}
 
-	row, err := g.queries.GetWorkspaceByPath(ctx, trimmedRoot)
+	row, err := g.readQueries.GetWorkspaceByPath(ctx, trimmedRoot)
 	return workspaceFromGenerated(row, err)
 }
 
@@ -210,9 +226,9 @@ func (g *WorkspaceRepo) GetWorkspaceByName(
 		return compozyworkspace.Workspace{}, errors.New("store: workspace name is required")
 	}
 
-	row, err := g.queries.GetWorkspaceByName(ctx, trimmedName)
+	row, err := g.readQueries.GetWorkspaceByName(ctx, trimmedName)
 	if errors.Is(err, sql.ErrNoRows) && trimmedName != workspaceaccess.UserSelector {
-		row, err = g.queries.GetWorkspaceByLegacyName(ctx, trimmedName)
+		row, err = g.readQueries.GetWorkspaceByLegacyName(ctx, trimmedName)
 		if err == nil {
 			slog.WarnContext(
 				ctx,
@@ -238,7 +254,7 @@ func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]compozyworkspace.
 		return nil, err
 	}
 
-	rows, err := g.queries.ListWorkspaces(ctx)
+	rows, err := g.readQueries.ListWorkspaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query workspaces: %w", err)
 	}

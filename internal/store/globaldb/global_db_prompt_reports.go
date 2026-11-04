@@ -81,7 +81,7 @@ func (g *SessionRepo) IndeterminatePromptReports(
 	ctx context.Context,
 	after string,
 ) ([]store.IndeterminatePromptReport, error) {
-	rows, err := g.queries.ListIndeterminatePromptReports(ctx, after)
+	rows, err := g.readQueries.ListIndeterminatePromptReports(ctx, after)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,13 @@ func (g *SessionRepo) FailSessionReports(
 }
 
 func (g *SessionRepo) MarkIndeterminateReportNoted(ctx context.Context, id string) error {
-	return g.queries.MarkIndeterminateReportNoted(ctx, id)
+	return g.executeWriteQuery(
+		ctx,
+		"globaldb.MarkIndeterminateReportNoted",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.MarkIndeterminateReportNoted(ctx, id)
+		},
+	)
 }
 
 func (g *SessionRepo) ReleaseUndispatchedReports(ctx context.Context, admissionID string) error {

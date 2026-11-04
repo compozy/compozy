@@ -22,7 +22,7 @@ func (r *ExtensionMCPRepo) List(ctx context.Context, profileID, workspaceID stri
 	if err := r.checkReady(ctx, "list extension MCP overrides"); err != nil {
 		return nil, err
 	}
-	return listExtensionMCPRecords(ctx, r.queries, extensionMCPProfileID(profileID), strings.TrimSpace(workspaceID))
+	return listExtensionMCPRecords(ctx, r.readQueries, extensionMCPProfileID(profileID), strings.TrimSpace(workspaceID))
 }
 
 // Reserve commits a new allocation once; an existing allocation is never renamed.
@@ -42,7 +42,7 @@ func (r *ExtensionMCPRepo) Reserve(
 			return record, err
 		}
 	}
-	records, err := listExtensionMCPRecords(ctx, r.queries, target.ProfileID, target.WorkspaceID)
+	records, err := listExtensionMCPRecords(ctx, r.readQueries, target.ProfileID, target.WorkspaceID)
 	if err != nil {
 		return record, err
 	}
@@ -152,11 +152,18 @@ func (r *ExtensionMCPRepo) Update(
 	if err != nil {
 		return err
 	}
-	count, err := r.queries.UpdateExtensionMCPOverride(ctx, sqlcgen.UpdateExtensionMCPOverrideParams{
-		Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
-		Server: target.ServerName, EnvJson: string(env), HeadersJson: string(headers), Url: override.URL,
-		UpdatedAt: store.FormatTimestamp(r.now().UTC()),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.UpdateExtensionMCPOverride",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateExtensionMCPOverride(ctx, sqlcgen.UpdateExtensionMCPOverrideParams{
+				Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
+				Server: target.ServerName, EnvJson: string(env), HeadersJson: string(headers), Url: override.URL,
+				UpdatedAt: store.FormatTimestamp(r.now().UTC()),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update MCP override: %w", err)
 	}
@@ -173,13 +180,19 @@ func (r *ExtensionMCPRepo) DeleteInstance(ctx context.Context, extension, profil
 	if strings.TrimSpace(extension) == "" {
 		return errors.New("store: extension name is required")
 	}
-	return r.queries.DeleteExtensionMCPOverrides(ctx, sqlcgen.DeleteExtensionMCPOverridesParams{
-		Extension: strings.TrimSpace(
-			extension,
-		),
-		Profile:     extensionMCPProfileID(profileID),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-	})
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteExtensionMCPOverrides",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteExtensionMCPOverrides(ctx, sqlcgen.DeleteExtensionMCPOverridesParams{
+				Extension: strings.TrimSpace(
+					extension,
+				),
+				Profile:     extensionMCPProfileID(profileID),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+			})
+		},
+	)
 }
 
 func listExtensionMCPRecords(
@@ -249,7 +262,7 @@ func (r *ExtensionMCPRepo) ListAll(ctx context.Context) ([]extensionmcp.Record, 
 	if err := r.checkReady(ctx, "list allocated extension MCP names"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAllExtensionMCPOverrides(ctx)
+	rows, err := r.readQueries.ListAllExtensionMCPOverrides(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list allocated extension MCP names: %w", err)
 	}
@@ -263,9 +276,15 @@ func (r *ExtensionMCPRepo) DeleteWorkspace(ctx context.Context, extension, works
 	if strings.TrimSpace(extension) == "" {
 		return errors.New("store: extension name is required")
 	}
-	return r.queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
-		Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
-	})
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteExtensionMCPWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
+				Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
+			})
+		},
+	)
 }
 
 // DeleteTargets compensates only allocations introduced by a failed lifecycle mutation.
@@ -291,13 +310,19 @@ func (r *ExtensionMCPRepo) RetireTargets(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+	finishPublication := r.summaryPublications.begin(summary.ProfileID, summary.WorkspaceID)
+	defer finishPublication()
+	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := deleteExtensionMCPTargets(ctx, queries, targets); err != nil {
 			return err
 		}
 		return insertEventSummary(ctx, queries, summary)
 	})
+	if err == nil {
+		r.drainCommittedEventSummaries(ctx, summary)
+	}
+	return err
 }
 
 func deleteExtensionMCPTargets(ctx context.Context, queries *sqlcgen.Queries, targets []extensionmcp.Target) error {
@@ -334,7 +359,9 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+	finishPublication := r.summaryPublications.begin(summary.ProfileID, summary.WorkspaceID)
+	defer finishPublication()
+	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
 			Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
@@ -343,4 +370,8 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 		}
 		return insertEventSummary(ctx, queries, summary)
 	})
+	if err == nil {
+		r.drainCommittedEventSummaries(ctx, summary)
+	}
+	return err
 }

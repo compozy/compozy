@@ -25,7 +25,7 @@ func (r *InstanceRepo) ManagedRuns(ctx context.Context, instanceID, after string
 	if err := r.checkReady(ctx, "list instance managed runs"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListInstanceManagedRuns(ctx, sqlcgen.ListInstanceManagedRunsParams{
+	rows, err := r.readQueries.ListInstanceManagedRuns(ctx, sqlcgen.ListInstanceManagedRunsParams{
 		InstanceID: instanceID, AfterID: after, PageLimit: 100,
 	})
 	if err != nil {
@@ -43,7 +43,13 @@ func (r *InstanceRepo) ForgetSettledRuns(ctx context.Context, instanceID string)
 	if err := r.checkReady(ctx, "forget settled instance runs"); err != nil {
 		return err
 	}
-	return r.queries.ForgetSettledInstanceRuns(ctx, instanceID)
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.ForgetSettledInstanceRuns",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ForgetSettledInstanceRuns(ctx, instanceID)
+		},
+	)
 }
 
 // RequireInstanceRunResumable is an early read guard; the canonical mutations repeat it in their transaction.
@@ -51,7 +57,7 @@ func (g *LoopRepo) RequireInstanceRunResumable(ctx context.Context, runID looppk
 	if err := g.checkReady(ctx, "check instance run resume"); err != nil {
 		return err
 	}
-	return requireInstanceRunResumable(ctx, g.queries, string(runID))
+	return requireInstanceRunResumable(ctx, g.readQueries, string(runID))
 }
 
 func requireInstanceRunResumable(ctx context.Context, q *sqlcgen.Queries, runID string) error {
@@ -107,7 +113,7 @@ func (r *InstanceRepo) QueuedSessions(ctx context.Context, instanceID, after str
 	if err := r.checkReady(ctx, "list instance queued sessions"); err != nil {
 		return nil, err
 	}
-	return r.queries.ListInstanceQueuedSessions(
+	return r.readQueries.ListInstanceQueuedSessions(
 		ctx,
 		sqlcgen.ListInstanceQueuedSessionsParams{InstanceID: instanceID, AfterID: after},
 	)

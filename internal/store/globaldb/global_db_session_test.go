@@ -988,7 +988,7 @@ func TestGlobalDBSessionCascadeMigration(t *testing.T) {
 			t.Fatalf("OpenSQLiteDatabase(v2 prefix) error = %v", err)
 		}
 		prefixGlobalDB := &GlobalDB{
-			db:   prefixDB,
+			db: prefixDB, readDB: prefixDB,
 			path: path,
 			now: func() time.Time {
 				return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
@@ -1573,7 +1573,7 @@ func TestGlobalDBUserFolderMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		old := &GlobalDB{
-			db:   raw,
+			db: raw, readDB: raw,
 			path: path,
 			now:  func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) },
 		}

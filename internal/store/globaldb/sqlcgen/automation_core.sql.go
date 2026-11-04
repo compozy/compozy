@@ -65,9 +65,9 @@ func (q *Queries) DeleteAutomationTriggerOverlay(ctx context.Context, triggerID 
 }
 
 const getAutomationJob = `-- name: GetAutomationJob :one
-SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at, grant_ceiling
 FROM automation_jobs WHERE id = ?1
 `
 
@@ -75,7 +75,6 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 	row := q.db.QueryRowContext(ctx, getAutomationJob, id)
 	var i AutomationJob
 	err := row.Scan(
-		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.Scope,
@@ -96,6 +95,7 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 		&i.LoopInputMapping,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GrantCeiling,
 	)
 	return i, err
 }

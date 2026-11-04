@@ -28,26 +28,12 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 	if err := scope.Validate(); err != nil {
 		return "", nil, err
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", nil, fmt.Errorf("store: begin attention snapshot: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			err = errors.Join(err, tx.Rollback())
-		}
-	}()
-	queries := r.queries.WithTx(tx)
-	now := r.now().UTC()
-	if err := queries.DeleteExpiredAttentionSnapshots(ctx, store.FormatTimestamp(now)); err != nil {
-		return "", nil, fmt.Errorf("store: expire attention snapshots: %w", err)
-	}
 	_, ids := attention.SnapshotIdentity(scope, occurrences)
 	raw, err := json.Marshal(ids)
 	if err != nil {
 		return "", nil, fmt.Errorf("store: encode attention occurrences: %w", err)
 	}
-	acknowledged, err := queries.ListAcknowledgedAttention(ctx, sqlcgen.ListAcknowledgedAttentionParams{
+	acknowledged, err := r.readQueries.ListAcknowledgedAttention(ctx, sqlcgen.ListAcknowledgedAttentionParams{
 		ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID, OccurrenceIds: string(raw),
 	})
 	if err != nil {
@@ -66,19 +52,26 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 	if err != nil {
 		return "", nil, fmt.Errorf("store: encode attention snapshot: %w", err)
 	}
-	if err := queries.SaveAttentionSnapshot(ctx, sqlcgen.SaveAttentionSnapshotParams{
-		ID:            snapshot,
-		ProfileID:     scope.ProfileID,
-		ActorKind:     scope.ActorKind,
-		ActorID:       scope.ActorID,
-		Population:    scope.Population,
-		OccurrenceIds: string(raw),
-		ExpiresAt:     store.FormatTimestamp(now.Add(attentionSnapshotLifetime)),
-	}); err != nil {
+	// The receipt read is the snapshot's observation point. A receipt committed
+	// afterwards may also acknowledge this population, just as it can after save.
+	// Hashing and JSON encoding never reserve the writer.
+	now := r.now().UTC()
+	err = r.executeWriteQuery(
+		ctx,
+		"capture attention snapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			if err := queries.DeleteExpiredAttentionSnapshots(ctx, store.FormatTimestamp(now)); err != nil {
+				return fmt.Errorf("store: expire attention snapshots: %w", err)
+			}
+			return queries.SaveAttentionSnapshot(ctx, sqlcgen.SaveAttentionSnapshotParams{
+				ID: snapshot, ProfileID: scope.ProfileID, ActorKind: scope.ActorKind,
+				ActorID: scope.ActorID, Population: scope.Population, OccurrenceIds: string(raw),
+				ExpiresAt: store.FormatTimestamp(now.Add(attentionSnapshotLifetime)),
+			})
+		},
+	)
+	if err != nil {
 		return "", nil, fmt.Errorf("store: save attention snapshot: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return "", nil, fmt.Errorf("store: commit attention snapshot: %w", err)
 	}
 	return snapshot, unread, nil
 }
@@ -93,7 +86,7 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 	if err := scope.Validate(); err != nil {
 		return err
 	}
-	raw, err := r.queries.GetAttentionSnapshot(ctx, sqlcgen.GetAttentionSnapshotParams{
+	raw, err := r.readQueries.GetAttentionSnapshot(ctx, sqlcgen.GetAttentionSnapshotParams{
 		ID: snapshot, ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
 		Population: scope.Population, Now: store.FormatTimestamp(r.now()),
 	})
@@ -117,10 +110,16 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 		}
 		raw = string(encoded)
 	}
-	if err := r.queries.AcknowledgeAttentionOccurrences(ctx, sqlcgen.AcknowledgeAttentionOccurrencesParams{
-		ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
-		OccurrenceIds: raw, Now: store.FormatTimestamp(r.now()),
-	}); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.AcknowledgeAttentionOccurrences",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.AcknowledgeAttentionOccurrences(ctx, sqlcgen.AcknowledgeAttentionOccurrencesParams{
+				ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
+				OccurrenceIds: raw, Now: store.FormatTimestamp(r.now()),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: acknowledge attention occurrences: %w", err)
 	}
 	return nil

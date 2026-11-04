@@ -36,7 +36,10 @@ func (q *Queries) AcknowledgeAttentionOccurrences(ctx context.Context, arg Ackno
 }
 
 const deleteExpiredAttentionSnapshots = `-- name: DeleteExpiredAttentionSnapshots :exec
-DELETE FROM attention_snapshots WHERE expires_at < ?1
+DELETE FROM attention_snapshots WHERE id IN (
+    SELECT expired.id FROM attention_snapshots AS expired WHERE expired.expires_at < ?1
+    ORDER BY expired.expires_at LIMIT 256
+)
 `
 
 func (q *Queries) DeleteExpiredAttentionSnapshots(ctx context.Context, now string) error {

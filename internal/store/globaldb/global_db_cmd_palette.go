@@ -148,19 +148,19 @@ func (r *CmdPaletteRepo) CmdPalettePersonalization(
 	if workspace == "" {
 		return cmdpalette.PersonalizationRows{}, errors.New("store: command palette workspace ID is required")
 	}
-	usageRows, err := r.queries.ListCmdPaletteUsage(ctx, sqlcgen.ListCmdPaletteUsageParams{
+	usageRows, err := r.readQueries.ListCmdPaletteUsage(ctx, sqlcgen.ListCmdPaletteUsageParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {
 		return cmdpalette.PersonalizationRows{}, fmt.Errorf("store: list command palette usage: %w", err)
 	}
-	queryRows, err := r.queries.ListCmdPaletteQueryHits(ctx, sqlcgen.ListCmdPaletteQueryHitsParams{
+	queryRows, err := r.readQueries.ListCmdPaletteQueryHits(ctx, sqlcgen.ListCmdPaletteQueryHitsParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {
 		return cmdpalette.PersonalizationRows{}, fmt.Errorf("store: list command palette query hits: %w", err)
 	}
-	pinRows, err := r.queries.ListCmdPalettePins(ctx, sqlcgen.ListCmdPalettePinsParams{
+	pinRows, err := r.readQueries.ListCmdPalettePins(ctx, sqlcgen.ListCmdPalettePinsParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {
@@ -235,10 +235,16 @@ func (r *CmdPaletteRepo) PutCmdPalettePin(
 	if pinnedAt.IsZero() {
 		pinnedAt = r.now().UTC()
 	}
-	if err := r.queries.PutCmdPalettePin(ctx, sqlcgen.PutCmdPalettePinParams{
-		ProfileLensID: string(profileLensID),
-		WorkspaceID:   string(workspaceID), CommandID: string(commandID), PinnedAt: pinnedAt.UTC().UnixMilli(),
-	}); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.PutCmdPalettePin",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.PutCmdPalettePin(ctx, sqlcgen.PutCmdPalettePinParams{
+				ProfileLensID: string(profileLensID),
+				WorkspaceID:   string(workspaceID), CommandID: string(commandID), PinnedAt: pinnedAt.UTC().UnixMilli(),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: pin command palette command %q: %w", commandID, err)
 	}
 	return nil
@@ -261,10 +267,16 @@ func (r *CmdPaletteRepo) DeleteCmdPalettePin(
 	if err != nil {
 		return err
 	}
-	if err := r.queries.DeleteCmdPalettePin(ctx, sqlcgen.DeleteCmdPalettePinParams{
-		ProfileLensID: string(profileLensID),
-		WorkspaceID:   string(workspaceID), CommandID: string(commandID),
-	}); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteCmdPalettePin",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteCmdPalettePin(ctx, sqlcgen.DeleteCmdPalettePinParams{
+				ProfileLensID: string(profileLensID),
+				WorkspaceID:   string(workspaceID), CommandID: string(commandID),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: unpin command palette command %q: %w", commandID, err)
 	}
 	return nil
@@ -329,10 +341,16 @@ func (r *CmdPaletteRepo) PruneCmdPaletteUsage(
 	if err != nil {
 		return err
 	}
-	if err := r.queries.DeleteCmdPaletteUsage(ctx, sqlcgen.DeleteCmdPaletteUsageParams{
-		ProfileLensID: string(profileLensID),
-		WorkspaceID:   string(workspaceID), CommandID: string(commandID),
-	}); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteCmdPaletteUsage",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteCmdPaletteUsage(ctx, sqlcgen.DeleteCmdPaletteUsageParams{
+				ProfileLensID: string(profileLensID),
+				WorkspaceID:   string(workspaceID), CommandID: string(commandID),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: prune command palette usage %q: %w", commandID, err)
 	}
 	return nil
@@ -360,10 +378,16 @@ func (r *CmdPaletteRepo) PruneCmdPaletteQueryHit(
 	if query == "" {
 		return errors.New("store: command palette query is required")
 	}
-	if err := r.queries.DeleteCmdPaletteQueryHit(ctx, sqlcgen.DeleteCmdPaletteQueryHitParams{
-		ProfileLensID: string(profileLensID),
-		WorkspaceID:   string(workspaceID), Query: query, CommandID: string(commandID),
-	}); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteCmdPaletteQueryHit",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteCmdPaletteQueryHit(ctx, sqlcgen.DeleteCmdPaletteQueryHitParams{
+				ProfileLensID: string(profileLensID),
+				WorkspaceID:   string(workspaceID), Query: query, CommandID: string(commandID),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: prune command palette query hit %q/%q: %w", query, commandID, err)
 	}
 	return nil

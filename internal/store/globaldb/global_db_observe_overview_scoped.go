@@ -25,7 +25,7 @@ func (g *ObserveRepo) queryTokenUsageDays(
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query token usage by day: %w", err)
 	}
@@ -53,7 +53,7 @@ func (g *ObserveRepo) queryTokenUsageAgents(
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query token usage by agent: %w", err)
 	}
@@ -84,7 +84,7 @@ func (g *ObserveRepo) queryTokenUsageProfiles(
 		store.StringClause("u.workspace_id", strings.TrimSpace(query.WorkspaceID)),
 		store.ActiveWorkspaceClause("u.workspace_id", query.WorkspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query token usage by profile: %w", err)
 	}
@@ -122,7 +122,7 @@ func (g *ObserveRepo) queryTokenUsageCosts(
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query token usage cost: %w", err)
 	}
@@ -158,7 +158,7 @@ func (g *ObserveRepo) queryTaskRunOutcomeDays(
 		store.ActiveWorkspaceClause("r.workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task run outcomes by day: %w", err)
 	}
@@ -186,7 +186,7 @@ func (g *ObserveRepo) queryTaskClosedDays(
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query tasks closed by day: %w", err)
 	}
@@ -215,7 +215,7 @@ func (g *ObserveRepo) queryEventHourWeekdays(
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query events by hour and weekday: %w", err)
 	}
@@ -242,7 +242,7 @@ func (g *ObserveRepo) queryLatestEventSummaryAt(
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	var latest string
-	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&latest); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, statement, args...).Scan(&latest); err != nil {
 		return time.Time{}, fmt.Errorf("store: query latest event summary timestamp: %w", err)
 	}
 	if strings.TrimSpace(latest) == "" {
@@ -269,7 +269,7 @@ func (g *ObserveRepo) queryHookDispatchCounts(
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
 	var counts store.HookDispatchCounts
-	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&counts.Runs, &counts.Failures); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, statement, args...).Scan(&counts.Runs, &counts.Failures); err != nil {
 		return store.HookDispatchCounts{}, fmt.Errorf("store: count hook dispatches: %w", err)
 	}
 	return counts, nil
@@ -290,7 +290,7 @@ func (g *ObserveRepo) queryLongestUserSession(
 		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(g.now()), store.FormatTimestamp(query.Since)}, args...)
-	row := g.db.QueryRowContext(ctx, statement, args...)
+	row := g.readDB.QueryRowContext(ctx, statement, args...)
 	var sample store.LongestSessionSample
 	var startedAt string
 	if err := row.Scan(&sample.SessionID, &sample.AgentName, &startedAt, &sample.RuntimeSeconds); err != nil {

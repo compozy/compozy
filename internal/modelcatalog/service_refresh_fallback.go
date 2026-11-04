@@ -53,13 +53,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 		}
 		staleRows := markRowsStale(previous, redacted)
 		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		previousStatus, err := s.carryPriorFailureState(
-			ctx,
-			provider,
-			historyExecutionContext,
-			&status,
-			permanent,
-		)
+		previousStatus, err := s.carryPriorFailureState(ctx, provider, historyExecutionContext, &status, permanent)
 		if err != nil {
 			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
 		}

@@ -60,7 +60,7 @@ func (m *Manager) HasDeclaredMarker(ctx context.Context, extension, name string)
 		return false, errors.New("profile: declared marker context is required")
 	}
 	var exists bool
-	err := m.store.DB().QueryRowContext(
+	err := m.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM extension_profile_markers
@@ -81,7 +81,7 @@ func (m *Manager) HasDeclaredCreation(ctx context.Context, extension, name, prof
 		return false, errors.New("profile: declared marker context is required")
 	}
 	var exists bool
-	err := m.store.DB().QueryRowContext(
+	err := m.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM extension_profile_markers
@@ -216,7 +216,7 @@ func (m *Manager) existingDeclaredProfile(
 	if err != nil || marked {
 		return markerProfile, marked, err
 	}
-	existing, err := getProfileByName(ctx, m.store.DB(), name)
+	existing, err := getProfileByName(ctx, m.store.ReadDB(), name)
 	if errors.Is(err, ErrNotFound) {
 		return Profile{}, false, nil
 	}
@@ -234,7 +234,7 @@ func (m *Manager) declaredMarkerProfile(
 	extension, name string,
 ) (bool, Profile, error) {
 	var profileID string
-	err := m.store.DB().QueryRowContext(
+	err := m.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT created_profile_id FROM extension_profile_markers
 		 WHERE extension_name = ? AND profile_name = ?`,
@@ -247,7 +247,7 @@ func (m *Manager) declaredMarkerProfile(
 	if err != nil {
 		return false, Profile{}, fmt.Errorf("profile: read declared profile marker: %w", err)
 	}
-	current, currentErr := getProfileByName(ctx, m.store.DB(), name)
+	current, currentErr := getProfileByName(ctx, m.store.ReadDB(), name)
 	if currentErr == nil {
 		return true, current, nil
 	}

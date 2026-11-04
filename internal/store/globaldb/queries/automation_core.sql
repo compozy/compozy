@@ -108,9 +108,9 @@ WHERE id = sqlc.arg(id);
 DELETE FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: GetAutomationJob :one
-SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at, grant_ceiling
 FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: InsertAutomationTrigger :exec

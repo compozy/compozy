@@ -34,7 +34,7 @@ func (s *SessionDB) TranscriptPage(
 	if s.state.Load() != sessionStateOpen {
 		return transcript.Page{}, store.ErrClosed
 	}
-	return queryTranscriptPage(ctx, s.db, query)
+	return queryTranscriptPage(ctx, s.readDB, query)
 }
 
 // TranscriptChanges returns entries changed by events after the supplied cursor.
@@ -53,7 +53,7 @@ func (s *SessionDB) TranscriptChanges(
 	if s.state.Load() != sessionStateOpen {
 		return transcript.ChangePage{}, store.ErrClosed
 	}
-	return queryTranscriptChanges(ctx, s.db, query)
+	return queryTranscriptChanges(ctx, s.readDB, query)
 }
 
 // TranscriptPage returns one bounded materialized transcript window.

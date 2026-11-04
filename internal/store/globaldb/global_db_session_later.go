@@ -24,7 +24,7 @@ func (g *SessionRepo) SessionLaterState(
 		return nil, nil, err
 	}
 	sessionID = strings.TrimSpace(sessionID)
-	row, err := g.queries.GetSessionLaterState(ctx, sqlcgen.GetSessionLaterStateParams{
+	row, err := g.readQueries.GetSessionLaterState(ctx, sqlcgen.GetSessionLaterStateParams{
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		ID:          sessionID,
 	})
@@ -98,11 +98,18 @@ func (g *SessionRepo) UnparkSession(ctx context.Context, workspaceID string, ses
 	if sessionID == "" {
 		return false, errors.New("store: unpark session id is required")
 	}
-	affected, err := g.queries.UnparkSession(ctx, sqlcgen.UnparkSessionParams{
-		UpdatedAt:   store.FormatTimestamp(g.now()),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ID:          sessionID,
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UnparkSession",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnparkSession(ctx, sqlcgen.UnparkSessionParams{
+				UpdatedAt:   store.FormatTimestamp(g.now()),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+				ID:          sessionID,
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: unpark session %q: %w", sessionID, err)
 	}
@@ -141,12 +148,19 @@ func (g *SessionRepo) UnparkSessionParkedAt(
 		return false, err
 	}
 	sessionID = strings.TrimSpace(sessionID)
-	affected, err := g.queries.UnparkSessionParkedAt(ctx, sqlcgen.UnparkSessionParkedAtParams{
-		UpdatedAt:   store.FormatTimestamp(g.now()),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ID:          sessionID,
-		ParkedAt:    sql.NullString{String: store.FormatTimestamp(parkedAt), Valid: true},
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UnparkSessionParkedAt",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnparkSessionParkedAt(ctx, sqlcgen.UnparkSessionParkedAtParams{
+				UpdatedAt:   store.FormatTimestamp(g.now()),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+				ID:          sessionID,
+				ParkedAt:    sql.NullString{String: store.FormatTimestamp(parkedAt), Valid: true},
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: unpark owned session %q: %w", sessionID, err)
 	}
@@ -217,10 +231,21 @@ func (g *SessionRepo) ClearLaterReturn(ctx context.Context, sessionID string) (b
 	if sessionID == "" {
 		return false, errors.New("store: clear later return session id is required")
 	}
-	affected, err := g.queries.ClearLaterReturn(ctx, sqlcgen.ClearLaterReturnParams{
+	params := sqlcgen.ClearLaterReturnParams{
 		Now: sql.NullString{String: store.FormatTimestamp(g.now()), Valid: true},
 		ID:  sessionID,
-	})
+	}
+	var affected int64
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"clear later return",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var err error
+			affected, err = sqlcgen.New(tx).ClearLaterReturn(ctx, params)
+			return err
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: clear later return %q: %w", sessionID, err)
 	}

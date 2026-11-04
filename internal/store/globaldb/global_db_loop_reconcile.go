@@ -204,9 +204,15 @@ func (g *LoopRepo) AdvanceLoopRunProgress(ctx context.Context, loopRunID string,
 		at = g.now()
 	}
 	at = at.UTC()
-	if err := g.queries.AdvanceLoopRunProgress(ctx, sqlcgen.AdvanceLoopRunProgressParams{
-		ProgressAt: at, ID: trimmedLoopRunID,
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.AdvanceLoopRunProgress",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.AdvanceLoopRunProgress(ctx, sqlcgen.AdvanceLoopRunProgressParams{
+				ProgressAt: at, ID: trimmedLoopRunID,
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: advance loop run %q progress: %w", trimmedLoopRunID, err)
 	}
 	return nil

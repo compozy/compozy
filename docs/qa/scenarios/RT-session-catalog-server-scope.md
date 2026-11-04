@@ -43,3 +43,9 @@ observing current catalog ownership, transcript epochs and attention. Replace,
 corrupt and remove one metadata file; verify invalidation, stable creation-time/ID
 ordering, and unchanged workspace/profile filtering. Backend evidence and limits:
 [session inventory performance](../reports/2026-10-23-session-inventory.md).
+
+SQLite pool isolation (#1227): occupy the global writer pool while reading scoped catalog
+pages, workspace resolution and health. Those reads must still complete from independent
+read-only connections, preserving the existing scoped results. The global open suite owns
+the storage invariant; the concurrent-session journey belongs to
+`MS-daemon-host-load-governance`.

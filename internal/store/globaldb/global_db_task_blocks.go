@@ -56,7 +56,7 @@ func (g *TaskRepo) GetTaskBlock(ctx context.Context, taskID string, blockID stri
 	if err := g.checkReady(ctx, "get task block"); err != nil {
 		return taskpkg.TaskBlock{}, err
 	}
-	return g.getTaskBlockWithExecutor(ctx, g.db, taskID, blockID)
+	return g.getTaskBlockWithExecutor(ctx, g.readDB, taskID, blockID)
 }
 
 // ClearTaskBlock stamps one open block as cleared and rejects repeated clears as conflicts.
@@ -178,7 +178,7 @@ func (g *TaskRepo) ListTaskBlocks(
 	if err := g.checkReady(ctx, "list task blocks"); err != nil {
 		return nil, err
 	}
-	return g.listTaskBlocksWithExecutor(ctx, g.db, taskID, includeCleared, g.now())
+	return g.listTaskBlocksWithExecutor(ctx, g.readDB, taskID, includeCleared, g.now())
 }
 
 func (g *TaskRepo) listTaskBlocksWithExecutor(
@@ -219,7 +219,7 @@ func (g *TaskRepo) HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, 
 	if err := g.checkReady(ctx, "check open task blocks"); err != nil {
 		return false, err
 	}
-	return g.hasOpenTaskBlocksWithExecutor(ctx, g.db, taskID, g.now())
+	return g.hasOpenTaskBlocksWithExecutor(ctx, g.readDB, taskID, g.now())
 }
 
 func (g *TaskRepo) hasOpenTaskBlocksWithExecutor(
@@ -314,10 +314,10 @@ func (g *TaskRepo) GetTaskBlockRecurrence(
 	if err != nil {
 		return taskpkg.BlockRecurrence{}, err
 	}
-	if err := g.ensureTaskExistsWithExecutor(ctx, g.db, normalizedTaskID); err != nil {
+	if err := g.ensureTaskExistsWithExecutor(ctx, g.readDB, normalizedTaskID); err != nil {
 		return taskpkg.BlockRecurrence{}, err
 	}
-	return getBlockRecurrenceWithExecutor(ctx, g.db, normalizedTaskID, normalizedKind)
+	return getBlockRecurrenceWithExecutor(ctx, g.readDB, normalizedTaskID, normalizedKind)
 }
 
 // ResetTaskBlockRecurrences clears all breaker counters for one task.

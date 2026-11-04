@@ -75,11 +75,11 @@ func (m *Manager) attemptPromptRecovery(
 		); err != nil {
 			return false, err
 		}
-		if err := waitForPromptRecovery(recovery.executionCtx, delay); err != nil {
-			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
-		}
+		// A stop can claim the turn between startablePromptRecovery and publishing
+		// the recovery state. In that case it did not yet see a daemon-owned wait.
 		// Daemon shutdown may begin during the delay; it must not spawn a replacement runtime.
-		if m.daemonShuttingDown() {
+		if session.promptCancellationRequested(turnState.turnID) ||
+			waitForPromptRecovery(recovery.executionCtx, delay) != nil || m.daemonShuttingDown() {
 			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}
 		if !budget.expiresAt.IsZero() && !m.now().Before(budget.expiresAt) {

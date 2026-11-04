@@ -7,7 +7,16 @@ import (
 	"log/slog"
 )
 
-func logUserScopeMigration(ctx context.Context, db *sql.DB) error {
+func logUserScopeMigration(ctx context.Context, path string) (err error) {
+	db, err := openGlobalReadPool(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, db.Close()) }()
+	return logUserScopeMigrationRows(ctx, db)
+}
+
+func logUserScopeMigrationRows(ctx context.Context, db *sql.DB) error {
 	rows, err := db.QueryContext(
 		ctx,
 		"SELECT source_workspace_id,disposition FROM user_scope_migrations ORDER BY source_workspace_id",

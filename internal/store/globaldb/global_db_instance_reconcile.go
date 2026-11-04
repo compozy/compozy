@@ -80,7 +80,7 @@ func (r *InstanceRepo) ReconciliationPage(
 	if limit < 1 || limit > 100 {
 		return nil, errors.New("agentinstance: reconciliation page limit must be from 1 to 100")
 	}
-	rows, err := r.queries.ListInstancesForReconciliation(
+	rows, err := r.readQueries.ListInstancesForReconciliation(
 		ctx,
 		sqlcgen.ListInstancesForReconciliationParams{AfterID: after, PageLimit: int64(limit)},
 	)

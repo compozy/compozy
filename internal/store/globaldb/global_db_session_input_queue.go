@@ -221,7 +221,7 @@ func (g *SessionRepo) PeekNextSessionInput(
 	if target == "" {
 		return store.SessionInputQueueEntry{}, false, errors.New("store: session id is required")
 	}
-	row, err := g.queries.PeekNextSessionInput(ctx, sqlcgen.PeekNextSessionInputParams{
+	row, err := g.readQueries.PeekNextSessionInput(ctx, sqlcgen.PeekNextSessionInputParams{
 		SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -246,7 +246,7 @@ func (g *SessionRepo) GetSessionInputQueueEntry(
 	if err := g.checkReady(ctx, "get session input queue entry"); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
-	return getSessionInputQueueEntry(ctx, g.db, strings.TrimSpace(sessionID), strings.TrimSpace(entryID))
+	return getSessionInputQueueEntry(ctx, g.readDB, strings.TrimSpace(sessionID), strings.TrimSpace(entryID))
 }
 
 // AdvanceSessionInputGeneration increments the session generation used to fence stale queue entries.
@@ -300,7 +300,7 @@ func (g *SessionRepo) CurrentSessionInputGeneration(ctx context.Context, session
 	if target == "" {
 		return 0, errors.New("store: session id is required")
 	}
-	generation, err := g.queries.GetSessionInputGeneration(ctx, target)
+	generation, err := g.readQueries.GetSessionInputGeneration(ctx, target)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("%w: %s", store.ErrSessionNotFound, target)
@@ -323,14 +323,14 @@ func (g *SessionRepo) SessionInputQueueSummary(
 		return store.SessionInputQueueSummary{}, errors.New("store: session id is required")
 	}
 	summary.SessionID = target
-	summary.Generation, err = g.queries.GetSessionInputGeneration(ctx, target)
+	summary.Generation, err = g.readQueries.GetSessionInputGeneration(ctx, target)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.SessionInputQueueSummary{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, target)
 		}
 		return store.SessionInputQueueSummary{}, fmt.Errorf("store: read session input generation: %w", err)
 	}
-	rows, err := g.queries.ListSessionInputQueueSummary(ctx, sqlcgen.ListSessionInputQueueSummaryParams{
+	rows, err := g.readQueries.ListSessionInputQueueSummary(ctx, sqlcgen.ListSessionInputQueueSummaryParams{
 		SessionID: target, SessionGeneration: summary.Generation,
 		QueuedStatus:      store.SessionInputQueueStatusQueued,
 		DispatchingStatus: store.SessionInputQueueStatusDispatching,
@@ -479,7 +479,7 @@ func (g *SessionRepo) SyntheticSessionInputAdmitted(ctx context.Context, session
 	if err := g.checkReady(ctx, "read synthetic session input"); err != nil {
 		return false, err
 	}
-	admitted, err := g.queries.SyntheticSessionInputAdmitted(ctx, sqlcgen.SyntheticSessionInputAdmittedParams{
+	admitted, err := g.readQueries.SyntheticSessionInputAdmitted(ctx, sqlcgen.SyntheticSessionInputAdmittedParams{
 		SessionID: sessionID, MessageID: messageID,
 	})
 	if err != nil {

@@ -1,18 +1,119 @@
 package globaldb
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestGlobalDBVaultSecretsCRUD(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: CLI vault observations neither acquire a writer nor upgrade its
+	// database. Owner: global vault persistence; canonical suite: vault CRUD.
+	t.Run("Should read a previous schema while another writer holds the database", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00186_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := old.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		ref := "vault:providers/openai/api_key"
+		if _, err := old.ExecContext(ctx, `INSERT INTO vault_secrets(ref,kind,encrypted_value,created_at,updated_at)
+			VALUES (?,'api_key','fixture-ciphertext','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`, ref); err != nil {
+			t.Fatal(err)
+		}
+		before, err := store.Status(ctx, old, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = store.ExecuteWrite(ctx, old, func(ctx context.Context, _ *store.WriteTx) error {
+			readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			reader, err := OpenVaultReader(readCtx, path)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if err := reader.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			metadata, err := vault.ReadMetadata(readCtx, reader, ref)
+			if err != nil {
+				return err
+			}
+			if metadata.Ref != ref || metadata.Kind != "api_key" {
+				t.Fatalf("metadata = %#v", metadata)
+			}
+			records, err := reader.ListVaultSecrets(readCtx, "")
+			if err != nil {
+				return err
+			}
+			if len(records) != 1 || records[0].EncryptedValue != "fixture-ciphertext" {
+				t.Fatal("vault records changed")
+			}
+			if _, err := reader.db.ExecContext(readCtx, "DELETE FROM vault_secrets"); err == nil {
+				t.Fatal("read-only connection accepted a mutation")
+			}
+			after, err := store.Status(readCtx, reader.db, MigrationStream())
+			if err != nil {
+				return err
+			}
+			if after != before {
+				t.Fatalf("schema changed: before=%+v after=%+v", before, after)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should observe an absent vault without creating a database", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		reader, err := OpenVaultReader(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := reader.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := reader.GetVaultSecret(
+			t.Context(),
+			"vault:providers/openai/api_key",
+		); !errors.Is(
+			err,
+			vault.ErrSecretNotFound,
+		) {
+			t.Fatalf("lookup = %v", err)
+		}
+		records, err := reader.ListVaultSecrets(t.Context(), "")
+		if err != nil || len(records) != 0 {
+			t.Fatalf("absent vault records = %d, error = %v", len(records), err)
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("read-only observation created a database: %v", err)
+		}
+	})
 
 	t.Run("Should atomically clear only the matching profile credential requirement", func(t *testing.T) {
 		t.Parallel()

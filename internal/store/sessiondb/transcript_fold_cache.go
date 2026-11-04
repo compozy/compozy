@@ -73,31 +73,14 @@ func takeMatchingFold(folds *[]*transcript.EntryFold, identity transcript.EntryI
 	return nil
 }
 
-// writeWithTranscriptFolds runs one projected write and publishes its folds
-// only when the transaction commits.
-func (s *SessionDB) writeWithTranscriptFolds(
-	ctx context.Context,
-	fn func(context.Context, *store.WriteTx) error,
-) error {
-	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
-		s.transcriptFolds.begin()
-		return fn(ctx, tx)
-	})
-	if err != nil {
-		s.transcriptFolds.begin()
-		return err
-	}
-	s.transcriptFolds.commit()
-	return nil
-}
-
 // projectAssistantEntry reduces one assistant entry, replaying only events the
 // cached fold has not applied when its durable prefix is unchanged.
 func (s *SessionDB) projectAssistantEntry(
 	ctx context.Context,
-	tx *store.WriteTx,
+	tx projectionDB,
 	generation int64,
 	identity transcript.EntryIdentity,
+	added []store.SessionEvent,
 ) (*transcript.Entry, error) {
 	fold, err := s.extendCachedFold(ctx, tx, generation, identity)
 	if err != nil {
@@ -109,13 +92,16 @@ func (s *SessionDB) projectAssistantEntry(
 			return nil, err
 		}
 	}
+	if err := fold.Append(added); err != nil {
+		return nil, fmt.Errorf("store: extend prepared transcript entry %q: %w", identity.Key, err)
+	}
 	s.transcriptFolds.stage(fold)
 	return fold.Entry(identity), nil
 }
 
 func (s *SessionDB) extendCachedFold(
 	ctx context.Context,
-	tx *store.WriteTx,
+	tx projectionDB,
 	generation int64,
 	identity transcript.EntryIdentity,
 ) (*transcript.EntryFold, error) {
@@ -160,7 +146,7 @@ func (s *SessionDB) extendCachedFold(
 
 func (s *SessionDB) replayFold(
 	ctx context.Context,
-	tx *store.WriteTx,
+	tx projectionDB,
 	identity transcript.EntryIdentity,
 ) (*transcript.EntryFold, error) {
 	events, err := loadAssignedEvents(ctx, tx, s.owner.SessionID, identity.Key)

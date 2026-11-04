@@ -11,7 +11,10 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET expires_at = excluded.expires_at;
 
 -- name: DeleteExpiredAttentionSnapshots :exec
-DELETE FROM attention_snapshots WHERE expires_at < sqlc.arg(now);
+DELETE FROM attention_snapshots WHERE id IN (
+    SELECT expired.id FROM attention_snapshots AS expired WHERE expired.expires_at < sqlc.arg(now)
+    ORDER BY expired.expires_at LIMIT 256
+);
 
 -- name: GetAttentionSnapshot :one
 SELECT occurrence_ids FROM attention_snapshots

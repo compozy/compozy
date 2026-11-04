@@ -31,7 +31,7 @@ func (g *LoopRepo) reconcileLoopRunOrphans(
 	if err := g.checkReady(ctx, action); err != nil {
 		return looppkg.SweepReport{}, err
 	}
-	candidates, err := g.queries.ListLoopReconciliationCandidates(ctx)
+	candidates, err := g.readQueries.ListLoopReconciliationCandidates(ctx)
 	if err != nil {
 		return looppkg.SweepReport{}, fmt.Errorf("store: list Loop reconciliation candidates: %w", err)
 	}
@@ -73,7 +73,7 @@ func (g *LoopRepo) BackfillLoopProvenance(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "backfill Loop provenance"); err != nil {
 		return 0, err
 	}
-	records, err := g.queries.ListLoopProvenance(ctx)
+	records, err := g.readQueries.ListLoopProvenance(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: list Loop provenance rows: %w", err)
 	}

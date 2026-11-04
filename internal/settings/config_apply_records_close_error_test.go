@@ -155,5 +155,5 @@ func openConfigApplyRecordRowsCloseErrorRepository(t *testing.T) *configApplyRec
 			t.Errorf("sql.DB.Close(config apply record rows close-error driver) error = %v", err)
 		}
 	})
-	return &configApplyRecordRepository{db: db}
+	return &configApplyRecordRepository{db: db, readDB: db}
 }

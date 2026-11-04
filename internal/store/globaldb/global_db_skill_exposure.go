@@ -19,12 +19,19 @@ func (r *SkillExposureRepo) CreateSkillExposure(
 		return store.SkillExposureRecord{}, err
 	}
 	now := r.now().UTC()
-	row, err := r.queries.CreateSkillExposure(ctx, sqlcgen.CreateSkillExposureParams{
-		SkillName: record.SkillName, CanonicalDir: record.CanonicalDir,
-		TargetSlug: record.TargetSlug, LinkPath: record.LinkPath, LinkTarget: record.LinkTarget,
-		OwnerScope: string(record.OwnerScope), WorkspaceID: store.SQLNullString(record.WorkspaceID),
-		CreatedAt: now, UpdatedAt: now,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.CreateSkillExposure",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.SkillExposure, error) {
+			return queries.CreateSkillExposure(ctx, sqlcgen.CreateSkillExposureParams{
+				SkillName: record.SkillName, CanonicalDir: record.CanonicalDir,
+				TargetSlug: record.TargetSlug, LinkPath: record.LinkPath, LinkTarget: record.LinkTarget,
+				OwnerScope: string(record.OwnerScope), WorkspaceID: store.SQLNullString(record.WorkspaceID),
+				CreatedAt: now, UpdatedAt: now,
+			})
+		},
+	)
 	if err != nil {
 		return store.SkillExposureRecord{}, fmt.Errorf(
 			"store: create skill exposure %q for target %q: %w",
@@ -47,7 +54,7 @@ func (r *SkillExposureRepo) GetSkillExposureByOwnerTarget(
 	if err := r.checkReady(ctx, "get skill exposure"); err != nil {
 		return store.SkillExposureRecord{}, err
 	}
-	row, err := r.queries.GetSkillExposureByOwnerTarget(ctx, sqlcgen.GetSkillExposureByOwnerTargetParams{
+	row, err := r.readQueries.GetSkillExposureByOwnerTarget(ctx, sqlcgen.GetSkillExposureByOwnerTargetParams{
 		SkillName: skillName, OwnerScope: string(ownerScope),
 		WorkspaceID: store.SQLNullString(workspaceID), TargetSlug: targetSlug,
 	})
@@ -72,7 +79,7 @@ func (r *SkillExposureRepo) ListSkillExposuresByOwner(
 	if err := r.checkReady(ctx, "list skill exposures by owner"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListSkillExposuresByOwner(ctx, sqlcgen.ListSkillExposuresByOwnerParams{
+	rows, err := r.readQueries.ListSkillExposuresByOwner(ctx, sqlcgen.ListSkillExposuresByOwnerParams{
 		SkillName: skillName, OwnerScope: string(ownerScope), WorkspaceID: store.SQLNullString(workspaceID),
 	})
 	if err != nil {
@@ -89,7 +96,7 @@ func (r *SkillExposureRepo) ListSkillExposuresByCanonicalDir(
 	if err := r.checkReady(ctx, "list skill exposures by canonical directory"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListSkillExposuresByCanonicalDir(ctx, canonicalDir)
+	rows, err := r.readQueries.ListSkillExposuresByCanonicalDir(ctx, canonicalDir)
 	if err != nil {
 		return nil, fmt.Errorf("store: list skill exposures for canonical directory %q: %w", canonicalDir, err)
 	}
@@ -101,7 +108,13 @@ func (r *SkillExposureRepo) DeleteSkillExposure(ctx context.Context, id int64) e
 	if err := r.checkReady(ctx, "delete skill exposure"); err != nil {
 		return err
 	}
-	if err := r.queries.DeleteSkillExposure(ctx, id); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteSkillExposure",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteSkillExposure(ctx, id)
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete skill exposure %d: %w", id, err)
 	}
 	return nil

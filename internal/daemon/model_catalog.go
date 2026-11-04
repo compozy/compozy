@@ -460,7 +460,7 @@ func (d *Daemon) modelCatalogExtensionSources(state *bootState) ([]modelcatalog.
 	if !ok || dbSource.DB() == nil {
 		return nil, nil
 	}
-	registry := extensionpkg.NewRegistry(dbSource.DB())
+	registry := extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB()))
 	sources, err := extensionpkg.NewExtensionModelSources(registry, func() extensionpkg.ModelSourceRuntime {
 		runtime, ok := state.currentExtensionRuntime().(extensionpkg.ModelSourceRuntime)
 		if !ok {

@@ -24,7 +24,7 @@ func (g *AutomationRepo) GetSchedulerState(ctx context.Context, jobID string) (a
 		return automation.SchedulerState{}, err
 	}
 
-	row, err := g.queries.GetAutomationSchedulerState(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationSchedulerState(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.SchedulerState{}, automation.ErrSchedulerStateNotFound
@@ -40,7 +40,7 @@ func (g *AutomationRepo) ListSchedulerStates(ctx context.Context) ([]automation.
 		return nil, err
 	}
 
-	rows, err := g.queries.ListAutomationSchedulerStates(ctx)
+	rows, err := g.readQueries.ListAutomationSchedulerStates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation scheduler states: %w", err)
 	}
@@ -165,12 +165,19 @@ func (g *AutomationRepo) RecordRunDeliveryError(
 		return g.GetRun(ctx, trimmedID)
 	}
 
-	affected, err := g.queries.RecordAutomationRunDeliveryError(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.RecordAutomationRunDeliveryErrorParams{
-			DeliveryError:   nullableAutomationString(runErr.Error()),
-			DeliveryErrorAt: nullableAutomationString(store.FormatTimestamp(g.now().UTC())),
-			ID:              trimmedID,
+		g.repoBase,
+		"globaldb.RecordAutomationRunDeliveryError",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RecordAutomationRunDeliveryError(
+				ctx,
+				sqlcgen.RecordAutomationRunDeliveryErrorParams{
+					DeliveryError:   nullableAutomationString(runErr.Error()),
+					DeliveryErrorAt: nullableAutomationString(store.FormatTimestamp(g.now().UTC())),
+					ID:              trimmedID,
+				},
+			)
 		},
 	)
 	if err != nil {

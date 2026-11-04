@@ -10,7 +10,6 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const eventSummaryContentPayloadKey = "payload"
@@ -41,20 +40,14 @@ func (g *ObserveRepo) WriteEventSummaries(
 		return nil
 	}
 
-	return store.ExecuteWriteOperation(
-		ctx,
-		g.db,
-		"write event summaries",
-		func(ctx context.Context, tx *store.WriteTx) error {
-			queries := sqlcgen.New(tx)
-			for index := range prepared {
-				if err := insertEventSummary(ctx, queries, prepared[index]); err != nil {
-					return err
-				}
+	return g.telemetry.Write(ctx, prepared, func(ctx context.Context) error {
+		for _, summary := range prepared {
+			if err := g.validateEventSummaryOwner(ctx, summary); err != nil {
+				return err
 			}
-			return nil
-		},
-	)
+		}
+		return nil
+	})
 }
 
 func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.EventSummary) error {
@@ -76,26 +69,6 @@ func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.Ev
 		summary.Timestamp = g.now()
 	}
 	summary.EventCorrelation = summary.Normalize()
-	return nil
-}
-
-func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary store.EventSummary) error {
-	if err := queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
-		ProfileID: summary.ProfileID,
-		ID:        summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
-		WorktreeID: summary.WorktreeID,
-		Type:       summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.ContentValue()),
-		TaskID: summary.TaskID, RunID: summary.RunID, WorkflowID: summary.WorkflowID,
-		ClaimTokenHash: summary.ClaimTokenHash, LeaseUntil: formatEventSummaryLeaseUntil(summary.LeaseUntil),
-		CoordinatorSessionID: summary.CoordinatorSessionID, SchedulerReason: summary.SchedulerReason,
-		HookEvent: summary.HookEvent, HookName: summary.HookName, ActorKind: summary.ActorKind,
-		ActorID: summary.ActorID, ReleaseReason: summary.ReleaseReason,
-		ParentSessionID: summary.ParentSessionID, RootSessionID: summary.RootSessionID,
-		SpawnDepth: int64(summary.SpawnDepth), Provider: summary.Provider, Outcome: summary.Outcome,
-		Summary: nullableObserveString(summary.Summary), Timestamp: store.FormatTimestamp(summary.Timestamp),
-	}); err != nil {
-		return fmt.Errorf("store: insert event summary: %w", err)
-	}
 	return nil
 }
 
@@ -122,6 +95,9 @@ func (g *ObserveRepo) ListEventSummaries(
 	query store.EventSummaryQuery,
 ) (summaries []store.EventSummary, err error) {
 	if err := g.validateEventSummaryQuery(ctx, query); err != nil {
+		return nil, err
+	}
+	if err := g.summaryPublications.wait(ctx, query.ReadScope, query.WorkspaceID); err != nil {
 		return nil, err
 	}
 
@@ -169,7 +145,7 @@ func (g *ObserveRepo) ListEventSummaries(
 		args = append(args, query.Limit)
 	}
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query event summaries: %w", err)
 	}
@@ -201,8 +177,8 @@ func appendEventRegistryClauses(
 	query store.EventSummaryQuery,
 ) ([]string, []any) {
 	if shouldApplyErrorOnlyClause(query) {
-		where = append(where, "outcome IN (?, ?)")
-		args = append(args, string(eventspkg.OutcomeFailure), string(eventspkg.OutcomeWarning))
+		// Fixed registry outcomes let SQLite use the partial failures index.
+		where = append(where, "outcome IN ('failure', 'warning')")
 	} else if errorOnlyContradictsOutcome(query) {
 		where = append(where, "1 = 0")
 	}
@@ -270,7 +246,7 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 		return nil
 	}
 
-	row, err := g.queries.GetEventSummarySessionProjection(ctx, strings.TrimSpace(summary.SessionID))
+	row, err := g.readQueries.GetEventSummarySessionProjection(ctx, strings.TrimSpace(summary.SessionID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

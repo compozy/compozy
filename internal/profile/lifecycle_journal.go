@@ -124,7 +124,7 @@ func (m *Manager) ListOps(ctx context.Context) (ops []LifecycleOp, err error) {
 	if ctx == nil {
 		return nil, errors.New("profile: list operations context is required")
 	}
-	rows, err := m.store.DB().QueryContext(ctx, `
+	rows, err := m.store.ReadDB().QueryContext(ctx, `
 		SELECT o.id, o.kind, COALESCE(p.name, o.new_name, o.old_name, ''), o.status,
 		       COALESCE((SELECT action FROM profile_lifecycle_op_steps s
 		                 WHERE s.op_id = o.id AND s.status <> 'done' ORDER BY s.seq LIMIT 1), ''),
@@ -208,7 +208,7 @@ func (m *Manager) RetryOp(ctx context.Context, opID string) (LifecycleOp, error)
 
 func (m *Manager) getOperation(ctx context.Context, opID string) (LifecycleOp, error) {
 	var op LifecycleOp
-	err := m.store.DB().QueryRowContext(ctx, `
+	err := m.store.ReadDB().QueryRowContext(ctx, `
 		SELECT o.id, o.kind, COALESCE(p.name, o.new_name, o.old_name, ''), o.status,
 		       COALESCE((SELECT action FROM profile_lifecycle_op_steps s
 		                 WHERE s.op_id = o.id AND s.status <> 'done' ORDER BY s.seq LIMIT 1), ''),

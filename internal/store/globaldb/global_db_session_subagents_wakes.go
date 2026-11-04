@@ -80,7 +80,7 @@ func (g *SessionRepo) GetWake(
 	if err := g.checkReady(ctx, "get subagent wake"); err != nil {
 		return out, nil, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return out, nil, err
 	}
@@ -112,7 +112,7 @@ func (g *SessionRepo) ListWakesByParent(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSubagentWakesByParent(
+	rows, err := g.readQueries.ListSubagentWakesByParent(
 		ctx, sqlcgen.ListSubagentWakesByParentParams{ParentID: parentID, States: encoded},
 	)
 	if err != nil {
@@ -217,7 +217,7 @@ func (g *SessionRepo) ListOpenWakes(ctx context.Context) ([]store.SessionSubagen
 	if err := g.checkReady(ctx, "list open subagent wakes"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListOpenSubagentWakes(ctx)
+	rows, err := g.readQueries.ListOpenSubagentWakes(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -1,40 +1,22 @@
--- name: InsertEventSummary :exec
-INSERT INTO event_summaries (
-  profile_id,
-  id, session_id, workspace_id, worktree_id, type, agent_name, content_json, task_id, run_id,
-  workflow_id, claim_token_hash, lease_until, coordinator_session_id, scheduler_reason,
-  hook_event, hook_name, actor_kind, actor_id, release_reason, parent_session_id,
-  root_session_id, spawn_depth, provider, outcome, summary, timestamp
-) VALUES (
-  sqlc.arg(profile_id),
-  sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(workspace_id), sqlc.arg(worktree_id), sqlc.arg(type),
-  sqlc.arg(agent_name), sqlc.arg(content_json), sqlc.arg(task_id), sqlc.arg(run_id),
-  sqlc.arg(workflow_id), sqlc.arg(claim_token_hash), sqlc.arg(lease_until),
-  sqlc.arg(coordinator_session_id), sqlc.arg(scheduler_reason), sqlc.arg(hook_event),
-  sqlc.arg(hook_name), sqlc.arg(actor_kind), sqlc.arg(actor_id), sqlc.arg(release_reason),
-  sqlc.arg(parent_session_id), sqlc.arg(root_session_id), sqlc.arg(spawn_depth),
-  sqlc.arg(provider), sqlc.arg(outcome), sqlc.narg(summary), sqlc.arg(timestamp)
-);
-
 -- name: GetEventSummarySessionProjection :one
 SELECT workspace_id, provider, worktree_id FROM sessions WHERE id = sqlc.arg(session_id);
 
 -- name: HasExpiredObservability :one
 SELECT CAST(
-  EXISTS(SELECT 1 FROM event_summaries WHERE event_summaries.timestamp < sqlc.arg(cutoff))
-  OR EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < sqlc.arg(cutoff))
+  EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < sqlc.arg(cutoff))
   OR EXISTS(SELECT 1 FROM token_usage_daily WHERE token_usage_daily.day < sqlc.arg(cutoff_day))
   OR EXISTS(SELECT 1 FROM permission_log WHERE permission_log.timestamp < sqlc.arg(cutoff))
 AS INTEGER);
 
--- name: DeleteEventSummariesBefore :execrows
-DELETE FROM event_summaries WHERE timestamp < sqlc.arg(cutoff);
-
 -- name: DeleteTokenStatsBefore :execrows
-DELETE FROM token_stats WHERE updated_at < sqlc.arg(cutoff);
+DELETE FROM token_stats WHERE id IN (
+ SELECT t.id FROM token_stats AS t WHERE t.updated_at < sqlc.arg(cutoff) LIMIT sqlc.arg(batch_size)
+);
 
 -- name: DeletePermissionLogsBefore :execrows
-DELETE FROM permission_log WHERE timestamp < sqlc.arg(cutoff);
+DELETE FROM permission_log WHERE id IN (
+ SELECT p.id FROM permission_log AS p WHERE p.timestamp < sqlc.arg(cutoff) LIMIT sqlc.arg(batch_size)
+);
 
 -- name: UpsertTokenStats :exec
 INSERT INTO token_stats (
@@ -114,3 +96,12 @@ ON CONFLICT(session_id, agent_name) DO UPDATE SET
   END,
   turn_count = token_stats.turn_count + excluded.turn_count,
   updated_at = excluded.updated_at;
+
+-- name: GetTelemetryWriteOwner :one
+SELECT state,
+ CAST(EXISTS(SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = profiles.id AND status <> 'done') AS INTEGER) AS unavailable,
+ CAST(EXISTS(SELECT 1 FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = sqlc.arg(workspace_id)) AS INTEGER) AS workspace_deleted
+FROM profiles WHERE profiles.id = sqlc.arg(profile_id);
+
+-- name: ListTelemetryDeletedScopes :many
+SELECT kind, scope_id FROM telemetry_deleted_scopes ORDER BY kind, scope_id;

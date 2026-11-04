@@ -120,11 +120,6 @@ CREATE TABLE session_health (
 			unattended_counted INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
- initiator_kind TEXT NOT NULL DEFAULT '',
- initiator_id TEXT NOT NULL DEFAULT '',
-            instance_id TEXT,
- branch TEXT NOT NULL DEFAULT '',
- effective_workspace_access TEXT NOT NULL DEFAULT '',
 		id             TEXT PRIMARY KEY,
 		profile_id     TEXT NOT NULL REFERENCES profiles(id),
 		name           TEXT,
@@ -184,11 +179,16 @@ CREATE TABLE sessions (
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
 				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
 				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
+		effective_workspace_access TEXT NOT NULL DEFAULT '',
+		branch TEXT NOT NULL DEFAULT '',
 		ended_early_turn_id TEXT NOT NULL DEFAULT '',
 		parked_at TEXT,
 		park_reason TEXT NOT NULL DEFAULT '',
 		park_until TEXT,
 		later_returned_at TEXT,
+		instance_id TEXT,
+		initiator_kind TEXT NOT NULL DEFAULT '',
+		initiator_id TEXT NOT NULL DEFAULT '',
 		failure_seen_at TEXT,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),

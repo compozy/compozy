@@ -24,7 +24,7 @@ func (g *LoopRepo) ListEffectOutbox(
 	if err := g.checkReady(ctx, "list effect outbox"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListLoopEffectOutbox(ctx, sqlcgen.ListLoopEffectOutboxParams{
+	rows, err := g.readQueries.ListLoopEffectOutbox(ctx, sqlcgen.ListLoopEffectOutboxParams{
 		WorkspaceID: string(workspaceID),
 		LoopRunID:   string(runID),
 	})
@@ -103,7 +103,7 @@ func (g *LoopRepo) ListPendingLoopEffects(
 	if limit <= 0 {
 		limit = defaultLoopEffectPageSize
 	}
-	rows, err := g.queries.ListPendingLoopEffects(ctx, int64(limit))
+	rows, err := g.readQueries.ListPendingLoopEffects(ctx, int64(limit))
 	if err != nil {
 		return nil, fmt.Errorf("store: list pending loop effects: %w", err)
 	}

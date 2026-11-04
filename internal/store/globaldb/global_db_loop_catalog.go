@@ -60,7 +60,7 @@ func (g *LoopRepo) ListLoopCatalogRunSummaries(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode loop catalog names: %w", err)
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("store: begin loop catalog read: %w", err)
 	}

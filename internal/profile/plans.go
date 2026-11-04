@@ -24,7 +24,7 @@ func (m *Manager) PrepareRename(ctx context.Context, name, newName string) (Rena
 	if err != nil {
 		return RenamePlan{}, err
 	}
-	profile, err := getProfileByName(ctx, m.store.DB(), name)
+	profile, err := getProfileByName(ctx, m.store.ReadDB(), name)
 	if err != nil {
 		return RenamePlan{}, err
 	}
@@ -34,13 +34,13 @@ func (m *Manager) PrepareRename(ctx context.Context, name, newName string) (Rena
 	if err := validateRenameTarget(profile.Name, newName); err != nil {
 		return RenamePlan{}, err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, false); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, false); err != nil {
 		return RenamePlan{}, err
 	}
-	if err := ensureNameAvailable(ctx, m.store.DB(), newName, profile.ID); err != nil {
+	if err := ensureNameAvailable(ctx, m.store.ReadDB(), newName, profile.ID); err != nil {
 		return RenamePlan{}, err
 	}
-	return m.renamePlan(ctx, m.store.DB(), profile, newName)
+	return m.renamePlan(ctx, m.store.ReadDB(), profile, newName)
 }
 
 func (m *Manager) renamePlan(
@@ -151,14 +151,14 @@ func (m *Manager) PrepareArchive(ctx context.Context, name string) (ArchivePlan,
 	if err := requireContext(ctx, "prepare archive"); err != nil {
 		return ArchivePlan{}, err
 	}
-	profile, err := getProfileByName(ctx, m.store.DB(), strings.TrimSpace(name))
+	profile, err := getProfileByName(ctx, m.store.ReadDB(), strings.TrimSpace(name))
 	if err != nil {
 		return ArchivePlan{}, err
 	}
 	if err := rejectPermanent(profile, "archive"); err != nil {
 		return ArchivePlan{}, err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, false); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, false); err != nil {
 		return ArchivePlan{}, err
 	}
 	if profile.State == StateArchived {
@@ -170,7 +170,7 @@ func (m *Manager) PrepareArchive(ctx context.Context, name string) (ArchivePlan,
 		plan.Revision, err = fingerprint(profile)
 		return plan, err
 	}
-	return m.archivePlan(ctx, m.store.DB(), profile)
+	return m.archivePlan(ctx, m.store.ReadDB(), profile)
 }
 
 func (m *Manager) archivePlan(ctx context.Context, q queryer, profile Profile) (ArchivePlan, error) {
@@ -225,17 +225,17 @@ func (m *Manager) PrepareDelete(ctx context.Context, name string) (DeletePlan, e
 	if err := requireContext(ctx, "prepare delete"); err != nil {
 		return DeletePlan{}, err
 	}
-	profile, err := getProfileByName(ctx, m.store.DB(), strings.TrimSpace(name))
+	profile, err := getProfileByName(ctx, m.store.ReadDB(), strings.TrimSpace(name))
 	if err != nil {
 		return DeletePlan{}, err
 	}
 	if err := rejectPermanent(profile, "delete"); err != nil {
 		return DeletePlan{}, err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, false); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, false); err != nil {
 		return DeletePlan{}, err
 	}
-	return m.deletePlan(ctx, m.store.DB(), profile)
+	return m.deletePlan(ctx, m.store.ReadDB(), profile)
 }
 
 func (m *Manager) deletePlan(ctx context.Context, q queryer, profile Profile) (DeletePlan, error) {
@@ -274,8 +274,8 @@ func (m *Manager) deletePlan(ctx context.Context, q queryer, profile Profile) (D
 		Scan(&plan.Removed.PalettePins); err != nil {
 		return DeletePlan{}, fmt.Errorf("profile: count command palette pins for removal: %w", err)
 	}
-	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_summaries WHERE profile_id = ?`, profile.ID).
-		Scan(&plan.Removed.EventSummaries); err != nil {
+	plan.Removed.EventSummaries, err = m.store.CountProfileEventSummaries(ctx, profile.ID)
+	if err != nil {
 		return DeletePlan{}, fmt.Errorf("profile: count event summaries for removal: %w", err)
 	}
 	if err := q.QueryRowContext(ctx, `

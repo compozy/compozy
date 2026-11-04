@@ -163,7 +163,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 8, 2, 10, 0, 0, 0, time.UTC)
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+		prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: func() time.Time { return now }}
 		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "loop-lifecycle-upgrade", t.TempDir())
 		if _, err := prefixDB.ExecContext(
