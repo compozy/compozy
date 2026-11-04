@@ -530,6 +530,25 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should defer timed out checkpoint execution while preserving real failures", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-execution-deadline")
+		err := db.checkpointWithLease(t.Context(), func(context.Context, *sql.Conn) error {
+			return fmt.Errorf("checkpoint execution: %w", context.DeadlineExceeded)
+		})
+		if !errors.Is(err, errSessionCheckpointDeferred) || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("checkpoint execution timeout = %v, want retryable deferral retaining deadline", err)
+		}
+		fault := errors.New("checkpoint I/O failure")
+		err = db.checkpointWithLease(t.Context(), func(context.Context, *sql.Conn) error { return fault })
+		if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
+			t.Fatalf("checkpoint I/O error = %v, want the original non-deferred failure", err)
+		}
+		if err := db.passiveCheckpoint(t.Context()); err != nil {
+			t.Fatalf("checkpoint after deferral = %v, want resources released for retry", err)
+		}
+	})
+
 	// Invariant: physical checkpoint writes serialize with guarded connection opens.
 	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
 	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {

@@ -367,6 +367,8 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 			func() sessionPermissionRequester { return requester },
 			time.Second,
 			cache,
+			nil,
+			nil,
 		)
 		for attempt := range 2 {
 			allowed, err := bridge.RequestWorkspaceAccess(
@@ -374,7 +376,7 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 				scope,
 				call,
 				descriptor,
-				"ws-b",
+				workspaceAccessPrompt{label: "ws-b"},
 			)
 			if err != nil || !allowed {
 				t.Fatalf("RequestWorkspaceAccess(%d) = %v, %v, want allowed", attempt, allowed, err)
@@ -406,13 +408,15 @@ func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
 				func() sessionPermissionRequester { return requester },
 				time.Second,
 				cache,
+				nil,
+				nil,
 			)
 			allowed, err := bridge.RequestWorkspaceAccess(
 				t.Context(),
 				scope,
 				call,
 				descriptor,
-				"ws-b",
+				workspaceAccessPrompt{label: "ws-b"},
 			)
 			if err != nil {
 				t.Fatalf("RequestWorkspaceAccess() error = %v", err)
@@ -455,6 +459,92 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 	call := toolApprovalTestCall(descriptor.ID, "ws-a")
 	scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-a"}
 
+	t.Run("Should retain session consent when a resolved read has no durable owner", func(t *testing.T) {
+		t.Parallel()
+		requester := selectedPermissionRequester(workspaceAccessAllowSessionID)
+		cache := newWorkspaceAccessConsentCache()
+		grants := &recordingApprovalGrantStore{}
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester }, time.Second, cache, grants, nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(t.Context(), scope, call, readDescriptor,
+			workspaceAccessPrompt{label: "ws-b", remember: true})
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess() = %t, %v, want session consent", allowed, err)
+		}
+		if option := requester.requests[0].Options[1]; option.OptionId != workspaceAccessAllowSessionID {
+			t.Fatalf("read option = %q, want temporary consent without a durable owner", option.OptionId)
+		}
+		if consent, ok := cache.ConsentFor(
+			t.Context(),
+			scope.SessionID,
+		); !ok ||
+			consent != workspaceaccess.ConsentAllow {
+			t.Fatalf("cached consent = %q, %t, want session allow", consent, ok)
+		}
+		if len(grants.grants) != 0 {
+			t.Fatalf("stored grants = %#v, want none without an owner", grants.grants)
+		}
+	})
+
+	t.Run("Should identify the workspace and profile covered by read consent", func(t *testing.T) {
+		t.Parallel()
+		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester }, time.Second,
+			newWorkspaceAccessConsentCache(), nil, nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(t.Context(), scope, call, readDescriptor,
+			workspaceAccessPrompt{label: nativeAccessPromptProfilePrefix + "p-target", targetWorkspace: "ws-target"})
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess() = %t, %v", allowed, err)
+		}
+		request := requester.requests[0]
+		if request.ToolCall.Title == nil || *request.ToolCall.Title != "Read profile p-target in workspace ws-target" {
+			t.Fatalf("prompt title = %v, want both target workspace and profile", request.ToolCall.Title)
+		}
+		input, ok := request.ToolCall.RawInput.(map[string]any)
+		if !ok || input["target_profile"] != "p-target" || input["target_workspace_id"] != "ws-target" {
+			t.Fatalf("prompt input = %#v, want both target workspace and profile", request.ToolCall.RawInput)
+		}
+	})
+	t.Run("Should identify the workspace and profile covered by User read consent", func(t *testing.T) {
+		t.Parallel()
+		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester }, time.Second,
+			newWorkspaceAccessConsentCache(), nil, nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(
+			t.Context(),
+			scope,
+			call,
+			readDescriptor,
+			workspaceAccessPrompt{
+				label:           nativeAccessPromptProfilePrefix + "p-target",
+				targetWorkspace: workspaceaccess.UserSelector,
+			},
+		)
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess() = %t, %v", allowed, err)
+		}
+		request := requester.requests[0]
+		if request.ToolCall.Title == nil || *request.ToolCall.Title != "Read profile p-target in User scope" {
+			t.Fatalf("prompt title = %v, want both target workspace and profile", request.ToolCall.Title)
+		}
+		input, ok := request.ToolCall.RawInput.(map[string]any)
+		if !ok || input["target_profile"] != "p-target" ||
+			input["target_workspace_id"] != workspaceaccess.UserSelector {
+			t.Fatalf("prompt input = %#v, want both target workspace and profile", request.ToolCall.RawInput)
+		}
+	})
+
 	t.Run("Should survive originating request cancellation within its own deadline", func(t *testing.T) {
 		t.Parallel()
 
@@ -463,12 +553,41 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 			func() sessionPermissionRequester { return requester },
 			time.Second,
 			newWorkspaceAccessConsentCache(),
+			nil,
+			nil,
 		)
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		allowed, err := bridge.RequestWorkspaceAccess(ctx, scope, call, descriptor, "ws-b")
+		allowed, err := bridge.RequestWorkspaceAccess(
+			ctx, scope, call, descriptor, workspaceAccessPrompt{label: "ws-b"},
+		)
 		if err != nil || !allowed {
 			t.Fatalf("RequestWorkspaceAccess(canceled origin) = %v, %v, want allowed", allowed, err)
+		}
+	})
+
+	t.Run("Should deny an Always allow that cannot be remembered", func(t *testing.T) {
+		t.Parallel()
+
+		key := toolspkg.ApprovalGrantKey{
+			ProfileID: "p-1", WorkspaceID: "ws-a", AgentName: "codex", ToolID: descriptor.ID,
+			InputDigest: "sha256:00", AccessScope: "read:workspace:ws-b@p-1",
+		}
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return selectedPermissionRequester(workspaceAccessAllowAlwaysID) },
+			time.Second,
+			newWorkspaceAccessConsentCache(),
+			&recordingApprovalGrantStore{putErr: errors.New("disk full")},
+			nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(
+			t.Context(), scope, call, readDescriptor,
+			workspaceAccessPrompt{label: "ws-b", remember: true, grant: &key},
+		)
+		if err == nil || allowed || !strings.Contains(err.Error(), "remember workspace access grant") {
+			t.Fatalf("RequestWorkspaceAccess() = %v, %v, want a remember failure denial", allowed, err)
 		}
 	})
 
@@ -518,13 +637,15 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 					func() sessionPermissionRequester { return test.requester },
 					test.timeout,
 					cache,
+					nil,
+					nil,
 				)
 				allowed, err := bridge.RequestWorkspaceAccess(
 					t.Context(),
 					scope,
 					call,
 					descriptor,
-					"ws-b",
+					workspaceAccessPrompt{label: "ws-b"},
 				)
 				if err == nil || allowed {
 					t.Fatalf("RequestWorkspaceAccess() = %v, %v, want denial error", allowed, err)

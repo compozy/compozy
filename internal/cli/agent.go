@@ -287,6 +287,8 @@ func agentBundle(record *AgentRecord) outputBundle {
 				"definition_digest",
 				"tools",
 				configPermissionsKey,
+				"effective_permissions",
+				"effective_permissions_source",
 				clientToolsPromptKey,
 			}, []string{
 				item.Name,
@@ -305,6 +307,8 @@ func agentBundle(record *AgentRecord) outputBundle {
 				item.DefinitionDigest,
 				strings.Join(item.Tools, "|"),
 				item.Permissions,
+				agentEffectivePermissions(item),
+				agentEffectivePermissionsSource(item),
 				item.Prompt,
 			})
 			return renderHumanBlocks(header, renderToonArray(
@@ -346,6 +350,7 @@ func renderAgentHuman(item *AgentRecord) string {
 		{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
 		{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 		{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
+		{Label: "Effective permissions", Value: agentEffectivePermissionsLabel(item)},
 		{Label: "workspace_access", Value: stringOrDash(item.WorkspaceAccess)},
 	})
 
@@ -426,4 +431,30 @@ func agentSkillsLabel(skills *contract.CreateAgentSkillsConfig) string {
 		return ""
 	}
 	return strings.Join(skills.Disabled, ", ")
+}
+
+// agentEffectivePermissionsLabel shows the level a new session starts at and which layer set it.
+func agentEffectivePermissionsLabel(item *AgentRecord) string {
+	level := agentEffectivePermissions(item)
+	if level == "" {
+		return "-"
+	}
+	if source := agentEffectivePermissionsSource(item); source != "" {
+		return level + " (" + source + ")"
+	}
+	return level
+}
+
+func agentEffectivePermissions(item *AgentRecord) string {
+	if item.EffectiveRuntime == nil {
+		return ""
+	}
+	return item.EffectiveRuntime.Permissions
+}
+
+func agentEffectivePermissionsSource(item *AgentRecord) string {
+	if item.EffectiveRuntime == nil {
+		return ""
+	}
+	return string(item.EffectiveRuntime.Sources.Permissions)
 }

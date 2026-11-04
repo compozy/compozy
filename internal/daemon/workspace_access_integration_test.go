@@ -179,12 +179,12 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			t.Fatalf("EmitWorkspaceAccess(deadline) error = %v", err)
 		}
 		if deadlineStore.deadline.Before(startedAt) || deadlineStore.deadline.After(
-			startedAt.Add(workspaceAccessAuditWriteTimeout+time.Second),
+			startedAt.Add(workspaceaccess.ConsentAuditTimeout+time.Second),
 		) {
 			t.Fatalf(
 				"audit deadline = %s, want bounded by %s",
 				deadlineStore.deadline,
-				workspaceAccessAuditWriteTimeout,
+				workspaceaccess.ConsentAuditTimeout,
 			)
 		}
 		select {

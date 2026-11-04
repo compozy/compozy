@@ -1319,6 +1319,17 @@ func TestSessionPullRequestAdapters(t *testing.T) {
 		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
 			t.Fatal("failed lookup ready")
 		}
+		reset := time.Date(2026, 11, 4, 16, 5, 0, 0, time.UTC)
+		entry.RetryAfter = &reset
+		if view := sessionPullRequestView(entry); view.Lookup.RetryAfter != nil {
+			t.Fatalf("non-rate-limit failure exposed retry time %v", view.Lookup.RetryAfter)
+		}
+		entry.LookupCause = "rate_limited"
+		if view := sessionPullRequestView(entry); view.Lookup.RetryAfter == nil ||
+			!view.Lookup.RetryAfter.Equal(reset) || view.PullRequest == nil {
+			t.Fatalf("rate-limited lookup = %+v, want cached PR and retry %s", view, reset)
+		}
+		entry.LookupCause, entry.RetryAfter = "", nil
 		entry.LookupState = "ok"
 		entry.Facts.Draft = nil
 		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {

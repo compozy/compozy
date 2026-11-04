@@ -2291,6 +2291,7 @@ type ToolApprovalGrant struct {
 	Decision    string `json:"decision"`
 	CreatedAt   string `json:"created_at"`
 	LastUsedAt  string `json:"last_used_at"`
+	AccessScope string `json:"access_scope"`
 }
 
 type ToolApprovalPending struct {

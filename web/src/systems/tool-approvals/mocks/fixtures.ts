@@ -45,6 +45,19 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     created_at: "2026-07-12T11:00:00Z",
     last_used_at: "2026-07-15T07:55:00Z",
   },
+  {
+    ...DEFAULT_PROFILE_OWNER,
+    id: "f3a4b5c6-d7e8-4f9a-8b0c-1d2e3f4a5b6c",
+    workspace_id: "ws_default",
+    agent_name: "orchestrator",
+    tool_id: "compozy__session_status",
+    // An operator "Always allow" on a cross-project read: keyed by the target scope.
+    input_digest: "sha256:5a1c9e3b7d2f4a6c8e0b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c",
+    access_scope: "read:workspace:ws_proto@default",
+    decision: "allow",
+    created_at: "2026-07-15T09:00:00Z",
+    last_used_at: "2026-07-15T09:30:00Z",
+  },
 ];
 
 /**

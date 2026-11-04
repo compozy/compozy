@@ -60,6 +60,9 @@ func (c AgentsConfig) Validate() error {
 	if err := c.Soul.Validate(); err != nil {
 		return err
 	}
+	if err := validateAgentOverrides(c.Overrides); err != nil {
+		return err
+	}
 	return c.Heartbeat.Validate()
 }
 

@@ -7916,6 +7916,7 @@ export interface components {
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       session_env?: {
@@ -7928,6 +7929,7 @@ export interface components {
     };
     AgentEffectiveRuntimeSources: {
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       speed?: string;
@@ -15455,6 +15457,8 @@ export interface components {
       cause: string;
       /** Format: date-time */
       observed_at: string | null;
+      /** Format: date-time */
+      retry_after?: string | null;
       stale: boolean;
       /** @enum {string} */
       state: "ok" | "pending" | "error" | "incomplete";
@@ -19233,6 +19237,7 @@ export interface components {
       total: number;
     };
     ToolApprovalGrantPayload: {
+      access_scope?: string;
       agent_name?: string;
       /** Format: date-time */
       created_at: string;

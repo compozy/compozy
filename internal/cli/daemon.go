@@ -430,7 +430,7 @@ func waitForDaemonStartWindow(ctx context.Context, deps commandDeps, child daemo
 			}
 
 			status, statusErr := client.DaemonStatus(pollCtx)
-			if statusErr == nil && status.PID == childPID && strings.TrimSpace(status.Status) == daemonRunningStatus {
+			if statusErr == nil && daemonReadyAs(status, childPID) {
 				return status, true, nil
 			}
 			if !processAlive(childPID) {
@@ -439,4 +439,10 @@ func waitForDaemonStartWindow(ctx context.Context, deps commandDeps, child daemo
 			return DaemonStatus{}, false, nil
 		},
 	)
+}
+
+// daemonReadyAs reports whether status is the running readiness answer of the expected daemon pid.
+// Start waits expect their spawned child; bootstrap attach waits expect the live lock owner.
+func daemonReadyAs(status DaemonStatus, pid int) bool {
+	return pid > 0 && status.PID == pid && strings.TrimSpace(status.Status) == daemonRunningStatus
 }

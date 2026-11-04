@@ -160,7 +160,14 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 	if !decision.PromptEligible || b.prompter == nil {
 		return false, nativeWorkspaceAccessDecisionError(descriptor.ID, decision)
 	}
-	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, target.label)
+	prompt := workspaceAccessPrompt{
+		label: target.label, remember: !decision.NeedsGrantAfterConsent,
+		unresolvedTarget: target.ref.Kind == workspaceaccess.TargetUnresolved,
+	}
+	if prompt.remember {
+		prompt.grant = workspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
+	}
+	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, prompt)
 	if err != nil {
 		return false, errors.Join(
 			nativeWorkspaceAccessDecisionError(descriptor.ID, decision),
@@ -179,6 +186,9 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 			workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
 		)
 	}
+	recordWorkspaceReadConsent(ctx, b.workspaceAccess, workspaceaccess.Request{
+		Actor: actor, Target: target.ref, ReadOnly: descriptor.ReadOnly, Seam: workspaceaccess.SeamTool,
+	})
 	toolspkg.MarkOutsideCallerScope(ctx)
 	return true, nil
 }

@@ -42,6 +42,9 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 		}
 		return configSetString, isProviderLoginCommandPath(path), nil
 	}
+	if isAgentOverrideMutationPath(path) {
+		return configSetString, false, nil
+	}
 	if kind, ok := classifyWindowManagerMutationPath(path); ok {
 		return kind, false, nil
 	}
@@ -140,4 +143,30 @@ func isProviderMutationPath(path []string) bool {
 		}
 	}
 	return false
+}
+
+// isAgentOverrideMutationPath matches agents.overrides.<agent>.<field>; the operator CLI is
+// the structured writer for this trust-root table.
+func isAgentOverrideMutationPath(path []string) bool {
+	if len(path) != 4 || path[0] != "agents" || path[1] != compozyconfig.AgentOverridesConfigKey {
+		return false
+	}
+	switch path[3] {
+	case "permissions", "provider", "model", agentReasoningEffortField, "speed":
+		return compozyconfig.ValidateAgentName(path[2]) == nil
+	default:
+		return false
+	}
+}
+
+// requireOperatorForAgentOverride refuses agent-session writes to a table that can raise a
+// permission level, matching the workspace_access operator-only rule.
+func requireOperatorForAgentOverride(deps commandDeps, path []string) error {
+	if !isAgentOverrideMutationPath(path) || !agentIdentityEnvironmentPresent(deps) {
+		return nil
+	}
+	return fmt.Errorf(
+		"cli: agent_override_operator_only: only the operator may change %q",
+		strings.Join(path, "."),
+	)
 }

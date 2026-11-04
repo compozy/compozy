@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -176,10 +177,10 @@ func TestManagerForgeProvider(t *testing.T) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
+		// Capabilities are asked once per remote set; later operations reuse the cached winner.
 		want := []string{
 			"unsupported:forge/capabilities", "github:forge/capabilities",
-			"unsupported:forge/capabilities", "github:forge/capabilities", "github:forge/status",
-			"unsupported:forge/capabilities", "github:forge/capabilities", "github:forge/pr_create",
+			"github:forge/status", "github:forge/pr_create",
 		}
 		if !slices.Equal(calls, want) {
 			t.Fatalf("forge calls = %#v, want %#v", calls, want)
@@ -303,6 +304,241 @@ func TestManagerForgeProvider(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariants: capabilities are cached per remote set and provider start, and a provider that
+// reported a rate limit is not called by any forge read until its reset.
+// Owner: Manager forge quota; canonical forge provider suite.
+func TestManagerForgeQuota(t *testing.T) {
+	t.Parallel()
+	remotes := []string{"https://github.com/acme/repo"}
+	request := extensioncontract.ForgeStatusRequest{RemoteURLs: remotes, Branch: "topic"}
+
+	t.Run("Should cache capabilities until the window ends or the provider restarts", func(t *testing.T) {
+		t.Parallel()
+		var capabilityCalls atomic.Int32
+		process := newFakeProcess(5201)
+		process.callFn = func(_ context.Context, method string, _ any, result any) error {
+			if method == string(extensionprotocol.ExtensionServiceMethodForgeCapabilities) {
+				capabilityCalls.Add(1)
+				*result.(*extensioncontract.ForgeCapabilitiesResponse) = availableForgeCapabilities()
+				return nil
+			}
+			*result.(*extensioncontract.ForgeStatusResponse) = extensioncontract.ForgeStatusResponse{
+				Provider: "github", FetchedAt: time.Unix(1, 0),
+			}
+			return nil
+		}
+		manager := NewManager(nil)
+		now := time.Unix(1_800_000_000, 0).UTC()
+		manager.now = func() time.Time { return now }
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		for range 5 {
+			if _, err := manager.ForgeStatus(t.Context(), request); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if capabilityCalls.Load() != 1 {
+			t.Fatalf("five status reads asked capabilities %d times, want 1", capabilityCalls.Load())
+		}
+		now = now.Add(forgeCapabilitiesTTL)
+		if _, err := manager.ForgeStatus(t.Context(), request); err != nil || capabilityCalls.Load() != 2 {
+			t.Fatalf("expired window: calls=%d err=%v", capabilityCalls.Load(), err)
+		}
+		manager.mu.Lock()
+		manager.extensions["github-provider"].lastStartedAt = time.Unix(2, 0)
+		manager.mu.Unlock()
+		if _, err := manager.ForgeStatus(t.Context(), request); err != nil || capabilityCalls.Load() != 3 {
+			t.Fatalf("restarted provider: calls=%d err=%v", capabilityCalls.Load(), err)
+		}
+	})
+
+	// Invariant: simultaneous readers share the repository capability lookup.
+	// Owner: Manager capability admission; canonical forge quota suite.
+	t.Run("Should coalesce concurrent capability misses", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		process := newFakeProcess(5204)
+		process.callFn = func(_ context.Context, _ string, _ any, result any) error {
+			calls.Add(1)
+			*result.(*extensioncontract.ForgeCapabilitiesResponse) = availableForgeCapabilities()
+			return nil
+		}
+		manager := NewManager(nil)
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		results := make(chan error, 12)
+		start := make(chan struct{})
+		for range 12 {
+			go func() { <-start; _, err := manager.ForgeCapabilities(t.Context(), remotes); results <- err }()
+		}
+		close(start)
+		for range 12 {
+			if err := <-results; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("capability calls = %d, want 1", calls.Load())
+		}
+	})
+
+	// Invariant: a read quota hold does not prevent an explicit write using cached capabilities.
+	// Owner: Manager forge write admission; canonical forge quota suite.
+	t.Run("Should permit PR creation with cached capabilities during a read hold", func(t *testing.T) {
+		t.Parallel()
+		var creates atomic.Int32
+		process := newFakeProcess(5205)
+		process.callFn = func(_ context.Context, method string, _ any, result any) error {
+			switch method {
+			case string(extensionprotocol.ExtensionServiceMethodForgeCapabilities):
+				*result.(*extensioncontract.ForgeCapabilitiesResponse) = availableForgeCapabilities()
+			case string(extensionprotocol.ExtensionServiceMethodForgePRCreate):
+				creates.Add(1)
+				*result.(*extensioncontract.ForgePRCreateResponse) = extensioncontract.ForgePRCreateResponse{
+					Status: "created", Number: 7, URL: "https://github.com/acme/repo/pull/7",
+				}
+			default:
+				return errors.New("read must remain held")
+			}
+			return nil
+		}
+		manager := NewManager(nil)
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		if _, err := manager.ForgeCapabilities(t.Context(), remotes); err != nil {
+			t.Fatal(err)
+		}
+		manager.forgeQuota.limit("github-provider", nil, manager.now())
+		_, err := manager.ForgeCapabilities(t.Context(), remotes)
+		if ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
+			t.Fatalf("read hold = %v", err)
+		}
+		_, err = manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
+			RemoteURLs: remotes, Head: "topic", Base: "main", Title: "Quota",
+		})
+		if err != nil || creates.Load() != 1 {
+			t.Fatalf("create under read hold: calls=%d err=%v", creates.Load(), err)
+		}
+	})
+
+	for _, source := range []string{"status", "capabilities"} {
+		t.Run("Should hold every forge read until a "+source+" rate limit resets", func(t *testing.T) {
+			t.Parallel()
+			now := time.Unix(1_800_000_000, 0).UTC()
+			reset := now.Add(20 * time.Minute)
+			var calls atomic.Int32
+			var limited atomic.Bool
+			limited.Store(true)
+			process := newFakeProcess(5202)
+			process.callFn = func(_ context.Context, method string, _ any, result any) error {
+				calls.Add(1)
+				switch method {
+				case string(extensionprotocol.ExtensionServiceMethodForgeCapabilities):
+					response := availableForgeCapabilities()
+					if source == "capabilities" && limited.Load() {
+						response.Available, response.CredentialSource = false, ""
+						response.Cause, response.RetryAfter = extensioncontract.ForgeCauseRateLimited, &reset
+					}
+					*result.(*extensioncontract.ForgeCapabilitiesResponse) = response
+				case string(extensionprotocol.ExtensionServiceMethodForgeStatus):
+					response := extensioncontract.ForgeStatusResponse{Provider: "github", FetchedAt: now}
+					if limited.Load() {
+						response = extensioncontract.ForgeStatusResponse{
+							Cause: extensioncontract.ForgeCauseRateLimited, RetryAfter: &reset,
+						}
+					}
+					*result.(*extensioncontract.ForgeStatusResponse) = response
+				default:
+					return errors.New("unexpected forge method")
+				}
+				return nil
+			}
+			manager := NewManager(nil)
+			manager.now = func() time.Time { return now }
+			installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+			_, err := manager.ForgeStatus(t.Context(), request)
+			failure, ok := errors.AsType[*ForgeProviderError](err)
+			if !ok || failure.cause != extensioncontract.ForgeCauseRateLimited || failure.RetryAfter == nil ||
+				!failure.RetryAfter.Equal(reset) {
+				t.Fatalf("first read error = %v", err)
+			}
+			made := calls.Load()
+			limited.Store(false)
+			now = reset.Add(-time.Second)
+			for range 3 {
+				_, err = manager.ForgeStatus(t.Context(), request)
+				if ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
+					t.Fatalf("held read error = %v", err)
+				}
+			}
+			if _, err := manager.ForgeSearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{
+				RemoteURLs: remotes,
+			}); ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
+				t.Fatalf("held discovery error = %v", err)
+			}
+			if _, err := manager.ForgeCapabilities(t.Context(), remotes); ForgeProviderErrorCause(err) !=
+				extensioncontract.ForgeCauseRateLimited {
+				t.Fatalf("held capabilities error = %v", err)
+			}
+			if calls.Load() != made {
+				t.Fatalf("rate-limited provider called %d more times before reset", calls.Load()-made)
+			}
+			now = reset
+			if _, err := manager.ForgeStatus(t.Context(), request); err != nil {
+				t.Fatalf("read after reset: %v", err)
+			}
+		})
+	}
+
+	t.Run("Should hold every forge read after a discovery rate limit", func(t *testing.T) {
+		t.Parallel()
+		now := time.Unix(1_800_000_000, 0).UTC()
+		reset := now.Add(15 * time.Minute)
+		var statusCalls atomic.Int32
+		process := newFakeProcess(5203)
+		process.callFn = func(_ context.Context, method string, _ any, result any) error {
+			switch method {
+			case string(extensionprotocol.ExtensionServiceMethodForgeCapabilities):
+				response := availableForgeCapabilities()
+				response.SupportsPRDiscovery = true
+				*result.(*extensioncontract.ForgeCapabilitiesResponse) = response
+				return nil
+			case string(extensionprotocol.ExtensionServiceMethodForgePRSearch):
+				return &subprocess.RPCError{
+					Code: -32000, Message: "GitHub rate limit reached; retry later",
+					Data: []byte(`{"code":"rate_limited","retry_after":"` + reset.Format(time.RFC3339) + `"}`),
+				}
+			default:
+				statusCalls.Add(1)
+				return errors.New("status must stay held")
+			}
+		}
+		manager := NewManager(nil)
+		manager.now = func() time.Time { return now }
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		_, err := manager.ForgeSearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: remotes})
+		failure, ok := errors.AsType[*ForgeProviderError](err)
+		if !ok || failure.cause != extensioncontract.ForgeCauseRateLimited || !failure.RetryAfter.Equal(reset) {
+			t.Fatalf("search error = %v", err)
+		}
+		if _, err := manager.ForgeStatus(t.Context(), request); ForgeProviderErrorCause(err) !=
+			extensioncontract.ForgeCauseRateLimited || statusCalls.Load() != 0 {
+			t.Fatalf("status after discovery limit = %v, calls %d", err, statusCalls.Load())
+		}
+	})
+
+	t.Run("Should hold a provider for a minute when it names no reset", func(t *testing.T) {
+		t.Parallel()
+		var quota forgeQuota
+		now := time.Unix(1_800_000_000, 0).UTC()
+		if until := quota.limit("p", nil, now); !until.Equal(now.Add(forgeRateLimitFallback)) {
+			t.Fatalf("fallback until = %s", until)
+		}
+		later := now.Add(time.Hour)
+		quota.limit("p", &later, now)
+		if until := quota.limit("p", nil, now); !until.Equal(later) {
+			t.Fatalf("short hint shortened the known reset: %s", until)
+		}
+	})
 }
 
 func installForgeTestProvider(manager *Manager, name string, process *fakeProcess, startedAt time.Time) {

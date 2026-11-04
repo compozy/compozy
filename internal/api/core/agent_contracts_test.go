@@ -114,7 +114,12 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	})
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
-	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}
+	claudeConfig := compozyconfig.Config{
+		Defaults: compozyconfig.DefaultsConfig{Provider: "claude"},
+		Agents: compozyconfig.AgentsConfig{Overrides: map[string]compozyconfig.AgentOverride{
+			"reviewer": {Permissions: string(compozyconfig.PermissionModeApproveAll)},
+		}},
+	}
 
 	codexPayload := core.AgentPayloadFromEntryWithConfig(&entry, &codexConfig)
 	claudePayload := core.AgentPayloadFromEntryWithConfig(&entry, &claudeConfig)
@@ -126,6 +131,26 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	}
 	if got, want := claudePayload.EffectiveRuntime.Provider, "claude"; got != want {
 		t.Fatalf("claude EffectiveRuntime.Provider = %q, want %q", got, want)
+	}
+	if got := claudePayload.EffectiveRuntime.Permissions; got != string(compozyconfig.PermissionModeApproveAll) ||
+		claudePayload.EffectiveRuntime.Sources.Permissions != contract.AgentRuntimeValueSourceConfigOverride ||
+		claudePayload.Permissions != "" {
+		t.Fatalf("claude permissions = effective %q (%q) authored %q, want operator override only in effective",
+			got, claudePayload.EffectiveRuntime.Sources.Permissions, claudePayload.Permissions)
+	}
+	if got := codexPayload.EffectiveRuntime.Sources.Permissions; got != contract.AgentRuntimeValueSourceProjectDefault {
+		t.Fatalf("codex permissions source = %q, want project_default", got)
+	}
+	alwaysOn := compozyconfig.CloneAgentDef(agent)
+	alwaysOn.Kind = compozyconfig.AgentKindAlwaysOn
+	alwaysOnEntry := core.AgentCatalogEntry{Def: alwaysOn, Origin: contract.AgentOriginGlobal}
+	approveAllConfig := codexConfig
+	approveAllConfig.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	alwaysOnPayload := core.AgentPayloadFromEntryWithConfig(&alwaysOnEntry, &approveAllConfig)
+	if alwaysOnPayload.EffectiveRuntime == nil ||
+		alwaysOnPayload.EffectiveRuntime.Permissions != string(compozyconfig.AlwaysOnDefaultPermissionMode) ||
+		alwaysOnPayload.EffectiveRuntime.Sources.Permissions != contract.AgentRuntimeValueSourceAlwaysOnDefault {
+		t.Fatalf("always-on effective permissions = %#v, want the always-on default", alwaysOnPayload.EffectiveRuntime)
 	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)

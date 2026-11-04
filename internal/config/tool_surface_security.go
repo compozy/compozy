@@ -98,6 +98,9 @@ func configPathIsTrustRoot(path []string) bool {
 		return skillsConfigPathIsTrustRoot(path)
 	case "extensions", vaultConfigKey:
 		return true
+	case "agents":
+		// Per-agent overrides can raise a permission level, so only the operator writes them.
+		return len(path) >= 2 && path[1] == AgentOverridesConfigKey
 	case toolSurfaceMarketplaceKey:
 		return len(path) >= 3 && path[1] == "catalog" && path[2] == configBaseURLKey
 	}
