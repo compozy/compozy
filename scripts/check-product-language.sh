@@ -163,13 +163,17 @@ kind_scan() {
 }
 
 # Only actionable removal diagnostics may retain the retired token.
-removed_diagnostics='"agent kind must be on_demand or always_on \(stays_on was renamed to always_on in v0\.5\.1\)"|path\[1\] == "stays_on"'
+removed_diagnostics='"agent kind must be on_demand or always_on \(stays_on was renamed to always_on in v0\.5\.1\)"'
 rule_a_pattern="(?:${removed_diagnostics})(*SKIP)(*F)|${retired_kind}|\\bCanonicalAgentKind\\b"
 rule_a_files="$(kind_scan "Rule A" --glob '*.go' "$rule_a_pattern" -- "${rule_a_paths[@]}")"
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_a_in_scope "$rel" || continue
+  if [[ "$rel" == internal/config/removed_agent_config.go ]]; then
+    remaining="$(kind_scan "Rule A" "(?:path\[1\] == \"stays_on\")(*SKIP)(*F)|${rule_a_pattern}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
   kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the alias boundary")
 done <<<"$rule_a_files"
 

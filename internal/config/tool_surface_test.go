@@ -930,7 +930,7 @@ func TestConfigOverlayHookDeclarationsAndValues(t *testing.T) {
 
 func TestToolConfigPathAlias(t *testing.T) {
 	t.Parallel()
-	for _, raw := range []string{"agents.stays_on", "agents.stays_on.max_proposals", "agents.stays_on.approval_timeout"} {
+	for _, raw := range []string{"agents.stays_on", "agents.stays_on.max_proposals", "agents.stays_on.approval_timeout", "agents. stays_on.max_proposals", " agents . stays_on . max_proposals "} {
 		t.Run("Should reject removed path "+raw, func(t *testing.T) {
 			t.Parallel()
 			if _, err := ParseDottedConfigPath(raw); err == nil || !strings.Contains(err.Error(), "agents.always_on") {

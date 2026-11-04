@@ -229,12 +229,15 @@ func ParseDottedConfigPath(raw string) ([]string, error) {
 		return nil, errors.New("config: config path is required")
 	}
 	parts := strings.Split(trimmed, ".")
+	clean := make([]string, 0, len(parts))
 	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
+		segment := strings.TrimSpace(part)
+		if segment == "" {
 			return nil, fmt.Errorf("config: config path %q contains an empty segment", trimmed)
 		}
+		clean = append(clean, segment)
 	}
-	if err := ValidateRemovedConfigPath(parts); err != nil {
+	if err := ValidateRemovedConfigPath(clean); err != nil {
 		return nil, err
 	}
 	return parts, nil

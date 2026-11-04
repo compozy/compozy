@@ -2252,6 +2252,42 @@ Watch.
 			}
 		})
 	}
+	for _, layer := range []string{"global", "profile", "workspace", "workspace_profile", "additional"} {
+		t.Run("Should reject retired kind during "+layer+" discovery", func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			additional := t.TempDir()
+			var path string
+			switch layer {
+			case "global":
+				path = filepath.Join(home.AgentsDir, "retired", agentDefName)
+			case "profile":
+				path = filepath.Join(home.ProfilesDir, "default", AgentsDirName, "retired", agentDefName)
+			case "workspace":
+				path = filepath.Join(root, DirName, AgentsDirName, "retired", agentDefName)
+			case "workspace_profile":
+				path = filepath.Join(root, DirName, ProfilesDirName, "default", AgentsDirName, "retired", agentDefName)
+			case "additional":
+				path = filepath.Join(additional, DirName, AgentsDirName, "retired", agentDefName)
+			}
+			writeFile(t, path, "---\nname: retired\nkind: stays_on\n---\nWatch.\n")
+			if _, err := LoadWorkspaceAgentDefs(
+				root,
+				[]string{additional},
+				home,
+				"default",
+			); !errors.Is(
+				err,
+				ErrAgentKindInvalid,
+			) {
+				t.Fatalf("discovery error = %v", err)
+			}
+		})
+	}
 }
 
 // TestAgentKindInvalid owns UT-003: an unknown kind is rejected with the always_on message.
@@ -2264,7 +2300,8 @@ func TestAgentKindInvalid(t *testing.T) {
 			t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
 		}
 		err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
-		if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != ErrAgentKindInvalid.Error() {
+		const want = "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)"
+		if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != want {
 			t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
 		}
 	})

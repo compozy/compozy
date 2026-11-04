@@ -2184,4 +2184,42 @@ func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 			}
 		})
 	}
+	for _, path := range [][]string{{"agents", "always_on"}, {"agents", "always_on", "max_proposals"}} {
+		t.Run("Should unset canonical path "+strings.Join(path, "."), func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, home.ConfigFile, "[agents.always_on]\nmax_proposals = 5\n")
+			cfg, err := EditConfigOverlay(
+				home,
+				"",
+				target,
+				func(editor *OverlayEditor) error { return editor.Delete(path) },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Agents.AlwaysOn.MaxProposals != DefaultWithHome(home).Agents.AlwaysOn.MaxProposals {
+				t.Fatalf("effective MaxProposals = %d", cfg.Agents.AlwaysOn.MaxProposals)
+			}
+			body, err := os.ReadFile(home.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var persisted map[string]any
+			meta, err := burnttoml.Decode(string(body), &persisted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta.IsDefined(path...) {
+				t.Fatalf("deleted path remains in config: %s", body)
+			}
+		})
+	}
 }

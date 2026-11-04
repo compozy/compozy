@@ -108,6 +108,13 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
 		{name: "Should reject the alias in the identity file", as: "internal/config/agent_identity.go",
 			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
+		{name: "Should reject an alias comparison outside the removed diagnostic", as: "internal/config/alias.go",
+			content: "package config\nfunc alias(path []string) bool { return path[1] == \"stays_on\" }\n"},
+		{name: "Should allow the removed-config comparison only in its diagnostic owner", as: "internal/config/removed_agent_config.go", allowed: true,
+			content: "package config\nfunc removed(path []string) bool { return path[1] == \"stays_on\" }\n"},
+		{name: "Should reject alias constants inside the diagnostic owner", as: "internal/config/removed_agent_config.go",
+			content: "package config\nconst kind = \"stays_on\"\n"},
+
 		{name: "Should allow stays_on fixtures in tests", as: "internal/config/agent_test.go", allowed: true,
 			content: "package config\n\nconst fixture = \"stays_on\"\n"},
 		{name: "Should reject the upper-case spelling", as: "internal/daemon/x.go",
