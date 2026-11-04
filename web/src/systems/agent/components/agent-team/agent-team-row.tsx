@@ -6,13 +6,13 @@ import { agentLastCheckIn } from "../../lib/agent-profile";
 import { agentOverallState, agentUsageLine, type AgentTeamMember } from "../../lib/agent-team";
 import { AgentFleetNewSessionButton } from "../agent-fleet-new-session-button";
 import { AgentMark } from "../agent-mark";
-import { useAgentPulse } from "../../hooks/use-agent-pulse";
+import type { AgentPulseRead } from "../../hooks/use-agent-pulse";
 import type { AgentTeamActions } from "./agent-team-card";
 import { AgentAddPlaceButton, AgentFlags, AgentNowLine, AgentPlaceChips } from "./agent-team-parts";
 
 /** Fixed width, so a column of them lines up however many chips sit beside each. */
-function RowPulse({ member }: { member: AgentTeamMember }) {
-  const { pulse } = useAgentPulse(member);
+function RowPulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
+  const pulse = pulseRead?.pulse;
   return (
     <span className="w-20 shrink-0">
       {pulse?.values.some(value => value > 0) ? (
@@ -30,9 +30,11 @@ function RowPulse({ member }: { member: AgentTeamMember }) {
 export function AgentTeamRow({
   member,
   actions,
+  pulseRead,
 }: {
   member: AgentTeamMember;
   actions: AgentTeamActions;
+  pulseRead?: AgentPulseRead;
 }) {
   const alwaysOn = member.kind === "always_on";
   const preload = useIntentPreload(() => actions.onPreload?.(member), Boolean(actions.onPreload));
@@ -80,7 +82,7 @@ export function AgentTeamRow({
         {alwaysOn ? (
           <>
             <AgentPlaceChips member={member} />
-            <RowPulse member={member} />
+            <RowPulse member={member} pulseRead={pulseRead} />
             <AgentAddPlaceButton add={actions.add} member={member} />
           </>
         ) : (

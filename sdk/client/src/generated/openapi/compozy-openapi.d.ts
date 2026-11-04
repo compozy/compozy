@@ -502,6 +502,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Read activity for up to 100 agent and workspace selections in request order */
+    post: operations["batchAgentActivity"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/aggregate": {
     parameters: {
       query?: never;
@@ -7839,10 +7856,21 @@ export interface components {
       id: string;
       value_id?: string;
     };
+    AgentActivityBatchRequest: {
+      days?: number;
+      items: components["schemas"]["AgentActivitySelection"][];
+    };
+    AgentActivityBatchResponse: {
+      activities: components["schemas"]["AgentActivityResponse"][];
+    };
     AgentActivityResponse: {
       busy_by_hour: components["schemas"]["ActivityHour"][];
       cost_by_project: components["schemas"]["ActivityCost"][];
       reports_by_day: components["schemas"]["ActivityDay"][];
+    };
+    AgentActivitySelection: {
+      name: string;
+      workspaces: string[];
     };
     AgentCapabilityPayload: {
       id: string;
@@ -24633,6 +24661,106 @@ export interface operations {
         };
       };
       /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  batchAgentActivity: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentActivityBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped activities in request order */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentActivityBatchResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
       503: {
         headers: {
           [name: string]: unknown;

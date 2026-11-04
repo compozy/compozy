@@ -231,6 +231,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"archiveAgentInstance",
 			"listAgentInstanceReports",
 			"getAgentActivity",
+			"batchAgentActivity",
 			"getAgentInstanceAway",
 			"markAgentInstanceSeen",
 			"listAgentInstanceCheckIns",

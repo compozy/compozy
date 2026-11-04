@@ -223,6 +223,28 @@ func (c *Client) AttachTaskRunSession(ctx context.Context, params AttachTaskRunS
 	return &out, nil
 }
 
+// BatchAgentActivityParams carries the path, query, and header parameters.
+type BatchAgentActivityParams struct {
+	Profile *string `url:"profile"`
+}
+
+// BatchAgentActivity Read activity for up to 100 agent and workspace selections in request order
+func (c *Client) BatchAgentActivity(ctx context.Context, params BatchAgentActivityParams, body AgentActivityBatchRequest) (*AgentActivityBatchResponse, error) {
+	path := "/api/agents/activity"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentActivityBatchResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BeginSettingsMCPAuthParams carries the path, query, and header parameters.
 type BeginSettingsMCPAuthParams struct {
 	Name        string  `url:"name"`
@@ -424,23 +446,4 @@ type CancelLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
 	Profile     *string `url:"profile"`
-}
-
-// CancelLoopRun Cancel one Loop run
-func (c *Client) CancelLoopRun(ctx context.Context, params CancelLoopRunParams, body map[string]any) (*LoopMutationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -425,3 +425,15 @@ Polls run before model work. Empty or unchanged source digests skip the model ev
 Scripts run a private copy of approved bytes with the workspace as cwd. They receive `PATH`, `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and explicitly allowed daemon environment variables; they never receive `session_env`. Stdout, state, runtime and stderr are bounded. Upgrade every daemon reading a file before adding `context.sources`; older daemons reject the new key on downgrade.
 
 Healthy, unapproved and disabled sources are eligible on every check that passes the collection gates, including manual and event-pulled checks. `next_poll_at` is only a failing source’s retry backoff. A batch with `more: true` schedules the next timer check at `agents.heartbeat.min_interval` plus jitter, including when triage skips an unchanged digest. Other source-backed checks use the resolved agent cadence without quiet backoff. Reserved `COMPOZY_*` names are rejected in `env_allow`.
+
+### Activity summaries
+
+`GET /api/agents/{name}/activity` reads one profile and aggregates authorized workspaces when
+`workspace` is omitted (`@user` selects User). `days` defaults to 30 and accepts 1–365.
+For team views, `POST /api/agents/activity?profile=<name>` accepts
+`{"days":14,"items":[{"name":"reviewer","workspaces":["@user","project-id"]}]}`.
+It returns `{"activities":[<activity>]}` in request order; each entry keeps the existing
+`reports_by_day`, `cost_by_project` and `busy_by_hour` shape. Use the definition's own resolved
+workspaces for each item. Limits are 100 items, 100 workspace references per item and 5,000
+authorized workspace selections overall. Both HTTP/UDS reads enforce profile/workspace access;
+app tokens cannot call them. No native tool ID, CLI command, hook or configuration key changes.

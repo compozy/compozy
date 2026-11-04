@@ -3,7 +3,7 @@ import { useIntentPreload } from "@/hooks/use-intent-preload";
 import { CatalogCard, Sparkline } from "@compozy/ui";
 
 import { agentLastCheckIn } from "../../lib/agent-profile";
-import { useAgentPulse } from "../../hooks/use-agent-pulse";
+import type { AgentPulseRead } from "../../hooks/use-agent-pulse";
 import { agentOverallState, agentUsageLine, type AgentTeamMember } from "../../lib/agent-team";
 import { AgentFleetNewSessionButton } from "../agent-fleet-new-session-button";
 import { AgentMark } from "../agent-mark";
@@ -51,8 +51,8 @@ function CardName({
   );
 }
 
-function Pulse({ member }: { member: AgentTeamMember }) {
-  const { pulse, known } = useAgentPulse(member);
+function Pulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
+  const { pulse, known } = pulseRead ?? { pulse: null, known: false };
   if (!known || !pulse) return <div className="h-7" />;
   if (pulse.values.every(value => value === 0)) {
     return <div className="flex h-7 items-end text-eyebrow text-subtle">No activity yet</div>;
@@ -75,9 +75,11 @@ function Pulse({ member }: { member: AgentTeamMember }) {
 export function AgentAlwaysOnCard({
   member,
   actions,
+  pulseRead,
 }: {
   member: AgentTeamMember;
   actions: AgentTeamActions;
+  pulseRead?: AgentPulseRead;
 }) {
   return (
     <CatalogCard
@@ -106,7 +108,7 @@ export function AgentAlwaysOnCard({
         </div>
       </div>
       <AgentNowLine lastCheckIn={agentLastCheckIn(member.places)} member={member} />
-      <Pulse member={member} />
+      <Pulse member={member} pulseRead={pulseRead} />
       <CatalogCard.Actions className="relative z-1 mt-auto flex-nowrap justify-between">
         <AgentPlaceChips member={member} />
         <AgentAddPlaceButton add={actions.add} member={member} />

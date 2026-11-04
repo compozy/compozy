@@ -4777,6 +4777,62 @@ func TestInstanceCollectorSecrets(t *testing.T) {
 }
 
 func TestInstanceActivity(t *testing.T) {
+	t.Run("Should seek activity indexes for every grouped projection", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		if _, err := db.telemetry.DB().
+			ExecContext(ctx, `WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 2000)
+            INSERT INTO event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp)
+            SELECT 'plan-'||x, ?, '', 'busy', 'thought', '2026-11-01T12:00:00Z' FROM n`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		cte, args, err := instanceActivityScopes(
+			[]agentinstance.ActivityQuery{
+				{
+					ProfileID:    store.DefaultProfileID,
+					AgentName:    "sparse",
+					WorkspaceIDs: []string{"", "allowed"},
+					Since:        time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, projection := range []struct {
+			sql     string
+			indexes []string
+		}{
+			{instanceActivityHours, []string{"idx_summaries_activity (profile_id=? AND agent_name=? AND workspace_id=? AND timestamp>?)"}},
+			{instanceActivityCosts, []string{"idx_token_usage_daily_activity (profile_id=? AND agent_name=? AND workspace_id=? AND day>?)"}},
+			{instanceActivityReports, []string{"idx_agent_instances_activity (profile_id=? AND agent_name=? AND workspace_id=?)", "idx_agent_instance_reports_history", "idx_agent_wake_events_activity"}},
+		} {
+			rows, err := db.readDB.QueryContext(ctx, "EXPLAIN QUERY PLAN "+cte+projection.sql, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var plan strings.Builder
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				plan.WriteString(detail + "\n")
+			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				t.Fatal(err)
+			}
+			for _, index := range projection.indexes {
+				if !strings.Contains(plan.String(), index) {
+					t.Fatalf("missing indexed seek %s:\n%s", index, plan.String())
+				}
+			}
+			t.Log(plan.String())
+		}
+	})
+
 	t.Run("Should isolate activity by profile workspace agent and time window", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -4870,7 +4926,7 @@ func TestInstanceActivity(t *testing.T) {
 		}
 
 		got, err := db.Instances().
-			ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: store.DefaultProfileID, AgentName: "coder", Since: since})
+			ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceIDs: []string{""}, Since: since})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4885,8 +4941,33 @@ func TestInstanceActivity(t *testing.T) {
 			got.ReportsByDay[1].Quiet != 1 || got.ReportsByDay[1].Told != 0 || got.ReportsByDay[1].NeededYou != 0 {
 			t.Fatalf("daily activity=%+v", got.ReportsByDay)
 		}
+		batch, err := db.Instances().ReadActivities(ctx, []agentinstance.ActivityQuery{
+			{
+				ProfileID:    store.DefaultProfileID,
+				AgentName:    "coder",
+				WorkspaceIDs: []string{"", otherWorkspace, otherWorkspace},
+				Since:        since,
+			},
+			{ProfileID: foreign, AgentName: "coder", WorkspaceIDs: []string{""}, Since: since},
+			{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceIDs: []string{}, Since: since},
+			{ProfileID: store.DefaultProfileID, AgentName: "coder", Since: since},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(batch[0].CostByProject) != 2 || batch[0].BusyByHour[0].Events != 2 ||
+			batch[0].ReportsByDay[0].Quiet != 26 {
+			t.Fatalf("grouped scopes: %+v", batch[0])
+		}
+		if batch[1].CostByProject[0].Tokens != 40 || len(batch[2].CostByProject) != 0 ||
+			len(batch[2].BusyByHour) != 0 ||
+			len(batch[3].CostByProject) != 0 ||
+			len(batch[3].BusyByHour) != 0 {
+			t.Fatalf("batch scope isolation: %+v", batch)
+		}
+
 		empty, err := db.Instances().ReadActivity(ctx, agentinstance.ActivityQuery{
-			ProfileID: store.DefaultProfileID, AgentName: "unused-agent", Since: since,
+			ProfileID: store.DefaultProfileID, AgentName: "unused-agent", WorkspaceIDs: []string{""}, Since: since,
 		})
 		if err != nil || empty.ReportsByDay == nil || len(empty.ReportsByDay) != 0 {
 			t.Fatalf("empty reports=%+v error=%v", empty.ReportsByDay, err)

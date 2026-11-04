@@ -71,6 +71,20 @@ func agentInstanceCheckOperations() []OperationSpec {
 			},
 		},
 		{
+			Method:      httpMethodPost,
+			Path:        "/api/agents/activity",
+			OperationID: "batchAgentActivity",
+			Summary:     "Read activity for up to 100 agent and workspace selections in request order",
+			RequestBody: contract.AgentActivityBatchRequest{},
+			Responses: []ResponseSpec{
+				{
+					Status:      200,
+					Description: "Scoped activities in request order",
+					Body:        contract.AgentActivityBatchResponse{},
+				},
+			},
+		},
+		{
 			Method:      httpMethodGet,
 			Path:        "/api/agents/{name}/activity",
 			OperationID: "getAgentActivity",

@@ -2,14 +2,34 @@
 // Invariant: Always-on comes first and only when an agent is always-on; both views show the same groups.
 // Boundary IN: `AgentTeamPage` from a member list. Boundary OUT: the query, owned by the OS hook.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { handlers as profileHandlers } from "@/systems/profiles/mocks";
+import { setupServer } from "msw/node";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { TEAM_WORKSPACES, teamInstances, teamItems } from "../../mocks/team-fixtures";
 import { agentAlwaysOn, buildAgentTeam } from "../../lib/agent-team";
 import { AgentTeamPage } from "../agent-team/agent-team-page";
+
+const server = setupServer(
+  ...profileHandlers,
+  http.post("*/api/agents/activity", async ({ request }) => {
+    const input = (await request.json()) as { items: unknown[] };
+    return HttpResponse.json({
+      activities: input.items.map(() => ({
+        reports_by_day: [],
+        busy_by_hour: [],
+        cost_by_project: [],
+      })),
+    });
+  })
+);
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 const members = buildAgentTeam({
   items: teamItems(),
@@ -49,6 +69,120 @@ function renderPage(overrides: Partial<ComponentProps<typeof AgentTeamPage>> = {
 }
 
 describe("AgentTeamPage", () => {
+  it.each(["cards", "rows"] as const)(
+    "Should batch pulse reads for all visible members in %s",
+    async view => {
+      const requests: unknown[] = [];
+      server.use(
+        http.post("*/api/agents/activity", async ({ request }) => {
+          const input = (await request.json()) as {
+            items: { name: string; workspaces: string[] }[];
+          };
+          requests.push(input);
+          return HttpResponse.json({
+            activities: input.items.map(item => ({
+              reports_by_day: item.workspaces.includes("other-project")
+                ? []
+                : [{ day: "2026-11-01", quiet: 1, told: 2, needed_you: 0 }],
+              busy_by_hour: [],
+              cost_by_project: [],
+            })),
+          });
+        })
+      );
+      const alwaysOn = members.find(agentAlwaysOn)!;
+      const selected = [
+        alwaysOn,
+        {
+          ...alwaysOn,
+          key: "other-definition",
+          label: "Other definition",
+          scopes: ["other-project"],
+        },
+      ];
+      renderPage({ view, members: selected });
+      await waitFor(() => expect(requests).toHaveLength(1));
+      expect(requests[0]).toEqual({
+        days: 14,
+        items: [...selected]
+          .sort((a, b) => a.key.localeCompare(b.key))
+          .map(member => ({
+            name: member.name,
+            workspaces: [...member.scopes].sort(),
+          })),
+      });
+      expect(
+        await screen.findByRole("img", {
+          name: `${alwaysOn.label}'s activity over the last 2 weeks`,
+        })
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("img", { name: "Other definition's activity over the last 2 weeks" })
+      ).toBeNull();
+      if (view === "cards") {
+        const card = screen.getByText(alwaysOn.label).closest('[data-testid^="agent-card-"]')!;
+        expect(within(card as HTMLElement).getByText("2 reports in 2 weeks")).toBeVisible();
+        const other = screen.getByText("Other definition").closest('[data-testid^="agent-card-"]')!;
+        expect(within(other as HTMLElement).getByText("No activity yet")).toBeVisible();
+      }
+    }
+  );
+
+  it("Should bound batches and skip members with no resolved workspaces", async () => {
+    const requests: { items: { name: string; workspaces: string[] }[] }[] = [];
+    server.use(
+      http.post("*/api/agents/activity", async ({ request }) => {
+        const input = (await request.json()) as (typeof requests)[number];
+        requests.push(input);
+        return HttpResponse.json({
+          activities: input.items.map(() => ({
+            reports_by_day: [],
+            busy_by_hour: [],
+            cost_by_project: [],
+          })),
+        });
+      })
+    );
+    const base = members.find(agentAlwaysOn)!;
+    renderPage({
+      members: [
+        ...Array.from({ length: 101 }, (_, i) => ({
+          ...base,
+          key: `many-${i}`,
+          name: `agent-${i}`,
+        })),
+        {
+          ...base,
+          key: "wide",
+          name: "wide",
+          scopes: Array.from({ length: 101 }, (_, i) => `ws-${i}`),
+        },
+        { ...base, key: "empty", scopes: [] },
+      ],
+    });
+    for (let i = 0; i < 8; i++)
+      await userEvent.click(screen.getByRole("button", { name: "Load more agents" }));
+    await waitFor(() =>
+      expect(requests.flatMap(request => request.items).some(item => item.name === "wide")).toBe(
+        true
+      )
+    );
+    expect(
+      requests.every(
+        request =>
+          request.items.length <= 100 &&
+          request.items.every(
+            item => item.workspaces.length > 0 && item.workspaces.length <= 100
+          ) &&
+          request.items.reduce((sum, item) => sum + item.workspaces.length, 0) <= 5000
+      )
+    ).toBe(true);
+    expect(
+      requests
+        .flatMap(request => request.items)
+        .some(item => item.name === base.name && item.workspaces.length === 0)
+    ).toBe(false);
+  });
   it("Should show Always-on first, with one card per agent", () => {
     renderPage();
     const sections = screen.getAllByTestId(/^agents-section-/);
