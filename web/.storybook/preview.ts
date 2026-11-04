@@ -15,7 +15,7 @@ import { mswLoader } from "msw-storybook-addon/csf3";
 import type { UnhandledFrameHandle } from "msw";
 import { HttpNetworkFrame } from "msw/experimental";
 import { setupWorker } from "msw/browser";
-import { configure as configureStorybookTestingLibrary, sb } from "storybook/test";
+import { configure as configureStorybookTestingLibrary } from "storybook/test";
 
 import "../src/styles.css";
 import { routeTree } from "@/routeTree.gen";
@@ -24,9 +24,6 @@ import { resetClientStores } from "@/storybook/reset-client-stores";
 import { resetWindowManagerSettingsMockState } from "@/systems/settings/mocks";
 import { resetAgentMockState } from "@/systems/agent/mocks";
 import { resetWindowManagerMockState, windowManagerStreamHandler } from "@/systems/os/mocks";
-
-// Preserve the real generator except in the explicit logo-failure story.
-sb.mock(import("boring-avatars"), { spy: true });
 
 configureStorybookTestingLibrary({ asyncUtilTimeout: 5000 });
 

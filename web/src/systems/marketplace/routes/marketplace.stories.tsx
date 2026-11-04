@@ -1,7 +1,13 @@
-import Avatar from "boring-avatars";
 import { Toaster } from "@compozy/ui";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, mocked, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+
+import { CenteredSurface } from "@/storybook/story-layout";
+
+import {
+  MarketplaceEntryLogo,
+  MarketplaceMarbleProvider,
+} from "../components/marketplace-entry-logo";
 
 import {
   StorybookRouteCanvas,
@@ -253,16 +259,30 @@ export const LogoLadder: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Exercise the production boundary when the external marble generator throws. */
+function throwingMarble(): never {
+  throw new Error("Storybook marble generator failure");
+}
+
+/**
+ * Exercise the production boundary when the external marble generator throws: the Logo ladder
+ * entries render through a generator that always throws, so every marble rung falls back to the
+ * entry's monogram while the icon and brand rungs are unaffected.
+ */
 export const LogoGeneratorFailure: Story = {
-  ...LogoLadder,
-  beforeEach: () => {
-    mocked(Avatar).mockImplementation(() => {
-      throw new Error("Storybook marble generator failure");
+  render: () => (
+    <MarketplaceMarbleProvider value={throwingMarble}>
+      <CenteredSurface className="gap-3">
+        {logoLadderCatalog.map(entry => (
+          <MarketplaceEntryLogo entry={entry} key={entry.entry_id} size="md" />
+        ))}
+      </CenteredSurface>
+    </MarketplaceMarbleProvider>
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => {
+      expect(canvasElement.querySelectorAll('[data-rung="monogram"]').length).toBeGreaterThan(0);
     });
-    return () => {
-      mocked(Avatar).mockReset();
-    };
+    expect(canvasElement.querySelector('[data-rung="marble"]')).toBeNull();
   },
 };
 
