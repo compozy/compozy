@@ -1340,9 +1340,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 			}
 		})
 		now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
-		prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: func() time.Time { return now }}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "watch-cursor-migration", t.TempDir())
+		workspaceID := registerPrefixWorkspace(t, prefixDB, "watch-cursor-migration", t.TempDir())
 		definition := compileLoopTerminalWatchEventsDefinitionForTest(t)
 		watcher := testLoopRun("watch-cursor-legacy-watcher", now, looppkg.StatusRunning)
 		watcher.WorkspaceID = looppkg.WorkspaceID(workspaceID)

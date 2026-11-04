@@ -1579,7 +1579,7 @@ func TestGlobalDBUserFolderMigration(t *testing.T) {
 		}
 		old.initializeRepositories(openConfig{})
 		ctx := t.Context()
-		workspace := registerWorkspaceForGlobalTests(t, old, "preserved", t.TempDir())
+		workspace := registerPrefixWorkspace(t, raw, "preserved", t.TempDir())
 		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
 		if _, err := raw.ExecContext(ctx, `INSERT INTO sessions
 (id, profile_id, name, agent_name, workspace_id, session_type, state, created_at, updated_at)

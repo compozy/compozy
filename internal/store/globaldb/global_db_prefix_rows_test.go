@@ -5,6 +5,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // insertPrefixRow seeds one row into a database migrated only to a historical prefix.
@@ -43,4 +46,16 @@ func insertPrefixRow(t *testing.T, db *sql.DB, table string, values map[string]a
 	if _, err := db.ExecContext(t.Context(), query, args...); err != nil {
 		t.Fatalf("insert prefix %s row error = %v", table, err)
 	}
+}
+
+// registerPrefixWorkspace avoids current repository requirements while seeding historical schemas.
+func registerPrefixWorkspace(t *testing.T, db *sql.DB, name, rootDir string) string {
+	t.Helper()
+	id := "ws-" + strings.ReplaceAll(name, " ", "-")
+	now := store.FormatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC))
+	insertPrefixRow(t, db, "workspaces", map[string]any{
+		"id": id, "root_dir": rootDir, "name": name,
+		"created_at": now, "updated_at": now,
+	})
+	return id
 }

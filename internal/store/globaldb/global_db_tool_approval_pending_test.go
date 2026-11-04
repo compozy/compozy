@@ -118,9 +118,7 @@ func TestGlobalDBToolApprovalPendingMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("open 00077 prefix error = %v", err)
 		}
-		prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: approvalGrantTestTime}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-00078", t.TempDir())
+		workspaceID := registerPrefixWorkspace(t, prefixDB, "approval-00078", t.TempDir())
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}

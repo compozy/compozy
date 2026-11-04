@@ -1942,7 +1942,7 @@ type sessionPromptAdmissionMigrationFixture struct {
 	now                time.Time
 }
 
-func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB, path string) string {
+func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB) string {
 	t.Helper()
 	const (
 		sessionID   = "sess-before-00094"
@@ -1951,11 +1951,9 @@ func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB, pat
 	)
 	ctx := globalMigrationTestContext(t)
 	now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
-	prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: func() time.Time { return now }}
-	prefixGlobalDB.initializeRepositories(openConfig{})
-	workspaceID := registerWorkspaceForGlobalTests(
+	workspaceID := registerPrefixWorkspace(
 		t,
-		prefixGlobalDB,
+		prefixDB,
 		"acp-options-migration",
 		filepath.Join(t.TempDir(), "workspace"),
 	)
@@ -2077,15 +2075,7 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 
 	ctx := globalMigrationTestContext(t)
 	now := time.Date(2026, 7, 31, 14, 0, 0, 0, time.UTC)
-	prefixGlobalDB := &GlobalDB{
-		db: prefixDB, readDB: prefixDB,
-		path: path,
-		now: func() time.Time {
-			return now
-		},
-	}
-	prefixGlobalDB.initializeRepositories(openConfig{})
-	sessionID := registerInputQueueMigrationPrefixSession(t, prefixGlobalDB, now)
+	sessionID := registerInputQueueMigrationPrefixSession(t, prefixDB, now)
 	if _, err := prefixDB.ExecContext(
 		ctx,
 		`INSERT INTO session_input_queue (
@@ -2134,7 +2124,7 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 	if err := applyGlobalMigrationPrefix(t, prefixDB, globalMigrationPrefixBefore(t, "00094_schema.sql")); err != nil {
 		t.Fatalf("Apply(global through 00093) error = %v", err)
 	}
-	runtimeWorkspaceID := seedSessionPromptAdmissionRuntimePrefix(t, prefixDB, path)
+	runtimeWorkspaceID := seedSessionPromptAdmissionRuntimePrefix(t, prefixDB)
 	if err := prefixDB.Close(); err != nil {
 		t.Fatalf("prefixDB.Close() error = %v", err)
 	}
@@ -3147,17 +3137,17 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 	return sessionID
 }
 
-func registerInputQueueMigrationPrefixSession(t *testing.T, globalDB *GlobalDB, now time.Time) string {
+func registerInputQueueMigrationPrefixSession(t *testing.T, prefixDB *sql.DB, now time.Time) string {
 	t.Helper()
 
-	workspaceID := registerWorkspaceForGlobalTests(
+	workspaceID := registerPrefixWorkspace(
 		t,
-		globalDB,
+		prefixDB,
 		"input-queue-workspace",
 		filepath.Join(t.TempDir(), "workspace"),
 	)
 	sessionID := "sess-input-queue"
-	if _, err := globalDB.db.ExecContext(
+	if _, err := prefixDB.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO sessions (
 			id, agent_name, provider, workspace_id, state, created_at, updated_at
