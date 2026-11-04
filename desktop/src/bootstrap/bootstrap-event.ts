@@ -139,3 +139,23 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
   }
   return value as BootstrapEvent;
 }
+
+/** Projects one bootstrap event into its persisted desktop-bootstrap.jsonl diagnostic record. */
+export function bootstrapLogRecord(
+  event: BootstrapEvent,
+  bootId: string,
+  at: Date
+): Record<string, unknown> {
+  return {
+    timestamp: at.toISOString(),
+    level: event.status === "failed" ? "ERROR" : "INFO",
+    boot_id: bootId,
+    message: event.message,
+    phase: event.phase,
+    status: event.status,
+    ...(event.resolution ? { resolution: event.resolution } : {}),
+    ...(event.stage ? { stage: event.stage } : {}),
+    ...(event.pct === undefined ? {} : { pct: event.pct }),
+    ...(event.daemon ? { daemon: event.daemon } : {}),
+  };
+}
