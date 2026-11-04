@@ -177,3 +177,9 @@ routes with daemon-validated agent credentials; expect 403 and
 their existing grant behavior.
 
 QA verification 2026-11-03 (always-on hardening, soh/qa 583415ef5, isolated acpmock lab): Partial. From two always-on mains (`gatekeeper` at approve-edits, `gatekeeper2` at approve-all) native `compozy__tool_approvals_set` and `compozy__tool_approvals_revoke` with valid input both failed `tool_denied`/`policy_denied`. With the always-on main's agent credentials, HTTP and UDS `PUT /api/tool-approval-grants` and `DELETE /api/tool-approval-grants/:id` each returned 403 `tool_approval_grants_denied`; the grant list was byte-identical before and after. The operator still set and revoked a `compozy__notify` grant. Not walked: a nested child of an always-on main, and an unrelated on-demand caller. Evidence: `grants-agent-routes.txt`.
+
+Focused integration receipt 2026-11-03: `TestInstanceNativeCreateJourney` passed using the
+real daemon, SQLite and ACP fixture. The restricted child requests native instance creation,
+the operator resolves its pending permission with `allow-once`, and creation plus conversation
+replacement retain the child's narrower policy ceiling. The fixture no longer treats an
+untrusted `ApprovalGranted` field as an approval decision. No production approval policy changed.
