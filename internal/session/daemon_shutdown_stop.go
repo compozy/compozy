@@ -1,6 +1,10 @@
 package session
 
-import "context"
+import (
+	"context"
+
+	"github.com/compozy/compozy/internal/store"
+)
 
 const (
 	daemonStoppedDetail     = "daemon stopped by user"
@@ -97,4 +101,34 @@ func (m *Manager) classifyDaemonShutdownExit(session *Session, waitErr error) er
 		)
 	}
 	return nil
+}
+
+// skipDaemonShutdownResume settles a turn stopped during daemon shutdown after its restart
+// interruption was captured. The turn was ended deliberately, so restart must not continue it.
+func (m *Manager) skipDaemonShutdownResume(ctx context.Context, session *Session, turnID string) {
+	if !m.daemonShuttingDown() || session == nil || turnID == "" {
+		return
+	}
+	skipCtx, cancel := detachedPromptStopContext(ctx, m)
+	defer cancel()
+	if err := m.appendDaemonShutdownResumeSkip(skipCtx, session, turnID); err != nil {
+		m.sessionLogger(session).Warn("session: skip restart continuation of canceled turn failed",
+			"turn_id", turnID, "error", err)
+	}
+}
+
+func (m *Manager) appendDaemonShutdownResumeSkip(ctx context.Context, session *Session, turnID string) error {
+	rows, err := m.Events(ctx, session.ID, store.EventQuery{
+		ID: restartEventID(turnID, restartInterruptedEvent), Limit: 1,
+	})
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	checkpoint, err := decodeRestartCheckpoint(rows[0])
+	if err != nil {
+		return err
+	}
+	checkpoint.Reason = "turn_canceled"
+	meta := session.Meta()
+	return m.appendRestartEvent(ctx, &meta, restartSkippedEvent, checkpoint, "Turn canceled.")
 }
