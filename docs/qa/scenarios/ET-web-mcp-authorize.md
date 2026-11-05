@@ -4,8 +4,8 @@ area: ET
 title: MCP OAuth authorize/repair flow (browser auto path)
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: Authorize on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
-entry_points: web `/mcp` Authorize action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
+expected: Sign in on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
+entry_points: web `/settings/mcp` Sign in action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
 qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
@@ -21,6 +21,12 @@ story: As a builder I authorize a remote MCP server from the product, following 
 src: docs/design/opendesign/mcp-management.html
 
 inventory: Needs QA
+
+CI repair retest 2026-11-05: the existing `marketplace.spec.ts` browser OAuth journey
+passes against the fake authorization server and an isolated real daemon after selecting
+the current **Sign in** action. The previous **Authorize** selector timed out before
+OAuth began; the later connection refusal came from fixture cleanup. Token exchange
+and scoped-list confirmation assertions remain intact. This does not establish vendor consent.
 
 Historical QA note: the begin-attempt race and truthful begin-failure recovery remain pending.
 
