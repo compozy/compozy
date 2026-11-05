@@ -6,7 +6,7 @@ import {
 // Invariant: one Marketplace surface reflects complete catalog and installed inventory truth.
 // Owner: Marketplace components; canonical suite for browse/card/logo/shelf and source install.
 // HTTP and notification boundaries are mocked; routing, query hooks, and UI primitives run normally.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   createRoute,
@@ -427,6 +427,29 @@ describe("Marketplace page and cards", () => {
       await within(editor).findByText('An MCP server named "outside" already exists.')
     ).toBeVisible();
     expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+  });
+  it("Should keep a new MCP server's save blocked while its list refetch is paused offline", async () => {
+    setup(undefined, "/marketplace?kind=mcps");
+    await screen.findByTestId("settings-page-mcp-servers-list");
+    onlineManager.setOnline(false);
+    try {
+      await userEvent.click(screen.getByRole("button", { name: "Add MCP server" }));
+      const editor = await screen.findByTestId("settings-mcp-servers-editor");
+      await userEvent.type(
+        within(editor).getByTestId("settings-mcp-servers-editor-name-input"),
+        "offline-one"
+      );
+      await userEvent.type(
+        within(editor).getByTestId("settings-mcp-servers-editor-command-input"),
+        "npx"
+      );
+      expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+    await waitFor(() =>
+      expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeEnabled()
+    );
   });
   it("Should explain a failed server list inside the editor and retry it without losing the draft", async () => {
     setup(undefined, "/marketplace?kind=mcps");

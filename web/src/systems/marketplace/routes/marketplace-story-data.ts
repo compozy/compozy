@@ -495,6 +495,13 @@ export function marketplaceStoryHandlers(options: {
                 section: "mcp-servers",
               });
             }),
+            compozyApiMock.delete("/api/settings/mcp-servers/{name}", ({ params }) => {
+              mcpServers = (mcpServers ?? []).filter(server => server.name !== String(params.name));
+              return HttpResponse.json({
+                ...settingsAppliedMutationFixture,
+                section: "mcp-servers",
+              });
+            }),
           ],
         }
       : {}),

@@ -44,8 +44,9 @@ export function useMCPServerManagement({
   const collection = useSettingsMCPServers(filter, { enabled });
   const servers = collection.data?.mcp_servers ?? [];
   // A create checks names against a list refetched when the editor opens, never a stale cache.
+  // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
   const serversReady =
-    collection.data !== undefined && !collection.isFetching && !collection.isError;
+    collection.data !== undefined && collection.fetchStatus === "idle" && !collection.isError;
   const editor = useMCPEditor({
     enabled: true,
     scope: filter.scope ?? "user",
