@@ -100,3 +100,5 @@ fake script (one reports `Logged in`, one reports `not logged in`), plus an alia
 Automated evidence: `internal/daemon` `TestProviderAuthStartup`, `internal/providers`
 `TestRunAuthStatusProbe`, `internal/cli` `TestProviderAuthStatusProbeSource`, the existing probe
 route tests in `internal/api/core`, and the web `provider-detail-dialog` and `provider-logo-key` tests.
+
+Verification 2026-11-05: isolated lab walk PASS (startup probe after two restarts, `probe_source` daemon/local/stopped, flag conflict, Ready success dot, alias logo). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.

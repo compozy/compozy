@@ -178,3 +178,5 @@ Isolated lab only: a loopback usage fixture that counts requests per account hea
 Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
 `TestUsageSharedAccountCollection`, the `rateLimitUntil` table in `TestFoundations`, and the
 pre-existing ownership, read-fence, and scheduling suites (race-enabled).
+
+Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
