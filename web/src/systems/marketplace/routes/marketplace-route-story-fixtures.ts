@@ -6,12 +6,14 @@ import {
   installedListing,
   localExtension,
   storyCatalog,
-  storyContext7Server,
-  storyGithubServer,
-  storyPostgresServer,
   storyMarketplacePlugins,
   storySources,
 } from "./marketplace-story-data";
+import {
+  storyContext7Server,
+  storyGithubServer,
+  storyPostgresServer,
+} from "./marketplace-story-servers";
 
 export const herdrInstalled = installedListing(storyCatalog.herdrBridge, {
   installedVersion: "0.3.2",

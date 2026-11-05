@@ -22,8 +22,8 @@ import {
   installedListing,
   marketplaceStoryHandlers,
   storyCatalog,
-  storyGithubServer,
 } from "./marketplace-story-data";
+import { storyGithubServer } from "./marketplace-story-servers";
 
 const slackNotifyDetail = marketplaceCatalogDetailFixture("slack-notify")!;
 
