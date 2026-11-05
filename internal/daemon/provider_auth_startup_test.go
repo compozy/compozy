@@ -47,6 +47,30 @@ func newStartupProbeFixture(run providers.ProviderAuthCommandRunner, installed .
 	return f
 }
 
+// runWith serves cfg as the active configuration for one startup check.
+func (f *startupProbeFixture) runWith(ctx context.Context, cfg *compozyconfig.Config) {
+	f.check.config = func(context.Context) (compozyconfig.Config, error) { return *cfg, nil }
+	f.check.run(ctx)
+}
+
+// liveConfig is an active configuration a test edits while the startup check runs.
+type liveConfig struct {
+	mu  sync.Mutex
+	cfg compozyconfig.Config
+}
+
+func (l *liveConfig) read(context.Context) (compozyconfig.Config, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return compozyconfig.CloneConfig(&l.cfg), nil
+}
+
+func (l *liveConfig) setProvider(name string, provider compozyconfig.ProviderConfig) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.cfg.Providers[name] = provider
+}
+
 func nativeStatusProvider(name string) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
 		Command:       name + " acp",
@@ -76,7 +100,7 @@ func TestProviderAuthStartup(t *testing.T) {
 			"acmein":  nativeStatusProvider("acmein"),
 			"acmeout": nativeStatusProvider("acmeout"),
 		})
-		f.check.run(t.Context(), cfg)
+		f.runWith(t.Context(), cfg)
 		in, ok := f.verdicts.Lookup("acmein", cfg.Providers["acmein"])
 		if !ok || in.Classification.State != providers.ProviderAuthStateAuthenticated {
 			t.Fatalf("acmein verdict = %#v, %v; want authenticated", in, ok)
@@ -113,7 +137,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		}
 		cfg := startupConfig(configs)
 		done := make(chan struct{})
-		go func() { f.check.run(t.Context(), cfg); close(done) }()
+		go func() { f.runWith(t.Context(), cfg); close(done) }()
 		<-started
 		<-started
 		close(gate)
@@ -148,7 +172,7 @@ func TestProviderAuthStartup(t *testing.T) {
 			providers.Classification{State: providers.ProviderAuthStateAuthenticated},
 			time.Now(),
 		)
-		f.check.run(t.Context(), startupConfig(map[string]compozyconfig.ProviderConfig{
+		f.runWith(t.Context(), startupConfig(map[string]compozyconfig.ProviderConfig{
 			"missing": nativeStatusProvider("missing"),
 			"acponly": acpOnly,
 			"secret":  secret,
@@ -173,7 +197,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		cfg := startupConfig(map[string]compozyconfig.ProviderConfig{"slow": nativeStatusProvider("slow")})
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})
-		go func() { f.check.run(ctx, cfg); close(done) }()
+		go func() { f.runWith(ctx, cfg); close(done) }()
 		<-entered
 		cancel()
 		<-done
@@ -190,7 +214,7 @@ func TestProviderAuthStartup(t *testing.T) {
 			return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
 		}, "acme")
 		provider := nativeStatusProvider("acme")
-		f.check.run(t.Context(), startupConfig(map[string]compozyconfig.ProviderConfig{"acme": provider}))
+		f.runWith(t.Context(), startupConfig(map[string]compozyconfig.ProviderConfig{"acme": provider}))
 		env, err := f.check.envFor("acme", provider)
 		if err != nil {
 			t.Fatal(err)
@@ -202,6 +226,72 @@ func TestProviderAuthStartup(t *testing.T) {
 		applied, checkedAt := f.verdicts.Apply("acme", provider, declared)
 		if applied.State != providers.ProviderAuthStateAuthenticated || checkedAt.IsZero() {
 			t.Fatalf("Apply = %q at %v, want authenticated with a check time", applied.State, checkedAt)
+		}
+	})
+
+	t.Run("Should keep a newer verdict for a provider edited while it waited in the queue", func(t *testing.T) {
+		t.Parallel()
+		started := make(chan struct{}, 4)
+		gate := make(chan struct{})
+		f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
+			providers.ProviderAuthCommandResult, error,
+		) {
+			started <- struct{}{}
+			<-gate
+			return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+		}, "p1", "p2", "p3")
+		live := &liveConfig{cfg: *startupConfig(map[string]compozyconfig.ProviderConfig{
+			"p1": nativeStatusProvider("p1"),
+			"p2": nativeStatusProvider("p2"),
+			"p3": nativeStatusProvider("p3"),
+		})}
+		f.check.config = live.read
+		done := make(chan struct{})
+		go func() { f.check.run(t.Context()); close(done) }()
+		<-started
+		<-started
+		edited := nativeStatusProvider("p3")
+		edited.AuthStatusCmd = "p3 auth status --json"
+		live.setProvider("p3", edited)
+		f.verdicts.Record(
+			"p3",
+			edited,
+			providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
+			time.Now(),
+		)
+		close(gate)
+		<-done
+		verdict, ok := f.verdicts.Lookup("p3", edited)
+		if !ok || verdict.Classification.State != providers.ProviderAuthStateNeedsLogin {
+			t.Fatalf("p3 verdict = %#v, %v; want the newer needs_login verdict kept", verdict, ok)
+		}
+	})
+
+	t.Run("Should not record a probe whose provider changed while it ran", func(t *testing.T) {
+		t.Parallel()
+		entered := make(chan struct{})
+		gate := make(chan struct{})
+		var once sync.Once
+		f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
+			providers.ProviderAuthCommandResult, error,
+		) {
+			once.Do(func() { close(entered) })
+			<-gate
+			return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+		}, "acme")
+		original := nativeStatusProvider("acme")
+		live := &liveConfig{cfg: *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": original})}
+		f.check.config = live.read
+		done := make(chan struct{})
+		go func() { f.check.run(t.Context()); close(done) }()
+		<-entered
+		edited := original
+		edited.AuthStatusCmd = "acme auth status --json"
+		live.setProvider("acme", edited)
+		close(gate)
+		<-done
+		if _, ok := f.verdicts.Lookup("acme", original); ok {
+			t.Fatal("startup check recorded a verdict for the replaced provider settings")
 		}
 	})
 }

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,6 +24,9 @@ type providerAuthStartup struct {
 	envFor   func(string, config.ProviderConfig) (providers.ProbeEnv, error)
 	logger   *slog.Logger
 	now      func() time.Time
+	// config reads the active configuration, so a provider edited during the check is not probed
+	// or recorded with its boot-time settings.
+	config func(context.Context) (config.Config, error)
 }
 
 // bootProviderAuthStartup runs the startup sign-in check as an owned worker that shutdown joins.
@@ -45,8 +49,8 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 		},
 		logger: state.logger,
 		now:    func() time.Time { return d.now().UTC() },
+		config: activeConfigSource(state),
 	}
-	cfg := config.CloneConfig(&state.cfg)
 	workerCtx, cancel := context.WithCancel(ctx)
 	worker := newOwnedWorkerGroup(cancel)
 	complete, ok := worker.Begin()
@@ -61,18 +65,33 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 	go func() {
 		defer complete()
 		defer cancel()
-		check.run(workerCtx, &cfg)
+		check.run(workerCtx)
 	}()
 	return nil
 }
 
-func (p providerAuthStartup) run(ctx context.Context, cfg *config.Config) {
+// activeConfigSource reads settings' active configuration, falling back to the boot snapshot.
+func activeConfigSource(state *bootState) func(context.Context) (config.Config, error) {
+	if source, ok := state.deps.Settings.(interface {
+		ActiveConfig(context.Context) (config.Config, error)
+	}); ok {
+		return source.ActiveConfig
+	}
+	snapshot := config.CloneConfig(&state.cfg)
+	return func(context.Context) (config.Config, error) { return config.CloneConfig(&snapshot), nil }
+}
+
+func (p providerAuthStartup) run(ctx context.Context) {
+	cfg, err := p.config(ctx)
+	if err != nil {
+		p.logger.Warn("provider_auth.startup_probe", "error", err)
+		return
+	}
 	limit := make(chan struct{}, providerAuthStartupConcurrency)
 	var wg sync.WaitGroup
 	var probed, skipped atomic.Int32
-	for _, name := range config.ProviderInventoryNames(cfg) {
-		provider, err := cfg.ResolveProvider(name)
-		if err != nil || !p.eligible(name, provider) {
+	for _, name := range config.ProviderInventoryNames(&cfg) {
+		if provider, err := cfg.ResolveProvider(name); err != nil || !statusCommandProvider(provider) {
 			skipped.Add(1)
 			continue
 		}
@@ -84,7 +103,7 @@ func (p providerAuthStartup) run(ctx context.Context, cfg *config.Config) {
 		}
 		wg.Go(func() {
 			defer func() { <-limit }()
-			if p.probe(ctx, name, provider) {
+			if p.probe(ctx, name) {
 				probed.Add(1)
 				return
 			}
@@ -97,18 +116,32 @@ func (p providerAuthStartup) run(ctx context.Context, cfg *config.Config) {
 	}
 }
 
-// eligible skips ACP-only providers, which would start a full agent.
-func (p providerAuthStartup) eligible(name string, provider config.ProviderConfig) bool {
-	if provider.EffectiveAuthMode() != config.ProviderAuthModeNativeCLI ||
-		strings.TrimSpace(provider.AuthStatusCmd) == "" {
-		return false
-	}
-	_, known := p.verdicts.Lookup(name, provider)
-	return !known
+// statusCommandProvider skips ACP-only providers, which would start a full agent.
+func statusCommandProvider(provider config.ProviderConfig) bool {
+	return provider.EffectiveAuthMode() == config.ProviderAuthModeNativeCLI &&
+		strings.TrimSpace(provider.AuthStatusCmd) != ""
 }
 
-// probe runs one status command and records its verdict unless the check was canceled.
-func (p providerAuthStartup) probe(ctx context.Context, name string, provider config.ProviderConfig) bool {
+// currentProvider resolves the provider from the active configuration at this moment.
+func (p providerAuthStartup) currentProvider(ctx context.Context, name string) (config.ProviderConfig, bool) {
+	cfg, err := p.config(ctx)
+	if err != nil {
+		return config.ProviderConfig{}, false
+	}
+	provider, err := cfg.ResolveProvider(name)
+	return provider, err == nil && statusCommandProvider(provider)
+}
+
+// probe runs one status command against the active configuration and records its verdict unless
+// the check was canceled or the provider changed meanwhile.
+func (p providerAuthStartup) probe(ctx context.Context, name string) bool {
+	provider, ok := p.currentProvider(ctx, name)
+	if !ok {
+		return false
+	}
+	if _, known := p.verdicts.Lookup(name, provider); known {
+		return false
+	}
 	env, err := p.envFor(name, provider)
 	if err != nil {
 		p.logger.Warn("provider_auth.startup_probe", "provider", name, "error", err)
@@ -133,6 +166,9 @@ func (p providerAuthStartup) probe(ctx context.Context, name string, provider co
 	if !result.Ran {
 		p.logger.Info("provider_auth.startup_probe", "provider", name, "state", result.Classification.State,
 			"error_code", result.Classification.Code)
+		return false
+	}
+	if current, ok := p.currentProvider(ctx, name); !ok || !reflect.DeepEqual(current, provider) {
 		return false
 	}
 	p.verdicts.Record(name, provider, result.Classification, result.StartedAt)

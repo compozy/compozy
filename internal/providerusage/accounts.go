@@ -142,9 +142,12 @@ func (s *Manager) joinAccountLocked(
 	if entry.call != nil {
 		return entry, entry.call, nil
 	}
-	// Only an explicit flight that admission granted the bypass may collect during a cooldown.
-	if c := s.activeCooldownLocked(key, now); c != nil && (intent != IntentExplicit || !c.bypassed) {
-		return entry, nil, &accountCall{outcome: RateLimited(target.ProviderName, c.until)}
+	// One explicit flight per cooldown streak spends the bypass, in the same step as its request.
+	if c := s.activeCooldownLocked(key, now); c != nil {
+		if intent != IntentExplicit || c.bypassed {
+			return entry, nil, &accountCall{outcome: RateLimited(target.ProviderName, c.until)}
+		}
+		c.bypassed = true
 	}
 	return entry, nil, nil
 }

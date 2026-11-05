@@ -41,8 +41,8 @@ func (s *Manager) admitLocked(
 	if c == nil {
 		return true, nil, false
 	}
+	// The bypass itself is spent atomically with the request in joinAccountLocked.
 	if intent == IntentExplicit && !c.bypassed {
-		c.bypassed = true
 		return true, nil, false
 	}
 	outcome := RateLimited(target.ProviderName, c.until)

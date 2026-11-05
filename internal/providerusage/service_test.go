@@ -2136,6 +2136,20 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		requireEqual(t, StatusRateLimited, env.Targets[0].Status)
 		requireEqual(t, f.clock.Now().Add(10*time.Minute), *env.Targets[0].NextRefreshAt)
 	})
+	t.Run("Should spend the bypass once for explicit flights already past admission", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		env := refreshFixture(t, f, IntentBackground)
+		key := newAccountKey("personal", f.target, f.service.profiles["personal"].targets["codex"].identity)
+		f.service.mu.Lock()
+		_, _, first := f.service.joinAccountLocked(key, f.target, IntentExplicit, 30*time.Second)
+		_, _, second := f.service.joinAccountLocked(key, f.target, IntentExplicit, 30*time.Second)
+		f.service.mu.Unlock()
+		requireEqual(t, (*accountCall)(nil), first)
+		requireEqual(t, ErrorCodeProviderRateLimited, second.outcome.Code)
+		requireEqual(t, *env.Targets[0].NextRefreshAt, *second.outcome.RetryAfter)
+	})
 }
 
 // refreshBoth refreshes two profiles while the first request is held open until the second joins it.
