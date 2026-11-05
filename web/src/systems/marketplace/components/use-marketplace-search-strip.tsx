@@ -46,8 +46,12 @@ function useMarketplaceSearchStrip({
         to,
       }),
   });
-  const switchKind = (next: MarketplaceKind) =>
-    void navigate({ search: { kind: kindParam(next), q: query || undefined }, to });
+  /** Carries the typed draft into the next kind and cancels its pending commit for the old one. */
+  const switchKind = (next: MarketplaceKind) => {
+    const q = draft.draftValue.trim();
+    draft.reset(q);
+    void navigate({ search: { kind: kindParam(next), q: q || undefined }, to });
+  };
   const toolbar = (
     <ListingToolbar>
       <ListingToolbar.Leading>

@@ -66,6 +66,7 @@ reached through the **Plugins | MCPs** toggle beside the Marketplace search. It 
 server table, status cells, and per-row Authorize/Reauthorize (or Sign in) and edit actions as
 Settings › MCP servers, from the same `GET /api/settings/mcp-servers` read; the retired
 `/marketplace/mcps` card path stays not-found. Walk the matrix in both entry points and confirm they
-agree row for row. Targeted verification: the Marketplace component suite and the
+agree row for row. A save that needs a daemon restart shows the same restart notice
+and **Restart CompozyOS** action in the MCPs view as in Settings. Targeted verification: the Marketplace component suite and the
 `McpServers`/`McpServersSearch` Storybook stories rendered the nine-server matrix in Chromium; a live
 walk remains outstanding.

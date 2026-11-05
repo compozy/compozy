@@ -244,6 +244,7 @@ export {
   MCPServersTableSkeleton,
   MCPServersManagementBody,
   MCPServersManagementDialogs,
+  SettingsPageRestartNotice,
   mcpServerRowTestId,
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,

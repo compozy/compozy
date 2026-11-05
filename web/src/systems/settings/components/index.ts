@@ -14,6 +14,7 @@ export type { MCPOverrideEditorProps } from "./mcp-override-editor";
 export { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
 export { MCPServersManagementBody, MCPServersManagementDialogs } from "./mcp-servers-management";
+export { SettingsPageRestartNotice } from "./settings-page-restart-notice";
 export {
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,

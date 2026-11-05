@@ -11,7 +11,11 @@ import {
 } from "@compozy/ui";
 
 import type { MarketplaceSearch } from "../lib/marketplace-search";
-import { MCPServersManagementBody, MCPServersManagementDialogs } from "@/systems/settings";
+import {
+  MCPServersManagementBody,
+  MCPServersManagementDialogs,
+  SettingsPageRestartNotice,
+} from "@/systems/settings";
 import { MarketplaceAddMenu } from "./marketplace-add-menu";
 import { MarketplaceResults } from "./marketplace-results";
 import { MARKETPLACE_PAGE_BODY_CLASS } from "./marketplace-classes";
@@ -87,7 +91,10 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
     <ListingPage data-kind={kind} data-testid="marketplace-page">
       <div className={MARKETPLACE_PAGE_BODY_CLASS}>
         {kind === "mcps" ? (
-          <MCPServersManagementBody management={mcp} />
+          <>
+            <SettingsPageRestartNotice slug="mcp" />
+            <MCPServersManagementBody management={mcp} />
+          </>
         ) : (
           <MarketplaceResults
             actions={actions}

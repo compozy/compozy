@@ -26,7 +26,7 @@ import type { ReactNode } from "react";
 import { TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
-import { handlers as statusHandlers } from "@/systems/status/mocks";
+import { handlers as statusHandlers, statusFixture } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
 import type { ExtensionEntry, InstalledExtensionView } from "@/systems/extensions";
 import { marketplaceCatalogFixture } from "../../mocks";
@@ -314,6 +314,33 @@ describe("Marketplace page and cards", () => {
     await userEvent.click(screen.getByTestId("marketplace-kind-plugins"));
     await waitFor(() => expect(router.state.location.search).toEqual({ q: "git" }));
     expect(await screen.findByRole("searchbox", { name: "Search extensions" })).toHaveValue("git");
+  });
+  it("Should carry a pending search draft into the selected kind instead of reverting it", async () => {
+    const { router } = setup();
+    await screen.findByTestId("marketplace-page");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search extensions" }), {
+      target: { value: "sentry" },
+    });
+    await userEvent.click(screen.getByTestId("marketplace-kind-mcps"));
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" })
+    );
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" });
+    expect(screen.getByRole("searchbox", { name: "Search MCP servers" })).toHaveValue("sentry");
+  });
+  it("Should offer the daemon restart in the MCPs view when a saved change needs one", async () => {
+    server.use(
+      http.get("*/api/status", () =>
+        HttpResponse.json({
+          ...statusFixture,
+          config: { ...statusFixture.config, restart_required: true },
+        })
+      )
+    );
+    setup(undefined, "/marketplace?kind=mcps");
+    expect(await screen.findByTestId("settings-page-mcp-restart-notice")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Restart CompozyOS" })).toBeVisible();
   });
   it("Should open the MCP server editor over the MCPs view from Add ▾", async () => {
     const { router } = setup();
