@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -3223,16 +3224,29 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		home := testHomePaths(t)
 		sessions := &nativeSessionAgentManager{
-			StubSessionManager: *nativeTestSessionManager(""),
-			agent:              testPromptAgent("Read the bundled skill resource."),
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
+					State: session.StateActive, EffectivePermissions: string(workspaceaccess.ModeApproveReads),
+				}, nil
+			},
+			agent: testPromptAgent("Read the bundled skill resource."),
+		}
+		facts, err := newWorkspaceAccessModeSource(sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(workspaceaccess.Deps{
+			Facts: facts, Consent: newWorkspaceAccessConsentCache(),
+			Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler),
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
 			Skills: skillRegistry, HomePaths: home, Sessions: sessions,
 			SkillExposures: openDaemonTestGlobalDB(t),
-		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
-			&recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{
-				Allowed: true, Source: workspaceaccess.SourceSameWorkspace,
-			}})
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
 		for _, tc := range []struct{ name, input string }{
 			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`},
 			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`},
