@@ -483,12 +483,8 @@ export function marketplaceStoryHandlers(options: {
               mcpServers = [
                 ...(mcpServers ?? []).filter(server => server.name !== name),
                 // An edit keeps its row's provenance; a new one reads as a personal settings-file
-                // row. Either way the saved connection (`body.server`) wins.
-                {
-                  ...(existing ?? settingsMCPServersCollectionFixture.mcp_servers[0]!),
-                  ...body.server,
-                  name,
-                } as SettingsMCPServerEntry,
+                // row. The saved connection wins, projected into the read shape the editor reopens.
+                storyMCPRow(existing ?? settingsMCPServersCollectionFixture.mcp_servers[0]!, body),
               ];
               return HttpResponse.json({
                 ...settingsAppliedMutationFixture,
@@ -506,4 +502,30 @@ export function marketplaceStoryHandlers(options: {
         }
       : {}),
   });
+}
+
+/** The read row the daemon would return for a saved write: connection fields plus key names. */
+function storyMCPRow(
+  base: SettingsMCPServerEntry,
+  body: SettingsMCPServerRequest
+): SettingsMCPServerEntry {
+  const { server } = body;
+  const unique = (keys: string[]) => [...new Set(keys)].sort();
+  const envKeys = unique([...Object.keys(server.env ?? {}), ...(body.preserve_env ?? [])]);
+  const secretEnvKeys = unique([
+    ...Object.keys(server.secret_env ?? {}),
+    ...(body.preserve_secrets?.secret_env ?? []),
+    ...Object.keys(body.secret_values?.secret_env ?? {}),
+  ]);
+  return {
+    ...base,
+    name: server.name,
+    transport: server.transport ?? base.transport,
+    command: server.command,
+    args: server.args,
+    url: server.url,
+    auth: server.auth ? { ...server.auth, client_secret_configured: false } : null,
+    env_keys: envKeys.length > 0 ? envKeys : undefined,
+    secret_env_keys: secretEnvKeys.length > 0 ? secretEnvKeys : undefined,
+  };
 }
