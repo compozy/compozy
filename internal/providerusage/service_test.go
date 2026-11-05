@@ -797,10 +797,12 @@ func TestUsageService(t *testing.T) {
 			w.Header().Set("Retry-After", "120")
 			w.WriteHeader(429)
 		})
-		refreshFixture(t, f, IntentBackground)
+		first := refreshFixture(t, f, IntentBackground)
+		requireEqual(t, f.clock.Now().Add(5*time.Minute), *first.Targets[0].NextRefreshAt)
 		refreshFixture(t, f, IntentBackground)
 		requireEqual(t, int32(1), calls.Load())
-		refreshFixture(t, f, IntentExplicit)
+		bypassed := refreshFixture(t, f, IntentExplicit)
+		requireEqual(t, f.clock.Now().Add(10*time.Minute), *bypassed.Targets[0].NextRefreshAt)
 		refreshFixture(t, f, IntentExplicit)
 		requireEqual(t, int32(2), calls.Load())
 		requireNoError(
@@ -2011,4 +2013,132 @@ func BenchmarkUsageCredentialReadCached(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func refreshProfile(t *testing.T, f serviceFixture, profile string, intent Intent) Envelope {
+	t.Helper()
+	env, err := f.service.Refresh(
+		t.Context(),
+		RefreshRequest{Wait: 15 * time.Second, ProfileID: profile, Intent: intent},
+	)
+	requireNoError(t, err)
+	return env
+}
+
+// addProfileTarget gives another profile a target that reads the fixture account's auth file.
+func addProfileTarget(f serviceFixture, profile string) Target {
+	target := f.target
+	target.ProfileID = profile
+	f.catalog.Replace(profile, []Target{target})
+	return target
+}
+
+func rateLimitedFixture(t *testing.T, calls *atomic.Int32, ok *atomic.Bool) serviceFixture {
+	t.Helper()
+	return usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		if ok != nil && ok.Load() {
+			writeFixture(w, t, codexHTTPFixture)
+			return
+		}
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+}
+
+func TestUsageRateLimitBackoff(t *testing.T) {
+	t.Run("Should cool down a zero Retry-After for the floor without a request", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		env := refreshFixture(t, f, IntentBackground)
+		until := f.clock.Now().Add(5 * time.Minute)
+		requireEqual(t, StatusRateLimited, env.Targets[0].Status)
+		requireEqual(t, until, *env.Targets[0].NextRefreshAt)
+		requireEqual(t, until, *env.Targets[0].Error.RetryAfter)
+		f.clock.Advance(5*time.Minute - time.Second)
+		refreshFixture(t, f, IntentBackground)
+		requireEqual(t, int32(1), calls.Load())
+		f.clock.Advance(2 * time.Second)
+		refreshFixture(t, f, IntentBackground)
+		requireEqual(t, int32(2), calls.Load())
+	})
+	t.Run("Should back off repeated rate limits exponentially up to one hour", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		for _, want := range []time.Duration{5, 10, 20, 40, 60, 60} {
+			env := refreshFixture(t, f, IntentBackground)
+			requireEqual(t, f.clock.Now().Add(want*time.Minute), *env.Targets[0].NextRefreshAt)
+			f.clock.Advance(want * time.Minute)
+		}
+		requireEqual(t, int32(6), calls.Load())
+	})
+	t.Run("Should restart the backoff at the floor after a success", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		var ok atomic.Bool
+		f := rateLimitedFixture(t, &calls, &ok)
+		refreshFixture(t, f, IntentBackground)
+		f.clock.Advance(5 * time.Minute)
+		refreshFixture(t, f, IntentBackground)
+		f.clock.Advance(10 * time.Minute)
+		ok.Store(true)
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+		ok.Store(false)
+		f.clock.Advance(time.Minute)
+		env := refreshFixture(t, f, IntentBackground)
+		requireEqual(t, f.clock.Now().Add(5*time.Minute), *env.Targets[0].NextRefreshAt)
+		requireEqual(t, int32(4), calls.Load())
+	})
+	t.Run("Should keep collecting another account while one cools down", func(t *testing.T) {
+		t.Parallel()
+		var limited, other atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("ChatGPT-Account-Id") == "account-a" {
+				limited.Add(1)
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			other.Add(1)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		second := codexTarget(t, "account-b", f.clock.Now().Add(24*time.Hour))
+		second.ProviderID, second.CollectorID = "codex-b", codexProviderID
+		f.catalog.Replace("personal", []Target{f.target, second})
+		refreshFixture(t, f, IntentBackground)
+		f.clock.Advance(time.Minute)
+		env := refreshFixture(t, f, IntentBackground)
+		requireEqual(t, int32(1), limited.Load())
+		requireEqual(t, int32(2), other.Load())
+		requireEqual(t, StatusRateLimited, env.Targets[0].Status)
+		requireEqual(t, StatusOK, env.Targets[1].Status)
+	})
+	t.Run("Should drop the backoff when consent is cleared or usage is re-enabled", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		refreshFixture(t, f, IntentBackground)
+		f.service.ClearCredentials("", codexProviderID)
+		refreshFixture(t, f, IntentBackground)
+		requireEqual(t, int32(2), calls.Load())
+		requireNoError(t, f.service.SetEnabled(t.Context(), false))
+		requireNoError(t, f.service.SetEnabled(t.Context(), true))
+		env := refreshFixture(t, f, IntentBackground)
+		requireEqual(t, int32(3), calls.Load())
+		requireEqual(t, f.clock.Now().Add(5*time.Minute), *env.Targets[0].NextRefreshAt)
+	})
+	t.Run("Should spend one explicit bypass per account across profiles", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		addProfileTarget(f, "work")
+		refreshProfile(t, f, "personal", IntentBackground)
+		refreshProfile(t, f, "personal", IntentExplicit)
+		requireEqual(t, int32(2), calls.Load())
+		env := refreshProfile(t, f, "work", IntentExplicit)
+		requireEqual(t, int32(2), calls.Load())
+		requireEqual(t, StatusRateLimited, env.Targets[0].Status)
+		requireEqual(t, f.clock.Now().Add(10*time.Minute), *env.Targets[0].NextRefreshAt)
+	})
 }

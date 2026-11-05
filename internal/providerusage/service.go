@@ -21,6 +21,7 @@ type Manager struct {
 	mu        sync.Mutex
 	options   Options
 	profiles  map[string]*profileState
+	accounts  map[accountKey]*accountState
 	root      context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
@@ -52,13 +53,8 @@ type targetState struct {
 	hasIdentity   bool
 	lastSuccess   time.Time
 	flight        *flight
-	cooldown      *cooldown
-}
-
-type cooldown struct {
-	identity CredentialIdentity
-	until    time.Time
-	bypassed bool
+	// cooldownUntil is the identity cooldown end this target last published.
+	cooldownUntil time.Time
 }
 type flight struct {
 	cancel   context.CancelFunc
@@ -87,6 +83,7 @@ func NewService(options Options) *Manager {
 	return &Manager{
 		options:  options,
 		profiles: make(map[string]*profileState),
+		accounts: make(map[accountKey]*accountState),
 		root:     root,
 		cancel:   cancel,
 		bootID:   "b_" + hex.EncodeToString(id[:]),
@@ -161,7 +158,7 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 			state.hasIdentity = false
 			state.readFence = nil
 			state.lastSuccess = time.Time{}
-			state.cooldown = nil
+			state.cooldownUntil = time.Time{}
 			changed = true
 		}
 		if target.Status != "" && state.flight != nil {

@@ -96,6 +96,7 @@ func (s *Manager) schedule(ctx context.Context, run *scheduleRun) {
 		s.mu.Lock()
 		run.initial = false
 		run.timer.Reset(s.options.RefreshInterval)
+		s.pruneAccountsLocked(s.options.Clock.Now())
 		profiles := make([]string, 0, len(s.profiles))
 		for profile := range s.profiles {
 			profiles = append(profiles, profile)
@@ -166,6 +167,7 @@ func (s *Manager) SetEnabled(ctx context.Context, enabled bool) error {
 }
 
 func (s *Manager) dropLocked() {
+	s.forgetAccountsLocked("")
 	for _, p := range s.profiles {
 		p.targets = make(map[string]*targetState)
 		p.order = nil
@@ -196,6 +198,7 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.forgetAccountsLocked(collectorID)
 	for profile, p := range s.profiles {
 		if profileID != "" && profile != profileID {
 			continue
@@ -209,7 +212,7 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 			state.snapshot = initialSnapshot(state.target, s.options.Collectors[collectorID])
 			state.hasIdentity = false
 			state.lastSuccess = time.Time{}
-			state.cooldown = nil
+			state.cooldownUntil = time.Time{}
 			changed = true
 		}
 		if changed {
@@ -241,8 +244,8 @@ func (s *Manager) SetRefreshInterval(interval time.Duration) {
 				continue
 			}
 			next := now.Add(interval)
-			if row.cooldown != nil && row.cooldown.until.After(next) {
-				next = row.cooldown.until
+			if row.cooldownUntil.After(next) {
+				next = row.cooldownUntil
 			}
 			row.snapshot.NextRefreshAt = &next
 			if row.snapshot.Error == nil {

@@ -85,6 +85,29 @@ func TestFoundations(t *testing.T) {
 			requireEqual(t, now.Add(tc.delay), ParseRetryAfter(tc.header, now))
 		}
 	})
+	t.Run("Should floor and back off rate limit cooldowns up to the cap", func(t *testing.T) {
+		t.Parallel()
+		now := fixtureClock(t).Now()
+		at := func(d time.Duration) *time.Time { return new(now.Add(d)) }
+		for _, tc := range []struct {
+			retryAfter *time.Time
+			strikes    int
+			delay      time.Duration
+		}{
+			{at(0), 1, 5 * time.Minute},
+			{at(2 * time.Minute), 1, 5 * time.Minute},
+			{at(30 * time.Minute), 1, 30 * time.Minute},
+			{at(0), 2, 10 * time.Minute},
+			{at(0), 3, 20 * time.Minute},
+			{at(0), 4, 40 * time.Minute},
+			{at(0), 5, time.Hour},
+			{at(0), 64, time.Hour},
+			{nil, 1, 5 * time.Minute},
+			{at(2 * time.Hour), 1, time.Hour},
+		} {
+			requireEqual(t, now.Add(tc.delay), rateLimitUntil(now, tc.retryAfter, tc.strikes))
+		}
+	})
 }
 
 func requireNoError(t *testing.T, err error) {
