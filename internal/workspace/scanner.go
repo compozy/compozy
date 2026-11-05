@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -295,7 +296,11 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 	return nil
 }
 
-func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconfig.AgentDef, []AgentDiagnostic, error) {
+func loadAgents(
+	ctx context.Context,
+	candidates []agentCandidate,
+	logger *slog.Logger,
+) ([]compozyconfig.AgentDef, []AgentDiagnostic, error) {
 	if len(candidates) == 0 {
 		return nil, nil, nil
 	}
@@ -315,7 +320,7 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconf
 			continue
 		}
 
-		agent, err := compozyconfig.LoadAgentDefFile(candidate.path)
+		agent, err := loadAgentCandidate(candidate, logger)
 		if err != nil {
 			diagnostics = append(diagnostics, agentDiagnosticFromError(candidate.path, err))
 			continue
@@ -339,6 +344,37 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconf
 	}
 
 	return agents, diagnostics, nil
+}
+
+// loadAgentCandidate loads one AGENT.md. When a user-owned file fails only because it still carries
+// the retired agent kind, it runs the #1239 user-state migration on that file and loads it again.
+// Daemon-owned home roots migrate at boot, and the migration never runs on a file that loads.
+func loadAgentCandidate(candidate agentCandidate, logger *slog.Logger) (compozyconfig.AgentDef, error) {
+	agent, err := compozyconfig.LoadAgentDefFile(candidate.path)
+	if err == nil || !errors.Is(err, compozyconfig.ErrAgentKindInvalid) || !userOwnedAgentSource(candidate.source) {
+		return agent, err
+	}
+	agentDir := filepath.Dir(candidate.path)
+	migrated, migrateErr := compozyconfig.MigrateRetiredAgentKind(
+		filepath.Dir(agentDir),
+		filepath.Base(agentDir),
+		logger,
+	)
+	if migrateErr != nil || !migrated {
+		return agent, err
+	}
+	return compozyconfig.LoadAgentDefFile(candidate.path)
+}
+
+func userOwnedAgentSource(source compozyconfig.WorkspaceDiscoverySource) bool {
+	switch source {
+	case compozyconfig.WorkspaceDiscoverySourceWorkspace,
+		compozyconfig.WorkspaceDiscoverySourceWorkspaceProfile,
+		compozyconfig.WorkspaceDiscoverySourceAdditional:
+		return true
+	default:
+		return false
+	}
 }
 
 const reservedAgentDiagnosticKind = "agent.name_reserved"

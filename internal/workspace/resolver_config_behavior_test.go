@@ -1,9 +1,11 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -491,6 +493,39 @@ func TestResolveMigratesRetiredAgentKind(t *testing.T) {
 		body, err := os.ReadFile(paths["home"])
 		if err != nil || string(body) != fmt.Sprintf(retired, "home") {
 			t.Fatalf("%s = %q %v, want the home root untouched by resolution", paths["home"], body, err)
+		}
+	})
+}
+
+// TestResolveAgentConfigSkipsRetiredKindMigrationOnCacheHits owns the cost bound of the #1239
+// workspace migration: it runs only when a file fails to load, so a cached resolution neither
+// rereads definitions for it nor repeats a skip warning for a file it cannot edit.
+func TestResolveAgentConfigSkipsRetiredKindMigrationOnCacheHits(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should warn once for an unsupported form across cached resolutions", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		path := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "anchored", agentDefinitionFile)
+		writeFile(t, path, "---\nname: anchored\nkind: &k stays_on\n---\nPrompt.")
+		var logs bytes.Buffer
+		store := newMockWorkspaceStore(Workspace{ID: "ws_retired_cache", RootDir: root, Name: "repo"})
+		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader(loader.Load),
+			WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+
+		for range 3 {
+			if _, err := resolver.ResolveAgentConfig(t.Context(), "ws_retired_cache", ""); err != nil {
+				t.Fatalf("ResolveAgentConfig() error = %v", err)
+			}
+		}
+		if got := strings.Count(logs.String(), "agent kind rewrite skipped"); got != 1 {
+			t.Fatalf("skip warnings = %d, want 1 across cached resolutions\n%s", got, logs.String())
 		}
 	})
 }

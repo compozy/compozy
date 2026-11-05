@@ -93,6 +93,11 @@ func alwaysOnReplacementPath(path []string) ([]string, bool) {
 // (#1239, SD-013). It moves each key into [agents.always_on] unless that table already sets it, as
 // v0.5.1 resolved them, drops the old table, and appends the original values as an inactive
 // comment archive. It returns the moved and archived key paths.
+//
+// The common header-table layout is edited in place so comments elsewhere survive. When a table is
+// written inline, the in-place edit cannot express the change, so the whole [agents] table is
+// rendered again from its decoded values. Either result is accepted only when [agents] decodes to
+// exactly the expected values.
 func migrateRetiredAlwaysOnTable(contents []byte, source string) ([]byte, []string, error) {
 	var values map[string]any
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {
@@ -114,35 +119,26 @@ func migrateRetiredAlwaysOnTable(contents []byte, source string) ([]byte, []stri
 	if !hasCurrent {
 		current = map[string]any{}
 	}
-	editor, err := newOverlayEditor(source, contents)
-	if err != nil {
-		return nil, nil, err
-	}
-	keys := slices.Sorted(maps.Keys(table))
-	names := make([]string, 0, len(keys)+1)
-	for _, key := range keys {
-		if err := editor.Delete(append(slices.Clone(retiredAgentKindTable), key)); err != nil {
-			return nil, nil, err
+	want := migratedAgentsTable(agents, table, current)
+	rendered, err := moveRetiredAlwaysOnKeys(contents, source, table, current)
+	if err != nil || !agentsTableEquals(rendered, want) {
+		rendered, err = renderAgentsTable(contents, source, want)
+		if err != nil {
+			return nil, nil, fmt.Errorf("migrate %s.%s: %w", AgentsDirName, retiredAgentKind, err)
 		}
-		names = append(names, strings.Join(append(slices.Clone(retiredAgentKindTable), key), "."))
-	}
-	if err := editor.Delete(retiredAgentKindTable); err != nil {
-		return nil, nil, err
-	}
-	for _, key := range keys {
-		if _, set := current[key]; set {
-			continue
-		}
-		if err := editor.SetValue(append(slices.Clone(alwaysOnTable), key), table[key]); err != nil {
-			return nil, nil, err
+		if !agentsTableEquals(rendered, want) {
+			return nil, nil, fmt.Errorf(
+				"migrate %s.%s: the rewritten [%s] table does not match its values",
+				AgentsDirName, retiredAgentKind, AgentsDirName,
+			)
 		}
 	}
-	rendered, err := editor.Bytes()
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(names) == 0 {
+	if len(table) == 0 {
 		return rendered, []string{strings.Join(retiredAgentKindTable, ".")}, nil
+	}
+	names := make([]string, 0, len(table))
+	for _, key := range slices.Sorted(maps.Keys(table)) {
+		names = append(names, strings.Join(append(slices.Clone(retiredAgentKindTable), key), "."))
 	}
 	var archive bytes.Buffer
 	if err := burnttoml.NewEncoder(&archive).
@@ -155,4 +151,84 @@ func migrateRetiredAlwaysOnTable(contents []byte, source string) ([]byte, []stri
 		result.WriteString("# " + line + "\n")
 	}
 	return result.Bytes(), names, nil
+}
+
+// migratedAgentsTable returns the [agents] values after the move: no old table, and always_on
+// holding its own keys plus the old keys it did not set.
+func migratedAgentsTable(agents, retired, current map[string]any) map[string]any {
+	want := maps.Clone(agents)
+	delete(want, retiredAgentKind)
+	merged := maps.Clone(current)
+	for key, value := range retired {
+		if _, set := merged[key]; !set {
+			merged[key] = value
+		}
+	}
+	if _, had := agents[AgentKindAlwaysOn]; had || len(merged) > 0 {
+		want[AgentKindAlwaysOn] = merged
+	}
+	return want
+}
+
+// moveRetiredAlwaysOnKeys edits the header-table layout in place, keeping unrelated bytes.
+func moveRetiredAlwaysOnKeys(contents []byte, source string, retired, current map[string]any) ([]byte, error) {
+	editor, err := newOverlayEditor(source, contents)
+	if err != nil {
+		return nil, err
+	}
+	keys := slices.Sorted(maps.Keys(retired))
+	for _, key := range keys {
+		if err := editor.Delete(append(slices.Clone(retiredAgentKindTable), key)); err != nil {
+			return nil, err
+		}
+	}
+	if err := editor.Delete(retiredAgentKindTable); err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		if _, set := current[key]; set {
+			continue
+		}
+		if err := editor.SetValue(append(slices.Clone(alwaysOnTable), key), retired[key]); err != nil {
+			return nil, err
+		}
+	}
+	return editor.Bytes()
+}
+
+// renderAgentsTable replaces every form of [agents] (header tables, dotted keys, or an inline
+// value) with a table rendered from want. Comments inside the old [agents] table are not kept.
+func renderAgentsTable(contents []byte, source string, want map[string]any) ([]byte, error) {
+	editor, err := newOverlayEditor(source, contents)
+	if err != nil {
+		return nil, err
+	}
+	if err := editor.Delete([]string{AgentsDirName}); err != nil {
+		return nil, err
+	}
+	if len(want) > 0 {
+		if err := editor.SetTable([]string{AgentsDirName}, want); err != nil {
+			return nil, err
+		}
+	}
+	return editor.Bytes()
+}
+
+// agentsTableEquals reports whether rendered decodes to an [agents] table equal to want. Both sides
+// are compared as canonical TOML, which sorts keys.
+func agentsTableEquals(rendered []byte, want map[string]any) bool {
+	var values map[string]any
+	if _, err := burnttoml.Decode(string(rendered), &values); err != nil {
+		return false
+	}
+	got, isTable := values[AgentsDirName].(map[string]any)
+	if !isTable {
+		got = map[string]any{}
+	}
+	var left, right bytes.Buffer
+	if burnttoml.NewEncoder(&left).Encode(map[string]any{AgentsDirName: got}) != nil ||
+		burnttoml.NewEncoder(&right).Encode(map[string]any{AgentsDirName: want}) != nil {
+		return false
+	}
+	return left.String() == right.String()
 }

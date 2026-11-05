@@ -738,6 +738,31 @@ func TestRetiredAlwaysOnConfigTable(t *testing.T) {
 			wantActiveKey: "max_proposals",
 		},
 		{
+			name:          "Should migrate an inline agents table",
+			body:          "agents = { stays_on = { max_proposals = 5 } }\n",
+			want:          func(c AlwaysOnConfig) bool { return c.MaxProposals == 5 },
+			wantArchive:   true,
+			wantActiveKey: "max_proposals = 5",
+		},
+		{
+			name: "Should keep sibling values of an inline agents table",
+			body: "agents = { stays_on = { max_proposals = 5 }, always_on = { max_proposals = 3 }, " +
+				"soul = { enabled = false } }\n",
+			want:          func(c AlwaysOnConfig) bool { return c.MaxProposals == 3 },
+			wantArchive:   true,
+			wantActiveKey: "enabled = false",
+		},
+		{
+			name: "Should merge into an inline always_on table",
+			body: "[agents]\nalways_on = { max_proposals = 3 }\n" +
+				"[agents.stays_on]\nmax_proposals = 5\napproval_timeout = \"2h\"\n",
+			want: func(c AlwaysOnConfig) bool {
+				return c.MaxProposals == 3 && c.ApprovalTimeout == 2*time.Hour
+			},
+			wantArchive:   true,
+			wantActiveKey: "approval_timeout",
+		},
+		{
 			name: "Should drop an empty old table",
 			body: "[agents.stays_on]\n",
 			want: func(c AlwaysOnConfig) bool { return c.MaxProposals == 2 },

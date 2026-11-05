@@ -417,7 +417,7 @@ func (r *Resolver) buildResolvedWorkspace(
 		return ResolvedWorkspace{}, errors.New("workspace: config is required")
 	}
 
-	state, err := buildWorkspaceAgentState(ctx, ws, cfg, scan.agents)
+	state, err := buildWorkspaceAgentState(ctx, ws, cfg, scan.agents, r.logger)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}

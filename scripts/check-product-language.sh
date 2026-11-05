@@ -184,7 +184,7 @@ while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_a_in_scope "$rel" || continue
-  kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the rejection boundary")
+  kind_findings+=("Rule A: $file ($rel) is production Go that names stays_on or calls CanonicalAgentKind outside the migration and rejection files")
 done <<<"$rule_a_files"
 
 rule_b_files="$(kind_scan "Rule B" "$rule_b_pattern" -- "${rule_b_paths[@]}")"
@@ -198,7 +198,7 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in the user-state migrations and rejection messages." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on. Production Go may name stays_on only in the migration and rejection files; public surfaces only in the listed migration docs, release notes, tests and history identifiers." >&2
   failed=1
 fi
 

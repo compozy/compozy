@@ -91,6 +91,27 @@ func rewriteAgentKindAliases(
 	return pass.rewritten, pass.skipped, nil
 }
 
+// MigrateRetiredAgentKind runs the same migration for one agent directory, <agentsDir>/<name>, and
+// reports whether its AGENT.md was rewritten. Loaders call it after a file fails to load, so files
+// that already load pay nothing. err reports only a failure to open agentsDir.
+func MigrateRetiredAgentKind(agentsDir string, name string, log *slog.Logger) (migrated bool, err error) {
+	if log == nil {
+		log = slog.Default()
+	}
+	pass := &agentKindRewritePass{log: log, skipped: map[string]AgentKindRewriteSkip{}}
+	directory, err := fileutil.OpenDirectory(agentsDir)
+	if err != nil {
+		if isSymlinkPath(agentsDir, err) {
+			pass.skip(agentsDir, AgentKindRewriteSkipSymlink)
+			return false, nil
+		}
+		return false, fmt.Errorf("config: open agent root %q: %w", agentsDir, err)
+	}
+	defer func() { err = errors.Join(err, directory.Close()) }()
+	pass.rewriteChild(directory, agentsDir, name)
+	return len(pass.rewritten) > 0, nil
+}
+
 type agentKindRewritePass struct {
 	log       *slog.Logger
 	hooks     agentKindRewriteHooks
