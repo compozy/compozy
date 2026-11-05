@@ -158,9 +158,6 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	durableQuery.RepositoryKeys = repositoryKeys
 	durableQuery.DefaultBranches = defaultBranches
 
-	if err := m.refreshCatalogPullRequests(ctx, durableQuery); err != nil {
-		return ListPage{}, err
-	}
 	durable, err := pager.PageSessions(ctx, durableQuery)
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)

@@ -25,6 +25,18 @@ func (a sessionPullRequestAdapter) PullRequests(
 	ctx context.Context,
 	keys []session.BranchKey,
 ) map[session.BranchKey]session.PullRequestView {
+	return a.pullRequests(ctx, keys, false)
+}
+
+func (a sessionPullRequestAdapter) RequestPullRequests(ctx context.Context, keys []session.BranchKey) {
+	a.pullRequests(ctx, keys, true)
+}
+
+func (a sessionPullRequestAdapter) pullRequests(
+	ctx context.Context,
+	keys []session.BranchKey,
+	refresh bool,
+) map[session.BranchKey]session.PullRequestView {
 	resolved := make(map[session.BranchKey]worktree.PullRequestKey, len(keys))
 	repos := make(map[string]string)
 	out := make(map[session.BranchKey]session.PullRequestView, len(keys))
@@ -57,7 +69,11 @@ func (a sessionPullRequestAdapter) PullRequests(
 	for _, key := range resolved {
 		cacheKeys = append(cacheKeys, key)
 	}
-	entries := a.service.Read(ctx, cacheKeys)
+	read := a.service.Peek
+	if refresh {
+		read = a.service.Read
+	}
+	entries := read(ctx, cacheKeys)
 	for branch, key := range resolved {
 		entry, ok := entries[key]
 		if !ok {

@@ -1,70 +1,47 @@
 package session
 
-import (
-	"context"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
-	"slices"
-	"time"
+import "context"
 
-	"github.com/compozy/compozy/internal/store"
-)
+// SessionDisplayedLinkedWork refreshes the facts that contribute to an authorized visible page.
+func (m *Manager) SessionDisplayedLinkedWork(
+	ctx context.Context,
+	infos []*Info,
+) (map[string]LinkedWorkProjection, error) {
+	return m.sessionLinkedWork(ctx, infos, true)
+}
 
-func (m *Manager) refreshCatalogPullRequests(ctx context.Context, query store.SessionCatalogPageQuery) error {
-	m.mu.RLock()
-	reader := m.pullRequestReader
-	m.mu.RUnlock()
-	branches, ok := m.sessionCatalog.(store.SessionCatalogBranchReader)
-	if !ok || reader == nil {
-		return nil
+func requestDisplayedLinkedWork(
+	ctx context.Context,
+	reader PullRequestReader,
+	reads linkedWorkReads,
+	roots map[string]*Info,
+) {
+	requester, ok := reader.(interface {
+		RequestPullRequests(context.Context, []BranchKey)
+	})
+	if !ok {
+		return
 	}
-	// Page position and board columns must not hide historical refresh candidates.
-	query.After, query.Columns = nil, nil
-	query.Limit, query.Sort, query.SkipTotal = 1, "", false
-	query.ExcludeIDs = slices.Sorted(slices.Values(query.ExcludeIDs))
-	query.WorkspaceIDs = slices.Sorted(slices.Values(query.WorkspaceIDs))
-	encoded, err := json.Marshal(query)
-	if err != nil {
-		return fmt.Errorf("session: catalog refresh scope: %w", err)
-	}
-	key := sha256.Sum256(encoded)
-	m.mu.Lock()
-	now := m.now()
-	if until, ok := m.catalogRefreshes[key]; ok && now.Before(until) {
-		m.mu.Unlock()
-		return nil
-	}
-	for scope, until := range m.catalogRefreshes {
-		if !now.Before(until) {
-			delete(m.catalogRefreshes, scope)
+	eligible := make(map[BranchKey]bool)
+	for _, member := range reads.family {
+		root := roots[member.RootID]
+		if root == nil || root.WorkspaceID != member.WorkspaceID || root.ProfileID != member.ProfileID {
+			continue
+		}
+		if branch := reads.snapshots[member.ID]; branch != "" {
+			eligible[BranchKey{member.WorkspaceID, branch}] = true
+		}
+		for _, link := range reads.stored[member.ID] {
+			if !link.Unlinked && !link.WorktreeRemoved && link.Repository == reads.repository(member) {
+				eligible[BranchKey{member.WorkspaceID, link.Branch}] = true
+			}
 		}
 	}
-	if m.catalogRefreshes == nil {
-		m.catalogRefreshes = make(map[[32]byte]time.Time)
-	}
-	// Bound retained scopes as well as repeated discovery under concurrent reads.
-	if len(m.catalogRefreshes) >= 128 {
-		m.mu.Unlock()
-		return nil
-	}
-	m.catalogRefreshes[key] = now.Add(time.Minute)
-	m.mu.Unlock()
-	keys, err := branches.SessionCatalogBranches(ctx, query)
-	if err != nil {
-		m.mu.Lock()
-		delete(m.catalogRefreshes, key)
-		m.mu.Unlock()
-		return fmt.Errorf("session: catalog refresh branches: %w", err)
-	}
-	eligible := make([]BranchKey, 0, len(keys))
-	for _, key := range keys {
-		if !slices.Contains(query.DefaultBranches[key.WorkspaceID], key.Branch) {
-			eligible = append(eligible, BranchKey{WorkspaceID: key.WorkspaceID, Branch: key.Branch})
+	keys := make([]BranchKey, 0, len(reads.keys))
+	for _, key := range reads.keys {
+		if eligible[key] {
+			keys = append(keys, key)
 		}
 	}
-	if len(eligible) != 0 {
-		reader.PullRequests(ctx, eligible)
-	}
-	return nil
+	requester.RequestPullRequests(ctx, keys)
 }

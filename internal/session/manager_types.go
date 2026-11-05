@@ -148,7 +148,6 @@ type Manager struct {
 	restartInputsHeld          sync.Map
 	daemonShutdown             atomic.Pointer[daemonShutdownStop]
 	pullRequestReader          PullRequestReader
-	catalogRefreshes           map[[32]byte]time.Time
 	branchSnapshots            BranchSnapshotReader
 	branchSnapshotSaver        BranchSnapshotSaver
 	replyWatches               ReplyWatchService
