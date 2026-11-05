@@ -74,7 +74,9 @@ func (s *service) BeginMCPAuth(
 	}
 	if !mcpauth.OAuthCapable(server) {
 		return mcpauth.BeginResult{}, validationError(
-			errors.New("settings: OAuth sign-in requires an HTTP remote without headers"),
+			errors.New(
+				"settings: OAuth sign-in requires an HTTP remote without headers, or an explicit OAuth policy for auxiliary headers",
+			),
 		)
 	}
 	if len(req.ApprovedScopes) > 0 && !req.ApproveScopeEscalation {

@@ -83,6 +83,7 @@ func TestTargetValidateWorkspaceProfileIdentity(t *testing.T) {
 }
 
 func TestServerConfigValidate(t *testing.T) {
+	t.Parallel()
 	t.Run("Should allow implicit OAuth only for header-free HTTP remotes", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -115,7 +116,6 @@ func TestServerConfigValidate(t *testing.T) {
 		}
 	})
 
-	t.Parallel()
 	t.Run("Should authorize configured client secrets before resolving them", func(t *testing.T) {
 		t.Parallel()
 		for _, target := range []Target{
