@@ -556,6 +556,7 @@ describe("header preservation", () => {
     const draft = toDraft({ ...remoteEntry(), auth: null, headers_configured: true });
     expect(toRequest(draft).preserve_headers).toBe(true);
     expect(toRequest(draft).server.headers).toBeUndefined();
+    expect(validateDraft(draft).valid).toBe(true);
     expect(validateDraft({ ...draft, url: "https://other.test/mcp" }).valid).toBe(false);
     expect(toRequest(withTransport(draft, "stdio")).preserve_headers).toBeUndefined();
     expect(toRequest(withoutMCPSecretPreservation(draft)).preserve_headers).toBeUndefined();

@@ -164,6 +164,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 	t.Run("Should let the daemon discover OAuth for an unconfigured server", func(t *testing.T) {
 		t.Parallel()
 
+		var beginCalls atomic.Int32
 		client := &stubClient{
 			getSettingsMCPAuthStatusFn: func(
 				context.Context,
@@ -174,6 +175,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				}, nil
 			},
 			beginSettingsMCPAuthFn: func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthBeginRequest) (SettingsMCPAuthBeginRecord, error) {
+				beginCalls.Add(1)
 				return SettingsMCPAuthBeginRecord{}, errors.New("remote does not configure OAuth")
 			},
 		}
@@ -197,6 +199,9 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "does not configure OAuth") {
 			t.Fatalf("mcp auth login error = %v, want OAuth configuration error", err)
+		}
+		if got := beginCalls.Load(); got != 1 {
+			t.Fatalf("begin calls = %d, want 1", got)
 		}
 	})
 }

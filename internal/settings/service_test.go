@@ -3422,8 +3422,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 		replacement.URL = initial.URL
 		req.Target = TargetSidecar
-		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) {
-			t.Fatalf("changed target accepted: %v", err)
+		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) ||
+			!strings.Contains(err.Error(), "has no existing bindings") {
+			t.Fatalf("sidecar target did not require its own bindings: %v", err)
 		}
 	})
 

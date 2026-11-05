@@ -97,15 +97,12 @@ func (e *CallExecutor) authStatus(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
+	unconfigured := mcpauth.Status{
+		Owner: resolved.Target.Owner, ServerName: server.Name, Scope: resolved.Target.Scope,
+		WorkspaceID: resolved.Target.WorkspaceID, Status: mcpauth.StatusUnconfigured, RemoteURL: server.URL,
+	}
 	if !mcpauth.OAuthCapable(server) || (server.Auth.IsZero() && e.auth == nil) {
-		return redactedAuthStatus(mcpauth.Status{
-			Owner:       resolved.Target.Owner,
-			ServerName:  server.Name,
-			Scope:       resolved.Target.Scope,
-			WorkspaceID: resolved.Target.WorkspaceID,
-			Status:      mcpauth.StatusUnconfigured,
-			RemoteURL:   server.URL,
-		}), nil
+		return redactedAuthStatus(unconfigured), nil
 	}
 	if e.auth == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
@@ -116,6 +113,9 @@ func (e *CallExecutor) authStatus(
 	}
 	status, err := e.auth.Status(ctx, cfg)
 	if err != nil {
+		if cfg.Implicit {
+			return redactedAuthStatus(unconfigured), nil
+		}
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: read auth status: %w", err)
 	}
 	return redactedAuthStatus(status), nil

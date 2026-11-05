@@ -17,7 +17,7 @@ func (s *service) populateMCPServerStatuses(
 		return err
 	}
 	name := entry.Server.Name
-	if s.mcpAuth != nil && mcpauth.OAuthCapable(entry.Server) {
+	if s.mcpAuth != nil && mcpauth.OAuthCapable(entry.Server) && entry.Server.Validate("mcp_server") == nil {
 		status, statusErr := s.mcpAuth.MCPAuthStatus(ctx, target, entry.Server)
 		if statusErr != nil {
 			return fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)

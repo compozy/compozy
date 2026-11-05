@@ -366,6 +366,10 @@ Re-read status and require `authenticated` plus `token_present=true`.
 
 `mcp.json` uses whole-object replacement. TOML uses field-level merging.
 
+TOML `headers` and `secret_headers` merge only while the remote URL stays the same.
+An overlay that changes the URL drops inherited headers before applying its own headers.
+To use credentials at a replacement endpoint, declare them explicitly in that overlay.
+
 | Situation                                                | Behavior                                                                                                              |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Same-name TOML `[[mcp_servers]]` overlay                 | Fields merge by name. Non-empty transport, command, URL, auth fields, args, and env keys overlay the existing server. |

@@ -475,6 +475,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		server.Auth = compozyconfig.MCPAuthConfig{Registration: "auto"}
 		server.Headers = map[string]string{"X-API-Version": "1"}
+		beforeHeaders := len(fixture.Requests().MCPHeaders)
 		explicit := newTestMCPExecutor(t, server, WithTokenStore(store))
 		if tools, err := explicit.ListTools(
 			t.Context(),
@@ -482,6 +483,54 @@ func TestMCPCallExecutor(t *testing.T) {
 		); err != nil ||
 			len(tools) == 0 {
 			t.Fatalf("explicit OAuth with auxiliary headers lost its credential: %v", err)
+		}
+		received := fixture.Requests().MCPHeaders
+		if len(received) <= beforeHeaders {
+			t.Fatal("explicit OAuth did not send an MCP request")
+		}
+		for _, headers := range received[beforeHeaders:] {
+			if headers.Get("X-API-Version") != "1" {
+				t.Fatal("explicit OAuth dropped its auxiliary header")
+			}
+		}
+	})
+
+	t.Run("Should probe a bare remote without credentials when the token store fails", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.MustNew(mcpfixture.ProfileModern2026)
+		handler := fixture.StreamableHTTPHandler()
+		var requests atomic.Int32
+		remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			if r.Header.Get("Authorization") != "" {
+				t.Error("unavailable token store sent an authorization header")
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		defer remote.Close()
+		server := compozyconfig.MCPServer{Name: "open", Transport: "http", URL: remote.URL}
+		store := newMemoryTokenStore()
+		store.getErr = errors.New("token store unavailable")
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		if tools, err := executor.ListTools(t.Context(), source); err != nil || len(tools) == 0 {
+			t.Fatalf("bare remote tools = %d, %v", len(tools), err)
+		}
+		before := requests.Load()
+		if before == 0 {
+			t.Fatal("bare remote did not reach the MCP endpoint")
+		}
+		server.Auth = compozyconfig.MCPAuthConfig{Registration: "auto"}
+		explicit := newTestMCPExecutor(t, server, WithTokenStore(store))
+		if _, err := explicit.ListTools(
+			t.Context(),
+			source,
+		); err == nil ||
+			!strings.Contains(err.Error(), "token store unavailable") {
+			t.Fatalf("explicit OAuth lost its storage error: %v", err)
+		}
+		if requests.Load() != before {
+			t.Fatal("explicit OAuth bypassed unavailable storage")
 		}
 	})
 
@@ -3825,6 +3874,7 @@ func (s *fakeAuthService) lastServerConfig() mcpauth.ServerConfig {
 
 type memoryTokenStore struct {
 	mu            sync.Mutex
+	getErr        error
 	tokens        map[string]mcpauth.TokenRecord
 	registrations map[string]mcpauth.ClientRegistration
 }
@@ -3860,6 +3910,9 @@ func (s *memoryTokenStore) GetMCPAuthToken(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.getErr != nil {
+		return mcpauth.TokenRecord{}, s.getErr
+	}
 
 	key, err := target.Key()
 	if err != nil {

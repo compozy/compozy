@@ -58,7 +58,7 @@ Gap 1 rule (issue #1305): configure a bare HTTP remote with no `auth`, `headers`
 **Sign in** through the existing authorization dialog. Complete a fresh manual redirect,
 then confirm `authenticated && token_present` through a fresh status read and a successful
 runtime tool probe. Reload Settings to verify persistence. An open HTTP remote and remotes
-with plain or secret headers must never receive this action. In Advanced editor mode,
+with plain or secret headers and no explicit OAuth policy must never receive this action. In Advanced editor mode,
 **Use OAuth** must toggle the saved `auth.registration=auto` block; editing a header server
 must preserve its headers without returning their values.
 

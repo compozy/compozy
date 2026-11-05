@@ -4,7 +4,7 @@ area: ET
 title: MCP management status matrix renders daemon truth
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: The `/marketplace/mcps` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Sign in/Reauthorize is offered to unauthenticated OAuth HTTP remotes (or auth_refresh_failed), including bare header-free HTTP remotes reporting auth_required. Open remotes, stdio, and servers with headers or secret_headers never get browser authorization.
+expected: The `/marketplace/mcps` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Sign in/Reauthorize is offered to unauthenticated OAuth HTTP remotes (or auth_refresh_failed), including bare header-free HTTP remotes reporting auth_required. Open remotes, stdio, and header-auth servers without explicit OAuth never get browser authorization.
 entry_points: web `/marketplace/mcps`; `GET /api/settings/mcp-servers`
 qa_status: pass
 bug_ids:
@@ -52,7 +52,7 @@ Gap 1 rule (issue #1305): configure a bare HTTP remote with no `auth`, `headers`
 **Sign in** through the existing authorization dialog. Complete a fresh manual redirect,
 then confirm `authenticated && token_present` through a fresh status read and a successful
 runtime tool probe. Reload Settings to verify persistence. An open HTTP remote and remotes
-with plain or secret headers must never receive this action. In Advanced editor mode,
+with plain or secret headers and no explicit OAuth policy must never receive this action. In Advanced editor mode,
 **Use OAuth** must toggle the saved `auth.registration=auto` block; editing a header server
 must preserve its headers without returning their values.
 

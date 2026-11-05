@@ -19,6 +19,39 @@ import (
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain invalid remote rows without probing OAuth", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile,
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n")
+		workspaceRoot := t.TempDir()
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\n")
+		auth := &recordingMCPAuthRuntime{statusErr: errors.New("invalid remote must not reach auth")}
+		runtime := &fakeMCPRuntimeProvider{statuses: map[string]MCPServerRuntimeStatus{
+			"broken": {Configured: true, State: MCPServerRuntimeStateConfigError, Probe: MCPServerProbeSkipped},
+		}}
+		service := testService(t, home, Dependencies{
+			MCPAuth: auth, MCPRuntime: runtime,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"workspace-a": {ID: "workspace-a", RootDir: workspaceRoot},
+			}},
+		})
+		result, err := service.ListCollection(t.Context(), CollectionRequest{
+			Collection: CollectionMCPServers, Scope: ScopeWorkspace, WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := findMCPItem(t, result.MCPServers, "broken")
+		if item.AuthStatus != nil || item.RuntimeStatus == nil ||
+			item.RuntimeStatus.State != MCPServerRuntimeStateConfigError {
+			t.Fatalf("invalid remote lost its config_error row: %#v", item)
+		}
+		if auth.statusServer.Name != "" {
+			t.Fatal("invalid remote reached the OAuth probe")
+		}
+	})
 
 	// Invariant: extension collection rows and runtime probes share an exact owner-qualified identity; manual collisions fail before file writes.
 	// Owner: Settings collection service; canonical suite: mcp_runtime_status_test.go.

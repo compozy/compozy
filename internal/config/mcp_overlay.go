@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 type mcpServerOverlay struct {
 	Name           *string             `toml:"name"`
 	Transport      *MCPServerTransport `toml:"transport"`
@@ -33,6 +35,11 @@ func (o mcpServerOverlay) Apply(dst *MCPServer) {
 	}
 	if o.SecretEnv != nil {
 		dst.SecretEnv = mergeStringMaps(dst.SecretEnv, *o.SecretEnv)
+	}
+	if o.URL != nil && strings.TrimSpace(*o.URL) != strings.TrimSpace(dst.URL) {
+		// Header credentials belong to the endpoint that configured them.
+		dst.Headers = nil
+		dst.SecretHeaders = nil
 	}
 	if o.Headers != nil {
 		dst.Headers = mergeStringMaps(dst.Headers, *o.Headers)

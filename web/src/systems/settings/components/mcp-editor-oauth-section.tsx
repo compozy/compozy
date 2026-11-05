@@ -5,9 +5,11 @@ import { SettingsFieldRow } from "./settings-field-row";
 
 export function MCPEditorOAuthSection({
   draft,
+  hasSavedOAuth,
   onChange,
 }: {
   draft: MCPDraft;
+  hasSavedOAuth: boolean;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
 }) {
   return (
@@ -26,7 +28,7 @@ export function MCPEditorOAuthSection({
           <Switch
             aria-label="Use OAuth"
             checked={draft.oauth.enabled}
-            disabled={Boolean(draft.headersEndpoint) && !draft.oauth.enabled}
+            disabled={Boolean(draft.headersEndpoint) && !hasSavedOAuth}
             onCheckedChange={enabled =>
               onChange(current => ({
                 ...current,

@@ -182,7 +182,11 @@ export function MCPServerEditor({
           ) : null}
 
           {tier === "advanced" && isRemote ? (
-            <MCPEditorOAuthSection draft={draft} onChange={onChange} />
+            <MCPEditorOAuthSection
+              draft={draft}
+              hasSavedOAuth={Boolean(entry?.auth)}
+              onChange={onChange}
+            />
           ) : null}
 
           {saveError ? (
