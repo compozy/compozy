@@ -198,7 +198,9 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.forgetAccountsLocked(collectorID)
+	if profileID == "" {
+		s.forgetAccountsLocked(collectorID)
+	}
 	for profile, p := range s.profiles {
 		if profileID != "" && profile != profileID {
 			continue
@@ -207,6 +209,11 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 		for _, state := range p.targets {
 			if state.target.Collector() != collectorID {
 				continue
+			}
+			if profileID != "" {
+				// Only this profile's identities reset; other profiles keep their cooldowns and bypass.
+				delete(s.accounts, newAccountKey(profile, state.target, state.identity))
+				delete(s.accounts, newAccountKey(profile, state.target, CredentialIdentity{}))
 			}
 			state.epoch++
 			state.snapshot = initialSnapshot(state.target, s.options.Collectors[collectorID])

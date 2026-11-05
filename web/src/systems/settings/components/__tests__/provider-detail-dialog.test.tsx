@@ -453,6 +453,7 @@ describe("ProviderDetailDialog", () => {
     const ready = screen.getByTestId("provider-detail-summary-status");
     expect(ready).toHaveAttribute("data-tone", "success");
     expect(ready).toHaveClass("text-muted-foreground");
+    expect(ready.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-tone", "success");
     unmount();
 
     renderDialog({

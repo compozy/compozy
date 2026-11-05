@@ -569,13 +569,26 @@ func nativeStatusDeps(t *testing.T, client DaemonClient, localRuns *int) command
 	return deps
 }
 
+// nativeDaemonStatus is the daemon's view of the "native" provider that nativeStatusDeps configures.
+func nativeDaemonStatus(state string) contract.ProviderAuthStatusPayload {
+	provider := compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNativeCLI}
+	return contract.ProviderAuthStatusPayload{
+		Mode:       "native_cli",
+		EnvPolicy:  string(provider.EffectiveEnvPolicy()),
+		HomePolicy: string(provider.EffectiveHomePolicy()),
+		StatusCmd:  "status-helper auth status",
+		State:      state,
+		Login:      contract.ProviderLoginDescriptorPayload{Presence: "present"},
+	}
+}
+
 func daemonAuthenticatedProbe(calls *int) *stubClient {
 	return &stubClient{
 		probeProviderAuthFn: func(_ context.Context, providerID string) (contract.ProviderAuthProbeResponse, error) {
 			*calls++
 			return contract.ProviderAuthProbeResponse{
 				Provider:   providerID,
-				AuthStatus: contract.ProviderAuthStatusPayload{Mode: "native_cli", State: "authenticated"},
+				AuthStatus: nativeDaemonStatus("authenticated"),
 				Probe:      &contract.ProviderAuthProbeResult{ExitCode: 0, Stdout: "Logged in", DurationMs: 9},
 			}, nil
 		},
@@ -597,12 +610,31 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 	t.Run("Should probe through the local daemon when it answers", func(t *testing.T) {
 		t.Parallel()
 		var daemonCalls, localRuns int
-		deps := nativeStatusDeps(t, daemonAuthenticatedProbe(&daemonCalls), &localRuns)
+		client := daemonAuthenticatedProbe(&daemonCalls)
+		deps := nativeStatusDeps(t, client, &localRuns)
+		const socket = "/run/compozy-test/compozyd.sock"
+		loadConfig := deps.loadConfig
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg, err := loadConfig()
+			cfg.Daemon.Socket = socket
+			return cfg, err
+		}
+		var targets []ClientTarget
+		deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+			targets = append(targets, target)
+			return client, nil
+		}
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "-o", "json")
 		if err != nil {
 			t.Fatalf("provider auth status error = %v", err)
 		}
+		if len(targets) == 0 || targets[len(targets)-1] != LocalClientTarget(socket) {
+			t.Fatalf("daemon probe targets = %#v, want the local socket %s", targets, socket)
+		}
 		record := decodeAuthStatus(t, stdout)
+		if record.Login.Presence != authproviders.ProviderLoginPresencePresent {
+			t.Fatalf("Login.Presence = %q, want the daemon's present", record.Login.Presence)
+		}
 		if record.State != "authenticated" || record.ProbeSource != providerProbeSourceDaemon {
 			t.Fatalf("State/ProbeSource = %q/%q, want authenticated/daemon", record.State, record.ProbeSource)
 		}
@@ -639,6 +671,27 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should fall back to the local probe when the daemon probed other settings", func(t *testing.T) {
+		t.Parallel()
+		var localRuns int
+		stale := nativeDaemonStatus("authenticated")
+		stale.StatusCmd = "status-helper auth status --old"
+		client := &stubClient{
+			probeProviderAuthFn: func(context.Context, string) (contract.ProviderAuthProbeResponse, error) {
+				return contract.ProviderAuthProbeResponse{Provider: "native", AuthStatus: stale}, nil
+			},
+		}
+		deps := nativeStatusDeps(t, client, &localRuns)
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+		record := decodeAuthStatus(t, stdout)
+		if record.ProbeSource != providerProbeSourceLocal || record.State != "needs_login" || localRuns != 1 {
+			t.Fatalf("ProbeSource/State = %q/%q, local runs %d", record.ProbeSource, record.State, localRuns)
+		}
+	})
 
 	t.Run("Should probe locally with --local even when the daemon answers", func(t *testing.T) {
 		t.Parallel()

@@ -2152,20 +2152,46 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 	})
 }
 
+type refreshResult struct {
+	env Envelope
+	err error
+}
+
+// refreshAsync refreshes one profile in a goroutine and reports its result without touching t.
+func refreshAsync(t *testing.T, f serviceFixture, profile string) <-chan refreshResult {
+	t.Helper()
+	done := make(chan refreshResult, 1)
+	go func() {
+		env, err := f.service.Refresh(
+			t.Context(),
+			RefreshRequest{Wait: 15 * time.Second, ProfileID: profile, Intent: IntentBackground},
+		)
+		done <- refreshResult{env, err}
+	}()
+	return done
+}
+
+func awaitRefresh(t *testing.T, done <-chan refreshResult) Envelope {
+	t.Helper()
+	result := <-done
+	requireNoError(t, result.err)
+	return result.env
+}
+
 // refreshBoth refreshes two profiles while the first request is held open until the second joins it.
 func refreshBoth(t *testing.T, f serviceFixture, entered <-chan struct{}, release func()) (Envelope, Envelope) {
 	t.Helper()
-	personal, work := make(chan Envelope, 1), make(chan Envelope, 1)
-	go func() { personal <- refreshProfile(t, f, "personal", IntentBackground) }()
+	personal := refreshAsync(t, f, "personal")
 	<-entered
-	go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
-	waitForJoiner(t, f.service)
+	work := refreshAsync(t, f, "work")
+	waitForJoiner(t, f.service, work)
 	release()
-	return <-personal, <-work
+	return awaitRefresh(t, personal), awaitRefresh(t, work)
 }
 
-// waitForJoiner blocks until another target waits on the in-flight shared collection.
-func waitForJoiner(t *testing.T, service *Manager) {
+// waitForJoiner blocks until another target waits on the in-flight shared collection; it fails
+// fast when the joining refresh finishes first.
+func waitForJoiner(t *testing.T, service *Manager, joiner <-chan refreshResult) {
 	t.Helper()
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
@@ -2178,6 +2204,9 @@ func waitForJoiner(t *testing.T, service *Manager) {
 		service.mu.Unlock()
 		if joined {
 			return
+		}
+		if len(joiner) > 0 {
+			t.Fatal("second profile finished without joining the shared collection")
 		}
 		select {
 		case <-ticker.C:
@@ -2278,10 +2307,10 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 			}
 		}()
 		<-entered
-		work := make(chan Envelope, 1)
-		go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
+		work := refreshAsync(t, f, "work")
+		waitForJoiner(t, f.service, work)
 		requireNoError(t, f.service.Start(t.Context(), []string{"work"}))
-		env := <-work
+		env := awaitRefresh(t, work)
 		<-leader
 		requireEqual(t, StatusOK, env.Targets[0].Status)
 		requireEqual(t, int32(2), calls.Load())
@@ -2358,9 +2387,30 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 		for tick, advance := range []time.Duration{10 * time.Second, 5 * time.Minute} {
 			requireNoError(t, f.clock.BlockUntilContext(ctx, 1))
 			f.clock.Advance(advance)
-			refreshProfile(t, f, "personal", IntentBackground)
-			refreshProfile(t, f, "work", IntentBackground)
+			for _, profile := range []string{"personal", "work"} {
+				waitForMeasurement(ctx, t, f, profile, f.clock.Now())
+			}
 			requireEqual(t, int32(tick+1), calls.Load())
 		}
 	})
+}
+
+// waitForMeasurement waits until the scheduler published a measurement taken at "at" for profile.
+func waitForMeasurement(ctx context.Context, t *testing.T, f serviceFixture, profile string, at time.Time) {
+	t.Helper()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		env, err := f.service.Envelope(ctx, profile)
+		requireNoError(t, err)
+		row := env.Targets[0]
+		if row.Status == StatusOK && !row.Refreshing && row.MeasuredAt != nil && row.MeasuredAt.Equal(at) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			t.Fatalf("%s: scheduled measurement at %v never published (status %s)", profile, at, row.Status)
+		}
+	}
 }

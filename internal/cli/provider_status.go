@@ -111,7 +111,7 @@ func probeProviderAuthStatus(
 		return record, nil
 	}
 	if options.daemonProbe != nil && provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
-		if response, err := options.daemonProbe(ctx, providerName); err == nil {
+		if response, err := options.daemonProbe(ctx, providerName); err == nil && daemonProbeMatches(record, response) {
 			return applyDaemonProviderAuthProbe(record, response), nil
 		}
 	}
@@ -129,6 +129,14 @@ func probeProviderAuthStatus(
 	return record, nil
 }
 
+// daemonProbeMatches accepts a daemon verdict only when the daemon probed the settings this CLI reads;
+// a daemon that has not reloaded an edited config.toml falls back to the local probe.
+func daemonProbeMatches(record providerAuthStatusRecord, response contract.ProviderAuthProbeResponse) bool {
+	status := response.AuthStatus
+	return status.Mode == record.AuthMode && status.EnvPolicy == record.EnvPolicy &&
+		status.HomePolicy == record.HomePolicy && status.StatusCmd == record.StatusCommand
+}
+
 // applyDaemonProviderAuthProbe keeps the local record's shape and takes the daemon's live verdict.
 func applyDaemonProviderAuthProbe(
 	record providerAuthStatusRecord,
@@ -138,6 +146,7 @@ func applyDaemonProviderAuthProbe(
 	record.Code = response.AuthStatus.Code
 	record.Message = response.AuthStatus.Message
 	record.Login.RecommendedAction = authproviders.ProviderFailureAction(response.AuthStatus.Login.RecommendedAction)
+	record.Login.Presence = authproviders.ProviderLoginPresence(response.AuthStatus.Login.Presence)
 	if probe := response.Probe; probe != nil {
 		record.Probe = &providerAuthCommandResult{
 			ExitCode:   probe.ExitCode,

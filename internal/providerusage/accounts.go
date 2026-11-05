@@ -130,6 +130,7 @@ func (s *Manager) joinAccountLocked(
 	intent Intent,
 	maxAge time.Duration,
 ) (entry *accountState, running, ready *accountCall) {
+	s.pruneAccountsLocked(s.options.Clock.Now())
 	entry = s.accounts[key]
 	if entry == nil {
 		entry = &accountState{}
@@ -159,14 +160,17 @@ func (s *Manager) activeCooldownLocked(key accountKey, now time.Time) *accountCo
 	return nil
 }
 
-// recordCollectionLocked adds a strike on 429 and clears the streak on success.
+// recordCollectionLocked adds a strike on 429, clears the streak on success, and forgets a shared
+// success after any failure.
 func (s *Manager) recordCollectionLocked(a *accountState, target Target, snapshot Snapshot, outcome *UsageError) {
 	now := s.options.Clock.Now()
 	switch {
 	case outcome == nil:
 		a.strikes, a.cooldown = 0, nil
 		a.success = &accountSuccess{snapshot: cloneSnapshot(snapshot), route: target.RouteFingerprint, at: now}
-	case outcome.Code == ErrorCodeProviderRateLimited:
+	case outcome.Code != ErrorCodeProviderRateLimited:
+		a.success = nil
+	default:
 		a.strikes++
 		a.success = nil
 		until := rateLimitUntil(now, outcome.RetryAfter, a.strikes)

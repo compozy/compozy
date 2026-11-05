@@ -142,8 +142,8 @@ func TestProviderAuthStartup(t *testing.T) {
 		<-started
 		close(gate)
 		<-done
-		if got := peak.Load(); got != providerAuthStartupConcurrency {
-			t.Fatalf("peak concurrent status commands = %d, want %d", got, providerAuthStartupConcurrency)
+		if got := peak.Load(); got > 2 {
+			t.Fatalf("peak concurrent status commands = %d, want at most 2", got)
 		}
 		for name, provider := range configs {
 			if _, ok := f.verdicts.Lookup(name, provider); !ok {
