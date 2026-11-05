@@ -31,6 +31,8 @@ interface UseMCPEditorOptions {
    * while loading would pass the duplicate-name check and the PUT would replace that server.
    */
   serversReady?: boolean;
+  /** Why `servers` is not ready, with a retry the editor offers in place. */
+  serversError?: { message: string; retry: () => void } | null;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -60,6 +62,7 @@ function useMCPEditor({
   workspaceId,
   profileName,
   serversReady = true,
+  serversError = null,
 }: UseMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -176,6 +179,7 @@ function useMCPEditor({
           onTargetChange: setEditorTarget,
           open: true,
           saveError: errorMessage(putMutation.error),
+          serversError: editor.mode === "create" ? serversError : null,
           scope: editor.scope,
           target: editor.target,
           vaultInventory,

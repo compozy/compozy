@@ -43,14 +43,26 @@ export function useMCPServerManagement({
         : { scope: "user" };
   const collection = useSettingsMCPServers(filter, { enabled });
   const servers = collection.data?.mcp_servers ?? [];
+  // A create checks names against a list refetched when the editor opens, never a stale cache.
+  const serversReady =
+    collection.data !== undefined && !collection.isFetching && !collection.isError;
   const editor = useMCPEditor({
     enabled: true,
     scope: filter.scope ?? "user",
     servers,
     workspaceId,
     profileName: profile,
-    serversReady: collection.data !== undefined,
+    serversReady,
+    serversError:
+      collection.isError && !collection.isFetching
+        ? { message: collection.error.message, retry: () => void collection.refetch() }
+        : null,
   });
+  const openCreate = () => {
+    void collection.refetch();
+    editor.openCreate();
+  };
+
   const override = useMCPOverrideEditor();
   const authorization = useMCPDefinitionAuthorization({ enabled });
   const removal = useDeleteSettingsMCPServer();
@@ -106,7 +118,7 @@ export function useMCPServerManagement({
     edit,
     authorize,
     authorization,
-    openCreate: editor.openCreate,
+    openCreate,
     editorProps: editor.editorProps,
     overrideProps: override.editorProps,
     removing,
@@ -121,6 +133,7 @@ export function useMCPServerManagement({
 
 export type MCPServerManagement = ReturnType<typeof useMCPServerManagement>;
 
+/** Settings › MCP servers: the shared management model plus the Settings page/restart model. */
 export function useSettingsMCPPage() {
   const page = useSettingsPage({ currentSlug: "mcp" });
   return { ...useMCPServerManagement(), page };

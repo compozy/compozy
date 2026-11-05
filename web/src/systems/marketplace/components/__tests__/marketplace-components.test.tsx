@@ -396,6 +396,72 @@ describe("Marketplace page and cards", () => {
     expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
     expect(mocks.putMCPServer).not.toHaveBeenCalled();
   });
+  it("Should check a new MCP server's name against a list refetched when the editor opens", async () => {
+    setup(undefined, "/marketplace?kind=mcps");
+    await screen.findByTestId("settings-page-mcp-servers-list");
+    // Added outside the web app after the list was cached.
+    mcpServers = [
+      ...mcpServers,
+      {
+        ...mcpManagementServerFixtures.find(server => server.name === "buildkite")!,
+        name: "outside",
+      },
+    ];
+    await userEvent.click(screen.getByRole("button", { name: "Add MCP server" }));
+    const editor = await screen.findByTestId("settings-mcp-servers-editor");
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-name-input"),
+      "outside"
+    );
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-command-input"),
+      "npx"
+    );
+    expect(
+      await within(editor).findByText('An MCP server named "outside" already exists.')
+    ).toBeVisible();
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+  });
+  it("Should explain a failed server list inside the editor and retry it without losing the draft", async () => {
+    setup(undefined, "/marketplace?kind=mcps");
+    await screen.findByTestId("settings-page-mcp-servers-list");
+    let failing = true;
+    server.use(
+      http.get("*/api/settings/mcp-servers", () =>
+        failing
+          ? // 403 is the settings read the query does not retry, so the failure settles at once.
+            HttpResponse.json(
+              { error: { code: "forbidden", message: "profile is read-only" } },
+              { status: 403 }
+            )
+          : HttpResponse.json({ ...settingsMCPServersCollectionFixture, mcp_servers: mcpServers })
+      )
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add MCP server" }));
+    const editor = await screen.findByTestId("settings-mcp-servers-editor");
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-name-input"),
+      "fresh-one"
+    );
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-command-input"),
+      "npx"
+    );
+    const alert = await within(editor).findByTestId("settings-mcp-servers-editor-servers-error");
+    expect(alert).toHaveTextContent("Couldn't check existing server names.");
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+    failing = false;
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(
+        within(editor).queryByTestId("settings-mcp-servers-editor-servers-error")
+      ).not.toBeInTheDocument()
+    );
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-name-input")).toHaveValue(
+      "fresh-one"
+    );
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeEnabled();
+  });
   it("Should carry a pending search draft into the selected kind instead of reverting it", async () => {
     const { router } = setup();
     await screen.findByTestId("marketplace-page");

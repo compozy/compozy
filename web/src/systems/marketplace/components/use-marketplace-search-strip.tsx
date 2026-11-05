@@ -86,6 +86,7 @@ function useMarketplaceSearchStrip({
   return { clear: draft.clear, navigate, switchKind, toolbar };
 }
 
+/** The URL value of a kind: Plugins is the default and is never written. */
 function kindParam(kind: MarketplaceKind | undefined) {
   return kind === "mcps" ? ("mcps" as const) : undefined;
 }

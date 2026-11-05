@@ -16,7 +16,10 @@ import {
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
 import type { SettingsMCPServerEntry } from "@/systems/settings";
-import { settingsMCPServersCollectionFixture } from "@/systems/settings/mocks";
+import {
+  settingsAppliedMutationFixture,
+  settingsMCPServersCollectionFixture,
+} from "@/systems/settings/mocks";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =
@@ -360,7 +363,8 @@ export function marketplaceStoryHandlers(options: {
   const pendingUpdates = new Set(options.pendingUpdates);
   const details = options.details ?? {};
   const sources = options.sources ?? [marketplaceSourceFixtures.feed];
-  const mcpServers = options.mcpServers;
+  // Saves land in this list so a refetch after Add MCP server keeps the new row.
+  let mcpServers = options.mcpServers ? [...options.mcpServers] : undefined;
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace", async ({ request }) => {
@@ -469,9 +473,26 @@ export function marketplaceStoryHandlers(options: {
             compozyApiMock.get("/api/settings/mcp-servers", () =>
               HttpResponse.json({
                 ...settingsMCPServersCollectionFixture,
-                mcp_servers: mcpServers,
+                mcp_servers: mcpServers ?? [],
               })
             ),
+            compozyApiMock.put("/api/settings/mcp-servers/{name}", async ({ params, request }) => {
+              const body = (await request.json()) as Partial<SettingsMCPServerEntry>;
+              const name = String(params.name);
+              mcpServers = [
+                ...(mcpServers ?? []).filter(server => server.name !== name),
+                // Provenance/status come from a personal settings-file row; the saved fields win.
+                {
+                  ...settingsMCPServersCollectionFixture.mcp_servers[0]!,
+                  ...body,
+                  name,
+                } as SettingsMCPServerEntry,
+              ];
+              return HttpResponse.json({
+                ...settingsAppliedMutationFixture,
+                section: "mcp-servers",
+              });
+            }),
           ],
         }
       : {}),
