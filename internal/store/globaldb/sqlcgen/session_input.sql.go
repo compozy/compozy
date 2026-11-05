@@ -1784,7 +1784,8 @@ WHERE session_id = ?3 AND target_turn_id = ?4
   AND session_generation = ?5
   AND mode = 'steer' AND origin_class = 'human'
   AND ((status = 'queued' AND (steer_delivery IS NULL OR steer_delivery IN ('pending_boundary', 'interrupt_fallback')))
-    OR status = 'dispatching')
+    OR status = 'dispatching'
+    OR (status = 'sent' AND steer_delivery = 'pending_injection'))
 RETURNING id
 `
 

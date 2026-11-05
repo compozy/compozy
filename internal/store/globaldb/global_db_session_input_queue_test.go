@@ -25,7 +25,10 @@ import (
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 	t.Run("Should atomically supersede undelivered steering when admitting an interrupt", func(t *testing.T) {
 		t.Parallel()
-		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryPendingBoundary, store.SteerDeliveryInterruptFallback, ""} {
+		for _, delivery := range []store.SteerDeliveryMode{
+			store.SteerDeliveryPendingBoundary, store.SteerDeliveryInterruptFallback, "",
+			store.SteerDeliveryPendingInjection, store.SteerDeliveryInjected,
+		} {
 			for _, rollback := range []bool{false, true} {
 				t.Run(
 					fmt.Sprintf("Should preserve atomic supersede for %s rollback %t", delivery, rollback),
@@ -43,7 +46,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 								t.Fatal(err)
 							}
 						}
-						if delivery == "" {
+						if delivery == "" || delivery == store.SteerDeliveryPendingInjection ||
+							delivery == store.SteerDeliveryInjected {
 							if _, ok, err := db.ReserveSessionSteer(
 								ctx,
 								sessionID,
@@ -52,6 +56,17 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 							); err != nil ||
 								!ok {
 								t.Fatalf("reserve=%t/%v", ok, err)
+							}
+							if delivery != "" {
+								if _, err := db.ResolveSessionSteer(
+									ctx,
+									sessionID,
+									"old-steer",
+									delivery,
+									now,
+								); err != nil {
+									t.Fatal(err)
+								}
 							}
 						}
 						id := "interrupt"
@@ -74,8 +89,15 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 								!strings.Contains(err.Error(), "UNIQUE constraint failed: session_input_queue.id") {
 								t.Fatalf("duplicate interrupt error=%v, want queue ID uniqueness constraint", err)
 							}
-						} else if err != nil || canceled != 1 || !slices.Equal(replacement.SupersededIDs, []string{"old-steer"}) {
-							t.Fatalf("interrupt=%#v/%d/%v", replacement, canceled, err)
+						} else {
+							wantIDs := []string{"old-steer"}
+							if delivery == store.SteerDeliveryInjected {
+								wantIDs = nil
+							}
+							if err != nil || canceled != len(wantIDs) ||
+								!slices.Equal(replacement.SupersededIDs, wantIDs) {
+								t.Fatalf("interrupt=%#v/%d/%v, want superseded %v", replacement, canceled, err, wantIDs)
+							}
 						}
 						old, err := db.GetSessionInputQueueEntry(ctx, sessionID, "old-steer")
 						if err != nil {
@@ -87,6 +109,12 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 							if delivery == "" {
 								want = store.SessionInputQueueStatusDispatching
 							}
+							if delivery == store.SteerDeliveryPendingInjection {
+								want = store.SessionInputQueueStatusSent
+							}
+						}
+						if delivery == store.SteerDeliveryInjected {
+							want = store.SessionInputQueueStatusSent
 						}
 						if old.Status != want {
 							t.Fatalf("old steering status=%s, want %s", old.Status, want)
@@ -96,7 +124,11 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 							t.Fatalf("ordinary queue=%#v/%v", queued, err)
 						}
 						if !rollback {
-							if old.SupersededBy != "interrupt" {
+							wantReplacement := "interrupt"
+							if delivery == store.SteerDeliveryInjected {
+								wantReplacement = ""
+							}
+							if old.SupersededBy != wantReplacement {
 								t.Fatalf("superseding identity=%q", old.SupersededBy)
 							}
 							if delivery == "" {

@@ -442,7 +442,8 @@ WHERE session_id = sqlc.arg(session_id) AND target_turn_id = sqlc.arg(target_tur
   AND session_generation = sqlc.arg(session_generation)
   AND mode = 'steer' AND origin_class = 'human'
   AND ((status = 'queued' AND (steer_delivery IS NULL OR steer_delivery IN ('pending_boundary', 'interrupt_fallback')))
-    OR status = 'dispatching')
+    OR status = 'dispatching'
+    OR (status = 'sent' AND steer_delivery = 'pending_injection'))
 RETURNING id;
 
 -- name: ListSupersededSessionSteers :many

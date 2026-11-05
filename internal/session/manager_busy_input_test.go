@@ -6767,6 +6767,112 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 
 func TestManagerBoundarySteer(t *testing.T) {
 	t.Parallel()
+	for _, failed := range []bool{false, true} {
+		for _, replacement := range []string{"", "replacement"} {
+			t.Run(
+				fmt.Sprintf(
+					"Should retire pending injection after interrupt with failure %t and text %q",
+					failed,
+					replacement,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					database := openManagerInputQueueStore(t)
+					h := newHarness(t, WithSessionInputQueueStore(database))
+					registerManagerInputQueueWorkspace(t, database, h)
+					h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+						proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "pending-interrupt")
+						proc.handle.caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+						return proc, nil
+					}
+					completion := make(chan error, 1)
+					var completeOnce sync.Once
+					complete := func() {
+						completeOnce.Do(func() {
+							var err error
+							if failed {
+								err = context.Canceled
+							}
+							completion <- err
+							close(completion)
+						})
+					}
+					h.manager.driver = &steeringTestDriver{fakeDriver: h.driver, completion: completion,
+						steer: func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error) {
+							return acp.SteerAttemptPendingInjection, nil
+						}}
+					sess := createSession(t, h)
+					registerManagerInputQueueSession(t, database, h, sess)
+					release := holdMentionActiveTurn(t, h)
+					t.Cleanup(func() { complete(); release(); reportSessionStop(t, h, sess.ID) })
+					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+					defer cancel()
+					active, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "active"})
+					if err != nil {
+						t.Fatal(err)
+					}
+					waitForCondition(
+						t,
+						"pending injection active turn",
+						func() bool { return sess.CurrentTurnID() != "" },
+					)
+					opts := SendPromptOpts{Message: "pending guidance", Mode: BusyInputModeSteer,
+						MessageID: "pending-message", IdempotencyKey: "pending-key"}
+					result, err := h.manager.SendPrompt(ctx, sess.ID, opts)
+					if err != nil || result.SteerDelivery != store.SteerDeliveryPendingInjection {
+						t.Fatalf("pending steer=%#v/%v", result, err)
+					}
+					entry, err := database.GetSessionInputQueueEntry(ctx, sess.ID, result.QueueEntryID)
+					if err != nil || entry.Status != store.SessionInputQueueStatusSent {
+						t.Fatalf("accepted pending injection=%#v/%v", entry, err)
+					}
+					interrupted, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{
+						Message: replacement, Mode: BusyInputModeInterrupt, Caller: PromptCaller{Kind: "human"},
+						MessageID: "interrupt-message", IdempotencyKey: "interrupt-key",
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					complete()
+					collectEvents(t, active.Events)
+					if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+						t.Fatal(err)
+					}
+					entry, err = database.GetSessionInputQueueEntry(ctx, sess.ID, result.QueueEntryID)
+					if err != nil || entry.Status != store.SessionInputQueueStatusCanceled ||
+						entry.SupersededBy == "" ||
+						interrupted.CanceledQueuedEntries != 1 {
+						t.Fatalf(
+							"pending injection escaped interrupt: row=%#v interrupt=%#v error=%v",
+							entry,
+							interrupted,
+							err,
+						)
+					}
+					replayed, err := h.manager.SendPrompt(ctx, sess.ID, opts)
+					if err != nil || !replayed.Replayed {
+						t.Fatalf("pending replay=%#v/%v", replayed, err)
+					}
+					replayed.Replayed = false
+					if !reflect.DeepEqual(replayed, result) {
+						t.Fatalf("pending receipt changed: first=%#v replay=%#v", result, replayed)
+					}
+					wantCalls := 1
+					if replacement != "" {
+						wantCalls++
+					}
+					if calls := managerPromptCalls(h); len(calls) != wantCalls {
+						t.Fatalf("canceled guidance was reprompted: %#v", calls)
+					}
+					inputs, err := sess.recorderHandle().Query(ctx, store.EventQuery{ID: entry.EventID, Limit: 1})
+					if err != nil || len(inputs) != 0 {
+						t.Fatalf("canceled injection was recorded as delivered: %d/%v", len(inputs), err)
+					}
+					requireTranscriptMarker(t, h.manager, sess.ID, transcript.MarkerPromptSuperseded)
+				},
+			)
+		}
+	}
 	for _, timeout := range []time.Duration{0, 45 * time.Second} {
 		for _, replacement := range []string{"", "replacement"} {
 			t.Run(
@@ -7061,12 +7167,12 @@ func TestManagerBoundarySteer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var streamFailed atomic.Bool
+			var streamFailure atomic.Pointer[acp.AgentEvent]
 			drained := make(chan struct{})
 			go func() {
 				for event := range active.Events {
 					if event.Type == acp.EventTypeError {
-						streamFailed.Store(true)
+						streamFailure.Store(&event)
 					}
 				}
 				close(drained)
@@ -7205,8 +7311,9 @@ func TestManagerBoundarySteer(t *testing.T) {
 			if queueStore.failGet.Load() || queueStore.failSettle.Load() {
 				t.Fatal("timeout storage fault was not exercised")
 			}
-			if streamFailed.Load() {
-				t.Fatal("queue boundary error failed the active turn")
+			if failure := streamFailure.Load(); failure != nil {
+				t.Fatalf("queue boundary error failed the active turn: %s; failure=%+v; turn=%s",
+					failure.Error, failure.Failure, failure.TurnID)
 			}
 			if len(calls) != wantCalls ||
 				(!tc.emptyInterrupt && !promptRequestEndsWith(calls[len(calls)-1].Message, "replacement")) {

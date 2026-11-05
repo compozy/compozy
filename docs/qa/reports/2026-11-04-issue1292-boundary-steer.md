@@ -210,3 +210,32 @@ make codegen-check
 PASS: session race selection including the real ACP subprocess integration (9.038s), store admission
 selection (8.438s), `make codegen` and `make codegen-check`. The completed staged receipt remains
 identical through both successful supersession and rollback.
+
+## Pending native injection retired by interrupt
+
+Greptile identified a further unconfirmed state: `pending_injection` is stored as `sent` while its
+native completion remains outstanding. Interrupt supersession now retires that state in the same
+transaction, without touching confirmed `injected` rows. Late native success or failure cannot
+release canceled guidance or rewrite its completed acceptance receipt.
+
+The existing manager suite reproduced escaped guidance in four cases (typed/empty interrupt and
+late native success/failure, 7.456s). After the query correction, all four passed with race (7.101s).
+The existing atomic-store table passed with race (9.065s), including pending injection, confirmed
+injection, ordinary queue preservation and rollback. Generated SQL changed through `make codegen`.
+
+On rebased head `b5dbad1bc`, CI also reported an error event in the parked-steer interrupt case
+([job](https://github.com/compozy/compozy/actions/runs/41948926945/job/126988063031)).
+Its no-error assertion is unchanged; the fixture now reports the error's text and failure kind.
+Ten focused race repetitions passed (16.482s). The original failure was not reproduced locally and
+remains subject to the next head's CI; no timeout, assertion or acceptance criterion was relaxed.
+
+The same head's SQLite experiment again preserved all 830,020 rows and the all-column hash, with
+zero operation errors and no throughput regression. Acceptance failed on long commits across core,
+session and telemetry databases (up to 1.159s), plus one 30.369s retention sweep against the unchanged
+30s limit ([job](https://github.com/compozy/compozy/actions/runs/41948926826/job/126987954849)).
+The earlier `3004cbb2b` head passed that gate; these receipts do not relax the next head's acceptance.
+
+The E2E 11-window performance case also reported an 84ms peer task against its unchanged 50ms limit
+([job](https://github.com/compozy/compozy/actions/runs/41948926945/job/126988062977));
+75 other cases in that shard passed. No shell performance code, fixture or threshold was changed.
+Full E2E remains CI-only and must pass on the next head.

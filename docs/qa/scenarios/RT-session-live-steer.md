@@ -61,5 +61,9 @@ scope, the historical-detection limitation, and delivery checks still pending.
 
 When a boundary steer is parked, explicitly interrupt with different text: the parked guidance must
 be superseded and the interrupt text must run next, with ordinary queued messages retained.
+Repeat while native steering reports `pending_injection`, using empty and typed interrupts before
+native completion. A later delivery failure or acknowledgment must not reprompt or record the old
+guidance as delivered. Exact retry retains the original acceptance receipt. Guidance already
+confirmed as `injected` remains delivered once.
 An `after_turn` steer follows queue ordering behind earlier operator messages; a newer steer may
 replace that undelivered guidance. A boundary steer retains replacement priority on natural turn end.
