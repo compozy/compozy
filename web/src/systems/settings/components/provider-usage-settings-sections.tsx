@@ -1,4 +1,6 @@
-import { NativeSelect, NativeSelectOption, Switch } from "@compozy/ui";
+import { AlertCircle } from "@compozy/ui/icons";
+
+import { Button, Empty, NativeSelect, NativeSelectOption, Switch } from "@compozy/ui";
 
 import {
   PROVIDER_USAGE_INTERVAL_OPTIONS,
@@ -76,16 +78,41 @@ export function ProviderUsageCollectionSection({ draft, onChange, disabled }: Dr
 /**
  * One switch per configured provider that has a usage collector. Stays
  * editable while collection is off so providers can be chosen before it starts.
+ * A failed provider list is reported here, so the rest of the page stays usable.
  */
 export function ProviderUsageProvidersSection({
   draft,
   onChange,
   disabled,
   providers,
-}: DraftProps & { providers: readonly ProviderUsageSettingsProvider[] }) {
-  if (providers.length === 0) return null;
+  error,
+  onRetry,
+}: DraftProps & {
+  providers: readonly ProviderUsageSettingsProvider[];
+  error?: Error | null;
+  onRetry?: () => void;
+}) {
+  if (providers.length === 0 && !error) return null;
   return (
     <SettingsGroup title="Providers" data-testid="settings-provider-usage-providers">
+      {error ? (
+        <Empty
+          action={
+            onRetry ? (
+              <Button onClick={onRetry} size="sm" type="button" variant="secondary">
+                Try again
+              </Button>
+            ) : undefined
+          }
+          cause={error.message}
+          data-testid="settings-provider-usage-providers-error"
+          description="Check that CompozyOS is running, then try again."
+          framed
+          icon={AlertCircle}
+          title="Couldn't load providers"
+          titleAs="h3"
+        />
+      ) : null}
       {providers.map(provider => (
         <SettingRow
           key={provider.id}

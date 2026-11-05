@@ -244,7 +244,7 @@ describe("ProviderUsageSettingsPage", () => {
     expect(screen.getByTestId("settings-provider-usage-provider-cursor")).toBeInTheDocument();
   });
 
-  it("Should surface a failed provider list and retry it", async () => {
+  it("Should keep collection controls and retry a failed provider list in its section", async () => {
     const user = userEvent.setup();
     let reads = 0;
     renderPage({
@@ -254,10 +254,15 @@ describe("ProviderUsageSettingsPage", () => {
           : json(PROVIDERS),
     });
 
-    const error = await screen.findByTestId("settings-page-provider-usage-error");
+    const error = await screen.findByTestId("settings-provider-usage-providers-error");
+    expect(screen.queryByTestId("settings-page-provider-usage-error")).toBeNull();
+    expect(screen.getByTestId("settings-provider-usage-enabled")).toBeEnabled();
     await user.click(within(error).getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByTestId("settings-provider-usage-provider-codex")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("settings-provider-usage-provider-cursor")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-provider-usage-providers-error")).toBeNull();
     expect(reads).toBe(2);
   });
 
