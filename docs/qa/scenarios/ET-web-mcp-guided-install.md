@@ -42,3 +42,9 @@ from missing_inputs. Installation does not start OAuth; explicit Authorize remai
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-04 (issue #1305 gap 3): manual MCP settings now have a Marketplace entry point.
+Add ▾ › **Add MCP server…** on Browse, or **Add MCP server** on the MCPs view, opens the same MCP
+server editor as Settings › MCP servers and lands on `/marketplace?kind=mcps`. This scenario's packaged
+input flow is unchanged; when walking it, confirm that an extension's MCP server installed here appears
+in the MCPs view with its owner, and that no curated MCP catalog is offered (out of scope; follow-up).

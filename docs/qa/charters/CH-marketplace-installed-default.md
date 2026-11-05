@@ -28,3 +28,7 @@ charter:
 ```
 
 <!-- The charter is durable and immutable: each run's debrief belongs in its dated report. -->
+
+Note 2026-11-04 (issue #1305 gap 3): an MCPs view returned as Browse `?kind=mcps` (Plugins | MCPs
+toggle) rather than the retired kind tabs or `tab=market`. This charter stays retired; walk
+ET-web-catalog-navigation and ET-web-mcp-status-matrix for the toggle and the MCPs list.

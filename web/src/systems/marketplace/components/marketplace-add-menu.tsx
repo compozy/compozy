@@ -1,4 +1,4 @@
-import { ChevronDown, FolderOpen, Plus, Store } from "@compozy/ui/icons";
+import { Cable, ChevronDown, FolderOpen, Plus, Store } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -16,14 +16,20 @@ interface MarketplaceAddMenuProps {
   onInstall: (source: ExtensionInstallSource) => void;
   /** Opens the shared plugin-marketplace dialog (the third door, after the two installers). */
   onAddMarketplace: () => void;
+  /** Opens the MCP server editor; Browse wires it, pages without the MCPs view leave it out. */
+  onAddMCPServer?: () => void;
 }
 
 /**
  * The one head door for things the catalog does not carry yet: install an extension from a GitHub
  * release or a local build through the production install dialog, or register a plugin
- * marketplace so its plugins list under their own section.
+ * marketplace so its plugins list under their own section, or add an MCP server by hand.
  */
-function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuProps) {
+function MarketplaceAddMenu({
+  onInstall,
+  onAddMarketplace,
+  onAddMCPServer,
+}: MarketplaceAddMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -58,6 +64,12 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
           <Store aria-hidden="true" className="size-4 text-muted-foreground" />
           Add plugin marketplace…
         </DropdownMenuItem>
+        {onAddMCPServer ? (
+          <DropdownMenuItem data-testid="marketplace-add-mcp-server" onClick={onAddMCPServer}>
+            <Cable aria-hidden="true" className="size-4 text-muted-foreground" />
+            Add MCP server…
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -15,6 +15,11 @@ import {
   marketplaceSourceFixtures,
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
+import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "@/systems/settings";
+import {
+  settingsAppliedMutationFixture,
+  settingsMCPServersCollectionFixture,
+} from "@/systems/settings/mocks";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =
@@ -349,6 +354,8 @@ export function marketplaceStoryHandlers(options: {
   pendingUpdates?: readonly string[];
   /** Registered sources; the catalog `sources[]` summaries derive from the enabled ones. */
   sources?: readonly MarketplaceSource[];
+  /** The MCPs view's managed server list (`/api/settings/mcp-servers`); omitted keeps the default. */
+  mcpServers?: SettingsMCPServerEntry[];
 }) {
   const catalog = options.catalog ?? [];
   let extensions = options.extensions ?? [];
@@ -356,6 +363,8 @@ export function marketplaceStoryHandlers(options: {
   const pendingUpdates = new Set(options.pendingUpdates);
   const details = options.details ?? {};
   const sources = options.sources ?? [marketplaceSourceFixtures.feed];
+  // Saves land in this list so a refetch after Add MCP server keeps the new row.
+  let mcpServers = options.mcpServers ? [...options.mcpServers] : undefined;
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace", async ({ request }) => {
@@ -458,5 +467,65 @@ export function marketplaceStoryHandlers(options: {
         });
       }),
     ],
+    ...(mcpServers
+      ? {
+          settings: [
+            compozyApiMock.get("/api/settings/mcp-servers", () =>
+              HttpResponse.json({
+                ...settingsMCPServersCollectionFixture,
+                mcp_servers: mcpServers ?? [],
+              })
+            ),
+            compozyApiMock.put("/api/settings/mcp-servers/{name}", async ({ params, request }) => {
+              const body = (await request.json()) as SettingsMCPServerRequest;
+              const name = String(params.name);
+              const existing = (mcpServers ?? []).find(server => server.name === name);
+              mcpServers = [
+                ...(mcpServers ?? []).filter(server => server.name !== name),
+                // An edit keeps its row's provenance; a new one reads as a personal settings-file
+                // row. The saved connection wins, projected into the read shape the editor reopens.
+                storyMCPRow(existing ?? settingsMCPServersCollectionFixture.mcp_servers[0]!, body),
+              ];
+              return HttpResponse.json({
+                ...settingsAppliedMutationFixture,
+                section: "mcp-servers",
+              });
+            }),
+            compozyApiMock.delete("/api/settings/mcp-servers/{name}", ({ params }) => {
+              mcpServers = (mcpServers ?? []).filter(server => server.name !== String(params.name));
+              return HttpResponse.json({
+                ...settingsAppliedMutationFixture,
+                section: "mcp-servers",
+              });
+            }),
+          ],
+        }
+      : {}),
   });
+}
+
+/** The read row the daemon would return for a saved write: connection fields plus key names. */
+function storyMCPRow(
+  base: SettingsMCPServerEntry,
+  body: SettingsMCPServerRequest
+): SettingsMCPServerEntry {
+  const { server } = body;
+  const unique = (keys: string[]) => [...new Set(keys)].sort();
+  const envKeys = unique([...Object.keys(server.env ?? {}), ...(body.preserve_env ?? [])]);
+  const secretEnvKeys = unique([
+    ...Object.keys(server.secret_env ?? {}),
+    ...(body.preserve_secrets?.secret_env ?? []),
+    ...Object.keys(body.secret_values?.secret_env ?? {}),
+  ]);
+  return {
+    ...base,
+    name: server.name,
+    transport: server.transport ?? base.transport,
+    command: server.command,
+    args: server.args,
+    url: server.url,
+    auth: server.auth ? { ...server.auth, client_secret_configured: false } : null,
+    env_keys: envKeys.length > 0 ? envKeys : undefined,
+    secret_env_keys: secretEnvKeys.length > 0 ? secretEnvKeys : undefined,
+  };
 }
