@@ -54,8 +54,6 @@ func validateAgentResourceSpec(
 		FallbackChain:   normalizeRoleFallbacks(spec.FallbackChain),
 		Prompt:          strings.TrimSpace(spec.Prompt),
 	}
-	// Records written by v0.5.0 may carry stays_on. Removal of the alias: v0.5.2.
-	normalized.Kind, _ = CanonicalAgentKind(normalized.Kind)
 	normalized.SetSpeed(spec.SpeedValue())
 	normalized.SetACPOptions(spec.ACPOptionsValue())
 	if spec.Capabilities != nil {

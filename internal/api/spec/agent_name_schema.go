@@ -16,18 +16,13 @@ func setAgentNameSchema(schema *openapi3.Schema, property string, pattern string
 	propertySchema.Value.MaxLength = &maxLength
 }
 
-// agentKindRequestDescription marks the v0.5.0 spelling as an input alias. Removal: v0.5.2.
-const agentKindRequestDescription = "Agent kind: on_demand (default) or always_on; fixed at creation. " +
-	"stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2."
+const agentKindRequestDescription = "Agent kind: on_demand (default) or always_on; fixed at creation."
 
-// setAgentKindRequestSchema lists the accepted request kinds, including the deprecated stays_on
-// alias. Responses keep a plain string kind. Removal of stays_on: v0.5.2.
 func setAgentKindRequestSchema(schema *openapi3.Schema) {
 	if kind := schema.Properties["kind"]; kind != nil && kind.Value != nil {
 		kind.Value.Enum = []any{
 			compozyconfig.AgentKindOnDemand,
 			compozyconfig.AgentKindAlwaysOn,
-			compozyconfig.AgentKindStaysOnAlias,
 		}
 		kind.Value.Description = agentKindRequestDescription
 	}

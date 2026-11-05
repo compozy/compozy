@@ -222,60 +222,6 @@ func DiffConfigEntries(before []Entry, after []Entry) []DiffEntry {
 	return diff
 }
 
-// configPathAliasPrefixes maps a v0.5.0 table prefix to its replacement. Removal: v0.5.2.
-var configPathAliasPrefixes = [][2][]string{
-	{{AgentsDirName, "stays_on"}, {AgentsDirName, "always_on"}},
-}
-
-// ConfigPathAliasWarning is the deprecation text for the v0.5.0 agents.stays_on paths. Removal: v0.5.2.
-const ConfigPathAliasWarning = "agents.stays_on is deprecated; use agents.always_on (removed in v0.5.2)"
-
-// CanonicalConfigPath rewrites a deprecated table prefix to its replacement. deprecated reports
-// that the old prefix was used so the boundary can warn. Removal: v0.5.2.
-func CanonicalConfigPath(path []string) (canonical []string, deprecated bool) {
-	for _, alias := range configPathAliasPrefixes {
-		if configPathHasPrefix(path, alias[0]) {
-			return append(slices.Clone(alias[1]), path[len(alias[0]):]...), true
-		}
-	}
-	return path, false
-}
-
-// CanonicalDottedConfigPath is CanonicalConfigPath for a dotted path. Removal: v0.5.2.
-func CanonicalDottedConfigPath(raw string) (string, bool) {
-	trimmed := strings.TrimSpace(raw)
-	canonical, deprecated := CanonicalConfigPath(strings.Split(trimmed, "."))
-	if !deprecated {
-		return raw, false
-	}
-	return strings.Join(canonical, "."), true
-}
-
-// LogConfigPathAlias records the daemon-side deprecation for one aliased key. Removal: v0.5.2.
-func LogConfigPathAlias(path []string) {
-	DeprecationLogger().Warn(ConfigPathAliasWarning, "keys", strings.Join(path, "."))
-}
-
-// configPathAliasTwin returns the other spelling of an aliased path, so an unset clears both
-// tables in one overlay file. Removal: v0.5.2.
-func configPathAliasTwin(path []string) ([]string, bool) {
-	for _, alias := range configPathAliasPrefixes {
-		switch {
-		case configPathHasPrefix(path, alias[0]):
-			return append(slices.Clone(alias[1]), path[len(alias[0]):]...), true
-		case configPathHasPrefix(path, alias[1]):
-			return append(slices.Clone(alias[0]), path[len(alias[1]):]...), true
-		}
-	}
-	return nil, false
-}
-
-// configPathHasPrefix reports whether path is prefix itself or a key under it, so the whole
-// aliased table resolves the same way as its keys.
-func configPathHasPrefix(path []string, prefix []string) bool {
-	return len(path) >= len(prefix) && slices.Equal(path[:len(prefix)], prefix)
-}
-
 // ParseDottedConfigPath parses a user-facing dotted config path.
 func ParseDottedConfigPath(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
@@ -283,10 +229,16 @@ func ParseDottedConfigPath(raw string) ([]string, error) {
 		return nil, errors.New("config: config path is required")
 	}
 	parts := strings.Split(trimmed, ".")
+	clean := make([]string, 0, len(parts))
 	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
+		segment := strings.TrimSpace(part)
+		if segment == "" {
 			return nil, fmt.Errorf("config: config path %q contains an empty segment", trimmed)
 		}
+		clean = append(clean, segment)
+	}
+	if err := ValidateRemovedConfigPath(clean); err != nil {
+		return nil, err
 	}
 	return parts, nil
 }
@@ -297,8 +249,7 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 	if err != nil {
 		return PathPolicy{}, err
 	}
-	clean, deprecated := CanonicalConfigPath(clean)
-	policy := PathPolicy{Segments: clean, Kind: ConfigValueString, DeprecatedAlias: deprecated}
+	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
 	if kind, ok := sessionEnvMutationKind(clean); ok {
 		policy.Kind = kind
 		return policy, nil
