@@ -20,6 +20,22 @@ const configMigrationOperation = "migrate"
 func loadPersistedConfigOverlay(
 	path string,
 	decode func([]byte, string) (configOverlay, error),
+) (configOverlay, error) {
+	return loadPersistedConfigOverlayWithLockState(path, decode, false)
+}
+
+// loadPersistedConfigOverlayLocked is used by effective-write validation while the write mutex is held.
+func loadPersistedConfigOverlayLocked(
+	path string,
+	decode func([]byte, string) (configOverlay, error),
+) (configOverlay, error) {
+	return loadPersistedConfigOverlayWithLockState(path, decode, true)
+}
+
+func loadPersistedConfigOverlayWithLockState(
+	path string,
+	decode func([]byte, string) (configOverlay, error),
+	lockHeld bool,
 ) (overlay configOverlay, err error) {
 	name := filepath.Base(path)
 	directory, err := fileutil.OpenDirectory(filepath.Dir(path))
@@ -55,7 +71,13 @@ func loadPersistedConfigOverlay(
 		return overlay, err
 	}
 	if !bytes.Equal(rendered, contents) {
-		if publishErr := publishRetiredConfigArchive(directory, path, original, contents, rendered); publishErr != nil {
+		var publishErr error
+		if lockHeld {
+			publishErr = publishRetiredConfigArchiveLocked(directory, path, original, contents, rendered, nil, nil)
+		} else {
+			publishErr = publishRetiredConfigArchive(directory, path, original, contents, rendered)
+		}
+		if publishErr != nil {
 			if len(archived) == 0 {
 				return configOverlay{}, publishErr
 			}
@@ -75,7 +97,7 @@ func publishRetiredConfigArchive(
 	original os.FileInfo,
 	contents, rendered []byte,
 ) error {
-	return publishRetiredConfigArchiveWithHook(directory, path, original, contents, rendered, nil)
+	return publishRetiredConfigArchiveWithHook(directory, path, original, contents, rendered, nil, nil)
 }
 
 // publishRetiredConfigArchiveWithHook keeps the snapshot check adjacent to publication.
@@ -85,7 +107,20 @@ func publishRetiredConfigArchiveWithHook(
 	path string,
 	original os.FileInfo,
 	contents, rendered []byte,
-	beforeCompare func(),
+	beforeCompare, afterCompare func(),
+) error {
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	return publishRetiredConfigArchiveLocked(directory, path, original, contents, rendered, beforeCompare, afterCompare)
+}
+
+// publishRetiredConfigArchiveLocked holds the caller's config write lease through the rename.
+func publishRetiredConfigArchiveLocked(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, rendered []byte,
+	beforeCompare, afterCompare func(),
 ) (err error) {
 	writable, err := directory.ReopenForMutation(filepath.Dir(path))
 	if err != nil {
@@ -103,6 +138,9 @@ func publishRetiredConfigArchiveWithHook(
 		}
 		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
 			return errors.New("config changed during retirement migration")
+		}
+		if afterCompare != nil {
+			afterCompare()
 		}
 		return nil
 	})

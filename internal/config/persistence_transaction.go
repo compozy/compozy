@@ -57,7 +57,7 @@ func EditConfigOverlayAndApply(
 	if err != nil {
 		return Config{}, err
 	}
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
+	finalCfg, err := validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
 	if err != nil {
 		return Config{}, err
 	}

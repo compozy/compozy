@@ -14,6 +14,18 @@ func validateEffectiveConfigWrite(
 	target WriteTarget,
 	rendered []byte,
 ) (Config, error) {
+	configOverlayWriteMu.Lock()
+	defer configOverlayWriteMu.Unlock()
+	return validateEffectiveConfigWriteLocked(homePaths, workspaceRoot, target, rendered)
+}
+
+// validateEffectiveConfigWriteLocked avoids re-entering publication locks while validating other layers.
+func validateEffectiveConfigWriteLocked(
+	homePaths HomePaths,
+	workspaceRoot string,
+	target WriteTarget,
+	rendered []byte,
+) (Config, error) {
 	dotenvLookup, err := loadDotEnvLookup(workspaceRoot)
 	if err != nil {
 		return Config{}, err
@@ -109,7 +121,7 @@ func loadConfigOverlayForWrite(path string, target WriteTarget, rendered []byte)
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadConfigOverlayBytes(rendered, path)
 	}
-	return loadConfigOverlayFile(path)
+	return loadPersistedConfigOverlayLocked(path, loadConfigOverlayBytes)
 }
 
 func applyConfigMCPSidecarContent(path string, target WriteTarget, rendered []byte, cfg *Config) error {

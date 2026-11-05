@@ -1335,6 +1335,7 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 			contents,
 			migrated,
 			func() { writeFile(t, path, saved) },
+			nil,
 		)
 		if err == nil || !strings.Contains(err.Error(), "config changed during retirement migration") {
 			t.Fatalf("publish error = %v", err)
@@ -1346,6 +1347,69 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 		entries, err := os.ReadDir(root)
 		if err != nil || len(entries) != 1 {
 			t.Fatalf("temporary migration file leaked: %v %v", entries, err)
+		}
+	})
+
+	t.Run("Should serialize a config save after the retirement comparison", func(t *testing.T) {
+		// Not parallel: this case proves ownership of the process-wide config write mutex.
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[agents.stays_on]\nmax_proposals = 7\n")
+		directory, err := fileutil.OpenDirectory(home.HomeDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		contents, info, err := directory.ReadRegularFile("config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, _, err := migrateRetiredAlwaysOnTable(contents, home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compared, release := make(chan struct{}), make(chan struct{})
+		published := make(chan error, 1)
+		go func() {
+			published <- publishRetiredConfigArchiveWithHook(directory, home.ConfigFile, info, contents, rendered, nil, func() { close(compared); <-release })
+		}()
+		<-compared
+		unlocked := configOverlayWriteMu.TryLock()
+		if unlocked {
+			configOverlayWriteMu.Unlock()
+		}
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			close(release)
+			<-published
+			t.Fatal(err)
+		}
+		saved := make(chan error, 1)
+		go func() {
+			_, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(9))
+			})
+			saved <- err
+		}()
+		close(release)
+		if err := <-published; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-saved; err != nil {
+			t.Fatal(err)
+		}
+		if unlocked {
+			t.Fatal("migration did not hold the config write lease after comparison")
+		}
+		cfg, err := LoadForHome(home)
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 9 {
+			t.Fatalf("saved value lost: %+v %v", cfg.Agents.AlwaysOn, err)
 		}
 	})
 
@@ -2326,6 +2390,42 @@ func TestPersistedAgentKindConfigMigration(t *testing.T) {
 		data, err := os.ReadFile(home.ConfigFile)
 		if err != nil || !bytes.Contains(data, []byte("max_proposals = 7")) {
 			t.Fatalf("archive = %s %v", data, err)
+		}
+	})
+	t.Run("Should migrate other overlays while a config save owns the write mutex", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		paths := []string{
+			home.ConfigFile,
+			profileConfigFile(home, "default"),
+			workspaceConfigFile(root),
+			workspaceProfileConfigFile(root, "default"),
+		}
+		for _, path := range paths {
+			writeFile(t, path, "[agents.stays_on]\napproval_timeout = '2h'\n")
+		}
+		target, err := ResolveConfigWriteTarget(home, root, WriteScopeWorkspace, "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, root, target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 || cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		for _, path := range paths {
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := loadConfigOverlayBytes(after, path); err != nil {
+				t.Fatalf("overlay not migrated: %s %v", path, err)
+			}
 		}
 	})
 }
