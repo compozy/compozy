@@ -1108,7 +1108,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"auto",
 					"approve-all",
 				)
-				assertPropertyAbsent(t, agentSchema, "mcp_servers")
+				assertNotRequired(t, agentSchema, "mcp_servers")
+				assertRequired(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, "name")
 				assertPropertyAbsent(t, agentSchema, "hooks")
 
 				responseSchema := jsonResponseSchema(t, createAgent, 201)
@@ -1139,7 +1140,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				updateSchema := jsonRequestSchema(t, update)
 				assertRequired(t, updateSchema, "agent", "expected_digest")
 				updateAgentSchema := propertySchema(t, updateSchema, "agent")
-				assertPropertyAbsent(t, updateAgentSchema, "mcp_servers")
+				assertNotRequired(t, updateAgentSchema, "mcp_servers")
 
 				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
 				assertResponseStatus(t, deleteAgent, 403)

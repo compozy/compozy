@@ -31,6 +31,7 @@ func CreateAgentFromRequest(
 	workspaces WorkspaceService,
 	transportName string,
 	profileName string,
+	vault VaultService,
 ) (CreatedAgentDefinition, error) {
 	if err := compozyconfig.ValidateAgentAppearance(req.Agent.Appearance); err != nil {
 		return CreatedAgentDefinition{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
@@ -48,7 +49,7 @@ func CreateAgentFromRequest(
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
 		return CreatedAgentDefinition{}, err
 	}
-	agent, err := compozyconfig.CreateAgentDefFile(target.Path, draft, false)
+	agent, err := writeAgentDefinitionWithMCP(ctx, vault, target.Path, draft, false, req.Agent.MCPServers)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
 	}

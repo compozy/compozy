@@ -1450,7 +1450,7 @@
         ],
         "type": "object"
       },
-      "AgentMCPServerJSON": {
+      "AgentMCPServerInput": {
         "properties": {
           "args": {
             "items": {
@@ -1461,7 +1461,7 @@
           "auth": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/SettingsMCPAuthConfigViewPayload"
+                "$ref": "#/components/schemas/SettingsMCPAuthConfigPayload"
               },
               {
                 "enum": [
@@ -1483,7 +1483,93 @@
           "name": {
             "type": "string"
           },
+          "reference": {
+            "type": "boolean"
+          },
           "secret_env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "secret_env_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "writeOnly": true
+          },
+          "secret_header_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "writeOnly": true
+          },
+          "secret_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "AgentMCPServerJSON": {
+        "properties": {
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "auth": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingsMCPAuthConfigViewPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "broken_reference": {
+            "type": "boolean"
+          },
+          "command": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "boolean"
+          },
+          "secret_env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "secret_headers": {
             "additionalProperties": {
               "type": "string"
             },
@@ -6197,6 +6283,12 @@
           },
           "label": {
             "type": "string"
+          },
+          "mcp_servers": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMCPServerInput"
+            },
+            "type": "array"
           },
           "model": {
             "type": "string"

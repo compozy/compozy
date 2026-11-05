@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentMcpServersPanel } from "../agent-mcp-servers-panel";
 import type { AgentPayload } from "../../types";
@@ -69,5 +69,40 @@ describe("AgentMcpServersPanel", () => {
       />
     );
     expect(screen.getByTestId("agent-mcp-empty")).toBeInTheDocument();
+  });
+  it("Should offer attachment only for editable agents and surface a broken reference", () => {
+    const onAdd = vi.fn();
+    const { rerender } = render(
+      <AgentMcpServersPanel
+        agent={{
+          ...agentWithMcp,
+          mcp_servers: [{ name: "missing", reference: true, broken_reference: true }],
+        }}
+        readOnly={false}
+        onAdd={onAdd}
+      />
+    );
+    expect(screen.getByText("Broken reference")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Add MCP server" }).click();
+    expect(onAdd).toHaveBeenCalledOnce();
+    rerender(<AgentMcpServersPanel agent={agentWithMcp} readOnly onAdd={onAdd} />);
+    expect(screen.queryByRole("button", { name: "Add MCP server" })).not.toBeInTheDocument();
+  });
+  it("Should remove a pending addition without offering removal for saved connections", () => {
+    const remove = vi.fn();
+    render(
+      <AgentMcpServersPanel
+        agent={{
+          ...agentWithMcp,
+          mcp_servers: [...(agentWithMcp.mcp_servers ?? []), { name: "pending", reference: true }],
+        }}
+        readOnly={false}
+        pendingNames={["pending"]}
+        onRemovePending={remove}
+      />
+    );
+    screen.getByRole("button", { name: "Remove pending pending" }).click();
+    expect(remove).toHaveBeenCalledWith("pending");
+    expect(screen.queryByRole("button", { name: "Remove pending github" })).not.toBeInTheDocument();
   });
 });

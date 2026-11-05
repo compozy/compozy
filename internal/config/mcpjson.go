@@ -23,6 +23,9 @@ type mcpJSONDocument struct {
 }
 
 type mcpJSONServer struct {
+	Reference      bool               `json:"reference,omitempty"`
+	Headers        map[string]string  `json:"headers,omitempty"`
+	SecretHeaders  map[string]string  `json:"secret_headers,omitempty"`
 	Transport      MCPServerTransport `json:"transport,omitempty"`
 	Command        string             `json:"command,omitempty"`
 	Args           []string           `json:"args,omitempty"`
@@ -130,6 +133,9 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 		entry := values[name]
 		servers = append(servers, MCPServer{
 			Name:           normalizeMCPServerName(name),
+			Reference:      entry.Reference,
+			Headers:        mergeStringMaps(nil, entry.Headers),
+			SecretHeaders:  mergeStringMaps(nil, entry.SecretHeaders),
 			Transport:      MCPServerTransport(strings.TrimSpace(string(entry.Transport))),
 			Command:        strings.TrimSpace(entry.Command),
 			Args:           append([]string(nil), entry.Args...),

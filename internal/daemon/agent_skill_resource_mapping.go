@@ -37,7 +37,7 @@ func appendAgentResources(
 		})
 		for _, server := range agent.MCPServers {
 			serverName := strings.TrimSpace(server.Name)
-			if serverName == "" {
+			if serverName == "" || server.Reference {
 				continue
 			}
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
@@ -74,7 +74,7 @@ func appendExtensionAgentResources(
 		})
 		for _, server := range staticAgent.Agent.MCPServers {
 			serverName := strings.TrimSpace(server.Name)
-			if serverName == "" {
+			if serverName == "" || server.Reference {
 				continue
 			}
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{

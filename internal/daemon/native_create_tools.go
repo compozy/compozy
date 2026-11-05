@@ -16,6 +16,7 @@ import (
 )
 
 type agentCreateInput struct {
+	MCPServers      []contract.AgentMCPServerInput        `json:"mcp_servers,omitempty"`
 	SessionApproval string                                `json:"session_approval,omitempty"`
 	PermissionRules []contract.AgentPermissionRulePayload `json:"permission_rules,omitempty"`
 	DisplayName     *string                               `json:"display_name,omitempty"`
@@ -93,6 +94,7 @@ func (n *daemonNativeTools) agentCreate(
 		n.deps.Workspaces,
 		string(req.ToolID),
 		profileName,
+		n.deps.Vault,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -101,7 +103,7 @@ func (n *daemonNativeTools) agentCreate(
 	if err := agentSkills.Sync(ctx); err != nil {
 		syncErr := errors.Join(
 			fmt.Errorf("daemon: sync created agent definition: %w", err),
-			n.rollbackNativeAgentCreate(ctx, agent.SourcePath),
+			n.rollbackNativeAgentCreateWithMCP(ctx, agent, createReq.Agent.MCPServers),
 		)
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
 			req.ToolID,
@@ -163,11 +165,24 @@ func (n *daemonNativeTools) agentCreateRequest(
 	scope toolspkg.Scope,
 	input agentCreateInput,
 ) (contract.CreateAgentRequest, error) {
+	if scope.SessionID != "" {
+		for _, server := range input.MCPServers {
+			if len(server.SecretHeaderValues)+len(server.SecretEnvValues) > 0 {
+				return contract.CreateAgentRequest{}, toolspkg.NewToolError(
+					toolspkg.ErrorCodeDenied,
+					id,
+					"use Vault references for MCP credentials in agent tools",
+					toolspkg.ErrToolDenied,
+				)
+			}
+		}
+	}
 	createReq := contract.CreateAgentRequest{
 		Scope:     contract.AgentCreateScope(strings.TrimSpace(input.Scope)),
 		Workspace: strings.TrimSpace(input.Workspace),
 		Agent: contract.CreateAgentPayload{
 			Name:            strings.TrimSpace(input.Name),
+			MCPServers:      input.MCPServers,
 			DisplayName:     input.DisplayName,
 			Description:     input.Description,
 			Kind:            input.Kind,
@@ -295,4 +310,15 @@ func nativeReservedAgentNameToolError(id toolspkg.ToolID, err error) error {
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonSchemaInvalid,
 	)
+}
+
+func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
+	ctx context.Context,
+	agent compozyconfig.AgentDef,
+	inputs []contract.AgentMCPServerInput,
+) error {
+	if err := n.rollbackNativeAgentCreate(ctx, agent.SourcePath); err != nil {
+		return err
+	}
+	return core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs)
 }

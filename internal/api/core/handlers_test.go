@@ -45,6 +45,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -4500,6 +4501,14 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
+		stored := map[string]string{}
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
 		syncErr := errors.New("sync unavailable")
 		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
 		fixture.Handlers.AgentDefinitionSync = syncer
@@ -4514,6 +4523,14 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				Name:     "rollback_agent",
 				Provider: "codex",
 				Prompt:   "Rollback on sync failure.",
+				MCPServers: []contract.AgentMCPServerInput{
+					{
+						Name:               "private",
+						Transport:          "http",
+						URL:                "https://example.com/mcp",
+						SecretHeaderValues: map[string]string{"Authorization": "write-only-credential"},
+					},
+				},
 			},
 		})
 
@@ -4531,6 +4548,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		if syncer.calls != 2 {
 			t.Fatalf("Sync() calls = %d, want initial sync plus reconciliation", syncer.calls)
+		}
+		if len(stored) != 0 {
+			t.Fatal("failed creation retained newly written Vault credentials")
 		}
 	})
 
@@ -4711,6 +4731,145 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 }
 
 func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
+	t.Run("Should attach MCP references and vault header credentials without changing tool access", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{
+				Name:       "coder",
+				Provider:   "codex",
+				Prompt:     "Work.",
+				MCPServers: []compozyconfig.MCPServer{{Name: "legacy", Command: "old"}},
+			},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored := map[string]string{}
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{
+						Name:     "coder",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{Name: "missing", Reference: true},
+							{
+								Name:               "private",
+								Transport:          "http",
+								URL:                "https://example.com/mcp",
+								SecretHeaderValues: map[string]string{"Authorization": "Bearer test-secret-value"},
+							},
+						},
+					},
+				},
+			),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", resp.Code, resp.Body.String())
+		}
+		var response contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &response)
+		if len(response.Agent.Tools) != 0 || len(response.Agent.MCPServers) != 3 {
+			t.Fatalf("response = %#v", response.Agent)
+		}
+		if strings.Contains(resp.Body.String(), "test-secret-value") ||
+			strings.Contains(resp.Body.String(), "vault:mcp/") {
+			t.Fatal("response leaked credential material")
+		}
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ref string
+		for _, server := range loaded.MCPServers {
+			if server.Name == "private" {
+				ref = server.SecretHeaders["Authorization"]
+			}
+		}
+		if stored[ref] != "Bearer test-secret-value" {
+			t.Fatalf("header was not bound to Vault")
+		}
+		for _, server := range response.Agent.MCPServers {
+			if server.Name == "missing" && !server.BrokenReference {
+				t.Fatal("missing reference was not surfaced")
+			}
+		}
+		markdown, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sidecar, err := os.ReadFile(filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(markdown, []byte("private")) || bytes.Contains(sidecar, []byte("test-secret-value")) {
+			t.Fatal("agent files contain misplaced definition or plaintext secret")
+		}
+		for _, tools := range [][]string{{"compozy__agent_list"}, {"compozy__agent_list", "compozy__skill_view"}} {
+			next := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/agents/coder",
+				mustJSON(
+					t,
+					contract.UpdateAgentRequest{
+						ExpectedDigest: response.Agent.DefinitionDigest,
+						Agent: contract.CreateAgentPayload{
+							Name:     "coder",
+							Provider: "codex",
+							Prompt:   "Work.",
+							Tools:    tools,
+						},
+					},
+				),
+			)
+			if next.Code != http.StatusOK {
+				t.Fatalf("unrelated save status = %d body=%s", next.Code, next.Body.String())
+			}
+			decodeJSON(t, next.Body.Bytes(), &response)
+			latest, err := compozyconfig.LoadAgentDefFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			latestDigest, err := compozyconfig.AgentDefinitionDigest(latest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Agent.MCPServers) != 3 || response.Agent.DefinitionDigest != latestDigest {
+				t.Fatalf("unrelated save lost effective servers or digest: %#v", response.Agent)
+			}
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should duplicate effective package agents while preserving managed sources", func(t *testing.T) {
@@ -4959,6 +5118,35 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		if loaded.Model != "gpt-5" || loaded.Prompt != "After." {
 			t.Fatalf("effective source definition = %#v", loaded)
+		}
+		denied := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/code_implementer",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: payload.Agent.DefinitionDigest,
+					Agent: contract.CreateAgentPayload{
+						Name:       "code_implementer",
+						Provider:   "codex",
+						Prompt:     "After.",
+						MCPServers: []contract.AgentMCPServerInput{{Name: "shared", Reference: true}},
+					},
+				},
+			),
+		)
+		if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "read-only") {
+			t.Fatalf("package attachment status = %d body=%s", denied.Code, denied.Body.String())
+		}
+		if _, err := os.Stat(
+			filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("package sidecar was modified: %v", err)
 		}
 	})
 

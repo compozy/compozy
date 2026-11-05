@@ -93,7 +93,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	agent, err := compozyconfig.CreateAgentDefFile(path, draft, false)
+	agent, err := writeAgentDefinitionWithMCP(c.Request.Context(), h.Vault, path, draft, false, req.Agent.MCPServers)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
@@ -102,7 +102,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	if err := h.AgentDefinitionSync.Sync(c.Request.Context()); err != nil {
 		syncErr := errors.Join(
 			fmt.Errorf("api: sync created agent definition: %w", err),
-			h.rollbackCreatedAgentDefinition(c.Request.Context(), agent.SourcePath),
+			h.rollbackCreatedAgentWithMCP(c.Request.Context(), agent, req.Agent.MCPServers),
 		)
 		h.logAgentMutationFailure("create", agent.SourcePath, startedAt, time.Since(syncStartedAt), syncErr)
 		h.respondError(c, http.StatusInternalServerError, syncErr)

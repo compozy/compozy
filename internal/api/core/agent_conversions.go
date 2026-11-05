@@ -47,14 +47,16 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 	for _, server := range agent.MCPServers {
 		redacted := compozyconfig.RedactedMCPServer(server)
 		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:      redacted.Name,
-			Transport: string(redacted.Transport),
-			Command:   redacted.Command,
-			Args:      append([]string(nil), redacted.Args...),
-			Env:       redacted.Env,
-			SecretEnv: redacted.SecretEnv,
-			URL:       redacted.URL,
-			Auth:      agentMCPAuthPayload(redacted.Auth),
+			Name:          redacted.Name,
+			Reference:     redacted.Reference,
+			SecretHeaders: redacted.SecretHeaders,
+			Transport:     string(redacted.Transport),
+			Command:       redacted.Command,
+			Args:          append([]string(nil), redacted.Args...),
+			Env:           redacted.Env,
+			SecretEnv:     redacted.SecretEnv,
+			URL:           redacted.URL,
+			Auth:          agentMCPAuthPayload(redacted.Auth),
 		})
 	}
 	digest, digestErr := compozyconfig.AgentDefinitionDigest(agent)
@@ -124,6 +126,13 @@ func AgentPayloadFromEntryWithConfig(
 	payload := AgentPayloadFromEntry(entry)
 	if cfg == nil || payload.DefinitionDigest == "" {
 		return payload
+	}
+	configured := cfg.MCPServers
+	if runtime, err := cfg.ResolveAgent(entry.Def); err == nil {
+		configured = runtime.MCPServers
+	}
+	for i, server := range entry.Def.MCPServers {
+		payload.MCPServers[i].BrokenReference = compozyconfig.AgentMCPReferenceBroken(server, configured)
 	}
 	resolved, err := cfg.ResolveAgent(entry.Def)
 	if err != nil {

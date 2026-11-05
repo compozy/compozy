@@ -75,6 +75,20 @@ func TestNativeAgentCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse plaintext MCP credentials from managed callers before writing", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{}
+		for _, input := range []agentCreateInput{
+			{MCPServers: []contract.AgentMCPServerInput{{Name: "remote", SecretHeaderValues: map[string]string{"Authorization": "credential"}}}},
+			{MCPServers: []contract.AgentMCPServerInput{{Name: "local", SecretEnvValues: map[string]string{"TOKEN": "credential"}}}},
+		} {
+			_, err := n.agentCreateRequest(toolspkg.ToolIDAgentCreate, toolspkg.Scope{SessionID: "sess-author"}, input)
+			if !errors.Is(err, toolspkg.ErrToolDenied) {
+				t.Fatalf("managed credential error = %v, want tool denied", err)
+			}
+		}
+	})
+
 	t.Run("Should report the registered target workspace", func(t *testing.T) {
 		t.Parallel()
 

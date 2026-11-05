@@ -29,6 +29,7 @@ import type { MCPVaultInventory } from "./mcp-secret-binding";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 export interface MCPServerEditorProps {
+  children?: React.ReactNode;
   open: boolean;
   mode: "create" | "edit";
   draft: MCPDraft;
@@ -60,6 +61,7 @@ export interface MCPServerEditorProps {
  * contract, and nesting them would produce two competing chromes.
  */
 export function MCPServerEditor({
+  children,
   open,
   mode,
   draft,
@@ -188,6 +190,8 @@ export function MCPServerEditor({
               onChange={onChange}
             />
           ) : null}
+
+          {children}
 
           {saveError ? (
             <Alert data-testid="settings-mcp-servers-editor-error" variant="destructive">

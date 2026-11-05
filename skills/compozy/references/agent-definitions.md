@@ -174,7 +174,13 @@ For standard ACP providers, CompozyOS applies model, replaces the option snapsho
 
 Providers that accept only remote MCP servers over ACP set `session_mcp_transport = "http"` (the `copilot` built-in does): CompozyOS serves each per-session stdio MCP server on a loopback endpoint with a per-session bearer token and closes it with the provider process. `permissions.provider_full_access` maps to Copilot's `allow_all = on` option, and Copilot's Autopilot mode counts as unrestricted, so both require `approve-all`.
 
-Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
+Per-agent MCP servers load from AGENT.md or an agent-local mcp.json sidecar. The Tools sheet's **Add MCP server** action and the additive `mcp_servers` create/update payload write only the sidecar; existing frontmatter keeps loading. Omitted or empty additions preserve all current servers. Sidecar entries replace same-name frontmatter servers.
+
+Attach an existing configured server using `{"name":"example","reference":true}`. The sidecar retains that name reference, resolves the current scoped definition at launch, and reports `broken_reference` when the configured server disappears. A broken reference prevents launching that connection; it does not silently retain a copy. `compozy agent create|update --mcp-server example` attaches the same reference. Do not use allowed-tool patterns to attach servers.
+
+Managed `compozy__agent_create` calls may define new servers or attach configured names; credentials must use existing MCP Vault refs. Plaintext credential fields are operator-only HTTP/UDS inputs. If the needed credential is absent, the operator creates it in Vault or uses the Tools sheet.
+
+For an operator-authored new definition, send `name` plus `command`/`args` for stdio or `transport: "http"` and `url` for remote HTTP. Header credentials use write-only `secret_header_values` or existing Vault refs in `secret_headers`; stdio credentials use `secret_env_values` or `secret_env` refs. Values are stored in Vault during save and never written to agent files or returned by reads. Credentials remain in Vault after a connection is replaced or an agent is deleted, because duplicated agents and explicit bindings can reuse them; remove unused credentials explicitly in Vault. Package- and extension-owned definitions remain read-only. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
 ## Fleet Reads
 

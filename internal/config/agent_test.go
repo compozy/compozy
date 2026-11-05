@@ -2403,3 +2403,117 @@ func TestPersistedAgentKindDeferredMigration(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentMCPSidecarAdditions(t *testing.T) {
+	t.Run("Should reject references outside agent sidecars", func(t *testing.T) {
+		t.Parallel()
+		paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(paths); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(paths.HomeDir, MCPJSONName),
+			[]byte(`{"mcpServers":{"missing":{"reference":true}}}`),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		cfg := DefaultWithHome(paths)
+		if err := applyConfigMCPSidecarFile(filepath.Join(paths.HomeDir, MCPJSONName), &cfg); err == nil {
+			t.Fatal("config-level reference accepted")
+		}
+	})
+
+	t.Run("Should preserve frontmatter and sidecar entries while attaching by name", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{
+			Name:       "agent",
+			Prompt:     "Work.",
+			MCPServers: []MCPServer{{Name: "legacy", Command: "legacy-command"}},
+		}
+		_, err := CreateAgentDefFile(path, draft, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		additions := []MCPServer{
+			{Name: "shared", Reference: true},
+			{
+				Name:          "private",
+				Transport:     MCPServerTransportHTTP,
+				URL:           "https://example.com/mcp",
+				SecretHeaders: map[string]string{"Authorization": "vault:mcp/agent-attachments/test"},
+			},
+		}
+		agent, err := CreateAgentDefWithMCPServers(path, draft, true, additions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatalf("frontmatter changed: %s", after)
+		}
+		if len(agent.MCPServers) != 3 {
+			t.Fatalf("servers = %#v", agent.MCPServers)
+		}
+		sidecar, err := LoadMCPServersJSONFile(filepath.Join(filepath.Dir(path), MCPJSONName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sidecar) != 2 {
+			t.Fatalf("sidecar = %#v", sidecar)
+		}
+		resolved := ResolveAgentMCPReferences(sidecar, []MCPServer{{Name: "shared", Command: "current-command"}})
+		if resolved[1].Command != "current-command" {
+			t.Fatalf("reference did not resolve current config: %#v", resolved)
+		}
+		if !AgentMCPReferenceBroken(MCPServer{Name: "shared", Reference: true}, nil) {
+			t.Fatal("missing target must be broken")
+		}
+		_, err = CreateAgentDefWithMCPServers(
+			path,
+			draft,
+			true,
+			[]MCPServer{{Name: "another", Command: "another-command"}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil || len(loaded.MCPServers) != 4 {
+			t.Fatalf("later addition lost servers: %#v, %v", loaded, err)
+		}
+	})
+	t.Run("Should roll back agent edits when a sidecar addition is invalid", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+		if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+			t.Fatal(err)
+		}
+		draft.Prompt = "After."
+		_, err := CreateAgentDefWithMCPServers(
+			path,
+			draft,
+			true,
+			[]MCPServer{{Name: "invalid", Reference: true, Command: "copy"}},
+		)
+		if err == nil {
+			t.Fatal("invalid reference accepted")
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil || loaded.Prompt != "Before." {
+			t.Fatalf("rollback = %#v, %v", loaded, err)
+		}
+	})
+}

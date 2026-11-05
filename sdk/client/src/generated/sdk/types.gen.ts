@@ -420,15 +420,39 @@ export type AgentLimitsPayload = {
   spawn_blocked_reason?: string;
 };
 
-export type AgentMCPServerJSON = {
+export type AgentMCPServerInput = {
   args?: Array<string>;
-  auth?: SettingsMCPAuthConfigViewPayload | null;
+  auth?: SettingsMCPAuthConfigPayload | null;
   command?: string;
   env?: {
     [key: string]: string;
   };
   name: string;
+  reference?: boolean;
   secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type AgentMCPServerJSON = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigViewPayload | null;
+  broken_reference?: boolean;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
     [key: string]: string;
   };
   transport?: string;
@@ -1692,6 +1716,7 @@ export type CreateAgentPayload = {
    */
   kind?: "on_demand" | "always_on";
   label?: string;
+  mcp_servers?: Array<AgentMCPServerInput>;
   model?: string;
   name: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
@@ -12922,6 +12947,75 @@ export type WorktreesResponse = {
   worktrees: Array<WorktreePayload>;
 };
 
+export type AgentMCPServerInputWritable = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigPayload | null;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_env_values?: {
+    [key: string]: string;
+  };
+  secret_header_values?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type CreateAgentPayloadWritable = {
+  acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
+  category_path?: Array<string>;
+  command?: string;
+  deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
+  fallback_chain?: Array<AgentFallbackRoutePayload>;
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
+   */
+  kind?: "on_demand" | "always_on";
+  label?: string;
+  mcp_servers?: Array<AgentMCPServerInputWritable>;
+  model?: string;
+  name: string;
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
+  prompt: string;
+  provider?: string;
+  reasoning_effort?: string;
+  resolved_appearance?: {
+    [key: string]: unknown;
+  };
+  session_approval?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
+  skills?: CreateAgentSkillsConfig | null;
+  speed?: "normal" | "fast";
+  tools?: Array<string>;
+  toolsets?: Array<string>;
+  workspace_access?: string;
+};
+
+export type CreateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  scope: "workspace" | "global";
+  workspace?: string;
+};
+
 export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
@@ -12948,6 +13042,12 @@ export type InstallExtensionRequestWritable = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type UpdateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  expected_digest: string;
+  workspace?: string;
 };
 
 export type UpdateExtensionRequestWritable = {
@@ -15148,7 +15248,7 @@ export type CreateAgentData = {
   /**
    * JSON request body
    */
-  body: CreateAgentRequest;
+  body: CreateAgentRequestWritable;
   path?: never;
   query?: {
     /**
@@ -15573,7 +15673,7 @@ export type UpdateAgentData = {
   /**
    * JSON request body
    */
-  body: UpdateAgentRequest;
+  body: UpdateAgentRequestWritable;
   path: {
     /**
      * Agent name

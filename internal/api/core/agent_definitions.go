@@ -65,6 +65,10 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
+	if resolved.Entry.PackageOwned && len(req.Agent.MCPServers) > 0 {
+		h.respondError(c, http.StatusForbidden, errors.New("package-owned agent MCP servers are read-only"))
+		return
+	}
 	currentDigest, err := compozyconfig.AgentDefinitionDigest(resolved.Entry.Def)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -86,7 +90,7 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	agent, err := compozyconfig.CreateAgentDefFile(resolved.Entry.Def.SourcePath, draft, true)
+	agent, err := h.writeUpdatedAgentDefinition(c, resolved.Entry.Def.SourcePath, draft, req.Agent.MCPServers)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return

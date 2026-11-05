@@ -91,6 +91,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agentQuery.data) });
 
   return {
+    runtimeWorkspaceId,
     agent: agentQuery.data,
     agentLoading: agentQuery.isLoading,
     agentError: (agentQuery.error as Error | null) ?? null,

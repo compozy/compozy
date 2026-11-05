@@ -14,6 +14,7 @@ import (
 )
 
 type agentDefinitionFlags struct {
+	mcpServers                                                                   []string
 	displayName, description, kind, avatar, seed, color, icon, emoji, background string
 	generation                                                                   int
 
@@ -117,6 +118,7 @@ func createAgentRequestFromFlags(
 		Workspace: workspace,
 		Agent: contract.CreateAgentPayload{
 			Name:            name,
+			MCPServers:      agentMCPReferencesFromFlags(flags.mcpServers),
 			Provider:        strings.TrimSpace(flags.provider),
 			Command:         strings.TrimSpace(flags.command),
 			Model:           strings.TrimSpace(flags.model),
@@ -185,6 +187,7 @@ func updateAgentRequestFromFlags(
 		return contract.UpdateAgentRequest{}, err
 	}
 	payload.Name = name
+	payload.MCPServers = agentMCPReferencesFromFlags(flags.mcpServers)
 	if err := applyAgentFallbackChainFlags(cmd, &payload, flags); err != nil {
 		return contract.UpdateAgentRequest{}, err
 	}
@@ -428,4 +431,12 @@ func agentPromptFromFlags(
 		return "", false, errors.New("cli: agent prompt cannot be empty")
 	}
 	return prompt, true, nil
+}
+
+func agentMCPReferencesFromFlags(names []string) []contract.AgentMCPServerInput {
+	references := []contract.AgentMCPServerInput{}
+	for _, name := range normalizeAgentFlagValues(names) {
+		references = append(references, contract.AgentMCPServerInput{Name: name, Reference: true})
+	}
+	return references
 }

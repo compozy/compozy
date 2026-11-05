@@ -1128,6 +1128,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 				Scope: contract.AgentCreateScopeGlobal,
 				Agent: contract.CreateAgentPayload{
 					Name: "coder", Provider: "claude", Prompt: "Create integration fixtures.",
+					MCPServers: []contract.AgentMCPServerInput{{Name: "configured-reference", Reference: true}},
 				},
 			},
 		)
@@ -1136,6 +1137,16 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		}
 		var created contract.AgentResponse
 		decodeAgentMutationIntegrationResponse(t, create, &created)
+		if len(created.Agent.MCPServers) != 1 || !created.Agent.MCPServers[0].Reference ||
+			!created.Agent.MCPServers[0].BrokenReference {
+			t.Fatalf("reference projection = %#v", created.Agent.MCPServers)
+		}
+		for _, record := range mcpCatalog.Snapshot() {
+			if record.Spec.Name == "configured-reference" {
+				t.Fatal("name reference published as a standalone MCP resource")
+			}
+		}
+
 		if _, err := catalog.GetAgent(ctx, "coder"); err != nil {
 			t.Fatalf("catalog.GetAgent(coder after create) error = %v", err)
 		}

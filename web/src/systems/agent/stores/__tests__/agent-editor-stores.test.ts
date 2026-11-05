@@ -309,7 +309,9 @@ describe("agent editor store logic", () => {
       agent,
     });
 
-    store.trigger.draftPatched({ patch: { prompt: "local prompt" } });
+    store.trigger.draftPatched({
+      patch: { prompt: "local prompt", mcpAdditions: [{ name: "team-docs", reference: true }] },
+    });
     let snapshot = store.getSnapshot();
     expect(snapshot.context.draft?.prompt).toBe("local prompt");
     expect(snapshot.context.baseline?.definition_digest).toBe(agent.definition_digest);
@@ -324,12 +326,22 @@ describe("agent editor store logic", () => {
     store.trigger.saveRequested({ name: agent.name, save, workspaceId: "ws-test" });
     snapshot = store.getSnapshot();
     const requestId = snapshot.context.requestId;
+    expect(snapshot.context.draft?.mcpAdditions).toEqual([{ name: "team-docs", reference: true }]);
     store.trigger.saveSucceeded({
       requestId: requestId - 1,
       agent: { ...agent, prompt: "local prompt" },
     });
     snapshot = store.getSnapshot();
     expect(snapshot.context.phase).toBe("saving");
+    store.trigger.saveSucceeded({
+      requestId,
+      agent: {
+        ...agent,
+        definition_digest: "saved-digest",
+        mcp_servers: [{ name: "team-docs", reference: true }],
+      },
+    });
+    expect(store.getSnapshot().context.draft?.mcpAdditions).toBeUndefined();
   });
 
   it("Should own save and reload effects without side effects from can probes or duplicate intents", async () => {

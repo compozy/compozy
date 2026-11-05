@@ -24,6 +24,9 @@ func applyConfigMCPSidecarFile(path string, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectConfiguredMCPReferences(servers); err != nil {
+		return err
+	}
 	if len(servers) == 0 {
 		return nil
 	}
