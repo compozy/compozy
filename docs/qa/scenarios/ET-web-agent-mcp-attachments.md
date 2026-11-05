@@ -22,6 +22,9 @@ overlaps: MS-web-agent-permissions, MS-web-mcp-editor-simple-advanced
 4. Change the configured server's endpoint. The attachment follows the current definition. Remove that server and reload: Broken reference is visible; the agent never launches a stale copied definition.
 5. Add a stdio server with a Vault environment binding. Verify persistence through CLI and HTTP; repeat an unrelated Tools edit and confirm existing attachments and bindings survive.
 6. Open a package/extension-owned agent. The MCP list is visible and the add action is absent; a crafted write is rejected by the existing package ownership boundary.
-7. Use a stale digest to add a server. The request conflicts without changing files or Vault. Discard an unsaved connection and confirm no Vault write took place.
+7. Add two HTTP header rows that differ only in letter case or surrounding whitespace. Add stays disabled until a duplicate is removed. Reject invalid header names before staging. Leave an HTTP header incomplete, switch to stdio, supply its command, and verify that hidden HTTP rows do not block Save.
+8. Attempt to attach private, other-workspace or daemon-owned Vault refs to a new agent-local connection: reject them; configured name references and explicitly shared refs remain supported. Managed HTTP/UDS callers must use references rather than plaintext credential values. Invalid header values and overlapping ref/value names are rejected before Vault writes.
+9. Submit two concurrent Saves with the same digest: exactly one succeeds; the stale request conflicts without losing the winning addition.
+10. Use a stale digest to add a server. The request conflicts without changing files or Vault. Discard an unsaved connection and confirm no Vault write took place.
 
 Adjacent canary: change an allowed-tool entry and confirm it still saves independently of MCP attachments.

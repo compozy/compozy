@@ -12,6 +12,8 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcppolicy"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/gin-gonic/gin"
 )
 
@@ -54,13 +56,20 @@ func writeAgentDefinitionWithMCP(
 	inputs []contract.AgentMCPServerInput,
 ) (compozyconfig.AgentDef, error) {
 	servers := agentMCPServersFromPayload(inputs)
+	for index, input := range inputs {
+		if err := validateAgentMCPSecretHeaderValues(input, servers[index].Auth.Enabled()); err != nil {
+			return compozyconfig.AgentDef{}, err
+		}
+	}
 	written := []string{}
 	rollback := func() error {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		var err error
 		for _, ref := range written {
-			err = errors.Join(err, secrets.DeleteSecret(cleanupCtx, ref))
+			if deleteErr := secrets.DeleteSecret(cleanupCtx, ref); !errors.Is(deleteErr, vault.ErrSecretNotFound) {
+				err = errors.Join(err, deleteErr)
+			}
 		}
 		return err
 	}
@@ -97,17 +106,17 @@ func writeAgentDefinitionWithMCP(
 					)
 				}
 				ref := "vault:mcp/shared/agent-attachments/" + strings.ToLower(rand.Text())
+				written = append(written, ref)
 				if _, err := secrets.PutSecret(ctx, ref, "mcp", value); err != nil {
 					return compozyconfig.AgentDef{}, errors.Join(err, rollback())
 				}
-				written = append(written, ref)
 				binding.refs[key] = ref
 			}
 		}
 	}
 	agent, err := compozyconfig.CreateAgentDefWithMCPServers(path, draft, overwrite, servers)
 	if err != nil {
-		// A close failure can follow committed writes; their credentials must remain usable.
+		// Failed recovery or close can leave committed refs; their credentials must remain usable.
 		if agent.Name != "" {
 			return agent, err
 		}
@@ -118,6 +127,24 @@ func writeAgentDefinitionWithMCP(
 		return agent, err
 	}
 	return persisted, nil
+}
+
+func validateAgentMCPSecretHeaderValues(input contract.AgentMCPServerInput, authEnabled bool) error {
+	headers := make(map[string]string, len(input.SecretHeaders)+len(input.SecretHeaderValues))
+	maps.Copy(headers, input.SecretHeaders)
+	for name, value := range input.SecretHeaderValues {
+		if _, exists := headers[name]; exists {
+			return errors.Join(
+				compozyconfig.ErrInvalidAgentDefinition,
+				&mcppolicy.Error{Code: mcppolicy.CodeDuplicateHeader, Header: strings.ToLower(name)},
+			)
+		}
+		headers[name] = value
+	}
+	if err := mcppolicy.ValidateHeaders(nil, headers, mcppolicy.SourceOperatorSecret, authEnabled); err != nil {
+		return errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+	}
+	return nil
 }
 
 func (h *BaseHandlers) writeUpdatedAgentDefinition(
@@ -160,8 +187,9 @@ func (h *BaseHandlers) rollbackCreatedAgentWithMCP(
 	agent compozyconfig.AgentDef,
 	inputs []contract.AgentMCPServerInput,
 ) error {
-	if err := h.rollbackCreatedAgentDefinition(ctx, agent.SourcePath); err != nil {
-		return err
+	deleted, rollbackErr := h.rollbackCreatedAgentDefinition(ctx, agent.SourcePath)
+	if !deleted {
+		return rollbackErr
 	}
-	return RollbackAgentMCPSecretValues(ctx, h.Vault, agent, inputs)
+	return errors.Join(rollbackErr, RollbackAgentMCPSecretValues(ctx, h.Vault, agent, inputs))
 }

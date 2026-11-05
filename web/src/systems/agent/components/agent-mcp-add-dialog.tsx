@@ -34,6 +34,8 @@ export function AgentMCPAddDialogView({
   nameConflict,
   errors,
   validHeaders,
+  headerError,
+  headerErrors,
   agent,
   onAdd,
   onClose,
@@ -57,7 +59,12 @@ export function AgentMCPAddDialogView({
             ? { status: "loading" }
             : vault.error
               ? { status: "error", message: vault.error.message, retry: () => void vault.refetch() }
-              : { status: "ready", refs: (vault.data ?? []).map(secret => secret.ref) }
+              : {
+                  status: "ready",
+                  refs: (vault.data ?? []).flatMap(secret =>
+                    secret.ref.startsWith("vault:mcp/shared/") ? [secret.ref] : []
+                  ),
+                }
         }
         onChange={setDraft}
         onTargetChange={() => {}}
@@ -80,59 +87,12 @@ export function AgentMCPAddDialogView({
         }}
       >
         {draft.transport === "http" ? (
-          <div className="flex flex-col gap-3">
-            <Label>Header credentials</Label>
-            {headers.map((header, index) => (
-              <div className="flex gap-2" key={header.id}>
-                <Input
-                  aria-label={`Header name ${index + 1}`}
-                  value={header.key}
-                  onChange={event =>
-                    setHeaders(
-                      headers.map((row, at) =>
-                        at === index ? { ...row, key: event.target.value } : row
-                      )
-                    )
-                  }
-                />
-                <Input
-                  aria-label={`Header secret ${index + 1}`}
-                  type="password"
-                  autoComplete="new-password"
-                  value={header.value}
-                  onChange={event =>
-                    setHeaders(
-                      headers.map((row, at) =>
-                        at === index ? { ...row, value: event.target.value } : row
-                      )
-                    )
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setHeaders(headers.filter((_, at) => at !== index))}
-                >
-                  Remove
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                setHeaders([
-                  ...headers,
-                  { id: crypto.randomUUID(), key: "Authorization", value: "" },
-                ])
-              }
-            >
-              Add header credential
-            </Button>
-            <p className="text-caption text-muted-foreground">
-              Credentials are saved in Vault when you save this agent.
-            </p>
-          </div>
+          <AgentMCPHeaderFields
+            headers={headers}
+            setHeaders={setHeaders}
+            headerError={headerError}
+            headerErrors={headerErrors}
+          />
         ) : null}
       </MCPServerEditor>
     );
@@ -179,5 +139,87 @@ export function AgentMCPAddDialogView({
         </Button>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AgentMCPHeaderFields({
+  headers,
+  setHeaders,
+  headerError,
+  headerErrors,
+}: Pick<
+  ReturnType<typeof useAgentMCPAddDialog>,
+  "headers" | "setHeaders" | "headerError" | "headerErrors"
+>) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Label>Header credentials</Label>
+      {headerError ? (
+        <p role="alert" className="text-caption text-destructive">
+          {headerError}
+        </p>
+      ) : null}
+      {headers.map((header, index) => (
+        <div className="flex flex-col gap-2" key={header.id}>
+          <div className="flex gap-2">
+            <Input
+              aria-label={`Header name ${index + 1}`}
+              value={header.key}
+              onChange={event =>
+                setHeaders(
+                  headers.map((row, at) =>
+                    at === index ? { ...row, key: event.target.value } : row
+                  )
+                )
+              }
+            />
+            <Input
+              aria-label={`Header secret ${index + 1}`}
+              type="password"
+              autoComplete="new-password"
+              value={header.value}
+              onChange={event =>
+                setHeaders(
+                  headers.map((row, at) =>
+                    at === index ? { ...row, value: event.target.value } : row
+                  )
+                )
+              }
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setHeaders(headers.filter((_, at) => at !== index))}
+            >
+              Remove
+            </Button>
+          </div>
+          {headerErrors[index] ? (
+            <p role="alert" className="text-caption text-destructive">
+              {headerErrors[index]}
+            </p>
+          ) : null}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() =>
+          setHeaders([
+            ...headers,
+            {
+              id: crypto.randomUUID(),
+              key: headers.length === 0 ? "Authorization" : "",
+              value: "",
+            },
+          ])
+        }
+      >
+        Add header credential
+      </Button>
+      <p className="text-caption text-muted-foreground">
+        Credentials are saved in Vault when you save this agent.
+      </p>
+    </div>
   );
 }

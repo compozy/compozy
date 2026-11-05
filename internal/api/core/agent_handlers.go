@@ -71,6 +71,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	if !h.allowAgentPermissionPolicyWrite(c, req.Agent.SessionApproval, req.Agent.PermissionRules != nil) {
 		return
 	}
+	if !h.allowAgentMCPSecretValues(c, req.Agent.MCPServers) {
+		return
+	}
 	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
 		return
 	}
@@ -115,15 +118,15 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	})
 }
 
-func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) error {
+func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) (bool, error) {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
-		return fmt.Errorf("api: roll back created agent definition: %w", err)
+		return false, fmt.Errorf("api: roll back created agent definition: %w", err)
 	}
 	if err := h.AgentDefinitionSync.Sync(ctx); err != nil {
-		return fmt.Errorf("api: reconcile catalog after create rollback: %w", err)
+		return true, fmt.Errorf("api: reconcile catalog after create rollback: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // GetAgent returns one agent definition by name.

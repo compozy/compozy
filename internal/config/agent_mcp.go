@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -44,14 +46,8 @@ func prepareAgentMCPSidecar(path string, content []byte, additions []MCPServer) 
 		if err := server.Validate(fmt.Sprintf("agent.mcp_servers[%d]", i)); err != nil {
 			return nil, nil, errors.Join(ErrInvalidAgentDefinition, err)
 		}
-		for rangeKey, ref := range server.SecretHeaders {
-			if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
-				return nil, nil, fmt.Errorf(
-					"%w: secret_headers.%s requires an MCP Vault reference",
-					ErrInvalidAgentDefinition,
-					rangeKey,
-				)
-			}
+		if err := validateAgentMCPSecretRefs(server); err != nil {
+			return nil, nil, errors.Join(ErrInvalidAgentDefinition, err)
 		}
 		if len(server.Headers) > 0 {
 			return nil, nil, fmt.Errorf(
@@ -67,7 +63,7 @@ func prepareAgentMCPSidecar(path string, content []byte, additions []MCPServer) 
 	if err != nil {
 		return nil, nil, err
 	}
-	servers, err := ParseMCPServersJSON(rendered, path)
+	servers, err := parseMCPServersJSON(rendered, path, true)
 	return rendered, servers, err
 }
 
@@ -77,9 +73,28 @@ func CreateAgentDefWithMCPServers(
 	draft AgentDefinitionDraft,
 	overwrite bool,
 	additions []MCPServer,
+) (AgentDef, error) {
+	return createAgentDefWithMCPServers(
+		path,
+		draft,
+		overwrite,
+		additions,
+		CreateAgentDefFile,
+		writePersistedFileInDirectory,
+	)
+}
+
+// A non-empty result on error means credential references may remain on disk.
+func createAgentDefWithMCPServers(
+	path string,
+	draft AgentDefinitionDraft,
+	overwrite bool,
+	additions []MCPServer,
+	writeDefinition func(string, AgentDefinitionDraft, bool) (AgentDef, error),
+	writeFile func(*fileutil.Directory, string, string, []byte, bool) error,
 ) (result AgentDef, err error) {
 	if len(additions) == 0 {
-		return CreateAgentDefFile(path, draft, overwrite)
+		return writeDefinition(path, draft, overwrite)
 	}
 	if _, _, err := RenderAgentDefinition(draft); err != nil {
 		return AgentDef{}, err
@@ -107,22 +122,36 @@ func CreateAgentDefWithMCPServers(
 	if err != nil {
 		return AgentDef{}, err
 	}
-	agent, err := CreateAgentDefFile(path, draft, overwrite)
+	restore := func(file, fullPath string, old []byte, exists bool) error {
+		if exists {
+			return writeFile(directory, file, fullPath, old, true)
+		}
+		if err := directory.RemoveRegularFile(file); !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	agent, err := writeDefinition(path, draft, overwrite)
 	if err != nil {
+		if !errors.Is(err, fileutil.ErrPublishedNotDurable) {
+			return AgentDef{}, err
+		}
+		restoreErr := restore(name, path, previous, existed)
+		if restoreErr != nil {
+			return AgentDef{}, errors.Join(err, restoreErr)
+		}
 		return AgentDef{}, err
 	}
-	if err := writePersistedFileInDirectory(directory, MCPJSONName, sidecarPath, rendered, true); err != nil {
-		restore := func(file, fullPath string, old []byte, exists bool) error {
-			if exists {
-				return writePersistedFileInDirectory(directory, file, fullPath, old, true)
-			}
-			return directory.RemoveRegularFile(file)
-		}
-		return AgentDef{}, errors.Join(
-			err,
+	if err := writeFile(directory, MCPJSONName, sidecarPath, rendered, true); err != nil {
+		restoreErr := errors.Join(
 			restore(name, path, previous, existed),
 			restore(MCPJSONName, sidecarPath, previousSidecar, sidecarExisted),
 		)
+		if restoreErr != nil {
+			agent.MCPServers = OverrideMCPServers(agent.MCPServers, servers)
+			return agent, errors.Join(err, restoreErr)
+		}
+		return AgentDef{}, err
 	}
 	agent.MCPServers = OverrideMCPServers(agent.MCPServers, servers)
 	return agent, nil
@@ -132,6 +161,30 @@ func rejectConfiguredMCPReferences(servers []MCPServer) error {
 	for _, server := range servers {
 		if server.Reference {
 			return fmt.Errorf("MCP references are only supported in agent sidecars")
+		}
+	}
+	return nil
+}
+
+// Agent-local connections may reuse explicitly shared credentials. Use a name
+// reference to attach a configured server together with its owned credentials.
+func validateAgentMCPSecretRefs(server MCPServer) error {
+	refs := []string{server.Auth.ClientSecretRef}
+	for _, ref := range server.SecretHeaders {
+		refs = append(refs, ref)
+	}
+	for _, ref := range server.SecretEnv {
+		refs = append(refs, ref)
+	}
+	for _, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
+			return err
+		}
+		if !strings.HasPrefix(vault.NormalizeRef(ref), vault.MCPSharedRefPrefix) {
+			return fmt.Errorf("agent-local MCP credentials require explicitly shared Vault references")
 		}
 	}
 	return nil

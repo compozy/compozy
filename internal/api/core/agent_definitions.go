@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentmemory"
@@ -26,6 +27,10 @@ var (
 	errAgentDefinitionSyncUnavailable = errors.New("api: agent definition sync is unavailable")
 )
 
+// HTTP and UDS handlers share this guard so the digest check, both definition
+// writes and catalog publication form one update boundary.
+var agentDefinitionUpdateMu sync.Mutex
+
 // UpdateAgent replaces the effective authored definition after a digest CAS.
 func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	startedAt := time.Now()
@@ -41,6 +46,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	if !h.allowAgentPermissionPolicyWrite(c, req.Agent.SessionApproval, req.Agent.PermissionRules != nil) {
 		return
 	}
+	if !h.allowAgentMCPSecretValues(c, req.Agent.MCPServers) {
+		return
+	}
 	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
 		return
 	}
@@ -53,6 +61,12 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
+	agentDefinitionUpdateMu.Lock()
+	defer agentDefinitionUpdateMu.Unlock()
+	h.updateAgent(c, req, name, startedAt)
+}
+
+func (h *BaseHandlers) updateAgent(c *gin.Context, req contract.UpdateAgentRequest, name string, startedAt time.Time) {
 	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)

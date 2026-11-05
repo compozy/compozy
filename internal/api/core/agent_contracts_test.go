@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -94,6 +95,51 @@ func TestAgentPayloadProjectsFallbackChain(t *testing.T) { // UT-018
 
 func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project current reference targets even when the provider model is missing", func(t *testing.T) {
+		t.Parallel()
+		entry := core.AgentCatalogEntry{
+			Def: compozyconfig.AgentDef{
+				Name:       "agent",
+				Prompt:     "Work.",
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs", Reference: true}},
+			},
+			Origin: contract.AgentOriginGlobal,
+		}
+		cfg := compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Provider: "bare-pi"},
+			Providers: map[string]compozyconfig.ProviderConfig{
+				"bare-pi": {
+					Command:         "pi-acp",
+					Harness:         compozyconfig.ProviderHarnessPiACP,
+					RuntimeProvider: "anthropic",
+					MCPServers:      []compozyconfig.MCPServer{{Name: "docs", Command: "docs-server"}},
+				},
+			},
+		}
+		if _, err := cfg.ResolveAgent(entry.Def); !errors.Is(err, compozyconfig.ErrRuntimeModelRequired) {
+			t.Fatalf("model precondition = %v", err)
+		}
+		payloads := core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if len(payloads) != 1 || len(payloads[0].MCPServers) != 1 || payloads[0].MCPServers[0].BrokenReference {
+			t.Fatalf("provider reference marked broken: %#v", payloads)
+		}
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{"agent": {Provider: "codex"}}
+		payloads = core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if !payloads[0].MCPServers[0].BrokenReference {
+			t.Fatal("reference ignored provider override")
+		}
+		cfg.Agents.Overrides = nil
+		cfg.Providers["bare-pi"] = compozyconfig.ProviderConfig{
+			Command:         "pi-acp",
+			Harness:         compozyconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "anthropic",
+		}
+		payloads = core.AgentPayloadsFromEntries([]core.AgentCatalogEntry{entry}, &cfg)
+		if !payloads[0].MCPServers[0].BrokenReference {
+			t.Fatal("removed provider target not surfaced as broken")
+		}
+	})
+
 	t.Run(
 		"Should project every effective runtime field and provenance from the requested workspace",
 		testAgentPayloadEffectiveRuntime,

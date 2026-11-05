@@ -145,19 +145,19 @@ func (n *daemonNativeTools) nativeAgentCreateProfileName(
 	return "", errors.New("daemon: profile lookup is unavailable for agent create")
 }
 
-func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {
+func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) (bool, error) {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
-		return fmt.Errorf("daemon: roll back created agent definition: %w", err)
+		return false, fmt.Errorf("daemon: roll back created agent definition: %w", err)
 	}
 	agentSkills := n.deps.agentSkills()
 	if agentSkills == nil {
-		return errors.New("daemon: agent definition sync is unavailable")
+		return true, errors.New("daemon: agent definition sync is unavailable")
 	}
 	if err := agentSkills.Sync(ctx); err != nil {
-		return fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
+		return true, fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 func (n *daemonNativeTools) agentCreateRequest(
@@ -317,8 +317,9 @@ func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
 	agent compozyconfig.AgentDef,
 	inputs []contract.AgentMCPServerInput,
 ) error {
-	if err := n.rollbackNativeAgentCreate(ctx, agent.SourcePath); err != nil {
-		return err
+	deleted, rollbackErr := n.rollbackNativeAgentCreate(ctx, agent.SourcePath)
+	if !deleted {
+		return rollbackErr
 	}
-	return core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs)
+	return errors.Join(rollbackErr, core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs))
 }

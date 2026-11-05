@@ -1110,6 +1110,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertNotRequired(t, agentSchema, "mcp_servers")
 				assertRequired(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, "name")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, name).WriteOnly {
+						t.Fatalf("create MCP %s must be write-only", name)
+					}
+				}
 				assertPropertyAbsent(t, agentSchema, "hooks")
 
 				responseSchema := jsonResponseSchema(t, createAgent, 201)
@@ -1141,6 +1146,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, updateSchema, "agent", "expected_digest")
 				updateAgentSchema := propertySchema(t, updateSchema, "agent")
 				assertNotRequired(t, updateAgentSchema, "mcp_servers")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(
+						t,
+						propertySchema(t, updateAgentSchema, "mcp_servers").Items.Value,
+						name,
+					).WriteOnly {
+						t.Fatalf("update MCP %s must be write-only", name)
+					}
+				}
 
 				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
 				assertResponseStatus(t, deleteAgent, 403)
@@ -3243,6 +3257,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}
 		addAgentIdentitySchemas(t, baseline)
+		addAgentMCPAttachmentSchemas(t, baseline)
 		addInstanceReadSchemas(t, baseline)
 		addProfileRemovalInstanceCounts(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
@@ -6070,4 +6085,70 @@ func addApprovalAccessScope(value any) int {
 		}
 	}
 	return count
+}
+
+// #1305: approve only the additive agent MCP input and response fields.
+func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	doc, err := Document()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current map[string]any
+	if err := json.Unmarshal(encoded, &current); err != nil {
+		t.Fatal(err)
+	}
+	components := current["components"].(map[string]any)["schemas"].(map[string]any)
+	oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	input := components["CreateAgentPayload"].(map[string]any)["properties"].(map[string]any)["mcp_servers"]
+	response := components["AgentMCPServerJSON"].(map[string]any)["properties"].(map[string]any)
+	count := 0
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["name"] != nil && properties["prompt"] != nil && properties["appearance"] != nil &&
+				properties["definition_digest"] == nil && properties["mcp_servers"] == nil {
+				properties["mcp_servers"] = input
+				count++
+			}
+			if properties["secret_env"] != nil && properties["transport"] != nil && properties["name"] != nil &&
+				properties["url"] != nil && len(properties) == 8 {
+				for _, name := range []string{"reference", "broken_reference", "secret_headers"} {
+					if properties[name] != nil {
+						t.Fatalf("historical MCP response already contains %s", name)
+					}
+					properties[name] = response[name]
+				}
+				count++
+			}
+		}
+	}
+	// Walk historical definitions before adding the new input component.
+	if oldComponents["AgentMCPServerInput"] != nil {
+		t.Fatal("historical baseline already contains AgentMCPServerInput")
+	}
+	visit(baseline)
+	oldComponents["AgentMCPServerInput"] = components["AgentMCPServerInput"]
+	if oldComponents["SettingsMCPAuthConfigPayload"] == nil {
+		oldComponents["SettingsMCPAuthConfigPayload"] = components["SettingsMCPAuthConfigPayload"]
+	}
+	if count == 0 {
+		t.Fatal("no historical agent MCP schemas found")
+	}
 }

@@ -338,7 +338,7 @@ The HTTP/UDS agent create and update payloads accept additive `mcp_servers` entr
 { "mcp_servers": [{ "name": "example", "reference": true }] }
 ```
 
-New HTTP server credentials go into Vault through write-only `secret_header_values`; only `secret_headers` references are persisted. Existing Vault references can also be supplied directly. Reads show credential presence without returning values or references. Replacing a connection or deleting an agent retains its credentials in Vault for explicit management, since other agents may reuse them.
+New HTTP server credentials go into Vault through write-only `secret_header_values`; only `secret_headers` references are persisted. Explicitly shared `vault:mcp/shared/` references can also be supplied directly. Attach a configured server by name to reuse its owned credentials; private and daemon OAuth references cannot be bound to a new agent-local endpoint. Reads show credential presence without returning values or references. Replacing a connection or deleting an agent retains its credentials in Vault for explicit management, since other agents may reuse them.
 
 Inline MCP servers are useful when a tool belongs to one agent:
 

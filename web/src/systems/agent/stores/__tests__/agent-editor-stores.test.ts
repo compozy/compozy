@@ -327,6 +327,13 @@ describe("agent editor store logic", () => {
     snapshot = store.getSnapshot();
     const requestId = snapshot.context.requestId;
     expect(snapshot.context.draft?.mcpAdditions).toEqual([{ name: "team-docs", reference: true }]);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          agent: expect.objectContaining({ mcp_servers: [{ name: "team-docs", reference: true }] }),
+        }),
+      })
+    );
     store.trigger.saveSucceeded({
       requestId: requestId - 1,
       agent: { ...agent, prompt: "local prompt" },

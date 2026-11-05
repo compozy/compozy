@@ -128,8 +128,12 @@ func AgentPayloadFromEntryWithConfig(
 		return payload
 	}
 	configured := cfg.MCPServers
-	if runtime, err := cfg.ResolveAgent(entry.Def); err == nil {
-		configured = runtime.MCPServers
+	providerName := cfg.ApplyAgentOverride(entry.Def).Provider
+	if providerName == "" {
+		providerName = cfg.Defaults.Provider
+	}
+	if provider, err := cfg.ResolveProvider(providerName); err == nil {
+		configured = compozyconfig.MergeMCPServers(configured, provider.MCPServers)
 	}
 	for i, server := range entry.Def.MCPServers {
 		payload.MCPServers[i].BrokenReference = compozyconfig.AgentMCPReferenceBroken(server, configured)
@@ -197,11 +201,11 @@ func agentACPOptionsFromContract(
 }
 
 // AgentPayloadsFromEntries converts origin-aware catalog entries into response payloads.
-func AgentPayloadsFromEntries(entries []AgentCatalogEntry) []contract.AgentPayload {
+func AgentPayloadsFromEntries(entries []AgentCatalogEntry, cfg *compozyconfig.Config) []contract.AgentPayload {
 	payloads := make([]contract.AgentPayload, 0, len(entries))
 	for i := range entries {
 		entry := &entries[i]
-		payloads = append(payloads, AgentPayloadFromEntry(entry))
+		payloads = append(payloads, AgentPayloadFromEntryWithConfig(entry, cfg))
 	}
 	return payloads
 }

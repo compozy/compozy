@@ -128,7 +128,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace:    WorkspacePayloadFromWorkspace(resolved.Workspace),
 		Sessions:     sessionPayloads,
-		Agents:       AgentPayloadsFromEntries(agents),
+		Agents:       AgentPayloadsFromEntries(agents, &resolved.Config),
 		Skills:       WorkspaceSkillPayloads(resolved.Skills),
 		Providers:    SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 		ProfileHints: profileHints,

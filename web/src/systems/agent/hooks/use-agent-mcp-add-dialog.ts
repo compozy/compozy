@@ -46,7 +46,26 @@ export function useAgentMCPAddDialog({
   const errors = nameConflict
     ? { ...validation.errors, name: "This agent already has this server." }
     : validation.errors;
-  const validHeaders = headers.every(header => header.key.trim() && header.value.trim());
+  const headerNames = headers.flatMap(header => {
+    const name = header.key.trim().toLowerCase();
+    return name ? [name] : [];
+  });
+  const duplicateHeaders = new Set(headerNames).size !== headerNames.length;
+  const headerError =
+    draft.transport === "http" && duplicateHeaders ? "Header names must be unique." : null;
+  const headerErrors = headers.map(header => {
+    if (draft.transport !== "http") return null;
+    if (header.key.trim() && !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(header.key.trim()))
+      return "Use a valid HTTP header name.";
+    if (/[\r\n]/.test(header.value)) return "Remove line breaks from the header value.";
+    return null;
+  });
+  const validHeaders =
+    draft.transport !== "http" ||
+    (!duplicateHeaders &&
+      headers.every(
+        (header, index) => header.key.trim() && header.value.trim() && !headerErrors[index]
+      ));
 
   return {
     mode,
@@ -64,6 +83,8 @@ export function useAgentMCPAddDialog({
     nameConflict,
     errors,
     validHeaders,
+    headerError,
+    headerErrors,
     agent,
     onAdd,
     onClose,

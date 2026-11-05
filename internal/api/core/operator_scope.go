@@ -125,3 +125,22 @@ func (h *BaseHandlers) allowAgentPermissionPolicyWrite(c *gin.Context, approval 
 	})
 	return false
 }
+
+func (h *BaseHandlers) allowAgentMCPSecretValues(c *gin.Context, servers []contract.AgentMCPServerInput) bool {
+	if !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		return true
+	}
+	for _, server := range servers {
+		if len(server.SecretHeaderValues)+len(server.SecretEnvValues) > 0 {
+			c.JSON(
+				http.StatusForbidden,
+				contract.ErrorPayload{
+					Error: "only the operator may set MCP secret values",
+					Code:  "mcp_secret_values_operator_only",
+				},
+			)
+			return false
+		}
+	}
+	return true
+}
