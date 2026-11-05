@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -526,6 +527,54 @@ func TestResolveAgentConfigSkipsRetiredKindMigrationOnCacheHits(t *testing.T) {
 		}
 		if got := strings.Count(logs.String(), "agent kind rewrite skipped"); got != 1 {
 			t.Fatalf("skip warnings = %d, want 1 across cached resolutions\n%s", got, logs.String())
+		}
+	})
+}
+
+// TestResolveAgentConfigConcurrentRetiredKindMigration owns the concurrency edge of the #1239
+// workspace migration: when several resolutions read the retired kind before one of them rewrites
+// the file, every one of them still loads the migrated agent.
+func TestResolveAgentConfigConcurrentRetiredKindMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should load the migrated agent in every concurrent resolution", func(t *testing.T) {
+		t.Parallel()
+
+		const attempts, workers = 25, 8
+		for attempt := range attempts {
+			homePaths := newTestHomePaths(t)
+			root := t.TempDir()
+			writeFile(
+				t,
+				filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "triage", agentDefinitionFile),
+				"---\nname: triage\nkind: stays_on\n---\nPrompt.",
+			)
+			store := newMockWorkspaceStore(Workspace{ID: "ws_retired_race", RootDir: root, Name: "repo"})
+			loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+			resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
+
+			var wg sync.WaitGroup
+			kinds := make([]string, workers)
+			errs := make([]error, workers)
+			for worker := range workers {
+				wg.Go(func() {
+					resolved, err := resolver.ResolveAgentConfig(t.Context(), "ws_retired_race", "")
+					errs[worker] = err
+					index := slices.IndexFunc(resolved.Agents, func(agent compozyconfig.AgentDef) bool {
+						return agent.Name == "triage"
+					})
+					if index >= 0 {
+						kinds[worker] = resolved.Agents[index].Kind
+					}
+				})
+			}
+			wg.Wait()
+			for worker := range workers {
+				if errs[worker] != nil || kinds[worker] != compozyconfig.AgentKindAlwaysOn {
+					t.Fatalf("attempt %d worker %d: kind = %q, err = %v; want triage as always_on",
+						attempt, worker, kinds[worker], errs[worker])
+				}
+			}
 		}
 	})
 }

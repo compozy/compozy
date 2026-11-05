@@ -348,19 +348,20 @@ func loadAgents(
 
 // loadAgentCandidate loads one AGENT.md. When a user-owned file fails only because it still carries
 // the retired agent kind, it runs the #1239 user-state migration on that file and loads it again.
-// Daemon-owned home roots migrate at boot, and the migration never runs on a file that loads.
+// The reload happens even when this call did not rewrite the file, because a concurrent resolution
+// may have migrated it after the first read. Daemon-owned home roots migrate at boot, and the
+// migration never runs on a file that loads.
 func loadAgentCandidate(candidate agentCandidate, logger *slog.Logger) (compozyconfig.AgentDef, error) {
 	agent, err := compozyconfig.LoadAgentDefFile(candidate.path)
 	if err == nil || !errors.Is(err, compozyconfig.ErrAgentKindInvalid) || !userOwnedAgentSource(candidate.source) {
 		return agent, err
 	}
 	agentDir := filepath.Dir(candidate.path)
-	migrated, migrateErr := compozyconfig.MigrateRetiredAgentKind(
+	if _, migrateErr := compozyconfig.MigrateRetiredAgentKind(
 		filepath.Dir(agentDir),
 		filepath.Base(agentDir),
 		logger,
-	)
-	if migrateErr != nil || !migrated {
+	); migrateErr != nil {
 		return agent, err
 	}
 	return compozyconfig.LoadAgentDefFile(candidate.path)

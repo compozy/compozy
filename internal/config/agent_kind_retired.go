@@ -115,9 +115,13 @@ func migrateRetiredAlwaysOnTable(contents []byte, source string) ([]byte, []stri
 	if !ok {
 		return nil, nil, fmt.Errorf("%s.%s must be a table", AgentsDirName, retiredAgentKind)
 	}
-	current, hasCurrent := agents[AgentKindAlwaysOn].(map[string]any)
-	if !hasCurrent {
-		current = map[string]any{}
+	current := map[string]any{}
+	if value, set := agents[AgentKindAlwaysOn]; set {
+		currentTable, isCurrentTable := value.(map[string]any)
+		if !isCurrentTable {
+			return nil, nil, fmt.Errorf("%s.%s must be a table", AgentsDirName, AgentKindAlwaysOn)
+		}
+		current = currentTable
 	}
 	want := migratedAgentsTable(agents, table, current)
 	rendered, err := moveRetiredAlwaysOnKeys(contents, source, table, current)

@@ -792,6 +792,23 @@ func TestRetiredAlwaysOnConfigTable(t *testing.T) {
 		})
 	}
 
+	t.Run("Should refuse to overwrite a non-table always_on value", func(t *testing.T) {
+		t.Parallel()
+
+		const body = "[agents]\nalways_on = 5\n\n[agents.stays_on]\nmax_proposals = 5\n"
+		_, path, err := load(t, body)
+		if err == nil || !strings.Contains(err.Error(), "agents.always_on must be a table") {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v, want agents.always_on must be a table", err)
+		}
+		contents, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if string(contents) != body {
+			t.Fatalf("config after refused migration = %q, want unchanged %q", contents, body)
+		}
+	})
+
 	t.Run("Should reject raw overlay bytes that still carry the old table", func(t *testing.T) {
 		t.Parallel()
 

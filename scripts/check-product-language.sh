@@ -198,7 +198,7 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on. Production Go may name stays_on only in the migration and rejection files; public surfaces only in the listed migration docs, release notes, tests and history identifiers." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on. Production Go may name stays_on only in the migration and rejection files; public surfaces may use it only in the allowed exception paths." >&2
   failed=1
 fi
 

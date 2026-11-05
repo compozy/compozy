@@ -487,8 +487,8 @@ func TestMigrateRetiredAgentKinds(t *testing.T) {
 	t.Run("Should skip an unreadable file", func(t *testing.T) {
 		t.Parallel()
 
-		if runtime.GOOS == "windows" {
-			t.Skip("POSIX permission bits drive the read failure")
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("POSIX permission bits drive the read failure, and root reads past them")
 		}
 		root := t.TempDir()
 		body := "---\nname: hidden\nkind: stays_on\n---\nBody.\n"
