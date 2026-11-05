@@ -70,6 +70,7 @@ func (g *SessionRepo) enqueueAdmittedSessionInput(
 	return result, err
 }
 
+// enqueueAdmittedSessionInputInTransaction commits replacement input, supersession and its receipt together.
 func enqueueAdmittedSessionInputInTransaction(
 	ctx context.Context,
 	exec globalSQLExecutor,
@@ -84,14 +85,19 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil || replayed {
 		return err
 	}
+	var superseded []string
 	if queueReq.Mode == store.SessionInputQueueModeInterrupt {
 		queueReq, err = prepareInterruptSessionInput(ctx, exec, queueReq)
 		if err != nil {
 			return err
 		}
+		superseded, err = supersedeBoundarySteersForInterrupt(ctx, exec, queueReq)
+		if err != nil {
+			return err
+		}
+		result.canceled = len(superseded)
 	}
 	bound := bindQueueAdmission(queueReq, claimed).Normalize()
-	var superseded []string
 	if queueReq.Mode == store.SessionInputQueueModeQueue {
 		superseded, err = cancelSupersededAgentSessionInputs(ctx, exec, bound, admissionReq.Now)
 		if err != nil {
@@ -365,6 +371,7 @@ func queuedPromptAdmissionResult(
 	}
 }
 
+// stagedPromptAdmissionResult freezes the accepted guidance and its target before native reservation.
 func stagedPromptAdmissionResult(
 	entry *store.SessionInputQueueEntry,
 	canceled int,
@@ -375,6 +382,7 @@ func stagedPromptAdmissionResult(
 		QueueEntryID:          entry.ID,
 		QueueGeneration:       entry.SessionGeneration,
 		Delivery:              entry.Delivery,
+		PreviousTurnID:        entry.TargetTurnID,
 		CanceledQueuedEntries: canceled,
 	}
 }

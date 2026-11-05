@@ -1049,8 +1049,14 @@ func TestManagerIntegrationSteerFallback(t *testing.T) {
 		command := shellquote.Join("env", "COMPOZY_TEST_STUBBORN_PROMPTS="+path) + " " + sessionStopHelperCommand(t)
 		h := newRealACPIntegrationHarness(t, command)
 		queue := openManagerInputQueueStore(t)
-		h.manager = newManagerWithHarness(t, h, WithDriver(h.manager.driver), WithSessionInputQueueStore(queue),
-			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}))
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithDriver(h.manager.driver),
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+			WithSessionInputQueueStore(queue),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}),
+		)
 		registerManagerInputQueueWorkspace(t, queue, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, queue, h, sess)

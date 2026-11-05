@@ -78,6 +78,7 @@ func (m *Manager) acceptSessionStart(
 	spec.resolveDefinitionPermissionPolicy(runtime.agentDef)
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
+	session.steerBoundaryTimeout = m.busyInput.SteerBoundaryTimeout
 	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)
 	if err := m.registerStarting(session); err != nil {
 		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)

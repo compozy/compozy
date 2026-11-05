@@ -45,6 +45,7 @@ type promptPumpRun struct {
 	fatal        *promptPumpFatal
 }
 
+// runPromptPumpLoop tracks tool ingress before coalescing and flushes boundaries with pending steering.
 func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 	loop := promptPumpLoopState{source: run.source, runtime: run.runtime, activity: run.activity}
 	coalescer := &promptChunkCoalescer{}
@@ -67,7 +68,9 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 				}
 				break
 			}
-			if coalescer.append(event, runtimeEvent) {
+			// Track tools before batching; only a waiting boundary needs an immediate durable flush.
+			boundary := run.session.trackSteerToolEvent(event, run.turnState.turnID)
+			if coalescer.append(event, runtimeEvent || boundary) {
 				if !coalescer.shouldFlush() {
 					continue
 				}
@@ -79,7 +82,7 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 			if m.flushPromptPumpRun(run, &loop, coalescer) {
 				return
 			}
-			if coalescer.append(event, runtimeEvent) {
+			if coalescer.append(event, runtimeEvent || boundary) {
 				if !coalescer.shouldFlush() {
 					continue
 				}

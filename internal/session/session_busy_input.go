@@ -13,6 +13,7 @@ type BusyInputState struct {
 	SteerDelivery   store.SteerDeliveryMode `json:"steer_delivery,omitempty"`
 }
 
+// busyInputStateLocked projects delivery from the current tool set and runtime steering support.
 func (s *Session) busyInputStateLocked(caps acp.Caps) *BusyInputState {
 	if s.followUpMode == nil {
 		return nil
@@ -22,6 +23,14 @@ func (s *Session) busyInputStateLocked(caps acp.Caps) *BusyInputState {
 		capability = config.SteerCapabilityNone
 	}
 	delivery := s.steerDelivery
+	if capability == config.SteerCapabilityNone && s.steerBoundaryTimeout > 0 {
+		delivery = store.SteerDeliveryInterruptFallback
+		if s.openToolCallCountLocked() > 0 {
+			delivery = store.SteerDeliveryPendingBoundary
+		} else if !s.toolEventsObserved {
+			delivery = store.SteerDeliveryAfterTurn
+		}
+	}
 	if delivery == "" {
 		delivery = store.SteerDeliveryInterruptFallback
 		if capability == config.SteerCapabilityExtension || capability == config.SteerCapabilityConcurrentPrompt {

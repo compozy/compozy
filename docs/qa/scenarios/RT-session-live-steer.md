@@ -4,7 +4,7 @@ area: RT
 title: Steer a live turn without killing it (default busy send)
 persona: Théo
 journey: J-13
-expected: An unmarked send during a live turn resolves session.busy_input.default_mode (steer) and returns the full SendOutcome envelope; when the runtime announces steering or the provider capability allows it, the guidance is delivered into the live turn (steer_delivery injected, same turn id, prompt_steered marker, no cancel); when it cannot inject, the same send reports interrupt_fallback and the replacement runs after the old turn is cancelled; the opposite modifier queues with a position; session status answers busy_input.steer_capability before any send; every disposition is answered inline in the Web composer and the draft survives a refusal.
+expected: An unmarked send during a live turn resolves session.busy_input.default_mode (steer) and returns the full SendOutcome envelope; when the runtime announces steering or the provider capability allows it, the guidance is delivered into the live turn (steer_delivery injected, same turn id, prompt_steered marker, no cancel); when it cannot inject, active tools finish before pending_boundary cancels and reprompts, bounded by steer_boundary_timeout (45s); without tool events it reports after_turn and queues; 0s and explicit interrupt cancel immediately; the opposite modifier queues with a position; session status answers busy_input.steer_capability before any send; every disposition is answered inline in the Web composer and the draft survives a refusal.
 entry_points: compozy session prompt (second send during a turn); POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt over HTTP and UDS; compozy__session_prompt; web session window composer (Enter / Cmd+Enter)
 qa_status: pass
 bug_ids: BUG-20260906-injected-guidance-missing-history
@@ -18,8 +18,11 @@ overlaps: RT-018; RT-019
 
 Start a long turn, send a second prompt without a mode, and compare the CLI envelope, the persisted
 transcript markers and the Web disposition. On a runtime that announces steering the guidance must
-land inside the same turn; on one that cannot inject the send must fall back to interrupt-and-replace
-and say so. Send once more with the opposite modifier and confirm the entry queues with a position.
+land inside the same turn. On a provider without injection, start two tools and steer: no cancellation
+may occur until both finish or the configured timeout expires. Confirm `pending_boundary` in the
+receipt and Web feedback. Repeat with a provider emitting no tool events and confirm `after_turn`
+without cancellation. Repeat with `steer_boundary_timeout="0s"`, then explicit interrupt while
+tools run: both must cancel immediately. Send once more with the opposite modifier and confirm the entry queues with a position.
 
 QA 2026-09-05 sessions-stability task_01: Claude Code 2.1.261 (claude-sonnet-5) announced steering and
 the second CLI prompt returned disposition steering / steer_delivery injected on the live turn; the
@@ -48,3 +51,19 @@ Web Enter with an attachment, CLI `--steer --attachment` with exact retry, queue
 promotion and history reload passed. Manager/SQLite race tests cover durable attachments and
 fallback; the real ACP fallback integration passed. See
 `docs/qa/reports/2026-10-18-issue788-steer-attachments.md` for scope and platform limitations.
+
+QA 2026-11-04 (issue #1292): real Claude ACP 0.100.0 announced `steer_ext`, injected guidance
+while a tool was active, and answered the steer marker in the same turn. Focused manager/SQLite
+race cases verify boundary wait, overlapping tools, timeout, no-event queue, zero timeout and
+explicit interrupt. Root Turbo Web checks cover the new delivery read models; no interactive
+browser walk is claimed. See `docs/qa/reports/2026-11-04-issue1292-boundary-steer.md` for exact
+scope, the historical-detection limitation, and delivery checks still pending.
+
+When a boundary steer is parked, explicitly interrupt with different text: the parked guidance must
+be superseded and the interrupt text must run next, with ordinary queued messages retained.
+Repeat while native steering reports `pending_injection`, using empty and typed interrupts before
+native completion. A later delivery failure or acknowledgment must not reprompt or record the old
+guidance as delivered. Exact retry retains the original acceptance receipt. Guidance already
+confirmed as `injected` remains delivered once.
+An `after_turn` steer follows queue ordering behind earlier operator messages; a newer steer may
+replace that undelivered guidance. A boundary steer retains replacement priority on natural turn end.

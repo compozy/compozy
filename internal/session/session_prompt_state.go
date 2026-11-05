@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 )
 
+// beginExclusivePromptSetupForRequest claims a turn and starts its tool set under the session lock.
 func (s *Session) beginExclusivePromptSetupForRequest(
 	req promptRequest,
 	cancel context.CancelFunc,
@@ -29,6 +30,7 @@ func (s *Session) beginExclusivePromptSetupForRequest(
 		return nil, err
 	}
 	s.currentTurnID = turnID
+	s.openToolCalls = make(map[string]bool)
 	s.currentTurnSource = turnSource
 	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
 	s.currentPromptDelivery = req.delivery

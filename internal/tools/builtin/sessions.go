@@ -378,7 +378,9 @@ const sessionPromptOutputSchema = `{
 			"properties":{
 				"status":{"type":"string"},
 				"disposition":{"type":"string","enum":["direct","steering","queued","interrupting","later"]},
-				"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
+				"steer_delivery":{"type":"string","enum":[
+ "injected","pending_injection","pending_boundary","after_turn","interrupt_fallback"
+ ]},
 				"turn_id":{"type":"string"},
 				"entry_id":{"type":"string"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},

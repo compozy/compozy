@@ -121,6 +121,10 @@ function steerCapabilityTitle(delivery: SessionSteerDelivery | null): string | u
   switch (delivery) {
     case "injected":
       return "Delivered into the live turn";
+    case "pending_boundary":
+      return "Waits for the active tool before replacing the turn";
+    case "after_turn":
+      return "Queued until the current turn ends";
     case "pending_injection":
       return "Delivered when the current tool finishes";
     case "interrupt_fallback":

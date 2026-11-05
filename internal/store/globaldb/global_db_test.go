@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -517,6 +518,83 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve queued guidance through the boundary delivery migration", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00196_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('boundary-ws','/boundary-ws','Boundary','2026-11-04','2026-11-04')`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) VALUES ('boundary-session','00000000000000000000000000','coder','boundary-ws','active','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('deleted-input','boundary-session','queued','queue','Deleted','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,delivery,steer_delivery,text,enqueued_at,updated_at) VALUES ('boundary-input','boundary-session','queued','steer','interrupt_then_prompt','interrupt_fallback','Retain this guidance','2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,owner_kind,dispatchable,goal_input_batch_max_rowid,enqueued_at,updated_at)
+			 VALUES ('prepared-goal','boundary-session','queued','queue','Goal','goal',0,2,'2026-11-04','2026-11-04')`,
+			`INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('after-goal','boundary-session','queued','queue','Later input','2026-11-04','2026-11-04')`,
+			`DELETE FROM session_input_queue WHERE id='deleted-input'`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retainedRows = `SELECT json_group_array(json_array(rowid,id,goal_input_batch_max_rowid))
+		 FROM (SELECT rowid,* FROM session_input_queue ORDER BY id)`
+		var beforeRows string
+		if err := prior.QueryRowContext(ctx, retainedRows).Scan(&beforeRows); err != nil {
+			t.Fatal(err)
+		}
+
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			db := openGlobalDBForTest(t, path)
+			var afterRows string
+			if err := db.DB().QueryRowContext(ctx, retainedRows).Scan(&afterRows); err != nil {
+				t.Fatal(err)
+			}
+			if afterRows != beforeRows {
+				t.Fatalf("queue rowids or Goal cutoffs changed: %s -> %s", beforeRows, afterRows)
+			}
+			var text, delivery string
+			if err := db.DB().
+				QueryRowContext(ctx, `SELECT text,steer_delivery FROM session_input_queue WHERE id='boundary-input'`).
+				Scan(&text, &delivery); err != nil {
+				t.Fatal(err)
+			}
+			if text != "Retain this guidance" || delivery != "interrupt_fallback" {
+				t.Fatalf("retained input=%q/%q", text, delivery)
+			}
+			assertGlobalMigrationIntegrity(ctx, t, db.DB())
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// IT-024: v0.4.8 ends at migration 163. Preserve its heartbeat wake state,
 	// permission history and automation trigger through the real upgrade and reopen.
 	t.Run("Should preserve script approvals through cascade migration and reopen", func(t *testing.T) {

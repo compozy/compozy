@@ -2329,7 +2329,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "7a8fb691dd32b65d58d2ff9474037c6762d7d65b7ae1a46605f560ab5f5cdfa0",
-    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
+    "output_schema_digest": "dc0d6135e635bb4f6c3fab449365c114f1b04cfe58fb8d4b42539c1cdad952dc"
   },
   {
     "tool_id": "compozy__session_input_promote",
@@ -2342,7 +2342,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "acfd42b7914c4d6e4cf8a6558403f7134335cae77a780d2ff2def791afd52d8a",
-    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
+    "output_schema_digest": "dc0d6135e635bb4f6c3fab449365c114f1b04cfe58fb8d4b42539c1cdad952dc"
   },
   {
     "tool_id": "compozy__session_input_replace",
@@ -2355,7 +2355,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d915db5b67b786a39999e299a69e46edec9d8ebc3b1222e1ff2c33d56550b42d",
-    "output_schema_digest": "f29353f9b72b45492809101740ad5fba8e3977e46ca7c71fc788fd01ccecef60"
+    "output_schema_digest": "233384cf2141e7163fd4f409ee9fe4b6d7826fa1d91ef24f3611bb5f95ff0421"
   },
   {
     "tool_id": "compozy__session_inputs_clear",
@@ -2368,7 +2368,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "298dca287c9f9d1b7a41dc638490029b2b260e50f051dac8ffb16668e47a7e31",
-    "output_schema_digest": "f203c998170a9b973db38cf2bd1403f44395af29d4d63da1da102de30e7b30b8"
+    "output_schema_digest": "2af4253c01594ff164635762524d77d2218417aba41edced510980187bb772ef"
   },
   {
     "tool_id": "compozy__session_inputs_list",
@@ -2381,7 +2381,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8d3442e06589a14f92423308d8691a87b12d700a75f598b118600ec224f6cc3e",
-    "output_schema_digest": "6f9892b141897ab6dbc0fbf1dc4028ec7326fa385eb3ac324618292585a1e807"
+    "output_schema_digest": "e56d6e4086c5e9772b97b1e34d69720e50030becb3e92cf27464ba251a76620c"
   },
   {
     "tool_id": "compozy__session_later",
@@ -2524,7 +2524,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "0d64aa6c511ba93f4463456399446a4c8595325b1ae6bb541b8ad593fe36f73a",
-    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
+    "output_schema_digest": "dc0d6135e635bb4f6c3fab449365c114f1b04cfe58fb8d4b42539c1cdad952dc"
   },
   {
     "tool_id": "compozy__session_prompt_cancel",

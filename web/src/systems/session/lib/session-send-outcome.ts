@@ -36,7 +36,13 @@ function legacyDisposition(status: string): SessionSendDisposition | null {
 }
 
 function isSteerDelivery(value: unknown): value is SessionSteerDelivery {
-  return value === "injected" || value === "pending_injection" || value === "interrupt_fallback";
+  return (
+    value === "pending_boundary" ||
+    value === "after_turn" ||
+    value === "injected" ||
+    value === "pending_injection" ||
+    value === "interrupt_fallback"
+  );
 }
 
 function nonEmpty(value: string | undefined): string | null {

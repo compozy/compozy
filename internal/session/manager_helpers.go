@@ -35,6 +35,7 @@ func (m *Manager) writeMeta(session *Session) error {
 	return nil
 }
 
+// activateAndWatch persists activation before publishing hooks and repairing missing supersession markers.
 func (m *Manager) activateAndWatch(
 	ctx context.Context,
 	session *Session,
@@ -70,6 +71,9 @@ func (m *Manager) activateAndWatch(
 		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
 	}
 	m.watchProcess(session)
+	if err := m.reconcileSteerSupersessions(ctx, session); err != nil {
+		m.sessionLogger(session).Warn("session: recover steering supersessions failed", "error", err)
+	}
 	return nil
 }
 

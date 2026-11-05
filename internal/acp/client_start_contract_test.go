@@ -2334,8 +2334,11 @@ func TestStartCapturesSteerCapability(t *testing.T) {
 			t.Parallel()
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
-				ProviderName:   "custom",
-				ProviderConfig: &compozyconfig.ProviderConfig{SteerCapability: tc.override},
+				ProviderName: "claude",
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					SteerCapability: tc.override,
+					AuthMode:        compozyconfig.ProviderAuthModeNone,
+				},
 			})
 			defer stopProcess(t, driver, proc)
 			if got := proc.CapsSnapshot().SteerCapability; got != tc.want {

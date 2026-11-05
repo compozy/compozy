@@ -1023,9 +1023,12 @@ test("E2E-012 / E2E-025: composer honors default steering, explicit queue action
     expect(steerRequestBody.mode).toBe("steer");
     const steered = (await (await steerResponse).json()) as PromptEnvelope;
     expect(steered.prompt.disposition).toBe("steering");
-    expect(["injected", "pending_injection", "interrupt_fallback"]).toContain(
-      steered.prompt.steer_delivery
+    // This runtime has emitted no tool events, so steering preserves its active turn.
+    expect(steered.prompt.steer_delivery).toBe("after_turn");
+    await expect(ui.composerFeedbackNote).toContainText(
+      "Queued — the agent sees it after the current turn"
     );
+    await expect(ui.composerStopButton).toBeVisible();
     await expect(ui.composerFeedbackNote).toHaveAttribute("data-kind", "disposition");
     await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
     await expect(ui.composerFeedbackNote).toHaveAttribute(
