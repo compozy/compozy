@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -690,6 +691,24 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 		record := decodeAuthStatus(t, stdout)
 		if record.ProbeSource != providerProbeSourceLocal || record.State != "needs_login" || localRuns != 1 {
 			t.Fatalf("ProbeSource/State = %q/%q, local runs %d", record.ProbeSource, record.State, localRuns)
+		}
+	})
+
+	t.Run("Should probe an ACP-only provider locally because the daemon reports no ACP command", func(t *testing.T) {
+		t.Parallel()
+		var daemonCalls int
+		deps := newTestDeps(t, daemonAuthenticatedProbe(&daemonCalls))
+		deps.resolveProviderAuthCommand = agyTestResolver(t)
+		deps.runACPProbe = func(context.Context, acp.SessionInspectionRequest) error {
+			return errors.New("ACP session/new failed: not authenticated")
+		}
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "agy", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status agy error = %v", err)
+		}
+		record := decodeAuthStatus(t, stdout)
+		if record.ProbeSource != providerProbeSourceLocal || record.State != "needs_login" || daemonCalls != 0 {
+			t.Fatalf("ProbeSource/State = %q/%q, daemon calls %d", record.ProbeSource, record.State, daemonCalls)
 		}
 	})
 

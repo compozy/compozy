@@ -110,7 +110,9 @@ func probeProviderAuthStatus(
 	if !options.probe || (!statusCommand && !authproviders.UsesACPProbe(provider)) {
 		return record, nil
 	}
-	if options.daemonProbe != nil && provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+	// The daemon reports no ACP command, so only status-command verdicts can be matched to this config.
+	if options.daemonProbe != nil && statusCommand &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
 		if response, err := options.daemonProbe(ctx, providerName); err == nil && daemonProbeMatches(record, response) {
 			return applyDaemonProviderAuthProbe(record, response), nil
 		}
@@ -397,8 +399,8 @@ func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status <provider>",
 		Short: "Show provider authentication status",
-		Long: "Show provider authentication status. For native_cli providers the live probe runs " +
-			"in the local daemon when it is reachable, so Settings shows the same verdict; " +
+		Long: "Show provider authentication status. For native_cli providers with an auth status command " +
+			"the live probe runs in the local daemon when it is reachable, so Settings shows the same verdict; " +
 			"otherwise it runs in this process. --local always probes in this process.",
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
