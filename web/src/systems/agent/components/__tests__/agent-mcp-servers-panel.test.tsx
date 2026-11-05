@@ -185,6 +185,13 @@ describe("Agent MCP attachment credentials", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Header names must be unique");
     expect(screen.getByRole("button", { name: "Add server" })).toBeDisabled();
     expect(onAdd).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove header 2" }));
+    expect(screen.getByLabelText("Header secret 1")).toHaveValue("first");
+    expect(screen.queryByLabelText("Header secret 2")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_header_values: { Authorization: "first" } })
+    );
   });
   it("Should reject invalid header names before staging and recover after correction", () => {
     const onAdd = renderAddDialog();

@@ -183,7 +183,12 @@ function AgentMCPHeaderFields({
               value={header.value}
               onChange={event => onHeaderChange(header.id, { value: event.target.value })}
             />
-            <Button type="button" variant="ghost" onClick={() => onHeaderRemove(header.id)}>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={`Remove header ${index + 1}`}
+              onClick={() => onHeaderRemove(header.id)}
+            >
               Remove
             </Button>
           </div>
