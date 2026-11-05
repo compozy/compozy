@@ -103,3 +103,8 @@ ET-web-extension-detail.
 QA impact 2026-08-25 (skill sources): reset because the installed skill detail gained a new daemon-backed control surface. The Exposures card now sits beside skill content, shadows, enable, and update, and origin attribution renders on the installed rows. Bundled skills must show no Exposures card at all — absent, not disabled — so the "only daemon-backed controls" claim in this scenario's promise has to be re-settled against the new card. Rides along in `CH-skill-expose-web-repair`.
 
 QA repair 2026-09-13 (final review): verify the required-authorization success notice, local manifest descriptions and real profile/workspace qualifiers. During a mixed-scope batch, observe 0-of-n and intermediate completion; completed groups regain controls while other groups remain pending. Open a global/profile row and a workspace row from Installed: the link and detail request must retain that row's profile/workspace independently of the active window selection. Targeted browser/request evidence and canonical owner receipts are in the dated Marketplace report and review-01 visual bundle.
+
+QA impact 2026-11-04 (issue #1305 gap 3): Browse gained a Plugins | MCPs toggle and Add ▾ ›
+**Add MCP server…**. Installed is unchanged: its strip is search only and its Add ▾ keeps the two
+install doors and Add plugin marketplace…, and its count never includes MCP servers. Confirm that
+the installed shelf link from either Browse kind still opens this inventory.

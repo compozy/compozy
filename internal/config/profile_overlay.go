@@ -37,7 +37,7 @@ func loadProfileConfigOverlayForWrite(path string, target WriteTarget, rendered 
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadProfileConfigOverlayBytes(rendered, path)
 	}
-	return loadPersistedConfigOverlay(path, loadProfileConfigOverlayBytes)
+	return loadPersistedConfigOverlayLocked(path, loadProfileConfigOverlayBytes)
 }
 
 func loadProfileConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {

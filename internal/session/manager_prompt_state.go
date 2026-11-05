@@ -76,6 +76,7 @@ type promptMessageDispatchState struct {
 	lastRaw json.RawMessage
 }
 
+// clearPromptState releases matching turn ownership without erasing a newer turn or runtime capabilities.
 func clearPromptState(session *Session, turnID string) {
 	if session == nil {
 		return
@@ -90,6 +91,8 @@ func clearPromptState(session *Session, turnID string) {
 		session.currentPromptCancelTurn = ""
 	}
 	session.currentTurnID = ""
+	session.openToolCalls = nil
+	session.hasBoundarySteer = false
 	session.currentTurnSource = ""
 	session.currentPromptMessage = ""
 	session.currentPromptDelivery = PromptDeliveryNormal

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	compozysdk "github.com/compozy/compozy/sdk/go"
@@ -19,6 +20,9 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 		return errors.New("github forge: stdio is required")
 	}
 	provider := newProvider()
+	provider.batchCtx, provider.batchCancel = context.WithCancel(ctx)
+	defer provider.closeBatches()
+	provider.api.logger = slog.New(slog.NewJSONHandler(stderr, nil))
 	extension := compozysdk.NewExtension(
 		providerDefinition(),
 		compozysdk.WithStdio(stdin, stdout),

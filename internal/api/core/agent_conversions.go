@@ -47,14 +47,16 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 	for _, server := range agent.MCPServers {
 		redacted := compozyconfig.RedactedMCPServer(server)
 		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:      redacted.Name,
-			Transport: string(redacted.Transport),
-			Command:   redacted.Command,
-			Args:      append([]string(nil), redacted.Args...),
-			Env:       redacted.Env,
-			SecretEnv: redacted.SecretEnv,
-			URL:       redacted.URL,
-			Auth:      agentMCPAuthPayload(redacted.Auth),
+			Name:          redacted.Name,
+			Reference:     redacted.Reference,
+			SecretHeaders: redacted.SecretHeaders,
+			Transport:     string(redacted.Transport),
+			Command:       redacted.Command,
+			Args:          append([]string(nil), redacted.Args...),
+			Env:           redacted.Env,
+			SecretEnv:     redacted.SecretEnv,
+			URL:           redacted.URL,
+			Auth:          agentMCPAuthPayload(redacted.Auth),
 		})
 	}
 	digest, digestErr := compozyconfig.AgentDefinitionDigest(agent)
@@ -125,6 +127,17 @@ func AgentPayloadFromEntryWithConfig(
 	if cfg == nil || payload.DefinitionDigest == "" {
 		return payload
 	}
+	configured := cfg.MCPServers
+	providerName := cfg.ApplyAgentOverride(entry.Def).Provider
+	if providerName == "" {
+		providerName = cfg.Defaults.Provider
+	}
+	if provider, err := cfg.ResolveProvider(providerName); err == nil {
+		configured = compozyconfig.MergeMCPServers(configured, provider.MCPServers)
+	}
+	for i, server := range entry.Def.MCPServers {
+		payload.MCPServers[i].BrokenReference = compozyconfig.AgentMCPReferenceBroken(server, configured)
+	}
 	resolved, err := cfg.ResolveAgent(entry.Def)
 	if err != nil {
 		return payload
@@ -188,11 +201,11 @@ func agentACPOptionsFromContract(
 }
 
 // AgentPayloadsFromEntries converts origin-aware catalog entries into response payloads.
-func AgentPayloadsFromEntries(entries []AgentCatalogEntry) []contract.AgentPayload {
+func AgentPayloadsFromEntries(entries []AgentCatalogEntry, cfg *compozyconfig.Config) []contract.AgentPayload {
 	payloads := make([]contract.AgentPayload, 0, len(entries))
 	for i := range entries {
 		entry := &entries[i]
-		payloads = append(payloads, AgentPayloadFromEntry(entry))
+		payloads = append(payloads, AgentPayloadFromEntryWithConfig(entry, cfg))
 	}
 	return payloads
 }

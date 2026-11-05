@@ -23,6 +23,8 @@ type mcpJSONDocument struct {
 }
 
 type mcpJSONServer struct {
+	Reference      bool               `json:"reference,omitempty"`
+	SecretHeaders  map[string]string  `json:"secret_headers,omitempty"`
 	Transport      MCPServerTransport `json:"transport,omitempty"`
 	Command        string             `json:"command,omitempty"`
 	Args           []string           `json:"args,omitempty"`
@@ -37,6 +39,11 @@ type mcpJSONServer struct {
 // ParseMCPServersJSON parses an MCP JSON document into canonical MCP server values.
 // The document may use either `mcpServers` or `mcp_servers` as the top-level key.
 func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
+	return parseMCPServersJSON(content, source, false)
+}
+
+// parseMCPServersJSON opens agent-only fields solely at the per-agent sidecar boundary.
+func parseMCPServersJSON(content []byte, source string, agentSidecar bool) ([]MCPServer, error) {
 	sourceName := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
 	decoder := json.NewDecoder(bytes.NewReader(content))
@@ -50,12 +57,12 @@ func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
 
 	var document mcpJSONDocument
 	if raw := root["mcpServers"]; len(raw) > 0 {
-		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersCamel); err != nil {
+		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersCamel, agentSidecar); err != nil {
 			return nil, fmt.Errorf("config: decode MCP JSON %q mcpServers: %w", sourceName, err)
 		}
 	}
 	if raw := root["mcp_servers"]; len(raw) > 0 {
-		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersSnake); err != nil {
+		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersSnake, agentSidecar); err != nil {
 			return nil, fmt.Errorf("config: decode MCP JSON %q mcp_servers: %w", sourceName, err)
 		}
 	}
@@ -102,14 +109,28 @@ func loadMCPServersJSONFromDirectory(directory *fileutil.Directory, path string)
 		return nil, nil
 	}
 
-	return ParseMCPServersJSON(content, path)
+	return parseMCPServersJSON(content, path, true)
 }
 
 func ensureJSONEOF(decoder *json.Decoder, source string) error {
 	return ensureJSONDocumentEOF(decoder, source, "MCP JSON")
 }
 
-func decodeStrictMCPJSONCollection(raw json.RawMessage, dest any) error {
+// decodeStrictMCPJSONCollection rejects agent-only fields before strict general-config decoding.
+func decodeStrictMCPJSONCollection(raw json.RawMessage, dest any, agentSidecar bool) error {
+	if !agentSidecar {
+		var entries map[string]map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &entries); err != nil {
+			return err
+		}
+		for _, fields := range entries {
+			for field := range fields {
+				if strings.EqualFold(field, "secret_headers") || strings.EqualFold(field, "reference") {
+					return fmt.Errorf("json: unknown field %q", field)
+				}
+			}
+		}
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dest); err != nil {
@@ -130,6 +151,8 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 		entry := values[name]
 		servers = append(servers, MCPServer{
 			Name:           normalizeMCPServerName(name),
+			Reference:      entry.Reference,
+			SecretHeaders:  mergeStringMaps(nil, entry.SecretHeaders),
 			Transport:      MCPServerTransport(strings.TrimSpace(string(entry.Transport))),
 			Command:        strings.TrimSpace(entry.Command),
 			Args:           append([]string(nil), entry.Args...),

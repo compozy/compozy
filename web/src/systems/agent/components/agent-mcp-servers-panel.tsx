@@ -1,11 +1,15 @@
 import { Plug } from "@compozy/ui/icons";
 
-import { Empty, ListingRow, Pill, Section, cn } from "@compozy/ui";
+import { Button, Empty, ListingRow, Pill, Section, cn } from "@compozy/ui";
 
 import type { AgentMCPServer, AgentPayload } from "../types";
 
 export interface AgentMcpServersPanelProps {
   agent: AgentPayload;
+  readOnly?: boolean;
+  onAdd?: () => void;
+  pendingNames?: string[];
+  onRemovePending?: (name: string) => void;
   className?: string;
   /** When true, omit the section chrome (used inside Configuration tab Section). */
   bare?: boolean;
@@ -23,8 +27,13 @@ export function AgentMcpServersPanel({
   agent,
   className,
   bare = false,
+  readOnly = true,
+  onAdd,
+  pendingNames = [],
+  onRemovePending,
 }: AgentMcpServersPanelProps) {
   const mcpServers = agent.mcp_servers ?? [];
+  const pending = new Set(pendingNames);
 
   const list =
     mcpServers.length === 0 ? (
@@ -42,7 +51,10 @@ export function AgentMcpServersPanel({
           const transport = server.transport ?? "stdio";
           const commandOrUrl = server.url ?? server.command;
           const envKeys = envKeyNames(server);
-          const secretKeys = secretKeyNames(server);
+          const secretKeys = [
+            ...secretKeyNames(server),
+            ...Object.keys(server.secret_headers ?? {}),
+          ];
           return (
             <li key={server.name} className="border-b border-line-soft last:border-b-0">
               <ListingRow
@@ -78,13 +90,28 @@ export function AgentMcpServersPanel({
                   ) : null}
                 </ListingRow.Main>
                 <ListingRow.Trail>
+                  {!readOnly && pending.has(server.name) && onRemovePending ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove pending ${server.name}`}
+                      onClick={() => onRemovePending(server.name)}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
                   <Pill
                     mono
                     size="sm"
-                    tone="info"
+                    tone={server.broken_reference ? "warning" : "info"}
                     data-testid={`agent-mcp-transport-${server.name}`}
                   >
-                    {transport}
+                    {server.broken_reference
+                      ? "Broken reference"
+                      : server.reference
+                        ? "Reference"
+                        : transport}
                   </Pill>
                 </ListingRow.Trail>
               </ListingRow>
@@ -94,9 +121,17 @@ export function AgentMcpServersPanel({
       </ul>
     );
 
+  const action =
+    !readOnly && onAdd ? (
+      <Button type="button" variant="secondary" size="sm" onClick={onAdd}>
+        Add MCP server
+      </Button>
+    ) : null;
+
   if (bare) {
     return (
       <div className={cn("min-w-0", className)} data-testid="agent-mcp-servers-panel">
+        {action}
         {list}
       </div>
     );
@@ -108,6 +143,7 @@ export function AgentMcpServersPanel({
       className={cn("min-w-0", className)}
       data-testid="agent-mcp-servers-panel"
     >
+      {action}
       {list}
     </Section>
   );

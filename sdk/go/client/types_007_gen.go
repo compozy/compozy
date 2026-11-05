@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// FailTaskRunRequest is a daemon API value.
+type FailTaskRunRequest struct {
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// FailureKind is a daemon API value.
+type FailureKind string
+
+// FailureReasonCode is a daemon API value.
+type FailureReasonCode string
+
+// FanOutTaskRunsRequest is a daemon API value.
+type FanOutTaskRunsRequest struct {
+	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
+	WorktreePerRun bool                              `json:"worktree_per_run,omitzero"`
+}
+
+// FanOutTaskRunsResponse is a daemon API value.
+type FanOutTaskRunsResponse struct {
+	DesignationGroupID string           `json:"designation_group_id"`
+	Runs               []TaskRunPayload `json:"runs"`
+}
+
+// FanoutRollup is a daemon API value.
+type FanoutRollup struct {
+	Generation int    `json:"generation"`
+	NodeID     NodeID `json:"node_id"`
+	Done       int    `json:"done"`
+	Total      int    `json:"total"`
+	Failed     int    `json:"failed"`
+}
+
 // FileParseKind is a daemon API value.
 type FileParseKind string
 
@@ -404,37 +438,3 @@ type GoalPromptMeta struct {
 
 // GoalReasonCode is a daemon API value.
 type GoalReasonCode string
-
-// GoalSnapshot is a daemon API value.
-type GoalSnapshot struct {
-	RunID           string              `json:"run_id"`
-	NodeID          string              `json:"node_id"`
-	Objective       string              `json:"objective"`
-	OriginSessionID string              `json:"origin_session_id"`
-	BoundSessionID  string              `json:"bound_session_id"`
-	Status          GoalStatus          `json:"status"`
-	RunStatus       LoopRunStatus       `json:"run_status"`
-	Cause           *GoalReasonCode     `json:"cause"`
-	TurnsUsed       int                 `json:"turns_used"`
-	TurnLimit       int                 `json:"turn_limit"`
-	Live            bool                `json:"live"`
-	PauseRequested  bool                `json:"pause_requested,omitzero"`
-	ContractSummary string              `json:"contract_summary"`
-	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
-	Context         GoalContextSnapshot `json:"context"`
-}
-
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string
-
-// GoalSnapshotChangedPayload is a daemon API value.
-type GoalSnapshotChangedPayload struct {
-	SessionID      string                  `json:"session_id"`
-	RunID          *string                 `json:"run_id"`
-	BoundSessionID *string                 `json:"bound_session_id"`
-	Revision       int64                   `json:"revision"`
-	Cause          GoalSnapshotChangeCause `json:"cause"`
-}
-
-// GoalStatus is a daemon API value.
-type GoalStatus string

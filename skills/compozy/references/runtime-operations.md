@@ -744,7 +744,13 @@ generation instead of assuming a busy input ran immediately.
 Busy sends resolve `session.busy_input.default_mode` (default `steer`), unless an explicit
 `mode=queue`, `mode=interrupt`, or `mode=steer` overrides it. Read `disposition` and `steer_delivery`
 as the authoritative acceptance: `injected` preserves the turn, `pending_injection` waits inside
-the agent, and `interrupt_fallback` records a replacement before cancellation. Legacy `delivery`
+the agent, `pending_boundary` waits for all active tools before fallback cancellation, and
+`after_turn` queues guidance when tool events are unavailable. `interrupt_fallback` records a
+replacement before cancellation. `[session.busy_input] steer_boundary_timeout` defaults to `45s`;
+on expiry it cancels even with tools open, and `"0s"` restores immediate cancellation.
+An explicit operator interrupt supersedes older pending-boundary guidance; ordinary queued input
+remains parked. `after_turn` follows ordinary queue ordering, and newer steering may supersede
+undelivered guidance. Explicit interrupt remains immediate. Legacy `delivery`
 remains a scheduling field. Keep `message_id` and `idempotency_key` for exact retries.
 An omitted prompt fence resolves the live turn at admission; an explicit `expected_turn_id`
 rejects a stale target with `active_turn_mismatch` and `current_turn_id`. Native

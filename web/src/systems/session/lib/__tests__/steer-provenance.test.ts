@@ -37,6 +37,21 @@ function assistant(id: string, ...parts: unknown[]) {
 }
 
 describe("steer provenance", () => {
+  it("Should keep superseded guidance terminal when a boundary settlement marker arrives late", () => {
+    const superseded = marker(SUPERSEDED, { message_id: "m-boundary", authored_text: "guide" });
+    const late = marker(STEERED, {
+      message_id: "m-boundary",
+      steer_delivery: "interrupt_fallback",
+    });
+    const index = deriveSteerProvenance([assistant("a-boundary", superseded, late)]);
+    expect(index.byMessageId.get("m-boundary")).toMatchObject({
+      kind: "superseded",
+      authoredText: "guide",
+    });
+    expect(index.renderFor(superseded.data)).toMatchObject({ kind: "receipt" });
+    expect(index.renderFor(late.data)).toEqual({ kind: "superseded-marker" });
+  });
+
   it("Should bind several same-turn steers to their own identities, not the preceding bubble", () => {
     const first = marker(STEERED, {
       steer_delivery: "injected",

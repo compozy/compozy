@@ -61,7 +61,7 @@ export interface MCPStatusCell {
   code?: string;
 }
 
-export type MCPAuthorizeLabel = "Authorize" | "Reauthorize";
+export type MCPAuthorizeLabel = "Sign in" | "Reauthorize";
 
 export interface MCPRowStatus {
   /** One worst-of status for the row, in plain words; the four cells below are its breakdown. */
@@ -72,7 +72,7 @@ export interface MCPRowStatus {
   probe: MCPStatusCell;
   /** True only for OAuth-capable remotes that need repair (see isOAuthRepairable). */
   repairable: boolean;
-  /** null unless `repairable`; "Authorize" for a first login, else "Reauthorize". */
+  /** null unless `repairable`; "Sign in" for a first login, else "Reauthorize". */
   authorizeLabel: MCPAuthorizeLabel | null;
 }
 
@@ -103,14 +103,14 @@ export function probeTone(probe: string): PillTone {
   return "neutral";
 }
 
-/**
- * A server is OAuth-capable when it is a remote HTTP transport carrying the
- * daemon-discovered OAuth policy. stdio and remote servers with no auth policy
- * never receive a browser authorize action.
- */
+/** Explicit OAuth remains supported; implicit discovery excludes header credentials. */
 export function isOAuthCapable(server: SettingsMCPServerEntry): boolean {
-  const remote = server.transport === "http";
-  return remote && server.auth !== null && server.auth !== undefined;
+  if (server.transport !== "http") return false;
+  if (server.auth) return true;
+  if (server.headers_configured) return false;
+  return (
+    server.auth_status?.auth_type === "oauth" || server.runtime_status?.state === "auth_required"
+  );
 }
 
 /**
@@ -127,7 +127,10 @@ export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
 
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {
   if (!isOAuthRepairable(server)) return null;
-  return server.auth_status?.status === "needs_login" ? "Authorize" : "Reauthorize";
+  const status = server.auth_status?.status;
+  return !status || status === "needs_login" || status === "unconfigured"
+    ? "Sign in"
+    : "Reauthorize";
 }
 
 /**

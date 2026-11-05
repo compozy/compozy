@@ -19,6 +19,39 @@ import (
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain invalid remote rows without probing OAuth", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile,
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n")
+		workspaceRoot := t.TempDir()
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\n")
+		auth := &recordingMCPAuthRuntime{statusErr: errors.New("invalid remote must not reach auth")}
+		runtime := &fakeMCPRuntimeProvider{statuses: map[string]MCPServerRuntimeStatus{
+			"broken": {Configured: true, State: MCPServerRuntimeStateConfigError, Probe: MCPServerProbeSkipped},
+		}}
+		service := testService(t, home, Dependencies{
+			MCPAuth: auth, MCPRuntime: runtime,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"workspace-a": {ID: "workspace-a", RootDir: workspaceRoot},
+			}},
+		})
+		result, err := service.ListCollection(t.Context(), CollectionRequest{
+			Collection: CollectionMCPServers, Scope: ScopeWorkspace, WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := findMCPItem(t, result.MCPServers, "broken")
+		if item.AuthStatus != nil || item.RuntimeStatus == nil ||
+			item.RuntimeStatus.State != MCPServerRuntimeStateConfigError {
+			t.Fatalf("invalid remote lost its config_error row: %#v", item)
+		}
+		if auth.statusServer.Name != "" {
+			t.Fatal("invalid remote reached the OAuth probe")
+		}
+	})
 
 	// Invariant: extension collection rows and runtime probes share an exact owner-qualified identity; manual collisions fail before file writes.
 	// Owner: Settings collection service; canonical suite: mcp_runtime_status_test.go.
@@ -377,6 +410,28 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Parallel()
 	// Invariant: selecting an extension never falls through to same-named manual credentials.
 	// Owner: Settings auth target resolution; canonical suite: mcp_runtime_status_test.go.
+	t.Run("Should reject header-auth login before starting OAuth", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(
+			t,
+			home.ConfigFile,
+			"[[mcp_servers]]\nname = \"header\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n[mcp_servers.headers]\nX-Key = \"value\"\n",
+		)
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, home, Dependencies{MCPAuth: runtime})
+		_, err := service.BeginMCPAuth(
+			t.Context(),
+			MCPAuthBeginRequest{Scope: ScopeUser, Name: "header"},
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("header login = %v, want validation error", err)
+		}
+		if runtime.beginTarget.ServerName != "" {
+			t.Fatal("header login reached OAuth runtime")
+		}
+	})
+
 	t.Run("Should preserve the extension owner through OAuth operations and callback addressing", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

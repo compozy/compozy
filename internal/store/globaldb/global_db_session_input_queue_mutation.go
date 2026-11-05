@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-// EnqueueInterruptSessionInput persists replacement input without removing parked work.
+// EnqueueInterruptSessionInput persists replacement input while preserving ordinary queued work.
 func (g *SessionRepo) EnqueueInterruptSessionInput(
 	ctx context.Context,
 	req store.SessionInputQueueInsert,
@@ -34,10 +34,16 @@ func (g *SessionRepo) EnqueueInterruptSessionInput(
 		if prepareErr != nil {
 			return prepareErr
 		}
+		superseded, err := supersedeBoundarySteersForInterrupt(ctx, exec, prepared)
+		if err != nil {
+			return err
+		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, prepared)
 		if insertErr != nil {
 			return insertErr
 		}
+		inserted.SupersededIDs = superseded
+		canceled = len(superseded)
 		entry = inserted
 		return nil
 	})

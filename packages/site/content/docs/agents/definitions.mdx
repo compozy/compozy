@@ -328,6 +328,18 @@ compozy agent update reviewer --expected-digest <digest> --clear-fallback-chain
 
 ## MCP servers
 
+Open the agent's **Tools** sheet and choose **Add MCP server**. Pick a configured server to attach a reference by name, or choose **Add new server** to configure a connection for this agent. Save the sheet to apply it. Package- and extension-owned agents are read-only.
+
+New attachments are written to the agent's `mcp.json` sidecar. Existing frontmatter declarations keep loading, and unrelated updates preserve all servers. A configured server reference follows changes to its source; if the source is removed, the agent displays **Broken reference**.
+
+The HTTP/UDS agent create and update payloads accept additive `mcp_servers` entries. Omitted or empty arrays preserve existing entries; additions replace only matching names in the sidecar. `compozy agent update <name> --expected-digest <digest> --mcp-server example` attaches a configured server without changing allowed tools.
+
+```json
+{ "mcp_servers": [{ "name": "example", "reference": true }] }
+```
+
+New HTTP server credentials go into Vault through write-only `secret_header_values`; only `secret_headers` references are persisted. Explicitly shared `vault:mcp/shared/` references can also be supplied directly. Attach a configured server by name to reuse its owned credentials; private and daemon OAuth references cannot be bound to a new agent-local endpoint. Reads show credential presence without returning values or references. Replacing a connection or deleting an agent retains its credentials in Vault for explicit management, since other agents may reuse them.
+
 Inline MCP servers are useful when a tool belongs to one agent:
 
 ```yaml
@@ -473,9 +485,11 @@ Watch issues and propose the next step.
 
 `kind` defaults to `on_demand` and is fixed at creation. Duplicate an agent to choose another kind.
 Declaring `always_on` in an extension does not start a session or create an instance.
-`stays_on`, the v0.5.0 spelling, still loads as `always_on` through v0.5.1 with a daemon warning;
-AGENT.md files under `$COMPOZY_HOME` are rewritten at boot, and repository, workspace-profile, and
-extension files are left for you to edit. v0.5.2 removes the alias.
+The release after v0.5.2 rejects `stays_on` with `agent_kind_invalid`:
+"agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
+Persisted definitions migrate on load, including repository, workspace-profile, additional-root
+and extension files. Read-only or unsupported edit layouts decode canonically and log guidance
+to update the source before the persisted-file migration shim is removed in v0.6.0.
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless

@@ -11,13 +11,29 @@ import { useSettingsMCPServers } from "./use-settings-collections";
 import { useDeleteSettingsMCPServer } from "./use-settings-mutations";
 import { useSettingsPage } from "./use-settings-page";
 
-export function useSettingsMCPPage() {
-  const page = useSettingsPage({ currentSlug: "mcp" });
+interface UseMCPServerManagementOptions {
+  /** Off while the hosting surface is hidden; the editor still opens. */
+  enabled?: boolean;
+  /** A host that owns the search (a route `?q=`) passes it; otherwise the hook keeps its own. */
+  search?: { query: string; setQuery: (query: string) => void };
+}
+
+/**
+ * Every MCP definition the daemon resolves for the shell's profile lens (Personal or one project),
+ * with the row actions, editors, sign-in and removal Settings › MCP servers offers. Hosts render
+ * it through `MCPServersManagementBody` + `MCPServersManagementDialogs`.
+ */
+export function useMCPServerManagement({
+  enabled = true,
+  search,
+}: UseMCPServerManagementOptions = {}) {
   const workspace = useActiveWorkspace();
   const { destination: profile } = useProfileReadScope();
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [ownQuery, setOwnQuery] = useState("");
+  const query = search?.query ?? ownQuery;
+  const setQuery = search?.setQuery ?? setOwnQuery;
   const [removing, setRemoving] = useState<SettingsMCPServerEntry | null>(null);
   const filter: SettingsMCPServerListFilter =
     profile !== "default"
@@ -25,17 +41,31 @@ export function useSettingsMCPPage() {
       : workspaceId
         ? { scope: "workspace", workspace_id: workspaceId }
         : { scope: "user" };
-  const collection = useSettingsMCPServers(filter);
+  const collection = useSettingsMCPServers(filter, { enabled });
   const servers = collection.data?.mcp_servers ?? [];
+  // A create checks names against a list refetched when the editor opens, never a stale cache.
+  // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
+  const serversReady =
+    collection.data !== undefined && collection.fetchStatus === "idle" && !collection.isError;
   const editor = useMCPEditor({
     enabled: true,
     scope: filter.scope ?? "user",
     servers,
     workspaceId,
     profileName: profile,
+    serversReady,
+    serversError:
+      collection.isError && !collection.isFetching
+        ? { message: collection.error.message, retry: () => void collection.refetch() }
+        : null,
   });
+  const openCreate = () => {
+    void collection.refetch();
+    editor.openCreate();
+  };
+
   const override = useMCPOverrideEditor();
-  const authorization = useMCPDefinitionAuthorization();
+  const authorization = useMCPDefinitionAuthorization({ enabled });
   const removal = useDeleteSettingsMCPServer();
   const selected = servers.find(server => mcpDefinitionKey(server) === selectedKey) ?? null;
   const normalized = query.trim().toLowerCase();
@@ -73,7 +103,6 @@ export function useSettingsMCPPage() {
     );
   };
   return {
-    page,
     collection,
     servers,
     filteredServers,
@@ -90,7 +119,7 @@ export function useSettingsMCPPage() {
     edit,
     authorize,
     authorization,
-    openCreate: editor.openCreate,
+    openCreate,
     editorProps: editor.editorProps,
     overrideProps: override.editorProps,
     removing,
@@ -101,4 +130,12 @@ export function useSettingsMCPPage() {
       if (!removal.isPending) setRemoving(null);
     },
   };
+}
+
+export type MCPServerManagement = ReturnType<typeof useMCPServerManagement>;
+
+/** Settings › MCP servers: the shared management model plus the Settings page/restart model. */
+export function useSettingsMCPPage() {
+  const page = useSettingsPage({ currentSlug: "mcp" });
+  return { ...useMCPServerManagement(), page };
 }

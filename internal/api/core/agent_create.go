@@ -31,6 +31,7 @@ func CreateAgentFromRequest(
 	workspaces WorkspaceService,
 	transportName string,
 	profileName string,
+	vault VaultService,
 ) (CreatedAgentDefinition, error) {
 	if err := compozyconfig.ValidateAgentAppearance(req.Agent.Appearance); err != nil {
 		return CreatedAgentDefinition{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
@@ -48,7 +49,7 @@ func CreateAgentFromRequest(
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
 		return CreatedAgentDefinition{}, err
 	}
-	agent, err := compozyconfig.CreateAgentDefFile(target.Path, draft, false)
+	agent, err := writeAgentDefinitionWithMCP(ctx, vault, target.Path, draft, false, req.Agent.MCPServers)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
 	}
@@ -61,6 +62,12 @@ func CreateAgentFromRequest(
 
 func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig.AgentDefinitionDraft, error) {
 	agent := req.Agent
+	if err := (compozyconfig.AgentDef{Kind: agent.Kind}).ValidateIdentity(); errors.Is(
+		err,
+		compozyconfig.ErrAgentKindInvalid,
+	) {
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+	}
 	agentName := compozyconfig.NormalizeAgentName(agent.Name)
 	if agentName == "" {
 		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
@@ -98,7 +105,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 			agent.DisplayName,
 		),
 		Description:     agentIdentityText(agent.Description),
-		Kind:            canonicalRequestAgentKind(agent.Kind, agentName),
+		Kind:            agent.Kind,
 		Appearance:      compozyconfig.CloneAgentAppearance(agent.Appearance),
 		Provider:        agent.Provider,
 		Command:         agent.Command,
@@ -119,20 +126,6 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		FallbackChain:   agentFallbackChainFromContract(agent.FallbackChain),
 		Prompt:          agent.Prompt,
 	}, nil
-}
-
-// canonicalRequestAgentKind maps the v0.5.0 stays_on request spelling to always_on and logs the
-// deprecation once per request. HTTP, UDS and compozy__agent_create all decode here. Removal: v0.5.2.
-func canonicalRequestAgentKind(raw string, agentName string) string {
-	kind, deprecated := compozyconfig.CanonicalAgentKind(raw)
-	if deprecated {
-		compozyconfig.DeprecationLogger().Warn(
-			"agent kind stays_on is deprecated; use always_on (stays_on is removed in v0.5.2)",
-			"source", "request",
-			"agent", agentName,
-		)
-	}
-	return kind
 }
 
 func validateAgentDraftRuntime(draft compozyconfig.AgentDefinitionDraft, cfg *compozyconfig.Config) error {

@@ -4,8 +4,8 @@ area: ET
 title: MCP management status matrix renders daemon truth
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: The `/marketplace/mcps` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Authorize/Reauthorize is offered only to OAuth Streamable HTTP remotes not authenticated (or auth_refresh_failed); stdio and non-OAuth remotes never get it.
-entry_points: web `/marketplace/mcps`; `GET /api/settings/mcp-servers`
+expected: The `/marketplace/mcps` cards and detail management render daemon-owned auth, runtime, probe, and negotiated protocol version with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Sign in/Reauthorize is offered to unauthenticated OAuth HTTP remotes (or auth_refresh_failed), including bare header-free HTTP remotes reporting auth_required. Open remotes, stdio, and header-auth servers without explicit OAuth never get browser authorization.
+entry_points: web `/marketplace?kind=mcps` (Marketplace › MCPs); Settings › MCP servers; `GET /api/settings/mcp-servers`
 qa_status: pass
 bug_ids:
 fix_status: fixed
@@ -46,3 +46,27 @@ Authorize/Reauthorize without claiming the server is running, while transport/ne
 unavailable and no token, binding ref, or OAuth redirect appears in status payloads.
 
 QA impact 2026-09-28 (ui-normie-pass, settings slice): Settings › MCP servers rows now show one worst-of Status pill (for example "Needs sign-in", "Unavailable", "Ready"); the per-signal setup/sign-in/connection/tools breakdown with its raw detail lines moved into the selection strip opened by the server name. The no-false-green rule is unchanged. Flagged for the next QA cycle.
+
+Gap 1 rule (issue #1305): configure a bare HTTP remote with no `auth`, `headers`, or
+`secret_headers` against an OAuth PRM / WWW-Authenticate challenge. Settings must offer
+**Sign in** through the existing authorization dialog. Complete a fresh manual redirect,
+then confirm `authenticated && token_present` through a fresh status read and a successful
+runtime tool probe. Reload Settings to verify persistence. An open HTTP remote and remotes
+with plain or secret headers and no explicit OAuth policy must never receive this action. In Advanced editor mode,
+**Use OAuth** must toggle the saved `auth.registration=auto` block; editing a header server
+must preserve its headers without returning their values.
+
+Gap 1 retest 2026-11-05: the changed bare-remote, header exclusion, header preservation,
+and OAuth-toggle branches passed in the isolated daemon lab. See
+`docs/qa/reports/2026-11-05-issue-1305-gap1.md`. This does not replace historical coverage or
+vendor-consent blockers for unrelated branches in this scenario.
+
+QA impact 2026-11-04 (issue #1305 gap 3): the Marketplace MCPs view is back as `/marketplace?kind=mcps`,
+reached through the **Plugins | MCPs** toggle beside the Marketplace search. It renders the same MCP
+server table, status cells, and per-row Authorize/Reauthorize (or Sign in) and edit actions as
+Settings › MCP servers, from the same `GET /api/settings/mcp-servers` read; the retired
+`/marketplace/mcps` card path stays not-found. Walk the matrix in both entry points and confirm they
+agree row for row. A save that needs a daemon restart shows the same restart notice
+and **Restart CompozyOS** action in the MCPs view as in Settings. Targeted verification: the Marketplace component suite and the
+`McpServers`/`McpServersSearch` Storybook stories rendered the nine-server matrix in Chromium; a live
+walk remains outstanding.

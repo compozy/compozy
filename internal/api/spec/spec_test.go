@@ -1108,7 +1108,13 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"auto",
 					"approve-all",
 				)
-				assertPropertyAbsent(t, agentSchema, "mcp_servers")
+				assertNotRequired(t, agentSchema, "mcp_servers")
+				assertRequired(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, "name")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(t, propertySchema(t, agentSchema, "mcp_servers").Items.Value, name).WriteOnly {
+						t.Fatalf("create MCP %s must be write-only", name)
+					}
+				}
 				assertPropertyAbsent(t, agentSchema, "hooks")
 
 				responseSchema := jsonResponseSchema(t, createAgent, 201)
@@ -1139,7 +1145,16 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				updateSchema := jsonRequestSchema(t, update)
 				assertRequired(t, updateSchema, "agent", "expected_digest")
 				updateAgentSchema := propertySchema(t, updateSchema, "agent")
-				assertPropertyAbsent(t, updateAgentSchema, "mcp_servers")
+				assertNotRequired(t, updateAgentSchema, "mcp_servers")
+				for _, name := range []string{"secret_header_values", "secret_env_values"} {
+					if !propertySchema(
+						t,
+						propertySchema(t, updateAgentSchema, "mcp_servers").Items.Value,
+						name,
+					).WriteOnly {
+						t.Fatalf("update MCP %s must be write-only", name)
+					}
+				}
 
 				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
 				assertResponseStatus(t, deleteAgent, 403)
@@ -3237,10 +3252,12 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addSettingsMCPHeaderPresence(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}
 		addAgentIdentitySchemas(t, baseline)
+		addAgentMCPAttachmentSchemas(t, baseline)
 		addInstanceReadSchemas(t, baseline)
 		addProfileRemovalInstanceCounts(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
@@ -3268,6 +3285,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
 			t.Fatal("approved restart progress addition: no historical restart status schema found")
+		}
+		// #1292: fallback steering exposes its boundary wait and after-turn queue decisions.
+		if addBoundarySteerDelivery(baseline) == 0 {
+			t.Fatal("approved boundary delivery addition: no historical steering schemas found")
 		}
 		doc, err := Document()
 		if err != nil {
@@ -3297,6 +3318,36 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+func addBoundarySteerDelivery(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addBoundarySteerDelivery(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addBoundarySteerDelivery(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		delivery, ok := properties["steer_delivery"].(map[string]any)
+		if ok && reflect.DeepEqual(delivery["enum"], []any{"injected", "pending_injection", "interrupt_fallback"}) {
+			delivery["enum"] = []any{
+				"injected",
+				"pending_injection",
+				"pending_boundary",
+				"after_turn",
+				"interrupt_fallback",
+			}
+			count++
+		}
+	}
+	return count
 }
 
 func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
@@ -5480,7 +5531,7 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				} else {
 					props["display_name"].(map[string]any)["nullable"] = true
 					props["description"].(map[string]any)["nullable"] = true
-					// Request kinds list the deprecated stays_on alias through v0.5.1 (#1199).
+					// Request kinds list only the supported values.
 					props["kind"] = agentKindRequestSchemaForTest()
 					if props["name"] != nil {
 						props["display_name"].(map[string]any)["maxLength"] = float64(80)
@@ -6006,12 +6057,11 @@ func addSessionLinkedWorkSchemas(value any) int {
 	return count
 }
 
-// agentKindRequestSchemaForTest is the approved request kind schema: on_demand, always_on, and the
-// deprecated v0.5.0 stays_on alias (removal v0.5.2).
+// agentKindRequestSchemaForTest describes the two supported request kinds.
 func agentKindRequestSchemaForTest() map[string]any {
 	return map[string]any{
 		"type":        "string",
-		"enum":        []any{"on_demand", "always_on", "stays_on"},
+		"enum":        []any{"on_demand", "always_on"},
 		"description": agentKindRequestDescription,
 	}
 }
@@ -6035,4 +6085,71 @@ func addApprovalAccessScope(value any) int {
 		}
 	}
 	return count
+}
+
+// #1305: approve only the additive agent MCP input and response fields.
+// addAgentMCPAttachmentSchemas applies only approved additive shapes before historical comparison.
+func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	doc, err := Document()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current map[string]any
+	if err := json.Unmarshal(encoded, &current); err != nil {
+		t.Fatal(err)
+	}
+	components := current["components"].(map[string]any)["schemas"].(map[string]any)
+	oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	input := components["CreateAgentPayload"].(map[string]any)["properties"].(map[string]any)["mcp_servers"]
+	response := components["AgentMCPServerJSON"].(map[string]any)["properties"].(map[string]any)
+	count := 0
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["name"] != nil && properties["prompt"] != nil && properties["appearance"] != nil &&
+				properties["definition_digest"] == nil && properties["mcp_servers"] == nil {
+				properties["mcp_servers"] = input
+				count++
+			}
+			if properties["secret_env"] != nil && properties["transport"] != nil && properties["name"] != nil &&
+				properties["url"] != nil && len(properties) == 8 {
+				for _, name := range []string{"reference", "broken_reference", "secret_headers"} {
+					if properties[name] != nil {
+						t.Fatalf("historical MCP response already contains %s", name)
+					}
+					properties[name] = response[name]
+				}
+				count++
+			}
+		}
+	}
+	// Walk historical definitions before adding the new input component.
+	if oldComponents["AgentMCPServerInput"] != nil {
+		t.Fatal("historical baseline already contains AgentMCPServerInput")
+	}
+	visit(baseline)
+	oldComponents["AgentMCPServerInput"] = components["AgentMCPServerInput"]
+	if oldComponents["SettingsMCPAuthConfigPayload"] == nil {
+		oldComponents["SettingsMCPAuthConfigPayload"] = components["SettingsMCPAuthConfigPayload"]
+	}
+	if count == 0 {
+		t.Fatal("no historical agent MCP schemas found")
+	}
 }

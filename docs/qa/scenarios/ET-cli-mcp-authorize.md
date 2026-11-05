@@ -61,3 +61,13 @@ extension declaring a remote OAuth MCP server, enable it in a named profile, and
 the server's tool, and `compozy__mcp_status`/`compozy__mcp_auth_status` must resolve it by name
 without an owner. A session started before the login goes from `auth-blocked` to a working call
 without a restart. Logout blocks the tool again, and another profile stays `auth-blocked`.
+
+Issue #1305 Gap 1: `compozy mcp auth login <bare-http-name> --manual` must reach discovery
+without requiring an authored auth block. Finish against the isolated OAuth fixture and
+confirm authenticated/token_present through `mcp auth status`; header-auth remotes remain
+ineligible for OAuth and open remotes still work without login.
+
+Gap 1 retest 2026-11-05: the changed bare-remote, header exclusion, header preservation,
+and OAuth-toggle branches passed in the isolated daemon lab. See
+`docs/qa/reports/2026-11-05-issue-1305-gap1.md`. This does not replace historical coverage or
+vendor-consent blockers for unrelated branches in this scenario.

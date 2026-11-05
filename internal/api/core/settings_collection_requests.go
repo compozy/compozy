@@ -19,6 +19,7 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		Server          *contract.SettingsMCPServerPayload             `json:"server"`
 		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
 		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
+		PreserveHeaders bool                                           `json:"preserve_headers,omitzero"`
 		PreserveEnv     []string                                       `json:"preserve_env,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -73,13 +74,15 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(err)
 	}
 
+	preservation := mcpSecretPreservationFromPayload(body.PreserveSecrets)
+	preservation.Headers = body.PreserveHeaders
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest:     req,
 		Name:                  name,
 		Target:                target,
 		MCPServer:             &server,
 		MCPSecrets:            mcpSecretValuesFromPayload(body.SecretValues),
-		MCPSecretPreservation: mcpSecretPreservationFromPayload(body.PreserveSecrets),
+		MCPSecretPreservation: preservation,
 		MCPEnvPreservation:    cloneStrings(body.PreserveEnv),
 	}, nil
 }

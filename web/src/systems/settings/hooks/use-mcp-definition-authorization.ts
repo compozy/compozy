@@ -6,7 +6,7 @@ import { useMCPAuthorize } from "./use-mcp-authorize";
 import { useSettingsMCPServer } from "./use-settings-collections";
 
 /** Poll the authorizing definition, even when another same-name row or workspace is selected. */
-export function useMCPDefinitionAuthorization() {
+export function useMCPDefinitionAuthorization({ enabled = true }: { enabled?: boolean } = {}) {
   const queryClient = useQueryClient();
   const authorize = useMCPAuthorize({
     // Browser callbacks complete outside this window's exchange mutation. Confirmation must
@@ -17,7 +17,7 @@ export function useMCPDefinitionAuthorization() {
   });
   const filter = authorize.filter;
   const query = useSettingsMCPServer(authorize.server ?? "", filter ?? {}, {
-    enabled: filter !== null && authorize.server !== null,
+    enabled: enabled && filter !== null && authorize.server !== null,
     refetchInterval: 2000,
   });
   const server = filter ? (query.data?.server ?? null) : null;

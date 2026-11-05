@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,6 +45,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -4081,6 +4081,156 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should refuse managed plaintext credentials on create and update before touching Vault", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(context.Context, string, string, string) (vault.Metadata, error) {
+				calls++
+				return vault.Metadata{}, nil
+			},
+		}
+		for _, method := range []string{http.MethodPost, http.MethodPut} {
+			for _, field := range []string{"secret_header_values", "secret_env_values"} {
+				path := "/agents"
+				if method == http.MethodPut {
+					path += "/managed"
+				}
+				body := `{"scope":"global","agent":{"name":"managed","provider":"codex","prompt":"Work.","mcp_servers":[{"name":"remote","` + field + `":{"TOKEN":"credential"}}]}}`
+				if method == http.MethodPut {
+					body = strings.Replace(body, `"scope":"global"`, `"expected_digest":"digest"`, 1)
+				}
+				req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(agentidentity.HeaderSessionID, "sess-caller")
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, req)
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if response.Code != http.StatusForbidden || payload.Code != "mcp_secret_values_operator_only" {
+					t.Fatalf("%s %s = %d %s", method, field, response.Code, response.Body.String())
+				}
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("managed calls wrote %d Vault values", calls)
+		}
+	})
+
+	t.Run("Should reject invalid raw header values before writing Vault", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(context.Context, string, string, string) (vault.Metadata, error) {
+				calls++
+				return vault.Metadata{}, nil
+			},
+		}
+		for _, tc := range []struct {
+			headers map[string]string
+			cause   string
+		}{
+			{map[string]string{"Authorization:": "credential"}, "invalid_header_name"},
+			{map[string]string{"Authorization": "first\r\nsecond"}, "invalid_header_value"},
+			{map[string]string{"Authorization": "one", "authorization": "two"}, "duplicate_header"},
+			{map[string]string{"X-Existing": "replacement"}, "duplicate_header"},
+			{map[string]string{"x-existing": "replacement"}, "duplicate_header"},
+		} {
+			body := mustJSON(
+				t,
+				contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:     "invalid_header",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{
+								Name:               "remote",
+								Transport:          "http",
+								URL:                "https://example.com",
+								SecretHeaderValues: tc.headers,
+								SecretHeaders:      map[string]string{"X-Existing": "vault:mcp/shared/existing"},
+							},
+						},
+					},
+				},
+			)
+			resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), tc.cause) {
+				t.Fatalf("invalid header status = %d body=%s", resp.Code, resp.Body.String())
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("invalid headers wrote %d Vault values", calls)
+		}
+	})
+
+	t.Run("Should remove a Vault value when PutSecret fails after storage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		stored := map[string]string{}
+		failure := errors.New("Vault metadata readback failed")
+		calls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				calls++
+				stored[ref] = value
+				return vault.Metadata{}, failure
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
+		body := mustJSON(
+			t,
+			contract.CreateAgentRequest{
+				Scope: contract.AgentCreateScopeGlobal,
+				Agent: contract.CreateAgentPayload{
+					Name:     "failed_secret",
+					Provider: "codex",
+					Prompt:   "Work.",
+					MCPServers: []contract.AgentMCPServerInput{
+						{
+							Name:               "remote",
+							Transport:          "http",
+							URL:                "https://example.com",
+							SecretHeaderValues: map[string]string{"Authorization": "credential"},
+						},
+					},
+				},
+			},
+		)
+		response := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if response.Code != http.StatusInternalServerError ||
+			!strings.Contains(response.Body.String(), failure.Error()) ||
+			calls != 1 ||
+			len(stored) != 0 {
+			t.Fatalf(
+				"post-storage rollback = status %d, calls %d, stored %d, %s",
+				response.Code,
+				calls,
+				len(stored),
+				response.Body.String(),
+			)
+		}
+	})
+
 	t.Run("Should create a global AGENT.md definition", func(t *testing.T) {
 		t.Parallel()
 
@@ -4170,7 +4320,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 	})
 
 	// IT-003: the exact _dx.md body with the v0.5.0 kind spelling creates an always-on agent.
-	t.Run("Should create an always-on agent from a stays_on request", func(t *testing.T) {
+	t.Run("Should reject a stays_on create request", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
@@ -4192,16 +4342,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
   "agent": { "name": "triage", "provider": "claude", "kind": "stays_on",
              "prompt": "Watch the repository and report what needs attention." } }`)
 		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
-		if resp.Code != http.StatusCreated {
-			t.Fatalf("create status = %d, want 201; body=%s", resp.Code, resp.Body.String())
-		}
-		var payload contract.AgentResponse
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Name != "triage" || payload.Agent.Kind != "always_on" {
-			t.Fatalf("created agent = %#v, want always_on triage", payload.Agent)
-		}
-		if strings.Contains(resp.Body.String(), "stays_on") {
-			t.Fatalf("create body = %s, want no stays_on", resp.Body.String())
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+			!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
+			t.Fatalf("create: %d %s", resp.Code, resp.Body.String())
 		}
 	})
 
@@ -4508,8 +4651,18 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
+		stored := map[string]string{}
+		putCalls := 0
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				putCalls++
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
 		syncErr := errors.New("sync unavailable")
-		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
+		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, syncErr}}
 		fixture.Handlers.AgentDefinitionSync = syncer
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
@@ -4522,6 +4675,14 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				Name:     "rollback_agent",
 				Provider: "codex",
 				Prompt:   "Rollback on sync failure.",
+				MCPServers: []contract.AgentMCPServerInput{
+					{
+						Name:               "private",
+						Transport:          "http",
+						URL:                "https://example.com/mcp",
+						SecretHeaderValues: map[string]string{"Authorization": "write-only-credential"},
+					},
+				},
 			},
 		})
 
@@ -4539,6 +4700,12 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		if syncer.calls != 2 {
 			t.Fatalf("Sync() calls = %d, want initial sync plus reconciliation", syncer.calls)
+		}
+		if putCalls != 1 {
+			t.Fatalf("PutSecret calls = %d, want 1", putCalls)
+		}
+		if len(stored) != 0 {
+			t.Fatal("failed creation retained newly written Vault credentials")
 		}
 	})
 
@@ -4719,6 +4886,220 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 }
 
 func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
+	t.Run("Should allow only one concurrent attachment update for one digest", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{Name: "coder", Provider: "codex", Prompt: "Work."},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		start := make(chan struct{})
+		results := make(chan int, 8)
+		for index := range 8 {
+			body := mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{
+						Name:     "coder",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{Name: fmt.Sprintf("server-%d", index), Reference: true},
+						},
+					},
+				},
+			)
+			go func() {
+				<-start
+				results <- performRequest(t, fixture.Engine, http.MethodPut, "/agents/coder", body).Code
+			}()
+		}
+		close(start)
+		successes, conflicts := 0, 0
+		for range 8 {
+			switch status := <-results; status {
+			case http.StatusOK:
+				successes++
+			case http.StatusConflict:
+				conflicts++
+			default:
+				t.Fatalf("concurrent update status = %d", status)
+			}
+		}
+		if successes != 1 || conflicts != 7 {
+			t.Fatalf("updates = %d successes, %d conflicts", successes, conflicts)
+		}
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil || len(loaded.MCPServers) != 1 {
+			t.Fatalf("winner attachment = %#v, %v", loaded.MCPServers, err)
+		}
+	})
+	t.Run("Should attach MCP references and vault header credentials without changing tool access", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{
+				Name:       "coder",
+				Provider:   "codex",
+				Prompt:     "Work.",
+				MCPServers: []compozyconfig.MCPServer{{Name: "legacy", Command: "old"}},
+			},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored := map[string]string{}
+		fixture.Handlers.Vault = &stubVaultService{
+			putSecretFn: func(_ context.Context, ref, _ string, value string) (vault.Metadata, error) {
+				stored[ref] = value
+				return vault.Metadata{Ref: ref, Present: true}, nil
+			},
+			deleteSecretFn: func(_ context.Context, ref string) error { delete(stored, ref); return nil },
+		}
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{
+						Name:     "coder",
+						Provider: "codex",
+						Prompt:   "Work.",
+						MCPServers: []contract.AgentMCPServerInput{
+							{Name: "missing", Reference: true},
+							{
+								Name:               "private",
+								Transport:          "http",
+								URL:                "https://example.com/mcp",
+								SecretHeaderValues: map[string]string{"Authorization": "Bearer test-secret-value"},
+							},
+						},
+					},
+				},
+			),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", resp.Code, resp.Body.String())
+		}
+		var response contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &response)
+		if len(response.Agent.Tools) != 0 || len(response.Agent.MCPServers) != 3 {
+			t.Fatalf("response = %#v", response.Agent)
+		}
+		if strings.Contains(resp.Body.String(), "test-secret-value") ||
+			strings.Contains(resp.Body.String(), "vault:mcp/") {
+			t.Fatal("response leaked credential material")
+		}
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ref string
+		for _, server := range loaded.MCPServers {
+			if server.Name == "private" {
+				ref = server.SecretHeaders["Authorization"]
+			}
+		}
+		if stored[ref] != "Bearer test-secret-value" {
+			t.Fatalf("header was not bound to Vault")
+		}
+		missingFound := false
+		for _, server := range response.Agent.MCPServers {
+			if server.Name == "missing" {
+				missingFound = true
+			}
+			if server.Name == "missing" && !server.BrokenReference {
+				t.Fatal("missing reference was not surfaced")
+			}
+		}
+		if !missingFound {
+			t.Fatal("response omitted missing reference")
+		}
+		markdown, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sidecar, err := os.ReadFile(filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(markdown, []byte("private")) || bytes.Contains(sidecar, []byte("test-secret-value")) {
+			t.Fatal("agent files contain misplaced definition or plaintext secret")
+		}
+		baselineServers := response.Agent.MCPServers
+		for _, tools := range [][]string{{"compozy__agent_list"}, {"compozy__agent_list", "compozy__skill_view"}} {
+			next := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/agents/coder",
+				mustJSON(
+					t,
+					contract.UpdateAgentRequest{
+						ExpectedDigest: response.Agent.DefinitionDigest,
+						Agent: contract.CreateAgentPayload{
+							Name:     "coder",
+							Provider: "codex",
+							Prompt:   "Work.",
+							Tools:    tools,
+						},
+					},
+				),
+			)
+			if next.Code != http.StatusOK {
+				t.Fatalf("unrelated save status = %d body=%s", next.Code, next.Body.String())
+			}
+			var nextResponse contract.AgentResponse
+			decodeJSON(t, next.Body.Bytes(), &nextResponse)
+			response = nextResponse
+			latest, err := compozyconfig.LoadAgentDefFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			latestDigest, err := compozyconfig.AgentDefinitionDigest(latest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(response.Agent.MCPServers, baselineServers) ||
+				response.Agent.DefinitionDigest != latestDigest {
+				t.Fatalf("unrelated save lost effective servers or digest: %#v", response.Agent)
+			}
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should duplicate effective package agents while preserving managed sources", func(t *testing.T) {
@@ -4967,6 +5348,35 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		if loaded.Model != "gpt-5" || loaded.Prompt != "After." {
 			t.Fatalf("effective source definition = %#v", loaded)
+		}
+		denied := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/code_implementer",
+			mustJSON(
+				t,
+				contract.UpdateAgentRequest{
+					ExpectedDigest: payload.Agent.DefinitionDigest,
+					Agent: contract.CreateAgentPayload{
+						Name:       "code_implementer",
+						Provider:   "codex",
+						Prompt:     "After.",
+						MCPServers: []contract.AgentMCPServerInput{{Name: "shared", Reference: true}},
+					},
+				},
+			),
+		)
+		if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "read-only") {
+			t.Fatalf("package attachment status = %d body=%s", denied.Code, denied.Body.String())
+		}
+		if _, err := os.Stat(
+			filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("package sidecar was modified: %v", err)
 		}
 	})
 
@@ -7205,10 +7615,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 		}
 	})
 	// UT-023: the v0.5.0 stays_on spelling is an input alias on PUT and both duplicate kinds.
-	t.Run("Should accept stays_on on update and duplicate and write always_on", func(t *testing.T) {
-		logs := &lockedLogBuffer{}
-		compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(logs, nil)))
-		t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
+	t.Run("Should reject stays_on on update and both duplicate locations", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			&testutil.StubSessionManager{},
@@ -7242,7 +7649,8 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				},
 			}),
 		)
-		if resp.Code != http.StatusOK {
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+			!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
 			t.Fatalf("PUT stays_on: %d %s", resp.Code, resp.Body.String())
 		}
 		assertAgentFileKind(t, path, "always_on")
@@ -7262,56 +7670,12 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				"/agents/scout/duplicate",
 				mustJSON(t, tc.request),
 			)
-			if resp.Code != http.StatusCreated {
-				t.Fatalf("duplicate %s: %d %s", tc.name, resp.Code, resp.Body.String())
-			}
-			var copied contract.AgentResponse
-			decodeJSON(t, resp.Body.Bytes(), &copied)
-			if copied.Agent.Kind != "always_on" {
-				t.Fatalf("duplicate %s kind = %q, want always_on", tc.name, copied.Agent.Kind)
-			}
-			assertAgentFileKind(
-				t,
-				filepath.Join(fixture.HomePaths.AgentsDir, tc.name, compozyconfig.AgentDefinitionFileName),
-				"always_on",
-			)
-			if got := logs.count("source=request", "agent="+tc.name); got != 1 {
-				t.Fatalf("duplicate %s warnings = %d, want 1\n%s", tc.name, got, logs.String())
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "agent_kind_invalid") ||
+				!strings.Contains(resp.Body.String(), compozyconfig.ErrAgentKindInvalid.Error()) {
+				t.Fatalf("duplicate: %d %s", resp.Code, resp.Body.String())
 			}
 		}
 	})
-}
-
-// lockedLogBuffer collects slog lines from concurrent handlers.
-type lockedLogBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedLogBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedLogBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-func (b *lockedLogBuffer) count(fragments ...string) int {
-	total := 0
-	for line := range strings.SplitSeq(b.String(), "\n") {
-		matched := line != ""
-		for _, fragment := range fragments {
-			matched = matched && strings.Contains(line, fragment)
-		}
-		if matched {
-			total++
-		}
-	}
-	return total
 }
 
 func assertAgentFileKind(t *testing.T, path string, want string) {

@@ -36,6 +36,22 @@ function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
   switch (outcome.disposition) {
     case "steering":
       switch (outcome.steerDelivery) {
+        case "pending_boundary":
+          return {
+            Glyph: CornerDownRight,
+            lead: "Steering",
+            rest: " — waiting for the active tool to finish",
+            suffix: outcome.steerDelivery,
+            tone: "neutral",
+          };
+        case "after_turn":
+          return {
+            Glyph: CornerDownRight,
+            lead: "Queued",
+            rest: " — the agent sees it after the current turn",
+            suffix: outcome.steerDelivery,
+            tone: "neutral",
+          };
         case "pending_injection":
           return {
             Glyph: CornerDownRight,

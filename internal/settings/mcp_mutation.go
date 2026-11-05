@@ -168,6 +168,9 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	if err := preserveMCPSecretBindings(name, target, sources, &server, preservation); err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
+	if isMCPDefinitionSidecarTarget(target) && (len(server.Headers) > 0 || len(server.SecretHeaders) > 0) {
+		return compozyconfig.MCPServer{}, validationError(errors.New("settings: MCP headers require a config target"))
+	}
 	if err := s.validateMCPServerWrite(
 		ctx,
 		scope,

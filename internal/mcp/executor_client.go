@@ -159,7 +159,11 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if err != nil {
 		return nil, err
 	}
-	configureMCPRedirectPolicy(client, resolved.Server.Auth.Enabled(), authorizationHeader != "" || len(headers) > 0)
+	configureMCPRedirectPolicy(
+		client,
+		resolved.Server.Auth.Enabled() || authorizationHeader != "",
+		authorizationHeader != "" || len(headers) > 0,
+	)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
 	}

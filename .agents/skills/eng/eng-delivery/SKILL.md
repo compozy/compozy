@@ -7,7 +7,7 @@ description: Deliver work in the compozy/compozy repository. Use when dispatchin
 
 Repository rules for getting work from a dispatch to a merged PR. `CLAUDE.md` owns the CI-only gate and worktree rules; repeat them in every dispatch brief, because a child starts with only its brief and repository instructions.
 
-Done means an open, ready PR on its final head, every check in [CI](#ci) green for that head, every reviewer closed, and `merge-train` told. Merging belongs to `merge-train`; a release needs a direct operator message to it.
+Done means an open, ready PR on its final head, the merge-train review criterion met for that head, every actionable review finding addressed, and `merge-train` told. Merging belongs to `merge-train`; a release needs a direct operator message to it.
 
 ## Dispatch
 
@@ -66,18 +66,20 @@ curl -sI https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/<key>
 
 ## CI
 
-The `main` ruleset requires only `Verify (fmt, lint, unit, build)` and `E2E (combined lane)` and merges through the merge queue, so `gh pr checks --required` is not the whole gate. This list is, for the current head only:
+There is no merge queue. Merge-train merges directly once its CodeRabbit rounds or fallback criterion and zero unresolved threads hold, with the target, title, head and mergeability verified. CI may be pending or red; `main` may go red briefly and is fixed right after. List every non-green check on the merged head for immediate repair. Report any remaining branch rule that blocks a direct merge; never bypass it with `--admin`.
+
+Inspect these checks on the current head:
 
 - `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `React Doctor`
-- Every other reported check except CodeRabbit, which [Reviewers](#reviewers) owns, is successful or legitimately skipped
+- Every other reported check, recording any result that is not successful or legitimately skipped; [Reviewers](#reviewers) owns the CodeRabbit criterion
 
-Both gates always run and fail when `Detect changes` fails. A lane inside them may skip only because the change does not touch its area. When the repository variable `CI_MERGE_QUEUE` is `true`, pull requests defer the heavy lane (integration, Windows and E2E) to the merge queue, and `E2E (combined lane)` passes with a "Heavy lane deferred" notice. Add the `ci:full` label and re-run CI to run the heavy lane on the pull request, for example after an E2E fix. Pending, cancelled or missing is not green, and success on an earlier head does not count.
+Both gates always run and fail when `Detect changes` fails. The fast lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes and nightly, plus manual runs; pull requests opt in with the `ci:full` label and a CI re-run, or by changing the CI pipeline itself. `E2E (combined lane)` succeeds when heavy lanes are not selected. Pending, cancelled or missing is not green, and success on an earlier head does not count. These results inform repair; they do not block the merge-train criterion.
 
 Diagnose finished failures while other jobs run. Wait through a monitor, never a shell loop. A watch command can exit non-zero on a network error, so read the real conclusion with `gh run view`.
 
 ## Reviewers
 
-CodeRabbit, Greptile and React Doctor must all finish on the final changes. Confirm each from its review or check on that head; elapsed time, a score or silence proves nothing. Do not install or configure a reviewer. If one cannot run, report the blocker and leave delivery open, except for the CodeRabbit fallback below.
+CodeRabbit must meet merge-train HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive; pending or red checks do not block merging. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
 
 - Every push restarts CI and the reviewers, so remediation works in rounds: one push per round, never one per finding.
 - CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Do not request a re-review of an unchanged head.
@@ -88,9 +90,9 @@ CodeRabbit, Greptile and React Doctor must all finish on the final changes. Conf
   3. Fix or answer every finding like any other reviewer's.
   4. Dismiss a stale CodeRabbit `CHANGES_REQUESTED` review with a message linking that comment.
 
-  Greptile, React Doctor and CI still apply.
+  Inspect Greptile, React Doctor and CI results and report non-green checks; they do not block the merge-train criterion.
 
-A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then wait for CI and the reviewers on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head the reviewers have not finished is not delivered.
+A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then inspect CI and satisfy the review criterion on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head without the required CodeRabbit rounds or fallback is not delivered.
 
 1. Validate each finding against the current code and the contract.
 2. Fix every valid, in-scope finding and every failed check locally, with focused tests and lint for what changed, then push once. The `pre-push` hook rejects format and lint failures before they reach CI.
@@ -107,4 +109,4 @@ Find the `merge-train` main session with `compozy agent instance list --agent me
 ready: #<number> <head-sha>
 ```
 
-A refusal names the failed condition. Fix it, wait for CI and reviewers on the new head, and hand off again with the new head.
+A refusal names the failed condition. Fix it, satisfy the review criterion on the new head, and hand off again with the new head.

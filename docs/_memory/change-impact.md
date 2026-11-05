@@ -105,7 +105,7 @@ creation after choosing a model before changing kind.
 
 ## Always-on vocabulary alignment (v0.5.1) — 2026-11-03
 
-Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in v0.5.2.
+Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in the release after v0.5.2 (#1239).
 
 - **Native tools / CLI / HTTP / UDS**
   - Tool IDs, routes, verbs and hook names are unchanged.

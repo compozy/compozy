@@ -3,6 +3,7 @@ import { Cable } from "@compozy/ui/icons";
 
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   Button,
   Dialog,
@@ -29,6 +30,7 @@ import type { MCPVaultInventory } from "./mcp-secret-binding";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 export interface MCPServerEditorProps {
+  children?: React.ReactNode;
   open: boolean;
   mode: "create" | "edit";
   draft: MCPDraft;
@@ -37,6 +39,8 @@ export interface MCPServerEditorProps {
   isValid: boolean;
   isSaving: boolean;
   saveError: string | null;
+  /** Create only: the server list the name check needs could not load; retry keeps the draft. */
+  serversError?: { message: string; retry: () => void } | null;
   warnings?: string[];
   vaultInventory: MCPVaultInventory;
   target: SettingsMCPServerTarget;
@@ -60,6 +64,7 @@ export interface MCPServerEditorProps {
  * contract, and nesting them would produce two competing chromes.
  */
 export function MCPServerEditor({
+  children,
   open,
   mode,
   draft,
@@ -68,6 +73,7 @@ export function MCPServerEditor({
   isValid,
   isSaving,
   saveError,
+  serversError,
   warnings,
   vaultInventory,
   target,
@@ -181,8 +187,28 @@ export function MCPServerEditor({
             />
           ) : null}
 
-          {tier === "advanced" && isRemote ? <MCPEditorOAuthSection /> : null}
+          {tier === "advanced" && isRemote ? (
+            <MCPEditorOAuthSection
+              draft={draft}
+              hasSavedOAuth={Boolean(entry?.auth)}
+              onChange={onChange}
+            />
+          ) : null}
 
+          {children}
+
+          {serversError ? (
+            <Alert data-testid="settings-mcp-servers-editor-servers-error" variant="destructive">
+              <AlertDescription>
+                Couldn't check existing server names. {serversError.message}
+              </AlertDescription>
+              <AlertActions>
+                <Button onClick={serversError.retry} size="xs" type="button" variant="secondary">
+                  Try again
+                </Button>
+              </AlertActions>
+            </Alert>
+          ) : null}
           {saveError ? (
             <Alert data-testid="settings-mcp-servers-editor-error" variant="destructive">
               <AlertDescription>{saveError}</AlertDescription>

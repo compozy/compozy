@@ -420,15 +420,39 @@ export type AgentLimitsPayload = {
   spawn_blocked_reason?: string;
 };
 
-export type AgentMCPServerJSON = {
+export type AgentMCPServerInput = {
   args?: Array<string>;
-  auth?: SettingsMCPAuthConfigViewPayload | null;
+  auth?: SettingsMCPAuthConfigPayload | null;
   command?: string;
   env?: {
     [key: string]: string;
   };
   name: string;
+  reference?: boolean;
   secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type AgentMCPServerJSON = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigViewPayload | null;
+  broken_reference?: boolean;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
     [key: string]: string;
   };
   transport?: string;
@@ -1139,7 +1163,12 @@ export type BulkForceTaskRunResponse = {
 export type BusyInputState = {
   default_mode: string;
   steer_capability: "steer_ext" | "concurrent_prompt" | "none";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
 };
 
 export type CancelTaskRequest = {
@@ -1683,10 +1712,11 @@ export type CreateAgentPayload = {
   display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   label?: string;
+  mcp_servers?: Array<AgentMCPServerInput>;
   model?: string;
   name: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
@@ -2008,9 +2038,9 @@ export type DuplicateAgentOverrides = {
   description?: string | null;
   display_name?: string | null;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -2030,9 +2060,9 @@ export type DuplicateAgentOverrides = {
 
 export type DuplicateAgentRequest = {
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";
@@ -5826,6 +5856,7 @@ export type PutSettingsHookRequest = {
 
 export type PutSettingsMCPServerRequest = {
   preserve_env?: Array<string>;
+  preserve_headers?: boolean;
   preserve_secrets?: SettingsMCPSecretPreservationPayload | null;
   secret_values?: SettingsMCPSecretValuesPayload | null;
   server: SettingsMCPServerPayload;
@@ -6704,7 +6735,12 @@ export type SendPromptResultPayload = {
   replayed: boolean;
   reply_watch?: ReplyWatchRefPayload | null;
   status: string;
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_session_id?: string;
   target_workspace_id?: string;
   turn_id?: string;
@@ -7253,7 +7289,12 @@ export type SessionInputPayload = {
   session_id: string;
   skill_invocations?: Array<SessionSkillInvocationPayload>;
   status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_turn_id?: string;
   text: string;
 };
@@ -8475,6 +8516,7 @@ export type SettingsMCPServerItemPayload = {
   catalog_version?: string;
   command?: string;
   env_keys?: Array<string>;
+  headers_configured?: boolean;
   name: string;
   override?: SettingsMCPExtensionOverridePayload | null;
   owner?: string;
@@ -12905,6 +12947,75 @@ export type WorktreesResponse = {
   worktrees: Array<WorktreePayload>;
 };
 
+export type AgentMCPServerInputWritable = {
+  args?: Array<string>;
+  auth?: SettingsMCPAuthConfigPayload | null;
+  command?: string;
+  env?: {
+    [key: string]: string;
+  };
+  name: string;
+  reference?: boolean;
+  secret_env?: {
+    [key: string]: string;
+  };
+  secret_env_values?: {
+    [key: string]: string;
+  };
+  secret_header_values?: {
+    [key: string]: string;
+  };
+  secret_headers?: {
+    [key: string]: string;
+  };
+  transport?: string;
+  url?: string;
+};
+
+export type CreateAgentPayloadWritable = {
+  acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
+  category_path?: Array<string>;
+  command?: string;
+  deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
+  fallback_chain?: Array<AgentFallbackRoutePayload>;
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
+   */
+  kind?: "on_demand" | "always_on";
+  label?: string;
+  mcp_servers?: Array<AgentMCPServerInputWritable>;
+  model?: string;
+  name: string;
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
+  prompt: string;
+  provider?: string;
+  reasoning_effort?: string;
+  resolved_appearance?: {
+    [key: string]: unknown;
+  };
+  session_approval?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
+  skills?: CreateAgentSkillsConfig | null;
+  speed?: "normal" | "fast";
+  tools?: Array<string>;
+  toolsets?: Array<string>;
+  workspace_access?: string;
+};
+
+export type CreateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  scope: "workspace" | "global";
+  workspace?: string;
+};
+
 export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
@@ -12931,6 +13042,12 @@ export type InstallExtensionRequestWritable = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type UpdateAgentRequestWritable = {
+  agent: CreateAgentPayloadWritable;
+  expected_digest: string;
+  workspace?: string;
 };
 
 export type UpdateExtensionRequestWritable = {
@@ -15131,7 +15248,7 @@ export type CreateAgentData = {
   /**
    * JSON request body
    */
-  body: CreateAgentRequest;
+  body: CreateAgentRequestWritable;
   path?: never;
   query?: {
     /**
@@ -15556,7 +15673,7 @@ export type UpdateAgentData = {
   /**
    * JSON request body
    */
-  body: UpdateAgentRequest;
+  body: UpdateAgentRequestWritable;
   path: {
     /**
      * Agent name

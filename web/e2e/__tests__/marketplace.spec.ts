@@ -409,9 +409,7 @@ test.describe("MCP Settings authorization", () => {
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
       await expect(serverRow).toBeVisible();
-      await serverRow
-        .getByRole("button", { name: `Authorize ${SERVER_NAME}`, exact: true })
-        .click();
+      await serverRow.getByRole("button", { name: `Sign in ${SERVER_NAME}`, exact: true }).click();
       const urlBlock = appPage.getByTestId("settings-page-mcp-authorize-url");
       await expect(urlBlock).toBeVisible();
       await appPage.getByTestId("settings-page-mcp-authorize-manual-trigger").click();
@@ -499,9 +497,7 @@ test.describe("MCP Settings authorization", () => {
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
       await expect(serverRow).toBeVisible();
-      await serverRow
-        .getByRole("button", { name: `Authorize ${SERVER_NAME}`, exact: true })
-        .click();
+      await serverRow.getByRole("button", { name: `Sign in ${SERVER_NAME}`, exact: true }).click();
 
       const popupPromise = appPage.context().waitForEvent("page");
       await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();

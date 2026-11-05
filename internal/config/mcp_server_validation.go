@@ -20,6 +20,14 @@ func (s MCPServer) Validate(path string) error {
 	if err := ValidateMCPServerName(s.Name); err != nil {
 		return fmt.Errorf("%s.name: %w", path, err)
 	}
+	if s.Reference {
+		if s.Command != "" || s.URL != "" || s.Transport != "" || s.CatalogEntry != "" || s.CatalogVersion != "" ||
+			len(s.Args)+len(s.Env)+len(s.SecretEnv)+len(s.Headers)+len(s.SecretHeaders) > 0 ||
+			!s.Auth.IsZero() {
+			return fmt.Errorf("%s: a reference must contain only name and reference", path)
+		}
+		return nil
+	}
 	if err := vault.ValidateMCPOwner(s.Owner); err != nil {
 		return fmt.Errorf("%s.owner: %w", path, err)
 	}

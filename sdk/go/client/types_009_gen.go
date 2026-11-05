@@ -7,6 +7,47 @@ import (
 	"time"
 )
 
+// HookCatalogPayload is a daemon API value.
+type HookCatalogPayload struct {
+	Order        int               `json:"order"`
+	Name         string            `json:"name"`
+	Event        string            `json:"event"`
+	Source       string            `json:"source"`
+	SkillSource  string            `json:"skill_source,omitempty"`
+	Mode         string            `json:"mode"`
+	Required     bool              `json:"required"`
+	Priority     int               `json:"priority"`
+	TimeoutMS    int64             `json:"timeout_ms,omitzero"`
+	ExecutorKind string            `json:"executor_kind,omitempty"`
+	Matcher      HookMatcher       `json:"matcher"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+}
+
+// HookCatalogResponse is a daemon API value.
+type HookCatalogResponse struct {
+	Hooks []HookCatalogPayload `json:"hooks"`
+}
+
+// HookEvent is a daemon API value.
+type HookEvent string
+
+// HookEventPayload is a daemon API value.
+type HookEventPayload struct {
+	Event         string `json:"event"`
+	Family        string `json:"family"`
+	SyncEligible  bool   `json:"sync_eligible"`
+	PayloadSchema string `json:"payload_schema"`
+	PatchSchema   string `json:"patch_schema,omitempty"`
+}
+
+// HookEventsResponse is a daemon API value.
+type HookEventsResponse struct {
+	Events []HookEventPayload `json:"events"`
+}
+
+// HookExecutorKind is a daemon API value.
+type HookExecutorKind string
+
 // HookMatcher is a daemon API value.
 type HookMatcher struct {
 	AgentName        string           `json:"agent_name,omitempty"`
@@ -402,45 +443,4 @@ type LoopDiffEndpoint struct {
 	Generation int64         `json:"generation"`
 	Status     LoopRunStatus `json:"status"`
 	AsOf       bool          `json:"as_of,omitzero"`
-}
-
-// LoopDiffInputRow is a daemon API value.
-type LoopDiffInputRow struct {
-	Key     string        `json:"key"`
-	Base    LoopDiffValue `json:"base"`
-	Against LoopDiffValue `json:"against"`
-}
-
-// LoopDiffNodeRow is a daemon API value.
-type LoopDiffNodeRow struct {
-	NodeID    string        `json:"node_id"`
-	ItemIndex int           `json:"item_index,omitzero"`
-	Change    string        `json:"change"`
-	Base      LoopDiffValue `json:"base,omitzero"`
-	Against   LoopDiffValue `json:"against,omitzero"`
-	Cause     string        `json:"cause,omitempty"`
-}
-
-// LoopDiffResponse is a daemon API value.
-type LoopDiffResponse struct {
-	Kind                 string               `json:"kind"`
-	Base                 LoopDiffEndpoint     `json:"base"`
-	Against              LoopDiffEndpoint     `json:"against"`
-	Inputs               []LoopDiffInputRow   `json:"inputs"`
-	Nodes                []LoopDiffNodeRow    `json:"nodes"`
-	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
-	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
-}
-
-// LoopDiffTerminalRow is a daemon API value.
-type LoopDiffTerminalRow struct {
-	Base    LoopRunStatus `json:"base"`
-	Against LoopRunStatus `json:"against"`
-}
-
-// LoopDiffValue is a daemon API value.
-type LoopDiffValue struct {
-	Inline json.RawMessage `json:"inline,omitempty"`
-	Size   int             `json:"size,omitzero"`
-	Hash   string          `json:"hash,omitempty"`
 }

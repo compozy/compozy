@@ -1,15 +1,11 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -76,6 +72,36 @@ func TestNativeAgentCreate(t *testing.T) {
 		if _, ok := errors.AsType[*toolspkg.ToolError](err); !ok || !errors.Is(err, toolspkg.ErrToolDenied) ||
 			!strings.Contains(err.Error(), "only the operator") {
 			t.Fatalf("error=%v", err)
+		}
+	})
+
+	t.Run("Should refuse plaintext MCP credentials from managed callers before writing", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{}
+		for _, input := range []agentCreateInput{
+			{MCPServers: []contract.AgentMCPServerInput{{Name: "remote", SecretHeaderValues: map[string]string{"Authorization": "credential"}}}},
+			{MCPServers: []contract.AgentMCPServerInput{{Name: "local", SecretEnvValues: map[string]string{"TOKEN": "credential"}}}},
+		} {
+			_, err := n.agentCreateRequest(toolspkg.ToolIDAgentCreate, toolspkg.Scope{SessionID: "sess-author"}, input)
+			if !errors.Is(err, toolspkg.ErrToolDenied) {
+				t.Fatalf("managed credential error = %v, want tool denied", err)
+			}
+		}
+	})
+
+	t.Run("Should accept a name-only MCP reference from a managed caller", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{}
+		input := agentCreateInput{Name: "agent", Scope: "global", Provider: "codex", Prompt: "Work.",
+			MCPServers: []contract.AgentMCPServerInput{{Name: "docs", Reference: true}}}
+		request, err := n.agentCreateRequest(
+			toolspkg.ToolIDAgentCreate,
+			toolspkg.Scope{SessionID: "sess-author"},
+			input,
+		)
+		if err != nil || len(request.Agent.MCPServers) != 1 || !request.Agent.MCPServers[0].Reference ||
+			request.Agent.MCPServers[0].Name != "docs" {
+			t.Fatalf("managed reference request = %#v, %v", request, err)
 		}
 	})
 
@@ -504,59 +530,35 @@ func (s nativeAgentCatalogStub) GetAgent(_ context.Context, name string) (core.A
 	return core.AgentCatalogEntry{}, os.ErrNotExist
 }
 
-// TestNativeAgentCreateKindAlias owns UT-024: compozy__agent_create accepts the v0.5.0 stays_on
-// kind, creates an always-on agent with the same result shape as always_on, and logs one
-// source=request warning. It swaps the process-wide deprecation logger, so it is not parallel.
 func TestNativeAgentCreateKindAlias(t *testing.T) {
-	var logs bytes.Buffer
-	compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
-	home := testHomePaths(t)
-	cfg := compozyconfig.DefaultWithHome(home)
-	cfg.Defaults.Provider = "claude"
-	cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
-	registry := newDaemonNativeRegistry(
-		t,
-		&daemonNativeToolsDeps{
-			HomePaths:   home,
-			Workspaces:  nativeTestWorkspaceService(t),
-			Config:      cfg,
-			AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
-		},
-		nativeApproveAllPolicyInputs(),
-	)
-	shapes := map[string][]string{}
-	for _, tc := range []struct{ name, kind string }{{"triage", "stays_on"}, {"scout", "always_on"}} {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentCreate,
-			Input: json.RawMessage(
-				`{"scope":"global","name":"` + tc.name + `","prompt":"Watch.","kind":"` + tc.kind + `"}`,
-			),
-		})
-		if err != nil {
-			t.Fatalf("create %s: %v", tc.name, err)
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := compozyconfig.DefaultWithHome(home)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				HomePaths:   home,
+				Workspaces:  nativeTestWorkspaceService(t),
+				Config:      cfg,
+				AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentCreate,
+				Input:  json.RawMessage(`{"scope":"global","name":"triage","prompt":"Watch.","kind":"stays_on"}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "agent_kind_invalid" ||
+			!strings.Contains(err.Error(), compozyconfig.ErrAgentKindInvalid.Error()) {
+			t.Fatalf("error = %v", err)
 		}
-		var payload map[string]any
-		if err := json.Unmarshal(result.Structured, &payload); err != nil {
-			t.Fatal(err)
-		}
-		agent, _ := payload["agent"].(map[string]any)
-		if agent["kind"] != "always_on" || strings.Contains(string(result.Structured), "stays_on") {
-			t.Fatalf("create %s result = %s, want kind always_on", tc.name, result.Structured)
-		}
-		keys := slices.Sorted(maps.Keys(payload))
-		agentKeys := slices.Sorted(maps.Keys(agent))
-		shapes[tc.kind] = append(keys, agentKeys...)
-		stored, err := compozyconfig.LoadAgentDef(tc.name, home)
-		if err != nil || stored.Kind != "always_on" {
-			t.Fatalf("stored %s = %q, %v; want always_on", tc.name, stored.Kind, err)
-		}
-	}
-	if !slices.Equal(shapes["stays_on"], shapes["always_on"]) {
-		t.Fatalf("result shapes differ: %v vs %v", shapes["stays_on"], shapes["always_on"])
-	}
-	if got := strings.Count(logs.String(), "source=request"); got != 1 ||
-		!strings.Contains(logs.String(), "agent=triage") {
-		t.Fatalf("logs = %q, want one source=request warning for triage", logs.String())
-	}
+	})
 }

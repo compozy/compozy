@@ -829,7 +829,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		serverSchema := propertySchema(t, putMCPSchema, "server")
 		assertRequired(t, serverSchema, "name")
 		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
-		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env")
+		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env", "preserve_headers")
+		if !propertySchema(t, putMCPSchema, "preserve_headers").Type.Is("boolean") {
+			t.Fatal("preserve_headers must be a boolean")
+		}
 
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
@@ -837,6 +840,12 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "profile", "user", "workspace")
 		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
 		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
+		assertNotRequired(t, mcpItemRootSchema, "headers_configured")
+		if !propertySchema(t, mcpItemRootSchema, "headers_configured").Type.Is("boolean") {
+			t.Fatal("headers_configured must be a boolean")
+		}
+		assertPropertyAbsent(t, mcpItemRootSchema, "headers")
+		assertPropertyAbsent(t, mcpItemRootSchema, "secret_headers")
 		assertNotRequired(
 			t,
 			mcpItemRootSchema,
@@ -1026,4 +1035,41 @@ func assertParameterEnumValues(t *testing.T, operation *openapi3.Operation, name
 	}
 
 	t.Fatalf("parameter %q not found", name)
+}
+
+// #1305: optional presence and preservation flags; values and existing required sets stay unchanged.
+func addSettingsMCPHeaderPresence(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	reads, writes := 0, 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["secret_env_keys"] != nil && properties["runtime_status"] != nil &&
+				properties["source_metadata"] != nil {
+				properties["headers_configured"] = map[string]any{"type": "boolean"}
+				reads++
+			}
+			if properties["server"] != nil && properties["preserve_env"] != nil &&
+				properties["preserve_secrets"] != nil {
+				properties["preserve_headers"] = map[string]any{"type": "boolean"}
+				writes++
+			}
+		}
+	}
+	walk(baseline)
+	if reads == 0 || writes == 0 {
+		t.Fatalf("approved MCP header additions: found %d read schemas and %d write schemas", reads, writes)
+	}
 }

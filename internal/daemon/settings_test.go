@@ -380,6 +380,70 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
 	// Invariant: unavailable auth status preserves normalized definition ownership.
 	// Owner: daemon settings runtime surface; canonical suite: settings_test.go.
+	t.Run("Should keep bare status available after the token database closes", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(
+			database,
+			nil,
+			database,
+			nil,
+			compozyconfig.MCPOAuthConfig{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := database.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{mcpAuthManager: manager}
+		target := globalMCPTestTarget("bare-remote")
+		server := compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+		}
+		status, err := surface.MCPAuthStatus(t.Context(), target, server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.Status != mcpauth.StatusUnconfigured || status.AuthType != "" || status.Diagnostic != "" ||
+			status.TokenPresent {
+			t.Fatalf("bare remote was gated by a token read failure: %#v", status)
+		}
+		if status.Owner != target.Normalize().Owner || status.ServerName != target.ServerName ||
+			status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
+			t.Fatalf("storage failure lost target identity: %#v", status)
+		}
+		server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
+		if _, err := surface.MCPAuthStatus(
+			t.Context(),
+			target,
+			server,
+		); err == nil ||
+			!strings.Contains(err.Error(), "closed") {
+			t.Fatalf("explicit OAuth lost its database error: %v", err)
+		}
+	})
+
+	t.Run("Should leave a bare remote unconfigured when the token store is unavailable", func(t *testing.T) {
+		t.Parallel()
+		target := globalMCPTestTarget("bare-remote")
+		surface := &settingsRuntimeSurface{}
+		status, err := surface.MCPAuthStatus(t.Context(), target, compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.Status != mcpauth.StatusUnconfigured || status.AuthType != "" || status.Diagnostic != "" ||
+			status.TokenPresent {
+			t.Fatalf("bare remote was incorrectly gated by unavailable OAuth storage: %#v", status)
+		}
+		if status.Owner != target.Normalize().Owner || status.ServerName != target.ServerName ||
+			status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
+			t.Fatalf("unconfigured status lost target identity: %#v, want %#v", status, target.Normalize())
+		}
+	})
+
 	for _, owner := range []string{"", "manual", "extension:remote-docs"} {
 		t.Run("Should retain auth owner when the token store is unavailable "+owner, func(t *testing.T) {
 			t.Parallel()
@@ -389,6 +453,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 			status, err := surface.MCPAuthStatus(t.Context(), target, compozyconfig.MCPServer{
 				Name: "remote-docs", Owner: owner,
 				Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+				Auth: compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -483,7 +548,12 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		surface := &settingsRuntimeSurface{config: compozyconfig.Config{
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, nil, store, nil, compozyconfig.MCPOAuthConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{mcpAuthStore: store, mcpAuthManager: manager, config: compozyconfig.Config{
 			Observability: compozyconfig.ObservabilityConfig{
 				AgentProbeTimeout: time.Nanosecond,
 			},

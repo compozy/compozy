@@ -4,13 +4,11 @@ name: CI
 # - Fast lane (preflight, lint, typecheck, unit, build) gates every pull request
 #   through `Verify (fmt, lint, unit, build)`, limited to the changed areas.
 # - Heavy lane (Go integration contracts, Windows, runtime/web/desktop E2E) gates
-#   through `E2E (combined lane)`. With the repository variable CI_MERGE_QUEUE
-#   set to `true`, pull requests defer it to the merge queue (`merge_group`)
-#   unless they carry the `ci:full` label or change the CI pipeline itself.
+#   through `E2E (combined lane)` on main pushes and nightly. Pull requests
+#   opt in with `ci:full` or by changing the CI pipeline itself.
 # - The nightly schedule runs every lane on main.
 on:
   pull_request:
-  merge_group:
   push:
     branches:
       - main
@@ -19,7 +17,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Pull requests keep only their newest run; every main, merge-queue and
+  # Pull requests keep only their newest run; every main and
   # scheduled commit finishes, so main stays verified and seeds the caches.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -33,8 +31,8 @@ env:
   # exchange and stay local-only.
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-  TURBO_CACHE: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
-  # Only main saves GitHub caches; pull requests and merge groups restore them.
+  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
+  # Only main saves GitHub caches; pull requests restore them.
   SAVE_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 permissions:
@@ -91,12 +89,9 @@ jobs:
         id: filter
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE == 'true' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
-          GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
@@ -108,7 +103,6 @@ jobs:
           head_sha=""
           case "$EVENT_NAME" in
             pull_request) base_sha="$PR_BASE_SHA"; head_sha="$PR_HEAD_SHA" ;;
-            merge_group) base_sha="$GROUP_BASE_SHA"; head_sha="$GROUP_HEAD_SHA" ;;
             push) base_sha="$PUSH_BEFORE_SHA"; head_sha="$CURRENT_SHA" ;;
           esac
 
@@ -122,23 +116,16 @@ jobs:
             areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
           fi
 
-          # The heavy lane runs everywhere except pull requests in merge-queue
-          # mode, where the merge group runs it once before main. A pull request
-          # opts back in with the `ci:full` label (read live, so a re-run sees a
-          # label added after the push) or by changing the CI pipeline itself.
+          # Main pushes, nightly and manual runs select heavy lanes. PRs opt
+          # in through CI changes or a live label read (also honored on re-run).
           heavy=true
-          if [[ "$MERGE_QUEUE" == "true" ]]; then
-            case "$EVENT_NAME" in
-              pull_request)
-                heavy=false
-                if grep -qx 'ci_infra=true' <<<"$areas"; then
-                  heavy=true
-                elif gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | grep -qx 'ci:full'; then
-                  heavy=true
-                fi
-                ;;
-              push) heavy=false ;;
-            esac
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            heavy=false
+            if grep -qx 'ci_infra=true' <<<"$areas"; then
+              heavy=true
+            elif gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | grep -qx 'ci:full'; then
+              heavy=true
+            fi
           fi
 
           {
@@ -923,7 +910,7 @@ jobs:
 
   e2e-combined:
     # Gates the heavy lane. It succeeds without running heavy jobs when the
-    # pull request defers them to the merge queue.
+    # pull request has not opted in.
     name: E2E (combined lane)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -936,6 +923,6 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: *require-lanes
 
-      - name: Note a deferred heavy lane
+      - name: Note an unselected heavy lane
         if: needs.changes.outputs.heavy != 'true'
-        run: echo "::notice title=Heavy lane deferred::Integration, Windows and E2E lanes run in the merge queue. Add the ci:full label and re-run to run them here."
+        run: echo "::notice title=Heavy lane not selected::Integration, Windows and E2E lanes run on main pushes and nightly. Add the ci:full label and re-run to run them here."

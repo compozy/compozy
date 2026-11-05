@@ -94,6 +94,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 	return entry, nil
 }
 
+// scanSessionInputOrigin restores provenance and the durable supersession link from the queue row.
 func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.SessionInputQueueEntry) {
 	if row.OriginJson.Valid {
 		entry.Origin = json.RawMessage(row.OriginJson.String)
@@ -101,6 +102,7 @@ func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.Session
 	entry.OriginClass = strings.TrimSpace(row.OriginClass)
 	entry.MentionsJSON = store.NormalizeMentionsJSON(row.MentionsJson)
 	entry.HumanIngress = row.HumanIngress != 0
+	entry.SupersededBy = strings.TrimSpace(row.SupersededBy.String)
 	entry.OriginSessionID = strings.TrimSpace(row.OriginSessionID)
 }
 

@@ -48,6 +48,9 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 		}
 	}
 
+	if err := rejectConfiguredMCPReferences(provider.MCPServers); err != nil {
+		return err
+	}
 	for i, server := range provider.MCPServers {
 		if err := server.Validate(fmt.Sprintf("providers.%s.mcp_servers[%d]", name, i)); err != nil {
 			return err

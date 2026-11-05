@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { subagentRevealStore } from "@/systems/session";
@@ -36,7 +36,8 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 // a match") and the collapsed body holding the field, each hold released by the reader's own
 // click; a match without a source opens the turn only and claims no part; the closed fold names
 // its located matches; the full-history reads refetch when durable history settles, never per
-// token delta.
+// token delta. A wide pane shows the message trail and reads its outline; an always-on main's
+// thread (`messageTrail={false}`, #1303) mounts neither.
 // Owning layer: assistant-ui viewport host + session navigation hooks. Canonical suite: this file.
 // Boundary IN: transcript pages / search route (mocked fetch). Boundary OUT: DOM rows + scroll store.
 const WORKSPACE_ID = primarySessionFixture.workspace_id!;
@@ -178,8 +179,19 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 interface FetchLog {
   olderPageRequests: number;
+  outlineRequests?: number;
   searchRequests: string[];
 }
+
+const TRAIL_OUTLINE = {
+  entries: [1, 2, 3].map(index => ({
+    at: `2026-09-06T14:0${index}:00Z`,
+    preview: `Ask ${index}`,
+    reply_preview: `Reply ${index}`,
+    sequence: index * 10,
+    turn_id: `turn-${index}`,
+  })),
+};
 
 function createFetchMock(
   log: FetchLog,
@@ -206,7 +218,11 @@ function createFetchMock(
       log.searchRequests.push(url.searchParams.get("q") ?? "");
       return jsonResponse(search());
     }
-    if (pathname === `${SESSION_PATH}/transcript/outline`) return jsonResponse({ entries: [] });
+    if (pathname === `${SESSION_PATH}/transcript/outline`) {
+      if (log.outlineRequests === undefined) return jsonResponse({ entries: [] });
+      log.outlineRequests += 1;
+      return jsonResponse(TRAIL_OUTLINE);
+    }
     if (pathname === `${SESSION_PATH}/clarifications`) return jsonResponse({ clarifications: [] });
     if (pathname === `${SESSION_PATH}/interactions`) return jsonResponse({ interactions: [] });
     if (pathname === `${SESSION_PATH}/prompt/queue`) return jsonResponse({ inputs: [] });
@@ -218,7 +234,13 @@ function renderNavigationThread({
   isSessionRunning = false,
   frame,
   page = HEAD_PAGE,
-}: { isSessionRunning?: boolean; frame?: { focused: boolean }; page?: Page } = {}) {
+  messageTrail,
+}: {
+  isSessionRunning?: boolean;
+  frame?: { focused: boolean };
+  page?: Page;
+  messageTrail?: boolean;
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
@@ -240,6 +262,7 @@ function renderNavigationThread({
           agentName={primarySessionFixture.agent_name}
           canPrompt
           isSessionRunning={running}
+          messageTrail={messageTrail}
           onCancelPrompt={() => {}}
           sessionId={SESSION_ID}
           statusSession={primarySessionFixture}
@@ -591,4 +614,42 @@ describe("SessionThread navigation host", () => {
     await waitFor(() => expect(log.searchRequests).toEqual(["lifecycle", "lifecycle"]));
     expect(screen.getByTestId("session-find-input")).toHaveFocus();
   });
+  // Invariant (#1303): the trail and its outline read follow `messageTrail`; on by default.
+  // Owner: viewport host.
+  it.each([
+    { messageTrail: undefined, shown: true },
+    { messageTrail: false, shown: false },
+  ])(
+    "Should mount the message trail only when messageTrail is $messageTrail",
+    async ({ messageTrail, shown }) => {
+      log.outlineRequests = 0;
+      // A pane wide enough for the trail, measured as soon as it is observed.
+      const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
+      const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(800);
+      onTestFinished(() => {
+        width.mockRestore();
+        height.mockRestore();
+      });
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(private readonly callback: ResizeObserverCallback) {}
+          observe() {
+            this.callback([], this as unknown as ResizeObserver);
+          }
+          unobserve() {}
+          disconnect() {}
+        }
+      );
+      renderNavigationThread({ messageTrail });
+      await screen.findByText("Ship it.");
+      if (shown) {
+        expect(await screen.findByTestId("session-message-trail")).toBeInTheDocument();
+        expect(log.outlineRequests).toBeGreaterThan(0);
+      } else {
+        expect(screen.queryByTestId("session-message-trail")).toBeNull();
+        expect(log.outlineRequests).toBe(0);
+      }
+    }
+  );
 });

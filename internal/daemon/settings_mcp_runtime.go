@@ -40,7 +40,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		status.Diagnostic = diagnostics.Redact(err.Error())
 		return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 	}
-	if server.Auth.Enabled() {
+	if mcpauth.OAuthCapable(server) {
 		authStatus, err := s.MCPAuthStatus(ctx, target, server)
 		if err != nil {
 			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
@@ -227,7 +227,7 @@ func runtimeStateFromMCPAuthStatus(
 		return settingspkg.MCPServerRuntimeStateAuthExpired, true
 	case mcpauth.StatusInvalid:
 		return settingspkg.MCPServerRuntimeStateAuthInvalid, true
-	case mcpauth.StatusAuthenticated:
+	case mcpauth.StatusAuthenticated, mcpauth.StatusUnconfigured:
 		return "", false
 	default:
 		if strings.TrimSpace(string(status.Status)) == "refresh_failed" {

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -15,13 +15,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/reasoning"
 	"github.com/compozy/compozy/internal/resources"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/goccy/go-yaml"
 )
 
 func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
@@ -2202,100 +2203,572 @@ func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
 	})
 }
 
-// TestCanonicalAgentKind owns UT-001: the one alias function maps only stays_on and reports it.
 func TestCanonicalAgentKind(t *testing.T) {
 	t.Parallel()
-
-	for _, tc := range []struct {
-		name, input, kind string
-		deprecated        bool
-	}{
-		{"Should keep always_on", "always_on", "always_on", false},
-		{"Should map the stays_on alias", "stays_on", "always_on", true},
-		{"Should keep on_demand", "on_demand", "on_demand", false},
-		{"Should keep an empty kind", "", "", false},
-		{"Should return unknown kinds unchanged", "sometimes", "sometimes", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, kind := range []string{"always_on", "on_demand", "", "stays_on", "sometimes"} {
+		t.Run("Should validate kind "+kind, func(t *testing.T) {
 			t.Parallel()
-
-			kind, deprecated := CanonicalAgentKind(tc.input)
-			if kind != tc.kind || deprecated != tc.deprecated {
-				t.Fatalf(
-					"CanonicalAgentKind(%q) = %q, %v; want %q, %v",
-					tc.input,
-					kind,
-					deprecated,
-					tc.kind,
-					tc.deprecated,
-				)
+			err := (AgentDef{Name: "triage", Kind: kind}).ValidateIdentity()
+			if kind == "stays_on" || kind == "sometimes" {
+				if !errors.Is(err, ErrAgentKindInvalid) {
+					t.Fatalf("error = %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
-	if got := (AgentDef{}).EffectiveKind(); got != AgentKindOnDemand {
-		t.Fatalf("EffectiveKind() of empty kind = %q, want on_demand", got)
+}
+
+func TestAgentKindAliasLoad(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{`---
+name: triage
+kind: stays_on
+---
+Watch.
+`, `---
+name = "triage"
+kind = "stays_on"
+---
+Watch.
+`} {
+		t.Run("Should reject new input but migrate persisted frontmatter "+content, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ParseAgentDef([]byte(content)); !errors.Is(err, ErrAgentKindInvalid) {
+				t.Fatalf("parse error = %v", err)
+			}
+			for _, parts := range [][]string{{".compozy", "agents"}, {".compozy", "profiles", "default", "agents"}, {"additional", "agents"}, {"extensions", "fixture", "agents"}} {
+				path := filepath.Join(append([]string{t.TempDir()}, append(parts, "triage", agentDefName)...)...)
+				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, path, content)
+				loaded, err := LoadAgentDefFile(path)
+				if err != nil || loaded.Kind != AgentKindAlwaysOn {
+					t.Fatalf("load = %+v, %v", loaded, err)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || string(body) != strings.Replace(content, "stays_on", "always_on", 1) {
+					t.Fatalf("migration changed unrelated bytes: %q, %v", body, err)
+				}
+			}
+		})
+	}
+	for _, layer := range []string{"global", "profile", "workspace", "workspace_profile", "additional"} {
+		t.Run("Should migrate persisted kind during "+layer+" discovery", func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			additional := t.TempDir()
+			var path string
+			switch layer {
+			case "global":
+				path = filepath.Join(home.AgentsDir, "retired", agentDefName)
+			case "profile":
+				path = filepath.Join(home.ProfilesDir, "default", AgentsDirName, "retired", agentDefName)
+			case "workspace":
+				path = filepath.Join(root, DirName, AgentsDirName, "retired", agentDefName)
+			case "workspace_profile":
+				path = filepath.Join(root, DirName, ProfilesDirName, "default", AgentsDirName, "retired", agentDefName)
+			case "additional":
+				path = filepath.Join(additional, DirName, AgentsDirName, "retired", agentDefName)
+			}
+			writeFile(t, path, "---\nname: retired\nkind: stays_on\n---\nWatch.\n")
+			agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, home, "default")
+			if err != nil || len(agents) == 0 {
+				t.Fatalf("discovery = %+v, %v", agents, err)
+			}
+			if agents[0].Kind != AgentKindAlwaysOn {
+				t.Fatalf("discovered kind = %q", agents[0].Kind)
+			}
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("discovery did not migrate: %q %v", body, err)
+			}
+		})
 	}
 }
 
-// TestAgentKindAliasLoad owns UT-002: the pure parser canonicalizes stays_on without logging, and
-// the path-aware loader warns once per path. It swaps the process-wide deprecation logger, so it
-// does not run in parallel.
-func TestAgentKindAliasLoad(t *testing.T) {
-	var logs bytes.Buffer
-	RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
-
-	for name, content := range map[string]string{
-		"yaml": "---\nname: triage\nkind: stays_on\n---\nWatch.\n",
-		"toml": "---\nname = \"triage\"\nkind = \"stays_on\"\n---\nWatch.\n",
-	} {
-		agent, err := ParseAgentDef([]byte(content))
-		if err != nil || agent.Kind != AgentKindAlwaysOn {
-			t.Fatalf("ParseAgentDef(%s) = %q, %v; want always_on", name, agent.Kind, err)
-		}
-	}
-	if logs.Len() != 0 {
-		t.Fatalf("ParseAgentDef logged %q, want a pure parser", logs.String())
-	}
-
-	workspace := filepath.Join(t.TempDir(), ".compozy", "agents", "triage", agentDefName)
-	extension := filepath.Join(t.TempDir(), "extensions", "fixture", "agents", "triage", agentDefName)
-	for _, path := range []string{workspace, extension} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+// Invariant: the file-loader migration preserves sharing permissions and concurrent saves.
+func TestPersistedAgentKindPublication(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve shared definition permissions", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), agentDefName)
+		body := "---\nname: triage\nkind: stays_on\n---\nWatch.\n"
+		if err := os.WriteFile(path, []byte(body), 0640); err != nil {
 			t.Fatal(err)
 		}
-		writeFile(t, path, "---\nname: triage\nkind: stays_on\n---\nWatch.\n")
-		for range 2 {
-			agent, err := LoadAgentDefFile(path)
-			if err != nil || agent.Kind != AgentKindAlwaysOn {
-				t.Fatalf("LoadAgentDefFile(%s) = %q, %v; want always_on", path, agent.Kind, err)
-			}
+		if _, err := LoadAgentDefFile(path); err != nil {
+			t.Fatal(err)
 		}
-		lines := 0
-		for line := range strings.SplitSeq(logs.String(), "\n") {
-			if strings.Contains(line, "path="+path) {
-				lines++
-				if !strings.Contains(line, "use always_on") || !strings.Contains(line, "v0.5.2") {
-					t.Fatalf("warning = %q, want always_on and v0.5.2", line)
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != 0640 {
+			t.Fatalf("permissions = %v, %v", info, err)
+		}
+	})
+	for _, replace := range []bool{false, true} {
+		name := "Should preserve an edit saved before final comparison"
+		if replace {
+			name = "Should preserve a replacement saved before final comparison"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, agentDefName)
+			body := []byte("---\nname: triage\nkind: stays_on\n---\nWatch.\n")
+			if err := os.WriteFile(path, body, 0640); err != nil {
+				t.Fatal(err)
+			}
+			directory, err := fileutil.OpenDirectory(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := directory.Close(); err != nil {
+					t.Error(err)
 				}
+			})
+			original, info, err := directory.ReadRegularFile(agentDefName)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		if lines != 1 {
-			t.Fatalf("warnings for %s = %d, want 1\n%s", path, lines, logs.String())
-		}
+			updated, _ := rewriteAgentKindValue(original)
+			saved := append(bytes.Clone(body), []byte("Saved concurrently.\n")...)
+			err = publishMigratedAgentKind(directory, path, info, original, updated, func() {
+				if replace {
+					next := filepath.Join(root, "saved.md")
+					if err := os.WriteFile(next, saved, 0640); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Rename(next, path); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(path, saved, 0640); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if err == nil || !strings.Contains(err.Error(), "agent file changed during persisted kind migration") {
+				t.Fatalf("publish error = %v, want concurrent change rejection", err)
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(actual, saved) {
+				t.Fatalf("concurrent save lost: %q, %v", actual, err)
+			}
+			entries, err := os.ReadDir(root)
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("migration temporary file leaked: %v, %v", entries, err)
+			}
+		})
 	}
 }
 
 // TestAgentKindInvalid owns UT-003: an unknown kind is rejected with the always_on message.
 func TestAgentKindInvalid(t *testing.T) {
-	t.Parallel()
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := ParseAgentDef([]byte("---\nname: triage\nkind: sometimes\n---\nWatch.\n"))
-	if !errors.Is(err, ErrAgentKindInvalid) {
-		t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
+		_, err := ParseAgentDef([]byte("---\nname: triage\nkind: sometimes\n---\nWatch.\n"))
+		if !errors.Is(err, ErrAgentKindInvalid) {
+			t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
+		}
+		err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
+		const want = "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)"
+		if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != want {
+			t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
+		}
+	})
+}
+
+func TestPersistedAgentKindDeferredMigration(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{"---\nname: triage\nkind: stays_on\n---\nKeep.\n", "---\nname: triage\nkind: &old stays_on\n---\nKeep.\n"} {
+		t.Run("Should load read-only persisted input "+body, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), agentDefName)
+			if err := os.WriteFile(path, []byte(body), 0400); err != nil {
+				t.Fatal(err)
+			}
+			agent, err := LoadAgentDefFile(path)
+			if err != nil || agent.Kind != AgentKindAlwaysOn {
+				t.Fatalf("load = %+v, %v", agent, err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || string(after) != body {
+				t.Fatalf("read-only input changed: %q %v", after, err)
+			}
+		})
 	}
-	err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
-	if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != "agent kind must be on_demand or always_on" {
-		t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
-	}
+}
+
+// TestAgentMCPSidecarAdditions owns lossless additions, reference boundaries and partial-write recovery.
+func TestAgentMCPSidecarAdditions(t *testing.T) {
+	t.Run("Should reject references outside agent sidecars", func(t *testing.T) {
+		t.Parallel()
+		paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(paths); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(paths.HomeDir, MCPJSONName),
+			[]byte(`{"mcpServers":{"missing":{"reference":true}}}`),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		cfg := DefaultWithHome(paths)
+		if err := applyConfigMCPSidecarFile(
+			filepath.Join(paths.HomeDir, MCPJSONName),
+			&cfg,
+		); err == nil ||
+			!strings.Contains(err.Error(), `unknown field "reference"`) {
+			t.Fatalf("config-level reference rejection = %v", err)
+		}
+	})
+
+	t.Run("Should preserve frontmatter and sidecar entries while attaching by name", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{
+			Name:       "agent",
+			Prompt:     "Work.",
+			MCPServers: []MCPServer{{Name: "legacy", Command: "legacy-command"}},
+		}
+		_, err := CreateAgentDefFile(path, draft, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		additions := []MCPServer{
+			{Name: "shared", Reference: true},
+			{
+				Name:          "private",
+				Transport:     MCPServerTransportHTTP,
+				URL:           "https://example.com/mcp",
+				SecretHeaders: map[string]string{"Authorization": "vault:mcp/shared/agent-attachments/test"},
+			},
+		}
+		agent, err := CreateAgentDefWithMCPServers(path, draft, true, additions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatalf("frontmatter changed: %s", after)
+		}
+		if len(agent.MCPServers) != 3 {
+			t.Fatalf("servers = %#v", agent.MCPServers)
+		}
+		sidecarBytes, err := os.ReadFile(filepath.Join(filepath.Dir(path), MCPJSONName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sidecar, err := parseMCPServersJSON(sidecarBytes, path, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sidecar) != 2 {
+			t.Fatalf("sidecar = %#v", sidecar)
+		}
+		resolved := ResolveAgentMCPReferences(sidecar, []MCPServer{{Name: "shared", Command: "current-command"}})
+		if resolved[1].Command != "current-command" {
+			t.Fatalf("reference did not resolve current config: %#v", resolved)
+		}
+		if !AgentMCPReferenceBroken(MCPServer{Name: "shared", Reference: true}, nil) {
+			t.Fatal("missing target must be broken")
+		}
+		_, err = CreateAgentDefWithMCPServers(
+			path,
+			draft,
+			true,
+			[]MCPServer{{Name: "another", Command: "another-command"}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil || len(loaded.MCPServers) != 4 {
+			t.Fatalf("later addition lost servers: %#v, %v", loaded, err)
+		}
+	})
+	t.Run("Should reject private and daemon-owned credential refs before changing files", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+		if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		servers := []MCPServer{
+			{
+				Name:          "headers",
+				Transport:     MCPServerTransportHTTP,
+				URL:           "https://example.com",
+				SecretHeaders: map[string]string{"Authorization": "vault:mcp/user/other/TOKEN"},
+			},
+			{
+				Name:      "env",
+				Command:   "server",
+				SecretEnv: map[string]string{"TOKEN": "vault:mcp/ws/another-project/server/TOKEN"},
+			},
+			{
+				Name:      "oauth",
+				Transport: MCPServerTransportHTTP,
+				URL:       "https://example.com",
+				Auth: MCPAuthConfig{
+					Registration:    MCPAuthRegistrationPreRegistered,
+					IssuerURL:       "https://example.com",
+					ClientID:        "client",
+					ClientSecretRef: "vault:mcp/user/oauth/oauth/dcr-client-secret",
+				},
+			},
+		}
+		for _, server := range servers {
+			draft.Prompt = "After."
+			if _, err := CreateAgentDefWithMCPServers(
+				path,
+				draft,
+				true,
+				[]MCPServer{server},
+			); err == nil ||
+				!strings.Contains(err.Error(), "explicitly shared") {
+				t.Fatalf("private credential rejection for %s = %v", server.Name, err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Fatal("rejected credential changed agent")
+			}
+		}
+	})
+
+	t.Run("Should reject catalog metadata on a name reference", func(t *testing.T) {
+		t.Parallel()
+		for _, server := range []MCPServer{
+			{Name: "docs", Reference: true, CatalogEntry: "entry"},
+			{Name: "docs", Reference: true, CatalogVersion: "1"},
+		} {
+			if err := server.Validate(
+				"agent.mcp_servers",
+			); err == nil ||
+				!strings.Contains(err.Error(), "only name and reference") {
+				t.Fatalf("catalog reference rejection = %v", err)
+			}
+		}
+	})
+
+	t.Run("Should restore exact prior files after definition or sidecar publication fails", func(t *testing.T) {
+		t.Parallel()
+		for _, existing := range []bool{false, true} {
+			for _, failDefinition := range []bool{false, true} {
+				t.Run(fmt.Sprintf("existing_%t_definition_%t", existing, failDefinition), func(t *testing.T) {
+					t.Parallel()
+					path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+					sidecarPath := filepath.Join(filepath.Dir(path), MCPJSONName)
+					draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+					var previous, previousSidecar []byte
+					if existing {
+						if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+							t.Fatal(err)
+						}
+						var err error
+						previous, err = os.ReadFile(path)
+						if err != nil {
+							t.Fatal(err)
+						}
+						previousSidecar = []byte(`{"metadata":{"keep":true},"mcpServers":{"old":{"command":"old"}}}`)
+						if err := os.WriteFile(sidecarPath, previousSidecar, 0600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					draft.Prompt = "After."
+					failure := errors.New("injected post-publication failure")
+					writeDefinition := func(path string, draft AgentDefinitionDraft, overwrite bool) (AgentDef, error) {
+						agent, err := CreateAgentDefFile(path, draft, overwrite)
+						if err != nil {
+							return agent, err
+						}
+						if failDefinition {
+							return AgentDef{}, errors.Join(fileutil.ErrPublishedNotDurable, failure)
+						}
+						return agent, nil
+					}
+					failed := false
+					writeFile := func(dir *fileutil.Directory, name, path string, data []byte, replace bool) error {
+						if err := writePersistedFileInDirectory(dir, name, path, data, replace); err != nil {
+							return err
+						}
+						if !failDefinition && name == MCPJSONName && !failed {
+							failed = true
+							return errors.Join(fileutil.ErrPublishedNotDurable, failure)
+						}
+						return nil
+					}
+					agent, err := createAgentDefWithMCPServers(
+						path,
+						draft,
+						existing,
+						[]MCPServer{{Name: "new", Command: "new"}},
+						writeDefinition,
+						writeFile,
+					)
+					if !errors.Is(err, failure) || agent.Name != "" {
+						t.Fatalf("failed write = %#v, %v", agent, err)
+					}
+					for file, want := range map[string][]byte{path: previous, sidecarPath: previousSidecar} {
+						got, err := os.ReadFile(file)
+						if existing {
+							if err != nil || !bytes.Equal(got, want) {
+								t.Fatalf("restored %s = %q, %v", file, got, err)
+							}
+						} else if !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("new file %s survived rollback: %v", file, err)
+						}
+					}
+				})
+			}
+		}
+	})
+
+	t.Run(
+		"Should allow credential cleanup when only the definition was published and recovery fails",
+		func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+			draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+			if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+				t.Fatal(err)
+			}
+			draft.Prompt = "After."
+			failure, recoveryFailure := errors.New("definition published"), errors.New("definition recovery failed")
+			writeDefinition := func(path string, draft AgentDefinitionDraft, overwrite bool) (AgentDef, error) {
+				if _, err := CreateAgentDefFile(path, draft, overwrite); err != nil {
+					return AgentDef{}, err
+				}
+				return AgentDef{}, errors.Join(fileutil.ErrPublishedNotDurable, failure)
+			}
+			writeFile := func(*fileutil.Directory, string, string, []byte, bool) error { return recoveryFailure }
+			agent, err := createAgentDefWithMCPServers(
+				path,
+				draft,
+				true,
+				[]MCPServer{
+					{
+						Name:      "remote",
+						Transport: MCPServerTransportHTTP,
+						URL:       "https://example.com",
+						SecretHeaders: map[string]string{
+							"Authorization": "vault:mcp/shared/agent-attachments/unwritten",
+						},
+					},
+				},
+				writeDefinition,
+				writeFile,
+			)
+			if !errors.Is(err, failure) || !errors.Is(err, recoveryFailure) || agent.Name != "" {
+				t.Fatalf("definition-only failure = %#v, %v", agent, err)
+			}
+			loaded, err := LoadAgentDefFile(path)
+			if err != nil || loaded.Prompt != "After." || len(loaded.MCPServers) != 0 {
+				t.Fatalf("definition-only state = %#v, %v", loaded, err)
+			}
+			if _, err := os.Stat(filepath.Join(filepath.Dir(path), MCPJSONName)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("unwritten sidecar = %v", err)
+			}
+		},
+	)
+
+	t.Run("Should report retained credential bindings when sidecar recovery also fails", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+		if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+			t.Fatal(err)
+		}
+		sidecarPath := filepath.Join(filepath.Dir(path), MCPJSONName)
+		if err := os.WriteFile(sidecarPath, []byte(`{"mcpServers":{}}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		failure := errors.New("sidecar publication failed")
+		recoveryFailure := errors.New("sidecar recovery failed")
+		failed := false
+		writeFile := func(dir *fileutil.Directory, name, path string, data []byte, replace bool) error {
+			if name == MCPJSONName && failed {
+				return recoveryFailure
+			}
+			if err := writePersistedFileInDirectory(dir, name, path, data, replace); err != nil {
+				return err
+			}
+			if name == MCPJSONName {
+				failed = true
+				return errors.Join(fileutil.ErrPublishedNotDurable, failure)
+			}
+			return nil
+		}
+		ref := "vault:mcp/shared/agent-attachments/retained"
+		agent, err := createAgentDefWithMCPServers(
+			path,
+			draft,
+			true,
+			[]MCPServer{
+				{
+					Name:          "remote",
+					Transport:     MCPServerTransportHTTP,
+					URL:           "https://example.com",
+					SecretHeaders: map[string]string{"Authorization": ref},
+				},
+			},
+			CreateAgentDefFile,
+			writeFile,
+		)
+		if !errors.Is(err, failure) || !errors.Is(err, recoveryFailure) || agent.Name == "" {
+			t.Fatalf("partial commit = %#v, %v", agent, err)
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil || len(loaded.MCPServers) != 1 || loaded.MCPServers[0].SecretHeaders["Authorization"] != ref {
+			t.Fatalf("retained binding = %#v, %v", loaded, err)
+		}
+	})
+
+	t.Run("Should roll back agent edits when a sidecar addition is invalid", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "agent", AgentDefinitionFileName)
+		draft := AgentDefinitionDraft{Name: "agent", Prompt: "Before."}
+		if _, err := CreateAgentDefFile(path, draft, false); err != nil {
+			t.Fatal(err)
+		}
+		draft.Prompt = "After."
+		_, err := CreateAgentDefWithMCPServers(
+			path,
+			draft,
+			true,
+			[]MCPServer{{Name: "invalid", Reference: true, Command: "copy"}},
+		)
+		if !errors.Is(err, ErrInvalidAgentDefinition) ||
+			!strings.Contains(err.Error(), "a reference must contain only name and reference") {
+			t.Fatalf("invalid reference rejection = %v", err)
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil || loaded.Prompt != "Before." {
+			t.Fatalf("rollback = %#v, %v", loaded, err)
+		}
+	})
 }

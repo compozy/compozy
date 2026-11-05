@@ -423,6 +423,16 @@ and enforce nothing: no session ends when they elapse. They stay readable and wr
 (a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
 `Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
 
+## Busy Session Input
+
+`[session.busy_input] steer_boundary_timeout` defaults to `"45s"` and is restart-required.
+For operator steering without native injection, it bounds the wait for all open tools before
+cancellation and reprompt. `"0s"` preserves immediate cancellation; negative durations are invalid.
+If the adapter emits no tool events, steering queues after the turn instead. Explicit interrupt
+always cancels immediately. `default_mode` still defaults to `steer`; choose `queue` for after-turn
+follow-ups on every provider. Read `steer_delivery` in the acceptance receipt: `pending_boundary`
+waits for tools and `after_turn` queues; native injection keeps its existing delivery values.
+
 ## Session Messaging
 
 `[session.messaging]` bounds agent-to-agent messages sent with `compozy__session_prompt` (or
@@ -682,8 +692,8 @@ on window-manager surfaces it always means the reserved partition. `@user` alway
 Proactive checks use `[agents.heartbeat]` limits: `max_concurrent_triage = 2` and
 `max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.always_on]` retains
 `max_proposals = 2` and `triage_timeout = "10m"`.
-`[agents.always_on]` was renamed in v0.5.1. Its v0.5.0 table name, and only that table's config paths, are
-still read through v0.5.1 and removed in v0.5.2; see "Identity and kind" in
+`[agents.always_on]` was renamed in v0.5.1. Its old table name and config paths are
+rejected in the release after v0.5.2 with errors naming the replacement; see "Identity and kind" in
 `references/agent-definitions.md`. Validation messages name `agents.always_on.*`.
 All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
 restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`

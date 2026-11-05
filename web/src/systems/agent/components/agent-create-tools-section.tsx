@@ -12,14 +12,6 @@ export interface AgentCreateToolsSectionProps {
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
 }
 
-/**
- * Advanced tier: the allow/deny surface a session inherits.
- *
- * There is no MCP-servers control here: `CreateAgentPayload` has no
- * `mcp_servers` field, and the read-only `AgentPayload.MCPServers` is populated
- * on the response path only. Authoring MCP-on-agent is a contract change, not a
- * form field (T1/D5).
- */
 export function AgentCreateToolsSection({
   draft,
   errors,

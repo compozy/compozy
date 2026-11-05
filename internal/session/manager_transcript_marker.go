@@ -32,6 +32,7 @@ func (m *Manager) emitTranscriptMarker(
 // provider_command_fingerprint is the attempted route's fingerprint; otherwise the
 // session's current routing snapshot (today's behavior).
 type transcriptMarkerInput struct {
+	EventID  string
 	Kind     string
 	Summary  string
 	Evidence map[string]any
@@ -77,6 +78,7 @@ func (m *Manager) recordTranscriptMarker(
 	if err != nil {
 		return fmt.Errorf("session: convert transcript marker %q: %w", kind, err)
 	}
+	event = event.WithEventID(in.EventID)
 	normalized := transcript.RedactAgentEvent(m.normalizeEvent(session, turnID, event))
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record transcript marker %q: %w", kind, err)

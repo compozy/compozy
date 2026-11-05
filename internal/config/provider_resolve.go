@@ -106,6 +106,9 @@ func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFie
 		return ResolvedAgent{}, err
 	}
 
+	configuredMCP := MergeMCPServers(mcpServers, provider.MCPServers)
+	agent.MCPServers = ResolveAgentMCPReferences(agent.MCPServers, configuredMCP)
+
 	resolvedPermissions := cmp.Or(strings.TrimSpace(agent.Permissions), string(permissions.Mode))
 	command := cmp.Or(strings.TrimSpace(agent.Command), strings.TrimSpace(provider.Command))
 

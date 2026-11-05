@@ -89,6 +89,7 @@ type SessionInputQueueEntry struct {
 	Priority       int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
 	SupersededIDs     []string
+	SupersededBy      string
 	ID                string
 	SessionID         string
 	PromptAdmissionID string

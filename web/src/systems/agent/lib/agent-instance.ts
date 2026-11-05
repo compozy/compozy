@@ -71,6 +71,18 @@ export function agentNextWakeLine(
   return when ? `${what}, ${when}` : what;
 }
 
+/**
+ * The always-on instance whose current main is this session, if any. The daemon's
+ * `main_session_id` pointer is the always-on main flag; agent names never decide it.
+ */
+export function alwaysOnMainInstance(
+  instances: readonly AgentInstancePayload[],
+  sessionId: string
+): AgentInstancePayload | undefined {
+  if (!sessionId) return undefined;
+  return instances.find(instance => instance.main_session_id === sessionId);
+}
+
 /** Keeps a link in the instance's own scope, whatever window it opens from. */
 export function agentInstanceBinding(
   instance: Pick<AgentInstancePayload, "workspace_id" | "profile_name">

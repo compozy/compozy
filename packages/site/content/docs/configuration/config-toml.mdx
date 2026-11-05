@@ -325,6 +325,8 @@ timeout = "0s"
 default_mode = "steer"
 queue_cap = 10
 max_text_bytes = 65536
+# Wait for running tools before fallback steering cancels the turn. Zero cancels immediately.
+steer_boundary_timeout = "45s"
 
 [session.messaging]
 # Agent-to-agent messages (compozy__session_prompt) one sender session may send to one target per window.
@@ -2820,9 +2822,15 @@ See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, a
 ### Follow-up behavior and steering capability
 
 `session.busy_input.default_mode` defaults to `steer`; choose `queue` to defer busy follow-ups.
-Changes through General Settings apply to subsequent admissions without a daemon restart.
-The historical `interrupt` default remains accepted with a warning through v0.4 and is scheduled
-for removal in v0.5.0. Interrupt remains an explicit per-send action.
+Changes to this default through General Settings apply to subsequent admissions without a daemon
+restart. The historical `interrupt` default remains accepted with a warning through v0.4 and is
+scheduled for removal in v0.5.0. Interrupt remains an explicit per-send action.
+
+For providers without native steering, `steer_boundary_timeout` waits up to `45s` for all active
+tools to finish before canceling and reprompting. Set it to `"0s"` for immediate cancellation.
+Negative durations are rejected. Without observed tool events from the runtime, steering queues
+until the turn ends. Explicit interrupt always cancels immediately. Changes to
+`steer_boundary_timeout` take effect after a daemon restart.
 
 ### Agent message budget and reply watches
 
@@ -2879,8 +2887,8 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 The `[agents.always_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
-The section was renamed in v0.5.1. The v0.5.0 table name and its `compozy config` paths still work
-through v0.5.1 with a warning, and a key set in `[agents.always_on]` wins; v0.5.2 removes them. See
+The section was renamed in v0.5.1. The old table name and its CLI/native config paths are rejected
+in the release after v0.5.2. Errors identify the corresponding `agents.always_on` replacement. See
 [the migration guide](/docs/migration#always-on-vocabulary). Validation messages name
 `agents.always_on.*`.
 

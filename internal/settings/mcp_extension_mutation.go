@@ -39,7 +39,7 @@ func (s *service) putExtensionMCPOverride(
 		!server.Auth.IsZero() ||
 		len(server.SecretEnv) != 0 || len(server.SecretHeaders) != 0 || !req.MCPSecrets.Empty() ||
 		len(req.MCPSecretPreservation.SecretEnv) != 0 ||
-		req.MCPSecretPreservation.OAuthClientSecret ||
+		req.MCPSecretPreservation.OAuthClientSecret || req.MCPSecretPreservation.Headers ||
 		len(req.MCPEnvPreservation) != 0 {
 		return MutationResult{}, validationError(
 			errors.New("settings: extension MCP overrides accept only env, headers, and url"),

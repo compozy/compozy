@@ -548,6 +548,10 @@ func TestAgentUpdateCommand(t *testing.T) {
 				if name != "coder" || request.Workspace != "ws-1" || request.ExpectedDigest != "digest-1" {
 					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
 				}
+				if len(request.Agent.MCPServers) != 1 || request.Agent.MCPServers[0].Name != "team-docs" ||
+					!request.Agent.MCPServers[0].Reference {
+					t.Fatalf("MCP reference = %#v", request.Agent.MCPServers)
+				}
 				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
 					request.Agent.Speed != contract.SpeedFast || len(request.Agent.ACPOptions) != 2 ||
 					request.Agent.ACPOptions[0].ID != "context" || request.Agent.ACPOptions[0].ValueID != "1m" ||
@@ -569,7 +573,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
 			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
 			"--disable-skill", "security-audit", "--speed", "fast", "--acp-option", "context=1m",
-			"--acp-toggle", "thinking=true",
+			"--acp-toggle", "thinking=true", "--mcp-server", " team-docs ",
 		)
 		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
 			t.Fatalf("agent update = %q, %v", stdout, err)
@@ -1669,76 +1673,31 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 	}
 }
 
-// TestAgentKindFlagAlias owns UT-010, UT-011 and the UT-012 help text: --kind stays_on is sent as
-// always_on with a stderr warning, never trips the immutability check, and help names always_on.
 func TestAgentKindFlagAlias(t *testing.T) {
 	t.Parallel()
-
-	const warning = "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)"
-	t.Run("Should send always_on for a stays_on create and warn", func(t *testing.T) {
-		t.Parallel()
-
-		client := &stubClient{}
-		cmd := newAgentCreateCommand(newTestDeps(t, client))
-		var stderr bytes.Buffer
-		cmd.SetErr(&stderr)
-		if err := cmd.ParseFlags([]string{"--kind", "stays_on", "--prompt", "Watch."}); err != nil {
-			t.Fatal(err)
-		}
-		request, err := createAgentRequestFromFlags(
-			cmd, newTestDeps(t, client), client, "triage", agentDefinitionFlags{kind: "stays_on", prompt: "Watch."},
-		)
-		if err != nil {
-			t.Fatalf("createAgentRequestFromFlags() error = %v", err)
-		}
-		if request.Agent.Kind != "always_on" || !strings.Contains(stderr.String(), warning) {
-			t.Fatalf("kind = %q stderr = %q, want always_on and the warning", request.Agent.Kind, stderr.String())
-		}
-	})
-
-	for _, tc := range []struct {
-		name, kind, wantErr string
-		warns               bool
-	}{
-		{name: "Should accept stays_on on an always-on agent", kind: "stays_on", warns: true},
-		{name: "Should reject on_demand on an always-on agent", kind: "on_demand", wantErr: "agent_kind_immutable"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, verb := range []string{"create", "update", "duplicate"} {
+		t.Run("Should reject retired kind on "+verb, func(t *testing.T) {
 			t.Parallel()
-
-			client := &stubClient{getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
-				return AgentRecord{Name: "triage", Kind: "always_on", Prompt: "Watch."}, nil
-			}}
-			cmd := newAgentUpdateCommand(newTestDeps(t, client))
-			var stderr bytes.Buffer
-			cmd.SetErr(&stderr)
-			if err := cmd.ParseFlags([]string{"--kind", tc.kind}); err != nil {
+			client := &stubClient{}
+			deps := newTestDeps(t, client)
+			cmd := newAgentCreateCommand(deps)
+			if err := cmd.ParseFlags([]string{"--kind", "stays_on", "--prompt", "Watch."}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := updateAgentRequestFromFlags(
-				cmd, client, "triage", "", "sha256:digest", agentDefinitionFlags{kind: tc.kind},
-			)
-			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("updateAgentRequestFromFlags() error = %v, want %s", err, tc.wantErr)
-				}
-				return
+			flags := agentDefinitionFlags{kind: "stays_on", prompt: "Watch."}
+			var err error
+			switch verb {
+			case "create":
+				_, err = createAgentRequestFromFlags(cmd, deps, client, "triage", flags)
+			case "update":
+				_, err = updateAgentRequestFromFlags(cmd, client, "triage", "", "sha256:digest", flags)
+			case "duplicate":
+				_, err = duplicateAgentRequestFromFlags(cmd, deps, client, "triage", "global", flags)
 			}
-			if err != nil || request.Agent.Kind != "always_on" {
-				t.Fatalf("update = %+v, %v; want always_on", request.Agent.Kind, err)
-			}
-			if strings.Contains(stderr.String(), warning) != tc.warns {
-				t.Fatalf("stderr = %q, want warning=%v", stderr.String(), tc.warns)
+			if err == nil || !strings.Contains(err.Error(), "agent_kind_invalid") ||
+				!strings.Contains(err.Error(), compozyconfig.ErrAgentKindInvalid.Error()) {
+				t.Fatalf("error = %v", err)
 			}
 		})
 	}
-
-	t.Run("Should describe always_on in the --kind help", func(t *testing.T) {
-		t.Parallel()
-
-		flag := newAgentCreateCommand(commandDeps{}).Flags().Lookup("kind")
-		if flag == nil || flag.Usage != "Agent kind: on_demand (default) or always_on; fixed at creation" {
-			t.Fatalf("--kind usage = %#v", flag)
-		}
-	})
 }

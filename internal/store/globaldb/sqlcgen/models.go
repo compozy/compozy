@@ -1679,6 +1679,7 @@ type SessionInputQueue struct {
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Delivery                 string         `json:"delivery"`
+	SupersededBy             sql.NullString `json:"superseded_by"`
 	SteerDelivery            sql.NullString `json:"steer_delivery"`
 	Text                     string         `json:"text"`
 	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`

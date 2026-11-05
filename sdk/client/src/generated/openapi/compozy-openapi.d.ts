@@ -8155,15 +8155,44 @@ export interface components {
       max_spawn_depth: number;
       spawn_blocked_reason?: string;
     };
-    AgentMCPServerJSON: {
+    AgentMCPServerInput: {
       args?: string[];
-      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      auth?: components["schemas"]["SettingsMCPAuthConfigPayload"] | null;
       command?: string;
       env?: {
         [key: string]: string;
       };
       name: string;
+      reference?: boolean;
       secret_env?: {
+        [key: string]: string;
+      };
+      secret_env_values?: {
+        [key: string]: string;
+      };
+      secret_header_values?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
+        [key: string]: string;
+      };
+      transport?: string;
+      url?: string;
+    };
+    AgentMCPServerJSON: {
+      args?: string[];
+      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      broken_reference?: boolean;
+      command?: string;
+      env?: {
+        [key: string]: string;
+      };
+      name: string;
+      reference?: boolean;
+      secret_env?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
         [key: string]: string;
       };
       transport?: string;
@@ -8838,7 +8867,12 @@ export interface components {
       /** @enum {string} */
       steer_capability: "steer_ext" | "concurrent_prompt" | "none";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
     };
     CancelTaskRequest: {
       metadata?: unknown;
@@ -9411,11 +9445,12 @@ export interface components {
       display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       label?: string;
+      mcp_servers?: components["schemas"]["AgentMCPServerInput"][];
       model?: string;
       name: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
@@ -9723,10 +9758,10 @@ export interface components {
       description?: string | null;
       display_name?: string | null;
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       model?: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
@@ -9747,10 +9782,10 @@ export interface components {
     };
     DuplicateAgentRequest: {
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */
@@ -13664,6 +13699,7 @@ export interface components {
     };
     PutSettingsMCPServerRequest: {
       preserve_env?: string[];
+      preserve_headers?: boolean;
       preserve_secrets?: components["schemas"]["SettingsMCPSecretPreservationPayload"] | null;
       secret_values?: components["schemas"]["SettingsMCPSecretValuesPayload"] | null;
       server: components["schemas"]["SettingsMCPServerPayload"];
@@ -14549,7 +14585,12 @@ export interface components {
       reply_watch?: components["schemas"]["ReplyWatchRefPayload"] | null;
       status: string;
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_session_id?: string;
       target_workspace_id?: string;
       turn_id?: string;
@@ -15159,7 +15200,12 @@ export interface components {
       /** @enum {string} */
       status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_turn_id?: string;
       text: string;
     };
@@ -16395,6 +16441,7 @@ export interface components {
       catalog_version?: string;
       command?: string;
       env_keys?: string[];
+      headers_configured?: boolean;
       name: string;
       override?: components["schemas"]["SettingsMCPExtensionOverridePayload"] | null;
       owner?: string;

@@ -2,9 +2,6 @@ package config
 
 import (
 	"fmt"
-	"slices"
-	"strings"
-	"sync"
 
 	"time"
 
@@ -45,13 +42,10 @@ type defaultsOverlay struct {
 }
 
 type agentsOverlay struct {
-	AlwaysOn alwaysOnOverlay `toml:"always_on"`
-	// StaysOnAlias decodes the v0.5.0 [agents.stays_on] table. It is applied before AlwaysOn so
-	// per-key new values win within a layer. Removal: v0.5.2.
-	StaysOnAlias alwaysOnOverlay                 `toml:"stays_on"`
-	Soul         soulOverlay                     `toml:"soul"`
-	Heartbeat    heartbeatOverlay                `toml:"heartbeat"`
-	Overrides    map[string]agentOverrideOverlay `toml:"overrides"`
+	AlwaysOn  alwaysOnOverlay                 `toml:"always_on"`
+	Soul      soulOverlay                     `toml:"soul"`
+	Heartbeat heartbeatOverlay                `toml:"heartbeat"`
+	Overrides map[string]agentOverrideOverlay `toml:"overrides"`
 }
 
 type soulOverlay struct {
@@ -120,9 +114,10 @@ type sessionSupervisionOverlay struct {
 }
 
 type sessionBusyInputOverlay struct {
-	DefaultMode  *string `toml:"default_mode"`
-	QueueCap     *int    `toml:"queue_cap"`
-	MaxTextBytes *int    `toml:"max_text_bytes"`
+	SteerBoundaryTimeout *time.Duration `toml:"steer_boundary_timeout"`
+	DefaultMode          *string        `toml:"default_mode"`
+	QueueCap             *int           `toml:"queue_cap"`
+	MaxTextBytes         *int           `toml:"max_text_bytes"`
 }
 
 type permissionsOverlay struct {
@@ -256,62 +251,4 @@ func applyOptional[T any](source *T, target *T) {
 	if source != nil {
 		*target = *source
 	}
-}
-
-// keys lists the TOML keys an overlay sets, in declaration order.
-func (o alwaysOnOverlay) keys() []string {
-	var keys []string
-	for _, field := range []struct {
-		set bool
-		key string
-	}{
-		{o.UnattendedTurnLimit != nil, "unattended_turn_limit"},
-		{o.RotationThreshold != nil, "rotation_threshold"},
-		{o.ApprovalTimeout != nil, "approval_timeout"},
-		{o.MaxProposals != nil, "max_proposals"},
-		{o.TriageTimeout != nil, "triage_timeout"},
-		{o.MaxActiveInstances != nil, "max_active_instances"},
-	} {
-		if field.set {
-			keys = append(keys, field.key)
-		}
-	}
-	return keys
-}
-
-// applyAlwaysOn applies one layer's v0.5.0 alias table, then its current table, so per-key new
-// values win within the layer. Removal of the alias: v0.5.2.
-func (o agentsOverlay) applyAlwaysOn(dst *AlwaysOnConfig) {
-	warnStaysOnAlias(o.StaysOnAlias, o.AlwaysOn)
-	o.StaysOnAlias.Apply(dst)
-	o.AlwaysOn.Apply(dst)
-}
-
-// configTableAliasWarnings holds configTableAliasKey once the config-table warning has fired.
-var configTableAliasWarnings sync.Map
-
-const configTableAliasKey = "agents.stays_on"
-
-// warnStaysOnAlias warns once per process for the first layer that carries [agents.stays_on] keys
-// (Business Rule 5). ignored lists keys that layer's [agents.always_on] overrides. Removal: v0.5.2.
-func warnStaysOnAlias(alias alwaysOnOverlay, current alwaysOnOverlay) {
-	keys := alias.keys()
-	if len(keys) == 0 {
-		return
-	}
-	set := current.keys()
-	var ignored []string
-	for _, key := range keys {
-		if slices.Contains(set, key) {
-			ignored = append(ignored, key)
-		}
-	}
-	attrs := []any{"keys", strings.Join(keys, ",")}
-	if len(ignored) > 0 {
-		attrs = append(attrs, "ignored", strings.Join(ignored, ","))
-	}
-	if _, loaded := configTableAliasWarnings.LoadOrStore(configTableAliasKey, struct{}{}); loaded {
-		return
-	}
-	DeprecationLogger().Warn(ConfigPathAliasWarning, attrs...)
 }

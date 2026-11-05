@@ -94,7 +94,7 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 }
 
 // TestProductLanguageGuardAgentKind owns UT-020: Rule A keeps stays_on and CanonicalAgentKind at
-// the listed production alias files, and Rule B keeps the retired word off public surfaces. Each
+// removed-input diagnostics, and Rule B keeps the retired word off public surfaces. Each
 // fixture is classified as the repository-relative path it stands for.
 func TestProductLanguageGuardAgentKind(t *testing.T) {
 	t.Parallel()
@@ -106,8 +106,24 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "package daemon\n\nconst kind = \"stays_on\"\n"},
 		{name: "Should reject a CanonicalAgentKind call outside the boundary", as: "internal/daemon/x.go",
 			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
-		{name: "Should allow the alias in the identity file", as: "internal/config/agent_identity.go", allowed: true,
+		{name: "Should reject the alias in the identity file", as: "internal/config/agent_identity.go",
 			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
+		{name: "Should reject an alias comparison outside the removed diagnostic", as: "internal/config/alias.go",
+			content: "package config\nfunc alias(path []string) bool { return path[1] == \"stays_on\" }\n"},
+		{name: "Should allow the removed-config comparison only in its diagnostic owner", as: "internal/config/removed_agent_config.go", allowed: true,
+			content: "package config\nfunc removed(path []string) bool { return path[1] == \"stays_on\" }\n"},
+		{name: "Should reject alias constants inside the diagnostic owner", as: "internal/config/removed_agent_config.go",
+			content: "package config\nconst kind = \"stays_on\"\n"},
+
+		{name: "Should allow the persisted-kind migration token", as: "internal/config/agent_persisted_kind.go", allowed: true,
+			content: "package config\nconst retiredAgentKind = \"stays_on\"\n"},
+		{name: "Should reject aliases beside persisted-kind migration tokens", as: "internal/config/agent_persisted_kind.go",
+			content: "package config\nconst retiredAgentKind = \"stays_on\"; const alias = \"stays_on\"\n"},
+		{name: "Should allow the persisted-config migration token", as: "internal/config/agent_persisted_config.go", allowed: true,
+			content: "package config\n// migrateRetiredAlwaysOnTable is the user-state migration for the v0.5.0 [agents.stays_on] table\n"},
+		{name: "Should reject aliases beside persisted-config migration tokens", as: "internal/config/agent_persisted_config.go",
+			content: "package config\n// migrateRetiredAlwaysOnTable is the user-state migration for the v0.5.0 [agents.stays_on] table\nconst alias = \"stays_on\"\n"},
+
 		{name: "Should allow stays_on fixtures in tests", as: "internal/config/agent_test.go", allowed: true,
 			content: "package config\n\nconst fixture = \"stays_on\"\n"},
 		{name: "Should reject the upper-case spelling", as: "internal/daemon/x.go",

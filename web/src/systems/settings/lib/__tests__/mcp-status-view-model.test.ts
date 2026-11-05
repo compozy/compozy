@@ -22,6 +22,7 @@ type AuthConfig = NonNullable<SettingsMCPServerEntry["auth"]>;
 
 interface EntryOverrides {
   transport?: string;
+  headersConfigured?: boolean;
   auth?: AuthConfig | null;
   authStatus?: Partial<AuthStatus> | null;
   runtimeStatus?: Partial<RuntimeStatus> | null;
@@ -65,6 +66,7 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
   return {
     name: "srv",
     transport: overrides.transport ?? "stdio",
+    headers_configured: overrides.headersConfigured ?? false,
     scope: overrides.scope ?? "workspace",
     auth: overrides.auth ?? null,
     auth_status: authStatus,
@@ -145,6 +147,22 @@ describe("formatStatusLabel", () => {
 });
 
 describe("authorize gating", () => {
+  it("offers Sign in to a bare challenged remote but leaves an open remote alone", () => {
+    const challenged = makeEntry({
+      transport: "http",
+      auth: null,
+      runtimeStatus: { state: "auth_required", probe: "failed" },
+    });
+    expect(isOAuthRepairable(challenged)).toBe(true);
+    expect(authorizeLabel(challenged)).toBe("Sign in");
+    const open = makeEntry({ transport: "http", auth: null, runtimeStatus: { state: "ready" } });
+    expect(isOAuthCapable(open)).toBe(false);
+    expect(authorizeLabel(open)).toBeNull();
+    expect(authorizeLabel({ ...challenged, headers_configured: true, auth: oauthConfig() })).toBe(
+      "Sign in"
+    );
+  });
+
   it("offers authorize only to oauth-capable remotes that are not authenticated", () => {
     const remote = makeEntry({
       transport: "http",
@@ -154,7 +172,7 @@ describe("authorize gating", () => {
     });
     expect(isOAuthCapable(remote)).toBe(true);
     expect(isOAuthRepairable(remote)).toBe(true);
-    expect(authorizeLabel(remote)).toBe("Authorize");
+    expect(authorizeLabel(remote)).toBe("Sign in");
   });
 
   it("labels a re-auth Reauthorize when the server was previously authenticated", () => {
@@ -195,7 +213,7 @@ describe("authorize gating", () => {
     expect(authorizeLabel(scopeEscalation)).toBe("Reauthorize");
   });
 
-  it("never offers browser oauth to stdio or non-oauth remotes", () => {
+  it("never offers browser oauth to stdio or header-auth remotes", () => {
     const stdio = makeEntry({
       transport: "stdio",
       authStatus: null,
@@ -203,6 +221,7 @@ describe("authorize gating", () => {
     });
     const headerAuth = makeEntry({
       transport: "http",
+      headersConfigured: true,
       auth: null,
       authStatus: { status: "needs_login", token_present: false },
       runtimeStatus: { state: "auth_required", probe: "skipped" },
