@@ -23,6 +23,7 @@ type TraySignal struct {
 }
 
 type Snapshot struct {
+	collectedAt   time.Time
 	ProviderID    string
 	ProviderName  string
 	Status        Status

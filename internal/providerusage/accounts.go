@@ -116,6 +116,12 @@ func (s *Manager) collectAccount(
 		s.mu.Unlock()
 		snapshot, err := s.options.Collectors[target.Collector()].Collect(ctx, target, intent, identity)
 		outcome := collectionOutcome(ctx, target.ProviderName, err)
+		if outcome == nil {
+			snapshot.collectedAt = s.options.Clock.Now()
+			if snapshot.MeasuredAt == nil {
+				snapshot.MeasuredAt = new(snapshot.collectedAt)
+			}
+		}
 		s.mu.Lock()
 		// A drop (disable, shutdown, consent change) replaced the entry, so the result is not kept.
 		if current := s.accounts[key]; current == a {
@@ -176,7 +182,11 @@ func (s *Manager) recordCollectionLocked(a *accountState, target Target, snapsho
 	switch {
 	case outcome == nil:
 		a.strikes, a.cooldown = 0, nil
-		a.success = &accountSuccess{snapshot: cloneSnapshot(snapshot), route: target.RouteFingerprint, at: now}
+		a.success = &accountSuccess{
+			snapshot: cloneSnapshot(snapshot),
+			route:    target.RouteFingerprint,
+			at:       snapshot.collectedAt,
+		}
 	case outcome.Code != ErrorCodeProviderRateLimited:
 		a.success = nil
 	default:

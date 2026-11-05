@@ -73,12 +73,16 @@ func (s *Manager) publishLocked(
 			snapshot.MeasuredAt = &now
 		}
 		snapshot.CheckedAt = &now
-		next := now.Add(s.options.RefreshInterval)
+		collectedAt := snapshot.collectedAt
+		if collectedAt.IsZero() {
+			collectedAt = now
+		}
+		next := collectedAt.Add(s.options.RefreshInterval)
 		snapshot.NextRefreshAt = &next
 		state.snapshot = cloneSnapshot(snapshot)
 		state.identity = identity
 		state.hasIdentity = true
-		state.lastSuccess = now
+		state.lastSuccess = collectedAt
 		state.cooldownUntil = time.Time{}
 	} else {
 		if state.hasIdentity && state.identity.Same(identity) && state.snapshot.MeasuredAt != nil {

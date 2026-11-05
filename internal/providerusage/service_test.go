@@ -2238,6 +2238,24 @@ func blockedFirstRequest(
 }
 
 func TestUsageSharedAccountCollection(t *testing.T) {
+	t.Run("Should preserve the original freshness deadline when another profile reuses usage", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		addProfileTarget(f, "work")
+		first := refreshProfile(t, f, "personal", IntentBackground).Targets[0]
+		f.clock.Advance(20 * time.Second)
+		reused := refreshProfile(t, f, "work", IntentBackground).Targets[0]
+		requireEqual(t, int32(1), calls.Load())
+		requireEqual(t, *first.MeasuredAt, *reused.MeasuredAt)
+		requireEqual(t, *first.NextRefreshAt, *reused.NextRefreshAt)
+		f.clock.Advance(11 * time.Second)
+		refreshProfile(t, f, "work", IntentBackground)
+		requireEqual(t, int32(2), calls.Load())
+	})
 	t.Run("Should send one request for an account two profiles target", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

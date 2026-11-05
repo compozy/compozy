@@ -172,7 +172,10 @@ Isolated lab only: a loopback usage fixture that counts requests per account hea
    the next cooldown to five minutes.
 4. With the fixture answering 200, refresh both profiles at the same time. The fixture logs one
    request for the account, and both profiles show the same windows.
-5. Run one explicit refresh during a cooldown. It sends one request; a second explicit refresh from
+5. Reuse A's successful result from B before its `MaxAge` expires. Both rows retain the original
+   `measured_at` and `next_refresh_at`. Refresh B after the original collection exceeds `MaxAge`;
+   expect a new fixture request even if B reused the data recently.
+6. Run one explicit refresh during a cooldown. It sends one request; a second explicit refresh from
    either profile sends none until a success.
 
 Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
