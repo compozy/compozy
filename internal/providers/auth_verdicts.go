@@ -31,6 +31,7 @@ type authVerdictEntry struct {
 	fingerprint [32]byte
 	startedAt   time.Time
 	verdict     AuthVerdict
+	dropped     bool
 }
 
 // NewAuthVerdicts constructs an empty daemon-scoped verdict store.
@@ -85,7 +86,8 @@ func (v *AuthVerdicts) Forget(providerNames ...string) {
 }
 
 // Lookup returns the provider's last verdict while its sign-in identity and the auth home it was
-// checked against match the reader's env. A mismatched entry is dropped.
+// checked against match the reader's env. A mismatched verdict is dropped; its probe start time
+// stays so a probe that started earlier cannot record a verdict afterwards.
 func (v *AuthVerdicts) Lookup(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
@@ -99,11 +101,11 @@ func (v *AuthVerdicts) Lookup(
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	entry, found := v.entries[name]
-	if !found {
+	if !found || entry.dropped {
 		return AuthVerdict{}, false
 	}
 	if entry.fingerprint != fingerprint {
-		delete(v.entries, name)
+		v.entries[name] = authVerdictEntry{startedAt: entry.startedAt, dropped: true}
 		return AuthVerdict{}, false
 	}
 	return entry.verdict, true

@@ -64,8 +64,27 @@ func TestAuthVerdicts(t *testing.T) {
 
 		verdicts.Record("acme", provider, seatB, authenticated, time.Now())
 		entry := verdicts.entries["acme"]
+		if entry.dropped {
+			t.Fatal("Record after a dropped verdict did not store the newer verdict")
+		}
 		if bytes.Contains(entry.fingerprint[:], []byte("/seat-b")) {
 			t.Fatal("stored fingerprint contains the raw auth home")
+		}
+	})
+
+	t.Run("Should keep the probe order after a mismatch drops the verdict", func(t *testing.T) {
+		t.Parallel()
+
+		seatA := []string{"HOME=/seat-a"}
+		newer := time.Now()
+		verdicts := NewAuthVerdicts()
+		verdicts.Record("acme", provider, seatA, Classification{State: ProviderAuthStateNeedsLogin}, newer)
+		if _, ok := verdicts.Lookup("acme", provider, []string{"HOME=/daemon"}); ok {
+			t.Fatal("Lookup(another home) found the verdict")
+		}
+		verdicts.Record("acme", provider, seatA, authenticated, newer.Add(-time.Second))
+		if got, ok := verdicts.Lookup("acme", provider, seatA); ok {
+			t.Fatalf("Lookup after an older probe finished = %q, want no verdict", got.Classification.State)
 		}
 	})
 
