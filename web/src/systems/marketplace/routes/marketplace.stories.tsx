@@ -38,7 +38,7 @@ import {
   multiSourceSources,
   zeroPluginSources,
 } from "./marketplace-route-story-fixtures";
-import { mcpManagementServerFixtures } from "@/systems/settings/mocks/fixtures";
+import { mcpManagementServerFixtures } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/marketplace/routes/Marketplace",

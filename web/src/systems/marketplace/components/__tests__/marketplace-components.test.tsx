@@ -37,12 +37,18 @@ import {
   mcpAuthBeginFixture,
   mcpExtensionServerFixtures,
   mcpManagementServerFixtures,
+  settingsAppliedMutationFixture,
+  settingsApplyRecordsFixture,
   settingsMCPServersCollectionFixture,
 } from "@/systems/settings/mocks/fixtures";
 import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { settingsKeys } from "@/systems/settings/lib/query-keys";
 import { MarketplaceExtensionServerSection } from "../marketplace-detail-extension-server";
-import { mcpServerRowTestId, SettingsMarketplaceSourcesSection } from "@/systems/settings";
+import {
+  mcpServerRowTestId,
+  SettingsMarketplaceSourcesSection,
+  type SettingsMCPServerEntry,
+} from "@/systems/settings";
 import { AddMarketplaceDialog } from "../add-marketplace-dialog";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
@@ -65,6 +71,9 @@ const mocks = vi.hoisted(() => ({
   previewExtensionInstall: vi.fn(),
   toast: vi.fn(),
   readCatalog: vi.fn(),
+  readExtensions: vi.fn(),
+  readMCPServers: vi.fn(),
+  putMCPServer: vi.fn(),
 }));
 vi.mock("../../adapters/marketplace-actions-api", async original => ({
   ...(await original<typeof import("../../adapters/marketplace-actions-api")>()),
@@ -77,17 +86,26 @@ vi.mock("@/systems/extensions/adapters/extensions-api", async original => ({
 vi.mock("sonner", () => ({ toast: { success: mocks.toast, error: mocks.toast } }));
 let catalog: MarketplaceCatalogResponse;
 let extensions: ExtensionEntry[] = [];
+let mcpServers: SettingsMCPServerEntry[] = [];
 const server = setupServer(
   ...profileHandlers,
   ...workspaceHandlers,
   ...statusHandlers,
   ...vaultHandlers,
-  http.get("*/api/settings/mcp-servers", () =>
-    HttpResponse.json({
-      ...settingsMCPServersCollectionFixture,
-      mcp_servers: mcpManagementServerFixtures,
-    })
-  ),
+  http.get("*/api/settings/mcp-servers", () => {
+    mocks.readMCPServers();
+    return HttpResponse.json({ ...settingsMCPServersCollectionFixture, mcp_servers: mcpServers });
+  }),
+  http.put("*/api/settings/mcp-servers/:name", async ({ params, request }) => {
+    const name = String(params.name);
+    mocks.putMCPServer(name, new URL(request.url).searchParams, await request.json());
+    mcpServers = [
+      ...mcpServers,
+      // A personal settings-file server like `buildkite`, renamed to the saved one.
+      { ...mcpManagementServerFixtures.find(server => server.name === "buildkite")!, name },
+    ];
+    return HttpResponse.json({ ...settingsAppliedMutationFixture, section: "mcp-servers" });
+  }),
   http.get("*/api/marketplace", ({ request }) => {
     mocks.readCatalog(new URL(request.url).searchParams);
     return HttpResponse.json(catalog);
@@ -98,7 +116,11 @@ const server = setupServer(
       { status: 404 }
     )
   ),
-  http.get("*/api/extensions", () => HttpResponse.json({ extensions })),
+  http.get("*/api/settings/apply", () => HttpResponse.json(settingsApplyRecordsFixture)),
+  http.get("*/api/extensions", () => {
+    mocks.readExtensions();
+    return HttpResponse.json({ extensions });
+  }),
   http.post("*/api/marketplace/refresh", () =>
     HttpResponse.json({
       sources: [{ source: "compozy-catalog", outcome: "refreshed", entry_count: 4, stale: false }],
@@ -119,6 +141,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   catalog = { ...marketplaceCatalogFixture };
   extensions = [];
+  mcpServers = [...mcpManagementServerFixtures];
   mocks.installExtension.mockReset().mockResolvedValue({ extension: extensionFixtures[0] });
   mocks.previewExtensionInstall
     .mockReset()
@@ -277,6 +300,7 @@ describe("Marketplace page and cards", () => {
     expect(screen.queryByTestId("marketplace-kind-navigation")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-section-compozy-catalog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-installed-shelf")).not.toBeInTheDocument();
+    expect(mocks.readMCPServers).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(await screen.findAllByRole("menuitem")).toHaveLength(4);
     await userEvent.click(screen.getByTestId("marketplace-add-github"));
@@ -291,6 +315,7 @@ describe("Marketplace page and cards", () => {
     const plugins = screen.getByTestId("marketplace-kind-plugins");
     expect(plugins).toHaveAttribute("aria-pressed", "true");
     mocks.readCatalog.mockClear();
+    mocks.readExtensions.mockClear();
 
     await userEvent.click(screen.getByTestId("marketplace-kind-mcps"));
     await waitFor(() => expect(router.state.location.search).toEqual({ kind: "mcps", q: "git" }));
@@ -306,14 +331,70 @@ describe("Marketplace page and cards", () => {
     );
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
     expect(mocks.readCatalog).not.toHaveBeenCalled();
+    expect(mocks.readExtensions).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Add MCP server" }));
-    expect(await screen.findByTestId("settings-mcp-servers-editor")).toBeVisible();
+    const editor = await screen.findByTestId("settings-mcp-servers-editor");
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-name-input"),
+      "github-team"
+    );
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-command-input"),
+      "npx"
+    );
+    await userEvent.click(within(editor).getByTestId("settings-mcp-servers-editor-save"));
+    await waitFor(() => expect(mocks.putMCPServer).toHaveBeenCalledTimes(1));
+    const [savedName, savedSearch] = mocks.putMCPServer.mock.calls[0]!;
+    expect(savedName).toBe("github-team");
+    expect(savedSearch.get("scope")).toBe("user");
+    expect(
+      await within(screen.getByTestId("settings-page-mcp-servers-list")).findByTestId(
+        "settings-page-mcp-servers-row-github-team"
+      )
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(screen.queryByTestId("settings-mcp-servers-editor")).not.toBeInTheDocument()
+    );
 
-    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByTestId("marketplace-kind-plugins"));
     await waitFor(() => expect(router.state.location.search).toEqual({ q: "git" }));
     expect(await screen.findByRole("searchbox", { name: "Search extensions" })).toHaveValue("git");
+  });
+  it("Should hold a new MCP server's save until the server list has loaded", async () => {
+    let release = () => {};
+    const listed = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    server.use(
+      http.get("*/api/settings/mcp-servers", async () => {
+        await listed;
+        return HttpResponse.json({
+          ...settingsMCPServersCollectionFixture,
+          mcp_servers: mcpServers,
+        });
+      })
+    );
+    setup();
+    await screen.findByTestId(`marketplace-card-${entry.entry_id}`);
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(await screen.findByTestId("marketplace-add-mcp-server"));
+    const editor = await screen.findByTestId("settings-mcp-servers-editor");
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-name-input"),
+      "buildkite"
+    );
+    await userEvent.type(
+      within(editor).getByTestId("settings-mcp-servers-editor-command-input"),
+      "npx"
+    );
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+    release();
+    expect(
+      await within(editor).findByText('An MCP server named "buildkite" already exists.')
+    ).toBeVisible();
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+    expect(mocks.putMCPServer).not.toHaveBeenCalled();
   });
   it("Should carry a pending search draft into the selected kind instead of reverting it", async () => {
     const { router } = setup();

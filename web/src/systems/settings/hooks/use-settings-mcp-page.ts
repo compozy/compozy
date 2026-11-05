@@ -49,9 +49,10 @@ export function useMCPServerManagement({
     servers,
     workspaceId,
     profileName: profile,
+    serversReady: collection.data !== undefined,
   });
   const override = useMCPOverrideEditor();
-  const authorization = useMCPDefinitionAuthorization();
+  const authorization = useMCPDefinitionAuthorization({ enabled });
   const removal = useDeleteSettingsMCPServer();
   const selected = servers.find(server => mcpDefinitionKey(server) === selectedKey) ?? null;
   const normalized = query.trim().toLowerCase();

@@ -16,7 +16,7 @@ import {
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
 import type { SettingsMCPServerEntry } from "@/systems/settings";
-import { settingsMCPServersCollectionFixture } from "@/systems/settings/mocks/fixtures";
+import { settingsMCPServersCollectionFixture } from "@/systems/settings/mocks";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =

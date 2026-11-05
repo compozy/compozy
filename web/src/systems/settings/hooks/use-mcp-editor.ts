@@ -26,6 +26,11 @@ interface UseMCPEditorOptions {
   servers: readonly SettingsMCPServerEntry[];
   workspaceId?: string | null;
   profileName?: string | null;
+  /**
+   * Whether `servers` reflects the loaded collection. Create saves wait for it: an empty list
+   * while loading would pass the duplicate-name check and the PUT would replace that server.
+   */
+  serversReady?: boolean;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -54,6 +59,7 @@ function useMCPEditor({
   servers,
   workspaceId,
   profileName,
+  serversReady = true,
 }: UseMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -117,7 +123,7 @@ function useMCPEditor({
     editorLogic.trigger.targetChanged({ target });
   };
 
-  const { errors, isValid } = mcpEditorValidation(editor, servers);
+  const { errors, isValid } = mcpEditorValidation(editor, servers, serversReady);
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -182,7 +188,11 @@ function useMCPEditor({
 export { useMCPEditor };
 export type { UseMCPEditorOptions };
 
-function mcpEditorValidation(editor: MCPEditorState, servers: readonly SettingsMCPServerEntry[]) {
+function mcpEditorValidation(
+  editor: MCPEditorState,
+  servers: readonly SettingsMCPServerEntry[],
+  serversReady: boolean
+) {
   const validation = editor.mode === "closed" ? null : validateDraft(editor.draft);
   const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
   const nameConflict =
@@ -205,6 +215,10 @@ function mcpEditorValidation(editor: MCPEditorState, servers: readonly SettingsM
       : nameConflict
         ? { ...validation.errors, name: `An MCP server named "${editorName}" already exists.` }
         : validation.errors;
-  const isValid = validation !== null && validation.valid && !nameConflict;
+  const isValid =
+    validation !== null &&
+    validation.valid &&
+    !nameConflict &&
+    (editor.mode !== "create" || serversReady);
   return { errors, isValid };
 }
