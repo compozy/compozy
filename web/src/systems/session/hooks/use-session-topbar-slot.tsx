@@ -5,6 +5,7 @@ import {
   agentInstanceAvatarState,
   alwaysOnMainInstance,
   useAgentInstances,
+  type AgentInstancePayload,
 } from "@/systems/agent";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { PROFILE_SPRITE_URL } from "@/systems/profiles";
@@ -162,6 +163,59 @@ function ownChipActions({
   };
 }
 
+function sidebarToggle(input: UseSessionTopbarSlotInput, inWindow: boolean) {
+  return inWindow ? (
+    <SessionPanelToggle panel="sidebar" open={input.sidebarOpen} onToggle={input.onSidebarToggle} />
+  ) : null;
+}
+
+/** An ordinary session's head: linked work entry, run verbs, then both panel toggles. */
+function sessionActions(
+  input: UseSessionTopbarSlotInput,
+  actions: ReturnType<typeof sessionTopbarActions>,
+  linkedList: SessionLinkedWorkListProps,
+  inWindow: boolean
+) {
+  const { session, linkedWork } = input;
+  return (
+    <>
+      {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
+      <SessionMarkSeenAction session={session} />
+      <SessionPrimaryAction
+        key={session.id}
+        {...input}
+        {...actions}
+        runningProcesses={sessionRunningProcesses(session)}
+        processPorts={sessionProcessPorts(session)}
+      />
+      {sidebarToggle(input, inWindow)}
+      <SessionPanelToggle
+        panel="inspector"
+        open={input.inspectorOpen}
+        onToggle={input.onInspectorToggle}
+      />
+    </>
+  );
+}
+
+/**
+ * An always-on agent's main (#1303): the agent's `…` menu owns its lifecycle, so the head keeps it
+ * and the sessions list toggle, without linked work, Stop or the context sidebar toggle.
+ */
+function alwaysOnMainActions(
+  input: UseSessionTopbarSlotInput,
+  instance: AgentInstancePayload,
+  inWindow: boolean
+) {
+  return (
+    <>
+      <AlwaysOnAgentMenu instance={instance} />
+      <SessionMarkSeenAction session={input.session} />
+      {sidebarToggle(input, inWindow)}
+    </>
+  );
+}
+
 /** Publishes lifecycle actions into the owning session window's topbar. */
 export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session, worktreeBinding, transportChip } = input;
@@ -178,9 +232,8 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { linkedWork } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
-  // A main session is the agent's own conversation, so the agent names it. The agent owns its
-  // lifecycle (the `…` menu) and accumulates linked work indefinitely, so the head drops the
-  // linked chip, Stop and the context sidebar toggle there (#1303).
+  // A main session is the agent's own conversation, so the agent names it. It accumulates linked
+  // work indefinitely, so its head carries no linked chip (#1303).
   const instance = alwaysOnMainInstance(useAgentInstances(), session.id);
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
@@ -249,37 +302,10 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
-    // The run verbs lead; the two panel toggles trail as quiet icons.
-    actions: (
-      <>
-        {!instance && linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
-        {instance ? <AlwaysOnAgentMenu instance={instance} /> : null}
-        <SessionMarkSeenAction session={session} />
-        {instance ? null : (
-          <SessionPrimaryAction
-            key={session.id}
-            {...input}
-            {...actions}
-            runningProcesses={sessionRunningProcesses(session)}
-            processPorts={sessionProcessPorts(session)}
-          />
-        )}
-        {inWindow ? (
-          <SessionPanelToggle
-            panel="sidebar"
-            open={input.sidebarOpen}
-            onToggle={input.onSidebarToggle}
-          />
-        ) : null}
-        {instance ? null : (
-          <SessionPanelToggle
-            panel="inspector"
-            open={input.inspectorOpen}
-            onToggle={input.onInspectorToggle}
-          />
-        )}
-      </>
-    ),
+    // The run verbs lead; the panel toggles trail as quiet icons.
+    actions: instance
+      ? alwaysOnMainActions(input, instance, inWindow)
+      : sessionActions(input, actions, linkedList, inWindow),
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (
       <SessionViewToggle onValueChange={view.setView} value={view.view} />
