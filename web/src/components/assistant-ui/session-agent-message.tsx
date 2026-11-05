@@ -33,6 +33,7 @@ function deliveryFromSteer(kind: SteerMarkerKind | undefined): SessionMessageDel
   switch (kind) {
     case "injected":
     case "pending_injection":
+    case "pending_boundary":
       return "steered";
     case "interrupt_fallback":
       return "interrupted";

@@ -13,6 +13,8 @@ export const PROMPT_ACCEPTED_MARKER = "transcript_marker.prompt_accepted";
 export type SteerMarkerKind =
   | "injected"
   | "pending_injection"
+  | "pending_boundary"
+  | "after_turn"
   | "interrupt_fallback"
   | "superseded"
   | "queued";
@@ -26,6 +28,8 @@ export interface SteerMarkerView {
 }
 
 const META_TEXT: Record<SteerMarkerKind, string> = {
+  pending_boundary: "Steering — waiting for the active tool to finish",
+  after_turn: "Steering — queued until the turn ends",
   injected: "Steered — delivered into the live turn",
   pending_injection: "Steered — the agent sees it when the current tool finishes",
   interrupt_fallback: "Steered — interrupted and replaced",
@@ -65,11 +69,13 @@ export function steerMarkerView(marker: TranscriptMarkerPayload): SteerMarkerVie
     case PROMPT_STEERED_MARKER: {
       const delivery = evidenceString(marker, "steer_delivery");
       kind =
-        delivery === "interrupt_fallback"
-          ? "interrupt_fallback"
-          : delivery === "pending_injection"
-            ? "pending_injection"
-            : "injected";
+        delivery === "pending_boundary" || delivery === "after_turn"
+          ? delivery
+          : delivery === "interrupt_fallback"
+            ? "interrupt_fallback"
+            : delivery === "pending_injection"
+              ? "pending_injection"
+              : "injected";
       break;
     }
     case PROMPT_SUPERSEDED_MARKER:

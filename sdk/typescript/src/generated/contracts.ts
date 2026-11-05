@@ -3533,7 +3533,12 @@ export interface SessionHealthUpdateAfterPayload {
   last_error?: string;
 }
 
-export type SteerDeliveryMode = "injected" | "pending_injection" | "interrupt_fallback";
+export type SteerDeliveryMode =
+  | "injected"
+  | "pending_injection"
+  | "pending_boundary"
+  | "after_turn"
+  | "interrupt_fallback";
 
 export type PromptMode = string;
 

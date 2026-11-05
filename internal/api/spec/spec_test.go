@@ -3269,6 +3269,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addRestartMigrationProgress(baseline) == 0 {
 			t.Fatal("approved restart progress addition: no historical restart status schema found")
 		}
+		// #1292: fallback steering exposes its boundary wait and after-turn queue decisions.
+		if addBoundarySteerDelivery(baseline) == 0 {
+			t.Fatal("approved boundary delivery addition: no historical steering schemas found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3297,6 +3301,36 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+func addBoundarySteerDelivery(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addBoundarySteerDelivery(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addBoundarySteerDelivery(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		delivery, ok := properties["steer_delivery"].(map[string]any)
+		if ok && reflect.DeepEqual(delivery["enum"], []any{"injected", "pending_injection", "interrupt_fallback"}) {
+			delivery["enum"] = []any{
+				"injected",
+				"pending_injection",
+				"pending_boundary",
+				"after_turn",
+				"interrupt_fallback",
+			}
+			count++
+		}
+	}
+	return count
 }
 
 func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {

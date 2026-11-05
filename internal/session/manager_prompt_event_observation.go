@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// observeRecordAndNotifyPromptEvent makes the tool boundary durable before cancellation or notification.
 func (m *Manager) observeRecordAndNotifyPromptEvent(
 	ctx context.Context,
 	session *Session,
@@ -34,6 +35,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if m.discardStoppedPromptEvent(ctx, session, normalized.TurnID, normalized.Type) {
 		return errPromptEventDiscardedAfterStop
 	}
+	m.observeSteerToolBoundary(ctx, session, normalized)
 	loop.fileMutations.Observe(normalized)
 	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)

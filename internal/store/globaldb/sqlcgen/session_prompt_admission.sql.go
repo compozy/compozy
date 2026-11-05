@@ -155,6 +155,33 @@ func (q *Queries) CompleteSessionPromptAdmission(ctx context.Context, arg Comple
 	return result.RowsAffected()
 }
 
+const completeSupersededSteerAdmission = `-- name: CompleteSupersededSteerAdmission :execrows
+UPDATE session_prompt_admissions
+SET state = 'completed', completed_at = ?1, updated_at = ?1,
+    result_json = json_set(result_json, '$.previous_turn_id', ?2)
+WHERE id = ?3 AND session_id = ?4 AND state = 'dispatch_committed'
+`
+
+type CompleteSupersededSteerAdmissionParams struct {
+	Now          sql.NullString `json:"now"`
+	TargetTurnID any            `json:"target_turn_id"`
+	ID           string         `json:"id"`
+	SessionID    string         `json:"session_id"`
+}
+
+func (q *Queries) CompleteSupersededSteerAdmission(ctx context.Context, arg CompleteSupersededSteerAdmissionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeSupersededSteerAdmission,
+		arg.Now,
+		arg.TargetTurnID,
+		arg.ID,
+		arg.SessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getQueuedSessionPromptAdmissionState = `-- name: GetQueuedSessionPromptAdmissionState :one
 SELECT state FROM session_prompt_admissions
 WHERE id = ?1 AND session_id = ?2

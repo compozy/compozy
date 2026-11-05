@@ -4032,6 +4032,8 @@
             "enum": [
               "injected",
               "pending_injection",
+              "pending_boundary",
+              "after_turn",
               "interrupt_fallback"
             ],
             "type": "string"
@@ -24135,6 +24137,8 @@
             "enum": [
               "injected",
               "pending_injection",
+              "pending_boundary",
+              "after_turn",
               "interrupt_fallback"
             ],
             "type": "string"
@@ -26309,6 +26313,8 @@
             "enum": [
               "injected",
               "pending_injection",
+              "pending_boundary",
+              "after_turn",
               "interrupt_fallback"
             ],
             "type": "string"

@@ -126,6 +126,7 @@ type wireAuthMethodDescriptor struct {
 // methods. Agent capabilities reuse the SDK truth; auth descriptors stay out
 // of durable Caps snapshots.
 type wireInitializeAuthResponse struct {
+	Meta              map[string]any             `json:"_meta,omitempty"`
 	AgentCapabilities acpsdk.AgentCapabilities   `json:"agentCapabilities"`
 	AuthMethods       []wireAuthMethodDescriptor `json:"authMethods"`
 }
@@ -221,7 +222,7 @@ func initializeAuthSession(
 		)
 	}
 	proc.setCaps(captureCaps(Caps{
-		SteerCapability:       captureSteerCapability(nil, proc.CapsSnapshot().SteerCapability),
+		SteerCapability:       captureSteerCapability(response.Meta, proc.CapsSnapshot().SteerCapability),
 		SupportsLoadSession:   response.AgentCapabilities.LoadSession,
 		SupportsCloseSession:  response.AgentCapabilities.SessionCapabilities.Close != nil,
 		SupportsForkSession:   response.AgentCapabilities.SessionCapabilities.Fork != nil,

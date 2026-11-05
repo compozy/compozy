@@ -423,6 +423,16 @@ and enforce nothing: no session ends when they elapse. They stay readable and wr
 (a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
 `Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
 
+## Busy Session Input
+
+`[session.busy_input] steer_boundary_timeout` defaults to `"45s"` and is restart-required.
+For operator steering without native injection, it bounds the wait for all open tools before
+cancellation and reprompt. `"0s"` preserves immediate cancellation; negative durations are invalid.
+If the adapter emits no tool events, steering queues after the turn instead. Explicit interrupt
+always cancels immediately. `default_mode` still defaults to `steer`; choose `queue` for after-turn
+follow-ups on every provider. Read `steer_delivery` in the acceptance receipt: `pending_boundary`
+waits for tools and `after_turn` queues; native injection keeps its existing delivery values.
+
 ## Session Messaging
 
 `[session.messaging]` bounds agent-to-agent messages sent with `compozy__session_prompt` (or
