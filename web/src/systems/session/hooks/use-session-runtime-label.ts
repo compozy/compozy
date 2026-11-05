@@ -12,6 +12,11 @@ export interface SessionRuntimeLabel {
   label: string;
   /** The model's name and reasoning effort, `Opus 4.1 high`; empty when the runtime names none. */
   model?: string;
+  /**
+   * The saved runtime the next message switches to, while it differs from this one
+   * (a provider switch waits for the next message). Absent when nothing is pending.
+   */
+  next?: Omit<SessionRuntimeLabel, "next">;
 }
 
 /**
@@ -21,8 +26,11 @@ export interface SessionRuntimeLabel {
  * reads, so a page of rows adds no request per row. `null` before the first bind.
  */
 export function useSessionRuntimeLabel(
-  effective: SessionRuntimeEffective | null | undefined
-): SessionRuntimeLabel | null {
+  effective:
+    | Pick<SessionRuntimeEffective, "provider" | "model" | "reasoning_effort">
+    | null
+    | undefined
+): Omit<SessionRuntimeLabel, "next"> | null {
   const provider = effective?.provider.trim() ?? "";
   const model = effective?.model?.trim() ?? "";
   const effort = effective?.reasoning_effort?.trim() ?? "";

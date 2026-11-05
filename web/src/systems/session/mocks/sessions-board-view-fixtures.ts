@@ -4,6 +4,7 @@
  * actions log; prototypes keep the inert default.
  */
 import type { SessionRuntimeLabel } from "../hooks/use-session-runtime-label";
+import { sessionRuntimeProjection } from "../lib/session-runtime-projection";
 import type { SessionsBoardColumnView, SessionsBoardView } from "../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
 import {
@@ -109,16 +110,25 @@ export function sessionsBoardViewFixture(
 const PROVIDER_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex" };
 const MODEL_NAMES: Record<string, string> = { "claude-opus-4-1": "Opus 4.1", "gpt-5": "GPT-5" };
 
-/**
- * The runtime label a live card would read for a fixture session: the same words
- * `useSessionRuntimeLabel` builds, with no model line for a provider-only runtime.
- */
-export function boardRuntimeFixture(session: SessionBoardPayload): SessionRuntimeLabel {
-  const effective = session.runtime?.effective;
-  const provider = effective?.provider.trim() || "claude";
+type FixtureRuntime = { provider: string; model?: string; reasoning_effort?: string };
+
+/** One fixture runtime in the words `useSessionRuntimeLabel` builds from the catalog. */
+function fixtureRuntimeLabel(runtime: FixtureRuntime | undefined) {
+  const provider = runtime?.provider.trim() || "claude";
   const providerLabel = PROVIDER_NAMES[provider] ?? provider;
-  const modelId = effective?.model?.trim() ?? "";
-  const effort = effective?.reasoning_effort?.trim() ?? "";
+  const modelId = runtime?.model?.trim() ?? "";
+  const effort = runtime?.reasoning_effort?.trim() ?? "";
   const model = modelId ? [MODEL_NAMES[modelId] ?? modelId, effort].filter(Boolean).join(" ") : "";
   return { provider, label: model ? `${providerLabel} · ${model}` : providerLabel, model };
+}
+
+/**
+ * The runtime label a live card would read for a fixture session: the same words
+ * `useSessionRowRuntimeLabel` builds, with no model line for a provider-only runtime
+ * and the next message's runtime while a saved switch is pending.
+ */
+export function boardRuntimeFixture(session: SessionBoardPayload): SessionRuntimeLabel {
+  const { current, next } = sessionRuntimeProjection(session.runtime);
+  const label = fixtureRuntimeLabel(current);
+  return next ? { ...label, next: fixtureRuntimeLabel(next) } : label;
 }

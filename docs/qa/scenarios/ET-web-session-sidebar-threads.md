@@ -216,3 +216,13 @@ live assistive-technology walk remains pending. Agent appearance writes through 
 and HTTP now reject generated faces with a background choice; saved plate-bearing faces retain
 their identity on reads without rewriting authored data. No DTO, hook, config-key or workspace
 isolation changes. The official agent-definition reference already limits backgrounds to symbols.
+
+qa-impact: 2026-11-04 (#1290) — a row whose saved runtime selection has not reached its runtime yet
+(a provider switch saved during a turn, or a selection saved while the session was stopped or released)
+keeps the bound or recorded runtime's mark and model and adds the selected model after an arrow on line 2
+(`Opus 4.1 high → GPT-5 medium`, the arrow `faint`, the next model `muted-foreground`). The mark's tooltip
+adds `Next message: Provider · Model` and the row's accessible name adds `, next message: Provider · Model`.
+The row and the composer now agree on what the next message runs. A same-provider model, effort or speed
+change applied live clears the marker as soon as `runtime.effective` reports it. Owning suite:
+`SessionList provider marks` in `session-list.test.tsx`; rendered evidence: the `session-list-row`
+prototype's `pending-switch` state, light and dark. Live walk pending.
