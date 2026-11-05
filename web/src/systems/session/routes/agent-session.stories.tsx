@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { primarySessionFixture, sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
 import { SESSIONS_BOARD_SESSIONS } from "@/systems/session/mocks/sessions-board-fixtures";
+import { SESSION_LINKS_DOZEN } from "@/systems/session/mocks/session-links-fixtures";
+import { agentInstanceFixture } from "@/systems/agent/mocks/instance-fixtures";
 import type { TranscriptMessage } from "@/systems/session/types";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -80,6 +82,26 @@ const LONG_SIDEBAR_OUTLINE = LONG_SIDEBAR_TURNS.map((turn, index) => ({
   turn_id: `turn-${index + 1}`,
 }));
 
+const LONG_SIDEBAR_HANDLERS = [
+  compozyApiMock.get("/api/sessions", () =>
+    HttpResponse.json({
+      sessions: [primarySessionFixture, ...LONG_SIDEBAR_SESSIONS],
+      page: {
+        has_more: false,
+        limit: 200,
+        total: LONG_SIDEBAR_SESSIONS.length + 1,
+      },
+    })
+  ),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+    HttpResponse.json(transcriptPayload(LONG_SIDEBAR_TRANSCRIPT))
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+    () => HttpResponse.json({ entries: LONG_SIDEBAR_OUTLINE })
+  ),
+];
+
 /**
  * The window with a long session list and the message trail on the transcript's
  * right edge: the tonal hierarchy and the trail read together, as they ship.
@@ -89,23 +111,59 @@ export const LongSidebarWithTrail: Story = {
   parameters: {
     ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
-      session: [
-        compozyApiMock.get("/api/sessions", () =>
+      session: LONG_SIDEBAR_HANDLERS,
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
+};
+
+const LINKED_DOZEN_HANDLER = compozyApiMock.get(
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+  () => HttpResponse.json({ items: SESSION_LINKS_DOZEN })
+);
+
+/**
+ * An ordinary session with linked work and a long transcript: the head keeps the "N linked"
+ * chip, Stop and both panel toggles, the transcript keeps its trail, the composer its context meter.
+ */
+export const LinkedWorkWithTrail: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudSessionRoute),
+    ...storybookMswParameters({
+      session: [...LONG_SIDEBAR_HANDLERS, LINKED_DOZEN_HANDLER],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
+};
+
+/**
+ * The same session as an always-on agent's main (#1303): the head names the agent with its
+ * Always-on badge and `…` menu, and drops the linked chip, Stop and the context sidebar toggle;
+ * the transcript drops its trail and the composer its context meter.
+ */
+export const AlwaysOnMain: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudSessionRoute),
+    ...storybookMswParameters({
+      session: [...LONG_SIDEBAR_HANDLERS, LINKED_DOZEN_HANDLER],
+      agent: [
+        http.get("*/api/agent-instances", () =>
           HttpResponse.json({
-            sessions: [primarySessionFixture, ...LONG_SIDEBAR_SESSIONS],
-            page: {
-              has_more: false,
-              limit: 200,
-              total: LONG_SIDEBAR_SESSIONS.length + 1,
-            },
+            instances: [
+              agentInstanceFixture({
+                agent_name: storyAgentNames.fraud,
+                label: "Fraud watch",
+                main_session_id: storySessionIds.fraud,
+                workspace_id: storyWorkspaceIds.risk,
+                scope: storyWorkspaceIds.risk,
+              }),
+            ],
+            next_cursor: "",
+            max_active_instances: 4,
+            active_count: 1,
           })
-        ),
-        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json(transcriptPayload(LONG_SIDEBAR_TRANSCRIPT))
-        ),
-        compozyApiMock.get(
-          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
-          () => HttpResponse.json({ entries: LONG_SIDEBAR_OUTLINE })
         ),
       ],
     }),

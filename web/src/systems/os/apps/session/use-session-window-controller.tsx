@@ -24,7 +24,7 @@ import {
   useSessionContext,
   useSessionUsageTurns,
 } from "@/systems/session";
-import { useAgentInstances } from "@/systems/agent";
+import { alwaysOnMainInstance, useAgentInstances } from "@/systems/agent";
 import type { WorktreePayload } from "@/systems/workspace";
 
 function toInspectorUsage(
@@ -189,6 +189,8 @@ export function useSessionWindowController(input: {
     worktreeBinding,
     onSendPrompt: pullRequest.onSendPrompt,
     successorId: sessionSuccessorId(session, instances),
+    /** An always-on agent's current main: its window drops the message trail and context meter. */
+    alwaysOnMain: alwaysOnMainInstance(instances, session.id) !== undefined,
     /** Dialogs and progress of an exit action started from the PR chip. */
     pullRequestExitSurface: pullRequest.exitSurface,
     promptRuntimeSnapshot,

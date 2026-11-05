@@ -4,7 +4,9 @@
 // first in the status zone (no agent, provider or time there), then lifecycle controls and the
 // sidebar and inspector toggles; the chip menu offers only the actions the session allows.
 // Shown in the board drawer (#1052) the head drops the rail toggle and the view toggle: the
-// board is the list there, and the drawer carries its own controls.
+// board is the list there, and the drawer carries its own controls. An always-on agent's main
+// session (#1303) names the agent, keeps its `…` menu, and drops the linked chip, Stop and both
+// panel toggles, except as the close control of a panel left open; every other session keeps them.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -13,6 +15,8 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
+import type { AgentInstancePayload } from "@/systems/agent";
+import { agentInstanceFixture } from "@/systems/agent/mocks/instance-fixtures";
 import type { SessionPayload } from "../../types";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
@@ -29,6 +33,19 @@ import {
   SessionTransportContext,
   type SessionTransportState,
 } from "../../lib/session-transcript-thread-context-value";
+
+const agentInstances = vi.hoisted(() => ({ rows: [] as AgentInstancePayload[] }));
+
+vi.mock("@/systems/agent", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent")>()),
+  useAgentInstances: () => agentInstances.rows,
+}));
+
+// The always-on `…` menu navigates to the agent's pages; no route renders here.
+vi.mock("@tanstack/react-router", async importOriginal => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => vi.fn(),
+}));
 
 const NO_LINKED_WORK: SessionLinkedWorkModel = {
   items: [],
@@ -579,6 +596,65 @@ describe("useSessionTopbarSlot", () => {
   // keeps the whole list one step away at every width; only the session's own direct links can be
   // unlinked from it.
   // Owner: session document head; canonical suite: use-session-topbar-slot.
+  describe("always-on main session (#1303)", () => {
+    afterEach(() => {
+      agentInstances.rows = [];
+    });
+
+    const linkedWork: SessionLinkedWorkModel = {
+      ...NO_LINKED_WORK,
+      items: SESSION_LINK_SETS.addedBy,
+      lead: leadLink(SESSION_LINK_SETS.addedBy),
+      count: linkCount(SESSION_LINK_SETS.addedBy),
+      clipped: true,
+    };
+    const renderHead = (panels: { sidebarOpen?: boolean; inspectorOpen?: boolean } = {}) =>
+      renderWithTopbar(<SessionPublisher linkedWork={linkedWork} onStop={vi.fn()} {...panels} />);
+
+    it("Should keep the linked chip, Stop and both panel toggles on an ordinary session", () => {
+      agentInstances.rows = [agentInstanceFixture({ main_session_id: "sess-other" })];
+      renderHead();
+      expect(screen.getByTestId("session-links-summary")).toHaveTextContent(/^4 linked$/);
+      expect(screen.getByRole("button", { name: "Stop session" })).toBeInTheDocument();
+      expect(screen.getByTestId("session-sidebar-toggle")).toBeInTheDocument();
+      expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+      expect(screen.queryByText("Always-on")).toBeNull();
+    });
+
+    it("Should drop the linked chip, Stop and both panel toggles on the agent's main", () => {
+      const instance = agentInstanceFixture({ main_session_id: primarySessionFixture.id });
+      agentInstances.rows = [instance];
+      renderHead();
+      expect(screen.getByRole("heading", { level: 1, name: instance.label })).toBeInTheDocument();
+      expect(screen.getByText("Always-on")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: `${instance.label} actions` })).toBeInTheDocument();
+      expect(screen.queryByTestId("session-links-summary")).toBeNull();
+      expect(screen.queryByText(/linked/)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Stop session" })).toBeNull();
+      expect(screen.queryByTestId("session-inspector-toggle")).toBeNull();
+      expect(screen.queryByTestId("session-sidebar-toggle")).toBeNull();
+    });
+
+    it("Should keep a close control for a panel left open on the agent's main", () => {
+      agentInstances.rows = [agentInstanceFixture({ main_session_id: primarySessionFixture.id })];
+      const onInspectorToggle = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={linkedWork}
+          onStop={vi.fn()}
+          sidebarOpen
+          inspectorOpen
+          onInspectorToggle={onInspectorToggle}
+        />
+      );
+      expect(screen.getByTestId("session-sidebar-toggle")).toHaveAccessibleName(
+        "Close sessions sidebar"
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Close context sidebar" }));
+      expect(onInspectorToggle).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("linked work", () => {
     afterEach(() => vi.unstubAllGlobals());
 

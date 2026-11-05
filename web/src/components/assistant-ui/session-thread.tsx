@@ -82,6 +82,8 @@ interface SessionThreadProps extends Omit<
    * business. Nothing here is a permission check — the daemon owns that.
    */
   readOnly?: boolean;
+  /** The right-edge message trail; an always-on agent's main omits it (#1303). */
+  messageTrail?: boolean;
   /** Opens sessions from the transcript (subagent drill-in, Open parent); host-owned. */
   subagentNavigation?: SubagentNavigation | null;
   /** The parent of a delegated subagent session, for the "Subagent of" divider (S4). */
@@ -146,6 +148,7 @@ export function SessionThread({
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
+  messageTrail = true,
   subagentNavigation = null,
   subagentOrigin = null,
 }: SessionThreadProps) {
@@ -208,6 +211,7 @@ export function SessionThread({
                     sessionState={sessionState}
                     failure={failure}
                     startupFailed={thread.startupFailed}
+                    messageTrail={messageTrail}
                   />
                   <ThreadContentRail inset={contentInset} className="pt-2">
                     <SessionGoalCommandErrorNotice sessionId={sessionId} />
