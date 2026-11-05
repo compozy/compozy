@@ -148,7 +148,41 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 	if err != nil {
 		return MoveToProfileResult{}, err
 	}
+	ctx, unlockDescendants, err := m.lockProfileMoveDescendants(ctx, &plan.meta)
+	if err != nil {
+		return MoveToProfileResult{}, err
+	}
+	defer unlockDescendants()
+	if err := m.refuseProfileMoveDescendants(ctx, &plan.meta); err != nil {
+		return MoveToProfileResult{}, err
+	}
 	return m.applyProfileMove(ctx, &plan)
+}
+
+// Only validated top-level roots lock descendants, so nested moves cannot invert the lock order.
+func (m *Manager) lockProfileMoveDescendants(
+	ctx context.Context,
+	meta *store.SessionMeta,
+) (context.Context, func(), error) {
+	tree, err := m.sessionTreeStore()
+	if err != nil {
+		return nil, nil, err
+	}
+	children, err := tree.ListSessionDescendants(ctx, meta.WorkspaceID, meta.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("session: list descendants of %q for move: %w", meta.ID, err)
+	}
+	unlocks := make([]func(), 0, len(children))
+	for i := range children {
+		lockedCtx, unlock, lockErr := m.lockProfileMove(ctx, children[i].ID)
+		if lockErr != nil {
+			releaseConversationOperations(unlocks)
+			return nil, nil, lockErr
+		}
+		ctx = lockedCtx
+		unlocks = append(unlocks, unlock)
+	}
+	return ctx, func() { releaseConversationOperations(unlocks) }, nil
 }
 
 // lockProfileMove serializes a move of one session with other moves and unarchives of
@@ -238,6 +272,7 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 	return m.refuseProfileMoveDescendants(ctx, meta)
 }
 
+// Archived descendants must remain stopped while the source is archived and copied.
 func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.SessionMeta) error {
 	tree, err := m.sessionTreeStore()
 	if err != nil {

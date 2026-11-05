@@ -61,3 +61,12 @@ against real SQLite, including child/grandchild lineage and source-profile reten
 stopped and live unarchived blockers. The existing race-enabled lifecycle integration checks
 `TestManagerIntegrationFullLifecycle` and `TestManagerIntegrationUserLifecycle` passed.
 The fresh browser/daemon walk remains pending; these suite results do not claim that walk.
+
+9. Concurrent restore: begin moving a stopped root with archived descendants. Unarchiving a
+   descendant after move planning but before commit waits for the move; a canceled restore
+   returns its context error and leaves the descendant archived. After the move completes,
+   unarchive works normally. A restore completed before the move acquires descendant locks
+   causes the move to refuse before archiving the root.
+
+The profile-move suite also verifies unchanged descendant conversation history and that
+canceling lock acquisition releases already-held descendant locks.
