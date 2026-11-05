@@ -3316,6 +3316,32 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 }
 
 func TestManagerBusyInputInterrupt(t *testing.T) {
+	t.Run("Should cancel an active turn without an input queue", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		release := holdMentionActiveTurn(t, h)
+		t.Cleanup(func() { release(); reportSessionStop(t, h, sess.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		active, err := h.manager.Prompt(ctx, sess.ID, "active")
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "unpersisted active turn", func() bool { return sess.CurrentTurnID() != "" })
+		result, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Mode: BusyInputModeInterrupt})
+		if err != nil || result.Status != store.SessionPromptResultStatusCanceled {
+			t.Fatalf("empty interrupt=%#v/%v", result, err)
+		}
+		collectEvents(t, active)
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if sess.Info().State != StateActive || len(managerPromptCalls(h)) != 1 {
+			t.Fatal("interrupt changed the session or reprompted")
+		}
+	})
+
 	t.Run(
 		"Should interrupt the turn and dispatch replacement before both preserved queued prompts",
 		func(t *testing.T) {
@@ -6777,16 +6803,13 @@ func TestManagerBoundarySteer(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitForCondition(t, "reserved steer active turn", func() bool { return sess.CurrentTurnID() != "" })
-			result, err := h.manager.SendPrompt(
-				ctx,
-				sess.ID,
-				SendPromptOpts{
-					Message:        "superseded guidance",
-					Mode:           BusyInputModeSteer,
-					MessageID:      "superseded-message",
-					IdempotencyKey: "superseded-key",
-				},
-			)
+			steerOpts := SendPromptOpts{
+				Message:        "superseded guidance",
+				Mode:           BusyInputModeSteer,
+				MessageID:      "superseded-message",
+				IdempotencyKey: "superseded-key",
+			}
+			result, err := h.manager.SendPrompt(ctx, sess.ID, steerOpts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -6795,6 +6818,14 @@ func TestManagerBoundarySteer(t *testing.T) {
 			collectEvents(t, active.Events)
 			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
 				t.Fatalf("superseded steering did not finish: %v", err)
+			}
+			replayed, err := h.manager.SendPrompt(ctx, sess.ID, steerOpts)
+			if err != nil || !replayed.Replayed {
+				t.Fatalf("superseded replay=%#v/%v", replayed, err)
+			}
+			replayed.Replayed = false
+			if !reflect.DeepEqual(replayed, result) {
+				t.Fatalf("superseded receipt changed: first=%#v replay=%#v", result, replayed)
 			}
 			entry, err := database.GetSessionInputQueueEntry(ctx, sess.ID, result.QueueEntryID)
 			if err != nil || entry.Status != store.SessionInputQueueStatusCanceled || entry.SupersededBy == "" {

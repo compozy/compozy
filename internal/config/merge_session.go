@@ -61,6 +61,7 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	}
 }
 
+// Apply preserves explicit zero timeouts while leaving omitted busy-input settings intact.
 func (o sessionBusyInputOverlay) Apply(dst *SessionBusyInputConfig) {
 	if o.SteerBoundaryTimeout != nil {
 		dst.SteerBoundaryTimeout = *o.SteerBoundaryTimeout

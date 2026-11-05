@@ -38,6 +38,7 @@ func (m *Manager) CancelTurn(ctx context.Context, id, expectedTurn string, cause
 	return err
 }
 
+// requestTurnStop shares an existing stop or launches the sole cancellation owner for the expected turn.
 func (m *Manager) requestTurnStop(ctx context.Context, id, expectedTurn string, cause StopCause) (*turnStopRun, error) {
 	if m == nil || ctx == nil {
 		return nil, errors.New("session: turn cancellation requires manager and context")
@@ -104,6 +105,7 @@ func (m *Manager) AwaitTurnQuiesced(ctx context.Context, id, turnID string) (Tur
 	}
 }
 
+// claimTurnStop fences cancellation against tool ingress and prompt ownership changes.
 func (s *Session) claimTurnStop(expected string) (*turnStopRun, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

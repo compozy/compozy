@@ -45,6 +45,7 @@ type promptPumpRun struct {
 	fatal        *promptPumpFatal
 }
 
+// runPromptPumpLoop tracks tool ingress before coalescing and flushes boundaries with pending steering.
 func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 	loop := promptPumpLoopState{source: run.source, runtime: run.runtime, activity: run.activity}
 	coalescer := &promptChunkCoalescer{}

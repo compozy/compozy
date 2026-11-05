@@ -35,6 +35,7 @@ func (m *Manager) writeMeta(session *Session) error {
 	return nil
 }
 
+// activateAndWatch persists activation before publishing hooks and repairing missing supersession markers.
 func (m *Manager) activateAndWatch(
 	ctx context.Context,
 	session *Session,

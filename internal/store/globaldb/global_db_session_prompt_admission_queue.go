@@ -70,6 +70,7 @@ func (g *SessionRepo) enqueueAdmittedSessionInput(
 	return result, err
 }
 
+// enqueueAdmittedSessionInputInTransaction commits replacement input, supersession and its receipt together.
 func enqueueAdmittedSessionInputInTransaction(
 	ctx context.Context,
 	exec globalSQLExecutor,

@@ -4,6 +4,7 @@ import "fmt"
 
 type SteerDeliveryMode string
 
+// SteerDeliveryModeValues supplies the canonical delivery vocabulary to public schemas.
 func SteerDeliveryModeValues() []string {
 	return []string{
 		string(SteerDeliveryInjected),
@@ -22,6 +23,7 @@ const (
 	SteerDeliveryInterruptFallback SteerDeliveryMode = "interrupt_fallback"
 )
 
+// Validate accepts known delivery modes and the unset value used before negotiation.
 func (m SteerDeliveryMode) Validate() error {
 	switch m {
 	case "",

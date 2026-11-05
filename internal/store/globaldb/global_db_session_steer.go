@@ -46,6 +46,7 @@ func (g *SessionRepo) ReserveSessionSteer(
 	return entry, reserved && err == nil, err
 }
 
+// ResolveSessionSteer atomically records reserved guidance's delivery and completes its admission receipt.
 func (g *SessionRepo) ResolveSessionSteer(
 	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode, now time.Time,
 ) (entry store.SessionInputQueueEntry, err error) {
@@ -175,13 +176,33 @@ func supersedeBoundarySteersForInterrupt(
 	if !store.IsHumanSessionInputOriginClass(req.OriginClass) {
 		return nil, nil
 	}
-	return sqlcgen.New(exec).SupersedeBoundarySteersForInterrupt(ctx, sqlcgen.SupersedeBoundarySteersForInterruptParams{
+	queries := sqlcgen.New(exec)
+	ids, err := queries.SupersedeBoundarySteersForInterrupt(ctx, sqlcgen.SupersedeBoundarySteersForInterruptParams{
 		SessionID:         req.SessionID,
 		TargetTurnID:      req.TargetTurnID,
 		ReplacementID:     sql.NullString{String: req.ID, Valid: true},
 		SessionGeneration: req.SessionGeneration,
 		Now:               nullableSessionTime(req.Now),
 	})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		entry, err := getSessionInputQueueEntry(ctx, exec, req.SessionID, id)
+		if err != nil {
+			return nil, err
+		}
+		if entry.PromptAdmissionID == "" {
+			continue
+		}
+		if _, err := queries.CompleteSupersededSteerAdmission(ctx, sqlcgen.CompleteSupersededSteerAdmissionParams{
+			ID: entry.PromptAdmissionID, SessionID: req.SessionID,
+			TargetTurnID: entry.TargetTurnID, Now: nullableSessionTime(req.Now),
+		}); err != nil {
+			return nil, fmt.Errorf("store: complete superseded steer admission: %w", err)
+		}
+	}
+	return ids, nil
 }
 
 // SupersedeSessionBoundarySteers retires undelivered human guidance before an empty interrupt.

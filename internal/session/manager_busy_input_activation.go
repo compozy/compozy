@@ -26,6 +26,7 @@ func requireExpectedActiveTurn(session *Session, expectedTurnID string) (string,
 	return activeTurnID, nil
 }
 
+// activateInterruptingInput stops only the entry's target turn before dispatching its replacement.
 func (m *Manager) activateInterruptingInput(
 	ctx context.Context,
 	session *Session,

@@ -27,6 +27,9 @@ func (m *Manager) emitInterruptSupersededSteers(
 
 // reconcileSteerSupersessions repairs the crash window between the queue commit and transcript append.
 func (m *Manager) reconcileSteerSupersessions(ctx context.Context, session *Session) error {
+	if m.inputQueue == nil {
+		return nil
+	}
 	afterID := ""
 	for {
 		entries, err := m.inputQueue.ListSupersededSteers(ctx, session.ID, afterID)

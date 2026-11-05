@@ -41,6 +41,7 @@ func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error
 	return nil
 }
 
+// updateFromProcessLocked retains observed tool support only while the same provider process remains bound.
 func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
 	if s.process != proc {
 		s.toolEventsObserved = false

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// observeRecordAndNotifyPromptEvent makes the tool boundary durable before cancellation or notification.
 func (m *Manager) observeRecordAndNotifyPromptEvent(
 	ctx context.Context,
 	session *Session,

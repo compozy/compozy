@@ -13,6 +13,7 @@ type BusyInputState struct {
 	SteerDelivery   store.SteerDeliveryMode `json:"steer_delivery,omitempty"`
 }
 
+// busyInputStateLocked projects delivery from the current tool set and runtime steering support.
 func (s *Session) busyInputStateLocked(caps acp.Caps) *BusyInputState {
 	if s.followUpMode == nil {
 		return nil

@@ -2256,6 +2256,86 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 }
 
 func TestGlobalDBSessionPromptAdmission(t *testing.T) {
+	t.Run("Should complete superseded reserved steering for exact replay", func(t *testing.T) {
+		t.Parallel()
+		for _, path := range []string{"typed", "empty", "rollback"} {
+			t.Run("Should preserve replay for "+path, func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				db := openTestGlobalDB(t)
+				sessionID := registerInputQueueSession(t, db)
+				now := time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC)
+				req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "reserved-superseded", now)
+				req.Mode = store.SessionInputQueueModeSteer
+				_, entry, _, err := db.StageAdmittedSessionSteer(
+					ctx,
+					req,
+					store.SessionInputQueueInsert{
+						ID:           "reserved-steer",
+						SessionID:    sessionID,
+						Text:         "guidance",
+						TargetTurnID: "original-turn",
+						Delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+						QueueCap:     10,
+						Now:          now,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, ok, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now); err != nil || !ok {
+					t.Fatalf("reserve=%t/%v", ok, err)
+				}
+				if path == "empty" {
+					_, err = db.SupersedeSessionBoundarySteers(
+						ctx,
+						sessionID,
+						"original-turn",
+						"empty-interrupt",
+						now.Add(time.Second),
+					)
+				} else {
+					id := "replacement"
+					if path == "rollback" {
+						id = entry.ID
+					}
+					_, _, err = db.EnqueueInterruptSessionInput(
+						ctx,
+						store.SessionInputQueueInsert{
+							ID:           id,
+							SessionID:    sessionID,
+							Text:         "replacement",
+							TargetTurnID: "original-turn",
+							QueueCap:     10,
+							Now:          now.Add(time.Second),
+						},
+					)
+				}
+				if path == "rollback" {
+					if err == nil ||
+						!strings.Contains(err.Error(), "UNIQUE constraint failed: session_input_queue.id") {
+						t.Fatalf("rollback error=%v", err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				receipt, found, err := db.ReplaySessionPromptAdmission(ctx, req)
+				if path == "rollback" {
+					if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+						t.Fatalf("reserved receipt escaped rollback: %#v/%v", receipt, err)
+					}
+					return
+				}
+				if err != nil || !found || receipt.State != store.SessionPromptAdmissionCompleted ||
+					receipt.Result == nil ||
+					receipt.Result.PreviousTurnID != "original-turn" ||
+					receipt.Result.Status != store.SessionPromptResultStatusSteering {
+					t.Fatalf("superseded receipt=%#v/%t/%v", receipt, found, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should resolve named messages in admission and return held without claiming a turn", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

@@ -149,3 +149,35 @@ restart repair, migration preservation and source size. Its remaining finding wa
 when an interrupt canceled a reserved steer during the native call. Late resolution now recognizes
 the persisted supersession as terminal, ends its watcher, and avoids recording canceled guidance as
 delivered. The canonical manager suite covers all three native return outcomes.
+
+## Reserved-receipt and optional-queue follow-up
+
+The next CI round exposed an optional input-queue dereference during session activation. Managers
+without a persistent input queue now skip supersession recovery, and their empty interrupts retain
+the original direct cancellation path. Existing coordinator, delete, extension and heartbeat suites
+own those startup paths; their assertions were kept intact.
+
+A new Greptile finding identified that a superseded reserved steer's admission stayed
+`dispatch_committed`, preventing an exact retry despite the successful first return. Supersession now
+completes only that unfinished receipt in the same transaction, retaining the acceptance fields and
+materializing its previous-turn identity. Already-completed delivery receipts remain unchanged.
+The canonical store suite covers typed/empty interrupts and rollback, while the manager compares the
+entire first and replayed response (apart from `replayed`) for all three native return outcomes.
+Focused race checks passed for session (12.739s), store (11.691s) and extension (10.302s); scoped lint
+reported zero issues. The heartbeat selection passed with race (7.877s), as did cancellation without
+a queue (3.778s). The real ACP idle-completion integration that failed on the absent queue passed
+with race (4.046s). `make codegen-check` passed after regenerating the new receipt query.
+
+CodeRabbit's follow-up tightened the catalogue test to require exactly one refresh in each expected
+execution context, retaining the source, force and no-extra-refresh assertions. Ten race repetitions
+passed (5.710s). Comments now document the changed runtime functions' ownership and persistence rules.
+The catalogue adjustment repairs a CI scheduling race discovered while delivering this branch; it
+does not change catalogue production behavior or weaken its parked-target invariant.
+
+The second SQLite experiment on `a7b9164d6b3a868066d5f1cc47f3b087ba3f4e1c`
+([job](https://github.com/compozy/compozy/actions/runs/41938164961/job/126951819630))
+preserved all 830,020 rows and the all-column hash. It reported zero operation errors, no throughput
+regressions and retention sweeps of 18.8–23.9s, within the unchanged 30s limit. Acceptance still failed:
+three telemetry background transactions held for 1.023–1.124s, exceeding the one-second diagnostic
+threshold. Their measured commit times were 467–942ms. This is not a passing load receipt or a proven
+flake; the next head must pass the same CI acceptance criteria.

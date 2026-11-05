@@ -141,6 +141,7 @@ func (m *Manager) injectSteeringInput(
 	return delivery, completion, nil
 }
 
+// activateSteerFallback dispatches the persisted policy, preserving boundary and after-turn waits.
 func (m *Manager) activateSteerFallback(
 	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
 ) error {
@@ -204,6 +205,7 @@ func (m *Manager) injectedSteerer(proc *AgentProcess) (AgentSteerer, bool) {
 	return steerer, true
 }
 
+// emitSteerMarker records supersession and selected delivery without claiming an unconfirmed injection.
 func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *store.SessionInputQueueEntry) {
 	for _, id := range entry.SupersededIDs {
 		evidence := map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID}
@@ -296,6 +298,7 @@ func (m *Manager) recordAcceptedSteerInput(
 	return err
 }
 
+// resolveAcceptedSteer retries persistence and treats committed supersession as a terminal outcome.
 func (m *Manager) resolveAcceptedSteer(
 	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode,
 ) (store.SessionInputQueueEntry, error) {
