@@ -12,6 +12,7 @@ import (
 	"time"
 
 	burnttoml "github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestEditConfigOverlayInitialTimezone(t *testing.T) {
@@ -1303,6 +1304,51 @@ func TestPersistenceHelperMapsAndStringDecoding(t *testing.T) {
 func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 	// Invariant: retirement cannot publish over a file or parent replaced during validation.
 	// Owner: persisted config migration; canonical suite: TestLoadConfigArchivesRetiredSkillAcquisition.
+	t.Run("Should reject a save made after the migration temporary file is synced", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, "config.toml")
+		body := "[agents.stays_on]\nmax_proposals = 7\n"
+		saved := "[agents.always_on]\nmax_proposals = 9\n"
+		writeFile(t, path, body)
+		directory, err := fileutil.OpenDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		contents, info, err := directory.ReadRegularFile("config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		migrated, _, err := migrateRetiredAlwaysOnTable(contents, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = publishRetiredConfigArchiveWithHook(
+			directory,
+			path,
+			info,
+			contents,
+			migrated,
+			func() { writeFile(t, path, saved) },
+		)
+		if err == nil || !strings.Contains(err.Error(), "config changed during retirement migration") {
+			t.Fatalf("publish error = %v", err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != saved {
+			t.Fatalf("concurrent save lost: %q %v", after, err)
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("temporary migration file leaked: %v %v", entries, err)
+		}
+	})
+
 	for _, replacement := range []string{"file", "parent"} {
 		t.Run("Should reject a changed "+replacement+" before retirement commits", func(t *testing.T) {
 			t.Parallel()

@@ -74,6 +74,18 @@ func publishRetiredConfigArchive(
 	path string,
 	original os.FileInfo,
 	contents, rendered []byte,
+) error {
+	return publishRetiredConfigArchiveWithHook(directory, path, original, contents, rendered, nil)
+}
+
+// publishRetiredConfigArchiveWithHook keeps the snapshot check adjacent to publication.
+// The hook exercises a concurrent save at the real file-write boundary in the owning suite.
+func publishRetiredConfigArchiveWithHook(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, rendered []byte,
+	beforeCompare func(),
 ) (err error) {
 	writable, err := directory.ReopenForMutation(filepath.Dir(path))
 	if err != nil {
@@ -81,16 +93,23 @@ func publishRetiredConfigArchive(
 	}
 	defer func() { err = errors.Join(err, writable.Close()) }()
 	name := filepath.Base(path)
-	current, info, err := writable.ReadRegularFile(name)
+	err = writable.AtomicWriteFileIf(name, rendered, privateFileMode, func() error {
+		if beforeCompare != nil {
+			beforeCompare()
+		}
+		current, info, err := writable.ReadRegularFile(name)
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
+			return errors.New("config changed during retirement migration")
+		}
+		return nil
+	})
 	if err != nil {
 		return FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
-	if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
-		return FileError{
-			Op: configMigrationOperation, Path: path, Err: errors.New("config changed during retirement migration"),
-		}
-	}
-	return writePersistedFileInDirectory(writable, name, path, rendered, true)
+	return nil
 }
 
 func archiveRetiredSkillMarketplace(contents []byte, source string) ([]byte, error) {
