@@ -769,13 +769,24 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
 		{ID: "ext", Scope: openScope, Owner: *extensionOwner("lab"), Spec: named("lab-mcp", true)},
 		{ID: "plain", Scope: openScope, Owner: *extensionOwner("plain"), Spec: named("plain", false)},
+		{
+			ID:    "header",
+			Scope: openScope,
+			Owner: *extensionOwner("header"),
+			Spec: compozyconfig.MCPServer{
+				Name:      "header",
+				Transport: "http",
+				URL:       "https://example.com/mcp",
+				Headers:   map[string]string{"X-Key": "value"},
+			},
+		},
 		{ID: "manual", Scope: openScope, Spec: named("manual", true)},
 		{ID: "foreign", Scope: otherScope, Owner: *extensionOwner("foreign"), Spec: named("foreign", true)},
 		{ID: "logged-out", Scope: openScope, Owner: *extensionOwner("logged"), Spec: named("logged-out", true)},
 	})
 	present := toolspkg.MCPAuthStatus{Status: "expired", TokenPresent: true}
 	authed := mcpGrantAuthStatus{status: map[string]toolspkg.MCPAuthStatus{
-		"ext": present, "plain": present, "manual": present, "foreign": present,
+		"ext": present, "plain": present, "header": present, "manual": present, "foreign": present,
 		"logged-out": {Status: "needs_login"},
 	}}
 	state := func(status toolspkg.MCPAuthStatusProvider) *bootState {
@@ -801,7 +812,10 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"}}
+		want := []toolspkg.SourceGrant{
+			{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"},
+			{Kind: toolspkg.SourceMCP, Owner: "plain", ResourceID: "plain"},
+		}
 		if !slices.Equal(grants, want) {
 			t.Fatalf("grants = %#v, want %#v", grants, want)
 		}

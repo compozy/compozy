@@ -133,6 +133,18 @@ Configured OAuth client-secret references must belong to the selected MCP target
 namespace. Settings rejects foreign-owner and daemon-managed token references before replacing
 the definition or removing its existing credential.
 
+Bare HTTP remotes can discover OAuth sign-in without an `auth` block when they have no
+`headers` or `secret_headers`. In Settings, choose **Sign in** after the remote requests
+authentication, or run `compozy mcp auth login <name>`. The daemon discovers protected-resource
+metadata and uses automatic client registration. Servers using header authentication cannot start implicit OAuth. Explicit OAuth definitions
+may retain auxiliary headers such as an API-version header.
+
+Settings reads return only `headers_configured`, never header values. Editor saves retain
+existing headers using `preserve_headers: true` for the same endpoint and write target.
+Changing the endpoint requires explicitly configuring replacement headers. Header definitions
+belong in `config.toml` (`mcp_servers.headers` / `mcp_servers.secret_headers`) or extension
+overrides; `mcp.json` does not accept header fields.
+
 ## Remote OAuth Auth Object
 
 Remote MCP servers can use OAuth 2.1 authorization code with PKCE. The config contains only

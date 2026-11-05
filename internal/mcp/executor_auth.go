@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -19,7 +18,7 @@ const (
 
 func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedServer) error {
 	server := resolved.Server
-	if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio || !server.Auth.Enabled() {
+	if !mcpauth.OAuthCapable(server) {
 		return nil
 	}
 	status, err := e.authStatus(ctx, resolved)
@@ -27,6 +26,11 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 		return err
 	}
 	switch status.Status {
+	case string(mcpauth.StatusUnconfigured):
+		if server.Auth.IsZero() {
+			return nil
+		}
+		return unavailableAuthError(toolspkg.ReasonMCPAuthRequired)
 	case string(mcpauth.StatusAuthenticated):
 		return nil
 	case string(mcpauth.StatusExpired):
@@ -93,7 +97,7 @@ func (e *CallExecutor) authStatus(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
-	if !server.Auth.Enabled() {
+	if !mcpauth.OAuthCapable(server) || (server.Auth.IsZero() && e.auth == nil) {
 		return redactedAuthStatus(mcpauth.Status{
 			Owner:       resolved.Target.Owner,
 			ServerName:  server.Name,

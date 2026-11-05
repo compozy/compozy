@@ -161,7 +161,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		}
 	})
 
-	t.Run("Should distinguish an existing server without OAuth from a missing server", func(t *testing.T) {
+	t.Run("Should let the daemon discover OAuth for an unconfigured server", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
@@ -172,6 +172,9 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				return SettingsMCPAuthStatusRecord{
 					ServerName: "filesystem", Scope: "user", Status: string(mcpauth.StatusUnconfigured),
 				}, nil
+			},
+			beginSettingsMCPAuthFn: func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthBeginRequest) (SettingsMCPAuthBeginRecord, error) {
+				return SettingsMCPAuthBeginRecord{}, errors.New("remote does not configure OAuth")
 			},
 		}
 

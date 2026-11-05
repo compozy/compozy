@@ -41,6 +41,7 @@ type PutSettingsMCPServerRequest struct {
 	Server          SettingsMCPServerPayload              `json:"server"`
 	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
 	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
+	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
 	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
 }
 

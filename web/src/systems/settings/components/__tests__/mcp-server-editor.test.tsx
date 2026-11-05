@@ -45,6 +45,20 @@ function readDraft(): MCPDraft {
 }
 
 describe("MCPServerEditor", () => {
+  it("Should toggle OAuth in the saved remote definition", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditorHarness
+        initialTier="advanced"
+        draft={{ ...emptyDraft("http"), name: "remote", url: "https://example.test/mcp" }}
+      />
+    );
+    await user.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(toRequest(readDraft()).server.auth).toEqual({ registration: "auto" });
+    await user.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(toRequest(readDraft()).server.auth).toBeUndefined();
+  });
+
   it("Should present one named dialog with a single primary action", () => {
     render(<MCPServerEditor {...makeProps()} />);
 

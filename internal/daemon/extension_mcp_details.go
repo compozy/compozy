@@ -86,7 +86,7 @@ func (d *extensionMCPDetails) populate(
 			item.Transport = string(server.Transport)
 			item.Launch = extensionpkg.MCPServerLaunchSummary(server.Command, server.URL)
 			item.Auth = publishedMCPAuthSummary(server.Auth)
-			if server.Auth.Enabled() && d.auth != nil {
+			if mcpauth.OAuthCapable(server) && d.auth != nil {
 				target, err := mcpAuthTargetForResource(ctx, d.state, record.Scope, server.Name, owner)
 				if err != nil {
 					return err

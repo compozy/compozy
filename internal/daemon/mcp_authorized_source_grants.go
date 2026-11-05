@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -38,7 +40,7 @@ func operatorAuthorizedMCPSourceGrants(
 			logMCPSourceGrantSkipped(ctx, state, source, err)
 			continue
 		}
-		if !strings.HasPrefix(resolved.Target.Owner, "extension:") || !resolved.Server.Auth.Enabled() {
+		if !strings.HasPrefix(resolved.Target.Owner, "extension:") || !mcpauth.OAuthCapable(resolved.Server) {
 			continue
 		}
 		status, err := state.mcpAuthStatus.Status(ctx, source, "")

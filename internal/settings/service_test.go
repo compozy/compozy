@@ -3376,6 +3376,77 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve header credentials only for the exact remote and target", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		initial := compozyconfig.MCPServer{
+			Name:          "header-remote",
+			Transport:     "http",
+			URL:           "https://example.test/mcp",
+			Headers:       map[string]string{"X-Key": "private-value"},
+			SecretHeaders: map[string]string{"X-Secret": "env:MCP_SECRET"},
+		}
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			Collection: CollectionMCPServers, Name: initial.Name, Target: TargetConfig, MCPServer: &initial,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		replacement := compozyconfig.MCPServer{Name: initial.Name, Transport: "http", URL: initial.URL}
+		req := CollectionItemPutRequest{
+			Collection:            CollectionMCPServers,
+			Name:                  initial.Name,
+			Target:                TargetConfig,
+			MCPServer:             &replacement,
+			MCPSecretPreservation: MCPSecretPreservation{Headers: true},
+		}
+		result, err := service.PutCollectionItem(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.MCPServer == nil || !result.MCPServer.HeadersConfigured {
+			t.Fatal("missing redacted header presence")
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(loaded.MCPServers) != 1 || loaded.MCPServers[0].Headers["X-Key"] != "private-value" ||
+			loaded.MCPServers[0].SecretHeaders["X-Secret"] != "env:MCP_SECRET" {
+			t.Fatal("headers were lost")
+		}
+		replacement.URL = "https://other.test/mcp"
+		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) {
+			t.Fatalf("changed endpoint accepted: %v", err)
+		}
+		replacement.URL = initial.URL
+		req.Target = TargetSidecar
+		if _, err := service.PutCollectionItem(t.Context(), req); !errors.Is(err, ErrValidation) {
+			t.Fatalf("changed target accepted: %v", err)
+		}
+	})
+
+	t.Run("Should reject direct header writes to a sidecar without dropping them", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		service := testService(t, home, Dependencies{})
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			Collection: CollectionMCPServers,
+			Name:       "header",
+			Target:     TargetSidecar,
+			MCPServer: &compozyconfig.MCPServer{
+				Transport: "http",
+				URL:       "https://example.test/mcp",
+				Headers:   map[string]string{"X-Key": "value"},
+			},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "headers require a config target") {
+			t.Fatalf("sidecar headers = %v, want explicit validation failure", err)
+		}
+	})
+
 	t.Run("Should preserve plain env only for the exact existing target", func(t *testing.T) {
 		t.Parallel()
 

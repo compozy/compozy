@@ -741,6 +741,36 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 
 func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 	t.Parallel()
+	t.Run("Should probe an implicit remote when its old credential no longer matches", func(t *testing.T) {
+		t.Parallel()
+		store := &adapterTestStore{}
+		service, err := NewService(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := ServerConfig{
+			Implicit:     true,
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
+			Type:         authTypeOAuth,
+			Transport:    "http",
+			RemoteURL:    "https://old.example/mcp",
+			Registration: RegistrationAuto,
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.token = TokenRecord{Target: cfg.Target, DefinitionFingerprint: fingerprint, AccessToken: "old-token"}
+		cfg.RemoteURL = "https://new.example/mcp"
+		status, err := service.Status(t.Context(), cfg)
+		if err != nil || status.Status != StatusUnconfigured || status.TokenPresent {
+			t.Fatalf("implicit status = %#v, %v", status, err)
+		}
+		if _, err := service.AuthorizationToken(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
+			t.Fatalf("old credential became sendable: %v", err)
+		}
+	})
+
 	t.Run("Should accept step-up scopes and reject a missing baseline scope", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}

@@ -173,6 +173,11 @@ back to the extension definition visible to the session when no manual server ha
 fail asking for an explicit owner when two extensions declare it.
 Reads expose configured names and secret presence, never secret values or refs.
 
+A bare HTTP remote without `auth`, `headers`, or `secret_headers` can sign in through
+OAuth discovery with automatic client registration. A successful begin must discover protected-resource
+metadata; a 401 alone does not make metadata or a provider grant valid. Header-auth servers without an explicit OAuth policy never
+use this OAuth flow. Explicit OAuth definitions may retain auxiliary headers. Settings offers **Sign in** when a bare remote reports `auth_required`.
+
 For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
 HTTP bind. Use `--scope user` for the user layer, `--scope profile --profile <name>` for a personal
@@ -223,7 +228,8 @@ Inspect MCP management truth with `compozy__mcp_status`, `compozy__mcp_auth_stat
 signals; `configured` alone never means ready. Edit stdio or remote HTTP definitions through
 `PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
 repair requires `authenticated` plus `token_present=true`. Reads project `env_keys` and
-`secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
+`secret_env_keys`, never values/refs. Preserve headers and secret-header bindings for the same endpoint and write target with
+`preserve_headers: true`; reads expose only `headers_configured`. Preserve other exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
 Extension source search is separate: `compozy extension search <query> [--sources curated,github]

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -15,7 +16,7 @@ func preserveMCPSecretBindings(
 	server *compozyconfig.MCPServer,
 	preservation MCPSecretPreservation,
 ) error {
-	if len(preservation.SecretEnv) == 0 && !preservation.OAuthClientSecret {
+	if len(preservation.SecretEnv) == 0 && !preservation.OAuthClientSecret && !preservation.Headers {
 		return nil
 	}
 	if server == nil {
@@ -28,6 +29,19 @@ func preserveMCPSecretBindings(
 			name,
 			target,
 		))
+	}
+	if preservation.Headers {
+		if server.EffectiveTransport() != previous.Server.EffectiveTransport() ||
+			strings.TrimSpace(server.URL) != strings.TrimSpace(previous.Server.URL) {
+			return validationError(
+				fmt.Errorf("settings: MCP headers can only be preserved for the same remote endpoint"),
+			)
+		}
+		if len(server.Headers) != 0 || len(server.SecretHeaders) != 0 {
+			return validationError(fmt.Errorf("settings: MCP preserved headers cannot be combined with replacements"))
+		}
+		server.Headers = maps.Clone(previous.Server.Headers)
+		server.SecretHeaders = maps.Clone(previous.Server.SecretHeaders)
 	}
 	for _, rawName := range preservation.SecretEnv {
 		envName := strings.TrimSpace(rawName)

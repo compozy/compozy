@@ -3,6 +3,8 @@ package settings
 import (
 	"context"
 	"fmt"
+
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 func (s *service) populateMCPServerStatuses(
@@ -15,7 +17,7 @@ func (s *service) populateMCPServerStatuses(
 		return err
 	}
 	name := entry.Server.Name
-	if s.mcpAuth != nil && !entry.Server.Auth.IsZero() {
+	if s.mcpAuth != nil && mcpauth.OAuthCapable(entry.Server) {
 		status, statusErr := s.mcpAuth.MCPAuthStatus(ctx, target, entry.Server)
 		if statusErr != nil {
 			return fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)

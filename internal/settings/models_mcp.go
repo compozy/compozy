@@ -10,6 +10,7 @@ type MCPSecretValues struct {
 
 // MCPSecretPreservation identifies existing bindings to retain without revealing their refs.
 type MCPSecretPreservation struct {
+	Headers           bool
 	SecretEnv         []string
 	OAuthClientSecret bool
 }

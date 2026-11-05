@@ -483,7 +483,12 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		surface := &settingsRuntimeSurface{config: compozyconfig.Config{
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, nil, store, nil, compozyconfig.MCPOAuthConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{mcpAuthStore: store, mcpAuthManager: manager, config: compozyconfig.Config{
 			Observability: compozyconfig.ObservabilityConfig{
 				AgentProbeTimeout: time.Nanosecond,
 			},

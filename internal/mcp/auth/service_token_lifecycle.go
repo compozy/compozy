@@ -145,6 +145,9 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
+			if cfg.Implicit {
+				cfg.Type = ""
+			}
 			return statusFromToken(cfg, nil, s.now()), nil
 		}
 		return Status{}, err
@@ -154,6 +157,9 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 		return Status{}, err
 	}
 	if !matches {
+		if cfg.Implicit {
+			cfg.Type = ""
+		}
 		return statusFromTokenWithDiagnostic(
 			cfg,
 			nil,

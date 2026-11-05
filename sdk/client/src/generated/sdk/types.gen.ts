@@ -5826,6 +5826,7 @@ export type PutSettingsHookRequest = {
 
 export type PutSettingsMCPServerRequest = {
   preserve_env?: Array<string>;
+  preserve_headers?: boolean;
   preserve_secrets?: SettingsMCPSecretPreservationPayload | null;
   secret_values?: SettingsMCPSecretValuesPayload | null;
   server: SettingsMCPServerPayload;
@@ -8475,6 +8476,7 @@ export type SettingsMCPServerItemPayload = {
   catalog_version?: string;
   command?: string;
   env_keys?: Array<string>;
+  headers_configured?: boolean;
   name: string;
   override?: SettingsMCPExtensionOverridePayload | null;
   owner?: string;

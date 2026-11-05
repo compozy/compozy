@@ -549,3 +549,15 @@ describe("extension MCP overrides", () => {
     expect(new Set([manual, extension, sibling, scoped].map(mcpDefinitionKey)).size).toBe(4);
   });
 });
+
+// Invariant: editor saves retain opaque headers only for the same remote and write target.
+describe("header preservation", () => {
+  it("keeps headers opaque and refuses to forward them to a changed endpoint", () => {
+    const draft = toDraft({ ...remoteEntry(), auth: null, headers_configured: true });
+    expect(toRequest(draft).preserve_headers).toBe(true);
+    expect(toRequest(draft).server.headers).toBeUndefined();
+    expect(validateDraft({ ...draft, url: "https://other.test/mcp" }).valid).toBe(false);
+    expect(toRequest(withTransport(draft, "stdio")).preserve_headers).toBeUndefined();
+    expect(toRequest(withoutMCPSecretPreservation(draft)).preserve_headers).toBeUndefined();
+  });
+});

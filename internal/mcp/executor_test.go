@@ -25,6 +25,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -427,6 +428,61 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		assertJSONDoesNotContain(t, "descriptors", descriptor, "secret-access", "secret-refresh")
 		assertJSONDoesNotContain(t, "result", result, "secret-access", "secret-refresh")
+	})
+
+	t.Run("Should sign in and use a bare remote without changing its definition", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{},
+		)
+		server := compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: fixture.Endpoints.MCPURL}
+		target := userMCPExecutorTarget(server.Name)
+		store := newMemoryTokenStore()
+		service, err := mcpauth.NewService(store, mcpauth.WithRegistrationStore(store),
+			mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := service.Status(t.Context(), cfg)
+		if err != nil || before.Status != mcpauth.StatusUnconfigured {
+			t.Fatalf("before = %#v, %v", before, err)
+		}
+		login, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/api/mcp/oauth/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := service.Exchange(
+			t.Context(),
+			&login,
+			login.RedirectURL+"?state="+url.QueryEscape(login.State)+"&code="+mcpfixture.AuthorizationCode,
+		)
+		if err != nil || status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("exchange = %#v, %v", status, err)
+		}
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		tools, err := executor.ListTools(
+			t.Context(),
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name},
+		)
+		if err != nil || len(tools) == 0 {
+			t.Fatalf("tools after sign in = %d, %v", len(tools), err)
+		}
+		server.Auth = compozyconfig.MCPAuthConfig{Registration: "auto"}
+		server.Headers = map[string]string{"X-API-Version": "1"}
+		explicit := newTestMCPExecutor(t, server, WithTokenStore(store))
+		if tools, err := explicit.ListTools(
+			t.Context(),
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name},
+		); err != nil ||
+			len(tools) == 0 {
+			t.Fatalf("explicit OAuth with auxiliary headers lost its credential: %v", err)
+		}
 	})
 
 	t.Run("Should resolve a persisted DCR client secret through the executor auth service", func(t *testing.T) {

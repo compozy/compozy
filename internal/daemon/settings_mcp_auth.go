@@ -52,7 +52,12 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 		return mcpauth.Status{}, err
 	}
 	if s.mcpAuthManager == nil {
-		return unavailableMCPAuthStatus(cfg), nil
+		status := unavailableMCPAuthStatus(cfg)
+		if cfg.Implicit {
+			status.Status = mcpauth.StatusUnconfigured
+			status.AuthType, status.Diagnostic = "", ""
+		}
+		return status, nil
 	}
 	status, err := s.mcpAuthManager.Status(ctx, cfg)
 	if err != nil {

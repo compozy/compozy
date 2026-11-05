@@ -377,6 +377,28 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Parallel()
 	// Invariant: selecting an extension never falls through to same-named manual credentials.
 	// Owner: Settings auth target resolution; canonical suite: mcp_runtime_status_test.go.
+	t.Run("Should reject header-auth login before starting OAuth", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(
+			t,
+			home.ConfigFile,
+			"[[mcp_servers]]\nname = \"header\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n[mcp_servers.headers]\nX-Key = \"value\"\n",
+		)
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, home, Dependencies{MCPAuth: runtime})
+		_, err := service.BeginMCPAuth(
+			t.Context(),
+			MCPAuthBeginRequest{Scope: ScopeUser, Name: "header"},
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("header login = %v, want validation error", err)
+		}
+		if runtime.beginTarget.ServerName != "" {
+			t.Fatal("header login reached OAuth runtime")
+		}
+	})
+
 	t.Run("Should preserve the extension owner through OAuth operations and callback addressing", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
