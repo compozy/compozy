@@ -15,7 +15,7 @@ import {
   marketplaceSourceFixtures,
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
-import type { SettingsMCPServerEntry } from "@/systems/settings";
+import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "@/systems/settings";
 import {
   settingsAppliedMutationFixture,
   settingsMCPServersCollectionFixture,
@@ -477,14 +477,16 @@ export function marketplaceStoryHandlers(options: {
               })
             ),
             compozyApiMock.put("/api/settings/mcp-servers/{name}", async ({ params, request }) => {
-              const body = (await request.json()) as Partial<SettingsMCPServerEntry>;
+              const body = (await request.json()) as SettingsMCPServerRequest;
               const name = String(params.name);
+              const existing = (mcpServers ?? []).find(server => server.name === name);
               mcpServers = [
                 ...(mcpServers ?? []).filter(server => server.name !== name),
-                // Provenance/status come from a personal settings-file row; the saved fields win.
+                // An edit keeps its row's provenance; a new one reads as a personal settings-file
+                // row. Either way the saved connection (`body.server`) wins.
                 {
-                  ...settingsMCPServersCollectionFixture.mcp_servers[0]!,
-                  ...body,
+                  ...(existing ?? settingsMCPServersCollectionFixture.mcp_servers[0]!),
+                  ...body.server,
                   name,
                 } as SettingsMCPServerEntry,
               ];
