@@ -3,7 +3,8 @@
 // stops the session, and the window's notice slot surfaces the daemon's
 // runtime and stop truth with the one action that exists for each — a quiet
 // supervision episode is never a window notice. Shown in the Kanban board's drawer (#1052) the
-// content omits the sessions rail: the board beside it is the list.
+// content omits the sessions rail: the board beside it is the list. An always-on agent's main
+// session (#1303) drops the transcript's message trail and the composer's context meter.
 // Owning layer: the session-window recovery and stop-attention actions.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UIProvider } from "@compozy/ui";
@@ -44,6 +45,7 @@ const mocks = vi.hoisted(() => ({
     stopAttention: null as string | null,
     stopCompletionNote: false,
   },
+  alwaysOnMain: false,
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
   sessionThreadProps: vi.fn(),
@@ -61,6 +63,7 @@ vi.mock("../session-window-module-loader", () => ({
 
 vi.mock("../use-session-window-controller", () => ({
   useSessionWindowController: () => ({
+    alwaysOnMain: mocks.alwaysOnMain,
     clearDialog: { open: false },
     commandCatalog: [],
     commandCatalogStatus: "ready",
@@ -255,6 +258,7 @@ describe("SessionWindowContent", () => {
     mocks.controls.isStopping = false;
     mocks.controls.isStopRetrying = false;
     mocks.controls.stopAttention = null;
+    mocks.alwaysOnMain = false;
     mocks.forkMutation.isPending = false;
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
@@ -437,6 +441,25 @@ describe("SessionWindowContent", () => {
     );
     await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
     expect(screen.queryByTestId("session-rail-layout")).toBeNull();
+  });
+
+  it("Should drop the message trail and context meter only for an always-on main (#1303)", async () => {
+    const { unmount } = render(renderContent(quietSession));
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    expect(mocks.sessionThreadProps.mock.lastCall?.[0]).toMatchObject({ messageTrail: true });
+    expect(mocks.sessionThreadProps.mock.lastCall?.[0].contextControl).toBeDefined();
+    unmount();
+
+    mocks.sessionThreadProps.mockReset();
+    mocks.alwaysOnMain = true;
+    render(renderContent(quietSession));
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    const props = mocks.sessionThreadProps.mock.lastCall?.[0] as Record<string, unknown>;
+    expect(props).toMatchObject({ messageTrail: false });
+    expect(props.contextControl).toBeUndefined();
+    // The composer keeps the agent and activity controls the operator uses.
+    expect(props.subagentControl).toBeDefined();
+    expect(props.monitorControl).toBeDefined();
   });
 
   it("Should restart a dead session as a recovery child in its workspace and select it", async () => {

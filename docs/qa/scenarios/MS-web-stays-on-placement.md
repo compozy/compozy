@@ -265,3 +265,12 @@ With the fix, 60 of 60 opens across three agents and two runs resolved with `pro
 Check-ins survived 5 reloads (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/04-after-reload.png`).
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the row, its aria label ("Always-on agents"), the topbar pill and the add action read Always-on ("Add always-on agent"); the avatar menu item reads Heartbeat; capacity uses `agents.always_on.max_active_instances`; the v0.5.0 table name still applies through v0.5.1 with a daemon warning. Not walked; S4 walks it on the integration head.
+
+QA impact 2026-11-05 (#1303 always-on main chrome): opening an always-on agent's main session
+shows the agent identity, the Always-on pill, the agent's `…` menu, the sessions list toggle and the
+window controls in the head. The head no longer shows the "N linked" chip, Stop, or the context sidebar
+toggle. The transcript has no right-edge message trail, and the composer has no context meter (the daemon
+rotates the main session when its context runs out). An ordinary session keeps all of these. The gate is
+the instance's `main_session_id`, never the agent name. Verified on the Storybook route stories
+`AgentSession/AlwaysOnMain` and `AgentSession/LinkedWorkWithTrail` in headless Chromium, by DOM probe
+and screenshot before and after the change. Not walked in a live lab.

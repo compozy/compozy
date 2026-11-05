@@ -234,6 +234,7 @@ export function SessionWindowContent({
     pullRequestExitSurface,
     onSendPrompt,
     successorId,
+    alwaysOnMain,
   } = page;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const deadSession = useForkDeadSession(session, sessionId, workspaceId, sidebar.onSelectSession);
@@ -321,12 +322,16 @@ export function SessionWindowContent({
                       unconfirmedSends={controls.unconfirmedSends}
                       onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
                       onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+                      messageTrail={!alwaysOnMain}
                       contextControl={
-                        <SessionContextControl
-                          context={sessionContext.context}
-                          open={inspector.open}
-                          onOpen={() => inspector.setOpen(true)}
-                        />
+                        // The daemon rotates an always-on main when its context runs out and files a report.
+                        alwaysOnMain ? undefined : (
+                          <SessionContextControl
+                            context={sessionContext.context}
+                            open={inspector.open}
+                            onOpen={() => inspector.setOpen(true)}
+                          />
+                        )
                       }
                       subagentControl={
                         <SessionComposerSubagents session={session} onOpen={openSubagent} />

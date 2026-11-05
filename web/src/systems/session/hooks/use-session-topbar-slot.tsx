@@ -3,6 +3,7 @@ import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  alwaysOnMainInstance,
   useAgentInstances,
 } from "@/systems/agent";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
@@ -177,8 +178,10 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { linkedWork } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
-  // A main session is the agent's own conversation, so the agent names it.
-  const instance = useAgentInstances().find(row => row.main_session_id === session.id);
+  // A main session is the agent's own conversation, so the agent names it. The agent owns its
+  // lifecycle (the `…` menu) and accumulates linked work indefinitely, so the head drops the
+  // linked chip, Stop and the context sidebar toggle there (#1303).
+  const instance = alwaysOnMainInstance(useAgentInstances(), session.id);
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
@@ -208,16 +211,18 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
       <span className="flex min-w-0 items-center gap-2">
         {instance ? <Pill size="sm">Always-on</Pill> : null}
         {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
-        <SessionLinkedWorkStatus
-          key={session.id}
-          {...linkedList}
-          lead={linkedWork.lead}
-          count={linkedWork.count}
-          onClippedChange={linkedWork.setClipped}
-          ownChip={ownChipActions(input)}
-          ownFacts={sessionPullRequestFacts(session)}
-          worktreeAction={input.worktreeAction}
-        />
+        {instance ? null : (
+          <SessionLinkedWorkStatus
+            key={session.id}
+            {...linkedList}
+            lead={linkedWork.lead}
+            count={linkedWork.count}
+            onClippedChange={linkedWork.setClipped}
+            ownChip={ownChipActions(input)}
+            ownFacts={sessionPullRequestFacts(session)}
+            worktreeAction={input.worktreeAction}
+          />
+        )}
         <SessionStatusLine
           onOpenOriginSource={input.onOpenOriginSource}
           origin={input.origin}
@@ -247,16 +252,18 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
-        {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
+        {!instance && linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
         {instance ? <AlwaysOnAgentMenu instance={instance} /> : null}
         <SessionMarkSeenAction session={session} />
-        <SessionPrimaryAction
-          key={session.id}
-          {...input}
-          {...actions}
-          runningProcesses={sessionRunningProcesses(session)}
-          processPorts={sessionProcessPorts(session)}
-        />
+        {instance ? null : (
+          <SessionPrimaryAction
+            key={session.id}
+            {...input}
+            {...actions}
+            runningProcesses={sessionRunningProcesses(session)}
+            processPorts={sessionProcessPorts(session)}
+          />
+        )}
         {inWindow ? (
           <SessionPanelToggle
             panel="sidebar"
@@ -264,11 +271,13 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
             onToggle={input.onSidebarToggle}
           />
         ) : null}
-        <SessionPanelToggle
-          panel="inspector"
-          open={input.inspectorOpen}
-          onToggle={input.onInspectorToggle}
-        />
+        {instance ? null : (
+          <SessionPanelToggle
+            panel="inspector"
+            open={input.inspectorOpen}
+            onToggle={input.onInspectorToggle}
+          />
+        )}
       </>
     ),
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
