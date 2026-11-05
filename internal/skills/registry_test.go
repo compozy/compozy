@@ -3698,8 +3698,13 @@ func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(body), "kind: always_on") || !strings.Contains(string(body), "Watch.") {
-			t.Fatalf("definition changed: %s", body)
+		edited, err := compozyconfig.ParseAgentDef(body)
+		if err != nil || edited.Kind != compozyconfig.AgentKindAlwaysOn || edited.Description != "Watches issues" ||
+			edited.Prompt != "Watch." || !slices.Equal(edited.Skills.Disabled, []string{"review"}) {
+			t.Fatalf("edited definition = %+v, %v", edited, err)
+		}
+		if strings.Contains(string(body), "stays_on") {
+			t.Fatalf("retired kind remains: %s", body)
 		}
 	})
 }

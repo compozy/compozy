@@ -9,14 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1786,47 +1784,6 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 		}
 	}
 	t.Fatal("session_prompt descriptor is missing")
-}
-
-// daemonLogCapture is the harness option that records daemon log lines for assertions; the
-// default harness discards them.
-type daemonLogCapture struct {
-	mu    sync.Mutex
-	lines bytes.Buffer
-}
-
-func (c *daemonLogCapture) Write(p []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lines.Write(p)
-}
-
-func (c *daemonLogCapture) String() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lines.String()
-}
-
-// count returns how many captured lines contain every fragment.
-func (c *daemonLogCapture) count(fragments ...string) int {
-	total := 0
-	for line := range strings.SplitSeq(c.String(), "\n") {
-		matched := line != ""
-		for _, fragment := range fragments {
-			matched = matched && strings.Contains(line, fragment)
-		}
-		if matched {
-			total++
-		}
-	}
-	return total
-}
-
-// captureDaemonLogs replaces the harness logger before boot.
-func captureDaemonLogs(d *Daemon) *daemonLogCapture {
-	capture := &daemonLogCapture{}
-	d.logger = slog.New(slog.NewTextHandler(capture, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	return capture
 }
 
 // Invariant: boot and discovery migrate persisted definitions without changing unrelated bytes.

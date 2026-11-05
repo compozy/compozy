@@ -2351,8 +2351,8 @@ func TestPersistedAgentKindPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			})
-			if err == nil {
-				t.Fatal("migration replaced a concurrent save")
+			if err == nil || !strings.Contains(err.Error(), "agent file changed during persisted kind migration") {
+				t.Fatalf("publish error = %v, want concurrent change rejection", err)
 			}
 			actual, err := os.ReadFile(path)
 			if err != nil || !bytes.Equal(actual, saved) {
