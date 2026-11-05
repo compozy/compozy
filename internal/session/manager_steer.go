@@ -52,6 +52,9 @@ func (m *Manager) activateSteeringInputText(
 	*entry = reserved
 	entry.SupersededIDs = superseded
 	if !claimed {
+		if entry.Status == store.SessionInputQueueStatusCanceled && entry.SupersededBy != "" {
+			return nil
+		}
 		switch entry.Status {
 		case store.SessionInputQueueStatusDispatching, store.SessionInputQueueStatusSent:
 			return nil

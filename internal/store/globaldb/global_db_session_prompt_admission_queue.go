@@ -371,6 +371,7 @@ func queuedPromptAdmissionResult(
 	}
 }
 
+// stagedPromptAdmissionResult freezes the accepted guidance and its target before native reservation.
 func stagedPromptAdmissionResult(
 	entry *store.SessionInputQueueEntry,
 	canceled int,
@@ -381,6 +382,7 @@ func stagedPromptAdmissionResult(
 		QueueEntryID:          entry.ID,
 		QueueGeneration:       entry.SessionGeneration,
 		Delivery:              entry.Delivery,
+		PreviousTurnID:        entry.TargetTurnID,
 		CanceledQueuedEntries: canceled,
 	}
 }

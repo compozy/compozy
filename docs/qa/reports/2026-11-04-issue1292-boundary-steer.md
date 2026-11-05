@@ -181,3 +181,32 @@ regressions and retention sweeps of 18.8–23.9s, within the unchanged 30s limit
 three telemetry background transactions held for 1.023–1.124s, exceeding the one-second diagnostic
 threshold. Their measured commit times were 467–942ms. This is not a passing load receipt or a proven
 flake; the next head must pass the same CI acceptance criteria.
+
+## Steering superseded before reservation
+
+The final full-diff Opus review identified another admission window: an interrupt could arrive after
+steering was staged but before the native-delivery reservation. The deterministic manager regression
+reproduced escaped guidance for typed and empty interrupts with both zero and positive timeouts
+(four failing cases, 5.565s). Its I/O-boundary store wrapper admits the interrupt immediately before
+delegating the reservation; provider assertions remain unchanged.
+
+Interrupt supersession now includes staged human steering whose delivery is still unset. Staging
+already completes the acceptance receipt; its target turn is now recorded there before reservation.
+Supersession leaves that completed receipt intact and still atomically completes `dispatch_committed`
+receipts. The manager recognizes a canceled reservation as terminal before attempting native delivery.
+The existing store suite also verifies rollback before reservation; the manager compares the entire
+first and replayed response and rejects any extra prompt after the replacement. The first corrective
+run exposed the missing target in the staged receipt; those failures are not passing evidence.
+
+Focused verification commands for this correction:
+
+```sh
+CGO_ENABLED=1 go test -race -tags=integration ./internal/session ./internal/store/globaldb -parallel=2 -run '^(TestManagerBoundarySteer|TestGlobalDBSessionPromptAdmission|TestManagerIntegrationSteerFallback)$/^(Should_finish_staged_steering_superseded_before_reserve.*|Should_complete_superseded_steering_for_exact_replay|Should_escalate_an_ignored_cancellation_and_rebind_before_ordered_replacement_dispatch)$' -count=1 -timeout=90s
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-parallel-runners --timeout=3m ./internal/session/ ./internal/store/globaldb/
+make codegen
+make codegen-check
+```
+
+PASS: session race selection including the real ACP subprocess integration (9.038s), store admission
+selection (8.438s), `make codegen` and `make codegen-check`. The completed staged receipt remains
+identical through both successful supersession and rollback.

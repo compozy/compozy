@@ -1783,7 +1783,7 @@ SET superseded_by = ?1, status = 'canceled', dispatchable = 0, canceled_at = ?2,
 WHERE session_id = ?3 AND target_turn_id = ?4
   AND session_generation = ?5
   AND mode = 'steer' AND origin_class = 'human'
-  AND ((status = 'queued' AND steer_delivery IN ('pending_boundary', 'interrupt_fallback'))
+  AND ((status = 'queued' AND (steer_delivery IS NULL OR steer_delivery IN ('pending_boundary', 'interrupt_fallback')))
     OR status = 'dispatching')
 RETURNING id
 `

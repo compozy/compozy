@@ -6767,6 +6767,84 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 
 func TestManagerBoundarySteer(t *testing.T) {
 	t.Parallel()
+	for _, timeout := range []time.Duration{0, 45 * time.Second} {
+		for _, replacement := range []string{"", "replacement"} {
+			t.Run(
+				fmt.Sprintf(
+					"Should finish staged steering superseded before reserve with text %q and timeout %s",
+					replacement,
+					timeout,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					database := openManagerInputQueueStore(t)
+					queueStore := &boundaryInputQueueFaultStore{GlobalDB: database}
+					h := newHarness(t, WithSessionInputQueueStore(queueStore),
+						WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: timeout}))
+					registerManagerInputQueueWorkspace(t, database, h)
+					sess := createSession(t, h)
+					registerManagerInputQueueSession(t, database, h, sess)
+					release := holdMentionActiveTurn(t, h)
+					t.Cleanup(func() { release(); reportSessionStop(t, h, sess.ID) })
+					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+					defer cancel()
+					active, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "active"})
+					if err != nil {
+						t.Fatal(err)
+					}
+					waitForCondition(t, "staged steer active turn", func() bool { return sess.CurrentTurnID() != "" })
+					var interrupted SendPromptResult
+					queueStore.beforeReserve = func(ctx context.Context) error {
+						var err error
+						interrupted, err = h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{
+							Message: replacement, Mode: BusyInputModeInterrupt, Caller: PromptCaller{Kind: "human"},
+							MessageID: "interrupt-message", IdempotencyKey: "interrupt-key",
+						})
+						return err
+					}
+					opts := SendPromptOpts{Message: "superseded guidance", Mode: BusyInputModeSteer,
+						MessageID: "staged-message", IdempotencyKey: "staged-key"}
+					result, err := h.manager.SendPrompt(ctx, sess.ID, opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+					entry, err := database.GetSessionInputQueueEntry(ctx, sess.ID, result.QueueEntryID)
+					if err != nil || entry.Status != store.SessionInputQueueStatusCanceled ||
+						entry.SupersededBy == "" ||
+						interrupted.CanceledQueuedEntries != 1 {
+						t.Fatalf(
+							"staged steer escaped interrupt: row=%#v interrupt=%#v error=%v",
+							entry,
+							interrupted,
+							err,
+						)
+					}
+					replayed, err := h.manager.SendPrompt(ctx, sess.ID, opts)
+					if err != nil || !replayed.Replayed {
+						t.Fatalf("staged replay=%#v/%v", replayed, err)
+					}
+					replayed.Replayed = false
+					if !reflect.DeepEqual(replayed, result) {
+						t.Fatalf("staged receipt changed: first=%#v replay=%#v", result, replayed)
+					}
+					collectEvents(t, active.Events)
+					if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+						t.Fatal(err)
+					}
+					wantCalls := 1
+					if replacement != "" {
+						wantCalls++
+					}
+					calls := managerPromptCalls(h)
+					if len(calls) != wantCalls ||
+						(replacement != "" && !promptRequestEndsWith(calls[len(calls)-1].Message, replacement)) {
+						t.Fatalf("staged steering reprompted: %#v", calls)
+					}
+					requireTranscriptMarker(t, h.manager, sess.ID, transcript.MarkerPromptSuperseded)
+				},
+			)
+		}
+	}
 	for _, attempt := range []acp.SteerAttempt{acp.SteerAttemptPendingInjection, acp.SteerAttemptInjected, acp.SteerAttemptUnsupported} {
 		t.Run("Should finish reserved steering superseded during "+string(attempt), func(t *testing.T) {
 			t.Parallel()
@@ -7147,10 +7225,22 @@ func TestManagerBoundarySteer(t *testing.T) {
 
 type boundaryInputQueueFaultStore struct {
 	*globaldb.GlobalDB
-	failNext   atomic.Bool
-	failGet    atomic.Bool
-	failSettle atomic.Bool
-	failed     chan struct{}
+	beforeReserve func(context.Context) error
+	failNext      atomic.Bool
+	failGet       atomic.Bool
+	failSettle    atomic.Bool
+	failed        chan struct{}
+}
+
+func (s *boundaryInputQueueFaultStore) ReserveSessionSteer(
+	ctx context.Context, sessionID, entryID string, now time.Time,
+) (store.SessionInputQueueEntry, bool, error) {
+	if s.beforeReserve != nil {
+		if err := s.beforeReserve(ctx); err != nil {
+			return store.SessionInputQueueEntry{}, false, err
+		}
+	}
+	return s.GlobalDB.ReserveSessionSteer(ctx, sessionID, entryID, now)
 }
 
 func (s *boundaryInputQueueFaultStore) ListPendingSessionInputs(

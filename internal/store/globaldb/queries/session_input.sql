@@ -441,7 +441,7 @@ SET superseded_by = sqlc.arg(replacement_id), status = 'canceled', dispatchable 
 WHERE session_id = sqlc.arg(session_id) AND target_turn_id = sqlc.arg(target_turn_id)
   AND session_generation = sqlc.arg(session_generation)
   AND mode = 'steer' AND origin_class = 'human'
-  AND ((status = 'queued' AND steer_delivery IN ('pending_boundary', 'interrupt_fallback'))
+  AND ((status = 'queued' AND (steer_delivery IS NULL OR steer_delivery IN ('pending_boundary', 'interrupt_fallback')))
     OR status = 'dispatching')
 RETURNING id;
 
