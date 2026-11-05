@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -19,7 +20,15 @@ type providerAuthStatusOptions struct {
 	profileName string
 	probe       bool
 	nativeCLI   *providerNativeCLIStatusRecord
+	// daemonProbe, when set, runs a native-CLI probe in the daemon so its verdict reaches provider
+	// reads; any failure falls back to the local probe.
+	daemonProbe func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
 }
+
+const (
+	providerProbeSourceDaemon = "daemon"
+	providerProbeSourceLocal  = "local"
+)
 
 func buildProviderAuthStatus(
 	ctx context.Context,
@@ -83,23 +92,62 @@ func buildProviderAuthStatus(
 	if err != nil || !nativeReady {
 		return record, err
 	}
-	if !options.probe {
+	return probeProviderAuthStatus(ctx, deps, providerName, provider, &probeEnv, record, options)
+}
+
+// probeProviderAuthStatus runs the requested live probe: through the daemon for native-CLI
+// providers when it answers, otherwise in this process.
+func probeProviderAuthStatus(
+	ctx context.Context,
+	deps commandDeps,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	probeEnv *authproviders.ProbeEnv,
+	record providerAuthStatusRecord,
+	options providerAuthStatusOptions,
+) (providerAuthStatusRecord, error) {
+	statusCommand := strings.TrimSpace(provider.AuthStatusCmd) != ""
+	if !options.probe || (!statusCommand && !authproviders.UsesACPProbe(provider)) {
 		return record, nil
 	}
-	if strings.TrimSpace(provider.AuthStatusCmd) == "" {
-		if !authproviders.UsesACPProbe(provider) {
-			return record, nil
+	if options.daemonProbe != nil && provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		if response, err := options.daemonProbe(ctx, providerName); err == nil {
+			return applyDaemonProviderAuthProbe(record, response), nil
 		}
-		return populateACPProviderAuthProbe(ctx, deps, providerName, provider, &probeEnv, record)
 	}
-	commandSpec, err := authproviders.PrepareAuthStatusCommand(ctx, provider, &probeEnv)
+	record.ProbeSource = providerProbeSourceLocal
+	if !statusCommand {
+		return populateACPProviderAuthProbe(ctx, deps, providerName, provider, probeEnv, record)
+	}
+	commandSpec, err := authproviders.PrepareAuthStatusCommand(ctx, provider, probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, fmt.Errorf("cli: resolve provider auth status command: %w", err)
 	}
-	if err := populateProviderAuthProbe(ctx, &record, provider, &probeEnv, commandSpec); err != nil {
+	if err := populateProviderAuthProbe(ctx, &record, provider, probeEnv, commandSpec); err != nil {
 		return providerAuthStatusRecord{}, err
 	}
 	return record, nil
+}
+
+// applyDaemonProviderAuthProbe keeps the local record's shape and takes the daemon's live verdict.
+func applyDaemonProviderAuthProbe(
+	record providerAuthStatusRecord,
+	response contract.ProviderAuthProbeResponse,
+) providerAuthStatusRecord {
+	record.State = response.AuthStatus.State
+	record.Code = response.AuthStatus.Code
+	record.Message = response.AuthStatus.Message
+	record.Login.RecommendedAction = authproviders.ProviderFailureAction(response.AuthStatus.Login.RecommendedAction)
+	if probe := response.Probe; probe != nil {
+		record.Probe = &providerAuthCommandResult{
+			ExitCode:   probe.ExitCode,
+			Stdout:     probe.Stdout,
+			Stderr:     probe.Stderr,
+			DurationMs: probe.DurationMs,
+		}
+	}
+	record.ProbeSource = providerProbeSourceDaemon
+	return record
 }
 
 func pinProviderNativeCLIResolution(

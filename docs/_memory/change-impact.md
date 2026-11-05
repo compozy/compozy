@@ -1,5 +1,26 @@
 # Compozy Change Impact
 
+## Usage backoff, one collection per account, sign-in after restart — issue #1302
+
+Owner: `fix/usage-backoff-signin-boot`. QA: `docs/qa/scenarios/ET-provider-usage-surfaces.md`,
+`docs/qa/scenarios/MS-web-provider-auth-gate.md`, `docs/qa/scenarios/RT-provider-auth-recovery.md`.
+
+- Provider usage DTOs, routes, native tools (`compozy__provider_usage_*`), config keys and the
+  stream are unchanged; only values change. A `429` cools the account down for at least 5 minutes
+  and backs off 5→10→20→40→60 minutes per credential identity until a success. Profiles that target
+  the same account share one collection. State is in memory only; no SQLite change.
+- After boot the daemon probes each installed `native_cli` provider's `auth_status_command` once
+  (two at a time) and records verdicts through `AuthVerdicts.Record`; `GET /api/providers`,
+  `compozy provider list` and Settings read them. No route, DTO, or verdict fingerprint change.
+- Public CLI (SD-013 additive): `compozy provider auth status` probes `native_cli` providers through
+  the local daemon socket when it answers and adds `probe_source` (`daemon`|`local`); new `--local`
+  flag restores the in-process probe; `--remote` and `--no-probe` are unchanged; `--local --remote`
+  is rejected. Generated CLI docs regenerated.
+- Web: Settings → Providers Ready dot uses the success tone (label stays muted); no new primitive.
+- Hooks, extension SDKs, workspace data isolation: unaffected. Official skill `skills/compozy/`:
+  `references/agent-definitions.md` (auth status routing, startup check) and
+  `references/runtime-operations.md` (usage sharing and backoff) updated.
+
 ## Script source approval before the first check-in — issue #1258
 
 Owner: `fix/issue-1258-approve-before-first-check` (PR #1262). QA:

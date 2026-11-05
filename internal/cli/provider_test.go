@@ -546,6 +546,143 @@ func TestProviderDaemonCommands(t *testing.T) {
 	})
 }
 
+// nativeStatusDeps configures a native-CLI provider whose local status command counts its runs.
+func nativeStatusDeps(t *testing.T, client DaemonClient, localRuns *int) commandDeps {
+	t.Helper()
+	deps := newTestDeps(t, client)
+	deps.loadConfig = func() (compozyconfig.Config, error) {
+		cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+		cfg.Providers["native"] = compozyconfig.ProviderConfig{
+			Command:       "native-agent acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "status-helper auth status",
+		}
+		return cfg, nil
+	}
+	deps.resolveProviderAuthCommand = func(_ context.Context, command string, _ []string, _ string) (string, error) {
+		return "/bin/" + command, nil
+	}
+	deps.runProviderAuthCommand = func(context.Context, providerAuthCommandSpec) (providerAuthCommandResult, error) {
+		*localRuns++
+		return providerAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+	}
+	return deps
+}
+
+func daemonAuthenticatedProbe(calls *int) *stubClient {
+	return &stubClient{
+		probeProviderAuthFn: func(_ context.Context, providerID string) (contract.ProviderAuthProbeResponse, error) {
+			*calls++
+			return contract.ProviderAuthProbeResponse{
+				Provider:   providerID,
+				AuthStatus: contract.ProviderAuthStatusPayload{Mode: "native_cli", State: "authenticated"},
+				Probe:      &contract.ProviderAuthProbeResult{ExitCode: 0, Stdout: "Logged in", DurationMs: 9},
+			}, nil
+		},
+	}
+}
+
+func decodeAuthStatus(t *testing.T, stdout string) providerAuthStatusRecord {
+	t.Helper()
+	var record providerAuthStatusRecord
+	if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+		t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+	}
+	return record
+}
+
+func TestProviderAuthStatusProbeSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should probe through the local daemon when it answers", func(t *testing.T) {
+		t.Parallel()
+		var daemonCalls, localRuns int
+		deps := nativeStatusDeps(t, daemonAuthenticatedProbe(&daemonCalls), &localRuns)
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+		record := decodeAuthStatus(t, stdout)
+		if record.State != "authenticated" || record.ProbeSource != providerProbeSourceDaemon {
+			t.Fatalf("State/ProbeSource = %q/%q, want authenticated/daemon", record.State, record.ProbeSource)
+		}
+		if record.Probe == nil || record.Probe.DurationMs != 9 || daemonCalls != 1 || localRuns != 0 {
+			t.Fatalf("probe = %#v, daemon calls %d, local runs %d", record.Probe, daemonCalls, localRuns)
+		}
+	})
+
+	t.Run("Should fall back to the local probe when the daemon fails", func(t *testing.T) {
+		t.Parallel()
+		for _, failure := range []error{
+			errors.New("dial unix compozy.sock: connect: connection refused"),
+			errors.New("provider_not_found"),
+		} {
+			var localRuns int
+			client := &stubClient{
+				probeProviderAuthFn: func(context.Context, string) (contract.ProviderAuthProbeResponse, error) {
+					return contract.ProviderAuthProbeResponse{}, failure
+				},
+			}
+			deps := nativeStatusDeps(t, client, &localRuns)
+			stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "-o", "json")
+			if err != nil {
+				t.Fatalf("provider auth status error = %v", err)
+			}
+			record := decodeAuthStatus(t, stdout)
+			if record.ProbeSource != providerProbeSourceLocal || record.State != "needs_login" || localRuns != 1 {
+				t.Fatalf(
+					"%v: ProbeSource/State = %q/%q, local runs %d",
+					failure,
+					record.ProbeSource,
+					record.State,
+					localRuns,
+				)
+			}
+		}
+	})
+
+	t.Run("Should probe locally with --local even when the daemon answers", func(t *testing.T) {
+		t.Parallel()
+		var daemonCalls, localRuns int
+		deps := nativeStatusDeps(t, daemonAuthenticatedProbe(&daemonCalls), &localRuns)
+		stdout, _, err := executeRootCommand(
+			t, deps, "provider", "auth", "status", "native", "--local", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("provider auth status --local error = %v", err)
+		}
+		record := decodeAuthStatus(t, stdout)
+		if record.ProbeSource != providerProbeSourceLocal || daemonCalls != 0 || localRuns != 1 {
+			t.Fatalf("ProbeSource %q, daemon calls %d, local runs %d", record.ProbeSource, daemonCalls, localRuns)
+		}
+	})
+
+	t.Run("Should run no probe and report no source with --no-probe", func(t *testing.T) {
+		t.Parallel()
+		var daemonCalls, localRuns int
+		deps := nativeStatusDeps(t, daemonAuthenticatedProbe(&daemonCalls), &localRuns)
+		stdout, _, err := executeRootCommand(
+			t, deps, "provider", "auth", "status", "native", "--no-probe", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("provider auth status --no-probe error = %v", err)
+		}
+		if strings.Contains(stdout, "probe_source") || daemonCalls != 0 || localRuns != 0 {
+			t.Fatalf("stdout %s, daemon calls %d, local runs %d", stdout, daemonCalls, localRuns)
+		}
+	})
+
+	t.Run("Should reject --local together with --remote", func(t *testing.T) {
+		t.Parallel()
+		var daemonCalls, localRuns int
+		deps := nativeStatusDeps(t, daemonAuthenticatedProbe(&daemonCalls), &localRuns)
+		_, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "native", "--local", "--remote")
+		if err == nil || !strings.Contains(err.Error(), "--local and --remote cannot be used together") {
+			t.Fatalf("error = %v, want the flag conflict", err)
+		}
+	})
+}
+
 func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Parallel()
 

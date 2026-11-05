@@ -1218,7 +1218,13 @@ when the daemon runs on macOS; a provider-filtered read or `refresh <provider>` 
 with `tray: null`. The unfiltered CLI table has one row per known provider; both verbs
 exit `0` even when rows fail and `1` for request errors (`invalid_request`, `provider_not_found`,
 `provider_usage_disabled`, profile errors). A successful collection in the last 30 seconds is never
-repeated; `--max-age` only raises that floor.
+repeated; `--max-age` only raises that floor. Profiles that resolve the same account share one
+collection: concurrent refreshes join one request and every profile publishes its result. A
+provider `429` cools that account down for at least 5 minutes, even with `Retry-After: 0`;
+consecutive `429`s back off 5, 10, 20, 40, then 60 minutes (a longer `Retry-After` wins, capped at
+one hour), and a success resets the streak. `next_refresh_at` and `error.retry_after` carry the
+effective cooldown end. During a cooldown, background refreshes send no request; one explicit
+refresh per account may retry until the next success.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
 `kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
