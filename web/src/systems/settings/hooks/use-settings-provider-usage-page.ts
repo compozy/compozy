@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useProviderUsage } from "@/systems/provider-usage";
 
+import { providerLogoKey } from "../lib/provider-logo-key";
 import {
   PROVIDER_USAGE_COLLECTOR_IDS,
   sameProviderUsageConfig,
@@ -18,6 +19,8 @@ import {
 export interface ProviderUsageSettingsProvider {
   id: string;
   name: string;
+  /** Logo key: the provider's own brand, else its runtime family. */
+  logo: string;
 }
 
 /**
@@ -27,16 +30,24 @@ export interface ProviderUsageSettingsProvider {
  * name — then the provider's own display name, then its ID.
  */
 function usageProviders(
-  configured: ReadonlyArray<{ name: string; settings?: { display_name?: string } }>,
+  configured: ReadonlyArray<{
+    name: string;
+    settings?: { display_name?: string; runtime_provider?: string };
+  }>,
   config: ProviderUsageSettingsConfig | null,
   catalogNames: ReadonlyMap<string, string>
 ): ProviderUsageSettingsProvider[] {
-  const names = new Map(configured.map(entry => [entry.name, entry.settings?.display_name]));
+  const entries = new Map(configured.map(entry => [entry.name, entry]));
   const named = new Set(Object.keys(config?.providers ?? {}));
   const providers: ProviderUsageSettingsProvider[] = [];
   for (const id of PROVIDER_USAGE_COLLECTOR_IDS) {
-    if (!names.has(id) && !named.has(id)) continue;
-    providers.push({ id, name: catalogNames.get(id) || names.get(id)?.trim() || id });
+    const entry = entries.get(id);
+    if (!entry && !named.has(id)) continue;
+    providers.push({
+      id,
+      name: catalogNames.get(id) || entry?.settings?.display_name?.trim() || id,
+      logo: providerLogoKey(entry ?? { name: id }),
+    });
   }
   return providers;
 }

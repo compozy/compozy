@@ -4,6 +4,7 @@ import { CatalogCard, CatalogCardSkeleton, cn, Pill, Skeleton, SkeletonText } fr
 
 import { providerListingView } from "../lib/provider-listing-view";
 import type { SettingsProviderEntry } from "../types";
+import { providerLogoKey } from "../lib/provider-logo-key";
 import { ProviderLogo } from "./provider-logo";
 import { ProviderStatusLabel } from "./provider-status-label";
 
@@ -38,7 +39,7 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
       >
         <span className="flex min-w-0 items-center gap-3">
           <CatalogCard.Logo data-testid={`${testId}-logo`} size="lg">
-            <ProviderLogo className="size-4.5" provider={provider.name} />
+            <ProviderLogo className="size-4.5" provider={providerLogoKey(provider)} />
           </CatalogCard.Logo>
           <span className="flex min-w-0 flex-col">
             <span className="flex min-w-0 items-center gap-2">
