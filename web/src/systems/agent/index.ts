@@ -382,6 +382,7 @@ export {
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceBinding,
+  alwaysOnMainInstance,
   agentInstanceCapacity,
   type AgentInstanceCapacity,
   agentInstanceResumeBlocked,
