@@ -2373,6 +2373,22 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 		requireEqual(t, 0, len(env.Targets[0].Windows))
 		requireEqual(t, int32(1), calls.Load())
 	})
+	t.Run("Should not reuse an in-flight result after the profile's consent is cleared", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		handler, entered, release := blockedFirstRequest(t, &calls, func(w http.ResponseWriter) {
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		f := usageFixture(t, handler)
+		done := refreshAsync(t, f, "personal")
+		<-entered
+		f.service.ClearCredentials("personal", codexProviderID)
+		release()
+		env := awaitRefresh(t, done)
+		requireEqual(t, StatusOK, env.Targets[0].Status)
+		requireEqual(t, int32(2), calls.Load())
+	})
+
 	t.Run("Should send one request per account per scheduler tick for two profiles", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

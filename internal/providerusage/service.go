@@ -55,6 +55,9 @@ type targetState struct {
 	flight        *flight
 	// cooldownUntil is the identity cooldown end this target last published.
 	cooldownUntil time.Time
+	// accountKey is the identity this target last read, set before collecting so a clear can reach
+	// an in-flight first collection.
+	accountKey accountKey
 }
 type flight struct {
 	cancel   context.CancelFunc

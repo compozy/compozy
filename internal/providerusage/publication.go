@@ -37,7 +37,8 @@ func (s *Manager) admitLocked(
 	if err != nil {
 		return true, nil, false
 	}
-	c := s.activeCooldownLocked(newAccountKey(profile, target, identity), started)
+	state.accountKey = newAccountKey(profile, target, identity)
+	c := s.activeCooldownLocked(state.accountKey, started)
 	if c == nil {
 		return true, nil, false
 	}
