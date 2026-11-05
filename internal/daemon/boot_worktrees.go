@@ -264,7 +264,7 @@ func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState, cl
 		}
 		state.runtimeWorkers.managedDeliveries = worker
 		cleanup.add(func(cleanupCtx context.Context) error {
-			return stopManagedDeliveryRecovery(cleanupCtx, worker)
+			return stopOwnedWorker(cleanupCtx, managedDeliveryRecoveryLabel, worker)
 		})
 		go func() {
 			defer complete()

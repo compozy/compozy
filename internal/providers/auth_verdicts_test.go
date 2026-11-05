@@ -52,6 +52,12 @@ func TestAuthVerdicts(t *testing.T) {
 		seatB := []string{"HOME=/seat-b"}
 		verdicts := NewAuthVerdicts()
 		verdicts.Record("acme", provider, seatB, authenticated, time.Now())
+		if !verdicts.Known("acme", provider, seatB) {
+			t.Fatal("Known(same home) missed the recorded verdict")
+		}
+		if verdicts.Known("acme", provider, []string{"HOME=/daemon"}) {
+			t.Fatal("Known(another home) found the verdict")
+		}
 		if _, ok := verdicts.Lookup("acme", provider, seatB); !ok {
 			t.Fatal("Lookup(same home) missed the recorded verdict")
 		}

@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-10-29-issue-1023.md
+last_report: reports/2026-11-05-usage-backoff-signin-boot.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -156,3 +156,32 @@ negative controls for rereading, the sequence fence, cancellation and error hand
 See the reverse observation-order section of
 `../reports/2026-11-01-performance/usage-dashboard.md`. This uses temporary synthetic
 credentials and loopback HTTP; it does not change the broader scenario verdict.
+
+## Rate-limit backoff and one collection per account (#1302)
+
+Isolated lab only: a loopback usage fixture that counts requests per account header and answers
+`429` with `Retry-After: 0`, synthetic Codex auth files, two profiles that resolve the same account.
+
+1. Refresh the account from profile A with `compozy provider usage refresh codex -o json`. Expect
+   `status: rate_limited`, and `next_refresh_at` and `error.retry_after` five minutes after the check.
+   The fixture logs one request.
+2. Refresh again with background intent before the cooldown ends, from A and from B. Expect no new
+   fixture request; profile B shows the same `rate_limited` row and the same `next_refresh_at`.
+3. Trigger a second 429 inside the same daemon run (an explicit refresh spends the bypass; a
+   restart would clear the in-memory streak). Expect a ten-minute cooldown, then 20, 40, and 60 minutes on later strikes. One successful response resets
+   the next cooldown to five minutes.
+4. With the fixture answering 200, refresh both profiles at the same time. The fixture logs one
+   request for the account, and both profiles show the same windows.
+5. Reuse A's successful result from B before its `MaxAge` expires. Both rows retain the original
+   `measured_at` and `next_refresh_at`. Refresh B after the original collection exceeds `MaxAge`;
+   expect a new fixture request even if B reused the data recently.
+6. Run one explicit refresh during a cooldown. It sends one request; a second explicit refresh from
+   either profile sends none until a success.
+
+Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
+`TestUsageSharedAccountCollection`, the `rateLimitUntil` table in `TestFoundations`, and the
+pre-existing ownership, read-fence, and scheduling suites (race-enabled).
+
+Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
+This section-level walk leaves the scenario-level `qa_status` unchanged; the scenario's original
+steps 1-8 (top of this file) still need their integrated walk.

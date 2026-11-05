@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -94,31 +91,25 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, declared, &env)
 		return
 	}
-	commandSpec, err := authproviders.PrepareAuthStatusCommand(c.Request.Context(), provider, &env)
-	if err != nil {
-		classification := authproviders.ClassifyError(err)
-		h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
-		return
-	}
-	startedAt := h.nowUTC()
-	result, err := env.Normalize().RunCommand(c.Request.Context(), commandSpec)
+	probe, err := authproviders.RunAuthStatusProbe(c.Request.Context(), provider, &env, h.nowUTC)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
 	}
-	classification := authproviders.ClassifyProbeResultContext(
+	if !probe.Ran {
+		h.respondProviderAuthStatus(c, providerName, provider, probe.Classification, &env)
+		return
+	}
+	h.observeProviderAuthProbe(
 		c.Request.Context(),
+		providerName,
 		provider,
-		authproviders.ProbeOutcome{
-			ExitCode: result.ExitCode,
-			Stdout:   result.Stdout,
-			Stderr:   result.Stderr,
-		},
-		&env,
+		env.CommandEnv,
+		probe.Classification,
+		probe.StartedAt,
 	)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, env.CommandEnv, classification, startedAt)
 	authStatus, err := providerAuthStatusPayload(
-		c.Request.Context(), provider, classification, &env, h.nowUTC(),
+		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
@@ -128,10 +119,10 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		Provider:   providerName,
 		AuthStatus: authStatus,
 		Probe: &contract.ProviderAuthProbeResult{
-			ExitCode:   result.ExitCode,
-			Stdout:     authproviders.RedactAuthProbeOutput(result.Stdout, maxDiagnosticPayloadBytes),
-			Stderr:     authproviders.RedactAuthProbeOutput(result.Stderr, maxDiagnosticPayloadBytes),
-			DurationMs: result.DurationMs,
+			ExitCode:   probe.Result.ExitCode,
+			Stdout:     authproviders.RedactAuthProbeOutput(probe.Result.Stdout, maxDiagnosticPayloadBytes),
+			Stderr:     authproviders.RedactAuthProbeOutput(probe.Result.Stderr, maxDiagnosticPayloadBytes),
+			DurationMs: probe.Result.DurationMs,
 		},
 	})
 }
@@ -264,7 +255,7 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 	if err != nil {
 		return contract.ProviderListResponse{}, err
 	}
-	providerNames := providerInventoryNames(&cfg)
+	providerNames := compozyconfig.ProviderInventoryNames(&cfg)
 	payloads := make([]contract.ProviderSummaryPayload, 0, len(providerNames))
 	for _, providerName := range providerNames {
 		provider, err := cfg.ResolveProvider(providerName)
@@ -319,26 +310,12 @@ func (h *BaseHandlers) providerProbeEnv(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 ) (authproviders.ProbeEnv, error) {
-	commandEnv, err := providerauth.CommandEnv(h.HomePaths, providerName, provider, os.Environ())
-	if err != nil {
-		return authproviders.ProbeEnv{}, err
-	}
-	// ACP probes need a working directory even when the daemon's launch directory was removed.
-	commandDir, err := os.Getwd()
-	info, statErr := os.Stat(commandDir)
-	if err != nil || statErr != nil || !info.IsDir() {
-		commandDir = os.TempDir()
-	}
-	return authproviders.ProbeEnv{
-		ProviderName:   providerName,
+	return authproviders.DaemonProbeEnv(authproviders.DaemonProbeEnvOptions{
 		HomePaths:      h.HomePaths,
-		LookupEnv:      os.LookupEnv,
 		Vault:          h.Vault,
-		CommandEnv:     commandEnv,
-		CommandDir:     commandDir,
 		ResolveCommand: h.ProviderAuthCommandResolver,
 		RunCommand:     h.ProviderAuthRunner,
-	}, nil
+	}, providerName, provider)
 }
 
 func resolveProvider(
@@ -395,24 +372,6 @@ func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName stri
 		Error:      diagnostics.Redact(item.Message),
 		Diagnostic: &item,
 	})
-}
-
-func providerInventoryNames(cfg *compozyconfig.Config) []string {
-	seen := make(map[string]struct{})
-	for name := range compozyconfig.BuiltinProviders() {
-		seen[name] = struct{}{}
-	}
-	if cfg != nil {
-		for name := range cfg.Providers {
-			canonical := compozyconfig.CanonicalProviderName(name)
-			if canonical != "" {
-				seen[canonical] = struct{}{}
-			}
-		}
-	}
-	names := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
-	slices.Sort(names)
-	return names
 }
 
 func providerAuthStatusPayload(

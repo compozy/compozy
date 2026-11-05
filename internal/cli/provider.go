@@ -52,6 +52,7 @@ type providerAuthStatusRecord struct {
 	Login         authproviders.ProviderLoginDescriptor `json:"login"`
 	Credentials   []providerCredentialStatusItem        `json:"credentials,omitempty"`
 	Probe         *providerAuthCommandResult            `json:"probe,omitzero"`
+	ProbeSource   string                                `json:"probe_source,omitempty"`
 }
 
 type providerNativeCLIStatusRecord = providerauth.NativeCLIStatus
@@ -140,44 +141,6 @@ func newProviderAuthCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.AddCommand(newProviderAuthStatusCommand(deps))
 	cmd.AddCommand(newProviderAuthLoginCommand(deps))
-	return cmd
-}
-
-func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
-	var noProbe bool
-	var remote bool
-	cmd := &cobra.Command{
-		Use:   "status <provider>",
-		Short: "Show provider authentication status",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if remote {
-				client, err := clientFromDeps(deps)
-				if err != nil {
-					return err
-				}
-				record, err := client.ProbeProviderAuth(cmd.Context(), args[0])
-				if err != nil {
-					return err
-				}
-				return writeCommandOutput(cmd, providerAuthProbeBundle(record))
-			}
-			runtime, err := providerAuthRuntime(deps)
-			if err != nil {
-				return err
-			}
-			record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, providerAuthStatusOptions{
-				providerRef: args[0],
-				probe:       !noProbe,
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, providerAuthStatusBundle(record))
-		},
-	}
-	cmd.Flags().BoolVar(&noProbe, "no-probe", false, "Do not run the provider status command")
-	cmd.Flags().BoolVar(&remote, "remote", false, "Run the provider status probe through the daemon")
 	return cmd
 }
 

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -60,4 +61,17 @@ func (g *ownedWorkerGroup) Stop() <-chan struct{} {
 		close(done)
 	}()
 	return done
+}
+
+// stopOwnedWorker cancels the group and waits for its workers until ctx ends.
+func stopOwnedWorker(ctx context.Context, label string, worker *ownedWorkerGroup) error {
+	if worker == nil {
+		return nil
+	}
+	select {
+	case <-worker.Stop():
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("daemon: wait for %s: %w", label, ctx.Err())
+	}
 }
