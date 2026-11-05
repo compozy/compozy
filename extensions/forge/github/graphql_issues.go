@@ -59,7 +59,7 @@ func (i graphIssue) linkedPRs() []linkedIssuePR {
 	result := []linkedIssuePR{}
 	seen := map[string]bool{}
 	appendPR := func(pr issuePull, closes bool) {
-		if pr.State != "OPEN" || pr.URL == "" || seen[pr.URL] {
+		if pr.State != graphStateOpen || pr.URL == "" || seen[pr.URL] {
 			return
 		}
 		seen[pr.URL] = true

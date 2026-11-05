@@ -69,7 +69,7 @@ func DecorateSessionLinkedWork(
 	if !ok {
 		return nil
 	}
-	views, err := manager.SessionLinkedWork(ctx, infos)
+	views, err := displayedSessionLinkedWork(ctx, manager, infos)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, action linkedWorkAction
 			return
 		}
 	}
-	views, err := manager.SessionLinkedWork(c.Request.Context(), []*session.Info{info})
+	views, err := displayedSessionLinkedWork(c.Request.Context(), manager, []*session.Info{info})
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -203,4 +203,17 @@ func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+func displayedSessionLinkedWork(
+	ctx context.Context,
+	manager SessionLinkedWorkManager,
+	infos []*session.Info,
+) (map[string]session.LinkedWorkProjection, error) {
+	if reader, ok := manager.(interface {
+		SessionDisplayedLinkedWork(context.Context, []*session.Info) (map[string]session.LinkedWorkProjection, error)
+	}); ok {
+		return reader.SessionDisplayedLinkedWork(ctx, infos)
+	}
+	return manager.SessionLinkedWork(ctx, infos)
 }
