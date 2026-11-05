@@ -7,6 +7,10 @@ description: "Show provider authentication status"
 
 Show provider authentication status
 
+### Synopsis
+
+Show provider authentication status. For native_cli providers the live probe runs in the local daemon when it is reachable, so Settings shows the same verdict; otherwise it runs in this process. --local always probes in this process.
+
 ```
 compozy provider auth status <provider> [flags]
 ```
@@ -17,7 +21,7 @@ compozy provider auth status <provider> [flags]
   -h, --help       help for status
       --local      Run the provider status probe in this CLI process, even when the daemon is running
       --no-probe   Do not run the provider status command
-      --remote     Run the provider status probe through the daemon
+      --remote     Return the daemon's probe payload through the configured client target
 ```
 
 ### Options inherited from parent commands

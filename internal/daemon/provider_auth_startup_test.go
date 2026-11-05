@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"os/exec"
@@ -61,6 +60,8 @@ func startupConfig(providerConfigs map[string]compozyconfig.ProviderConfig) *com
 }
 
 func TestProviderAuthStartup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should record each installed native provider's live verdict", func(t *testing.T) {
 		t.Parallel()
 		f := newStartupProbeFixture(func(_ context.Context, spec providers.ProviderAuthCommandSpec) (
@@ -167,7 +168,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		) {
 			once.Do(func() { close(entered) })
 			<-ctx.Done()
-			return providers.ProviderAuthCommandResult{ExitCode: -1}, errors.Join(ctx.Err())
+			return providers.ProviderAuthCommandResult{ExitCode: -1}, ctx.Err()
 		}, "slow")
 		cfg := startupConfig(map[string]compozyconfig.ProviderConfig{"slow": nativeStatusProvider("slow")})
 		ctx, cancel := context.WithCancel(t.Context())

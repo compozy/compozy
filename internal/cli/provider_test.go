@@ -611,16 +611,21 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fall back to the local probe when the daemon fails", func(t *testing.T) {
-		t.Parallel()
-		for _, failure := range []error{
-			errors.New("dial unix compozy.sock: connect: connection refused"),
-			errors.New("provider_not_found"),
-		} {
+	for _, tc := range []struct {
+		name    string
+		failure error
+	}{
+		{"Should fall back to the local probe when the daemon is unreachable",
+			errors.New("dial unix compozy.sock: connect: connection refused")},
+		{"Should fall back to the local probe when the daemon rejects the provider",
+			errors.New("provider_not_found")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var localRuns int
 			client := &stubClient{
 				probeProviderAuthFn: func(context.Context, string) (contract.ProviderAuthProbeResponse, error) {
-					return contract.ProviderAuthProbeResponse{}, failure
+					return contract.ProviderAuthProbeResponse{}, tc.failure
 				},
 			}
 			deps := nativeStatusDeps(t, client, &localRuns)
@@ -630,16 +635,10 @@ func TestProviderAuthStatusProbeSource(t *testing.T) {
 			}
 			record := decodeAuthStatus(t, stdout)
 			if record.ProbeSource != providerProbeSourceLocal || record.State != "needs_login" || localRuns != 1 {
-				t.Fatalf(
-					"%v: ProbeSource/State = %q/%q, local runs %d",
-					failure,
-					record.ProbeSource,
-					record.State,
-					localRuns,
-				)
+				t.Fatalf("ProbeSource/State = %q/%q, local runs %d", record.ProbeSource, record.State, localRuns)
 			}
-		}
-	})
+		})
+	}
 
 	t.Run("Should probe locally with --local even when the daemon answers", func(t *testing.T) {
 		t.Parallel()

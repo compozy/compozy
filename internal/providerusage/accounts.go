@@ -8,19 +8,14 @@ import (
 )
 
 const (
-	// rateLimitFloor is the shortest cooldown a 429 earns, whatever Retry-After says.
-	rateLimitFloor = 5 * time.Minute
-	// rateLimitCap bounds both server-requested and backoff cooldowns.
-	rateLimitCap = time.Hour
+	rateLimitFloor = 5 * time.Minute // shortest cooldown a 429 earns, whatever Retry-After says
+	rateLimitCap   = time.Hour       // bound on server-requested and backoff cooldowns
 )
 
-// accountKey identifies one credential identity inside one collector family. Targets without a
-// known identity get a key of their own, so they never share state with another target.
+// accountKey is one credential identity within a collector family; an unknown identity is never shared.
 type accountKey string
 
-// accountState is the collection state of one credential identity, shared by every profile
-// target that collects through it: the rate-limit streak, the in-flight request, and the last
-// success. Guarded by Manager.mu.
+// accountState is one identity's shared collection state, guarded by Manager.mu.
 type accountState struct {
 	strikes  int
 	cooldown *accountCooldown
@@ -30,11 +25,11 @@ type accountState struct {
 
 // accountCall is one in-flight collection that other targets of the identity join.
 type accountCall struct {
-	done     chan struct{}
-	ctx      context.Context // leader flight; joiners retry when it was canceled
-	route    string          // results only serve targets on the same route
-	snapshot Snapshot
-	outcome  *UsageError
+	done           chan struct{}
+	route          string // results only serve targets on the same route
+	leaderCanceled bool   // the leader's flight ended first; joiners must collect themselves
+	snapshot       Snapshot
+	outcome        *UsageError
 }
 
 type accountSuccess struct {
@@ -65,8 +60,7 @@ func (k accountKey) family() string {
 	return family
 }
 
-// rateLimitUntil applies the floor, the per-identity exponential backoff, a longer server
-// Retry-After, and the cap. strikes counts consecutive 429s including the current one.
+// rateLimitUntil applies the floor, doubling per consecutive strike, a longer Retry-After, and the cap.
 func rateLimitUntil(now time.Time, retryAfter *time.Time, strikes int) time.Time {
 	delay := rateLimitFloor << min(max(strikes-1, 0), 4)
 	if retryAfter != nil {
@@ -75,9 +69,7 @@ func rateLimitUntil(now time.Time, retryAfter *time.Time, strikes int) time.Time
 	return now.Add(min(delay, rateLimitCap))
 }
 
-// collectAccount returns the identity's collection for one target: a success younger than
-// maxAge, the result of a collection another target already started, or a new collection that
-// later targets join. A cooldown that began after admission answers without a request.
+// collectAccount returns a fresh shared success, joins a running collection, or collects once for all.
 func (s *Manager) collectAccount(
 	ctx context.Context,
 	profile string,
@@ -94,69 +86,67 @@ func (s *Manager) collectAccount(
 	key := newAccountKey(profile, target, identity)
 	for {
 		s.mu.Lock()
-		a, call, done := s.joinAccountLocked(key, target, intent, maxAge)
-		if done != nil {
+		a, running, ready := s.joinAccountLocked(key, target, intent, maxAge)
+		if ready != nil {
 			s.mu.Unlock()
-			return done.snapshot, done.outcome
+			return ready.snapshot, ready.outcome
 		}
-		if call != nil {
+		if running != nil {
 			s.mu.Unlock()
 			select {
-			case <-call.done:
+			case <-running.done:
 			case <-ctx.Done():
 				return Snapshot{}, collectionOutcome(ctx, target.ProviderName, ctx.Err())
 			}
-			if call.route != target.RouteFingerprint || (call.ctx.Err() != nil && ctx.Err() == nil) {
-				continue // another route's or a canceled leader's result does not serve this target
+			if running.route != target.RouteFingerprint || running.leaderCanceled {
+				continue
 			}
-			return cloneSnapshot(call.snapshot), clonePointer(call.outcome)
+			return cloneSnapshot(running.snapshot), clonePointer(running.outcome)
 		}
-		call = &accountCall{done: make(chan struct{}), ctx: ctx, route: target.RouteFingerprint}
+		call := &accountCall{done: make(chan struct{}), route: target.RouteFingerprint}
 		a.call = call
 		s.mu.Unlock()
 		snapshot, err := collector.Collect(ctx, target, intent, identity)
 		outcome := collectionOutcome(ctx, target.ProviderName, err)
 		s.mu.Lock()
-		// A drop (disable, shutdown, consent change) replaced the entry; its result is not stored.
+		// A drop (disable, shutdown, consent change) replaced the entry, so the result is not kept.
 		if s.accounts[key] == a {
 			a.call = nil
 			s.recordCollectionLocked(a, target, snapshot, outcome)
 		}
-		call.snapshot, call.outcome = snapshot, outcome
+		call.snapshot, call.outcome, call.leaderCanceled = snapshot, outcome, ctx.Err() != nil
 		close(call.done)
 		s.mu.Unlock()
 		return cloneSnapshot(snapshot), clonePointer(outcome)
 	}
 }
 
-// joinAccountLocked returns a ready result, an in-flight call to join, or the entry this target
-// should start a call on.
+// joinAccountLocked returns the entry plus either a running call to join or a ready result.
 func (s *Manager) joinAccountLocked(
 	key accountKey,
 	target Target,
 	intent Intent,
 	maxAge time.Duration,
-) (*accountState, *accountCall, *accountCall) {
-	a := s.accounts[key]
-	if a == nil {
-		a = &accountState{}
-		s.accounts[key] = a
+) (entry *accountState, running, ready *accountCall) {
+	entry = s.accounts[key]
+	if entry == nil {
+		entry = &accountState{}
+		s.accounts[key] = entry
 	}
 	now := s.options.Clock.Now()
-	if a.success != nil && a.success.route == target.RouteFingerprint && now.Sub(a.success.at) < maxAge {
-		return a, nil, &accountCall{snapshot: cloneSnapshot(a.success.snapshot)}
+	if entry.success != nil && entry.success.route == target.RouteFingerprint && now.Sub(entry.success.at) < maxAge {
+		return entry, nil, &accountCall{snapshot: cloneSnapshot(entry.success.snapshot)}
 	}
-	if a.call != nil {
-		return a, a.call, nil
+	if entry.call != nil {
+		return entry, entry.call, nil
 	}
-	// Admission saw no cooldown, or granted this explicit flight the identity's bypass.
+	// Only an explicit flight that admission granted the bypass may collect during a cooldown.
 	if c := s.activeCooldownLocked(key, now); c != nil && (intent != IntentExplicit || !c.bypassed) {
-		return a, nil, &accountCall{outcome: RateLimited(target.ProviderName, c.until)}
+		return entry, nil, &accountCall{outcome: RateLimited(target.ProviderName, c.until)}
 	}
-	return a, nil, nil
+	return entry, nil, nil
 }
 
-// activeCooldownLocked returns the identity's cooldown when it is still running at now.
 func (s *Manager) activeCooldownLocked(key accountKey, now time.Time) *accountCooldown {
 	if a := s.accounts[key]; a != nil && a.cooldown != nil && now.Before(a.cooldown.until) {
 		return a.cooldown
@@ -164,10 +154,7 @@ func (s *Manager) activeCooldownLocked(key accountKey, now time.Time) *accountCo
 	return nil
 }
 
-// recordCollectionLocked updates an identity from one real collection response. A 429 adds a
-// strike and rewrites the outcome's RetryAfter to the effective cooldown end; success clears the
-// streak and its explicit bypass and keeps the data for other targets. Other outcomes leave the
-// streak as is.
+// recordCollectionLocked adds a strike on 429 and clears the streak on success.
 func (s *Manager) recordCollectionLocked(a *accountState, target Target, snapshot Snapshot, outcome *UsageError) {
 	now := s.options.Clock.Now()
 	switch {
@@ -179,15 +166,15 @@ func (s *Manager) recordCollectionLocked(a *accountState, target Target, snapsho
 		a.success = nil
 		until := rateLimitUntil(now, outcome.RetryAfter, a.strikes)
 		a.cooldown = &accountCooldown{until: until, bypassed: a.cooldown != nil && a.cooldown.bypassed}
-		outcome.RetryAfter = &until
+		// The message and retry_after both name the effective cooldown end.
+		*outcome = *RateLimited(target.ProviderName, until)
 		s.options.Logger.Info(
 			"provider_usage.cooldown", "provider", target.ProviderID, "until", until, "strikes", a.strikes,
 		)
 	}
 }
 
-// pruneAccountsLocked forgets idle identities whose last cooldown and success are over an hour
-// old; an account still in use re-enters its streak on the next 429 within that hour.
+// pruneAccountsLocked keeps an identity for an hour after its last cooldown or success so streaks grow.
 func (s *Manager) pruneAccountsLocked(now time.Time) {
 	for key, a := range s.accounts {
 		if a.call == nil &&
@@ -198,7 +185,7 @@ func (s *Manager) pruneAccountsLocked(now time.Time) {
 	}
 }
 
-// forgetAccountsLocked drops every identity of one collector family, or all when family is empty.
+// forgetAccountsLocked drops one collector family's identities, or all when family is empty.
 func (s *Manager) forgetAccountsLocked(family string) {
 	for key := range s.accounts {
 		if family == "" || key.family() == family {

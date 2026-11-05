@@ -100,6 +100,4 @@ func retryManagedDeliveryRecovery(
 	}
 }
 
-func stopManagedDeliveryRecovery(ctx context.Context, worker *ownedWorkerGroup) error {
-	return stopOwnedWorker(ctx, "managed delivery recovery", worker)
-}
+const managedDeliveryRecoveryLabel = "managed delivery recovery"

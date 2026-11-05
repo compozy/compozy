@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
 
@@ -102,3 +102,5 @@ Automated evidence: `internal/daemon` `TestProviderAuthStartup`, `internal/provi
 route tests in `internal/api/core`, and the web `provider-detail-dialog` and `provider-logo-key` tests.
 
 Verification 2026-11-05: isolated lab walk PASS (startup probe after two restarts, `probe_source` daemon/local/stopped, flag conflict, Ready success dot, alias logo). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
+The scenario-level `qa_status` stays `blocked-verify`: the real-provider reauthentication branch above
+is still unwalked.

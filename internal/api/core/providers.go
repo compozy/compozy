@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -102,10 +100,9 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, probe.Classification, &env)
 		return
 	}
-	classification, result, startedAt := probe.Classification, probe.Result, probe.StartedAt
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
+	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, probe.Classification, probe.StartedAt)
 	authStatus, err := providerAuthStatusPayload(
-		c.Request.Context(), provider, classification, &env, h.nowUTC(),
+		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
@@ -115,10 +112,10 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		Provider:   providerName,
 		AuthStatus: authStatus,
 		Probe: &contract.ProviderAuthProbeResult{
-			ExitCode:   result.ExitCode,
-			Stdout:     authproviders.RedactAuthProbeOutput(result.Stdout, maxDiagnosticPayloadBytes),
-			Stderr:     authproviders.RedactAuthProbeOutput(result.Stderr, maxDiagnosticPayloadBytes),
-			DurationMs: result.DurationMs,
+			ExitCode:   probe.Result.ExitCode,
+			Stdout:     authproviders.RedactAuthProbeOutput(probe.Result.Stdout, maxDiagnosticPayloadBytes),
+			Stderr:     authproviders.RedactAuthProbeOutput(probe.Result.Stderr, maxDiagnosticPayloadBytes),
+			DurationMs: probe.Result.DurationMs,
 		},
 	})
 }
@@ -239,7 +236,7 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 	if err != nil {
 		return contract.ProviderListResponse{}, err
 	}
-	providerNames := ProviderInventoryNames(&cfg)
+	providerNames := compozyconfig.ProviderInventoryNames(&cfg)
 	payloads := make([]contract.ProviderSummaryPayload, 0, len(providerNames))
 	for _, providerName := range providerNames {
 		provider, err := cfg.ResolveProvider(providerName)
@@ -356,25 +353,6 @@ func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName stri
 		Error:      diagnostics.Redact(item.Message),
 		Diagnostic: &item,
 	})
-}
-
-// ProviderInventoryNames lists built-in and configured provider names, sorted and canonical.
-func ProviderInventoryNames(cfg *compozyconfig.Config) []string {
-	seen := make(map[string]struct{})
-	for name := range compozyconfig.BuiltinProviders() {
-		seen[name] = struct{}{}
-	}
-	if cfg != nil {
-		for name := range cfg.Providers {
-			canonical := compozyconfig.CanonicalProviderName(name)
-			if canonical != "" {
-				seen[canonical] = struct{}{}
-			}
-		}
-	}
-	names := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
-	slices.Sort(names)
-	return names
 }
 
 func providerAuthStatusPayload(

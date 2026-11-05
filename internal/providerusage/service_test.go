@@ -54,12 +54,7 @@ func usageFixture(t *testing.T, handler http.HandlerFunc) serviceFixture {
 }
 func refreshFixture(t *testing.T, f serviceFixture, intent Intent) Envelope {
 	t.Helper()
-	env, err := f.service.Refresh(
-		t.Context(),
-		RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", Intent: intent},
-	)
-	requireNoError(t, err)
-	return env
+	return refreshProfile(t, f, "personal", intent)
 }
 func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 	t.Helper()
@@ -2026,11 +2021,10 @@ func refreshProfile(t *testing.T, f serviceFixture, profile string, intent Inten
 }
 
 // addProfileTarget gives another profile a target that reads the fixture account's auth file.
-func addProfileTarget(f serviceFixture, profile string) Target {
+func addProfileTarget(f serviceFixture, profile string) {
 	target := f.target
 	target.ProfileID = profile
 	f.catalog.Replace(profile, []Target{target})
-	return target
 }
 
 func rateLimitedFixture(t *testing.T, calls *atomic.Int32, ok *atomic.Bool) serviceFixture {
@@ -2056,6 +2050,7 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		requireEqual(t, StatusRateLimited, env.Targets[0].Status)
 		requireEqual(t, until, *env.Targets[0].NextRefreshAt)
 		requireEqual(t, until, *env.Targets[0].Error.RetryAfter)
+		requireEqual(t, true, strings.HasSuffix(env.Targets[0].Error.Message, "retry after "+until.Format("15:04")))
 		f.clock.Advance(5*time.Minute - time.Second)
 		refreshFixture(t, f, IntentBackground)
 		requireEqual(t, int32(1), calls.Load())

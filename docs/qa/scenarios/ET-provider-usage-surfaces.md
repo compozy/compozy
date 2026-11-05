@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-10-29-issue-1023.md
+last_report: reports/2026-11-05-usage-backoff-signin-boot.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -167,8 +167,8 @@ Isolated lab only: a loopback usage fixture that counts requests per account hea
    The fixture logs one request.
 2. Refresh again with background intent before the cooldown ends, from A and from B. Expect no new
    fixture request; profile B shows the same `rate_limited` row and the same `next_refresh_at`.
-3. Let the cooldown expire (or restart the clock-driven tick) and trigger another 429. Expect a
-   ten-minute cooldown, then 20, 40, and 60 minutes on later strikes. One successful response resets
+3. Trigger a second 429 inside the same daemon run (an explicit refresh spends the bypass; a
+   restart would clear the in-memory streak). Expect a ten-minute cooldown, then 20, 40, and 60 minutes on later strikes. One successful response resets
    the next cooldown to five minutes.
 4. With the fixture answering 200, refresh both profiles at the same time. The fixture logs one
    request for the account, and both profiles show the same windows.
@@ -180,3 +180,5 @@ Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
 pre-existing ownership, read-fence, and scheduling suites (race-enabled).
 
 Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
+This section-level walk leaves the scenario-level `qa_status` unchanged; steps 1-8 above still need
+their integrated walk.

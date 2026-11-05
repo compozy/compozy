@@ -8,16 +8,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/core"
 	config "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providers"
 )
 
-// providerAuthStartupConcurrency bounds how many provider CLIs the startup sign-in check runs at once.
-const providerAuthStartupConcurrency = 2
+const (
+	providerAuthStartupConcurrency = 2
+	providerAuthStartupLabel       = "provider sign-in check"
+)
 
-// providerAuthStartup verifies native-CLI sign-in once after the daemon starts, so provider reads
-// do not report every provider as unverified until a session or a manual check probes it.
+// providerAuthStartup verifies native-CLI sign-in once after the daemon starts.
 type providerAuthStartup struct {
 	verdicts *providers.AuthVerdicts
 	envFor   func(string, config.ProviderConfig) (providers.ProbeEnv, error)
@@ -25,8 +25,7 @@ type providerAuthStartup struct {
 	now      func() time.Time
 }
 
-// bootProviderAuthStartup starts the startup sign-in check as an owned worker that shutdown cancels
-// and joins.
+// bootProviderAuthStartup runs the startup sign-in check as an owned worker that shutdown joins.
 func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if d.providerAuthVerdicts == nil {
 		return nil
@@ -57,7 +56,7 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 	}
 	state.runtimeWorkers.providerAuthStartup = worker
 	cleanup.add(func(cleanupCtx context.Context) error {
-		return stopOwnedWorker(cleanupCtx, "provider sign-in check", worker)
+		return stopOwnedWorker(cleanupCtx, providerAuthStartupLabel, worker)
 	})
 	go func() {
 		defer complete()
@@ -71,7 +70,7 @@ func (p providerAuthStartup) run(ctx context.Context, cfg *config.Config) {
 	limit := make(chan struct{}, providerAuthStartupConcurrency)
 	var wg sync.WaitGroup
 	var probed, skipped atomic.Int32
-	for _, name := range core.ProviderInventoryNames(cfg) {
+	for _, name := range config.ProviderInventoryNames(cfg) {
 		provider, err := cfg.ResolveProvider(name)
 		if err != nil || !p.eligible(name, provider) {
 			skipped.Add(1)
@@ -98,8 +97,7 @@ func (p providerAuthStartup) run(ctx context.Context, cfg *config.Config) {
 	}
 }
 
-// eligible keeps the check to native-CLI providers with a status command and no verdict yet; ACP-only
-// providers would start a full agent and stay on the manual check.
+// eligible skips ACP-only providers, which would start a full agent.
 func (p providerAuthStartup) eligible(name string, provider config.ProviderConfig) bool {
 	if provider.EffectiveAuthMode() != config.ProviderAuthModeNativeCLI ||
 		strings.TrimSpace(provider.AuthStatusCmd) == "" {
@@ -120,7 +118,6 @@ func (p providerAuthStartup) probe(ctx context.Context, name string, provider co
 	if err != nil || declared.State != providers.ProviderAuthStateUnknown {
 		return false
 	}
-	started := p.now()
 	result, err := providers.RunAuthStatusProbe(ctx, provider, &env, p.now)
 	if ctx.Err() != nil || err != nil || !result.Ran {
 		return false
@@ -130,7 +127,7 @@ func (p providerAuthStartup) probe(ctx context.Context, name string, provider co
 		"provider_auth.startup_probe",
 		"provider", name,
 		"state", result.Classification.State,
-		"duration_ms", p.now().Sub(started).Milliseconds(),
+		"duration_ms", result.Result.DurationMs,
 		"error_code", result.Classification.Code,
 	)
 	return true

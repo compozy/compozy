@@ -90,22 +90,25 @@ func TestFoundations(t *testing.T) {
 		now := fixtureClock(t).Now()
 		at := func(d time.Duration) *time.Time { return new(now.Add(d)) }
 		for _, tc := range []struct {
+			name       string
 			retryAfter *time.Time
 			strikes    int
 			delay      time.Duration
 		}{
-			{at(0), 1, 5 * time.Minute},
-			{at(2 * time.Minute), 1, 5 * time.Minute},
-			{at(30 * time.Minute), 1, 30 * time.Minute},
-			{at(0), 2, 10 * time.Minute},
-			{at(0), 3, 20 * time.Minute},
-			{at(0), 4, 40 * time.Minute},
-			{at(0), 5, time.Hour},
-			{at(0), 64, time.Hour},
-			{nil, 1, 5 * time.Minute},
-			{at(2 * time.Hour), 1, time.Hour},
+			{"Should floor a zero Retry-After", at(0), 1, 5 * time.Minute},
+			{"Should floor a short Retry-After", at(2 * time.Minute), 1, 5 * time.Minute},
+			{"Should keep a longer Retry-After", at(30 * time.Minute), 1, 30 * time.Minute},
+			{"Should double on the second strike", at(0), 2, 10 * time.Minute},
+			{"Should double on the third strike", at(0), 3, 20 * time.Minute},
+			{"Should double on the fourth strike", at(0), 4, 40 * time.Minute},
+			{"Should cap the fifth strike", at(0), 5, time.Hour},
+			{"Should cap without overflow", at(0), 64, time.Hour},
+			{"Should floor a missing Retry-After", nil, 1, 5 * time.Minute},
+			{"Should cap a long Retry-After", at(2 * time.Hour), 1, time.Hour},
 		} {
-			requireEqual(t, now.Add(tc.delay), rateLimitUntil(now, tc.retryAfter, tc.strikes))
+			if got := rateLimitUntil(now, tc.retryAfter, tc.strikes); !got.Equal(now.Add(tc.delay)) {
+				t.Errorf("%s: rateLimitUntil = %v, want %v", tc.name, got, now.Add(tc.delay))
+			}
 		}
 	})
 }

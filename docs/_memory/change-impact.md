@@ -3,7 +3,8 @@
 ## Usage backoff, one collection per account, sign-in after restart — issue #1302
 
 Owner: `fix/usage-backoff-signin-boot`. QA: `docs/qa/scenarios/ET-provider-usage-surfaces.md`,
-`docs/qa/scenarios/MS-web-provider-auth-gate.md`, `docs/qa/scenarios/RT-provider-auth-recovery.md`.
+`docs/qa/scenarios/MS-web-provider-auth-gate.md`; run report
+`docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md`.
 
 - Provider usage DTOs, routes, native tools (`compozy__provider_usage_*`), config keys and the
   stream are unchanged; only values change. A `429` cools the account down for at least 5 minutes

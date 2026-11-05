@@ -32,9 +32,9 @@ func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
 		appendWrappedError(errs, "daemon: shutdown proactive checks", w.proactiveChecks.Shutdown(ctx))
 	}
 	appendWrappedError(errs, "daemon: stop managed delivery recovery",
-		stopManagedDeliveryRecovery(ctx, w.managedDeliveries))
+		stopOwnedWorker(ctx, managedDeliveryRecoveryLabel, w.managedDeliveries))
 	appendWrappedError(errs, "daemon: stop provider sign-in check",
-		stopOwnedWorker(ctx, "provider sign-in check", w.providerAuthStartup))
+		stopOwnedWorker(ctx, providerAuthStartupLabel, w.providerAuthStartup))
 	if w.instanceMaintenance != nil {
 		appendWrappedError(errs, "daemon: shutdown instance maintenance", w.instanceMaintenance.Shutdown(ctx))
 	}

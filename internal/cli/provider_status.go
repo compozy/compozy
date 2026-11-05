@@ -13,6 +13,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
+
+	"github.com/spf13/cobra"
 )
 
 type providerAuthStatusOptions struct {
@@ -358,4 +360,82 @@ func providerNativeCLILoginEnv(
 	provider compozyconfig.ProviderConfig,
 ) ([]string, error) {
 	return providerauth.NativeCLILoginEnv(homePaths, providerName, provider, os.Environ())
+}
+
+// localDaemonProviderAuthProbe probes through the local daemon socket, never a remote connection profile.
+func localDaemonProviderAuthProbe(
+	deps commandDeps,
+	runtime *runtimeContext,
+) func(context.Context, string) (contract.ProviderAuthProbeResponse, error) {
+	return func(ctx context.Context, providerName string) (contract.ProviderAuthProbeResponse, error) {
+		target, err := resolveLocalClientTarget(deps, runtime.HomePaths)
+		if err != nil {
+			return contract.ProviderAuthProbeResponse{}, err
+		}
+		client, err := deps.newClient(target)
+		if err != nil {
+			return contract.ProviderAuthProbeResponse{}, err
+		}
+		if client == nil {
+			return contract.ProviderAuthProbeResponse{}, errors.New("cli: daemon client unavailable")
+		}
+		return client.ProbeProviderAuth(ctx, providerName)
+	}
+}
+
+func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
+	var noProbe bool
+	var remote bool
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "status <provider>",
+		Short: "Show provider authentication status",
+		Long: "Show provider authentication status. For native_cli providers the live probe runs " +
+			"in the local daemon when it is reachable, so Settings shows the same verdict; " +
+			"otherwise it runs in this process. --local always probes in this process.",
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local && remote {
+				return errors.New("cli: --local and --remote cannot be used together")
+			}
+			if remote {
+				client, err := clientFromDeps(deps)
+				if err != nil {
+					return err
+				}
+				record, err := client.ProbeProviderAuth(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, providerAuthProbeBundle(record))
+			}
+			runtime, err := providerAuthRuntime(deps)
+			if err != nil {
+				return err
+			}
+			options := providerAuthStatusOptions{providerRef: args[0], probe: !noProbe}
+			if !local {
+				options.daemonProbe = localDaemonProviderAuthProbe(deps, runtime)
+			}
+			record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, options)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, providerAuthStatusBundle(record))
+		},
+	}
+	cmd.Flags().BoolVar(&noProbe, "no-probe", false, "Do not run the provider status command")
+	cmd.Flags().BoolVar(
+		&remote,
+		"remote",
+		false,
+		"Return the daemon's probe payload through the configured client target",
+	)
+	cmd.Flags().BoolVar(
+		&local,
+		"local",
+		false,
+		"Run the provider status probe in this CLI process, even when the daemon is running",
+	)
+	return cmd
 }

@@ -14,14 +14,10 @@ type AuthStatusProbe struct {
 	Classification Classification
 	Result         ProviderAuthCommandResult
 	StartedAt      time.Time
-	// Ran is false when the command could not be prepared; Classification then says why and is
-	// not a live sign-in verdict.
-	Ran bool
+	Ran            bool // false when the command could not be prepared; not a live verdict then
 }
 
-// RunAuthStatusProbe prepares, runs, and classifies the provider's auth_status_command. It never
-// records a verdict: callers decide whether the result is recordable. A runner failure is
-// returned as an error.
+// RunAuthStatusProbe prepares, runs, and classifies auth_status_command without recording a verdict.
 func RunAuthStatusProbe(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
@@ -53,8 +49,7 @@ type DaemonProbeEnvOptions struct {
 	RunCommand     ProviderAuthCommandRunner
 }
 
-// DaemonProbeEnv builds the environment the daemon uses to check one provider's sign-in, shared by
-// the probe route and the startup check so both see the same credentials and home.
+// DaemonProbeEnv builds the daemon-side environment for one provider's sign-in probe.
 func DaemonProbeEnv(
 	options DaemonProbeEnvOptions,
 	providerName string,

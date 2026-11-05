@@ -3,8 +3,8 @@ import type { ComponentProps } from "react";
 import { CatalogCard, CatalogCardSkeleton, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 
 import { providerListingView } from "../lib/provider-listing-view";
-import type { SettingsProviderEntry } from "../types";
 import { providerLogoKey } from "../lib/provider-logo-key";
+import type { SettingsProviderEntry } from "../types";
 import { ProviderLogo } from "./provider-logo";
 import { ProviderStatusLabel } from "./provider-status-label";
 

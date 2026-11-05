@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 )
 
 func TestRunAuthStatusProbe(t *testing.T) {
+	t.Parallel()
+
 	provider := compozyconfig.ProviderConfig{
 		Command:       "acme acp",
 		AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
@@ -42,6 +45,22 @@ func TestRunAuthStatusProbe(t *testing.T) {
 		}
 		if probe.Result.ExitCode != 0 || probe.Result.DurationMs != 12 || !probe.StartedAt.Equal(startedAt) {
 			t.Fatalf("probe result = %#v at %v", probe.Result, probe.StartedAt)
+		}
+	})
+
+	t.Run("Should report an unprepared command without running it", func(t *testing.T) {
+		t.Parallel()
+		env := probeEnv(func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+			t.Fatal("runner called for a command that could not be prepared")
+			return ProviderAuthCommandResult{}, nil
+		})
+		env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+		probe, err := RunAuthStatusProbe(t.Context(), provider, env, time.Now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if probe.Ran || probe.Classification.State == ProviderAuthStateAuthenticated {
+			t.Fatalf("probe = %#v, want an unprepared, non-authenticated result", probe)
 		}
 	})
 
