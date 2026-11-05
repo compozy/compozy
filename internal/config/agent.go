@@ -157,7 +157,16 @@ func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
 }
 
 // LoadAgentDefFile loads and parses an AGENT.md file from an explicit path.
-func LoadAgentDefFile(path string) (agent AgentDef, err error) {
+func LoadAgentDefFile(path string) (AgentDef, error) {
+	return loadAgentDefFile(path, true)
+}
+
+// LoadPackagedAgentDefFile decodes persisted extension definitions without editing signed package content.
+func LoadPackagedAgentDefFile(path string) (AgentDef, error) {
+	return loadAgentDefFile(path, false)
+}
+
+func loadAgentDefFile(path string, publishMigration bool) (agent AgentDef, err error) {
 	agentPath := filepath.Clean(path)
 	agentDirPath := filepath.Dir(agentPath)
 	directory, err := fileutil.OpenDirectory(agentDirPath)
@@ -171,23 +180,29 @@ func LoadAgentDefFile(path string) (agent AgentDef, err error) {
 		}
 	}()
 
-	return loadAgentDefFromDirectory(directory, filepath.Base(agentPath), agentPath)
+	return loadAgentDefFromDirectoryWithMigration(directory, filepath.Base(agentPath), agentPath, publishMigration)
 }
 
-func loadAgentDefFromDirectory(
+func loadAgentDefFromDirectory(directory *fileutil.Directory, name, path string) (AgentDef, error) {
+	return loadAgentDefFromDirectoryWithMigration(directory, name, path, true)
+}
+
+func loadAgentDefFromDirectoryWithMigration(
 	directory *fileutil.Directory,
 	agentFileName string,
 	agentPath string,
+	publishMigration bool,
 ) (AgentDef, error) {
-	contents, _, err := directory.ReadRegularFile(agentFileName)
+	contents, original, err := directory.ReadRegularFile(agentFileName)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("read agent file %q: %w", agentPath, err)
 	}
 
-	agent, err := ParseAgentDef(contents)
+	agent, err := parseAgentDef(contents, true)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", agentPath, err)
 	}
+	migratePersistedAgentKind(directory, agentPath, original, contents, publishMigration)
 	if err := mergeAgentMCPSidecarFromDirectory(
 		directory,
 		filepath.Join(filepath.Dir(agentPath), MCPJSONName),
@@ -301,10 +316,20 @@ func (r WorkspaceDiscoveryRoot) usesHomeResourceLayout() bool {
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.
 func ParseAgentDef(content []byte) (AgentDef, error) {
+	return parseAgentDef(content, false)
+}
+
+func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 	var parsed parsedAgentDef
 
 	body, err := frontmatter.Decode(content, func(data []byte) error {
-		return decodeAgentFrontmatter(data, &parsed)
+		if err := decodeAgentFrontmatter(data, &parsed); err != nil {
+			return err
+		}
+		if persisted && parsed.Kind == retiredAgentKind {
+			parsed.Kind = AgentKindAlwaysOn
+		}
+		return nil
 	})
 	if err != nil {
 		return AgentDef{}, wrapFrontmatterError(err)

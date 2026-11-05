@@ -1829,9 +1829,9 @@ func captureDaemonLogs(d *Daemon) *daemonLogCapture {
 	return capture
 }
 
-// Invariant: boot and discovery reject retired definitions without rewriting any root.
+// Invariant: boot and discovery migrate persisted definitions without changing unrelated bytes.
 func TestAgentKindAliasBootIntegration(t *testing.T) {
-	t.Run("Should reject retired definitions without rewriting their bytes", func(t *testing.T) {
+	t.Run("Should migrate persisted definitions on boot and discovery", func(t *testing.T) {
 		var paths []string
 		seed := func(path string) {
 			t.Helper()
@@ -1848,22 +1848,27 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 			paths = append(paths, path)
 		}
 		home := testHomePaths(t)
-		d := newTestDaemon(t, home, nil)
+		d := newTestDaemon(t, home, testConfigPtr(t, home))
 		seed(filepath.Join(home.AgentsDir, "retired", "AGENT.md"))
 		seed(filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"))
-		if err := d.boot(t.Context()); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) {
+		if err := d.boot(t.Context()); err != nil {
 			t.Fatalf("boot error = %v", err)
 		}
 
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
 		root := t.TempDir()
 		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
 		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
 		for _, path := range paths {
-			if _, err := compozyconfig.LoadAgentDefFile(path); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) {
+			if _, err := compozyconfig.LoadAgentDefFile(path); err != nil {
 				t.Fatalf("load %s: %v", path, err)
 			}
 			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "---\nname: retired\nkind: stays_on\n---\nWatch.\n" {
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
 				t.Fatalf("definition changed: %q %v", body, err)
 			}
 		}

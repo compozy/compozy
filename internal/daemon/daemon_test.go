@@ -4696,8 +4696,7 @@ func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
 		if err := d.bootConfig(
 			&bootState{},
 			&bootCleanup{},
-		); err == nil ||
-			!strings.Contains(err.Error(), "agents.always_on") {
+		); err != nil {
 			t.Fatalf("boot error = %v", err)
 		}
 	})

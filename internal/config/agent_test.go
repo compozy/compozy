@@ -2232,7 +2232,7 @@ kind = "stays_on"
 ---
 Watch.
 `} {
-		t.Run("Should reject retired frontmatter "+content, func(t *testing.T) {
+		t.Run("Should reject new input but migrate persisted frontmatter "+content, func(t *testing.T) {
 			t.Parallel()
 			if _, err := ParseAgentDef([]byte(content)); !errors.Is(err, ErrAgentKindInvalid) {
 				t.Fatalf("parse error = %v", err)
@@ -2243,17 +2243,19 @@ Watch.
 					t.Fatal(err)
 				}
 				writeFile(t, path, content)
-				if _, err := LoadAgentDefFile(
-					path,
-				); !errors.Is(err, ErrAgentKindInvalid) ||
-					!strings.Contains(err.Error(), ErrAgentKindInvalid.Error()) {
-					t.Fatalf("load error = %v", err)
+				loaded, err := LoadAgentDefFile(path)
+				if err != nil || loaded.Kind != AgentKindAlwaysOn {
+					t.Fatalf("load = %+v, %v", loaded, err)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || string(body) != strings.Replace(content, "stays_on", "always_on", 1) {
+					t.Fatalf("migration changed unrelated bytes: %q, %v", body, err)
 				}
 			}
 		})
 	}
 	for _, layer := range []string{"global", "profile", "workspace", "workspace_profile", "additional"} {
-		t.Run("Should reject retired kind during "+layer+" discovery", func(t *testing.T) {
+		t.Run("Should migrate persisted kind during "+layer+" discovery", func(t *testing.T) {
 			t.Parallel()
 			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 			if err != nil {
@@ -2275,16 +2277,13 @@ Watch.
 				path = filepath.Join(additional, DirName, AgentsDirName, "retired", agentDefName)
 			}
 			writeFile(t, path, "---\nname: retired\nkind: stays_on\n---\nWatch.\n")
-			if _, err := LoadWorkspaceAgentDefs(
-				root,
-				[]string{additional},
-				home,
-				"default",
-			); !errors.Is(
-				err,
-				ErrAgentKindInvalid,
-			) {
-				t.Fatalf("discovery error = %v", err)
+			agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, home, "default")
+			if err != nil || len(agents) == 0 {
+				t.Fatalf("discovery = %+v, %v", agents, err)
+			}
+			migrated, err := LoadAgentDefFile(path)
+			if err != nil || migrated.Kind != AgentKindAlwaysOn {
+				t.Fatalf("migrated = %+v, %v", migrated, err)
 			}
 		})
 	}
@@ -2305,4 +2304,25 @@ func TestAgentKindInvalid(t *testing.T) {
 			t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
 		}
 	})
+}
+
+func TestPersistedAgentKindDeferredMigration(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{"---\nname: triage\nkind: stays_on\n---\nKeep.\n", "---\nname: triage\nkind: &old stays_on\n---\nKeep.\n"} {
+		t.Run("Should load read-only persisted input "+body, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), agentDefName)
+			if err := os.WriteFile(path, []byte(body), 0400); err != nil {
+				t.Fatal(err)
+			}
+			agent, err := LoadAgentDefFile(path)
+			if err != nil || agent.Kind != AgentKindAlwaysOn {
+				t.Fatalf("load = %+v, %v", agent, err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || string(after) != body {
+				t.Fatalf("read-only input changed: %q %v", after, err)
+			}
+		})
+	}
 }

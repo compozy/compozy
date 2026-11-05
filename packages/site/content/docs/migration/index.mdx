@@ -28,15 +28,14 @@ Update the daemon and CLI together. Use `always_on` for AGENT.md `kind`, `--kind
 create/update/duplicate requests, and native agent creation. Old input fails with
 `agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
 
-Replace `[agents.stays_on]` with `[agents.always_on]` in every config overlay. Old tables fail
-config load with `removed config key "agents.stays_on": use "agents.always_on"`.
-Old `agents.stays_on.*` paths in CLI and native config get/set/unset fail with a removed-key
-error naming the corresponding `agents.always_on.*` path.
-
-Edit repository, workspace-profile, additional-root and extension AGENT.md files manually.
-The v0.5.1 boot rewrite covered daemon-owned files only; the rewrite no longer runs.
-Invalid definitions stay unchanged and report the actionable load error in agent diagnostics.
-Persisted rows already migrated in v0.5.1 need no new migration.
+Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Canonical keys
+win conflicts; original values and source text are retained as inactive comments. Persisted
+AGENT.md files migrate when loaded from any discovery root, including extension roots.
+Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
+still decode as `always_on` and log guidance to update the source before v0.6.0.
+This single persisted-file shim generation is scheduled for removal in v0.6.0.
+CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
+update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
 
 The permission labels in the app also changed. The values did not, so nothing needs editing:
 **Accept edits** (`approve-edits`), **Auto-review** (`auto`), and **Full access** (`approve-all`).

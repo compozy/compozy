@@ -14,6 +14,25 @@ import (
 
 func TestLoadAgentResources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should decode a persisted extension kind without modifying its writable package", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeStaticAgentFixture(t, root, "writer", false)
+		path := filepath.Join(root, "agents", "writer", "AGENT.md")
+		body := "---\nname: writer\nkind: stays_on\n---\nWrite.\n"
+		writeFile(t, path, body)
+		if err := os.Chmod(path, 0600); err != nil {
+			t.Fatal(err)
+		}
+		agents, err := LoadAgentResources(root, []string{"agents"})
+		if err != nil || len(agents) != 1 || agents[0].Agent.Kind != compozyconfig.AgentKindAlwaysOn {
+			t.Fatalf("agents = %+v, %v", agents, err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != body {
+			t.Fatalf("package changed: %q, %v", after, err)
+		}
+	})
 
 	t.Run("Should load strict agent directories with optional sidecars", func(t *testing.T) {
 		t.Parallel()
@@ -126,22 +145,7 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 		name     string
 		setup    func(*testing.T, string)
 		contains []string
-		cause    error
 	}{
-		{
-			name: "Should reject a retired kind at a manifest-declared agent path",
-			setup: func(t *testing.T, rootDir string) {
-				t.Helper()
-				writeStaticAgentFixture(t, rootDir, "writer", false)
-				writeFile(
-					t,
-					filepath.Join(rootDir, "agents", "writer", "AGENT.md"),
-					"---\nname: writer\nkind: stays_on\n---\nWrite.\n",
-				)
-			},
-			contains: []string{"AGENT.md", "renamed to always_on in v0.5.1"},
-			cause:    compozyconfig.ErrAgentKindInvalid,
-		},
 
 		{
 			name: "Should reject loose markdown files",
@@ -244,9 +248,6 @@ func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {
 			_, err := LoadAgentResources(rootDir, []string{"agents"})
 			if !errors.Is(err, ErrManifestInvalid) {
 				t.Fatalf("LoadAgentResources() error = %v, want ErrManifestInvalid", err)
-			}
-			if tc.cause != nil && !errors.Is(err, tc.cause) {
-				t.Fatalf("LoadAgentResources() error = %v, want %v", err, tc.cause)
 			}
 
 			for _, want := range tc.contains {

@@ -2223,3 +2223,63 @@ func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: loading persisted user settings migrates values once and archives conflicts.
+func TestPersistedAgentKindConfigMigration(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		"[agents.stays_on]\nmax_proposals = 7\napproval_timeout = '2h'\n[agents.always_on]\nmax_proposals = 3\n",
+		"agents = { stays_on = { max_proposals = 7, approval_timeout = '2h' }, always_on = { max_proposals = 3 } }\n",
+		"agents.stays_on.max_proposals = 7\nagents.stays_on.approval_timeout = '2h'\nagents.always_on.max_proposals = 3\n",
+	} {
+		t.Run("Should migrate layout "+body, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeFile(t, path, "# Keep original comment\ndefaults.model = 'kept'\n"+body)
+			cfg := Config{}
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Defaults.Model != "kept" || cfg.Agents.AlwaysOn.MaxProposals != 3 ||
+				cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+				t.Fatalf("settings = %+v", cfg.Agents.AlwaysOn)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(first), "max_proposals = 7") {
+				t.Fatalf("lost archived conflict: %s", first)
+			}
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(first, second) {
+				t.Fatalf("migration not idempotent: %s %v", second, err)
+			}
+		})
+	}
+	t.Run("Should migrate before applying a canonical config write", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[agents.stays_on]\nmax_proposals = 7\n")
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		data, err := os.ReadFile(home.ConfigFile)
+		if err != nil || !bytes.Contains(data, []byte("max_proposals = 7")) {
+			t.Fatalf("archive = %s %v", data, err)
+		}
+	})
+}

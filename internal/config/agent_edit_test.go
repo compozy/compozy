@@ -286,7 +286,7 @@ func assertConfigSentinelUnchanged(t *testing.T, path string, want string) {
 func TestAgentKindAliasEdit(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"stays_on", "\"stays_on\"", "'stays_on'", "stays_on # note"} {
-		t.Run("Should reject editing retired kind "+kind, func(t *testing.T) {
+		t.Run("Should migrate persisted kind while editing "+kind, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "triage", AgentDefinitionFileName)
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -294,21 +294,18 @@ func TestAgentKindAliasEdit(t *testing.T) {
 			}
 			body := "---\nname: triage\nkind: " + kind + "\n---\nWatch.\n"
 			writeFile(t, path, body)
-			if _, err := EditAgentDefFile(
-				path,
-				func(a *AgentDef) error { a.Description = "New"; return nil },
-			); !errors.Is(
-				err,
-				ErrAgentKindInvalid,
-			) {
-				t.Fatalf("edit error = %v", err)
+			edited, err := EditAgentDefFile(path, func(a *AgentDef) error { a.Description = "New"; return nil })
+			if err != nil || edited.Kind != AgentKindAlwaysOn || edited.Description != "New" {
+				t.Fatalf("edit = %+v %v", edited, err)
 			}
+
 			got, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if string(got) != body {
-				t.Fatal("invalid file changed")
+			parsed, err := ParseAgentDef(got)
+			if err != nil || parsed.Kind != AgentKindAlwaysOn || parsed.Prompt != "Watch." {
+				t.Fatalf("saved = %+v %v", parsed, err)
 			}
 		})
 	}

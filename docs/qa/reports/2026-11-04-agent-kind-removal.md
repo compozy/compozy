@@ -35,3 +35,19 @@ The final review follow-up also ran the built CLI's `config get`, `set` and `uns
 `removed config key "agents.stays_on.max_proposals": use "agents.always_on.max_proposals"`.
 
 Final QA verdict: PASS for this targeted journey. PR readiness awaits current-head CI and reviewers.
+
+## Persisted-state follow-up
+
+The operator amended the removal contract to preserve user state under SD-013. This supersedes
+this report's earlier expectation that persisted legacy definitions and config tables fail to load.
+Public request/flag/config-path rejection remains unchanged.
+
+Focused race suites verified YAML/TOML definitions across global, profile, workspace,
+workspace-profile, additional and extension roots, canonical precedence, conflict preservation,
+config layouts and idempotence. Read-only extension files loaded canonically without modification.
+The real daemon boot integration passed with an isolated harness port and joined shutdown.
+The built CLI loaded a legacy config table from a temporary home, returned the canonical value,
+persisted its migration and left its second load unchanged (`REAL_CLI_PERSISTED_CONFIG_MIGRATION_PASS`).
+No provider prompt was sent. The file-loader migration shim has a named removal release, v0.6.0.
+
+Migration approach adapted from #1297 by @rodrigo123antunes.

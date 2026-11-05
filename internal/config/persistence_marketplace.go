@@ -45,6 +45,11 @@ func loadPersistedConfigOverlay(
 	if err != nil {
 		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
+	rendered, migrated, err := migrateRetiredAlwaysOnTable(rendered, path)
+	if err != nil {
+		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
+	}
+	archived = append(archived, migrated...)
 	overlay, err = decode(rendered, path)
 	if err != nil {
 		return overlay, err

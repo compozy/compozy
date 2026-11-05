@@ -3671,7 +3671,7 @@ func resolvedSkillPath(dir string, source string) workspacepkg.SkillPath {
 }
 
 // TestRegistrySetEnabledForAgentKindAlias owns the UT-004 skill attach case: toggling a skill on a
-// retired definition fails without rewriting its contents.
+// persisted definition migrates before skill editing.
 func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
 	t.Run("Should enforce the current input contract", func(t *testing.T) {
 		t.Parallel()
@@ -3690,17 +3690,15 @@ func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
 		}
 		registry := newTestRegistry(t, RegistryConfig{GlobalAgentsDir: agentsDir})
 		err := registry.SetEnabledForAgent("review", nil, "triage", false)
-		_, _, detail := agentLocalLoadErrorDetails(err)
-		if !errors.Is(err, ErrAgentLocalInvalid) ||
-			!strings.Contains(detail, "agent kind must be on_demand or always_on") {
-			t.Fatalf("error = %v detail = %s", err, detail)
+		if err != nil {
+			t.Fatalf("enable migrated agent skill: %v", err)
 		}
 
 		body, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if string(body) != "---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n" {
+		if !strings.Contains(string(body), "kind: always_on") || !strings.Contains(string(body), "Watch.") {
 			t.Fatalf("definition changed: %s", body)
 		}
 	})

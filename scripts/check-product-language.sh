@@ -100,6 +100,7 @@ rule_a_in_scope() {
   local rel="$1"
   [[ "$rel" == *.go && "$rel" != *_test.go && "$rel" != */testdata/* && "$rel" != testdata/* ]] || return 1
   [[ "$rel" == internal/* || "$rel" == cmd/* || "$rel" == sdk/go/* ]] || return 1
+  [[ "$rel" == internal/config/agent_persisted_kind.go || "$rel" == internal/config/agent_persisted_config.go ]] && return 1
   [[ "$rel" == sdk/go/client/* ]] && return 1
   return 0
 }
