@@ -101,13 +101,5 @@ func retryManagedDeliveryRecovery(
 }
 
 func stopManagedDeliveryRecovery(ctx context.Context, worker *ownedWorkerGroup) error {
-	if worker == nil {
-		return nil
-	}
-	select {
-	case <-worker.Stop():
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("daemon: wait for managed delivery recovery: %w", ctx.Err())
-	}
+	return stopOwnedWorker(ctx, "managed delivery recovery", worker)
 }

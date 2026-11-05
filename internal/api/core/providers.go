@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -94,28 +93,16 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, declared, &env)
 		return
 	}
-	commandSpec, err := authproviders.PrepareAuthStatusCommand(c.Request.Context(), provider, &env)
-	if err != nil {
-		classification := authproviders.ClassifyError(err)
-		h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
-		return
-	}
-	startedAt := h.nowUTC()
-	result, err := env.Normalize().RunCommand(c.Request.Context(), commandSpec)
+	probe, err := authproviders.RunAuthStatusProbe(c.Request.Context(), provider, &env, h.nowUTC)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
 	}
-	classification := authproviders.ClassifyProbeResultContext(
-		c.Request.Context(),
-		provider,
-		authproviders.ProbeOutcome{
-			ExitCode: result.ExitCode,
-			Stdout:   result.Stdout,
-			Stderr:   result.Stderr,
-		},
-		&env,
-	)
+	if !probe.Ran {
+		h.respondProviderAuthStatus(c, providerName, provider, probe.Classification, &env)
+		return
+	}
+	classification, result, startedAt := probe.Classification, probe.Result, probe.StartedAt
 	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, classification, &env, h.nowUTC(),
@@ -252,7 +239,7 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 	if err != nil {
 		return contract.ProviderListResponse{}, err
 	}
-	providerNames := providerInventoryNames(&cfg)
+	providerNames := ProviderInventoryNames(&cfg)
 	payloads := make([]contract.ProviderSummaryPayload, 0, len(providerNames))
 	for _, providerName := range providerNames {
 		provider, err := cfg.ResolveProvider(providerName)
@@ -307,26 +294,12 @@ func (h *BaseHandlers) providerProbeEnv(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 ) (authproviders.ProbeEnv, error) {
-	commandEnv, err := providerauth.CommandEnv(h.HomePaths, providerName, provider, os.Environ())
-	if err != nil {
-		return authproviders.ProbeEnv{}, err
-	}
-	// ACP probes need a working directory even when the daemon's launch directory was removed.
-	commandDir, err := os.Getwd()
-	info, statErr := os.Stat(commandDir)
-	if err != nil || statErr != nil || !info.IsDir() {
-		commandDir = os.TempDir()
-	}
-	return authproviders.ProbeEnv{
-		ProviderName:   providerName,
+	return authproviders.DaemonProbeEnv(authproviders.DaemonProbeEnvOptions{
 		HomePaths:      h.HomePaths,
-		LookupEnv:      os.LookupEnv,
 		Vault:          h.Vault,
-		CommandEnv:     commandEnv,
-		CommandDir:     commandDir,
 		ResolveCommand: h.ProviderAuthCommandResolver,
 		RunCommand:     h.ProviderAuthRunner,
-	}, nil
+	}, providerName, provider)
 }
 
 func resolveProvider(
@@ -385,7 +358,8 @@ func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName stri
 	})
 }
 
-func providerInventoryNames(cfg *compozyconfig.Config) []string {
+// ProviderInventoryNames lists built-in and configured provider names, sorted and canonical.
+func ProviderInventoryNames(cfg *compozyconfig.Config) []string {
 	seen := make(map[string]struct{})
 	for name := range compozyconfig.BuiltinProviders() {
 		seen[name] = struct{}{}
