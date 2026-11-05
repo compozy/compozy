@@ -104,3 +104,22 @@ route tests in `internal/api/core`, and the web `provider-detail-dialog` and `pr
 Verification 2026-11-05: isolated lab walk PASS (startup probe after two restarts, `probe_source` daemon/local/stopped, flag conflict, Ready success dot, alias logo). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
 The scenario-level `qa_status` stays `blocked-verify`: the real-provider reauthentication branch above
 is still unwalked.
+
+## A stored verdict never hides a current failure (#1267)
+
+1. With a `native_cli` provider whose status command succeeds, run **Check sign-in** (or
+   `POST /api/providers/:provider_id/auth/probe`). Settings shows `Ready · Checked …`;
+   `compozy provider list` and `GET /api/providers` report `authenticated` with `last_probe_at`.
+2. Make CLI resolution fail with a non-not-found error (remove execute permission from the
+   resolved executable). Settings, `compozy provider list`, and `GET /api/providers` show the
+   declared resolver error (`unknown`, message names the failure) and no `last_probe_at`.
+3. Restore the permission. The row returns to `Ready` with the earlier check time (the verdict is
+   still valid for the same config and auth home).
+
+A plain missing binary yields `missing_cli` and does not exercise this branch. Automated owners:
+`TestAuthVerdicts`, `TestPreStarter` (session auth home), `TestProviderAuthHandlers` (IT-001),
+`TestProviderAGYACPProbe` (IT-002: ACP deadline/cancel never records).
+
+QA 2026-11-04 (#1267, build df98dd0b6): PASS in an isolated lab with a synthetic native CLI —
+steps 1–3 verified on `compozy provider list --json`, `GET /api/providers`, and
+`GET /api/settings/providers`. Report: `docs/qa/reports/2026-11-04-provider-auth-verdict-cache.md`.

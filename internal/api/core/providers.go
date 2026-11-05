@@ -100,7 +100,14 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, probe.Classification, &env)
 		return
 	}
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, probe.Classification, probe.StartedAt)
+	h.observeProviderAuthProbe(
+		c.Request.Context(),
+		providerName,
+		provider,
+		env.CommandEnv,
+		probe.Classification,
+		probe.StartedAt,
+	)
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
@@ -174,7 +181,18 @@ func (h *BaseHandlers) probeProviderACPAuth(
 		return
 	}
 	classification := acp.ClassifyProbeError(providerName, probeErr)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
+	// A probe that hit its own deadline or a cancellation says nothing reliable about sign-in, even
+	// when an auth-required error is joined to it.
+	if !errors.Is(probeErr, context.DeadlineExceeded) && !errors.Is(probeErr, context.Canceled) {
+		h.observeProviderAuthProbe(
+			c.Request.Context(),
+			providerName,
+			provider,
+			env.CommandEnv,
+			classification,
+			startedAt,
+		)
+	}
 	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
 
@@ -184,13 +202,14 @@ func (h *BaseHandlers) observeProviderAuthProbe(
 	ctx context.Context,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
+	env []string,
 	classification authproviders.Classification,
 	startedAt time.Time,
 ) {
 	if ctx.Err() != nil {
 		return
 	}
-	h.ProviderAuthVerdicts.Record(providerName, provider, classification, startedAt)
+	h.ProviderAuthVerdicts.Record(providerName, provider, env, classification, startedAt)
 	if classification.State == authproviders.ProviderAuthStateAuthenticated && h.OnProviderAuthSuccess != nil {
 		h.OnProviderAuthSuccess()
 	}
@@ -267,7 +286,7 @@ func (h *BaseHandlers) providerSummaryPayload(
 		return contract.ProviderSummaryPayload{}, err
 	}
 	// Reads never run a status command; they report the last live verdict, if any.
-	classification, checkedAt := h.ProviderAuthVerdicts.Apply(providerName, provider, declared)
+	classification, checkedAt := h.ProviderAuthVerdicts.Apply(providerName, provider, env.CommandEnv, declared)
 	authStatus, err := providerAuthStatusPayload(ctx, provider, classification, &env, checkedAt)
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err

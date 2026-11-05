@@ -101,11 +101,11 @@ func TestProviderAuthStartup(t *testing.T) {
 			"acmeout": nativeStatusProvider("acmeout"),
 		})
 		f.runWith(t.Context(), cfg)
-		in, ok := f.verdicts.Lookup("acmein", cfg.Providers["acmein"])
+		in, ok := f.verdicts.Lookup("acmein", cfg.Providers["acmein"], nil)
 		if !ok || in.Classification.State != providers.ProviderAuthStateAuthenticated {
 			t.Fatalf("acmein verdict = %#v, %v; want authenticated", in, ok)
 		}
-		out, ok := f.verdicts.Lookup("acmeout", cfg.Providers["acmeout"])
+		out, ok := f.verdicts.Lookup("acmeout", cfg.Providers["acmeout"], nil)
 		if !ok || out.Classification.State != providers.ProviderAuthStateNeedsLogin {
 			t.Fatalf("acmeout verdict = %#v, %v; want needs_login", out, ok)
 		}
@@ -146,7 +146,7 @@ func TestProviderAuthStartup(t *testing.T) {
 			t.Fatalf("peak concurrent status commands = %d, want at most 2", got)
 		}
 		for name, provider := range configs {
-			if _, ok := f.verdicts.Lookup(name, provider); !ok {
+			if _, ok := f.verdicts.Lookup(name, provider, nil); !ok {
 				t.Fatalf("%s verdict missing", name)
 			}
 		}
@@ -169,6 +169,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		f.verdicts.Record(
 			"known",
 			known,
+			nil,
 			providers.Classification{State: providers.ProviderAuthStateAuthenticated},
 			time.Now(),
 		)
@@ -201,7 +202,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		<-entered
 		cancel()
 		<-done
-		if _, ok := f.verdicts.Lookup("slow", cfg.Providers["slow"]); ok {
+		if _, ok := f.verdicts.Lookup("slow", cfg.Providers["slow"], nil); ok {
 			t.Fatal("canceled startup check recorded a verdict")
 		}
 	})
@@ -223,7 +224,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		applied, checkedAt := f.verdicts.Apply("acme", provider, declared)
+		applied, checkedAt := f.verdicts.Apply("acme", provider, env.CommandEnv, declared)
 		if applied.State != providers.ProviderAuthStateAuthenticated || checkedAt.IsZero() {
 			t.Fatalf("Apply = %q at %v, want authenticated with a check time", applied.State, checkedAt)
 		}
@@ -256,12 +257,13 @@ func TestProviderAuthStartup(t *testing.T) {
 		f.verdicts.Record(
 			"p3",
 			edited,
+			nil,
 			providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
 			time.Now(),
 		)
 		close(gate)
 		<-done
-		verdict, ok := f.verdicts.Lookup("p3", edited)
+		verdict, ok := f.verdicts.Lookup("p3", edited, nil)
 		if !ok || verdict.Classification.State != providers.ProviderAuthStateNeedsLogin {
 			t.Fatalf("p3 verdict = %#v, %v; want the newer needs_login verdict kept", verdict, ok)
 		}
@@ -290,7 +292,7 @@ func TestProviderAuthStartup(t *testing.T) {
 		live.setProvider("acme", edited)
 		close(gate)
 		<-done
-		if _, ok := f.verdicts.Lookup("acme", original); ok {
+		if _, ok := f.verdicts.Lookup("acme", original, nil); ok {
 			t.Fatal("startup check recorded a verdict for the replaced provider settings")
 		}
 	})
@@ -317,6 +319,7 @@ func TestProviderAuthStartup(t *testing.T) {
 				f.verdicts.Record(
 					"acme",
 					applied,
+					nil,
 					providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
 					time.Now(),
 				)
@@ -326,7 +329,7 @@ func TestProviderAuthStartup(t *testing.T) {
 			}
 		}
 		f.check.run(t.Context())
-		verdict, ok := f.verdicts.Lookup("acme", applied)
+		verdict, ok := f.verdicts.Lookup("acme", applied, nil)
 		if !ok || verdict.Classification.State != providers.ProviderAuthStateNeedsLogin {
 			t.Fatalf("acme verdict = %#v, %v; want the verdict for the applied settings kept", verdict, ok)
 		}

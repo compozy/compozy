@@ -263,7 +263,7 @@ func providerAuthStatus(
 		return ProviderAuthStatus{}, err
 	}
 	// Settings reads never run a status command; they report the last live verdict, if any.
-	classification, checkedAt := verdicts.Apply(providerName, provider, declared)
+	classification, checkedAt := verdicts.Apply(providerName, provider, probeEnv.CommandEnv, declared)
 	status.CheckedAt = checkedAt
 	status.State = string(classification.State)
 	status.Code = classification.Code

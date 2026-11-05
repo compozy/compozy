@@ -139,13 +139,13 @@ func (p providerAuthStartup) probe(ctx context.Context, name string) bool {
 	if !ok {
 		return false
 	}
-	// Known never drops a verdict, so settings read just before an apply cannot erase a newer one.
-	if p.verdicts.Known(name, provider) {
-		return false
-	}
 	env, err := p.envFor(name, provider)
 	if err != nil {
 		p.logger.Warn("provider_auth.startup_probe", "provider", name, "error", err)
+		return false
+	}
+	// Known never drops a verdict, so settings read just before an apply cannot erase a newer one.
+	if p.verdicts.Known(name, provider, env.CommandEnv) {
 		return false
 	}
 	declared, err := providers.ClassifyDeclared(ctx, provider, &env)
@@ -172,7 +172,7 @@ func (p providerAuthStartup) probe(ctx context.Context, name string) bool {
 	if current, ok := p.currentProvider(ctx, name); !ok || !reflect.DeepEqual(current, provider) {
 		return false
 	}
-	p.verdicts.Record(name, provider, result.Classification, result.StartedAt)
+	p.verdicts.Record(name, provider, env.CommandEnv, result.Classification, result.StartedAt)
 	p.logger.Info(
 		"provider_auth.startup_probe",
 		"provider", name,
