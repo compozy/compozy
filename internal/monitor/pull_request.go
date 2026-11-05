@@ -86,13 +86,15 @@ type PullRequestReviews struct {
 type PullRequestObservation struct {
 	Lookup PullRequestLookup
 	// Cause says why a lookup failed.
-	Cause   string
-	Number  int
-	URL     string
-	State   string
-	Head    string
-	Checks  *PullRequestChecks
-	Reviews *PullRequestReviews
+	Cause     string
+	Number    int
+	URL       string
+	State     string
+	Head      string
+	Base      string
+	Mergeable string
+	Checks    *PullRequestChecks
+	Reviews   *PullRequestReviews
 	// ReviewsFailed marks a forge that serves reviews but could not read them this time.
 	ReviewsFailed bool
 }
@@ -128,6 +130,7 @@ type prCursor struct {
 	Head        string   `json:"head,omitempty"`
 	Failed      int      `json:"failed,omitempty"`
 	FailedNames []string `json:"failed_names,omitempty"`
+	Conflicting bool     `json:"conflicting,omitzero"`
 	Finished    bool     `json:"finished,omitempty"`
 	// EndedNumber is the last pull request first seen already merged or closed: history, not this watch.
 	EndedNumber      int            `json:"ended_number,omitempty"`
@@ -169,6 +172,8 @@ type PullRequestChanges struct {
 	URL          string              `json:"url,omitempty"`
 	State        string              `json:"state,omitempty"`
 	Head         string              `json:"head,omitempty"`
+	Base         string              `json:"base,omitempty"`
+	Conflict     bool                `json:"conflict,omitzero"`
 	ChecksKnown  bool                `json:"checks_known,omitempty"`
 	Passed       int                 `json:"passed,omitempty"`
 	Failed       int                 `json:"failed,omitempty"`
@@ -192,6 +197,8 @@ type PullRequestChanges struct {
 	ReviewsDown   bool `json:"reviews_down,omitempty"`
 	// EndedNumber names a pull request that had already ended when a timed-out watch saw it.
 	EndedNumber int `json:"ended_number,omitempty"`
+
+	ConflictCleared bool `json:"conflict_cleared,omitzero"`
 }
 
 func (changes PullRequestChanges) reason() string {

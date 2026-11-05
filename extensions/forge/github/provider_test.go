@@ -305,6 +305,62 @@ func TestProvider(t *testing.T) {
 	t.Parallel()
 	// Invariant: discovery scopes search to the repository and preserves PR number, title and branch.
 	// Owner: forge provider I/O; canonical provider suite.
+	for _, tc := range []struct {
+		name, state string
+		mergeable   *bool
+		want        string
+	}{
+		{"dirty", "dirty", new(false), "conflicting"},
+		{"clean", "clean", new(true), "mergeable"},
+		{"draft conflict", "draft", new(false), "conflicting"},
+		{"retarget", "dirty", new(false), "conflicting"},
+		{"unknown", "unknown", new(false), "unknown"},
+		{"null", "dirty", nil, "unknown"},
+		{"head mismatch", "dirty", new(false), "unknown"},
+		{"closed detail", "dirty", new(false), "unknown"},
+	} {
+		t.Run("Should map REST mergeability "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			var details atomic.Int32
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				pull := pullPayload{
+					Number: 7, HTMLURL: "https://github.com/acme/repo/pull/7", State: "open",
+					UpdatedAt: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC),
+					Head:      pullRef{Ref: "topic", SHA: "a"}, Base: pullRef{Ref: "main"},
+				}
+				pull.Head.Repo = &struct {
+					FullName string `json:"full_name"`
+				}{FullName: "acme/repo"}
+				if r.URL.Path == "/repos/acme/repo/pulls/7" {
+					details.Add(1)
+					pull.Mergeable, pull.MergeableState = tc.mergeable, tc.state
+					if tc.name == "head mismatch" {
+						pull.Head.SHA = "b"
+					}
+					if tc.name == "closed detail" {
+						pull.State = "closed"
+					}
+					if tc.name == "retarget" {
+						pull.Base.Ref = "release"
+					}
+					writeJSON(t, w, http.StatusOK, pull)
+				} else {
+					writeJSON(t, w, http.StatusOK, []pullPayload{pull})
+				}
+			})
+			defer closeServer()
+			got, err := provider.restDisplayStatus(
+				t.Context(), repository{owner: "acme", name: "repo"}, "topic", "token",
+			)
+			wantBase := "main"
+			if tc.name == "retarget" {
+				wantBase = "release"
+			}
+			if err != nil || got.Mergeable != tc.want || got.Base != wantBase || details.Load() != 1 {
+				t.Fatalf("status = %+v, err = %v, detail calls = %d", got, err, details.Load())
+			}
+		})
+	}
 	t.Run("Should discover a bounded page and resolve PR identity", func(t *testing.T) {
 		t.Parallel()
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
@@ -443,6 +499,16 @@ func TestProvider(t *testing.T) {
 			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/graphql" {
 					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.URL.Path == "/repos/acme/repo/pulls/3" {
+					if scenario != "open first" {
+						t.Error("unexpected detail lookup")
+					}
+					writeJSON(t, w, http.StatusOK, pullPayload{
+						Number: 3, State: "open", Head: pullRef{SHA: "abc"},
+						Mergeable: new(false), MergeableState: "dirty",
+					})
 					return
 				}
 				if r.URL.Query().Get("sort") != "updated" || r.URL.Query().Get("direction") != "desc" {

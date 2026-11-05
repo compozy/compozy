@@ -191,3 +191,25 @@ remain owned by the frontend delivery.
 QA verification 2026-11-03 (always-on hardening B3, soh/qa 583415ef5, isolated acpmock lab): Partial. Pause and restart: a timer wake fired while the instance was paused and was held, the held rows and `unattended_turns` survived a daemon restart, and an operator resume delivered once. Next wake: a 900-second timer earlier than the next check projected `next_wake {kind: timer, at, description: "Re-check the staging deploy"}`; a 3600-second timer later than the check projected `kind: check`. Doctrine: an always-on main's startup sections include `always_on_doctrine`, and an ordinary on-demand session's do not (`doctrine-sections.txt`). Quiet window (UT-028 receipt): with HEARTBEAT `quiet_windows` 05:00–07:30 UTC, triage-desk's timer fired at 06:02:47 as a `[COMPOZY MONITOR - NOT USER INPUT]` turn with `held_wakes: 0` (`ut028-triage-events.txt`). Not walked: idle release, collector retry, post-compaction notice, Goal refusal, context exhaustion, and descendant queues.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): instance mains and their children receive the `always_on_doctrine` startup section, wrapped in `<compozy-always-on-doctrine>`. Not walked; S4 walks it on the integration head.
+
+### Pull request merge conflicts
+
+Register a `pull_request` monitor for an open PR. Introduce a base conflict and
+verify one wake names the PR, base, and rebase action while the monitor stays armed.
+Repeated conflicting reads must not wake again. Unknown/null mergeability and
+forge failures must neither wake nor clear the remembered conflict, including
+after daemon restart. Clear the conflict with a known mergeable observation, then
+introduce another conflict and verify a second wake. A changed head alone does not
+clear the conflict. While another wake is held for admission, observe a conflict
+then push a new head: the undelivered conflict must survive. Repeat with a known
+clearance before admission: omit stale rebase guidance while preserving any other
+queued check/review changes. A known clearance without a head must also cancel the
+queued conflict without resetting known check results. A same-head retarget updates
+the named base; a push with no base retains the last known base. REST retargets must
+name the base from the detail read, and closed or mismatched-head details must not
+introduce a conflict.
+Merge queue removal is not currently observable independently.
+
+Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`
+exercise transition detection, durable recovery and wake rendering. `TestMonitorIdleReleaseIntegration` verifies conflict wake admission through real
+SQLite and an ACP subprocess. Live GitHub conflict/restart walk remains unverified.
