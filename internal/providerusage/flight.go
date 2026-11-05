@@ -99,7 +99,7 @@ func (s *Manager) collectOnce(
 	if !allowed {
 		return skippedOutcome, false
 	}
-	snapshot, outcome := s.collectAccount(ctx, profile, id, state, collector, target, intent, identity, err)
+	snapshot, outcome := s.collectAccount(ctx, profile, collector, target, intent, identity, err, f.maxAge)
 	if err, recollect := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
 		return err, recollect
 	}

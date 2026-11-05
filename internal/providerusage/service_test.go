@@ -2142,3 +2142,189 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		requireEqual(t, f.clock.Now().Add(10*time.Minute), *env.Targets[0].NextRefreshAt)
 	})
 }
+
+// refreshBoth refreshes two profiles concurrently while the first request is held open.
+func refreshBoth(t *testing.T, f serviceFixture, entered <-chan struct{}, release func()) (Envelope, Envelope) {
+	t.Helper()
+	personal, work := make(chan Envelope, 1), make(chan Envelope, 1)
+	go func() { personal <- refreshProfile(t, f, "personal", IntentBackground) }()
+	<-entered
+	go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
+	release()
+	return <-personal, <-work
+}
+
+func blockedFirstRequest(
+	t *testing.T,
+	calls *atomic.Int32,
+	respond func(http.ResponseWriter),
+) (http.HandlerFunc, <-chan struct{}, func()) {
+	t.Helper()
+	entered, held := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	release := func() { once.Do(func() { close(held) }) }
+	t.Cleanup(release)
+	return func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-held
+		}
+		respond(w)
+	}, entered, release
+}
+
+func TestUsageSharedAccountCollection(t *testing.T) {
+	t.Run("Should send one request for an account two profiles target", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		handler, entered, release := blockedFirstRequest(t, &calls, func(w http.ResponseWriter) {
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		f := usageFixture(t, handler)
+		addProfileTarget(f, "work")
+		personal, work := refreshBoth(t, f, entered, release)
+		requireEqual(t, int32(1), calls.Load())
+		requireEqual(t, 40.0, *personal.Targets[0].Windows[0].UsedPercent)
+		requireEqual(t, 40.0, *work.Targets[0].Windows[0].UsedPercent)
+	})
+	t.Run("Should publish one shared rate limit to both profiles", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		var logs bytes.Buffer
+		handler, entered, release := blockedFirstRequest(t, &calls, func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+		f := usageFixture(t, handler)
+		f.service.options.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		addProfileTarget(f, "work")
+		personal, work := refreshBoth(t, f, entered, release)
+		requireEqual(t, int32(1), calls.Load())
+		requireEqual(t, StatusRateLimited, work.Targets[0].Status)
+		requireEqual(t, *personal.Targets[0].NextRefreshAt, *work.Targets[0].NextRefreshAt)
+		requireEqual(t, 1, strings.Count(logs.String(), `"msg":"provider_usage.cooldown"`))
+	})
+	t.Run("Should collect different accounts behind one provider separately", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.Header.Get("ChatGPT-Account-Id") == "account-b" {
+				writeFixture(w, t, strings.ReplaceAll(codexHTTPFixture, `"used_percent":40`, `"used_percent":84`))
+				return
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		work := codexTarget(t, "account-b", f.clock.Now().Add(24*time.Hour))
+		work.ProfileID = "work"
+		f.catalog.Replace("work", []Target{work})
+		requireEqual(t, 40.0, *refreshProfile(t, f, "personal", IntentBackground).Targets[0].Windows[0].UsedPercent)
+		requireEqual(t, 84.0, *refreshProfile(t, f, "work", IntentBackground).Targets[0].Windows[0].UsedPercent)
+		requireEqual(t, int32(2), calls.Load())
+	})
+	t.Run("Should let a joined profile collect when the leading profile is removed", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		entered := make(chan struct{})
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			if calls.Add(1) == 1 {
+				close(entered)
+				<-r.Context().Done()
+				return
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		addProfileTarget(f, "work")
+		go func() {
+			if _, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", Intent: IntentBackground},
+			); err != nil {
+				t.Error(err)
+			}
+		}()
+		<-entered
+		work := make(chan Envelope, 1)
+		go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
+		requireNoError(t, f.service.Start(t.Context(), []string{"work"}))
+		env := <-work
+		requireEqual(t, StatusOK, env.Targets[0].Status)
+		requireEqual(t, int32(2), calls.Load())
+	})
+	t.Run("Should show an active account cooldown to a new profile without a request", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		personal := refreshProfile(t, f, "personal", IntentBackground)
+		addProfileTarget(f, "work")
+		work := refreshProfile(t, f, "work", IntentBackground)
+		requireEqual(t, int32(1), calls.Load())
+		requireEqual(t, StatusRateLimited, work.Targets[0].Status)
+		requireEqual(t, *personal.Targets[0].NextRefreshAt, *work.Targets[0].NextRefreshAt)
+	})
+	t.Run(
+		"Should collect its own account when a profile signs in elsewhere after a shared success",
+		func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if r.Header.Get("ChatGPT-Account-Id") == "account-b" {
+					writeFixture(w, t, strings.ReplaceAll(codexHTTPFixture, `"used_percent":40`, `"used_percent":84`))
+					return
+				}
+				writeFixture(w, t, codexHTTPFixture)
+			})
+			work := codexTarget(t, "account-a", f.clock.Now().Add(24*time.Hour))
+			work.ProfileID = "work"
+			f.catalog.Replace("work", []Target{work})
+			refreshProfile(t, f, "personal", IntentBackground)
+			requireNoError(
+				t,
+				os.WriteFile(
+					filepath.Join(codexHome(work), "auth.json"),
+					[]byte(fixtureAuth(t, "account-b", f.clock.Now().Add(time.Hour))),
+					0o600,
+				),
+			)
+			env := refreshProfile(t, f, "work", IntentBackground)
+			requireEqual(t, int32(2), calls.Load())
+			requireEqual(t, 84.0, *env.Targets[0].Windows[0].UsedPercent)
+		},
+	)
+	t.Run("Should not share a success with a profile whose identity cannot be read", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		work := f.target
+		work.ProfileID = "work"
+		work.Route = ResolvedRoute{Env: []string{"CODEX_HOME=" + t.TempDir()}}
+		f.catalog.Replace("work", []Target{work})
+		requireEqual(t, StatusOK, refreshProfile(t, f, "personal", IntentBackground).Targets[0].Status)
+		env := refreshProfile(t, f, "work", IntentBackground)
+		requireEqual(t, StatusSignedOut, env.Targets[0].Status)
+		requireEqual(t, 0, len(env.Targets[0].Windows))
+		requireEqual(t, int32(1), calls.Load())
+	})
+	t.Run("Should send one request per account per scheduler tick for two profiles", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		addProfileTarget(f, "work")
+		requireNoError(t, f.service.Start(t.Context(), []string{"personal", "work"}))
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		for tick, advance := range []time.Duration{10 * time.Second, 5 * time.Minute} {
+			requireNoError(t, f.clock.BlockUntilContext(ctx, 1))
+			f.clock.Advance(advance)
+			refreshProfile(t, f, "personal", IntentBackground)
+			refreshProfile(t, f, "work", IntentBackground)
+			requireEqual(t, int32(tick+1), calls.Load())
+		}
+	})
+}
