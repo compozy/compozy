@@ -163,6 +163,7 @@ function ownChipActions({
   };
 }
 
+/** The sessions sidebar toggle; the board drawer has no rail to toggle. */
 function sidebarToggle(input: UseSessionTopbarSlotInput, inWindow: boolean) {
   return inWindow ? (
     <SessionPanelToggle panel="sidebar" open={input.sidebarOpen} onToggle={input.onSidebarToggle} />
@@ -200,7 +201,8 @@ function sessionActions(
 
 /**
  * An always-on agent's main (#1303): the agent's `…` menu owns its lifecycle, so the head keeps it
- * and the sessions list toggle, without linked work, Stop or the context sidebar toggle.
+ * without linked work, Stop or the layout toggles. A panel that is still open (a kept preference,
+ * or the inspector a subagent link opened) keeps its toggle as the way to close it.
  */
 function alwaysOnMainActions(
   input: UseSessionTopbarSlotInput,
@@ -211,7 +213,10 @@ function alwaysOnMainActions(
     <>
       <AlwaysOnAgentMenu instance={instance} />
       <SessionMarkSeenAction session={input.session} />
-      {sidebarToggle(input, inWindow)}
+      {input.sidebarOpen ? sidebarToggle(input, inWindow) : null}
+      {input.inspectorOpen ? (
+        <SessionPanelToggle panel="inspector" open onToggle={input.onInspectorToggle} />
+      ) : null}
     </>
   );
 }
