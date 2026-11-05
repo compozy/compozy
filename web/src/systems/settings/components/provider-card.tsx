@@ -57,7 +57,6 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
           data-state={view.state.label}
           data-testid={`${testId}-status`}
           label={view.status.label}
-          ready={view.state.label === "installed"}
           tone={view.status.tone}
         />
         <span className={PROVIDER_CARD_FOOTER_CLASS}>

@@ -69,7 +69,6 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
           <ProviderStatusLabel
             data-testid="provider-detail-summary-status"
             label={state.display}
-            ready={ready}
             tone={state.tone}
           />
           {state.hint ? (

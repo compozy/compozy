@@ -437,6 +437,37 @@ describe("ProviderDetailDialog", () => {
     expect(screen.getByTestId("provider-detail-checked-at")).toHaveTextContent("Checked");
   });
 
+  it("Should mark Ready with a success dot while the label stays muted", () => {
+    const { unmount } = renderDialog({
+      mode: "inspect",
+      entry: {
+        ...nativeACPProvider,
+        auth_status: {
+          ...nativeACPProvider.auth_status!,
+          state: "authenticated",
+          code: undefined,
+          message: undefined,
+        },
+      },
+    });
+    const ready = screen.getByTestId("provider-detail-summary-status");
+    expect(ready).toHaveAttribute("data-tone", "success");
+    expect(ready).toHaveClass("text-muted-foreground");
+    unmount();
+
+    renderDialog({
+      mode: "inspect",
+      entry: {
+        ...nativeACPProvider,
+        auth_status: { ...nativeACPProvider.auth_status!, state: "needs_login" },
+      },
+    });
+    expect(screen.getByTestId("provider-detail-summary-status")).toHaveAttribute(
+      "data-tone",
+      "warning"
+    );
+  });
+
   it("Should offer delete only for providers the operator can remove", () => {
     const builtin: SettingsProviderEntry = {
       ...nativeProvider,
