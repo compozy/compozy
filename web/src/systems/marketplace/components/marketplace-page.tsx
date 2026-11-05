@@ -92,7 +92,8 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
       <div className={MARKETPLACE_PAGE_BODY_CLASS}>
         {kind === "mcps" ? (
           <>
-            <SettingsPageRestartNotice slug="mcp" />
+            {/* Its status/apply-record polls stop with the window's other live reads. */}
+            {liveDataEnabled ? <SettingsPageRestartNotice slug="mcp" /> : null}
             <MCPServersManagementBody management={mcp} />
           </>
         ) : (

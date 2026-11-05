@@ -342,6 +342,19 @@ describe("Marketplace page and cards", () => {
     expect(await screen.findByTestId("settings-page-mcp-restart-notice")).toBeVisible();
     expect(screen.getByRole("button", { name: "Restart CompozyOS" })).toBeVisible();
   });
+  it("Should drop the MCPs restart notice and its polling while the window is hidden", async () => {
+    server.use(
+      http.get("*/api/status", () =>
+        HttpResponse.json({
+          ...statusFixture,
+          config: { ...statusFixture.config, restart_required: true },
+        })
+      )
+    );
+    setup(<MarketplacePage liveDataEnabled={false} search={{ kind: "mcps" }} />);
+    expect(await screen.findByTestId("marketplace-page")).toHaveAttribute("data-kind", "mcps");
+    expect(screen.queryByTestId("settings-page-mcp-restart-notice")).not.toBeInTheDocument();
+  });
   it("Should open the MCP server editor over the MCPs view from Add ▾", async () => {
     const { router } = setup();
     await screen.findByTestId(`marketplace-card-${entry.entry_id}`);
