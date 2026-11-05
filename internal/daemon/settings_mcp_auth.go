@@ -56,6 +56,9 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 	}
 	status, err := s.mcpAuthManager.Status(ctx, cfg)
 	if err != nil {
+		if cfg.Implicit {
+			return unavailableMCPAuthStatus(cfg), nil
+		}
 		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)
 	}
 	return status, nil
@@ -179,7 +182,7 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 }
 
 func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
-	return mcpauth.Status{
+	status := mcpauth.Status{
 		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
@@ -191,4 +194,9 @@ func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 		Scopes:      append([]string(nil), cfg.Scopes...),
 		Diagnostic:  "token store unavailable",
 	}
+	if cfg.Implicit {
+		status.Status = mcpauth.StatusUnconfigured
+		status.AuthType, status.Diagnostic = "", ""
+	}
+	return status
 }

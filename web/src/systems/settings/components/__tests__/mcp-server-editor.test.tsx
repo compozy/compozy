@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { emptyDraft, toRequest, type MCPDraft } from "../../lib/mcp-editor-model";
+import { emptyDraft, toDraft, toRequest, type MCPDraft } from "../../lib/mcp-editor-model";
+import type { SettingsMCPServerEntry } from "../../types";
 import { MCPServerEditor, type MCPServerEditorProps } from "../mcp-server-editor";
 
 function makeProps(overrides: Partial<MCPServerEditorProps> = {}): MCPServerEditorProps {
@@ -45,6 +46,70 @@ function readDraft(): MCPDraft {
 }
 
 describe("MCPServerEditor", () => {
+  it("Should let an explicit OAuth server with headers undo a toggle before saving", async () => {
+    const user = userEvent.setup();
+    const entry: SettingsMCPServerEntry = {
+      name: "remote",
+      transport: "http",
+      url: "https://example.test/mcp",
+      headers_configured: true,
+      auth: { registration: "auto", client_secret_configured: false },
+      scope: "workspace",
+      source_metadata: {
+        available_targets: ["workspace-config"],
+        effective_source: { kind: "workspace-config", scope: "workspace" },
+      },
+    };
+    render(
+      <EditorHarness mode="edit" entry={entry} initialTier="advanced" draft={toDraft(entry)} />
+    );
+    const toggle = screen.getByRole("switch", { name: "Use OAuth" });
+    await user.click(toggle);
+    expect(toRequest(readDraft()).server.auth).toBeUndefined();
+    expect(toggle).not.toHaveAttribute("aria-disabled", "true");
+    await user.click(toggle);
+    expect(toRequest(readDraft())).toMatchObject({
+      server: { auth: { registration: "auto" } },
+      preserve_headers: true,
+    });
+  });
+
+  it("Should keep implicit OAuth disabled for a saved header-auth server", async () => {
+    const user = userEvent.setup();
+    const entry: SettingsMCPServerEntry = {
+      name: "header",
+      transport: "http",
+      url: "https://example.test/mcp",
+      headers_configured: true,
+      scope: "workspace",
+      source_metadata: {
+        available_targets: ["workspace-config"],
+        effective_source: { kind: "workspace-config", scope: "workspace" },
+      },
+    };
+    render(
+      <EditorHarness mode="edit" entry={entry} initialTier="advanced" draft={toDraft(entry)} />
+    );
+    const toggle = screen.getByRole("switch", { name: "Use OAuth" });
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
+    await user.click(toggle);
+    expect(toRequest(readDraft()).server.auth).toBeUndefined();
+  });
+
+  it("Should toggle OAuth in the saved remote definition", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditorHarness
+        initialTier="advanced"
+        draft={{ ...emptyDraft("http"), name: "remote", url: "https://example.test/mcp" }}
+      />
+    );
+    await user.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(toRequest(readDraft()).server.auth).toEqual({ registration: "auto" });
+    await user.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(toRequest(readDraft()).server.auth).toBeUndefined();
+  });
+
   it("Should present one named dialog with a single primary action", () => {
     render(<MCPServerEditor {...makeProps()} />);
 

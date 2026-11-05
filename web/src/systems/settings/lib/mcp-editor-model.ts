@@ -64,6 +64,7 @@ export interface MCPDraft {
   // remote fields
   url: string;
   oauth: MCPOAuthDraft;
+  headersEndpoint?: string;
 }
 
 export interface MCPDraftErrors {
@@ -120,7 +121,7 @@ export function emptyDraft(transport: MCPTransport = "stdio"): MCPDraft {
 export function withTransport(draft: MCPDraft, transport: MCPTransport): MCPDraft {
   if (draft.transport === transport) return draft;
   if (transport === "stdio") {
-    return { ...draft, transport, url: "", oauth: emptyOAuth() };
+    return { ...draft, transport, url: "", oauth: emptyOAuth(), headersEndpoint: undefined };
   }
   return { ...draft, transport, command: "", args: [], env: [], secretEnv: [] };
 }
@@ -167,6 +168,7 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
     env,
     secretEnv,
     url: entry.url ?? "",
+    headersEndpoint: entry.headers_configured ? entry.url : undefined,
     oauth,
   };
 }
@@ -180,6 +182,7 @@ export function withoutMCPSecretPreservation(draft: MCPDraft): MCPDraft {
   });
   return {
     ...draft,
+    headersEndpoint: undefined,
     env: draft.env.map(entry => ({ ...entry, originalKey: undefined })),
     secretEnv: draft.secretEnv.map(entry => ({
       ...entry,
@@ -295,6 +298,7 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   }
   const server: ServerBody = { name, transport: draft.transport, url: draft.url.trim() };
   const request: SettingsMCPServerRequest = { server };
+  if (draft.headersEndpoint) request.preserve_headers = true;
   if (draft.oauth.enabled) {
     const auth: AuthBody = { registration: draft.oauth.registration };
     if (draft.oauth.issuerUrl.trim()) auth.issuer_url = draft.oauth.issuerUrl.trim();
@@ -359,6 +363,9 @@ export function validateDraft(draft: MCPDraft): MCPDraftValidation {
   } else {
     if (draft.url.trim().length === 0) {
       errors.url = `URL is required for ${draft.transport} transport`;
+    }
+    if (draft.headersEndpoint && draft.headersEndpoint.trim() !== draft.url.trim()) {
+      errors.url = "Headers can only be kept for the same server URL";
     }
     const forbidden = hasRemoteForbiddenFields(draft);
     if (forbidden) errors.remoteFields = forbidden;

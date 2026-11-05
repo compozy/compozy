@@ -13669,6 +13669,7 @@ export interface components {
     };
     PutSettingsMCPServerRequest: {
       preserve_env?: string[];
+      preserve_headers?: boolean;
       preserve_secrets?: components["schemas"]["SettingsMCPSecretPreservationPayload"] | null;
       secret_values?: components["schemas"]["SettingsMCPSecretValuesPayload"] | null;
       server: components["schemas"]["SettingsMCPServerPayload"];
@@ -16410,6 +16411,7 @@ export interface components {
       catalog_version?: string;
       command?: string;
       env_keys?: string[];
+      headers_configured?: boolean;
       name: string;
       override?: components["schemas"]["SettingsMCPExtensionOverridePayload"] | null;
       owner?: string;

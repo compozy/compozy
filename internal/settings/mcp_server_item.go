@@ -23,6 +23,7 @@ type MCPServerItem struct {
 	Args                   []string
 	EnvKeys                []string
 	SecretEnvKeys          []string
+	HeadersConfigured      bool
 	URL                    string
 	Auth                   compozyconfig.MCPAuthConfig
 	ClientSecretConfigured bool
@@ -60,6 +61,7 @@ func baseMCPServerItem(
 		Args:                   append([]string(nil), effective.Server.Args...),
 		EnvKeys:                mcpEnvKeys(effective.Server.Env),
 		SecretEnvKeys:          mcpSecretEnvKeys(effective.Server.SecretEnv),
+		HeadersConfigured:      len(effective.Server.Headers) > 0 || len(effective.Server.SecretHeaders) > 0,
 		URL:                    strings.TrimSpace(effective.Server.URL),
 		Auth:                   auth,
 		ClientSecretConfigured: clientSecretConfigured,

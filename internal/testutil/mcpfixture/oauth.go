@@ -52,6 +52,7 @@ type OAuthEndpoints struct {
 
 // OAuthRequests records observable OAuth boundary inputs without emitting them to logs.
 type OAuthRequests struct {
+	MCPHeaders    []http.Header
 	Authorization []url.Values
 	Token         []url.Values
 	Registration  []map[string]any
@@ -87,7 +88,12 @@ func StartOAuthHTTP(t testing.TB, fixture *Fixture, config OAuthConfig) *OAuthHT
 func (s *OAuthHTTPServer) Requests() OAuthRequests {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	headers := make([]http.Header, len(s.requests.MCPHeaders))
+	for i, header := range s.requests.MCPHeaders {
+		headers[i] = header.Clone()
+	}
 	return OAuthRequests{
+		MCPHeaders:    headers,
 		Authorization: cloneValuesSlice(s.requests.Authorization),
 		Token:         cloneValuesSlice(s.requests.Token),
 		Registration:  cloneRegistrationSlice(s.requests.Registration),
@@ -160,6 +166,11 @@ func (s *OAuthHTTPServer) serveProtectedMCP(
 	request *http.Request,
 	endpoints OAuthEndpoints,
 ) {
+	headers := request.Header.Clone()
+	headers.Del("Authorization")
+	s.mu.Lock()
+	s.requests.MCPHeaders = append(s.requests.MCPHeaders, headers)
+	s.mu.Unlock()
 	if request.Header.Get("Authorization") != "Bearer "+AccessToken {
 		s.writeBearerChallenge(writer, endpoints.ProtectedResourceURL, "invalid_token", "")
 		return

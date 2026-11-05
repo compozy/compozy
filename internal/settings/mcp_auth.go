@@ -72,6 +72,13 @@ func (s *service) BeginMCPAuth(
 	if err != nil {
 		return mcpauth.BeginResult{}, err
 	}
+	if !mcpauth.OAuthCapable(server) {
+		return mcpauth.BeginResult{}, validationError(
+			errors.New(
+				"settings: OAuth sign-in requires HTTP with explicit OAuth for auxiliary headers, or no headers",
+			),
+		)
+	}
 	if len(req.ApprovedScopes) > 0 && !req.ApproveScopeEscalation {
 		return mcpauth.BeginResult{}, validationError(
 			errors.New("settings: MCP auth approved_scopes require approve_scope_escalation = true"),

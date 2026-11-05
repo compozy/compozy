@@ -21097,6 +21097,9 @@
             },
             "type": "array"
           },
+          "preserve_headers": {
+            "type": "boolean"
+          },
           "preserve_secrets": {
             "oneOf": [
               {
@@ -30609,6 +30612,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "headers_configured": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"

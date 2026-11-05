@@ -374,25 +374,26 @@ type SettingsMCPSecretValuesPayload struct {
 
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
-	Owner          string                                 `json:"owner,omitempty"`
-	RuntimeName    string                                 `json:"runtime_name,omitempty"`
-	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name           string                                 `json:"name"`
-	Transport      string                                 `json:"transport"`
-	Command        string                                 `json:"command,omitempty"`
-	Args           []string                               `json:"args,omitempty"`
-	EnvKeys        []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
-	URL            string                                 `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope          SettingsScopeKind                      `json:"scope"`
-	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
-	Profile        string                                 `json:"profile,omitempty"`
-	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
+	HeadersConfigured bool                                   `json:"headers_configured,omitzero"`
+	Owner             string                                 `json:"owner,omitempty"`
+	RuntimeName       string                                 `json:"runtime_name,omitempty"`
+	Override          *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name              string                                 `json:"name"`
+	Transport         string                                 `json:"transport"`
+	Command           string                                 `json:"command,omitempty"`
+	Args              []string                               `json:"args,omitempty"`
+	EnvKeys           []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys     []string                               `json:"secret_env_keys,omitempty"`
+	URL               string                                 `json:"url,omitempty"`
+	Auth              *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus        *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus     *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope             SettingsScopeKind                      `json:"scope"`
+	WorkspaceID       string                                 `json:"workspace_id,omitempty"`
+	Profile           string                                 `json:"profile,omitempty"`
+	CatalogEntry      string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion    string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata    SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
 // SettingsMCPServerPayload is a daemon API value.

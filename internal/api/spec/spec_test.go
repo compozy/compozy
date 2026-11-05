@@ -3237,6 +3237,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addSettingsMCPHeaderPresence(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}

@@ -239,13 +239,6 @@ func loadMCPAuthStatus(
 	if err != nil {
 		return SettingsMCPAuthStatusRecord{}, err
 	}
-	if status.Status == string(mcpauth.StatusUnconfigured) {
-		return SettingsMCPAuthStatusRecord{}, fmt.Errorf(
-			"cli: remote MCP server %q in %s scope does not configure OAuth",
-			target.Name,
-			target.Scope,
-		)
-	}
 	return status, nil
 }
 
