@@ -2281,9 +2281,86 @@ Watch.
 			if err != nil || len(agents) == 0 {
 				t.Fatalf("discovery = %+v, %v", agents, err)
 			}
-			migrated, err := LoadAgentDefFile(path)
-			if err != nil || migrated.Kind != AgentKindAlwaysOn {
-				t.Fatalf("migrated = %+v, %v", migrated, err)
+			if agents[0].Kind != AgentKindAlwaysOn {
+				t.Fatalf("discovered kind = %q", agents[0].Kind)
+			}
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("discovery did not migrate: %q %v", body, err)
+			}
+		})
+	}
+}
+
+// Invariant: the file-loader migration preserves sharing permissions and concurrent saves.
+func TestPersistedAgentKindPublication(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve shared definition permissions", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), agentDefName)
+		body := "---\nname: triage\nkind: stays_on\n---\nWatch.\n"
+		if err := os.WriteFile(path, []byte(body), 0640); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadAgentDefFile(path); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != 0640 {
+			t.Fatalf("permissions = %v, %v", info, err)
+		}
+	})
+	for _, replace := range []bool{false, true} {
+		name := "Should preserve an edit saved before final comparison"
+		if replace {
+			name = "Should preserve a replacement saved before final comparison"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, agentDefName)
+			body := []byte("---\nname: triage\nkind: stays_on\n---\nWatch.\n")
+			if err := os.WriteFile(path, body, 0640); err != nil {
+				t.Fatal(err)
+			}
+			directory, err := fileutil.OpenDirectory(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := directory.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			original, info, err := directory.ReadRegularFile(agentDefName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			updated, _ := rewriteAgentKindValue(original)
+			saved := append(bytes.Clone(body), []byte("Saved concurrently.\n")...)
+			err = publishMigratedAgentKind(directory, path, info, original, updated, func() {
+				if replace {
+					next := filepath.Join(root, "saved.md")
+					if err := os.WriteFile(next, saved, 0640); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Rename(next, path); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(path, saved, 0640); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if err == nil {
+				t.Fatal("migration replaced a concurrent save")
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(actual, saved) {
+				t.Fatalf("concurrent save lost: %q, %v", actual, err)
+			}
+			entries, err := os.ReadDir(root)
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("migration temporary file leaked: %v, %v", entries, err)
 			}
 		})
 	}

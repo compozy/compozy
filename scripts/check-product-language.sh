@@ -100,7 +100,6 @@ rule_a_in_scope() {
   local rel="$1"
   [[ "$rel" == *.go && "$rel" != *_test.go && "$rel" != */testdata/* && "$rel" != testdata/* ]] || return 1
   [[ "$rel" == internal/* || "$rel" == cmd/* || "$rel" == sdk/go/* ]] || return 1
-  [[ "$rel" == internal/config/agent_persisted_kind.go || "$rel" == internal/config/agent_persisted_config.go ]] && return 1
   [[ "$rel" == sdk/go/client/* ]] && return 1
   return 0
 }
@@ -173,6 +172,23 @@ while IFS= read -r file; do
   rule_a_in_scope "$rel" || continue
   if [[ "$rel" == internal/config/removed_agent_config.go ]]; then
     remaining="$(kind_scan "Rule A" "(?:path\[1\] == \"stays_on\")(*SKIP)(*F)|${rule_a_pattern}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
+  migration_tokens=""
+  case "$rel" in
+    internal/config/agent_persisted_kind.go)
+      migration_tokens="$(cat <<'TOKENS'
+\Qconst retiredAgentKind = "stays_on"\E|\QagentKindYAMLLine     = regexp.MustCompile(`^kind:[ \t]+("stays_on"|'stays_on'|stays_on)([ \t]+#.*)?[ \t]*$`)\E|\QagentKindTOMLLine     = regexp.MustCompile(`^kind[ \t]*=[ \t]*("stays_on"|'stays_on')([ \t]+#.*)?[ \t]*$`)\E|\Q// It returns (nil, true) when the file needs no rewrite and (nil, false) for a stays_on file it\E|\Q// kind line reads stays_on but the frontmatter fails strict decode.\E|\Q// agentKindValueSpan locates the stays_on bytes of the single top-level kind line inside the\E
+TOKENS
+)" ;;
+    internal/config/agent_persisted_config.go)
+      migration_tokens="$(cat <<'TOKENS'
+\Qconst retiredAlwaysOnArchiveHeader = "\n# Archived [agents.stays_on]; values moved to [agents.always_on] " +\E|\Q// migrateRetiredAlwaysOnTable is the user-state migration for the v0.5.0 [agents.stays_on] table\E
+TOKENS
+)" ;;
+  esac
+  if [[ -n "$migration_tokens" ]]; then
+    remaining="$(kind_scan "Rule A" "(?:${migration_tokens})(*SKIP)(*F)|${rule_a_pattern}" -- "$file")"
     [[ -n "$remaining" ]] || continue
   fi
   kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the alias boundary")

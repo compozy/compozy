@@ -51,3 +51,8 @@ persisted its migration and left its second load unchanged (`REAL_CLI_PERSISTED_
 No provider prompt was sent. The file-loader migration shim has a named removal release, v0.6.0.
 
 Migration approach adapted from #1297 by @rodrigo123antunes.
+
+Review safety verification: real-file race tests preserved shared mode bits, concurrent in-place saves
+and replacement saves, with no leaked temporary files after rejection. Discovery and boot checks
+inspect the migrated bytes before any explicit loader can alter them. The effective two-hour
+approval timeout and narrowed UT-020 migration exemptions passed their owning suites.

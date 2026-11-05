@@ -4693,11 +4693,15 @@ func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
 		}
 		d := newTestDaemon(t, homePaths, nil)
 		d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
+		state := &bootState{}
 		if err := d.bootConfig(
-			&bootState{},
+			state,
 			&bootCleanup{},
 		); err != nil {
 			t.Fatalf("boot error = %v", err)
+		}
+		if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("timeout lost: %v", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
 		}
 	})
 }

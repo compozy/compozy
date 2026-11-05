@@ -2,8 +2,10 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 
@@ -39,9 +41,40 @@ func migratePersistedAgentKind(
 		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.0", "path", path)
 		return
 	}
-	if err := publishRetiredConfigArchive(directory, path, info, contents, updated); err != nil {
+	if err := publishMigratedAgentKind(directory, path, info, contents, updated, nil); err != nil {
 		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.0", "path", path, "error", err)
 	}
+}
+
+// publishMigratedAgentKind compares the snapshot after the temporary file is synced.
+// The descriptor owns the parent directory; AtomicWriteFileIf owns temporary-file cleanup.
+func publishMigratedAgentKind(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, updated []byte,
+	beforeCompare func(),
+) (err error) {
+	writable, err := directory.ReopenForMutation(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, writable.Close()) }()
+	name := filepath.Base(path)
+	return writable.AtomicWriteFileIf(name, updated, original.Mode().Perm(), func() error {
+		if beforeCompare != nil {
+			beforeCompare()
+		}
+		current, info, err := writable.ReadRegularFile(name)
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(original, info) || original.Mode().Perm() != info.Mode().Perm() ||
+			!bytes.Equal(contents, current) {
+			return errors.New("agent file changed during persisted kind migration")
+		}
+		return nil
+	})
 }
 
 // rewriteAgentKindValue returns the original bytes with the top-level kind value span replaced.

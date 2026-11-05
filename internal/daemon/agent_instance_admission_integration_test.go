@@ -1860,13 +1860,18 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 				t.Error(err)
 			}
 		})
+		for _, path := range paths {
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("boot did not migrate %s: %q %v", path, body, err)
+			}
+		}
+
 		root := t.TempDir()
 		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
 		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
+		resolveDaemonWorkspace(t, d.workspaceResolver, root)
 		for _, path := range paths {
-			if _, err := compozyconfig.LoadAgentDefFile(path); err != nil {
-				t.Fatalf("load %s: %v", path, err)
-			}
 			body, err := os.ReadFile(path)
 			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
 				t.Fatalf("definition changed: %q %v", body, err)
