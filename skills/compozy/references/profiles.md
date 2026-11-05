@@ -67,6 +67,9 @@ A session's profile never changes. To move work started in the wrong profile, us
 `compozy session move-to-profile <id> <profile>` (native `compozy__session_move_to_profile`): it
 copies a stopped session into the target profile as a fork, moves its worktree branch to a new
 worktree owned by that profile, and archives the original, whose history and usage stay put.
+Archived, stopped descendants remain in the source profile with their lineage pointing to the
+archived original. Live or unarchived descendants block the move; stop and archive them first.
+The refusal keeps code `session_move_to_profile_has_children` and counts only blocking descendants.
 
 Routes that name one session (`/api/workspaces/{workspace_id}/sessions/{session_id}/...` and
 `/api/sessions/{session_id}/owner`) treat that session's profile as authoritative. A selected profile,
