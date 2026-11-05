@@ -5,7 +5,7 @@ title: MCP authorize manual completion (remote operator paste)
 persona: Iris
 journey: J-mcp-authorize-repair
 expected: Entering manual completion starts a fresh `mode=manual` PKCE session. The dialog accepts only a full redirect URL and sends it to `auth/exchange`; state and issuer mismatch burn the attempt. Success requires the refetched `authenticated && token_present`; a non-confirmed exchange leaves the dialog failed with the prior status intact. The live URL stays copyable throughout.
-entry_points: web `/mcp` Authorize -> Enter redirect URL; `POST /api/settings/mcp-servers/{name}/auth/exchange`
+entry_points: web `/settings/mcp` Sign in -> Enter redirect URL; `POST /api/settings/mcp-servers/{name}/auth/exchange`
 qa_status: skipped
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
