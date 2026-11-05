@@ -33,6 +33,7 @@ func AgentMCPReferenceBroken(server MCPServer, configured []MCPServer) bool {
 	return server.Reference && len(ResolveAgentMCPReferences([]MCPServer{server}, configured)) == 0
 }
 
+// prepareAgentMCPSidecar validates requested additions without rewriting unrelated sidecar data.
 func prepareAgentMCPSidecar(path string, content []byte, additions []MCPServer) ([]byte, []MCPServer, error) {
 	if err := validateUniqueMCPJSONServerNames(additions, path); err != nil {
 		return nil, nil, errors.Join(ErrInvalidAgentDefinition, err)
@@ -157,6 +158,7 @@ func createAgentDefWithMCPServers(
 	return agent, nil
 }
 
+// rejectConfiguredMCPReferences keeps name indirection confined to agent definitions.
 func rejectConfiguredMCPReferences(servers []MCPServer) error {
 	for _, server := range servers {
 		if server.Reference {

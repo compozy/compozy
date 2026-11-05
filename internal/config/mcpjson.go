@@ -42,6 +42,7 @@ func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
 	return parseMCPServersJSON(content, source, false)
 }
 
+// parseMCPServersJSON opens agent-only fields solely at the per-agent sidecar boundary.
 func parseMCPServersJSON(content []byte, source string, agentSidecar bool) ([]MCPServer, error) {
 	sourceName := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
@@ -115,6 +116,7 @@ func ensureJSONEOF(decoder *json.Decoder, source string) error {
 	return ensureJSONDocumentEOF(decoder, source, "MCP JSON")
 }
 
+// decodeStrictMCPJSONCollection rejects agent-only fields before strict general-config decoding.
 func decodeStrictMCPJSONCollection(raw json.RawMessage, dest any, agentSidecar bool) error {
 	if !agentSidecar {
 		var entries map[string]map[string]json.RawMessage

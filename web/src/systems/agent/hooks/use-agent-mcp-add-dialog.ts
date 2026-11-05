@@ -1,17 +1,14 @@
-import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  emptyDraft,
-  settingsMCPServersListOptions,
-  validateDraft,
-  type MCPDraft,
-} from "@/systems/settings";
+import { settingsMCPServersListOptions, validateDraft, type MCPDraft } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
 import { useProfileReadScope } from "@/systems/profiles";
 import type { AgentPayload, UpdateAgentParams } from "../types";
+import { agentMCPAddDialogLogic } from "../stores/agent-mcp-add-dialog-store";
 
 export type ServerInput = NonNullable<UpdateAgentParams["agent"]["mcp_servers"]>[number];
 
+/** Binds one dialog store to scoped Query data and derives validation without storing it. */
 export function useAgentMCPAddDialog({
   agent,
   additions,
@@ -25,10 +22,8 @@ export function useAgentMCPAddDialog({
   onAdd: (server: ServerInput) => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<"pick" | "new">("pick");
-  const [draft, setDraft] = useState<MCPDraft>(() => emptyDraft());
-  const [selected, setSelected] = useState("");
-  const [headers, setHeaders] = useState<{ id: string; key: string; value: string }[]>([]);
+  const store = useStore(agentMCPAddDialogLogic);
+  const { mode, draft, selected, headers } = useSelector(store, snapshot => snapshot.context);
   const { destination } = useProfileReadScope();
   const servers = useQuery(
     settingsMCPServersListOptions({
@@ -53,13 +48,9 @@ export function useAgentMCPAddDialog({
   const duplicateHeaders = new Set(headerNames).size !== headerNames.length;
   const headerError =
     draft.transport === "http" && duplicateHeaders ? "Header names must be unique." : null;
-  const headerErrors = headers.map(header => {
-    if (draft.transport !== "http") return null;
-    if (header.key.trim() && !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(header.key.trim()))
-      return "Use a valid HTTP header name.";
-    if (/[\r\n]/.test(header.value)) return "Remove line breaks from the header value.";
-    return null;
-  });
+  const headerErrors = headers.map(header =>
+    draft.transport === "http" ? validateHeaderCredential(header, draft.oauth.enabled) : null
+  );
   const validHeaders =
     draft.transport !== "http" ||
     (!duplicateHeaders &&
@@ -69,13 +60,17 @@ export function useAgentMCPAddDialog({
 
   return {
     mode,
-    setMode,
+    onNewServer: () => store.trigger.newServerRequested(),
     draft,
-    setDraft,
+    onDraftChange: (update: (draft: MCPDraft) => MCPDraft) =>
+      store.trigger.draftChanged({ draft: update(store.getSnapshot().context.draft) }),
     selected,
-    setSelected,
+    onSelectServer: (name: string) => store.trigger.serverSelected({ name }),
     headers,
-    setHeaders,
+    onHeaderAdd: () => store.trigger.headerAdded({ id: crypto.randomUUID() }),
+    onHeaderChange: (id: string, patch: { key?: string; value?: string }) =>
+      store.trigger.headerChanged({ id, patch }),
+    onHeaderRemove: (id: string) => store.trigger.headerRemoved({ id }),
     servers,
     vault,
     available,
@@ -89,4 +84,18 @@ export function useAgentMCPAddDialog({
     onAdd,
     onClose,
   };
+}
+
+/** Mirrors the daemon header policy before a connection becomes a pending addition. */
+function validateHeaderCredential(header: { key: string; value: string }, oauthEnabled: boolean) {
+  const name = header.key.trim();
+  if (name && !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)) return "Use a valid HTTP header name.";
+  const normalized = name.toLowerCase();
+  if (normalized === "content-type" || normalized.startsWith("mcp-"))
+    return "This header is managed by the MCP connection.";
+  if (["cookie", "proxy-authorization", "set-cookie"].includes(normalized))
+    return "Use Authorization for header credentials.";
+  if (normalized === "authorization" && oauthEnabled) return "Authorization is managed by OAuth.";
+  if (/[\r\n]/.test(header.value)) return "Remove line breaks from the header value.";
+  return null;
 }

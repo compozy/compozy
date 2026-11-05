@@ -2405,6 +2405,7 @@ func TestPersistedAgentKindDeferredMigration(t *testing.T) {
 	}
 }
 
+// TestAgentMCPSidecarAdditions owns lossless additions, reference boundaries and partial-write recovery.
 func TestAgentMCPSidecarAdditions(t *testing.T) {
 	t.Run("Should reject references outside agent sidecars", func(t *testing.T) {
 		t.Parallel()

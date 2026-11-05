@@ -66,6 +66,7 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	h.updateAgent(c, req, name, startedAt)
 }
 
+// updateAgent runs fresh resolution, digest CAS and publication under the shared authoring guard.
 func (h *BaseHandlers) updateAgent(c *gin.Context, req contract.UpdateAgentRequest, name string, startedAt time.Time) {
 	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {

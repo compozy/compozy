@@ -6088,6 +6088,7 @@ func addApprovalAccessScope(value any) int {
 }
 
 // #1305: approve only the additive agent MCP input and response fields.
+// addAgentMCPAttachmentSchemas applies only approved additive shapes before historical comparison.
 func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	doc, err := Document()

@@ -126,6 +126,7 @@ func (h *BaseHandlers) allowAgentPermissionPolicyWrite(c *gin.Context, approval 
 	return false
 }
 
+// allowAgentMCPSecretValues keeps plaintext credential entry operator-owned on HTTP and UDS.
 func (h *BaseHandlers) allowAgentMCPSecretValues(c *gin.Context, servers []contract.AgentMCPServerInput) bool {
 	if !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
 		return true

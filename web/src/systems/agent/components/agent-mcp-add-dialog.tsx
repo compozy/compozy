@@ -14,19 +14,23 @@ import {
 import { MCPServerEditor, toRequest } from "@/systems/settings";
 import { useAgentMCPAddDialog } from "../hooks/use-agent-mcp-add-dialog";
 
+/** Creates the per-mount controller for staging an agent MCP attachment. */
 export function AgentMCPAddDialog(props: Parameters<typeof useAgentMCPAddDialog>[0]) {
   return <AgentMCPAddDialogView {...useAgentMCPAddDialog(props)} />;
 }
 
+/** Stages configured name references or new connections through the shared editor. */
 export function AgentMCPAddDialogView({
   mode,
-  setMode,
+  onNewServer,
   draft,
-  setDraft,
+  onDraftChange,
   selected,
-  setSelected,
+  onSelectServer,
   headers,
-  setHeaders,
+  onHeaderAdd,
+  onHeaderChange,
+  onHeaderRemove,
   servers,
   vault,
   available,
@@ -66,7 +70,7 @@ export function AgentMCPAddDialogView({
                   ),
                 }
         }
-        onChange={setDraft}
+        onChange={onDraftChange}
         onTargetChange={() => {}}
         onClose={onClose}
         onSave={() => {
@@ -89,7 +93,9 @@ export function AgentMCPAddDialogView({
         {draft.transport === "http" ? (
           <AgentMCPHeaderFields
             headers={headers}
-            setHeaders={setHeaders}
+            onHeaderAdd={onHeaderAdd}
+            onHeaderChange={onHeaderChange}
+            onHeaderRemove={onHeaderRemove}
             headerError={headerError}
             headerErrors={headerErrors}
           />
@@ -118,7 +124,7 @@ export function AgentMCPAddDialogView({
           id="agent-mcp-existing"
           value={selected}
           disabled={servers.isPending}
-          onChange={event => setSelected(event.target.value)}
+          onChange={event => onSelectServer(event.target.value)}
         >
           <NativeSelectOption value="">Choose a server</NativeSelectOption>
           {available.map(server => (
@@ -134,7 +140,7 @@ export function AgentMCPAddDialogView({
         >
           Attach server
         </Button>
-        <Button type="button" variant="secondary" onClick={() => setMode("new")}>
+        <Button type="button" variant="secondary" onClick={onNewServer}>
           Add new server
         </Button>
       </DialogContent>
@@ -142,14 +148,17 @@ export function AgentMCPAddDialogView({
   );
 }
 
+/** Edits write-only header rows and displays the owning policy errors. */
 function AgentMCPHeaderFields({
   headers,
-  setHeaders,
+  onHeaderAdd,
+  onHeaderChange,
+  onHeaderRemove,
   headerError,
   headerErrors,
 }: Pick<
   ReturnType<typeof useAgentMCPAddDialog>,
-  "headers" | "setHeaders" | "headerError" | "headerErrors"
+  "headers" | "onHeaderAdd" | "onHeaderChange" | "onHeaderRemove" | "headerError" | "headerErrors"
 >) {
   return (
     <div className="flex flex-col gap-3">
@@ -165,32 +174,16 @@ function AgentMCPHeaderFields({
             <Input
               aria-label={`Header name ${index + 1}`}
               value={header.key}
-              onChange={event =>
-                setHeaders(
-                  headers.map((row, at) =>
-                    at === index ? { ...row, key: event.target.value } : row
-                  )
-                )
-              }
+              onChange={event => onHeaderChange(header.id, { key: event.target.value })}
             />
             <Input
               aria-label={`Header secret ${index + 1}`}
               type="password"
               autoComplete="new-password"
               value={header.value}
-              onChange={event =>
-                setHeaders(
-                  headers.map((row, at) =>
-                    at === index ? { ...row, value: event.target.value } : row
-                  )
-                )
-              }
+              onChange={event => onHeaderChange(header.id, { value: event.target.value })}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setHeaders(headers.filter((_, at) => at !== index))}
-            >
+            <Button type="button" variant="ghost" onClick={() => onHeaderRemove(header.id)}>
               Remove
             </Button>
           </div>
@@ -201,20 +194,7 @@ function AgentMCPHeaderFields({
           ) : null}
         </div>
       ))}
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() =>
-          setHeaders([
-            ...headers,
-            {
-              id: crypto.randomUUID(),
-              key: headers.length === 0 ? "Authorization" : "",
-              value: "",
-            },
-          ])
-        }
-      >
+      <Button type="button" variant="secondary" onClick={onHeaderAdd}>
         Add header credential
       </Button>
       <p className="text-caption text-muted-foreground">

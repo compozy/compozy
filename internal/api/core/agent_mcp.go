@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// agentMCPServersFromPayload clones bindings while leaving raw values for the Vault write boundary.
 func agentMCPServersFromPayload(payload []contract.AgentMCPServerInput) []compozyconfig.MCPServer {
 	servers := make([]compozyconfig.MCPServer, 0, len(payload))
 	for _, value := range payload {
@@ -47,6 +48,7 @@ func agentMCPServersFromPayload(payload []contract.AgentMCPServerInput) []compoz
 	return servers
 }
 
+// writeAgentDefinitionWithMCP persists sidecar additions and rolls back only uncommitted credentials.
 func writeAgentDefinitionWithMCP(
 	ctx context.Context,
 	secrets VaultService,
@@ -129,6 +131,7 @@ func writeAgentDefinitionWithMCP(
 	return persisted, nil
 }
 
+// validateAgentMCPSecretHeaderValues checks raw values and refs together before any Vault writes.
 func validateAgentMCPSecretHeaderValues(input contract.AgentMCPServerInput, authEnabled bool) error {
 	headers := make(map[string]string, len(input.SecretHeaders)+len(input.SecretHeaderValues))
 	maps.Copy(headers, input.SecretHeaders)
@@ -182,6 +185,7 @@ func RollbackAgentMCPSecretValues(
 	return result
 }
 
+// rollbackCreatedAgentWithMCP removes minted credentials once their definition has been deleted.
 func (h *BaseHandlers) rollbackCreatedAgentWithMCP(
 	ctx context.Context,
 	agent compozyconfig.AgentDef,

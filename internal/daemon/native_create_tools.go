@@ -145,6 +145,7 @@ func (n *daemonNativeTools) nativeAgentCreateProfileName(
 	return "", errors.New("daemon: profile lookup is unavailable for agent create")
 }
 
+// rollbackNativeAgentCreate reports whether deletion succeeded even if catalog reconciliation fails.
 func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) (bool, error) {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
@@ -160,6 +161,7 @@ func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourc
 	return true, nil
 }
 
+// agentCreateRequest builds the shared input while keeping managed credentials reference-only.
 func (n *daemonNativeTools) agentCreateRequest(
 	id toolspkg.ToolID,
 	scope toolspkg.Scope,
@@ -312,6 +314,7 @@ func nativeReservedAgentNameToolError(id toolspkg.ToolID, err error) error {
 	)
 }
 
+// rollbackNativeAgentCreateWithMCP cleans minted credentials only after their definition is removed.
 func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
 	ctx context.Context,
 	agent compozyconfig.AgentDef,

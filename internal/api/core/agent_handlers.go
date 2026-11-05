@@ -118,6 +118,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	})
 }
 
+// rollbackCreatedAgentDefinition reports deletion separately from catalog reconciliation failures.
 func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) (bool, error) {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {

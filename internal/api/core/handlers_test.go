@@ -4138,7 +4138,16 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				return vault.Metadata{}, nil
 			},
 		}
-		for _, headers := range []map[string]string{{"Authorization:": "credential"}, {"Authorization": "first\r\nsecond"}, {"Authorization": "one", "authorization": "two"}, {"X-Existing": "replacement"}, {"x-existing": "replacement"}} {
+		for _, tc := range []struct {
+			headers map[string]string
+			cause   string
+		}{
+			{map[string]string{"Authorization:": "credential"}, "invalid_header_name"},
+			{map[string]string{"Authorization": "first\r\nsecond"}, "invalid_header_value"},
+			{map[string]string{"Authorization": "one", "authorization": "two"}, "duplicate_header"},
+			{map[string]string{"X-Existing": "replacement"}, "duplicate_header"},
+			{map[string]string{"x-existing": "replacement"}, "duplicate_header"},
+		} {
 			body := mustJSON(
 				t,
 				contract.CreateAgentRequest{
@@ -4152,7 +4161,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 								Name:               "remote",
 								Transport:          "http",
 								URL:                "https://example.com",
-								SecretHeaderValues: headers,
+								SecretHeaderValues: tc.headers,
 								SecretHeaders:      map[string]string{"X-Existing": "vault:mcp/shared/existing"},
 							},
 						},
@@ -4160,7 +4169,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				},
 			)
 			resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
-			if resp.Code != http.StatusBadRequest {
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), tc.cause) {
 				t.Fatalf("invalid header status = %d body=%s", resp.Code, resp.Body.String())
 			}
 		}

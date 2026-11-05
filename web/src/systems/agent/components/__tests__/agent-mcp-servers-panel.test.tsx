@@ -205,4 +205,35 @@ describe("Agent MCP attachment credentials", () => {
       expect.objectContaining({ secret_header_values: { Authorization: "credential" } })
     );
   });
+  it.each(["Content-Type", "Cookie", "MCP-Session-Id", "proxy-authorization", "set-cookie"])(
+    "Should reject reserved header %s before staging",
+    name => {
+      const onAdd = renderAddDialog();
+      fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
+      fireEvent.change(screen.getByLabelText("Header name 1"), { target: { value: name } });
+      fireEvent.change(screen.getByLabelText("Header secret 1"), {
+        target: { value: "credential" },
+      });
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add server" })).toBeDisabled();
+      expect(onAdd).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should reject Authorization while OAuth is enabled and recover when it is disabled", () => {
+    const onAdd = renderAddDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
+    fireEvent.change(screen.getByLabelText("Header secret 1"), { target: { value: "credential" } });
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-mode-advanced"));
+    fireEvent.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Authorization is managed by OAuth");
+    expect(screen.getByRole("button", { name: "Add server" })).toBeDisabled();
+    expect(onAdd).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("switch", { name: "Use OAuth" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_header_values: { Authorization: "credential" } })
+    );
+  });
 });
