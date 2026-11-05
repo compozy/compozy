@@ -139,7 +139,8 @@ func (p providerAuthStartup) probe(ctx context.Context, name string) bool {
 	if !ok {
 		return false
 	}
-	if _, known := p.verdicts.Lookup(name, provider); known {
+	// Known never drops a verdict, so settings read just before an apply cannot erase a newer one.
+	if p.verdicts.Known(name, provider) {
 		return false
 	}
 	env, err := p.envFor(name, provider)

@@ -102,6 +102,19 @@ func (v *AuthVerdicts) Lookup(providerName string, provider compozyconfig.Provid
 	return entry.verdict, true
 }
 
+// Known reports whether a verdict exists for the provider's current sign-in identity. Unlike
+// Lookup it never drops a mismatched entry, so a caller holding stale settings cannot erase it.
+func (v *AuthVerdicts) Known(providerName string, provider compozyconfig.ProviderConfig) bool {
+	if v == nil || provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
+		return false
+	}
+	fingerprint := authVerdictFingerprint(provider)
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	entry, found := v.entries[strings.TrimSpace(providerName)]
+	return found && entry.fingerprint == fingerprint
+}
+
 // Apply replaces a declared native_cli "unknown" classification with the last live verdict.
 // Any other declared state (for example a missing CLI) is current and wins. The returned time is
 // zero when no verdict applies.

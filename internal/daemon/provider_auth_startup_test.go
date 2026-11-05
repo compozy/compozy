@@ -294,4 +294,44 @@ func TestProviderAuthStartup(t *testing.T) {
 			t.Fatal("startup check recorded a verdict for the replaced provider settings")
 		}
 	})
+
+	t.Run("Should keep a verdict recorded for new settings while the check held stale ones", func(t *testing.T) {
+		t.Parallel()
+		var runs atomic.Int32
+		f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
+			providers.ProviderAuthCommandResult, error,
+		) {
+			runs.Add(1)
+			return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+		}, "acme")
+		stale := nativeStatusProvider("acme")
+		applied := stale
+		applied.AuthStatusCmd = "acme auth status --json"
+		var reads atomic.Int32
+		f.check.config = func(context.Context) (compozyconfig.Config, error) {
+			// Read 2 is the probe's settings read: settings apply and a manual probe land right after it.
+			switch reads.Add(1) {
+			case 1:
+				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": stale}), nil
+			case 2:
+				f.verdicts.Record(
+					"acme",
+					applied,
+					providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
+					time.Now(),
+				)
+				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": stale}), nil
+			default:
+				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": applied}), nil
+			}
+		}
+		f.check.run(t.Context())
+		verdict, ok := f.verdicts.Lookup("acme", applied)
+		if !ok || verdict.Classification.State != providers.ProviderAuthStateNeedsLogin {
+			t.Fatalf("acme verdict = %#v, %v; want the verdict for the applied settings kept", verdict, ok)
+		}
+		if got := runs.Load(); got != 1 {
+			t.Fatalf("status commands run = %d, want 1 (stale probe runs but is not recorded)", got)
+		}
+	})
 }
