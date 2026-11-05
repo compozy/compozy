@@ -443,9 +443,3 @@ type Reference struct {
 type RejectPolicy struct {
 	Route NodeID `json:"route"`
 }
-
-// ReloadExtensionRequest is a daemon API value.
-type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
-}
