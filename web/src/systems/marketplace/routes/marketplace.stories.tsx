@@ -13,11 +13,10 @@ import {
   installedListing,
   marketplaceStoryHandlers,
   storyCatalog,
-  storyGithubServer,
   storyMarketplacePlugins,
-  storyPostgresInputs,
   storySources,
 } from "./marketplace-story-data";
+import { storyGithubServer, storyPostgresInputs } from "./marketplace-story-servers";
 
 import {
   conflictingCatalog,
@@ -38,7 +37,6 @@ import {
   multiSourceSources,
   zeroPluginSources,
 } from "./marketplace-route-story-fixtures";
-import { mcpManagementServerFixtures } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/marketplace/routes/Marketplace",
@@ -157,48 +155,6 @@ export const AddMenuOpen: Story = {
     await expect(menu.findByTestId("marketplace-add-local")).resolves.toBeDefined();
     await expect(menu.findByTestId("marketplace-add-marketplace")).resolves.toBeDefined();
     await expect(menu.findByTestId("marketplace-add-mcp-server")).resolves.toBeDefined();
-  },
-};
-
-/** Plugins | MCPs → MCPs: the managed MCP server list with status and sign-in per row. */
-export const McpServers: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace?kind=mcps"),
-    ...marketplaceStoryHandlers({
-      catalog: defaultCatalog,
-      extensions: defaultExtensions,
-      mcpServers: mcpManagementServerFixtures,
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-/** `?q=` survives the kind switch and narrows the MCP server list by name. */
-export const McpServersSearch: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace?kind=mcps&q=git"),
-    ...marketplaceStoryHandlers({
-      catalog: defaultCatalog,
-      extensions: defaultExtensions,
-      mcpServers: mcpManagementServerFixtures,
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-/** Add MCP server opens the shared MCP server editor over the MCPs view. */
-export const McpServersAddServer: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace?kind=mcps"),
-    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("marketplace-mcp-create"));
-    const body = within(document.body);
-    await expect(body.findByTestId("settings-mcp-servers-editor")).resolves.toBeDefined();
   },
 };
 

@@ -203,10 +203,17 @@ func TestPreStarter(t *testing.T) {
 		}
 		verdicts := NewAuthVerdicts()
 		declared := Classification{
-			State: ProviderAuthStateUnknown,
-			Code:  diagcontract.CodeProviderClassificationUnknown,
+			State:      ProviderAuthStateUnknown,
+			Code:       diagcontract.CodeProviderClassificationUnknown,
+			Unverified: true,
 		}
-		if got, checkedAt := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateUnknown ||
+		sessionEnv := []string{"HOME=/seat-a", "PATH=/session/bin"}
+		if got, checkedAt := verdicts.Apply(
+			"acme",
+			provider,
+			sessionEnv,
+			declared,
+		); got.State != ProviderAuthStateUnknown ||
 			!checkedAt.IsZero() {
 			t.Fatalf("Apply(before probe) = %q at %v, want unverified", got.State, checkedAt)
 		}
@@ -216,6 +223,7 @@ func TestPreStarter(t *testing.T) {
 		prepared.Command = "/bin/acme acp"
 		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), prepared, &ProbeEnv{
 			ProviderName: "acme",
+			CommandEnv:   sessionEnv,
 			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
 			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
 				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
@@ -223,22 +231,57 @@ func TestPreStarter(t *testing.T) {
 		})
 		assertNoPreStartReport(t, report)
 
-		got, checkedAt := verdicts.Apply("acme", provider, declared)
+		got, checkedAt := verdicts.Apply("acme", provider, []string{"HOME=/seat-a", "PATH=/daemon/bin"}, declared)
 		if got.State != ProviderAuthStateAuthenticated || checkedAt.IsZero() {
 			t.Fatalf("Apply(after probe) = %q at %v, want authenticated with a check time", got.State, checkedAt)
 		}
-		verdicts.Record("acme", provider, Classification{State: ProviderAuthStateNeedsLogin}, time.Unix(0, 0))
-		if got, _ := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateAuthenticated {
+		verdicts.Record(
+			"acme",
+			provider,
+			sessionEnv,
+			Classification{State: ProviderAuthStateNeedsLogin},
+			time.Unix(0, 0),
+		)
+		if got, _ := verdicts.Apply(
+			"acme",
+			provider,
+			sessionEnv,
+			declared,
+		); got.State != ProviderAuthStateAuthenticated {
 			t.Fatalf("Apply(after an older probe finished) = %q, want the newer verdict kept", got.State)
 		}
 		missing := Classification{State: ProviderAuthStateMissingCLI}
-		if got, _ := verdicts.Apply("acme", provider, missing); got.State != ProviderAuthStateMissingCLI {
+		if got, _ := verdicts.Apply("acme", provider, sessionEnv, missing); got.State != ProviderAuthStateMissingCLI {
 			t.Fatalf("Apply(missing CLI) = %q, want the current declared state to win", got.State)
 		}
 		changed := provider
 		changed.AuthStatusCmd = "acme whoami"
-		if got, _ := verdicts.Apply("acme", changed, declared); got.State != ProviderAuthStateUnknown {
+		if got, _ := verdicts.Apply("acme", changed, sessionEnv, declared); got.State != ProviderAuthStateUnknown {
 			t.Fatalf("Apply(changed config) = %q, want the verdict invalidated", got.State)
+		}
+	})
+
+	t.Run("Should record a pre-start verdict only for the session auth home", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.ProviderConfig{
+			Command:       "acme acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "acme auth status",
+		}
+		verdicts := NewAuthVerdicts()
+		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), provider, &ProbeEnv{
+			ProviderName: "acme",
+			CommandEnv:   []string{"HOME=/seat-b"},
+			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			},
+		})
+		assertNoPreStartReport(t, report)
+
+		if _, ok := verdicts.Lookup("acme", provider, []string{"HOME=/daemon"}); ok {
+			t.Fatal("Lookup(daemon home) found the verdict recorded for a session home")
 		}
 	})
 }
