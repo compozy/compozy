@@ -2181,6 +2181,8 @@ func awaitRefresh(t *testing.T, done <-chan refreshResult) Envelope {
 // refreshBoth refreshes two profiles while the first request is held open until the second joins it.
 func refreshBoth(t *testing.T, f serviceFixture, entered <-chan struct{}, release func()) (Envelope, Envelope) {
 	t.Helper()
+	// A failed join check must not leave the handler blocked while cleanup closes the server.
+	defer release()
 	personal := refreshAsync(t, f, "personal")
 	<-entered
 	work := refreshAsync(t, f, "work")
@@ -2389,6 +2391,66 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 		requireEqual(t, int32(2), calls.Load())
 	})
 
+	t.Run(
+		"Should keep another profile's in-flight rate limit when one profile's consent is cleared",
+		func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			entered, held := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			release := func() { once.Do(func() { close(held) }) }
+			t.Cleanup(release)
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				close(entered)
+				<-held
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(http.StatusTooManyRequests)
+			})
+			addProfileTarget(f, "work")
+			refreshFixture(t, f, IntentBackground)
+			done := refreshAsync(t, f, "work")
+			<-entered
+			f.service.ClearCredentials("personal", codexProviderID)
+			release()
+			work := awaitRefresh(t, done)
+			requireEqual(t, StatusRateLimited, work.Targets[0].Status)
+			requireEqual(t, f.clock.Now().Add(rateLimitFloor), *work.Targets[0].NextRefreshAt)
+			personal := refreshFixture(t, f, IntentBackground)
+			requireEqual(t, StatusRateLimited, personal.Targets[0].Status)
+			requireEqual(t, int32(2), calls.Load())
+		},
+	)
+	t.Run("Should not register a shared collection for a flight a consent clear fenced", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		_, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		collector := f.service.options.Collectors[codexProviderID]
+		identity, err := collector.Identity(t.Context(), f.target, IntentBackground)
+		requireNoError(t, err)
+		f.service.mu.Lock()
+		state := f.service.profiles["personal"].targets[codexProviderID]
+		admitted := state.epoch
+		state.epoch++
+		f.service.mu.Unlock()
+		snapshot, outcome := f.service.collectAccount(
+			t.Context(), "personal", state, admitted, f.target, IntentBackground, identity, nil, time.Minute,
+		)
+		requireEqual(t, true, outcome == nil && snapshot.ProviderID == "")
+		f.service.mu.Lock()
+		accounts := len(f.service.accounts)
+		f.service.mu.Unlock()
+		requireEqual(t, 0, accounts)
+		requireEqual(t, int32(0), calls.Load())
+	})
 	t.Run("Should keep another family's cooldown when a re-routed target's consent is cleared", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

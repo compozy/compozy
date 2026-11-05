@@ -74,7 +74,8 @@ func rateLimitUntil(now time.Time, retryAfter *time.Time, strikes int) time.Time
 func (s *Manager) collectAccount(
 	ctx context.Context,
 	profile string,
-	collector Collector,
+	state *targetState,
+	epoch uint64,
 	target Target,
 	intent Intent,
 	identity CredentialIdentity,
@@ -87,6 +88,11 @@ func (s *Manager) collectAccount(
 	key := newAccountKey(profile, target, identity)
 	for {
 		s.mu.Lock()
+		// A consent clear since admission fences this flight; the caller re-collects from scratch.
+		if state.epoch != epoch {
+			s.mu.Unlock()
+			return Snapshot{}, nil
+		}
 		a, running, ready := s.joinAccountLocked(key, target, intent, maxAge)
 		if ready != nil {
 			s.mu.Unlock()
@@ -108,13 +114,16 @@ func (s *Manager) collectAccount(
 		call := &accountCall{done: make(chan struct{}), route: target.RouteFingerprint}
 		a.call = call
 		s.mu.Unlock()
-		snapshot, err := collector.Collect(ctx, target, intent, identity)
+		snapshot, err := s.options.Collectors[target.Collector()].Collect(ctx, target, intent, identity)
 		outcome := collectionOutcome(ctx, target.ProviderName, err)
 		s.mu.Lock()
 		// A drop (disable, shutdown, consent change) replaced the entry, so the result is not kept.
-		if s.accounts[key] == a {
+		if current := s.accounts[key]; current == a {
 			a.call = nil
 			s.recordCollectionLocked(a, target, snapshot, outcome)
+		} else if current != nil && outcome != nil && outcome.Code == ErrorCodeProviderRateLimited {
+			// A 429 still binds the account that a consent clear reset for one profile only.
+			s.recordCollectionLocked(current, target, snapshot, outcome)
 		}
 		call.snapshot, call.outcome, call.leaderCanceled = snapshot, outcome, ctx.Err() != nil
 		close(call.done)
@@ -192,6 +201,27 @@ func (s *Manager) pruneAccountsLocked(now time.Time) {
 			delete(s.accounts, key)
 		}
 	}
+}
+
+// resetAccountLocked drops one profile's view of an identity. While another profile still collects
+// through it, the streak and cooldown stay and only the call and success that profile could reuse go.
+func (s *Manager) resetAccountLocked(profile string, key accountKey) {
+	a := s.accounts[key]
+	if a == nil {
+		return
+	}
+	for other, p := range s.profiles {
+		if other == profile {
+			continue
+		}
+		for _, state := range p.targets {
+			if state.accountKey == key {
+				s.accounts[key] = &accountState{strikes: a.strikes, cooldown: a.cooldown}
+				return
+			}
+		}
+	}
+	delete(s.accounts, key)
 }
 
 // forgetAccountsLocked drops one collector family's identities, or all when family is empty.

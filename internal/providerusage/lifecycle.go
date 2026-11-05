@@ -212,10 +212,10 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 			}
 			if profileID != "" {
 				// Only this profile's identities reset; other profiles keep their cooldowns and bypass.
-				delete(s.accounts, newAccountKey(profile, state.target, state.identity))
-				delete(s.accounts, newAccountKey(profile, state.target, CredentialIdentity{}))
+				s.resetAccountLocked(profile, newAccountKey(profile, state.target, state.identity))
+				s.resetAccountLocked(profile, newAccountKey(profile, state.target, CredentialIdentity{}))
 				if state.accountKey.family() == collectorID {
-					delete(s.accounts, state.accountKey)
+					s.resetAccountLocked(profile, state.accountKey)
 				}
 			}
 			state.epoch++
