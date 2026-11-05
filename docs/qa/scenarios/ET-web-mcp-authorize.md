@@ -22,6 +22,12 @@ src: docs/design/opendesign/mcp-management.html
 
 inventory: Needs QA
 
+CI repair retest 2026-11-05: the existing `marketplace.spec.ts` browser OAuth journey
+passes against the fake authorization server and an isolated real daemon after selecting
+the current **Sign in** action. The previous **Authorize** selector timed out before
+OAuth began; the later connection refusal came from fixture cleanup. Token exchange
+and scoped-list confirmation assertions remain intact. This does not establish vendor consent.
+
 Historical QA note: the begin-attempt race and truthful begin-failure recovery remain pending.
 
 QA impact 2026-07-15: new behavior from Task 08 (ADR-006/016). Flagged untested for the next QA cycle.

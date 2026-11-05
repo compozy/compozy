@@ -24,6 +24,11 @@ src: docs/design/opendesign/mcp-management.html
 
 inventory: Needs QA
 
+CI repair retest 2026-11-05: the existing `marketplace.spec.ts` manual OAuth journey
+passes against the fake authorization server and an isolated real daemon using the
+current **Sign in** action. Fresh manual PKCE state, redirect exchange, confirmed status,
+and the authenticated row assertions remain intact; no timeout or assertion was relaxed.
+
 QA impact 2026-07-15: new behavior from Task 08 (ADR-011 authorization floor). Flagged untested for the next QA cycle.
 
 QA impact 2026-07-16: manual exchange remains available only after a successful begin session;
