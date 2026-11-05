@@ -106,9 +106,12 @@ func TestFoundations(t *testing.T) {
 			{"Should floor a missing Retry-After", nil, 1, 5 * time.Minute},
 			{"Should cap a long Retry-After", at(2 * time.Hour), 1, time.Hour},
 		} {
-			if got := rateLimitUntil(now, tc.retryAfter, tc.strikes); !got.Equal(now.Add(tc.delay)) {
-				t.Errorf("%s: rateLimitUntil = %v, want %v", tc.name, got, now.Add(tc.delay))
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				if got := rateLimitUntil(now, tc.retryAfter, tc.strikes); !got.Equal(now.Add(tc.delay)) {
+					t.Errorf("rateLimitUntil = %v, want %v", got, now.Add(tc.delay))
+				}
+			})
 		}
 	})
 }

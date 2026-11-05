@@ -22,8 +22,7 @@ type providerAuthStatusOptions struct {
 	profileName string
 	probe       bool
 	nativeCLI   *providerNativeCLIStatusRecord
-	// daemonProbe, when set, runs a native-CLI probe in the daemon so its verdict reaches provider
-	// reads; any failure falls back to the local probe.
+	// daemonProbe runs native-CLI probes in the daemon; any failure falls back to the local probe.
 	daemonProbe func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
 }
 
@@ -97,8 +96,7 @@ func buildProviderAuthStatus(
 	return probeProviderAuthStatus(ctx, deps, providerName, provider, &probeEnv, record, options)
 }
 
-// probeProviderAuthStatus runs the requested live probe: through the daemon for native-CLI
-// providers when it answers, otherwise in this process.
+// probeProviderAuthStatus prefers the daemon for native-CLI providers, else probes in process.
 func probeProviderAuthStatus(
 	ctx context.Context,
 	deps commandDeps,

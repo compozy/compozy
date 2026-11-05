@@ -87,9 +87,7 @@ func (c *HTTPClient) Do(
 func ParseRetryAfter(value string, now time.Time) time.Time {
 	delay := rateLimitFloor
 	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds >= 0 {
-		if seconds > 3600 {
-			seconds = 3600
-		}
+		seconds = min(seconds, int64(rateLimitCap/time.Second))
 		delay = time.Duration(seconds) * time.Second
 	} else if date, err := http.ParseTime(value); err == nil && !date.Before(now) {
 		delay = date.Sub(now)

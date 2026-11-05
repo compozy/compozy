@@ -44,7 +44,7 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 			return providers.DaemonProbeEnv(options, name, provider)
 		},
 		logger: state.logger,
-		now:    func() time.Time { return time.Now().UTC() },
+		now:    func() time.Time { return d.now().UTC() },
 	}
 	cfg := config.CloneConfig(&state.cfg)
 	workerCtx, cancel := context.WithCancel(ctx)
@@ -115,11 +115,24 @@ func (p providerAuthStartup) probe(ctx context.Context, name string, provider co
 		return false
 	}
 	declared, err := providers.ClassifyDeclared(ctx, provider, &env)
-	if err != nil || declared.State != providers.ProviderAuthStateUnknown {
+	if err != nil {
+		p.logger.Warn("provider_auth.startup_probe", "provider", name, "error", err)
+		return false
+	}
+	if declared.State != providers.ProviderAuthStateUnknown {
 		return false
 	}
 	result, err := providers.RunAuthStatusProbe(ctx, provider, &env, p.now)
-	if ctx.Err() != nil || err != nil || !result.Ran {
+	if ctx.Err() != nil {
+		return false
+	}
+	if err != nil {
+		p.logger.Warn("provider_auth.startup_probe", "provider", name, "error", err)
+		return false
+	}
+	if !result.Ran {
+		p.logger.Info("provider_auth.startup_probe", "provider", name, "state", result.Classification.State,
+			"error_code", result.Classification.Code)
 		return false
 	}
 	p.verdicts.Record(name, provider, result.Classification, result.StartedAt)

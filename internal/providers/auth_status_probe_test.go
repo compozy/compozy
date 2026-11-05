@@ -59,8 +59,8 @@ func TestRunAuthStatusProbe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if probe.Ran || probe.Classification.State == ProviderAuthStateAuthenticated {
-			t.Fatalf("probe = %#v, want an unprepared, non-authenticated result", probe)
+		if probe.Ran || probe.Classification.State != ProviderAuthStateMissingCLI {
+			t.Fatalf("probe = %#v, want an unprepared missing_cli result", probe)
 		}
 	})
 

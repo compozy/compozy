@@ -2138,15 +2138,39 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 	})
 }
 
-// refreshBoth refreshes two profiles concurrently while the first request is held open.
+// refreshBoth refreshes two profiles while the first request is held open until the second joins it.
 func refreshBoth(t *testing.T, f serviceFixture, entered <-chan struct{}, release func()) (Envelope, Envelope) {
 	t.Helper()
 	personal, work := make(chan Envelope, 1), make(chan Envelope, 1)
 	go func() { personal <- refreshProfile(t, f, "personal", IntentBackground) }()
 	<-entered
 	go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
+	waitForJoiner(t, f.service)
 	release()
 	return <-personal, <-work
+}
+
+// waitForJoiner blocks until another target waits on the in-flight shared collection.
+func waitForJoiner(t *testing.T, service *Manager) {
+	t.Helper()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		service.mu.Lock()
+		joined := false
+		for _, account := range service.accounts {
+			joined = joined || (account.call != nil && account.call.joiners > 0)
+		}
+		service.mu.Unlock()
+		if joined {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-t.Context().Done():
+			t.Fatal("second profile never joined the shared collection")
+		}
+	}
 }
 
 func blockedFirstRequest(
@@ -2229,7 +2253,9 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 			writeFixture(w, t, codexHTTPFixture)
 		})
 		addProfileTarget(f, "work")
+		leader := make(chan struct{})
 		go func() {
+			defer close(leader)
 			if _, err := f.service.Refresh(
 				t.Context(),
 				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", Intent: IntentBackground},
@@ -2242,6 +2268,7 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 		go func() { work <- refreshProfile(t, f, "work", IntentBackground) }()
 		requireNoError(t, f.service.Start(t.Context(), []string{"work"}))
 		env := <-work
+		<-leader
 		requireEqual(t, StatusOK, env.Targets[0].Status)
 		requireEqual(t, int32(2), calls.Load())
 	})

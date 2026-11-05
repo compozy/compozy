@@ -28,6 +28,7 @@ type accountCall struct {
 	done           chan struct{}
 	route          string // results only serve targets on the same route
 	leaderCanceled bool   // the leader's flight ended first; joiners must collect themselves
+	joiners        int    // targets waiting on this call
 	snapshot       Snapshot
 	outcome        *UsageError
 }
@@ -92,6 +93,7 @@ func (s *Manager) collectAccount(
 			return ready.snapshot, ready.outcome
 		}
 		if running != nil {
+			running.joiners++
 			s.mu.Unlock()
 			select {
 			case <-running.done:

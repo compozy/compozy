@@ -180,5 +180,5 @@ Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
 pre-existing ownership, read-fence, and scheduling suites (race-enabled).
 
 Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
-This section-level walk leaves the scenario-level `qa_status` unchanged; steps 1-8 above still need
-their integrated walk.
+This section-level walk leaves the scenario-level `qa_status` unchanged; the scenario's original
+steps 1-8 (top of this file) still need their integrated walk.
