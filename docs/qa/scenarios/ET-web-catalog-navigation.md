@@ -51,3 +51,10 @@ Evidence and bounded verification: [gone-resource report](../reports/2026-10-29-
 
 Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
 The broader historical scenario is not re-certified by this bounded walk.
+
+QA impact 2026-11-04 (issue #1305 gap 3): Marketplace Browse has a **Plugins | MCPs** toggle ahead of
+its search. MCPs writes `?kind=mcps` and keeps `?q=`; Plugins drops `kind`. Switching kinds stays in
+the same Marketplace window, Back returns to the previous kind, and a reload restores it. The head
+count follows the selected kind only (catalog entries or MCP servers, never their sum), and the MCPs
+head offers **Add MCP server** instead of Refresh and Add ▾. Targeted verification: Marketplace
+component suite and Storybook capture; the live walk remains outstanding.

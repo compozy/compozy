@@ -242,6 +242,8 @@ export {
   MCPOverrideEditor,
   MCPServersTable,
   MCPServersTableSkeleton,
+  MCPServersManagementBody,
+  MCPServersManagementDialogs,
   mcpServerRowTestId,
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,
@@ -439,7 +441,11 @@ export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
 
 export { useMCPEditor } from "./hooks/use-mcp-editor";
 export { useMCPOverrideEditor } from "./hooks/use-mcp-override-editor";
-export { useSettingsMCPPage } from "./hooks/use-settings-mcp-page";
+export {
+  useMCPServerManagement,
+  useSettingsMCPPage,
+  type MCPServerManagement,
+} from "./hooks/use-settings-mcp-page";
 export { mcpDefinitionKey } from "./lib/mcp-management-target";
 export type {
   MCPOverrideDraft,

@@ -33,10 +33,16 @@ import { marketplaceCatalogFixture } from "../../mocks";
 import type { MarketplaceCatalogResponse } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
-import { mcpExtensionServerFixtures, mcpAuthBeginFixture } from "@/systems/settings/mocks/fixtures";
+import {
+  mcpAuthBeginFixture,
+  mcpExtensionServerFixtures,
+  mcpManagementServerFixtures,
+  settingsMCPServersCollectionFixture,
+} from "@/systems/settings/mocks/fixtures";
+import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { settingsKeys } from "@/systems/settings/lib/query-keys";
 import { MarketplaceExtensionServerSection } from "../marketplace-detail-extension-server";
-import { SettingsMarketplaceSourcesSection } from "@/systems/settings";
+import { mcpServerRowTestId, SettingsMarketplaceSourcesSection } from "@/systems/settings";
 import { AddMarketplaceDialog } from "../add-marketplace-dialog";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
@@ -75,6 +81,13 @@ const server = setupServer(
   ...profileHandlers,
   ...workspaceHandlers,
   ...statusHandlers,
+  ...vaultHandlers,
+  http.get("*/api/settings/mcp-servers", () =>
+    HttpResponse.json({
+      ...settingsMCPServersCollectionFixture,
+      mcp_servers: mcpManagementServerFixtures,
+    })
+  ),
   http.get("*/api/marketplace", ({ request }) => {
     mocks.readCatalog(new URL(request.url).searchParams);
     return HttpResponse.json(catalog);
@@ -265,12 +278,51 @@ describe("Marketplace page and cards", () => {
     expect(screen.queryByTestId("marketplace-section-compozy-catalog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-installed-shelf")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    expect(await screen.findAllByRole("menuitem")).toHaveLength(3);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(4);
     await userEvent.click(screen.getByTestId("marketplace-add-github"));
     expect(await screen.findByTestId("extension-install-source-github")).toHaveAttribute(
       "aria-checked",
       "true"
     );
+  });
+  it("Should switch Browse to MCPs keeping the query, counting only servers, and adding one", async () => {
+    const { router } = setup(undefined, "/marketplace?q=git");
+    await screen.findByTestId("marketplace-page");
+    const plugins = screen.getByTestId("marketplace-kind-plugins");
+    expect(plugins).toHaveAttribute("aria-pressed", "true");
+    mocks.readCatalog.mockClear();
+
+    await userEvent.click(screen.getByTestId("marketplace-kind-mcps"));
+    await waitFor(() => expect(router.state.location.search).toEqual({ kind: "mcps", q: "git" }));
+    expect(screen.getByRole("searchbox", { name: "Search MCP servers" })).toHaveValue("git");
+    const list = await screen.findByTestId("settings-page-mcp-servers-list");
+    for (const server of mcpManagementServerFixtures) {
+      const row = within(list).queryByTestId(mcpServerRowTestId(server));
+      if (server.name.includes("git")) expect(row).toBeVisible();
+      else expect(row).not.toBeInTheDocument();
+    }
+    expect(screen.getByRole("status", { name: "Catalog count" })).toHaveTextContent(
+      String(mcpManagementServerFixtures.length)
+    );
+    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    expect(mocks.readCatalog).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add MCP server" }));
+    expect(await screen.findByTestId("settings-mcp-servers-editor")).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByTestId("marketplace-kind-plugins"));
+    await waitFor(() => expect(router.state.location.search).toEqual({ q: "git" }));
+    expect(await screen.findByRole("searchbox", { name: "Search extensions" })).toHaveValue("git");
+  });
+  it("Should open the MCP server editor over the MCPs view from Add ▾", async () => {
+    const { router } = setup();
+    await screen.findByTestId(`marketplace-card-${entry.entry_id}`);
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(await screen.findByTestId("marketplace-add-mcp-server"));
+    await waitFor(() => expect(router.state.location.search).toEqual({ kind: "mcps" }));
+    expect(await screen.findByTestId("settings-mcp-servers-editor")).toBeVisible();
+    expect(screen.getByTestId("marketplace-page")).toHaveAttribute("data-kind", "mcps");
   });
   it("Should hold the shelf line and the grid as placeholders until the inventory and the catalog arrive", async () => {
     let releaseInventory!: () => void;

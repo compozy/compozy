@@ -1,14 +1,12 @@
-import { AlertCircle, Cable, Plus, SearchX } from "@compozy/ui/icons";
+import { Plus } from "@compozy/ui/icons";
 
 import {
   Button,
-  Empty,
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
   HelpTip,
   PillGroup,
-  SkeletonRegion,
   SkeletonText,
 } from "@compozy/ui";
 
@@ -16,16 +14,10 @@ import { useSettingsMCPPage } from "@/systems/settings/hooks/use-settings-mcp-pa
 import {
   authorizeLabel,
   isExtensionOwnedMCPServer,
-  MCPAuthorizeDialog,
-  MCPOverrideEditor,
-  MCPSelectionStrip,
-  MCPServerDeleteDialog,
-  MCPServerEditor,
-  MCPServersTable,
-  MCPServersTableSkeleton,
+  MCPServersManagementBody,
+  MCPServersManagementDialogs,
   SettingsPageFrame,
   useSettingsTopbar,
-  type SettingsMCPServerEntry,
 } from "@/systems/settings";
 
 type MCPScopeLane = "user" | "workspace";
@@ -58,7 +50,6 @@ export function MCPSettingsPage() {
     server => authorizeLabel(server) !== null
   ).length;
   const fromExtensions = page.servers.filter(isExtensionOwnedMCPServer).length;
-  const selected = page.selected;
 
   return (
     <SettingsPageFrame
@@ -122,112 +113,15 @@ export function MCPSettingsPage() {
             </HelpTip>
           </ListingToolbar.Trailing>
         </ListingToolbar>
-        {selected ? (
-          <MCPSelectionStrip
-            onEdit={page.edit}
-            onRemove={isExtensionOwnedMCPServer(selected) ? undefined : page.requestRemove}
-            server={selected}
-          />
-        ) : null}
-        <MCPServersBody
-          onAuthorize={page.authorize}
-          onEdit={page.edit}
-          onSelect={page.select}
-          page={page}
-        />
+        <MCPServersManagementBody management={page} />
       </div>
 
-      <MCPSettingsDialogs page={page} />
+      <MCPServersManagementDialogs management={page} />
     </SettingsPageFrame>
   );
 }
 
 type MCPPageModel = ReturnType<typeof useSettingsMCPPage>;
-
-/** Loading · error · empty · query-empty · matrix, one at a time, from the collection query. */
-function MCPServersBody({
-  page,
-  onSelect,
-  onEdit,
-  onAuthorize,
-}: {
-  page: MCPPageModel;
-  onSelect: (entry: SettingsMCPServerEntry) => void;
-  onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-}) {
-  const { collection } = page;
-  if (collection.isPending) {
-    return (
-      <SkeletonRegion data-testid="settings-page-mcp-loading" label="Loading MCP servers">
-        <MCPServersTableSkeleton />
-      </SkeletonRegion>
-    );
-  }
-  if (collection.error && !collection.data) {
-    return (
-      <Empty
-        action={
-          <Button onClick={() => void collection.refetch()} size="sm" type="button">
-            Try again
-          </Button>
-        }
-        cause={collection.error.message}
-        data-testid="settings-page-mcp-error"
-        description="Check that CompozyOS is running, then try again."
-        framed
-        icon={AlertCircle}
-        title="Couldn't load MCP servers"
-        titleAs="h3"
-      />
-    );
-  }
-  if (page.servers.length === 0) {
-    return (
-      <Empty
-        action={
-          <Button
-            data-testid="settings-page-mcp-empty-create"
-            onClick={page.openCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" />
-            Add MCP server
-          </Button>
-        }
-        data-testid="settings-page-mcp-empty"
-        description="Servers you add here, and the ones your extensions add, show up in this list."
-        icon={Cable}
-        title="No MCP servers yet"
-      />
-    );
-  }
-  if (page.filteredServers.length === 0) {
-    return (
-      <Empty
-        action={
-          <Button onClick={() => page.setQuery("")} size="sm" type="button" variant="secondary">
-            Clear search
-          </Button>
-        }
-        data-testid="settings-page-mcp-query-empty"
-        description={`Nothing matches "${page.query}".`}
-        icon={SearchX}
-        title="No MCP servers match"
-      />
-    );
-  }
-  return (
-    <MCPServersTable
-      onAuthorize={onAuthorize}
-      onEdit={onEdit}
-      onSelect={onSelect}
-      selectedServer={page.selectedKey}
-      servers={page.filteredServers}
-    />
-  );
-}
 
 function MCPScopeSelector({ page }: { page: MCPPageModel }) {
   const lane: MCPScopeLane = page.workspaceId ? "workspace" : "user";
@@ -268,39 +162,5 @@ function MCPScopeSelector({ page }: { page: MCPPageModel }) {
         </NativeSelect>
       ) : null}
     </div>
-  );
-}
-
-function MCPSettingsDialogs({ page }: { page: MCPPageModel }) {
-  return (
-    <>
-      {page.editorProps ? (
-        <MCPServerEditor
-          {...page.editorProps}
-          onRemove={
-            page.editorProps.entry && !isExtensionOwnedMCPServer(page.editorProps.entry)
-              ? () => {
-                  const entry = page.editorProps?.entry;
-                  page.editorProps?.onClose();
-                  if (entry) page.requestRemove(entry);
-                }
-              : undefined
-          }
-        />
-      ) : null}
-      {page.overrideProps ? <MCPOverrideEditor {...page.overrideProps} /> : null}
-      <MCPAuthorizeDialog
-        authorize={page.authorization.authorize}
-        scope={page.authorization.scope}
-        server={page.authorization.server}
-      />
-      <MCPServerDeleteDialog
-        error={page.removal.error?.message ?? null}
-        isDeleting={page.removal.isPending}
-        onClose={page.closeRemove}
-        onConfirm={page.remove}
-        target={page.removing}
-      />
-    </>
   );
 }

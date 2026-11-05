@@ -1,9 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { ListingToolbar } from "@compozy/ui";
+import { ListingToolbar, PillGroup } from "@compozy/ui";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
+
+import type { MarketplaceKind } from "../lib/marketplace-search";
+
+const KIND_ITEMS = [
+  { value: "plugins", label: "Plugins", testId: "marketplace-kind-plugins" },
+  { value: "mcps", label: "MCPs", testId: "marketplace-kind-mcps" },
+] as const;
 
 interface MarketplaceSearchStripOptions {
   query: string;
@@ -11,11 +18,14 @@ interface MarketplaceSearchStripOptions {
   placeholder: string;
   label: string;
   testId: string;
+  /** Browse only: the Plugins | MCPs toggle ahead of the search; `?q=` survives a switch. */
+  kind?: MarketplaceKind;
 }
 
 /**
- * The strip is search only: `/` focuses, `Esc` clears, and the committed draft lands in `?q=`
- * on the owning route so the API (Browse) or the complete inventory (Installed) does the filtering.
+ * The strip is the optional kind toggle plus search: `/` focuses, `Esc` clears, and the committed
+ * draft lands in `?q=` on the owning route so the API (Browse plugins), the MCP server list
+ * (Browse MCPs), or the complete inventory (Installed) does the filtering.
  */
 function useMarketplaceSearchStrip({
   query,
@@ -23,17 +33,34 @@ function useMarketplaceSearchStrip({
   placeholder,
   label,
   testId,
+  kind,
 }: MarketplaceSearchStripOptions) {
   const navigate = useNavigate();
   const searchInputRef = useListingSearchShortcut();
   const draft = useDebouncedInput({
     externalValue: query,
     onCommit: value =>
-      void navigate({ replace: true, search: { q: value.trim() || undefined }, to }),
+      void navigate({
+        replace: true,
+        search: { kind: kindParam(kind), q: value.trim() || undefined },
+        to,
+      }),
   });
+  const switchKind = (next: MarketplaceKind) =>
+    void navigate({ search: { kind: kindParam(next), q: query || undefined }, to });
   const toolbar = (
     <ListingToolbar>
       <ListingToolbar.Leading>
+        {kind ? (
+          <PillGroup<MarketplaceKind>
+            aria-label="Show"
+            data-testid="marketplace-kind"
+            items={KIND_ITEMS}
+            onChange={switchKind}
+            size="sm"
+            value={kind}
+          />
+        ) : null}
         <ListingToolbar.Search
           aria-label={label}
           containerClassName="w-full max-w-md"
@@ -52,7 +79,11 @@ function useMarketplaceSearchStrip({
       </ListingToolbar.Leading>
     </ListingToolbar>
   );
-  return { clear: draft.clear, navigate, toolbar };
+  return { clear: draft.clear, navigate, switchKind, toolbar };
+}
+
+function kindParam(kind: MarketplaceKind | undefined) {
+  return kind === "mcps" ? ("mcps" as const) : undefined;
 }
 
 export { useMarketplaceSearchStrip };

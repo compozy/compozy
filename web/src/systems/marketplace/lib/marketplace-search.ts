@@ -1,10 +1,19 @@
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
-/** Search state of the one-kind Browse and Installed pages: `?q=` only. */
+/** What Browse lists: catalog plugins (the default, never written to the URL) or MCP servers. */
+export type MarketplaceKind = "plugins" | "mcps";
+
+/** Search state of Browse (`?kind=` + `?q=`) and Installed (`?q=` only). */
 export interface MarketplaceSearch {
+  kind?: "mcps";
   q?: string;
 }
 
+export function marketplaceKind(search: MarketplaceSearch): MarketplaceKind {
+  return search.kind === "mcps" ? "mcps" : "plugins";
+}
+
 export function validateMarketplaceSearch(search: Record<string, unknown>): MarketplaceSearch {
-  return { q: normalizeListingSearchValue(search.q) };
+  const q = normalizeListingSearchValue(search.q);
+  return search.kind === "mcps" ? { kind: "mcps", q } : { q };
 }

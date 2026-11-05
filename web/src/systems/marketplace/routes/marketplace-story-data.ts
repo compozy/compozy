@@ -15,6 +15,8 @@ import {
   marketplaceSourceFixtures,
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
+import type { SettingsMCPServerEntry } from "@/systems/settings";
+import { settingsMCPServersCollectionFixture } from "@/systems/settings/mocks/fixtures";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =
@@ -349,6 +351,8 @@ export function marketplaceStoryHandlers(options: {
   pendingUpdates?: readonly string[];
   /** Registered sources; the catalog `sources[]` summaries derive from the enabled ones. */
   sources?: readonly MarketplaceSource[];
+  /** The MCPs view's managed server list (`/api/settings/mcp-servers`); omitted keeps the default. */
+  mcpServers?: SettingsMCPServerEntry[];
 }) {
   const catalog = options.catalog ?? [];
   let extensions = options.extensions ?? [];
@@ -356,6 +360,7 @@ export function marketplaceStoryHandlers(options: {
   const pendingUpdates = new Set(options.pendingUpdates);
   const details = options.details ?? {};
   const sources = options.sources ?? [marketplaceSourceFixtures.feed];
+  const mcpServers = options.mcpServers;
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace", async ({ request }) => {
@@ -458,5 +463,17 @@ export function marketplaceStoryHandlers(options: {
         });
       }),
     ],
+    ...(mcpServers
+      ? {
+          settings: [
+            compozyApiMock.get("/api/settings/mcp-servers", () =>
+              HttpResponse.json({
+                ...settingsMCPServersCollectionFixture,
+                mcp_servers: mcpServers,
+              })
+            ),
+          ],
+        }
+      : {}),
   });
 }
