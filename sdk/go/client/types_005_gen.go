@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// CoordinatorConfigPayload is a daemon API value.
+type CoordinatorConfigPayload struct {
+	Enabled                       bool                    `json:"enabled"`
+	AgentName                     string                  `json:"agent_name"`
+	Provider                      string                  `json:"provider,omitempty"`
+	Model                         string                  `json:"model,omitempty"`
+	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
+	MaxChildren                   int                     `json:"max_children"`
+	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
+	Source                        CoordinatorConfigSource `json:"source"`
+	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
+}
+
+// CoordinatorConfigSource is a daemon API value.
+type CoordinatorConfigSource string
+
+// CoordinatorMode is a daemon API value.
+type CoordinatorMode string
+
 // CoordinatorProfile is a daemon API value.
 type CoordinatorProfile struct {
 	Mode      CoordinatorMode `json:"mode"`
@@ -37,6 +56,7 @@ type CountedCursorPagePayload struct {
 
 // CreateAgentPayload is a daemon API value.
 type CreateAgentPayload struct {
+	MCPServers         []AgentMCPServerInput               `json:"mcp_servers,omitempty"`
 	DisplayName        *string                             `json:"display_name,omitempty"`
 	Description        *string                             `json:"description,omitempty"`
 	Kind               string                              `json:"kind,omitempty"`
@@ -410,39 +430,3 @@ type DrainStatusResponse struct {
 
 // DslTerminalState is a daemon API value.
 type DslTerminalState string
-
-// DuplicateAgentOverrides is a daemon API value.
-type DuplicateAgentOverrides struct {
-	DisplayName     *string                             `json:"display_name,omitempty"`
-	Description     *string                             `json:"description,omitempty"`
-	Kind            string                              `json:"kind,omitempty"`
-	Appearance      map[string]any                      `json:"appearance,omitempty"`
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	SessionApproval string                              `json:"session_approval,omitempty"`
-	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	Prompt          string                              `json:"prompt,omitempty"`
-}
-
-// DuplicateAgentRequest is a daemon API value.
-type DuplicateAgentRequest struct {
-	Kind      string                   `json:"kind,omitempty"`
-	Name      string                   `json:"name"`
-	Scope     AgentCreateScope         `json:"scope,omitempty"`
-	Workspace string                   `json:"workspace,omitempty"`
-	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
-}

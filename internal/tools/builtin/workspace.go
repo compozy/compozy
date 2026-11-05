@@ -188,7 +188,19 @@ var agentCreateInputSchema = `{
  "kind":{"type":"string","enum":["on_demand","always_on"],"description":` + agentKindInputDescription + `},
  "appearance":{"type":"object","additionalProperties":true},
 		"category_path":{"type":"array","items":{"type":"string"}},
-		"disabled_skills":{"type":"array","items":{"type":"string"}},
+		"mcp_servers":{"type":"array","items":{"type":"object","required":["name"],"additionalProperties":false,"properties":{
+ "name":{"type":"string"},"reference":{"type":"boolean"},"transport":{"type":"string","enum":["stdio","http"]},
+ "command":{"type":"string"},"args":{"type":"array","items":{"type":"string"}},"url":{"type":"string"},
+ "env":{"type":"object","additionalProperties":{"type":"string"}},
+ "secret_env":{"type":"object","additionalProperties":{"type":"string"}},
+ "secret_header_values":{"type":"object","writeOnly":true,"additionalProperties":{"type":"string"}},
+ "secret_env_values":{"type":"object","writeOnly":true,"additionalProperties":{"type":"string"}},
+ "secret_headers":{"type":"object","additionalProperties":{"type":"string","pattern":"^vault:mcp/"}},
+ "auth":{"type":"object","additionalProperties":false,"properties":{
+ "registration":{"type":"string"},"issuer_url":{"type":"string"},"client_id":{"type":"string"},
+ "client_secret_ref":{"type":"string"},"scopes":{"type":"array","items":{"type":"string"}}}}
+ }}},
+ "disabled_skills":{"type":"array","items":{"type":"string"}},
 		"fallback_chain":{"type":"array","items":` + agentFallbackRouteInputSchema + `}
 	},
 	"additionalProperties":false

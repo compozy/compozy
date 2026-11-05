@@ -27,6 +27,9 @@ type CreateAgentRequest struct {
 
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
+	// MCPServers adds or replaces sidecar entries by name; omitted and empty preserve existing entries.
+	MCPServers []AgentMCPServerInput `json:"mcp_servers,omitempty"`
+
 	DisplayName *string        `json:"display_name,omitempty"`
 	Description *string        `json:"description,omitempty"`
 	Kind        string         `json:"kind,omitempty"`
@@ -83,6 +86,10 @@ type AgentDiagnosticPayload struct {
 
 // AgentMCPServerJSON is the shared MCP server response payload.
 type AgentMCPServerJSON struct {
+	Reference       bool              `json:"reference,omitzero"`
+	BrokenReference bool              `json:"broken_reference,omitzero"`
+	SecretHeaders   map[string]string `json:"secret_headers,omitempty"`
+
 	Name      string                            `json:"name"`
 	Transport string                            `json:"transport,omitempty"`
 	Command   string                            `json:"command,omitempty"`
@@ -269,4 +276,20 @@ type SessionActivityHealthPayload struct {
 	Status             string     `json:"status"`
 	StallState         string     `json:"stall_state,omitempty"`
 	StallReason        string     `json:"stall_reason,omitempty"`
+}
+
+// AgentMCPServerInput attaches a name reference or an agent-local definition with Vault bindings.
+type AgentMCPServerInput struct {
+	SecretHeaderValues map[string]string             `json:"secret_header_values,omitempty"`
+	SecretEnvValues    map[string]string             `json:"secret_env_values,omitempty"`
+	Name               string                        `json:"name"`
+	Reference          bool                          `json:"reference,omitzero"`
+	Transport          string                        `json:"transport,omitempty"`
+	Command            string                        `json:"command,omitempty"`
+	Args               []string                      `json:"args,omitempty"`
+	Env                map[string]string             `json:"env,omitempty"`
+	SecretEnv          map[string]string             `json:"secret_env,omitempty"`
+	URL                string                        `json:"url,omitempty"`
+	SecretHeaders      map[string]string             `json:"secret_headers,omitempty"`
+	Auth               *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
 }

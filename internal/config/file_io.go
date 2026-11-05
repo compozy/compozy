@@ -95,6 +95,9 @@ func writePersistedFileMode(path string, contents []byte, replace bool) (err err
 	}
 	defer func() {
 		if closeErr := directory.Close(); closeErr != nil {
+			if err == nil {
+				err = fileutil.ErrPublishedNotDurable
+			}
 			err = errors.Join(err, fmt.Errorf("close config parent directory for %q: %w", path, closeErr))
 		}
 	}()

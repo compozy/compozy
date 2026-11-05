@@ -8155,15 +8155,44 @@ export interface components {
       max_spawn_depth: number;
       spawn_blocked_reason?: string;
     };
-    AgentMCPServerJSON: {
+    AgentMCPServerInput: {
       args?: string[];
-      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      auth?: components["schemas"]["SettingsMCPAuthConfigPayload"] | null;
       command?: string;
       env?: {
         [key: string]: string;
       };
       name: string;
+      reference?: boolean;
       secret_env?: {
+        [key: string]: string;
+      };
+      secret_env_values?: {
+        [key: string]: string;
+      };
+      secret_header_values?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
+        [key: string]: string;
+      };
+      transport?: string;
+      url?: string;
+    };
+    AgentMCPServerJSON: {
+      args?: string[];
+      auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
+      broken_reference?: boolean;
+      command?: string;
+      env?: {
+        [key: string]: string;
+      };
+      name: string;
+      reference?: boolean;
+      secret_env?: {
+        [key: string]: string;
+      };
+      secret_headers?: {
         [key: string]: string;
       };
       transport?: string;
@@ -9421,6 +9450,7 @@ export interface components {
        */
       kind?: "on_demand" | "always_on";
       label?: string;
+      mcp_servers?: components["schemas"]["AgentMCPServerInput"][];
       model?: string;
       name: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];

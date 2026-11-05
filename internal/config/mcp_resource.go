@@ -31,6 +31,9 @@ func validateMCPServerSpec(
 		return MCPServer{}, fmt.Errorf("config: validate mcp resource scope: %w", err)
 	}
 
+	if spec.Reference {
+		return MCPServer{}, fmt.Errorf("MCP references are attachments, not server resources")
+	}
 	normalized := normalizeMCPServerResourceSpec(spec)
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)

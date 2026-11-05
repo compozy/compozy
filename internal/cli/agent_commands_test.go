@@ -548,6 +548,10 @@ func TestAgentUpdateCommand(t *testing.T) {
 				if name != "coder" || request.Workspace != "ws-1" || request.ExpectedDigest != "digest-1" {
 					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
 				}
+				if len(request.Agent.MCPServers) != 1 || request.Agent.MCPServers[0].Name != "team-docs" ||
+					!request.Agent.MCPServers[0].Reference {
+					t.Fatalf("MCP reference = %#v", request.Agent.MCPServers)
+				}
 				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
 					request.Agent.Speed != contract.SpeedFast || len(request.Agent.ACPOptions) != 2 ||
 					request.Agent.ACPOptions[0].ID != "context" || request.Agent.ACPOptions[0].ValueID != "1m" ||
@@ -569,7 +573,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
 			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
 			"--disable-skill", "security-audit", "--speed", "fast", "--acp-option", "context=1m",
-			"--acp-toggle", "thinking=true",
+			"--acp-toggle", "thinking=true", "--mcp-server", " team-docs ",
 		)
 		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
 			t.Fatalf("agent update = %q, %v", stdout, err)

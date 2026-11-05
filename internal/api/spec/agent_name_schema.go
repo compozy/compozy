@@ -81,3 +81,12 @@ func customizeSettingsDefaultsSchema(schema *openapi3.Schema) {
 func customizeSettingsRoleSchema(schema *openapi3.Schema) {
 	setAgentNameSchema(schema, "agent", compozyconfig.OptionalAgentNamePattern)
 }
+
+// customizeAgentMCPServerInputSchema keeps typed credential values write-only in every agent request.
+func customizeAgentMCPServerInputSchema(schema *openapi3.Schema) {
+	for _, name := range []string{"secret_header_values", "secret_env_values"} {
+		if field := schema.Properties[name]; field != nil && field.Value != nil {
+			field.Value.WriteOnly = true
+		}
+	}
+}

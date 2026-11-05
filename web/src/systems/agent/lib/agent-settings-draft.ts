@@ -36,6 +36,7 @@ export type AgentSettingsFallbackRoute = NonNullable<
 export type AgentSessionApproval = "" | "children" | "workspace";
 
 export interface AgentSettingsDraft {
+  mcpAdditions?: NonNullable<UpdateAgentParams["agent"]["mcp_servers"]>;
   sessionEnv?: AgentPayload["session_env"];
   name: string;
   categoryPath: string;
@@ -153,6 +154,7 @@ export function isAgentSettingsDraftDirty(draft: AgentSettingsDraft, agent: Agen
     draft.command !== baseline.command ||
     draft.prompt !== baseline.prompt ||
     draft.permissions !== baseline.permissions ||
+    (draft.mcpAdditions?.length ?? 0) > 0 ||
     !sameList(draft.tools, baseline.tools) ||
     !sameList(draft.toolsets, baseline.toolsets) ||
     !sameList(draft.denyTools, baseline.denyTools) ||
@@ -219,6 +221,7 @@ export function buildUpdateAgentParams(
     ...(draft.origin === "workspace" && workspace.length > 0 ? { workspace } : {}),
     agent: {
       name: draft.name,
+      ...(draft.mcpAdditions?.length ? { mcp_servers: draft.mcpAdditions } : {}),
       ...(draft.sessionEnv ? { session_env: structuredClone(draft.sessionEnv) } : {}),
       prompt,
       ...(provider.length > 0 ? { provider } : {}),

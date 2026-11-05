@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// AgentSpawnPayload is a daemon API value.
+type AgentSpawnPayload struct {
+	Session     SessionPayload               `json:"session"`
+	Lineage     SessionLineagePayload        `json:"lineage"`
+	Permissions SpawnPermissionPolicyPayload `json:"permissions"`
+	Worktree    *SpawnWorktreePayload        `json:"worktree,omitzero"`
+	Prompt      *SpawnPromptPayload          `json:"prompt,omitzero"`
+}
+
 // AgentSpawnRequest is a daemon API value.
 type AgentSpawnRequest struct {
 	AgentName          string                        `json:"agent_name"`
@@ -431,20 +440,3 @@ type Blocker struct {
 
 // BoardColumn is a daemon API value.
 type BoardColumn string
-
-// Briefing is a daemon API value.
-type Briefing struct {
-	RunID     RunID         `json:"run_id"`
-	Status    Status        `json:"status"`
-	Tone      BriefingTone  `json:"tone"`
-	Headline  string        `json:"headline"`
-	Detail    string        `json:"detail,omitempty"`
-	Blockers  []Blocker     `json:"blockers"`
-	Outcome   *RunOutcome   `json:"outcome,omitzero"`
-	Artifacts []RunArtifact `json:"artifacts"`
-	Progress  StepProgress  `json:"progress"`
-	Usage     RunUsage      `json:"usage"`
-}
-
-// BriefingTone is a daemon API value.
-type BriefingTone string

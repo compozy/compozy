@@ -4,6 +4,84 @@ package client
 
 import "time"
 
+// SessionProcessPayload is a daemon API value.
+type SessionProcessPayload struct {
+	Attribution SessionProcessAttribution `json:"attribution"`
+	PID         int                       `json:"pid"`
+	PGID        int                       `json:"pgid"`
+	StartedAt   time.Time                 `json:"started_at"`
+	Kind        SessionProcessKind        `json:"kind"`
+	Command     string                    `json:"command"`
+	Argv0       string                    `json:"argv0"`
+	CWD         string                    `json:"cwd"`
+	Ports       []int                     `json:"ports"`
+	AgeSeconds  float64                   `json:"age_seconds"`
+	CPUPercent  *float64                  `json:"cpu_percent,omitempty"`
+	RSSKB       *int64                    `json:"rss_kb,omitempty"`
+	ParentAlive bool                      `json:"parent_alive"`
+	TerminalID  string                    `json:"terminal_id,omitempty"`
+	TreeID      string                    `json:"tree_id,omitempty"`
+}
+
+// SessionProcessPolicy is a daemon API value.
+type SessionProcessPolicy string
+
+// SessionProcessResult is a daemon API value.
+type SessionProcessResult struct {
+	PID       int                   `json:"pid"`
+	StartedAt time.Time             `json:"started_at"`
+	Outcome   SessionProcessOutcome `json:"outcome"`
+	Error     string                `json:"error,omitempty"`
+}
+
+// SessionProcessSummaryPayload is a daemon API value.
+type SessionProcessSummaryPayload struct {
+	Supported  bool  `json:"supported"`
+	Background int   `json:"background"`
+	Terminals  int   `json:"terminals"`
+	Total      int   `json:"total"`
+	Ports      []int `json:"ports"`
+	Trees      int   `json:"trees,omitempty"`
+}
+
+// SessionProcessTarget is a daemon API value.
+type SessionProcessTarget struct {
+	PID       int       `json:"pid"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+// SessionProcessTreePayload is a daemon API value.
+type SessionProcessTreePayload struct {
+	ID       string                 `json:"id"`
+	Kind     SessionProcessKind     `json:"kind"`
+	Root     SessionProcessTarget   `json:"root"`
+	Lead     SessionProcessTarget   `json:"lead"`
+	Wrappers []SessionProcessTarget `json:"wrappers"`
+	Members  []SessionProcessTarget `json:"members"`
+	Ports    []int                  `json:"ports"`
+}
+
+// SessionProcessesResponse is a daemon API value.
+type SessionProcessesResponse struct {
+	Supported bool                        `json:"supported"`
+	ScannedAt time.Time                   `json:"scanned_at"`
+	Items     []SessionProcessPayload     `json:"items"`
+	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
+}
+
+// SessionProfileFacetsPayload is a daemon API value.
+type SessionProfileFacetsPayload struct {
+	ProfileID string                      `json:"profile_id"`
+	Facets    SessionCatalogFacetsPayload `json:"facets"`
+}
+
+// SessionPromptCancelResponse is a daemon API value.
+type SessionPromptCancelResponse struct {
+	SessionID string `json:"session_id"`
+	Outcome   string `json:"outcome"`
+	TurnID    string `json:"turn_id,omitempty"`
+}
+
 // SessionProviderOptionPayload is a daemon API value.
 type SessionProviderOptionPayload struct {
 	Name             string                   `json:"name"`
@@ -361,83 +439,3 @@ type SettingsApplyLifecycle string
 
 // SettingsApplyNextAction is a daemon API value.
 type SettingsApplyNextAction string
-
-// SettingsApplyResponse is a daemon API value.
-type SettingsApplyResponse struct {
-	Section          SettingsApplyTargetName       `json:"section,omitempty"`
-	Scope            SettingsScopeKind             `json:"scope,omitempty"`
-	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
-	WorkspaceID      string                        `json:"workspace_id,omitempty"`
-	Profile          string                        `json:"profile,omitempty"`
-	AgentName        string                        `json:"agent_name,omitempty"`
-	Applied          bool                          `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
-	ApplyRecordID    string                        `json:"apply_record_id"`
-	ActiveGeneration int64                         `json:"active_generation"`
-	ActiveConfigHash string                        `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired  bool                          `json:"restart_required,omitzero"`
-	RestartScope     string                        `json:"restart_scope,omitempty"`
-	Warnings         []string                      `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped          bool                          `json:"skipped,omitzero"`
-	SkippedReason    string                        `json:"skipped_reason,omitempty"`
-}
-
-// SettingsApplyTargetName is a daemon API value.
-type SettingsApplyTargetName string
-
-// SettingsAttentionPayload is a daemon API value.
-type SettingsAttentionPayload struct {
-	Toasts          bool     `json:"toasts"`
-	Sound           bool     `json:"sound"`
-	System          bool     `json:"system"`
-	MutedWorkspaces []string `json:"muted_workspaces"`
-}
-
-// SettingsAttentionResponse is a daemon API value.
-type SettingsAttentionResponse struct {
-	Section         SettingsSectionName        `json:"section"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Config          SettingsAttentionPayload   `json:"config"`
-}
-
-// SettingsAutomationConfigPayload is a daemon API value.
-type SettingsAutomationConfigPayload struct {
-	Enabled           bool            `json:"enabled"`
-	Timezone          string          `json:"timezone"`
-	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
-	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
-}
-
-// SettingsAutomationResponse is a daemon API value.
-type SettingsAutomationResponse struct {
-	Section         SettingsSectionName              `json:"section"`
-	Scope           SettingsUserScopeKind            `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind          `json:"available_scopes"`
-	Config          SettingsAutomationConfigPayload  `json:"config"`
-	Runtime         SettingsAutomationRuntimePayload `json:"runtime"`
-	Links           []SettingsOperationalLinkPayload `json:"links,omitempty"`
-}
-
-// SettingsAutomationRuntimePayload is a daemon API value.
-type SettingsAutomationRuntimePayload struct {
-	HostTimezone     string     `json:"host_timezone,omitempty"`
-	Available        bool       `json:"available"`
-	Running          bool       `json:"running"`
-	SchedulerRunning bool       `json:"scheduler_running"`
-	JobTotal         int        `json:"job_total"`
-	JobEnabled       int        `json:"job_enabled"`
-	TriggerTotal     int        `json:"trigger_total"`
-	TriggerEnabled   int        `json:"trigger_enabled"`
-	NextFire         *time.Time `json:"next_fire,omitempty"`
-	LastSyncedAt     *time.Time `json:"last_synced_at,omitempty"`
-}
-
-// SettingsBusyInputPayload is a daemon API value.
-type SettingsBusyInputPayload struct {
-	DefaultMode string `json:"default_mode"`
-}

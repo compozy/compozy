@@ -116,6 +116,7 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
 		Name:           src.Name,
+		Reference:      src.Reference,
 		Owner:          src.Owner,
 		RuntimeName:    src.RuntimeName,
 		CatalogEntry:   src.CatalogEntry,

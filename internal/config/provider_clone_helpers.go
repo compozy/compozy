@@ -82,6 +82,7 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 func cloneMCPServer(src MCPServer) MCPServer {
 	return MCPServer{
 		Name:           src.Name,
+		Reference:      src.Reference,
 		Owner:          src.Owner,
 		RuntimeName:    src.RuntimeName,
 		Transport:      src.Transport,

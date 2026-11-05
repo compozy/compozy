@@ -145,7 +145,7 @@ func (n *daemonNativeTools) workspaceDescribe(
 	return structuredResult(map[string]any{
 		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
 		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
-		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents),
+		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
 		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
 		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	}, workspaceID)

@@ -4,6 +4,40 @@ package client
 
 import "time"
 
+// GoalSnapshot is a daemon API value.
+type GoalSnapshot struct {
+	RunID           string              `json:"run_id"`
+	NodeID          string              `json:"node_id"`
+	Objective       string              `json:"objective"`
+	OriginSessionID string              `json:"origin_session_id"`
+	BoundSessionID  string              `json:"bound_session_id"`
+	Status          GoalStatus          `json:"status"`
+	RunStatus       LoopRunStatus       `json:"run_status"`
+	Cause           *GoalReasonCode     `json:"cause"`
+	TurnsUsed       int                 `json:"turns_used"`
+	TurnLimit       int                 `json:"turn_limit"`
+	Live            bool                `json:"live"`
+	PauseRequested  bool                `json:"pause_requested,omitzero"`
+	ContractSummary string              `json:"contract_summary"`
+	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
+	Context         GoalContextSnapshot `json:"context"`
+}
+
+// GoalSnapshotChangeCause is a daemon API value.
+type GoalSnapshotChangeCause string
+
+// GoalSnapshotChangedPayload is a daemon API value.
+type GoalSnapshotChangedPayload struct {
+	SessionID      string                  `json:"session_id"`
+	RunID          *string                 `json:"run_id"`
+	BoundSessionID *string                 `json:"bound_session_id"`
+	Revision       int64                   `json:"revision"`
+	Cause          GoalSnapshotChangeCause `json:"cause"`
+}
+
+// GoalStatus is a daemon API value.
+type GoalStatus string
+
 // GoalTurn is a daemon API value.
 type GoalTurn struct {
 	Seq            int64                   `json:"seq"`
@@ -405,44 +439,3 @@ type HeartbeatWakeStatePayload struct {
 	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
 	UpdatedAt        time.Time           `json:"updated_at"`
 }
-
-// HookCatalogPayload is a daemon API value.
-type HookCatalogPayload struct {
-	Order        int               `json:"order"`
-	Name         string            `json:"name"`
-	Event        string            `json:"event"`
-	Source       string            `json:"source"`
-	SkillSource  string            `json:"skill_source,omitempty"`
-	Mode         string            `json:"mode"`
-	Required     bool              `json:"required"`
-	Priority     int               `json:"priority"`
-	TimeoutMS    int64             `json:"timeout_ms,omitzero"`
-	ExecutorKind string            `json:"executor_kind,omitempty"`
-	Matcher      HookMatcher       `json:"matcher"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-}
-
-// HookCatalogResponse is a daemon API value.
-type HookCatalogResponse struct {
-	Hooks []HookCatalogPayload `json:"hooks"`
-}
-
-// HookEvent is a daemon API value.
-type HookEvent string
-
-// HookEventPayload is a daemon API value.
-type HookEventPayload struct {
-	Event         string `json:"event"`
-	Family        string `json:"family"`
-	SyncEligible  bool   `json:"sync_eligible"`
-	PayloadSchema string `json:"payload_schema"`
-	PatchSchema   string `json:"patch_schema,omitempty"`
-}
-
-// HookEventsResponse is a daemon API value.
-type HookEventsResponse struct {
-	Events []HookEventPayload `json:"events"`
-}
-
-// HookExecutorKind is a daemon API value.
-type HookExecutorKind string

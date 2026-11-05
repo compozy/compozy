@@ -328,6 +328,18 @@ compozy agent update reviewer --expected-digest <digest> --clear-fallback-chain
 
 ## MCP servers
 
+Open the agent's **Tools** sheet and choose **Add MCP server**. Pick a configured server to attach a reference by name, or choose **Add new server** to configure a connection for this agent. Save the sheet to apply it. Package- and extension-owned agents are read-only.
+
+New attachments are written to the agent's `mcp.json` sidecar. Existing frontmatter declarations keep loading, and unrelated updates preserve all servers. A configured server reference follows changes to its source; if the source is removed, the agent displays **Broken reference**.
+
+The HTTP/UDS agent create and update payloads accept additive `mcp_servers` entries. Omitted or empty arrays preserve existing entries; additions replace only matching names in the sidecar. `compozy agent update <name> --expected-digest <digest> --mcp-server example` attaches a configured server without changing allowed tools.
+
+```json
+{ "mcp_servers": [{ "name": "example", "reference": true }] }
+```
+
+New HTTP server credentials go into Vault through write-only `secret_header_values`; only `secret_headers` references are persisted. Explicitly shared `vault:mcp/shared/` references can also be supplied directly. Attach a configured server by name to reuse its owned credentials; private and daemon OAuth references cannot be bound to a new agent-local endpoint. Reads show credential presence without returning values or references. Replacing a connection or deleting an agent retains its credentials in Vault for explicit management, since other agents may reuse them.
+
 Inline MCP servers are useful when a tool belongs to one agent:
 
 ```yaml
