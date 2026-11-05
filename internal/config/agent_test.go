@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -15,13 +14,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/reasoning"
 	"github.com/compozy/compozy/internal/resources"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/goccy/go-yaml"
 )
 
 func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
@@ -2202,100 +2202,204 @@ func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
 	})
 }
 
-// TestCanonicalAgentKind owns UT-001: the one alias function maps only stays_on and reports it.
 func TestCanonicalAgentKind(t *testing.T) {
 	t.Parallel()
-
-	for _, tc := range []struct {
-		name, input, kind string
-		deprecated        bool
-	}{
-		{"Should keep always_on", "always_on", "always_on", false},
-		{"Should map the stays_on alias", "stays_on", "always_on", true},
-		{"Should keep on_demand", "on_demand", "on_demand", false},
-		{"Should keep an empty kind", "", "", false},
-		{"Should return unknown kinds unchanged", "sometimes", "sometimes", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, kind := range []string{"always_on", "on_demand", "", "stays_on", "sometimes"} {
+		t.Run("Should validate kind "+kind, func(t *testing.T) {
 			t.Parallel()
-
-			kind, deprecated := CanonicalAgentKind(tc.input)
-			if kind != tc.kind || deprecated != tc.deprecated {
-				t.Fatalf(
-					"CanonicalAgentKind(%q) = %q, %v; want %q, %v",
-					tc.input,
-					kind,
-					deprecated,
-					tc.kind,
-					tc.deprecated,
-				)
+			err := (AgentDef{Name: "triage", Kind: kind}).ValidateIdentity()
+			if kind == "stays_on" || kind == "sometimes" {
+				if !errors.Is(err, ErrAgentKindInvalid) {
+					t.Fatalf("error = %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
-	if got := (AgentDef{}).EffectiveKind(); got != AgentKindOnDemand {
-		t.Fatalf("EffectiveKind() of empty kind = %q, want on_demand", got)
+}
+
+func TestAgentKindAliasLoad(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{`---
+name: triage
+kind: stays_on
+---
+Watch.
+`, `---
+name = "triage"
+kind = "stays_on"
+---
+Watch.
+`} {
+		t.Run("Should reject new input but migrate persisted frontmatter "+content, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ParseAgentDef([]byte(content)); !errors.Is(err, ErrAgentKindInvalid) {
+				t.Fatalf("parse error = %v", err)
+			}
+			for _, parts := range [][]string{{".compozy", "agents"}, {".compozy", "profiles", "default", "agents"}, {"additional", "agents"}, {"extensions", "fixture", "agents"}} {
+				path := filepath.Join(append([]string{t.TempDir()}, append(parts, "triage", agentDefName)...)...)
+				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, path, content)
+				loaded, err := LoadAgentDefFile(path)
+				if err != nil || loaded.Kind != AgentKindAlwaysOn {
+					t.Fatalf("load = %+v, %v", loaded, err)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || string(body) != strings.Replace(content, "stays_on", "always_on", 1) {
+					t.Fatalf("migration changed unrelated bytes: %q, %v", body, err)
+				}
+			}
+		})
+	}
+	for _, layer := range []string{"global", "profile", "workspace", "workspace_profile", "additional"} {
+		t.Run("Should migrate persisted kind during "+layer+" discovery", func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			additional := t.TempDir()
+			var path string
+			switch layer {
+			case "global":
+				path = filepath.Join(home.AgentsDir, "retired", agentDefName)
+			case "profile":
+				path = filepath.Join(home.ProfilesDir, "default", AgentsDirName, "retired", agentDefName)
+			case "workspace":
+				path = filepath.Join(root, DirName, AgentsDirName, "retired", agentDefName)
+			case "workspace_profile":
+				path = filepath.Join(root, DirName, ProfilesDirName, "default", AgentsDirName, "retired", agentDefName)
+			case "additional":
+				path = filepath.Join(additional, DirName, AgentsDirName, "retired", agentDefName)
+			}
+			writeFile(t, path, "---\nname: retired\nkind: stays_on\n---\nWatch.\n")
+			agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, home, "default")
+			if err != nil || len(agents) == 0 {
+				t.Fatalf("discovery = %+v, %v", agents, err)
+			}
+			if agents[0].Kind != AgentKindAlwaysOn {
+				t.Fatalf("discovered kind = %q", agents[0].Kind)
+			}
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("discovery did not migrate: %q %v", body, err)
+			}
+		})
 	}
 }
 
-// TestAgentKindAliasLoad owns UT-002: the pure parser canonicalizes stays_on without logging, and
-// the path-aware loader warns once per path. It swaps the process-wide deprecation logger, so it
-// does not run in parallel.
-func TestAgentKindAliasLoad(t *testing.T) {
-	var logs bytes.Buffer
-	RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
-
-	for name, content := range map[string]string{
-		"yaml": "---\nname: triage\nkind: stays_on\n---\nWatch.\n",
-		"toml": "---\nname = \"triage\"\nkind = \"stays_on\"\n---\nWatch.\n",
-	} {
-		agent, err := ParseAgentDef([]byte(content))
-		if err != nil || agent.Kind != AgentKindAlwaysOn {
-			t.Fatalf("ParseAgentDef(%s) = %q, %v; want always_on", name, agent.Kind, err)
-		}
-	}
-	if logs.Len() != 0 {
-		t.Fatalf("ParseAgentDef logged %q, want a pure parser", logs.String())
-	}
-
-	workspace := filepath.Join(t.TempDir(), ".compozy", "agents", "triage", agentDefName)
-	extension := filepath.Join(t.TempDir(), "extensions", "fixture", "agents", "triage", agentDefName)
-	for _, path := range []string{workspace, extension} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+// Invariant: the file-loader migration preserves sharing permissions and concurrent saves.
+func TestPersistedAgentKindPublication(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve shared definition permissions", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), agentDefName)
+		body := "---\nname: triage\nkind: stays_on\n---\nWatch.\n"
+		if err := os.WriteFile(path, []byte(body), 0640); err != nil {
 			t.Fatal(err)
 		}
-		writeFile(t, path, "---\nname: triage\nkind: stays_on\n---\nWatch.\n")
-		for range 2 {
-			agent, err := LoadAgentDefFile(path)
-			if err != nil || agent.Kind != AgentKindAlwaysOn {
-				t.Fatalf("LoadAgentDefFile(%s) = %q, %v; want always_on", path, agent.Kind, err)
-			}
+		if _, err := LoadAgentDefFile(path); err != nil {
+			t.Fatal(err)
 		}
-		lines := 0
-		for line := range strings.SplitSeq(logs.String(), "\n") {
-			if strings.Contains(line, "path="+path) {
-				lines++
-				if !strings.Contains(line, "use always_on") || !strings.Contains(line, "v0.5.2") {
-					t.Fatalf("warning = %q, want always_on and v0.5.2", line)
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != 0640 {
+			t.Fatalf("permissions = %v, %v", info, err)
+		}
+	})
+	for _, replace := range []bool{false, true} {
+		name := "Should preserve an edit saved before final comparison"
+		if replace {
+			name = "Should preserve a replacement saved before final comparison"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, agentDefName)
+			body := []byte("---\nname: triage\nkind: stays_on\n---\nWatch.\n")
+			if err := os.WriteFile(path, body, 0640); err != nil {
+				t.Fatal(err)
+			}
+			directory, err := fileutil.OpenDirectory(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := directory.Close(); err != nil {
+					t.Error(err)
 				}
+			})
+			original, info, err := directory.ReadRegularFile(agentDefName)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		if lines != 1 {
-			t.Fatalf("warnings for %s = %d, want 1\n%s", path, lines, logs.String())
-		}
+			updated, _ := rewriteAgentKindValue(original)
+			saved := append(bytes.Clone(body), []byte("Saved concurrently.\n")...)
+			err = publishMigratedAgentKind(directory, path, info, original, updated, func() {
+				if replace {
+					next := filepath.Join(root, "saved.md")
+					if err := os.WriteFile(next, saved, 0640); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Rename(next, path); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(path, saved, 0640); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if err == nil || !strings.Contains(err.Error(), "agent file changed during persisted kind migration") {
+				t.Fatalf("publish error = %v, want concurrent change rejection", err)
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(actual, saved) {
+				t.Fatalf("concurrent save lost: %q, %v", actual, err)
+			}
+			entries, err := os.ReadDir(root)
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("migration temporary file leaked: %v, %v", entries, err)
+			}
+		})
 	}
 }
 
 // TestAgentKindInvalid owns UT-003: an unknown kind is rejected with the always_on message.
 func TestAgentKindInvalid(t *testing.T) {
-	t.Parallel()
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := ParseAgentDef([]byte("---\nname: triage\nkind: sometimes\n---\nWatch.\n"))
-	if !errors.Is(err, ErrAgentKindInvalid) {
-		t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
-	}
-	err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
-	if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != "agent kind must be on_demand or always_on" {
-		t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
+		_, err := ParseAgentDef([]byte("---\nname: triage\nkind: sometimes\n---\nWatch.\n"))
+		if !errors.Is(err, ErrAgentKindInvalid) {
+			t.Fatalf("ParseAgentDef(kind: sometimes) error = %v, want ErrAgentKindInvalid", err)
+		}
+		err = (AgentDef{Name: "triage", Kind: "sometimes"}).ValidateIdentity()
+		const want = "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)"
+		if !errors.Is(err, ErrAgentKindInvalid) || err.Error() != want {
+			t.Fatalf("ValidateIdentity() error = %v, want the always_on message", err)
+		}
+	})
+}
+
+func TestPersistedAgentKindDeferredMigration(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{"---\nname: triage\nkind: stays_on\n---\nKeep.\n", "---\nname: triage\nkind: &old stays_on\n---\nKeep.\n"} {
+		t.Run("Should load read-only persisted input "+body, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), agentDefName)
+			if err := os.WriteFile(path, []byte(body), 0400); err != nil {
+				t.Fatal(err)
+			}
+			agent, err := LoadAgentDefFile(path)
+			if err != nil || agent.Kind != AgentKindAlwaysOn {
+				t.Fatalf("load = %+v, %v", agent, err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || string(after) != body {
+				t.Fatalf("read-only input changed: %q %v", after, err)
+			}
+		})
 	}
 }

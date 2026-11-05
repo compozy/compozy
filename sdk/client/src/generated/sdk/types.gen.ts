@@ -1683,9 +1683,9 @@ export type CreateAgentPayload = {
   display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   label?: string;
   model?: string;
   name: string;
@@ -2008,9 +2008,9 @@ export type DuplicateAgentOverrides = {
   description?: string | null;
   display_name?: string | null;
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -2030,9 +2030,9 @@ export type DuplicateAgentOverrides = {
 
 export type DuplicateAgentRequest = {
   /**
-   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
-  kind?: "on_demand" | "always_on" | "stays_on";
+  kind?: "on_demand" | "always_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";

@@ -217,7 +217,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 The two agent kinds, set by the AGENT.md `kind` field and fixed at creation. Wire values are `on_demand` (the default; runs only when someone starts a session) and `always_on` (keeps a main session per scope and runs its Heartbeat). UI labels are "On-demand" and "Always-on", hyphenated as labels and before nouns ("an always-on agent"). Duplicating is how you switch kind.
 
-`stays_on` is the v0.5.0 spelling of `always_on`. Through v0.5.1 it is accepted on input (AGENT.md, `[agents.stays_on]`, `agents.stays_on.*` config paths, `--kind`, HTTP/UDS, and native tools) with a deprecation warning, and it is never emitted. It is removed in v0.5.2. The kind is a renamed wire value, not a UI alias, so it lives here and not in Surface Names.
+`stays_on` is the retired spelling of `always_on`. The release after v0.5.2 rejects it on every input with `agent_kind_invalid`; use `always_on`. The old config table and paths are removed; use `[agents.always_on]` and `agents.always_on.*`. The kind is a renamed wire value, not a UI alias.
 
 ### `always_on` (skill source preset)
 

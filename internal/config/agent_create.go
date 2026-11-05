@@ -10,9 +10,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/goccy/go-yaml"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/goccy/go-yaml"
 )
 
 var (
@@ -99,7 +100,6 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 
 // RenderAgentDefinition renders a draft to AGENT.md bytes and validates by parsing the result.
 func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error) {
-	draft.Kind, _ = CanonicalAgentKind(draft.Kind)
 	agentName := NormalizeAgentName(draft.Name)
 	if err := ValidateAuthoredAgentName(agentName); err != nil {
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)

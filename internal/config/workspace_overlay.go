@@ -29,7 +29,7 @@ func loadWorkspaceOverlayForWrite(
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadWorkspaceConfigOverlayBytes(rendered, path)
 	}
-	return loadPersistedConfigOverlay(path, loadWorkspaceConfigOverlayBytes)
+	return loadPersistedConfigOverlayLocked(path, loadWorkspaceConfigOverlayBytes)
 }
 
 func loadWorkspaceConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {

@@ -312,9 +312,6 @@ func (e *OverlayEditor) HasPath(path []string) bool {
 	if err != nil {
 		return false
 	}
-	if twin, ok := configPathAliasTwin(cleanPath); ok && overlayDocumentHasPath(document, twin) {
-		return true
-	}
 	return overlayDocumentHasPath(document, cleanPath)
 }
 

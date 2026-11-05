@@ -3756,34 +3756,34 @@ func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
 	})
 }
 
-// TestAgentKindToolText owns UT-019: compozy__agent_create lists the deprecated stays_on alias in
-// its kind enum, and no other descriptor text names the retired word.
+// TestAgentKindToolText verifies canonical kind enums and current descriptor text.
 func TestAgentKindToolText(t *testing.T) {
-	t.Parallel()
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
 
-	for _, descriptor := range NativeDescriptors() {
-		if descriptor.ID != toolspkg.ToolIDAgentCreate {
-			text := descriptor.Description + string(descriptor.InputSchema) + string(descriptor.OutputSchema)
-			if strings.Contains(strings.ToLower(text), "stays-on") || strings.Contains(text, "stays_on") ||
-				strings.Contains(strings.ToLower(text), "stays on") {
-				t.Fatalf("%s descriptor names the retired kind: %s", descriptor.ID, text)
+		for _, descriptor := range NativeDescriptors() {
+			if descriptor.ID != toolspkg.ToolIDAgentCreate {
+				text := descriptor.Description + string(descriptor.InputSchema) + string(descriptor.OutputSchema)
+				if strings.Contains(strings.ToLower(text), "stays-on") || strings.Contains(text, "stays_on") ||
+					strings.Contains(strings.ToLower(text), "stays on") {
+					t.Fatalf("%s descriptor names the retired kind: %s", descriptor.ID, text)
+				}
+				continue
 			}
-			continue
+			var schema struct {
+				Properties map[string]struct {
+					Enum        []string `json:"enum"`
+					Description string   `json:"description"`
+				} `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+				t.Fatal(err)
+			}
+			kind := schema.Properties["kind"]
+			if !slices.Equal(kind.Enum, []string{"on_demand", "always_on"}) ||
+				!strings.Contains(kind.Description, "fixed at creation") {
+				t.Fatalf("agent_create kind = %+v, want the two canonical kinds and identity description", kind)
+			}
 		}
-		var schema struct {
-			Properties map[string]struct {
-				Enum        []string `json:"enum"`
-				Description string   `json:"description"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatal(err)
-		}
-		kind := schema.Properties["kind"]
-		if !slices.Equal(kind.Enum, []string{"on_demand", "always_on", "stays_on"}) ||
-			!strings.Contains(kind.Description, "stays_on is the deprecated") ||
-			!strings.Contains(kind.Description, "v0.5.2") {
-			t.Fatalf("agent_create kind = %+v, want the three kinds and the deprecation text", kind)
-		}
-	}
+	})
 }
