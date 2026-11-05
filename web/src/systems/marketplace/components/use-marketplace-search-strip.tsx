@@ -18,12 +18,12 @@ interface MarketplaceSearchStripOptions {
   placeholder: string;
   label: string;
   testId: string;
-  /** Browse only: the Plugins | MCPs toggle ahead of the search; `?q=` survives a switch. */
+  /** Browse only: the Plugins | MCPs toggle after the search; `?q=` survives a switch. */
   kind?: MarketplaceKind;
 }
 
 /**
- * The strip is the optional kind toggle plus search: `/` focuses, `Esc` clears, and the committed
+ * The strip is search, then the optional kind toggle: `/` focuses, `Esc` clears, and the committed
  * draft lands in `?q=` on the owning route so the API (Browse plugins), the MCP server list
  * (Browse MCPs), or the complete inventory (Installed) does the filtering.
  */
@@ -55,16 +55,6 @@ function useMarketplaceSearchStrip({
   const toolbar = (
     <ListingToolbar>
       <ListingToolbar.Leading>
-        {kind ? (
-          <PillGroup<MarketplaceKind>
-            aria-label="Show"
-            data-testid="marketplace-kind"
-            items={KIND_ITEMS}
-            onChange={switchKind}
-            size="sm"
-            value={kind}
-          />
-        ) : null}
         <ListingToolbar.Search
           aria-label={label}
           containerClassName="w-full max-w-md"
@@ -80,6 +70,16 @@ function useMarketplaceSearchStrip({
           ref={searchInputRef}
           value={draft.draftValue}
         />
+        {kind ? (
+          <PillGroup<MarketplaceKind>
+            aria-label="Show"
+            data-testid="marketplace-kind"
+            items={KIND_ITEMS}
+            onChange={switchKind}
+            size="sm"
+            value={kind}
+          />
+        ) : null}
       </ListingToolbar.Leading>
     </ListingToolbar>
   );

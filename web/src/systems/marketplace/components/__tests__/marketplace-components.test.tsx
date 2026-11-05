@@ -314,6 +314,12 @@ describe("Marketplace page and cards", () => {
     await screen.findByTestId("marketplace-page");
     const plugins = screen.getByTestId("marketplace-kind-plugins");
     expect(plugins).toHaveAttribute("aria-pressed", "true");
+    // Search first, then the kind toggle, like every other listing toolbar.
+    expect(
+      screen
+        .getByRole("searchbox", { name: "Search extensions" })
+        .compareDocumentPosition(plugins) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     mocks.readCatalog.mockClear();
     mocks.readExtensions.mockClear();
 

@@ -29,7 +29,7 @@ interface MarketplacePageProps {
 /**
  * Browse, one kind at a time. Plugins: head = Store · Marketplace · catalog count · Refresh · Add ▾;
  * body = installed shelf → sections by source → grid. MCPs: head = server count · Add MCP server;
- * body = the managed MCP server list Settings shows. Strip = Plugins | MCPs · search.
+ * body = the managed MCP server list Settings shows. Strip = search · Plugins | MCPs.
  */
 function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProps) {
   const browse = useMarketplaceBrowse(search, liveDataEnabled);
