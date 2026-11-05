@@ -156,3 +156,25 @@ negative controls for rereading, the sequence fence, cancellation and error hand
 See the reverse observation-order section of
 `../reports/2026-11-01-performance/usage-dashboard.md`. This uses temporary synthetic
 credentials and loopback HTTP; it does not change the broader scenario verdict.
+
+## Rate-limit backoff and one collection per account (#1302)
+
+Isolated lab only: a loopback usage fixture that counts requests per account header and answers
+`429` with `Retry-After: 0`, synthetic Codex auth files, two profiles that resolve the same account.
+
+1. Refresh the account from profile A with `compozy provider usage refresh codex -o json`. Expect
+   `status: rate_limited`, and `next_refresh_at` and `error.retry_after` five minutes after the check.
+   The fixture logs one request.
+2. Refresh again with background intent before the cooldown ends, from A and from B. Expect no new
+   fixture request; profile B shows the same `rate_limited` row and the same `next_refresh_at`.
+3. Let the cooldown expire (or restart the clock-driven tick) and trigger another 429. Expect a
+   ten-minute cooldown, then 20, 40, and 60 minutes on later strikes. One successful response resets
+   the next cooldown to five minutes.
+4. With the fixture answering 200, refresh both profiles at the same time. The fixture logs one
+   request for the account, and both profiles show the same windows.
+5. Run one explicit refresh during a cooldown. It sends one request; a second explicit refresh from
+   either profile sends none until a success.
+
+Automated evidence: `internal/providerusage` `TestUsageRateLimitBackoff`,
+`TestUsageSharedAccountCollection`, the `rateLimitUntil` table in `TestFoundations`, and the
+pre-existing ownership, read-fence, and scheduling suites (race-enabled).
