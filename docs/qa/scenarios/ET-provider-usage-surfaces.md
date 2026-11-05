@@ -172,11 +172,14 @@ Run in an isolated lab with synthetic Claude config dirs only; never the operato
    still define one). Refresh it: the row is `signed_out` / `auth_missing` with
    "Set CLAUDE_CONFIG_DIR in this provider's command so CompozyOS reads its own sign-in", no request
    leaves the daemon for it, and the daemon log has `provider_usage.alias_selector_missing` without
-   any path value. Repeat with `CLAUDE_CONFIG_DIR=` (empty) and `env -u CLAUDE_CONFIG_DIR`. Remove the
+   any path value. Repeat with `CLAUDE_CONFIG_DIR=` (empty) and `env -u CLAUDE_CONFIG_DIR`. When the
+   effective selector changes (for example the daemon environment gains
+   `CLAUDE_SECURESTORAGE_CONFIG_DIR`), the next refresh shows the new key in the message. Remove the
    alias: its row disappears.
 
 Supporting checks: `TestApplyLaunchEnvironment`, `TestProviderUsageResolver/Should_fail_closed_…`,
-`TestProviderUsageAliasSelector` (IT-001/IT-002 with the real Claude collector), `TestAccountSelector`.
+`TestProviderUsageAliasSelector` (IT-001/IT-002 with the real Claude collector), `TestAccountSelector`,
+`TestUsageService/Should_publish_a_changed_resolver_error_under_the_same_status`.
 
 Targeted evidence: [#1266 report](../reports/2026-11-04-provider-usage-runtime-alias.md) — QA-1/QA-2 Pass
 (BUG-20261104-alias-selector-log-repeats fixed). The broader scenario keeps its status.

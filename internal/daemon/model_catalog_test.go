@@ -3481,6 +3481,8 @@ func TestProviderUsageResolver(t *testing.T) {
 			isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
 			cfg.Providers["claude-isolated"] = isolated
 			cfg.Providers["cursor-alt"] = alias("cursor", "HOME="+accountDir+" cursor-agent acp")
+			cfg.Providers["gemini-win"] = alias("gemini", "HOME= USERPROFILE="+accountDir+" gemini --acp")
+			cfg.Providers["gemini-win-inherited"] = alias("gemini", "HOME= gemini --acp")
 			cfg.Providers["openrouter-alt"] = compozyconfig.ProviderConfig{
 				Command:         "pi-acp",
 				Harness:         compozyconfig.ProviderHarnessPiACP,
@@ -3534,6 +3536,12 @@ func TestProviderUsageResolver(t *testing.T) {
 		}
 		secure := resolve([]string{"HOME=" + t.TempDir(), "CLAUDE_SECURESTORAGE_CONFIG_DIR=/c"})
 		requireGated(secure["claude-mm1"], "CLAUDE_SECURESTORAGE_CONFIG_DIR")
+		// The Windows USERPROFILE fallback is the selector when HOME is empty.
+		windows := resolve([]string{"HOME=" + t.TempDir(), "USERPROFILE=/inherited"})
+		if target := windows["gemini-win"]; target.Error != nil {
+			t.Fatalf("alias with its own USERPROFILE gated: %+v", target.Error)
+		}
+		requireGated(windows["gemini-win-inherited"], "USERPROFILE")
 	})
 	t.Run("Should log a missing alias selector once per change", func(t *testing.T) {
 		t.Parallel()
@@ -3603,6 +3611,10 @@ func TestProviderUsageResolver(t *testing.T) {
 		}
 		if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != 1 {
 			t.Fatalf("selector warnings = %d across alternating profiles, want 1:\n%s", got, logs.String())
+		}
+		resolver.pruneSelectorWarnings([]string{"personal"})
+		if _, kept := resolver.selectorWarned.Load("work\x00claude-mm5"); kept {
+			t.Fatal("selector warning of a removed profile was kept")
 		}
 	})
 	t.Run("Should report disabled providers", func(t *testing.T) {

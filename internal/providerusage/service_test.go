@@ -448,6 +448,22 @@ func TestUsageService(t *testing.T) {
 		requireEqual(t, 0, len(service.cached("personal").Targets))
 	})
 
+	t.Run("Should publish a changed resolver error under the same status", func(t *testing.T) {
+		t.Parallel()
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+		for _, key := range []string{"CLAUDE_CONFIG_DIR", "CLAUDE_SECURESTORAGE_CONFIG_DIR"} {
+			target := f.target
+			target.Error = NewUsageError(ErrorCodeAuthMissing, target.ProviderID)
+			target.Error.Message = "Set " + key + " in this provider's command"
+			target.Status = target.Error.Status()
+			f.catalog.Replace("personal", []Target{target})
+			requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+			env, err := f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			requireEqual(t, target.Error.Message, env.Targets[0].Error.Message)
+		}
+	})
+
 	t.Run("Should collect a changed route after startup collection has finished", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

@@ -93,7 +93,8 @@ export function useSettingsProviderUsagePage() {
     // One loading area: the section and the provider list its rows come from arrive together, so
     // the Providers group is never inserted into a page that has already rendered.
     isLoading: query.isPending || providersQuery.isPending,
-    error: query.error,
+    // Without the provider list, eligible aliases the config does not name would silently drop out.
+    error: query.error ?? providersQuery.error,
     envelope,
     draft,
     providers: usageProviders(providersQuery.data?.providers ?? [], draft, catalogNames),
@@ -105,7 +106,10 @@ export function useSettingsProviderUsagePage() {
     lastAppliedLabel,
     restart: page.restart,
     handleReset: () => setDraftOverride(null),
-    handleRetry: () => void query.refetch(),
+    handleRetry: () => {
+      if (query.error) void query.refetch();
+      if (providersQuery.error) void providersQuery.refetch();
+    },
     handleSave: () => {
       if (draft === null || !isDirty) return;
       mutation.mutate(

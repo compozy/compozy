@@ -7,7 +7,7 @@
 // Boundary IN: the route page, its page hook, and the settings/usage adapters
 // over a stubbed `fetch`. Boundary OUT: the router (only route matching).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -90,8 +90,8 @@ const NOW = Date.now();
 interface Daemon {
   /** The shell's remembered profile. */
   activeProfile?: string;
-  /** The configured-providers answer; held back to keep that read pending. */
-  providers?: Promise<Response>;
+  /** The configured-providers answer; held back to keep that read pending, or one per read. */
+  providers?: Promise<Response> | (() => Response);
   section: SettingsProviderUsageSection;
   usage: ProviderUsageEnvelope;
   patch: (body: unknown) => Response;
@@ -121,7 +121,11 @@ function serve(daemon: Daemon) {
         ? daemon.patch(await request.clone().json())
         : json(daemon.section);
     }
-    if (pathname === "/api/settings/providers") return daemon.providers ?? json(PROVIDERS);
+    if (pathname === "/api/settings/providers") {
+      return typeof daemon.providers === "function"
+        ? daemon.providers()
+        : (daemon.providers ?? json(PROVIDERS));
+    }
     if (pathname === "/api/profiles/selection") {
       return json([{ scope: "global", profile: daemon.activeProfile ?? "default" }]);
     }
@@ -238,6 +242,23 @@ describe("ProviderUsageSettingsPage", () => {
     expect(await screen.findByTestId("settings-provider-usage-provider-codex")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-provider-usage-loading")).toBeNull();
     expect(screen.getByTestId("settings-provider-usage-provider-cursor")).toBeInTheDocument();
+  });
+
+  it("Should surface a failed provider list and retry it", async () => {
+    const user = userEvent.setup();
+    let reads = 0;
+    renderPage({
+      providers: () =>
+        ++reads === 1
+          ? json({ error: "providers denied", code: "forbidden" }, 403)
+          : json(PROVIDERS),
+    });
+
+    const error = await screen.findByTestId("settings-page-provider-usage-error");
+    await user.click(within(error).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByTestId("settings-provider-usage-provider-codex")).toBeInTheDocument();
+    expect(reads).toBe(2);
   });
 
   it("Should keep the draft and show the daemon's message when the apply is rejected", async () => {

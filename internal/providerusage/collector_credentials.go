@@ -29,30 +29,25 @@ func envValue(env []string, key string) (string, bool) {
 func routeEnv(t Target, key string) string { value, _ := routeEnvValue(t, key); return value }
 
 // homeSelectorKey is the variable a home-based collector reads its directory from: override when it
-// is set non-empty, otherwise HOME.
+// is set non-empty, otherwise HOME, or USERPROFILE when HOME is empty and USERPROFILE is set.
 func homeSelectorKey(env []string, override string) string {
-	if override != "" {
-		if value, _ := envValue(env, override); value != "" {
-			return override
+	for _, key := range []string{override, "HOME", "USERPROFILE"} {
+		if value, _ := envValue(env, key); key != "" && value != "" {
+			return key
 		}
 	}
 	return "HOME"
 }
 func collectorHomePath(t Target, override string, parts ...string) (string, error) {
-	if key := homeSelectorKey(t.Route.Env, override); key != "HOME" {
-		if value := routeEnv(t, key); filepath.IsAbs(value) {
-			return value, nil
-		}
+	key := homeSelectorKey(t.Route.Env, override)
+	value := routeEnv(t, key)
+	if !filepath.IsAbs(value) {
 		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 	}
-	home := routeEnv(t, "HOME")
-	if home == "" {
-		home = routeEnv(t, "USERPROFILE")
+	if key == override {
+		return value, nil
 	}
-	if !filepath.IsAbs(home) {
-		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
-	}
-	return filepath.Join(append([]string{home}, parts...)...), nil
+	return filepath.Join(append([]string{value}, parts...)...), nil
 }
 func readCredentialFile(path, provider string) ([]byte, error) {
 	if path == "" {

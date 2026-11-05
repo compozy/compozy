@@ -69,6 +69,7 @@ func (r *providerUsageRuntime) syncProfiles(ctx context.Context) error {
 			ids = append(ids, item.ID)
 		}
 	}
+	r.resolver.pruneSelectorWarnings(ids)
 	return r.Start(ctx, ids)
 }
 

@@ -473,6 +473,10 @@ func TestAccountSelector(t *testing.T) {
 			[]string{"HOME=/h"},
 		},
 		{
+			"Should select Gemini's USERPROFILE when HOME is empty UT-008", "gemini", "USERPROFILE",
+			"/u/.gemini/oauth_creds.json", []string{"HOME=", "USERPROFILE=/u"},
+		},
+		{
 			"Should select Kimi's own code home UT-008", "kimi-cli", "KIMI_CODE_HOME",
 			"/k/credentials/kimi-code.json", []string{"HOME=/h", "KIMI_CODE_HOME=/k"},
 		},

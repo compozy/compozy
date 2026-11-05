@@ -33,8 +33,8 @@ type providerUsageResolver struct {
 	metadata   providers.VaultRefResolver
 	collectors providerusage.Registry
 	logger     *slog.Logger
-	// selectorWarned holds the selector key last logged as missing per profile and provider, so a
-	// gated alias logs once per change instead of on every resolution.
+	// selectorWarned holds the selector key last logged as missing per profile ID and provider, so a
+	// gated alias logs once per change instead of on every resolution. syncProfiles prunes removed profiles.
 	selectorWarned sync.Map
 }
 
@@ -85,6 +85,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 		default:
 			route, fingerprint, routeErr := r.route(
 				ctx,
+				profileID,
 				profileName,
 				id,
 				target.CollectorID,
@@ -110,7 +111,7 @@ func (r *providerUsageResolver) collectorFamily(id string, provider config.Provi
 }
 
 func (r *providerUsageResolver) route(
-	ctx context.Context, profileName, id, collectorID string, provider config.ProviderConfig, keychain bool,
+	ctx context.Context, profileID, profileName, id, collectorID string, provider config.ProviderConfig, keychain bool,
 ) (providerusage.ResolvedRoute, string, error) {
 	env := procutil.FilteredDaemonEnv(r.baseEnv)
 	if provider.EffectiveEnvPolicy() == config.ProviderEnvPolicyIsolated {
@@ -137,7 +138,7 @@ func (r *providerUsageResolver) route(
 		usageErr.Message = err.Error()
 		return providerusage.ResolvedRoute{}, "", usageErr
 	}
-	if usageErr := r.aliasSelectorError(profileName, id, collectorID, provider, env, owned); usageErr != nil {
+	if usageErr := r.aliasSelectorError(profileID, id, collectorID, provider, env, owned); usageErr != nil {
 		return providerusage.ResolvedRoute{}, "", usageErr
 	}
 	// Declared credentials never remain in the general child environment.
@@ -190,7 +191,7 @@ func (r *providerUsageResolver) route(
 // default account and publish its quota under the alias. The family-ID provider and bound-secret
 // aliases are exempt.
 func (r *providerUsageResolver) aliasSelectorError(
-	profileName, id, collectorID string, provider config.ProviderConfig, env []string, owned map[string]bool,
+	profileID, id, collectorID string, provider config.ProviderConfig, env []string, owned map[string]bool,
 ) *providerusage.UsageError {
 	if id == collectorID || provider.EffectiveAuthMode() != config.ProviderAuthModeNativeCLI {
 		return nil
@@ -200,7 +201,7 @@ func (r *providerUsageResolver) aliasSelectorError(
 		return nil
 	}
 	key := selector.SelectorKey(env)
-	warnedKey := profileName + "\x00" + id
+	warnedKey := profileID + "\x00" + id
 	if key == "" || owned[key] {
 		r.selectorWarned.Delete(warnedKey)
 		return nil
@@ -213,6 +214,17 @@ func (r *providerUsageResolver) aliasSelectorError(
 	usageErr := providerusage.NewUsageError(providerusage.ErrorCodeAuthMissing, id)
 	usageErr.Message = "Set " + key + " in this provider's command so CompozyOS reads its own sign-in"
 	return usageErr
+}
+
+// pruneSelectorWarnings forgets selector warnings of profiles that no longer exist.
+func (r *providerUsageResolver) pruneSelectorWarnings(profileIDs []string) {
+	r.selectorWarned.Range(func(key, _ any) bool {
+		profileID, _, _ := strings.Cut(fmt.Sprint(key), "\x00")
+		if !slices.Contains(profileIDs, profileID) {
+			r.selectorWarned.Delete(key)
+		}
+		return true
+	})
 }
 
 func (r *providerUsageResolver) bindSecrets(
