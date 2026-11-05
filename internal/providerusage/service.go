@@ -162,6 +162,7 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 			state.readFence = nil
 			state.lastSuccess = time.Time{}
 			state.cooldownUntil = time.Time{}
+			state.accountKey = ""
 			changed = true
 		}
 		if target.Status != "" && state.flight != nil {

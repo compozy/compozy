@@ -214,7 +214,9 @@ func (s *Manager) ClearCredentials(profileID, collectorID string) {
 				// Only this profile's identities reset; other profiles keep their cooldowns and bypass.
 				delete(s.accounts, newAccountKey(profile, state.target, state.identity))
 				delete(s.accounts, newAccountKey(profile, state.target, CredentialIdentity{}))
-				delete(s.accounts, state.accountKey)
+				if state.accountKey.family() == collectorID {
+					delete(s.accounts, state.accountKey)
+				}
 			}
 			state.epoch++
 			state.snapshot = initialSnapshot(state.target, s.options.Collectors[collectorID])

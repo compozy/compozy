@@ -2389,6 +2389,26 @@ func TestUsageSharedAccountCollection(t *testing.T) {
 		requireEqual(t, int32(2), calls.Load())
 	})
 
+	t.Run("Should keep another family's cooldown when a re-routed target's consent is cleared", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		f := rateLimitedFixture(t, &calls, nil)
+		refreshFixture(t, f, IntentBackground)
+		f.service.mu.Lock()
+		codexKey := f.service.profiles["personal"].targets["codex"].accountKey
+		f.service.mu.Unlock()
+		rerouted := f.target
+		rerouted.CollectorID, rerouted.Status = "claude", StatusDisabled
+		f.catalog.Replace("personal", []Target{rerouted})
+		_, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		f.service.ClearCredentials("personal", "claude")
+		f.service.mu.Lock()
+		cooling := f.service.activeCooldownLocked(codexKey, f.clock.Now()) != nil
+		f.service.mu.Unlock()
+		requireEqual(t, true, cooling)
+	})
+
 	t.Run("Should send one request per account per scheduler tick for two profiles", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
