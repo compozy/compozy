@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ type fakeProfileMoveWorktrees struct {
 	releases   []string
 	// onInspect runs while the move plans, before the archive.
 	onInspect func()
+	onRelease func()
 	// failAfterRelease is returned once the checkout was already removed.
 	failAfterRelease error
 	// failRelease is returned before anything is removed.
@@ -183,6 +185,12 @@ func (f *fakeProfileMoveWorktrees) InspectProfileMoveWorktree(
 
 func (f *fakeProfileMoveWorktrees) ReleaseProfileMoveWorktree(_ context.Context, _ string, worktreeID string) error {
 	f.step("release")
+	f.mu.Lock()
+	onRelease := f.onRelease
+	f.mu.Unlock()
+	if onRelease != nil {
+		onRelease()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	item, ok := f.worktrees[worktreeID]
@@ -410,6 +418,167 @@ func TestManagerMoveToProfile(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should move with archived descendants while preserving their profile and lineage", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, "", "")
+		child := h.stoppedSource(t, "", source.ID)
+		grandchild := h.stoppedSource(t, "", child.ID)
+		for _, descendant := range []*Info{grandchild, child} {
+			if _, err := h.manager.Archive(t.Context(), h.workspaceID, descendant.ID); err != nil {
+				t.Fatalf("Archive(descendant) error = %v", err)
+			}
+		}
+		histories := make(map[string][]store.TurnHistory)
+		for _, descendant := range []*Info{child, grandchild} {
+			history, err := h.manager.History(t.Context(), descendant.ID, store.EventQuery{})
+			if err != nil || len(history) == 0 {
+				t.Fatalf("History(descendant) = %v, %v; want setup conversation", history, err)
+			}
+			histories[descendant.ID] = history
+		}
+		result, err := h.move(t.Context(), source.ID)
+		if err != nil {
+			t.Fatalf("MoveToProfile() error = %v", err)
+		}
+		if result.Copy.ProfileID != profileMoveTargetID || !h.archivedAt(t, source.ID) {
+			t.Fatalf("move result = %#v; want target copy and archived original", result)
+		}
+		for _, original := range []*Info{child, grandchild} {
+			history, err := h.manager.History(t.Context(), original.ID, store.EventQuery{})
+			if err != nil || !reflect.DeepEqual(history, histories[original.ID]) {
+				t.Fatalf("descendant history changed: %v, %v", history, err)
+			}
+			persisted, err := h.manager.Status(t.Context(), original.ID)
+			if err != nil {
+				t.Fatalf("Status(descendant) error = %v", err)
+			}
+			if !h.archivedAt(t, original.ID) || persisted.ProfileID != store.DefaultProfileID ||
+				persisted.State != StateStopped || persisted.Lineage.ParentSessionID != original.Lineage.ParentSessionID {
+				t.Fatalf("descendant changed after move: %#v", persisted)
+			}
+		}
+	})
+
+	for _, live := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should refuse an unarchived descendant with live=%t and count only blockers", live),
+			func(t *testing.T) {
+				t.Parallel()
+
+				h := newProfileMoveHarness(t)
+				source := h.stoppedSource(t, "", "")
+				archived := h.stoppedSource(t, "", source.ID)
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, archived.ID); err != nil {
+					t.Fatalf("Archive(child) error = %v", err)
+				}
+				if live {
+					created, err := h.manager.Create(t.Context(), &CreateOpts{
+						AgentName: "coder", Workspace: h.workspaceID,
+						Lineage: &store.SessionLineage{ParentSessionID: source.ID},
+					})
+					if err != nil {
+						t.Fatalf("Create(child) error = %v", err)
+					}
+					t.Cleanup(func() { reportSessionStop(t, h.harness, created.ID) })
+				} else {
+					h.stoppedSource(t, "", archived.ID)
+				}
+				_, err := h.move(t.Context(), source.ID)
+				refusal, ok := errors.AsType[*ProfileMoveError](err)
+				want := fmt.Sprintf(
+					"session %s has 1 live or unarchived descendant session(s); stop and archive them first",
+					source.ID,
+				)
+				if !ok || refusal.Reason != ProfileMoveRefusalHasChildren || refusal.Message != want {
+					t.Fatalf("MoveToProfile() error = %v, want has_children with %q", err, want)
+				}
+				if h.archivedAt(t, source.ID) || !h.archivedAt(t, archived.ID) {
+					t.Fatal("refused move changed archive state")
+				}
+			},
+		)
+	}
+
+	t.Run("Should release descendant locks when waiting for another descendant is canceled", func(t *testing.T) {
+		t.Parallel()
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, "", "")
+		child := h.stoppedSource(t, "", source.ID)
+		grandchild := h.stoppedSource(t, "", child.ID)
+		for _, descendant := range []*Info{grandchild, child} {
+			if _, err := h.manager.Archive(t.Context(), h.workspaceID, descendant.ID); err != nil {
+				t.Fatalf("Archive(descendant) error = %v", err)
+			}
+		}
+		_, unlock, err := h.manager.lockProfileMove(t.Context(), grandchild.ID)
+		if err != nil {
+			t.Fatalf("lockProfileMove(grandchild) error = %v", err)
+		}
+		defer unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		if _, err := h.move(ctx, source.ID); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("MoveToProfile() error = %v, want deadline", err)
+		}
+		unarchiveCtx, unarchiveCancel := context.WithTimeout(t.Context(), time.Second)
+		defer unarchiveCancel()
+		if _, err := h.manager.Unarchive(unarchiveCtx, h.workspaceID, child.ID); err != nil {
+			t.Fatalf("Unarchive(child) after canceled move error = %v; want released lock", err)
+		}
+	})
+
+	for _, duringMove := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should serialize descendant unarchive with duringMove=%t", duringMove), func(t *testing.T) {
+			t.Parallel()
+			h := newProfileMoveHarness(t)
+			source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+			child := h.stoppedSource(t, "", source.ID)
+			grandchild := h.stoppedSource(t, "", child.ID)
+			for _, descendant := range []*Info{grandchild, child} {
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, descendant.ID); err != nil {
+					t.Fatalf("Archive(descendant) error = %v", err)
+				}
+			}
+			unarchive := func() {
+				ctx := t.Context()
+				if duringMove {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+					defer cancel()
+				}
+				_, err := h.manager.Unarchive(ctx, h.workspaceID, grandchild.ID)
+				if duringMove {
+					if !errors.Is(err, context.DeadlineExceeded) {
+						t.Errorf("Unarchive() during move error = %v, want deadline", err)
+					}
+				} else if err != nil {
+					t.Errorf("Unarchive() before locking error = %v", err)
+				}
+			}
+			if duringMove {
+				h.worktrees.onRelease = unarchive
+			} else {
+				h.worktrees.onInspect = unarchive
+			}
+			_, err := h.move(t.Context(), source.ID)
+			if duringMove {
+				if err != nil || !h.archivedAt(t, grandchild.ID) {
+					t.Fatalf("MoveToProfile() = %v; want archived descendant until commit", err)
+				}
+				if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, grandchild.ID); err != nil {
+					t.Fatalf("Unarchive() after move error = %v", err)
+				}
+			} else {
+				refusal, ok := errors.AsType[*ProfileMoveError](err)
+				if !ok || refusal.Reason != ProfileMoveRefusalHasChildren || h.archivedAt(t, source.ID) {
+					t.Fatalf("MoveToProfile() = %v; want refusal before archive", err)
+				}
+			}
+		})
+	}
 
 	t.Run("Should refuse a move that breaks a rule before changing anything", func(t *testing.T) {
 		t.Parallel()

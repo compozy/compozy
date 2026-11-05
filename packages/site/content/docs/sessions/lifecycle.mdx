@@ -304,7 +304,10 @@ Session reads expose `runtime.selected`, `runtime.selection_revision`, `runtime.
 the current process. `last_known` preserves the recorded provider, model, reasoning effort and speed
 after idle release, detachment or stop. It is absent before any runtime identity has been recorded
 and does not imply a live process. Session-list rows prefer `effective`, then `last_known`, then the
-selected runtime or the owning agent’s configured defaults.
+selected runtime or the owning agent’s configured defaults. While `selected` differs from the runtime
+a row shows, such as a provider switch saved during a turn, the row also names the selected runtime
+after an arrow (`Opus 4.1 high → GPT-5 medium`), and its tooltip reads `Next message: …`. The marker
+clears once `effective` reports the selection.
 
 When the session is active and its provider accepts session config (`runtime_strategy:
 "session_config"`), a change that keeps the provider (model, reasoning effort, speed, or ACP

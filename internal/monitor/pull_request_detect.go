@@ -32,12 +32,21 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		next.EndedNumber = obs.Number
 		return PullRequestChanges{}, next
 	}
-	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head}
+	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head, Base: obs.Base}
 	next = resetForNewPullRequest(next, obs)
 	next.URL = obs.URL
 	if terminal {
 		changes.Terminal, changes.Wake = obs.State, true
 		return flushBurst(changes, next)
+	}
+	switch obs.Mergeable {
+	case "conflicting":
+		changes.Conflict = !next.Conflicting
+		changes.Wake = changes.Conflict
+		next.Conflicting = true
+	case "mergeable":
+		changes.ConflictCleared = true
+		next.Conflicting = false
 	}
 	next = detectChecks(&changes, next, obs.Checks)
 	next = detectReviews(&changes, next, obs, now, missedReads)
@@ -64,11 +73,12 @@ func detectOutage(cur prCursor, obs PullRequestObservation, now time.Time) (Pull
 // resetForNewPullRequest drops what belongs to a superseded head. A new head does not wake by itself, and
 // a different pull request on the branch also starts a new review baseline.
 func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor {
-	if next.Number == obs.Number && next.Head == obs.Head {
+	if next.Number == obs.Number && (obs.Head == "" || next.Head == obs.Head) {
 		return next
 	}
 	if next.Number != obs.Number {
 		next.ReviewsBaselined, next.Burst = false, nil
+		next.Conflicting = false
 		next.SeenReviews, next.SeenThreads = nil, nil
 	}
 	if burst := next.Burst; burst != nil {
@@ -246,6 +256,7 @@ func flushBurst(changes PullRequestChanges, next prCursor) (PullRequestChanges, 
 // mergePullRequestChanges folds what later reports into what is already waiting for the next fire. It
 // keeps everything the agent still has to hear, except what a new head or pull request superseded.
 func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges {
+	carry, later = reconcileQueuedConflict(carry, later)
 	if carry.Head != "" && later.Head != "" && (carry.Head != later.Head || carry.Number != later.Number) {
 		carry = PullRequestChanges{}
 	}
@@ -269,6 +280,10 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 		}
 	}
 	merged = mergeReviewActivity(carry, later, merged)
+	merged.Conflict = merged.Conflict || carry.Conflict
+	if merged.Base == "" {
+		merged.Base = carry.Base
+	}
 	merged.FailureRose = merged.FailureRose || carry.FailureRose
 	merged.AllFinished = merged.AllFinished || carry.AllFinished
 	merged.ForgeDown = merged.ForgeDown || carry.ForgeDown
@@ -285,4 +300,25 @@ func mergeReviewActivity(first, second, into PullRequestChanges) PullRequestChan
 	into.Reviews = reviews[max(len(reviews)-maxBurstReviews, 0):]
 	into.NewThreads = first.NewThreads + second.NewThreads
 	return into
+}
+
+func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChanges, PullRequestChanges) {
+	if !carry.Conflict || carry.Number != later.Number {
+		return carry, later
+	}
+	switch {
+	case later.ConflictCleared:
+		carry.Conflict = false
+		carry.Wake = len(carry.NewlyFailed) > 0 || carry.FailureRose || carry.AllFinished ||
+			len(carry.Reviews) > 0 || carry.NewThreads > 0 || carry.Terminal != "" ||
+			carry.ForgeDown || carry.ReviewsDown || carry.TimedOut || carry.FireCapHit
+	case later.Head != "" && carry.Head != later.Head:
+		if later.Base == "" {
+			later.Base = carry.Base
+		}
+		later.Conflict, later.Wake = true, true
+	case later.Base != "":
+		carry.Base = later.Base
+	}
+	return carry, later
 }

@@ -4,12 +4,12 @@ area: ET
 title: Move a session started in the wrong profile to another profile
 persona: Ada
 journey: J-scope-work-by-profile
-expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
+expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live or unarchived descendants refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
 entry_points: web session row menu and Move to profile dialog; compozy session move-to-profile; HTTP/UDS POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile; native compozy__session_move_to_profile
-qa_status: pass
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pending
+bug_ids: [1298]
+fix_status: fixed
+retest_status: pending
 fix_commits:
 evidence: PR for #1185 (lab walk 2026-11-03, screenshots and transcripts in the PR body)
 last_report: PR for #1185
@@ -47,3 +47,26 @@ refusals, and the native tool's target-profile write authorization (`TestNativeS
 Native permission check: at `approve-edits` or `auto`, moving a session to another profile requires
 destructive-tool approval because it archives the original and releases its worktree. Covered by
 `TestBuiltinEditLevelAutoApprovals` and `TestBuiltinNativeDescriptors`.
+
+7. Archived descendants (#1298): create a stopped root with a child and grandchild, stop and
+   archive both descendants, then move the root. The target copy is created; the original and
+   descendants remain archived in the source profile with unchanged descendant lineage.
+8. Leave one descendant unarchived (repeat once stopped and once live), with the others archived.
+   Moving refuses with 409 `session_move_to_profile_has_children`, counts only the one blocker,
+   and says to stop and archive it first. The dialog displays that daemon message. No session
+   changes profile, archive state, or lineage after refusal; no "without children" option is offered.
+
+Automated verification for #1298 (2026-11-04): `TestManagerMoveToProfile` verifies steps 7–8
+against real SQLite, including child/grandchild lineage and source-profile retention, and both
+stopped and live unarchived blockers. The existing race-enabled lifecycle integration checks
+`TestManagerIntegrationFullLifecycle` and `TestManagerIntegrationUserLifecycle` passed.
+The fresh browser/daemon walk remains pending; these suite results do not claim that walk.
+
+9. Concurrent restore: begin moving a stopped root with archived descendants. Unarchiving a
+   descendant after move planning but before commit waits for the move; a canceled restore
+   returns its context error and leaves the descendant archived. After the move completes,
+   unarchive works normally. A restore completed before the move acquires descendant locks
+   causes the move to refuse before archiving the root.
+
+The profile-move suite also verifies unchanged descendant conversation history and that
+canceling lock acquisition releases already-held descendant locks.

@@ -2037,6 +2037,32 @@ func TestDetectPullRequest(t *testing.T) {
 		_, next := detectPullRequest(prCursor{}, obs, start)
 		return next
 	}
+	t.Run("Should report conflict transitions without clearing unknown observations", func(t *testing.T) {
+		t.Parallel()
+		cur := prCursor{}
+		for i, step := range []struct {
+			mergeable, head string
+			wake            bool
+		}{
+			{"unknown", "a", false}, {"conflicting", "a", true},
+			{"conflicting", "a", false}, {"unknown", "b", false},
+			{"conflicting", "b", false}, {"mergeable", "b", false},
+			{"conflicting", "b", true},
+		} {
+			obs := openPull(step.head, pending(0, 1), noReviews())
+			obs.Mergeable, obs.Base = step.mergeable, "main"
+			changes, next := detectPullRequest(cur, obs, start.Add(time.Duration(i)*time.Minute))
+			if changes.Wake != step.wake || changes.Conflict != step.wake || changes.Base != "main" {
+				t.Fatalf("step %d changes = %+v", i, changes)
+			}
+			watch := &pullRequestWatch{cursor: next}
+			restored, err := decodePullRequestWatch("repo", watch.encode())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, cur = detectPullRequest(restored.cursor, PullRequestObservation{Lookup: PullRequestFailed}, start)
+		}
+	})
 	t.Run("Should baseline reviews and threads on the first observation", func(t *testing.T) {
 		t.Parallel()
 		changes, next := detectPullRequest(prCursor{}, openPull("head-a", pending(1, 2), reviewed(3, "r1")), start)
@@ -3003,6 +3029,121 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 		}
 		return after
 	}
+	for _, scenario := range []string{"push", "push without base", "retarget", "clear", "headless clear", "clear with other changes"} {
+		t.Run("Should reconcile a queued conflict after "+scenario, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				forge := &fakeForge{observation: openPull("head-a", pending(1, 3), noReviews())}
+				store := newMemoryStore()
+				refusing := &recordingWaker{errs: slices.Repeat([]error{errors.New("input queue full")}, 64)}
+				before := durableWatch(t, forge, store, refusing)
+				if _, err := before.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+				obs := openPull("head-a", failing(2, "lint"), noReviews())
+				obs.Base = "main"
+				forge.set(obs)
+				poll(2)
+				obs.Mergeable = "conflicting"
+				if scenario == "clear with other changes" {
+					obs.Checks = failing(1, "lint", "test")
+				}
+				forge.set(obs)
+				poll(2)
+				isPush := strings.HasPrefix(scenario, "push")
+				switch {
+				case isPush:
+					obs.Head, obs.Mergeable = "head-b", "unknown"
+					obs.Checks = pending(1, 3)
+					if scenario == "push without base" {
+						obs.Base = ""
+					}
+				case scenario == "retarget":
+					obs.Base = "release"
+				default:
+					obs.Mergeable = "mergeable"
+					if scenario == "headless clear" {
+						obs.Head = ""
+					}
+				}
+				forge.set(obs)
+				poll(2)
+				waker := &recordingWaker{}
+				restart(t, before, forge, store, waker)
+				synctest.Wait()
+				poll(1)
+				got := waker.notifications()
+				want := 2
+				if scenario == "clear" || scenario == "headless clear" {
+					want = 1
+				}
+				if len(got) != want {
+					t.Fatalf("wakes = %+v", got)
+				}
+				if want == 2 && got[1].PullRequest.Conflict != (isPush || scenario == "retarget") {
+					t.Fatalf("queued wake = %+v", got[1].PullRequest)
+				}
+				if want == 2 && got[1].PullRequest.Conflict {
+					base := "main"
+					if scenario == "retarget" {
+						base = "release"
+					}
+					if got[1].PullRequest.Base != base {
+						t.Fatalf("queued base = %+v", got[1].PullRequest)
+					}
+				}
+				if scenario == "clear with other changes" && !slices.Contains(got[1].PullRequest.NewlyFailed, "test") {
+					t.Fatalf("lost check failure = %+v", got[1].PullRequest)
+				}
+				obs.Mergeable = "conflicting"
+				forge.set(obs)
+				poll(2)
+				expected := want
+				if !isPush && scenario != "retarget" {
+					expected++
+				}
+				if got := waker.notifications(); len(got) != expected {
+					t.Fatalf("repeat wakes = %+v", got)
+				}
+			})
+		})
+	}
+	t.Run("Should preserve conflicts through restart and unknown reads", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			obs := openPull("head-a", pending(0, 1), noReviews())
+			obs.Mergeable, obs.Base = "conflicting", "main"
+			forge := &fakeForge{observation: obs}
+			store, waker := newMemoryStore(), &recordingWaker{}
+			before := durableWatch(t, forge, store, waker)
+			if _, err := before.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			obs.Mergeable = "unknown"
+			forge.set(obs)
+			after := restart(t, before, forge, store, waker)
+			poll(1)
+			obs.Mergeable = "conflicting"
+			forge.set(obs)
+			poll(2)
+			if got := waker.notifications(); len(got) != 1 {
+				t.Fatalf("duplicate wakes = %+v", got)
+			}
+			obs.Mergeable = "mergeable"
+			forge.set(obs)
+			poll(1)
+			obs.Mergeable = "conflicting"
+			forge.set(obs)
+			poll(1)
+			got := waker.notifications()
+			if len(got) != 2 || !strings.Contains(got[1].Message(), "PR #7 now conflicts with main; rebase") ||
+				onlyMonitor(t, after, "sess-1").Status != StatusActive {
+				t.Fatalf("wakes = %+v", got)
+			}
+		})
+	})
 	t.Run("Should keep the baseline, so changes during downtime still wake", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -3152,6 +3293,28 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 func TestNotificationPullRequest(t *testing.T) {
 	t.Parallel()
 	mon := Monitor{ID: "mon-1", Kind: KindPullRequest, Branch: "feat/x", FireCount: 3, Description: "watch"}
+	t.Run("Should describe the base branch when the provider omits its name", func(t *testing.T) {
+		t.Parallel()
+		for _, base := range []string{"", "  \n"} {
+			changes := &PullRequestChanges{Wake: true, Number: 7, State: "open", Base: base, Conflict: true}
+			text := (Notification{Monitor: mon, PullRequest: changes}).Message()
+			if !strings.Contains(text, "PR #7 now conflicts with its base branch; rebase") {
+				t.Fatalf("conflict message = %s", text)
+			}
+		}
+	})
+	t.Run("Should omit rebase guidance when a queued conflict ends", func(t *testing.T) {
+		t.Parallel()
+		for _, terminal := range []string{pullRequestMerged, pullRequestClosed} {
+			changes := &PullRequestChanges{
+				Wake: true, Number: 7, State: terminal, Terminal: terminal, Base: "main", Conflict: true,
+			}
+			text := (Notification{Monitor: mon, PullRequest: changes}).Message()
+			if strings.Contains(text, "; rebase") || !strings.Contains(text, "pull request "+terminal) {
+				t.Fatalf("terminal wake = %s", text)
+			}
+		}
+	})
 	t.Run("Should keep forge text inside its untrusted block", func(t *testing.T) {
 		t.Parallel()
 		changes := &PullRequestChanges{

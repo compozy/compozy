@@ -1823,22 +1823,21 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 
 		runtime.refreshDynamicSourcesInBackground()
-		seen := make(map[modelcatalog.CatalogExecutionContext]bool, len(executionContexts))
-		// Observe every context before shutdown can cancel the remaining sweep.
+		refreshedContexts := make(map[modelcatalog.CatalogExecutionContext]bool)
 		for range executionContexts {
 			refresh := service.waitForRefresh(t)
-			if refresh.SourceID != transient.ID() || refresh.Force ||
-				!slices.Contains(executionContexts, refresh.ExecutionContext) ||
-				seen[refresh.ExecutionContext] {
-				t.Fatalf(
-					"background refresh = %#v, want one non-forced transient refresh per execution context",
-					refresh,
-				)
+			if refresh.SourceID != transient.ID() || refresh.Force {
+				t.Fatalf("background refresh = %#v, want only the transient target once its backoff elapsed", refresh)
 			}
-			seen[refresh.ExecutionContext] = true
+			refreshedContexts[refresh.ExecutionContext] = true
 		}
 		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
+		}
+		for _, executionContext := range executionContexts {
+			if !refreshedContexts[executionContext] {
+				t.Fatalf("missing refresh for execution context %#v", executionContext)
+			}
 		}
 		if got := len(service.refreshes); got != 0 {
 			t.Fatalf("extra refreshes = %d, want parked targets left alone", got)

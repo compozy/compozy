@@ -1947,6 +1947,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("Close(first post-cut cleanup) error = %v", err)
 			}
 		})
+		// The upgrade above may wait for a shared upgrade slot; give the post-upgrade
+		// phase its own budget so that queueing time cannot exhaust it.
+		ctx = globalMigrationTestContext(t)
 		assertPostCutHistoricalGlobalSchemaFixture(t, first)
 		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
 		if err != nil {

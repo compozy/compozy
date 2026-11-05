@@ -14,7 +14,8 @@ func newSessionMoveToProfileCommand(deps commandDeps) *cobra.Command {
 			"fork owned by the target profile and carries the conversation; the original keeps its profile " +
 			"and history, and past usage stays with it. A worktree is released and its branch checked out " +
 			"again in a new worktree owned by the target profile. Refused for a running, archived, or child " +
-			"session, a session with children, or a worktree with uncommitted changes. To place a session " +
+			"session, a session with live or unarchived descendants, or a worktree with uncommitted changes. " +
+			"Archived, stopped descendants stay in the source profile. To place a session " +
 			"in a folder, use session move.",
 		Example: `  # Move a stopped session to the "work" profile
   compozy session move-to-profile sess_abc work`,

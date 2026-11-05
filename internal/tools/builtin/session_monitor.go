@@ -61,7 +61,8 @@ func monitorCreateDescriptor() toolspkg.Descriptor {
 		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires. Use it "+
 			"for every wait on external work, inside or outside your turn: pull request checks and reviews, deploys, "+
 			"builds, polling remote state, or a delay. kind=pull_request is the wait for a pull request: the daemon "+
-			"reads its forge about once a minute and wakes you when checks fail, all checks finish, a new review or "+
+			"reads its forge about once a minute and wakes you when merge conflicts appear, checks fail, "+
+			"all checks finish, a new review or "+
 			"unresolved thread arrives, or the pull request merges or closes. It selects branch, by default this "+
 			"session's branch, refuses a default branch, and stays armed across wakes until a pull request it saw "+
 			"open ends, timeout_seconds expires, or you cancel it; you decide when delivery is done. kind=terminal watches a "+

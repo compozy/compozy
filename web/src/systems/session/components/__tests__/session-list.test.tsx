@@ -1711,7 +1711,7 @@ describe("SessionList provider marks", () => {
   });
 
   it.each(["released", "detached", "stopped"])(
-    "shows the recorded runtime for %s sessions",
+    "shows the recorded runtime and the next message's selection for %s sessions",
     state => {
       renderList({
         sessions: [
@@ -1731,7 +1731,9 @@ describe("SessionList provider marks", () => {
         "data-kind",
         "codex"
       );
-      expect(rowButton(state)).toHaveAccessibleName(/Codex · GPT-6\.1 Sol Frontend Engineer Agent/);
+      expect(rowButton(state)).toHaveAccessibleName(
+        /Codex · GPT-6\.1 Sol, next message: Claude Code Frontend Engineer Agent/
+      );
     }
   );
 
@@ -1877,6 +1879,158 @@ describe("SessionList provider marks", () => {
       "data-kind",
       "claude"
     );
+  });
+
+  // Invariant (#1290): the row names what runs now and, while a saved switch has not reached the
+  // runtime, what the next message runs; a live same-provider change repaints without a marker.
+  it("shows a pending switch beside the bound runtime until the runtime reports it", async () => {
+    const user = userEvent.setup();
+    const bound = {
+      ...runtime("codex", "gpt-6.1-sol"),
+      effective: { provider: "codex", model: "gpt-6.1-sol", reasoning_effort: "xhigh" },
+      selection_revision: 2,
+    };
+    const pending = row("pending", {
+      runtime: {
+        ...bound,
+        selected: { provider: "claude", model: "claude-opus-5-5", reasoning_effort: "medium" },
+      },
+    });
+    const { update } = renderList({ sessions: [pending] });
+
+    const line = rowButton("pending").parentElement!;
+    expect(screen.getByTestId("session-provider-mark-pending")).toHaveAttribute(
+      "data-kind",
+      "codex"
+    );
+    expect(within(line).getByText("GPT-6.1 Sol xhigh")).toBeInTheDocument();
+    expect(within(line).getByText("Claude Opus 5.5 medium")).toBeInTheDocument();
+    expect(rowButton("pending")).toHaveAccessibleName(
+      /Codex · GPT-6\.1 Sol xhigh, next message: Claude Code · Claude Opus 5\.5 medium/
+    );
+    await user.hover(screen.getByTestId("session-provider-mark-pending"));
+    expect(
+      await screen.findByText("Next message: Claude Code · Claude Opus 5.5 medium")
+    ).toBeInTheDocument();
+
+    // A cross-provider switch completes once the runtime reports the selected provider.
+    update([
+      {
+        ...pending,
+        runtime: {
+          ...pending.runtime,
+          effective: { provider: "claude", model: "claude-opus-5-5", reasoning_effort: "medium" },
+        },
+      },
+    ]);
+    expect(screen.getByTestId("session-provider-mark-pending")).toHaveAttribute(
+      "data-kind",
+      "claude"
+    );
+    expect(rowButton("pending")).toHaveAccessibleName(/Claude Code · Claude Opus 5\.5 medium/);
+    expect(rowButton("pending")).not.toHaveAccessibleName(/next message/);
+
+    // A same-provider effort change applies live: once the runtime reports it, no marker stays.
+    const live = {
+      ...bound,
+      selection_revision: 3,
+      selected: { provider: "codex", model: "gpt-6.1-sol", reasoning_effort: "high" },
+    };
+    update([{ ...pending, runtime: live }]);
+    expect(within(line).queryByText("Claude Opus 5.5 medium")).not.toBeInTheDocument();
+    expect(rowButton("pending")).toHaveAccessibleName(/next message: Codex · GPT-6\.1 Sol high/);
+    update([
+      {
+        ...pending,
+        runtime: { ...live, effective: { ...live.effective, reasoning_effort: "high" } },
+      },
+    ]);
+    expect(rowButton("pending")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol high/);
+    expect(rowButton("pending")).not.toHaveAccessibleName(/next message/);
+    expect(within(line).queryByText("→", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("names the speed on both sides of a pending speed-only switch", () => {
+    const bound = {
+      ...runtime("codex", "gpt-6.1-sol"),
+      effective: { provider: "codex", model: "gpt-6.1-sol", reasoning_effort: "xhigh" },
+      selected: {
+        provider: "codex",
+        model: "gpt-6.1-sol",
+        reasoning_effort: "xhigh",
+        speed: "fast" as const,
+      },
+      selection_revision: 2,
+    };
+    renderList({
+      sessions: [
+        row("fast", { state: "stopped", runtime: bound }),
+        row("bare-fast", {
+          runtime: {
+            ...runtime("claude"),
+            effective: { provider: "claude", speed: "fast" },
+            selected: { provider: "codex" },
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+    const bare = rowButton("bare-fast").parentElement!;
+    expect(within(bare).getByText("Claude Code Fast")).toBeInTheDocument();
+    expect(within(bare).getByText("Codex")).toBeInTheDocument();
+
+    const line = rowButton("fast").parentElement!;
+    expect(within(line).getByText("GPT-6.1 Sol xhigh")).toBeInTheDocument();
+    expect(within(line).getByText("GPT-6.1 Sol xhigh Fast")).toBeInTheDocument();
+    expect(rowButton("fast")).toHaveAccessibleName(
+      /Codex · GPT-6\.1 Sol xhigh, next message: Codex · GPT-6\.1 Sol xhigh Fast/
+    );
+  });
+
+  it("draws a pending switch from a provider-only runtime and keeps a refused reset pending", () => {
+    renderList({
+      sessions: [
+        row("bare", {
+          runtime: {
+            ...runtime("claude"),
+            selected: { provider: "codex", model: "gpt-6.1-sol" },
+            selection_revision: 2,
+          },
+        }),
+        row("refused", {
+          runtime: {
+            ...runtime("codex", "gpt-6.1-sol"),
+            selected: { provider: "codex" },
+            failure: "set_config_option refused",
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+
+    const bare = rowButton("bare").parentElement!;
+    expect(within(bare).getByText("Claude Code")).toBeInTheDocument();
+    expect(within(bare).getByText("GPT-6.1 Sol")).toBeInTheDocument();
+    expect(rowButton("refused")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol, next message: Codex /);
+  });
+
+  it("announces no switch when a recovery failure leaves an unchanged runtime", () => {
+    renderList({
+      sessions: [
+        row("recovering", {
+          runtime: {
+            ...runtime("codex", "gpt-6.1-sol"),
+            status: "recovering",
+            selected: { provider: "codex" },
+            failure: "replacement runtime failed to start",
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+
+    expect(rowButton("recovering")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol/);
+    expect(rowButton("recovering")).not.toHaveAccessibleName(/next message/);
   });
 
   it("reveals the runtime on keyboard focus, closes on Escape, and adds no tab stop", async () => {
