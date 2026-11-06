@@ -59415,10 +59415,12 @@ export interface operations {
         offset?: number;
         /** @description Page size in bytes; defaults to and is capped at 65536 */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
-        /** @description Durable workspace id */
+        /** @description Durable workspace id or @user */
         workspace_id: string;
         /** @description Opaque content-addressed artifact id */
         artifact_id: string;
@@ -59445,7 +59447,7 @@ export interface operations {
           "application/json": components["schemas"]["ToolErrorResponse"];
         };
       };
-      /** @description Artifact not found in the resolved workspace */
+      /** @description Artifact not found in the resolved workspace or User scope and profile */
       404: {
         headers: {
           [name: string]: unknown;

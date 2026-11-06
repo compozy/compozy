@@ -4,10 +4,10 @@ area: ET
 title: Move a session started in the wrong profile to another profile
 persona: Ada
 journey: J-scope-work-by-profile
-expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live or unarchived descendants refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
+expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live descendants or unarchived descendants outside the original's subagent archive family refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
 entry_points: web session row menu and Move to profile dialog; compozy session move-to-profile; HTTP/UDS POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile; native compozy__session_move_to_profile
 qa_status: pending
-bug_ids: [1298]
+bug_ids: [1298, 1320]
 fix_status: fixed
 retest_status: pending
 fix_commits:
@@ -70,3 +70,51 @@ The fresh browser/daemon walk remains pending; these suite results do not claim 
 
 The profile-move suite also verifies unchanged descendant conversation history and that
 canceling lock acquisition releases already-held descendant locks.
+
+10. Stopped subagent family (#1320): create a stopped root with stopped subagent children and
+    grandchildren, then move the root without archiving it first. The original and its subagent
+    archive family are archived in the source profile, with history and lineage unchanged; only
+    the fork belongs to the target. Repeat with a live subagent: the move refuses without changes.
+    A subagent below an archived non-subagent remains a blocker until that separate family is archived.
+11. Force target checkout creation to fail after archiving a stopped subagent family. The rollback
+    restores the original and subagents to their prior unarchived state in the source profile,
+    all bound to the replacement checkout. Resume and stop each family member; all succeed.
+
+Automated verification for #1320 (2026-11-06): `TestManagerMoveToProfile` verifies steps 10–11
+against real SQLite, including stopped subagent children and grandchildren sharing the original's
+worktree, history/lineage retention, the individual subagent archive refusal, rollback after target
+checkout failure, live subagent refusal, and a stopped subagent outside the original's archive
+family. `TestManagerRecoverProfileMoves` and the existing integration suites
+`TestManagerIntegrationFullLifecycle` / `TestManagerIntegrationUserLifecycle` also passed.
+These results do not claim a fresh browser walk.
+
+12. After a successful move of a family sharing one checkout, unarchive the original. The original
+    and subagents return to the workspace directory without a binding to the removed checkout;
+    subagents with their own checkout retain it. Resume and stop the family successfully.
+
+The owning suite verifies family bindings and resumes after rollback, successful-move unarchive,
+and interrupted rollback recovery. It uses the public Manager move, archive, unarchive and resume
+methods with real SQLite; transport mapping remains covered separately by the existing handler,
+CLI and native-tool suites.
+
+13. Fail an inherited child binding update, then a source binding update, during rollback. While
+    the failure persists, unarchive refuses with the open move unsettled. Remove the injected
+    store failure and unarchive again: rollback completes first, both catalog bindings point to
+    the restored checkout, and journal recovery is idempotent. No binding is cleared to bypass
+    recovery. Repeat with padded IDs and reject a different workspace without changing state.
+14. Ordinary archive/unarchive with a missing or damaged worktree and subagents keeps the existing
+    binding and does not inspect Git. Only the recorded original of a completed profile move can
+    clear inherited bindings to its released checkout. A stale restoration snapshot refuses before
+    changing any child binding. Family conversation locks use the same sorted order as workspace
+    removal, and restoration re-reads the root under those locks.
+
+The owning profile-move suite covers child/source binding-store failures followed by unarchive
+and journal retry, padded IDs, ordinary unarchive without Git, stale-root restoration, and workspace
+removal preparation during restoration. The optional completed-move provenance in source metadata
+is written before deleting the open journal; older metadata without it keeps ordinary unarchive
+behavior. No SQLite schema change is required.
+
+15. Move a source with no descendants, then unarchive and resume it: its released-checkout binding
+    is cleared as for a family. Rename an archived original while completion provenance is being
+    recorded: both the new name and the completed-move record survive. The owning move suite
+    covers the childless workflow and coordinates the rename snapshot with the provenance write.

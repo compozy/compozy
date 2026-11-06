@@ -272,7 +272,7 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 	return m.refuseProfileMoveDescendants(ctx, meta)
 }
 
-// Archived descendants must remain stopped while the source is archived and copied.
+// refuseProfileMoveDescendants permits unarchived descendants only in the source archive family.
 func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.SessionMeta) error {
 	tree, err := m.sessionTreeStore()
 	if err != nil {
@@ -282,11 +282,12 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 	if err != nil {
 		return fmt.Errorf("session: list children of %q: %w", meta.ID, err)
 	}
+	family := profileMoveArchiveFamily(meta.ID, children)
 	blocking := 0
 	for i := range children {
 		child := &children[i]
 		_, live := m.Get(child.ID)
-		if child.ArchivedAt == nil || child.State != string(StateStopped) || live ||
+		if (child.ArchivedAt == nil && !family[child.ID]) || child.State != string(StateStopped) || live ||
 			m.isPending(child.ID) || m.sessionStartRun(child.ID) != nil {
 			blocking++
 		}
@@ -300,6 +301,27 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 		)
 	}
 	return nil
+}
+
+// profileMoveArchiveFamily follows only subagent links, matching the archive transaction.
+func profileMoveArchiveFamily(rootID string, children []store.SessionInfo) map[string]bool {
+	parents := make(map[string]string, len(children))
+	for i := range children {
+		child := &children[i]
+		if child.Lineage != nil && child.Lineage.SpawnRole == store.SubagentSpawnRole {
+			parents[child.ID] = child.Lineage.ParentSessionID
+		}
+	}
+	family := map[string]bool{rootID: true}
+	for i := range children {
+		child := &children[i]
+		familyRoot := child.ID
+		for steps := 0; parents[familyRoot] != "" && steps < len(children); steps++ {
+			familyRoot = parents[familyRoot]
+		}
+		family[child.ID] = familyRoot == rootID
+	}
+	return family
 }
 
 func refuseProfileMoveCheckout(checkout *ProfileMoveCheckout) error {
@@ -338,8 +360,17 @@ func (m *Manager) refuseSharedProfileMoveWorktree(ctx context.Context, meta *sto
 	if err != nil {
 		return fmt.Errorf("session: list sessions sharing worktree %q: %w", meta.WorktreeIDValue(), err)
 	}
+	tree, err := m.sessionTreeStore()
+	if err != nil {
+		return err
+	}
+	children, err := tree.ListSessionDescendants(ctx, meta.WorkspaceID, meta.ID)
+	if err != nil {
+		return fmt.Errorf("session: list archive family of %q: %w", meta.ID, err)
+	}
+	family := profileMoveArchiveFamily(meta.ID, children)
 	for i := range rows {
-		if rows[i].ID != meta.ID {
+		if !family[rows[i].ID] {
 			return profileMoveRefused(
 				ProfileMoveRefusalWorktreeShared,
 				"session %s also uses this worktree; archive it or bind it elsewhere first", rows[i].ID,

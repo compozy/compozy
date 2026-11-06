@@ -104400,7 +104400,7 @@
         "operationId": "readToolArtifact",
         "parameters": [
           {
-            "description": "Durable workspace id",
+            "description": "Durable workspace id or @user",
             "in": "path",
             "name": "workspace_id",
             "required": true,
@@ -104434,6 +104434,14 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -104465,7 +104473,7 @@
                 }
               }
             },
-            "description": "Artifact not found in the resolved workspace"
+            "description": "Artifact not found in the resolved workspace or User scope and profile"
           },
           "502": {
             "content": {

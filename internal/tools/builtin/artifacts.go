@@ -9,7 +9,7 @@ func toolArtifactDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDToolArtifactRead,
 		"tool_artifact_read",
 		"Tool Artifact Read",
-		"Read one bounded byte page from a retained oversized tool result in the caller workspace.",
+		"Read a retained tool-result page in the caller workspace or User scope of its profile.",
 		toolArtifactReadInputSchema,
 		toolspkg.RiskRead,
 		true,

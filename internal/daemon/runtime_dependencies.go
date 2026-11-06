@@ -36,6 +36,7 @@ func (d *Daemon) runtimeDeps(
 		SessionMonitors:    sessionMonitorService(state),
 		SessionProcesses:   sessionProcessService(state),
 		SessionAttachments: state.sessionAttachments,
+		ToolArtifacts:      state.toolArtifacts,
 		SessionFiles:       newSessionFileIndex(state.logger),
 		DrainController:    d,
 

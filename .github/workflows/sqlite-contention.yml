@@ -73,8 +73,13 @@ jobs:
       - name: Publish experiment summary
         if: always()
         run: |
-          if test -f "$RUNNER_TEMP/sqlite-contention/report.md"; then
-            cat "$RUNNER_TEMP/sqlite-contention/report.md" >> "$GITHUB_STEP_SUMMARY"
+          report="$RUNNER_TEMP/sqlite-contention/report.md"
+          if test -f "$report"; then
+            # Keep the full artifact; reserve room below GitHub's 1 MiB summary limit.
+            head -c 900000 "$report" >> "$GITHUB_STEP_SUMMARY"
+            if test "$(wc -c < "$report")" -gt 900000; then
+              printf '\n\nSummary truncated. Download the SQLite contention artifact for the complete report.md and warning decisions.\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
       - uses: actions/upload-artifact@v7
         if: always()

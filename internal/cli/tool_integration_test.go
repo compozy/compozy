@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
@@ -38,7 +40,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
 	}
 	artifactContent := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
-	artifactRef, err := artifactStore.Put(t.Context(), "ws-1", artifactContent)
+	artifactRef, err := artifactStore.Put(t.Context(), workspaceaccess.ScopeTarget("ws-1", ""), artifactContent)
 	if err != nil {
 		t.Fatalf("artifactStore.Put() error = %v", err)
 	}
@@ -167,7 +169,13 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should match artifact paging and decoded human output", func(t *testing.T) {
-		expected, err := artifactStore.ReadPage(t.Context(), "ws-1", artifactRef.URI, 2, 7)
+		expected, err := artifactStore.ReadPage(
+			t.Context(),
+			workspaceaccess.ScopeTarget("ws-1", ""),
+			artifactRef.URI,
+			2,
+			7,
+		)
 		if err != nil {
 			t.Fatalf("artifactStore.ReadPage() error = %v", err)
 		}

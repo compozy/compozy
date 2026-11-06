@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/tools/builtin"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestHostedToolResultContract(t *testing.T) {
@@ -333,7 +335,7 @@ func requireHostedArtifactContinuation(
 	t.Helper()
 	var retained []byte
 	for offset := int64(0); ; {
-		page, err := store.ReadPage(t.Context(), workspaceID, ref.URI, offset, 4<<10)
+		page, err := store.ReadPage(t.Context(), workspaceaccess.ScopeTarget(workspaceID, ""), ref.URI, offset, 4<<10)
 		if err != nil {
 			t.Fatalf("ReadPage(%s, %d) error = %v", ref.URI, offset, err)
 		}
