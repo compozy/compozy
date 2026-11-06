@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -16,6 +17,7 @@ from trace import write_bytes
 TRIALS = 4
 MIN_THROUGHPUT_RATIO = 0.95
 MAX_RETENTION_SECONDS = 30
+LONG_HOLD_MS = 1000
 
 
 def save(path, value):
@@ -83,7 +85,7 @@ def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_t
 
 
 def operation_rates(result):
-    return {name: sample["count"] / result["seconds"]
+    return {name: sample.get("count", 0) / result["seconds"]
             for name, sample in result["latency"].items()}
 
 
@@ -127,16 +129,52 @@ def load_failed(result, retention_rows):
                 or result["retention"]["DeletedEventSummaries"] != retention_rows)
 
 
+def transcript_tail_comparison(baseline, head):
+    # Pair before aggregation, just as throughput does. The original one-second
+    # budget remains the floor on fast runners; a slow baseline adds no margin.
+    pairs = []
+    for b, h in zip(baseline, head):
+        samples = [run["latency"].get("transcript_write", {}) for run in (b, h)]
+        complete = all(sample.get("count", 0) > 0
+                       and math.isfinite(sample.get("max_ms", float("inf")))
+                       and sample.get("max_ms", 0) > 0 for sample in samples)
+        complete = complete and not b["failures"].get("transcript_write")
+        limit = max(LONG_HOLD_MS, samples[0].get("max_ms", 0))
+        pairs.append({"baseline_max_ms": samples[0].get("max_ms"),
+                      "head_max_ms": samples[1].get("max_ms"), "limit_ms": limit,
+                      "complete": complete,
+                      "ratio": samples[1]["max_ms"] / limit if complete else None})
+    ratios = [pair["ratio"] for pair in pairs if pair["complete"]]
+    return {"pairs": pairs, "median_ratio": statistics.median(ratios) if ratios else None,
+            "regression": len(ratios) != len(pairs) or not ratios or statistics.median(ratios) > 1}
+
+
+def paired_commit_pause(record, pair):
+    # Only the measured transcript COMMIT signature is eligible. Never exempt
+    # callback work, unknown diagnostics, admission exhaustion or checkpoint errors.
+    return (pair["complete"]
+            and record.get("msg") == "sqlite write transaction held for at least one second"
+            and record.get("database") == "session"
+            and record.get("operation") == "append session events and transcript"
+            and 0 <= record.get("callback_ms", -1) < LONG_HOLD_MS
+            and record.get("commit_ms", 0) >= LONG_HOLD_MS
+            and LONG_HOLD_MS <= record.get("elapsed_ms", 0) <= pair["limit_ms"])
+
+
 def acceptance_failures(trials, retention_rows):
     comparison = throughput_comparison(trials["baseline"], trials["head"])
     regressions = {name: values for name, values in comparison.items()
                    if not values["baseline_complete"] or values["median_ratio"] < MIN_THROUGHPUT_RATIO}
+    tails = transcript_tail_comparison(trials["baseline"], trials["head"])
     invalid = [i for i, run in enumerate(trials["head"])
-               if load_failed(run, retention_rows)
+               if run["failures"]
+               or run["retention"]["DeletedEventSummaries"] != retention_rows
+               or any(not paired_commit_pause(record, tails["pairs"][i])
+                      for record in run["contention_diagnostics"])
                or any(run["latency"].get(name, {}).get("count", 0) <= 0 for name in comparison)
                or run["latency"].get("retention_sweep", {}).get("max_ms", float("inf"))
                > MAX_RETENTION_SECONDS * 1000]
-    return comparison, regressions, invalid
+    return comparison, regressions, invalid, tails
 
 
 def main():
@@ -194,11 +232,12 @@ def main():
     result = {"environment": environment, "seed": seed, "upgrade": {"rows": before["rows"], "sha256": before["sha256"],
               "baseline_open_ms": baseline_view["open_ms"], "upgrade_ms": head_view["open_ms"], "reopen_ms": reopened["open_ms"]},
               "trials": trials, "traced": traced}
-    comparison, regressions, invalid = acceptance_failures(trials, retention_rows)
+    comparison, regressions, invalid, tails = acceptance_failures(trials, retention_rows)
     result["throughput_comparison"] = comparison
     result["min_throughput_ratio"] = MIN_THROUGHPUT_RATIO
     result["throughput_regressions"] = regressions
     result["invalid_head_trials"] = invalid
+    result["transcript_tail_comparison"] = tails
     result["max_retention_seconds"] = MAX_RETENTION_SECONDS
     result["trace_comparable"] = all("diagnostic_error" not in run and not load_failed(run, retention_rows)
                                      for run in traced.values())
@@ -230,6 +269,7 @@ def main():
                   if result["trace_comparable"] else "n/a (incomplete)" for label in ("baseline", "head")]
         lines.append(f"| {kind} file-write bytes/min (traced) | {values[0]} | {values[1]} |")
     lines += ["", "Throughput regressions (median of untraced paired ratios): " + json.dumps(regressions),
+              "Transcript write tails (paired maxima; median ratio <= 1; each COMMIT warning must fit its own pair): " + json.dumps(tails),
               "Paired ratios by operation: " + json.dumps(comparison),
               f"Traced byte comparison valid (both runs error-free, retention complete): {result['trace_comparable']}. "
               "If false, byte rates describe incomplete work and must not support an efficiency claim.",
@@ -249,7 +289,7 @@ def main():
               "These are synthetic store measurements, not HTTP/browser or live-provider latency guarantees."]
     (args.output / "report.md").write_text("\n".join(lines) + "\n")
     # Preserve receipts even if an acceptance condition fails.
-    if invalid or regressions:
+    if invalid or regressions or tails["regression"]:
         # Keep failed acceptance unchanged. A separate diagnostic run attributes
         # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
         diagnose_failure(args.head, upgraded, args.output)
