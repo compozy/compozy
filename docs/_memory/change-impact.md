@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Oversized invoked skills deferred to `compozy__skill_view`
+
+Owner: `fix/oversized-skill-deferred-delivery`. QA:
+`docs/qa/scenarios/ET-session-slash-commands-inline.md` (2026-11-06 impact and verdict).
+
+- An invoked skill body above `MaxSkillBytes` (24,000), or one that no longer fits the remaining
+  `MaxInvokedSkillBytes` (64,000) turn budget, is no longer a dispatch failure (`invoked skill
+  context too large`, reported as an indeterminate prompt dispatch). Its `<skill>` entry keeps the
+  source-qualified identity and carries `<deferred-instructions command_id bytes>` directing the
+  agent to `compozy__skill_view` with the same `command_id`. Skills that fit stay inlined in order.
+- Native tools, CLI verbs/output, HTTP/UDS routes and DTOs, hooks, extension SDKs, config keys and
+  SQLite are unchanged; only the agent-facing turn text changes. `command.ErrSkillContextTooLarge`
+  was internal and is deleted (internal regime). Workspace data isolation: the deferred read goes
+  through the existing session-bound, source-fenced `command_id` path.
+- Official skill `skills/compozy/`: `references/tools-and-skills.md` documents deferred delivery.
+  Web/Docs: no change; the site never documented the limit.
+
 ## Usage backoff, one collection per account, sign-in after restart — issue #1302
 
 Owner: `fix/usage-backoff-signin-boot`. QA: `docs/qa/scenarios/ET-provider-usage-surfaces.md`,

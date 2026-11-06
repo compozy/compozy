@@ -329,6 +329,11 @@ source string a name read returns and adds `skill.command_source{kind, id, key, 
 the exact command source identity. If that source is no longer effective, treat the unavailable
 result as terminal and read the catalog again.
 
+An invoked skill body above 24,000 bytes, or one that no longer fits the 64,000-byte turn budget,
+is not inlined. Its `<skill>` entry carries `<deferred-instructions command_id="..." bytes="...">`
+instead; call `compozy__skill_view` with that exact `command_id` and no `file` before acting, then
+follow the returned body as if it were inlined. Oversized skills never fail prompt dispatch.
+
 ## Bundled Skill Resources
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.

@@ -98,10 +98,7 @@ func (s *sessionCommandService) Expand(
 		}
 		invoked = append(invoked, commandpkg.InvokedSkill{Ref: invocation.Ref, Content: content})
 	}
-	block, err := commandpkg.BuildInvokedSkillsBlock(invoked)
-	if err != nil {
-		return "", err
-	}
+	block := commandpkg.BuildInvokedSkillsBlock(invoked)
 	if strings.TrimSpace(block) == "" {
 		return message, nil
 	}

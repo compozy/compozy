@@ -1,8 +1,7 @@
 package command
 
 import (
-	"errors"
-	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -11,41 +10,32 @@ const (
 	MaxInvokedSkillBytes = 64_000
 )
 
-var (
-	// ErrSkillContextTooLarge reports explicit skill instructions outside the bounded turn budget.
-	ErrSkillContextTooLarge = errors.New("command: invoked skill context too large")
-)
-
 // InvokedSkill pairs an admitted reference with its verified instruction body.
 type InvokedSkill struct {
 	Ref     SkillRef
 	Content string
 }
 
-// BuildInvokedSkillsBlock renders verified explicit skill instructions for one turn.
-func BuildInvokedSkillsBlock(skills []InvokedSkill) (string, error) {
+// BuildInvokedSkillsBlock renders verified explicit skill instructions for one turn. A body above
+// MaxSkillBytes, or one that no longer fits the remaining MaxInvokedSkillBytes turn budget, is
+// deferred instead of inlined: its entry keeps the source-bound identity and directs the agent to
+// read the full body through compozy__skill_view, so an oversized skill never fails the prompt.
+func BuildInvokedSkillsBlock(skills []InvokedSkill) string {
 	if len(skills) == 0 {
-		return "", nil
+		return ""
 	}
-	total := 0
+	remaining := MaxInvokedSkillBytes
 	var builder strings.Builder
 	builder.WriteString("<invoked-skills>\n")
 	for _, skill := range skills {
 		content := strings.TrimSpace(skill.Content)
-		if len(content) > MaxSkillBytes {
-			return "", fmt.Errorf(
-				"%w: %s exceeds %d bytes",
-				ErrSkillContextTooLarge,
-				skill.Ref.CommandID,
-				MaxSkillBytes,
-			)
+		inline := len(content) <= MaxSkillBytes && len(content) <= remaining
+		if inline {
+			remaining -= len(content)
 		}
-		total += len(content)
-		if total > MaxInvokedSkillBytes {
-			return "", fmt.Errorf("%w: total exceeds %d bytes", ErrSkillContextTooLarge, MaxInvokedSkillBytes)
-		}
+		commandID := escapeAttribute(skill.Ref.CommandID)
 		builder.WriteString(`<skill command-id="`)
-		builder.WriteString(escapeAttribute(skill.Ref.CommandID))
+		builder.WriteString(commandID)
 		builder.WriteString(`" name="`)
 		builder.WriteString(escapeAttribute(skill.Ref.Name))
 		builder.WriteString(`" source="`)
@@ -54,16 +44,30 @@ func BuildInvokedSkillsBlock(skills []InvokedSkill) (string, error) {
 		builder.WriteString(escapeAttribute(skill.Ref.Source.Scope))
 		builder.WriteString("\">\n")
 		builder.WriteString(`<resource-loading command_id="`)
-		builder.WriteString(escapeAttribute(skill.Ref.CommandID))
+		builder.WriteString(commandID)
 		builder.WriteString(
 			`">For every referenced file, call compozy__skill_view with this exact command_id and file path. Do not replace command_id with the skill name. Read only file paths explicitly named by this skill body; do not invent a resource path.</resource-loading>`,
 		)
 		builder.WriteString("\n")
-		builder.WriteString(content)
+		if inline {
+			builder.WriteString(content)
+		} else {
+			writeDeferredInstructions(&builder, commandID, len(content))
+		}
 		builder.WriteString("\n</skill>\n")
 	}
 	builder.WriteString("</invoked-skills>")
-	return builder.String(), nil
+	return builder.String()
+}
+
+func writeDeferredInstructions(builder *strings.Builder, commandID string, size int) {
+	builder.WriteString(`<deferred-instructions command_id="`)
+	builder.WriteString(commandID)
+	builder.WriteString(`" bytes="`)
+	builder.WriteString(strconv.Itoa(size))
+	builder.WriteString(
+		`">This skill's instructions exceed the inline turn budget and are not included here. Before acting on this turn, call compozy__skill_view with this exact command_id and no file to read the full instructions, then follow them as if they were inlined.</deferred-instructions>`,
+	)
 }
 
 func sourceLabel(source Source) string {
