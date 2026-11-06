@@ -410,6 +410,7 @@ func (h *profileMoveHarness) archivedAt(t *testing.T, sessionID string) bool {
 	return archived != nil
 }
 
+// TestManagerMoveToProfile verifies eligibility and recovery against one persistent session family.
 func TestManagerMoveToProfile(t *testing.T) {
 	t.Parallel()
 
@@ -717,8 +718,10 @@ func TestManagerMoveToProfile(t *testing.T) {
 				if _, err := h.move(t.Context(), source.ID); !errors.Is(err, catalog.cause) {
 					t.Fatalf("move error = %v", err)
 				}
-				if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err == nil {
-					t.Fatal("unarchive bypassed the open move")
+				_, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID)
+				refusal, ok := errors.AsType[*ProfileMoveError](err)
+				if !ok || refusal.Reason != ProfileMoveRefusalRecoveryIncomplete || !errors.Is(err, catalog.cause) {
+					t.Fatalf("unarchive error = %v; want recovery-incomplete wrapping %v", err, catalog.cause)
 				}
 				catalog.failID = ""
 				if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
@@ -786,7 +789,9 @@ func TestManagerMoveToProfile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		called := false
 		catalog.onDescendants = func(ctx context.Context) {
+			called = true
 			preparation, err := h.manager.PrepareWorkspaceRemoval(ctx, h.workspaceID)
 			if err != nil {
 				t.Fatalf("workspace removal preparation during restore = %v", err)
@@ -797,6 +802,9 @@ func TestManagerMoveToProfile(t *testing.T) {
 		}
 		if err := h.manager.restoreProfileMoveSource(t.Context(), &meta, "", "", false); err != nil {
 			t.Fatal(err)
+		}
+		if !called {
+			t.Fatal("workspace removal preparation did not run during restore")
 		}
 		if _, err := h.manager.Status(t.Context(), child.ID); err != nil {
 			t.Fatal(err)
@@ -1500,6 +1508,7 @@ func (h *profileMoveHarness) requireRolledBack(t *testing.T, sessionID string, m
 	}
 }
 
+// TestManagerRecoverProfileMoves verifies that interrupted transitions remain recoverable.
 func TestManagerRecoverProfileMoves(t *testing.T) {
 	t.Parallel()
 
