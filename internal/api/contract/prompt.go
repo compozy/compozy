@@ -86,6 +86,8 @@ type ReplyWatchRefPayload struct {
 }
 
 type SendPromptResultPayload struct {
+	HeldReason            string                  `json:"held_reason,omitempty"`
+	HeldInstanceID        string                  `json:"held_instance_id,omitempty"`
 	TargetSessionID       string                  `json:"target_session_id,omitempty"`
 	ReplyWatch            *ReplyWatchRefPayload   `json:"reply_watch,omitempty"`
 	TargetWorkspaceID     string                  `json:"target_workspace_id,omitempty"`
@@ -111,6 +113,8 @@ type SendPromptResultPayload struct {
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.
 type SessionInputPayload struct {
+	HeldReason       string                          `json:"held_reason,omitempty"`
+	HeldInstanceID   string                          `json:"held_instance_id,omitempty"`
 	Held             bool                            `json:"held"`
 	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
 	ID               string                          `json:"id"`

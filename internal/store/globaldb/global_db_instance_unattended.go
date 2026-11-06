@@ -67,9 +67,9 @@ func advanceInstanceUnattended(
 	if limit == 0 || turns < limit {
 		return nil, nil
 	}
-	changed, err := q.PauseAgentInstance(
+	changed, err := q.TripInstanceUnattendedPause(
 		ctx,
-		sqlcgen.PauseAgentInstanceParams{ID: id, PauseReason: "unattended", UpdatedAt: stamp},
+		sqlcgen.TripInstanceUnattendedPauseParams{ID: id, Now: stamp},
 	)
 	if err != nil || changed == 0 {
 		return nil, err

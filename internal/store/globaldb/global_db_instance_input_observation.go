@@ -12,17 +12,10 @@ func (g *SessionRepo) observeHeldInstanceInput(ctx context.Context, entry *store
 	if entry.OriginClass == store.SessionInputOriginClassHuman {
 		return
 	}
-	caller, err := g.readQueries.GetInstanceCaller(ctx, entry.SessionID)
-	if err != nil {
-		return
-	}
-	id, ok := caller.OriginatingInstanceID.(string)
-	if !ok || id == "" {
-		return
-	}
-	instance, err := g.readQueries.GetAgentInstance(ctx, id)
-	if err == nil && instance.State == goalStatusPaused && !instance.ArchivedAt.Valid {
-		slog.InfoContext(ctx, "input.held", "instance_id", id, "session_id", entry.SessionID, "input_id", entry.ID)
+	hold, err := g.readQueries.GetSessionInputHold(ctx, entry.SessionID)
+	if err == nil {
+		slog.InfoContext(ctx, "input.held", "instance_id", hold.ID, "reason", hold.PauseReason,
+			"session_id", entry.SessionID, "input_id", entry.ID)
 	}
 }
 

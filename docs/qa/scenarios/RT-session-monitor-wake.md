@@ -213,3 +213,20 @@ Merge queue removal is not currently observable independently.
 Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`
 exercise transition detection, durable recovery and wake rendering. `TestMonitorIdleReleaseIntegration` verifies conflict wake admission through real
 SQLite and an ACP subprocess. Live GitHub conflict/restart walk remains unverified.
+
+### Definition pauses and dispatched children
+
+Create an always-on main with a dispatched child and grandchild. Queue their own
+monitor wakes and a peer message. Remove the creator's definition, producing
+`definition_missing`: children deliver once, while the main retains its inputs.
+Repeat after rotation and with `definition_not_always_on`. Already queued work is
+released by instance reconciliation; stopped descendants stay stopped.
+
+Repeat with `manual`, `fatigue`, `unattended` and an unknown pause reason: all
+autonomous lineage input stays held. Read prompt results and input lists for
+`held_reason` and `held_instance_id`, then session status for the `held_input`
+attention signal and Needs attention badge. A human prompt still runs. Resume and
+confirm the hold explanation and attention clear. Under a definition pause, lower
+the unattended limit and let a child reach it: the pause becomes `unattended`,
+and later child wakes stay held. Adoption preserves child lineage and does not
+implicitly transfer it to another instance.

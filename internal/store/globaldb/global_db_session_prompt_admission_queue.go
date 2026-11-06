@@ -118,12 +118,8 @@ func enqueueAdmittedSessionInputInTransaction(
 		return err
 	}
 	receipt := queuedPromptAdmissionResult(&inserted, result.position, result.canceled)
-	delivery, err := instancePromptDelivery(ctx, exec, admissionReq)
-	if err != nil {
+	if err := applyInstancePromptDelivery(ctx, exec, admissionReq, &receipt); err != nil {
 		return err
-	}
-	if delivery != "" {
-		receipt.Delivery = delivery
 	}
 	completed, err := completeSessionPromptAdmission(
 		ctx,
@@ -208,13 +204,17 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil {
 		return err
 	}
+	receipt := stagedPromptAdmissionResult(&inserted, len(canceledQueued))
+	if err := applyInstancePromptDelivery(ctx, exec, admissionReq, &receipt); err != nil {
+		return err
+	}
 	completed, err := completeSessionPromptAdmission(
 		ctx,
 		exec,
 		claimed.WorkspaceID,
 		claimed.SessionID,
 		claimed.IdempotencyKey,
-		stagedPromptAdmissionResult(&inserted, len(canceledQueued)),
+		receipt,
 		admissionReq.Now,
 		store.SessionPromptAdmissionReserved,
 	)

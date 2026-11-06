@@ -1081,7 +1081,15 @@ or failed checks count, while quiet checks and managed Goal/Loop turns do not.
 The turn reaching the limit runs, pauses the instance with reason `unattended`,
 and publishes one report and notification. Later autonomous input stays queued.
 
-A pause holds main and descendant input, including descendants of an older main.
+Manual, fatigue, unattended and unknown pauses hold main and descendant input,
+including descendants of an older main. Definition pauses (`definition_missing` and
+`definition_not_always_on`) hold mains only: dispatched children retain their own
+monitor wakes and agent input. Their turns still count toward the unattended limit;
+reaching it replaces the definition pause with `unattended` and holds the lineage.
+`session_prompt` returns `held_reason` and `held_instance_id` when delivery is held;
+`session_inputs_list` exposes the same fields with `held: true`. Session status adds
+an attention `held_input` work signal carrying those fields and the instance reference.
+Adoption keeps existing child lineage; it does not transfer another instance's children.
 Human prompts still run and reset the counter without resuming the instance. A child
 spawned during a human turn may run without acquiring operator approval authority.
 Marking reports seen, an operator approval/clarification, and resume also reset the

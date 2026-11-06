@@ -250,6 +250,7 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	result := SendPromptResult{
 		TargetSessionID: admission.SessionID,
 		Status:          stored.Status, Mode: BusyInputMode(stored.Mode),
+		HeldReason: stored.HeldReason, HeldInstanceID: stored.HeldInstanceID,
 		Delivery:      stored.Delivery,
 		SteerDelivery: stored.SteerDelivery,
 		MessageID:     admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
@@ -272,6 +273,7 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 
 func sessionPromptAdmissionResult(result SendPromptResult) (store.SessionPromptAdmissionResult, error) {
 	stored := store.SessionPromptAdmissionResult{
+		HeldReason: result.HeldReason, HeldInstanceID: result.HeldInstanceID,
 		Status: result.Status, Mode: string(result.Mode), Delivery: result.Delivery,
 		SteerDelivery: result.SteerDelivery,
 		QueueEntryID:  result.QueueEntryID,

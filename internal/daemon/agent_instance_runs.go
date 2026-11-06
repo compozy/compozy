@@ -90,7 +90,8 @@ func releaseInstanceInputs(
 	repo *globaldb.InstanceRepo,
 	instance agentinstance.Instance,
 ) error {
-	if instance.State != nativeFilterActiveValue {
+	if instance.State != nativeFilterActiveValue &&
+		(instance.State != string(looppkg.StatusPaused) || agentinstance.OperatorOnlyResume(instance.PauseReason)) {
 		return nil
 	}
 	releaser, ok := state.sessions.(interface {

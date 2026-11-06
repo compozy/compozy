@@ -428,6 +428,8 @@ WHERE queued.session_id = ?1
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = ?2
   AND queued.dispatchable = 1
@@ -539,6 +541,27 @@ func (q *Queries) GetSessionInputGeneration(ctx context.Context, id string) (int
 	var input_generation int64
 	err := row.Scan(&input_generation)
 	return input_generation, err
+}
+
+const getSessionInputHold = `-- name: GetSessionInputHold :one
+SELECT instance.id, instance.pause_reason FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+WHERE target.id = ?1 AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+`
+
+type GetSessionInputHoldRow struct {
+	ID          string `json:"id"`
+	PauseReason string `json:"pause_reason"`
+}
+
+func (q *Queries) GetSessionInputHold(ctx context.Context, sessionID string) (GetSessionInputHoldRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionInputHold, sessionID)
+	var i GetSessionInputHoldRow
+	err := row.Scan(&i.ID, &i.PauseReason)
+	return i, err
 }
 
 const getSessionInputQueueEntry = `-- name: GetSessionInputQueueEntry :one
@@ -921,6 +944,8 @@ WHERE queued.session_id = ?1
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = 'queued'
   AND queued.dispatchable = 1
@@ -1426,6 +1451,8 @@ WHERE queued.session_id = ?1
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = ?2
   AND queued.terminal_at IS NULL
@@ -1532,6 +1559,8 @@ WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
@@ -1654,6 +1683,8 @@ WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+      AND (target.instance_id = instance.id
+        OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?2)

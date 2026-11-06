@@ -98,19 +98,16 @@ func (g *SessionRepo) ListPendingSessionInputs(
 		entries = append(entries, entry)
 	}
 	if len(entries) > 0 {
-		caller, err := g.readQueries.GetInstanceCaller(ctx, target)
-		if err != nil {
+		hold, err := g.readQueries.GetSessionInputHold(ctx, target)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
-		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" {
-			instance, err := g.readQueries.GetAgentInstance(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			for i := range entries {
-				entries[i].Held = instance.State == goalStatusPaused &&
-					entries[i].Status == store.SessionInputQueueStatusQueued &&
-					!store.IsHumanSessionInputOriginClass(entries[i].OriginClass)
+		for i := range entries {
+			if hold.ID != "" && entries[i].Status == store.SessionInputQueueStatusQueued &&
+				!store.IsHumanSessionInputOriginClass(entries[i].OriginClass) {
+				entries[i].Held = true
+				entries[i].HeldReason = hold.PauseReason
+				entries[i].HeldInstanceID = hold.ID
 			}
 		}
 	}

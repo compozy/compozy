@@ -6800,6 +6800,8 @@ export type SendPromptResultPayload = {
   entry_id?: string;
   estimated_send_at?: string | null;
   goal?: GoalCommandResult | null;
+  held_instance_id?: string;
+  held_reason?: string;
   idempotency_key: string;
   message_id: string;
   mode?: string;
@@ -7352,6 +7354,8 @@ export type SessionInputPayload = {
   delivery: string;
   enqueued_at: string;
   held: boolean;
+  held_instance_id?: string;
+  held_reason?: string;
   id: string;
   idempotency_key?: string;
   mentions?: Array<SessionInputMentionPayload>;
@@ -9569,7 +9573,8 @@ export type SignalSourceState = {
     | "scheduled_wait"
     | "awaiting_reply"
     | "active_monitor"
-    | "held_permission";
+    | "held_permission"
+    | "held_input";
   ref?: string;
   state: string;
 };
@@ -12701,6 +12706,8 @@ export type WorkCandidates = {
 };
 
 export type WorkSignal = {
+  held_instance_id?: string;
+  held_reason?: string;
   kind:
     | "agent_progress"
     | "tool_running"
@@ -12710,7 +12717,8 @@ export type WorkSignal = {
     | "scheduled_wait"
     | "awaiting_reply"
     | "active_monitor"
-    | "held_permission";
+    | "held_permission"
+    | "held_input";
   ref?: string;
   since: string;
 };

@@ -115,7 +115,7 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("held=%+v %v", held, err)
 		}
 		heldPayload, err := core.PromptResultPayloadFromSession(held)
-		if err != nil {
+		if err != nil || heldPayload.HeldReason != "manual" || heldPayload.HeldInstanceID != instance.ID {
 			t.Fatal(err)
 		}
 		heldResult, err := json.Marshal(map[string]any{"prompt": heldPayload})
@@ -1019,6 +1019,130 @@ func TestInstancePermissionExpiryIntegration(t *testing.T) {
 // Invariant (UT-083, IT-001): pause permits an in-flight turn to finish. A child first
 // prompt from a human turn runs without counting; the same spawn from an autonomous turn is held.
 func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
+	// Invariant: a definition pause releases dispatched child wakes; safety holds remain visible and resumable.
+	t.Run("Should release child monitor work after a definition pause and explain safety holds", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			for name, provider := range cfg.Providers {
+				provider.Models.Discovery.Enabled = new(false)
+				cfg.Providers[name] = provider
+			}
+		}, "", func(d *Daemon) {
+			configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
+				f.Turns = append(f.Turns, acpmock.TurnFixture{
+					Name: "monitor continuation", Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "monitor work complete"}},
+				})
+			})
+		})
+		ctx := t.Context()
+		main, err := manager.Create(ctx, &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+			PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := manager.Create(ctx, &session.CreateOpts{AgentName: main.AgentName, Workspace: workspace,
+			Lineage: &store.SessionLineage{ParentSessionID: main.ID, RootSessionID: main.ID,
+				SpawnDepth: 1, Kind: store.LineageKindProvenance},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		promptBoundedRebuild(t, manager, child.ID, "child work")
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		waker := monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		if err := waker.WakeSession(ctx, monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{ID: "mon-000000000001", SessionID: child.ID, Kind: monitorpkg.KindTimer,
+				Description: "Inspect dispatched work"}, Outcome: monitorpkg.Outcome{Reason: "timer"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		inputs, err := manager.ListPendingInputs(ctx, child.ID)
+		if err != nil || len(inputs) != 1 || !inputs[0].Held || inputs[0].HeldReason != "manual" ||
+			inputs[0].HeldInstanceID != instance.ID {
+			t.Fatalf("held wake: %+v %v", inputs, err)
+		}
+		wakeID := inputs[0].ID
+		peer, err := manager.SendPrompt(ctx, child.ID, session.SendPromptOpts{
+			Message:        "peer work",
+			MessageID:      "held-peer",
+			IdempotencyKey: "held-peer",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: workspace,
+				Hop:         1,
+			},
+		})
+		if err != nil || peer.Delivery != "held" || peer.HeldReason != "manual" || peer.HeldInstanceID != instance.ID {
+			t.Fatalf("held prompt: %+v %v", peer, err)
+		}
+		sources := sessionWorkSources{manager: manager, now: time.Now}
+		manager.SetWorkSignalSources(
+			session.WorkSignalSource{
+				Kind:   session.WorkSignalHeldInput,
+				Source: session.SignalSourceFunc(sources.heldInputs),
+			},
+		)
+		if err := manager.Supervise(ctx, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		info, err := manager.Status(ctx, child.ID)
+		if err != nil || session.BadgeForInfo(info) != session.BadgeNeedsAttention ||
+			!slices.ContainsFunc(info.Supervision.WorkSignals, func(signal session.WorkSignal) bool {
+				return signal.Kind == session.WorkSignalHeldInput && signal.HeldReason == "manual" &&
+					signal.HeldInstanceID == instance.ID
+			}) {
+			t.Fatalf("held attention: %+v %v", info, err)
+		}
+		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		paused, err := db.Instances().Pause(ctx, instance.ID, "definition_missing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := releaseInstanceInputs(
+			ctx,
+			&bootState{sessions: manager},
+			db.Instances(),
+			paused.Instance,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "child wake and peer delivered", func() bool {
+			wake, err := db.GetSessionInputQueueEntry(ctx, child.ID, wakeID)
+			if err != nil || wake.Status != store.SessionInputQueueStatusSent {
+				return false
+			}
+			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, peer.QueueEntryID)
+			return err == nil && row.Status == store.SessionInputQueueStatusSent && !manager.IsPrompting(child.ID)
+		})
+		if err := manager.Supervise(ctx, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		info, err = manager.Status(ctx, child.ID)
+		if err != nil || info.Failure != nil ||
+			slices.ContainsFunc(
+				info.Supervision.WorkSignals,
+				func(signal session.WorkSignal) bool { return signal.Kind == session.WorkSignalHeldInput },
+			) {
+			t.Fatalf("stale held attention: %+v %v", info, err)
+		}
+		current, err := db.Instances().Get(ctx, instance.ID)
+		if err != nil || current.State != "paused" || current.PauseReason != "definition_missing" {
+			t.Fatalf("creator resumed: %+v %v", current, err)
+		}
+	})
+
 	for _, human := range []bool{true, false} {
 		t.Run(fmt.Sprintf("Should classify first child prompt with human parent=%v", human), func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {

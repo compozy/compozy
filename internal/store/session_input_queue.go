@@ -84,6 +84,8 @@ type InstancePauseTrip struct {
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
+	HeldReason     string
+	HeldInstanceID string
 	Held           bool
 	PausedInstance *InstancePauseTrip
 	Priority       int

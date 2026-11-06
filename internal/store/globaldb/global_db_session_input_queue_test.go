@@ -2426,7 +2426,8 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		}
 		req.SessionID, insert.SessionID = main, main
 		receipt, entry, _, created, err := db.EnqueueAdmittedSessionInput(ctx, req, insert)
-		if err != nil || !created || receipt.Result.Delivery != "held" {
+		if err != nil || !created || receipt.Result.Delivery != "held" ||
+			receipt.Result.HeldReason != "manual" || receipt.Result.HeldInstanceID != instance.ID {
 			t.Fatalf("held receipt: %+v %v", receipt, err)
 		}
 		if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || found {
@@ -4492,6 +4493,113 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 
 // UT-001, UT-025: paused queue selection retains autonomous input and permits human input.
 func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
+	// Invariant: definition pauses retain mains but release dispatched descendants; safety pauses hold both.
+	for _, reason := range []string{"definition_missing", "definition_not_always_on", "manual", "fatigue", "unattended", "unknown"} {
+		t.Run("Should preserve the lineage brake for "+reason, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "definition-pause", "definition-main")
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+			parent := main
+			ids := []string{main}
+			for depth := 1; depth <= 2; depth++ {
+				id := fmt.Sprintf("definition-child-%d", depth)
+				if err := db.RegisterSession(ctx, &store.SessionInfo{
+					ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: workspace, AgentName: "coder",
+					State: "active", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+					Lineage: &store.SessionLineage{ParentSessionID: parent, RootSessionID: main,
+						SpawnDepth: depth, Kind: store.LineageKindSpawn},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, id)
+				parent = id
+			}
+			// An older main still belongs to the instance after rotation.
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instances SET main_session_id=NULL WHERE id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Pause(ctx, instance.ID, reason); err != nil {
+				t.Fatal(err)
+			}
+			definition := strings.HasPrefix(reason, "definition_")
+			for _, id := range ids {
+				req := promptAdmissionRequest(workspace, id, "pause-"+id, now)
+				req.Origin = []byte(`{"kind":"session","session_id":"sender","hop":1}`)
+				receipt, _, _, _, err := db.EnqueueAdmittedSessionInput(ctx, req, store.SessionInputQueueInsert{
+					ID: "peer-" + id, SessionID: id, Text: req.AuthoredText, QueueCap: 10, Now: now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				held := !definition || id == main
+				if (receipt.Result.Delivery == "held") != held {
+					t.Fatalf("receipt %s: %+v", id, receipt.Result)
+				}
+				if held && (receipt.Result.HeldReason != reason || receipt.Result.HeldInstanceID != instance.ID) {
+					t.Fatalf("hold explanation: %+v", receipt.Result)
+				}
+				if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID:          "monitor-" + id,
+					SessionID:   id,
+					Text:        "monitor wake",
+					OriginClass: store.SessionInputOriginClassSynthetic,
+					QueueCap:    10,
+					Now:         now.Add(time.Second),
+				}); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := db.ListPendingSessionInputs(ctx, id)
+				if err != nil || len(rows) != 2 {
+					t.Fatalf("inputs: %+v %v", rows, err)
+				}
+				for _, row := range rows {
+					if row.Held != held || (held && (row.HeldReason != reason || row.HeldInstanceID != instance.ID)) {
+						t.Fatalf("input hold: %+v", row)
+					}
+				}
+				if _, found, err := db.PeekNextSessionInput(ctx, id); err != nil || found == held {
+					t.Fatalf("peek %s: found=%v held=%v err=%v", id, found, held, err)
+				}
+			}
+			wantHeld := int64(6)
+			if definition {
+				wantHeld = 2
+			}
+			if held, err := db.Instances().HeldWakes(ctx, instance.ID); err != nil || held != wantHeld {
+				t.Fatalf("held count=%d want=%d err=%v", held, wantHeld, err)
+			}
+			queued, err := db.Instances().QueuedSessions(ctx, instance.ID, "")
+			if err != nil || len(queued) != map[bool]int{true: 2, false: 0}[definition] {
+				t.Fatalf("release targets=%v err=%v", queued, err)
+			}
+			if definition {
+				if err := db.SetUnattendedTurnLimit(1); err != nil {
+					t.Fatal(err)
+				}
+				claimed, found, err := db.ClaimNextSessionInput(ctx, ids[1], now.Add(2*time.Second))
+				if err != nil || !found || claimed.PausedInstance == nil ||
+					claimed.PausedInstance.Reason != "unattended" {
+					t.Fatalf("descendant brake: %+v %v %v", claimed, found, err)
+				}
+			}
+			for _, id := range ids {
+				if _, found, err := db.ClaimNextSessionInput(ctx, id, now.Add(3*time.Second)); err != nil || found {
+					t.Fatalf("safety brake %s: %v %v", id, found, err)
+				}
+			}
+		})
+	}
+
 	// Invariant (UT-002, UT-027): holds follow durable lineage through both depths and old mains;
 	// archive cancels every held row. Owning layer: globaldb queue selection.
 	// Invariant (UT-084): a held backlog above the configured queue limit never blocks a human prompt,

@@ -188,6 +188,7 @@ func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {
 func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	runtime := runtimeSelectionFromStore(entry.Runtime)
 	return PendingInput{
+		HeldReason: entry.HeldReason, HeldInstanceID: entry.HeldInstanceID,
 		Held:             entry.Held,
 		Origin:           append([]byte(nil), entry.Origin...),
 		ID:               entry.ID,

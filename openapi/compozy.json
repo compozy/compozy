@@ -24251,6 +24251,12 @@
               }
             ]
           },
+          "held_instance_id": {
+            "type": "string"
+          },
+          "held_reason": {
+            "type": "string"
+          },
           "idempotency_key": {
             "type": "string"
           },
@@ -26397,6 +26403,12 @@
           },
           "held": {
             "type": "boolean"
+          },
+          "held_instance_id": {
+            "type": "string"
+          },
+          "held_reason": {
+            "type": "string"
           },
           "id": {
             "type": "string"
@@ -34120,7 +34132,8 @@
               "scheduled_wait",
               "awaiting_reply",
               "active_monitor",
-              "held_permission"
+              "held_permission",
+              "held_input"
             ],
             "type": "string"
           },
@@ -46834,6 +46847,12 @@
       },
       "WorkSignal": {
         "properties": {
+          "held_instance_id": {
+            "type": "string"
+          },
+          "held_reason": {
+            "type": "string"
+          },
           "kind": {
             "enum": [
               "agent_progress",
@@ -46844,7 +46863,8 @@
               "scheduled_wait",
               "awaiting_reply",
               "active_monitor",
-              "held_permission"
+              "held_permission",
+              "held_input"
             ],
             "type": "string"
           },

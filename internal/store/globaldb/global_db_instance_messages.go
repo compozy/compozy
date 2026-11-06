@@ -39,29 +39,32 @@ func checkInstancePromptTarget(
 	return nil
 }
 
-func instancePromptDelivery(
+func applyInstancePromptDelivery(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	req store.SessionPromptAdmissionRequest,
-) (string, error) {
+	receipt *store.SessionPromptAdmissionResult,
+) error {
 	if len(req.Origin) == 0 || req.HumanIngress || req.HumanSpawnOrigin {
-		return "", nil
+		return nil
 	}
-	q := sqlcgen.New(exec)
-	caller, err := q.GetInstanceCaller(ctx, req.SessionID)
+	hold, err := sqlcgen.New(exec).GetSessionInputHold(ctx, req.SessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		caller, callerErr := sqlcgen.New(exec).GetInstanceCaller(ctx, req.SessionID)
+		if callerErr != nil {
+			return callerErr
+		}
+		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" &&
+			req.Mode != store.SessionInputQueueModeSteer {
+			receipt.Delivery = "queued"
+		}
+		return nil
+	}
 	if err != nil {
-		return "", err
+		return err
 	}
-	id, ok := caller.OriginatingInstanceID.(string)
-	if !ok || id == "" {
-		return "", nil
-	}
-	instance, err := q.GetAgentInstance(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	if instance.State == goalStatusPaused {
-		return "held", nil
-	}
-	return "queued", nil
+	receipt.Delivery = "held"
+	receipt.HeldReason = hold.PauseReason
+	receipt.HeldInstanceID = hold.ID
+	return nil
 }

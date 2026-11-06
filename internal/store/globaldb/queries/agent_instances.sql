@@ -117,18 +117,28 @@ SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json,
 FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation;
+AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+);
 
 -- name: ListInstanceQueuedSessions :many
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
- WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id AND i.state = 'active' AND i.archived_at IS NULL
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id AND (i.state = 'active' OR (i.state = 'paused' AND i.pause_reason IN ('definition_missing', 'definition_not_always_on'))) AND i.archived_at IS NULL
  UNION
  SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
  WHERE s.profile_id = parent.profile_id
 )
 SELECT s.id FROM sessions s JOIN instance_sessions lineage ON lineage.id = s.id
 WHERE s.id > sqlc.arg(after_id) AND s.archived_at IS NULL
+AND NOT EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
+ AND (s.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+)
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = sqlc.arg(instance_id)))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
  AND q.status = 'queued' AND q.session_generation = s.input_generation)
@@ -160,4 +170,14 @@ SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json,
 FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
 JOIN sessions current ON current.id = s.id
 WHERE q.status = 'queued' AND q.origin_class <> 'human'
-AND q.session_generation = current.input_generation;
+AND q.session_generation = current.input_generation
+AND EXISTS (
+ SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
+ WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
+ AND (current.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+);
+
+-- name: TripInstanceUnattendedPause :execrows
+UPDATE agent_instances SET state = 'paused', pause_reason = 'unattended', updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')));

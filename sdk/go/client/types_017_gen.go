@@ -6,6 +6,8 @@ import "time"
 
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
+	HeldReason            string                `json:"held_reason,omitempty"`
+	HeldInstanceID        string                `json:"held_instance_id,omitempty"`
 	TargetSessionID       string                `json:"target_session_id,omitempty"`
 	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
 	TargetWorkspaceID     string                `json:"target_workspace_id,omitempty"`
