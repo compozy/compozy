@@ -209,7 +209,8 @@ language tag, with surrounding whitespace and LF or CRLF. The occurrence publish
 proposal report. The same wrappers around `NOTHING_TO_REPORT` finish quietly. Prose before,
 after, or inside the fence, multiple objects or fences, and malformed JSON still produce
 `triage_output_invalid`. Its failure report includes a bounded, redacted output excerpt in
-`detail`; credential-shaped text must not appear literally.
+`detail`. Only JSON/fence punctuation and whitespace survive; all other characters are
+masked, including unregistered OAuth codes and credential-shaped text.
 
 Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
 `internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns

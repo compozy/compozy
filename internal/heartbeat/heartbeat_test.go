@@ -1359,7 +1359,11 @@ func TestTriageReplyOutcome(t *testing.T) {
 	t.Run("Should bound and redact rejected output in the failure report", func(t *testing.T) {
 		t.Parallel()
 		secret := "ghp_" + strings.Repeat("a", 36)
-		reply := "Invalid output token=" + secret + " " + strings.Repeat("界", 600)
+		oauthCode := "shortOAuthCode42"
+		reply := "```json\n{\"code\":\"" + oauthCode + "\",\"token\":\"" + secret + "\"}\n``` " + strings.Repeat(
+			"界",
+			600,
+		)
 		outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
 		if outcome.Result != "failed" || outcome.Reason != "triage_output_invalid" || outcome.Report == nil {
 			t.Fatalf("outcome=%+v", outcome)
@@ -1371,8 +1375,9 @@ func TestTriageReplyOutcome(t *testing.T) {
 		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Invalid output") ||
-			strings.Contains(payload.Detail, secret) || !strings.Contains(payload.Detail, "[REDACTED]") ||
+		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "```••••\n{") ||
+			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
+			strings.Contains(payload.Detail, "token") || !strings.Contains(payload.Detail, "•") ||
 			!strings.HasSuffix(payload.Detail, "...[truncated]") || len(payload.Detail) > 600 {
 			t.Fatalf("payload=%+v", payload)
 		}

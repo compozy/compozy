@@ -202,8 +202,17 @@ func boundedTriageText(text string, budget int) string {
 	return string(runes[:budget-1]) + "…"
 }
 
+// invalidTriageReply preserves syntax evidence without trusting credential detection on arbitrary text.
 func invalidTriageReply(reply string) TriageOutcome {
 	outcome := failedTriage("triage_output_invalid")
+	reply = strings.Map(func(r rune) rune {
+		switch r {
+		case '{', '}', '[', ']', ':', ',', '"', '`', ' ', '\n', '\r', '\t':
+			return r
+		default:
+			return '•'
+		}
+	}, reply)
 	excerpt := diagnostics.RedactAndBound(reply, 500)
 	if excerpt == "" {
 		return outcome
@@ -219,6 +228,7 @@ func invalidTriageReply(reply string) TriageOutcome {
 	return outcome
 }
 
+// unwrapTriageFence accepts only one complete outer fence, leaving strict JSON validation to the parser.
 func unwrapTriageFence(reply string) (string, error) {
 	if strings.HasPrefix(reply, "```") {
 		opener, content, ok := strings.Cut(reply, "\n")
