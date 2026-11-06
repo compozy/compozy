@@ -9,7 +9,7 @@ Copy a stopped session into another profile and archive the original
 
 ### Synopsis
 
-Copy a stopped user session into another profile and archive the original. The copy is a fork owned by the target profile and carries the conversation; the original keeps its profile and history, and past usage stays with it. A worktree is released and its branch checked out again in a new worktree owned by the target profile. Refused for a running, archived, or child session, a session with live or unarchived descendants, or a worktree with uncommitted changes. Archived, stopped descendants stay in the source profile. To place a session in a folder, use session move.
+Copy a stopped user session into another profile and archive the original. The copy is a fork owned by the target profile and carries the conversation; the original keeps its profile and history, and past usage stays with it. A worktree is released and its branch checked out again in a new worktree owned by the target profile. Refused for a running, archived, or child session, live descendants, unarchived descendants outside its subagent archive family, or a worktree with uncommitted changes. Stopped subagents in its archive family are archived with the original. Archived, stopped descendants stay in the source profile. To place a session in a folder, use session move.
 
 ```
 compozy session move-to-profile <id> <profile> [flags]

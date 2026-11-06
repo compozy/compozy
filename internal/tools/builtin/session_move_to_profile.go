@@ -13,7 +13,9 @@ func sessionMoveToProfileDescriptor() toolspkg.Descriptor {
 			"owned by target_profile (a profile name) that carries the conversation; the original keeps its "+
 			"profile and history. A worktree is released and its branch checked out again in a new worktree "+
 			"owned by the target profile. Refused for the calling session, a running, archived, or child "+
-			"session, a session with live or unarchived descendants, or a worktree with uncommitted changes. "+
+			"session, live descendants, unarchived descendants outside its subagent archive family, or a worktree "+
+			"with uncommitted changes. "+
+			"Stopped subagents in its archive family are archived with the original. "+
 			"Archived, stopped descendants stay in the source profile. An agent session also "+
 			"needs permission to write to the target profile. Not session_move, which only places a session "+
 			"in a folder.",
