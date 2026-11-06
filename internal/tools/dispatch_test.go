@@ -1489,7 +1489,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		page, err := filesystemStore.ReadPage(
 			t.Context(),
-			"workspace-a",
+			workspaceaccess.ScopeTarget("workspace-a", ""),
 			result.Artifacts[0].URI,
 			0,
 			MaxToolArtifactPageBytes,
@@ -1679,7 +1679,7 @@ var _ ToolArtifactStore = (*recordingToolArtifactStore)(nil)
 
 func (s *recordingToolArtifactStore) Put(
 	ctx context.Context,
-	workspaceID string,
+	scope workspaceaccess.TargetRef,
 	content []byte,
 ) (ArtifactRef, error) {
 	s.mu.Lock()
@@ -1693,12 +1693,12 @@ func (s *recordingToolArtifactStore) Put(
 	if delegate == nil {
 		return toolArtifactRef(artifactID(content), int64(len(content))), nil
 	}
-	return delegate.Put(ctx, workspaceID, content)
+	return delegate.Put(ctx, scope, content)
 }
 
 func (s *recordingToolArtifactStore) ReadPage(
 	ctx context.Context,
-	workspaceID string,
+	scope workspaceaccess.TargetRef,
 	uri string,
 	offset int64,
 	limit int64,
@@ -1706,7 +1706,7 @@ func (s *recordingToolArtifactStore) ReadPage(
 	if s.delegate == nil {
 		return ToolArtifactPage{}, ErrToolArtifactNotFound
 	}
-	return s.delegate.ReadPage(ctx, workspaceID, uri, offset, limit)
+	return s.delegate.ReadPage(ctx, scope, uri, offset, limit)
 }
 
 func (s *recordingToolArtifactStore) Sweep(ctx context.Context) error {

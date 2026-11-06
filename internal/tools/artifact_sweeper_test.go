@@ -10,6 +10,8 @@ import (
 
 	"github.com/compozy/compozy/internal/retention"
 	"github.com/compozy/compozy/internal/testutil"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestToolArtifactSweeperLifecycle(t *testing.T) {
@@ -174,7 +176,7 @@ var _ ToolArtifactStore = (*sweeperTestArtifactStore)(nil)
 
 func (s *sweeperTestArtifactStore) Put(
 	context.Context,
-	string,
+	workspaceaccess.TargetRef,
 	[]byte,
 ) (ArtifactRef, error) {
 	return ArtifactRef{}, ErrToolArtifactPersistence
@@ -182,7 +184,7 @@ func (s *sweeperTestArtifactStore) Put(
 
 func (s *sweeperTestArtifactStore) ReadPage(
 	context.Context,
-	string,
+	workspaceaccess.TargetRef,
 	string,
 	int64,
 	int64,

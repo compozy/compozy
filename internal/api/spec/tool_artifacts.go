@@ -24,18 +24,18 @@ func applyToolArtifactContract(operations []OperationSpec) []OperationSpec {
 		Summary:     "Read one retained oversized tool-result page",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("workspace_id", "Durable workspace id"),
+		Parameters: ensureProfileParameters([]ParameterSpec{
+			pathParam("workspace_id", "Durable workspace id or @user"),
 			pathParam("artifact_id", "Opaque content-addressed artifact id"),
 			toolArtifactInt64QueryParam("offset", "Zero-based byte offset"),
 			toolArtifactInt64QueryParam("limit", "Page size in bytes; defaults to and is capped at 65536"),
-		},
+		}, false),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ToolArtifactPageResponse{}},
 			{Status: 400, Description: "Invalid artifact id or byte range", Body: contract.ToolErrorResponse{}},
 			{
 				Status:      404,
-				Description: "Artifact not found in the resolved workspace",
+				Description: "Artifact not found in the resolved workspace or User scope and profile",
 				Body:        contract.ToolErrorResponse{},
 			},
 			{

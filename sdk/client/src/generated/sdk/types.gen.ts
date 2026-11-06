@@ -41837,7 +41837,7 @@ export type ReadToolArtifactData = {
   body?: never;
   path: {
     /**
-     * Durable workspace id
+     * Durable workspace id or @user
      */
     workspace_id: string;
     /**
@@ -41854,6 +41854,10 @@ export type ReadToolArtifactData = {
      * Page size in bytes; defaults to and is capped at 65536
      */
     limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
   };
   url: "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}";
 };
@@ -41864,7 +41868,7 @@ export type ReadToolArtifactErrors = {
    */
   400: ToolErrorResponse;
   /**
-   * Artifact not found in the resolved workspace
+   * Artifact not found in the resolved workspace or User scope and profile
    */
   404: ToolErrorResponse;
   /**

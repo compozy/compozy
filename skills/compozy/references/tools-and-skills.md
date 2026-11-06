@@ -76,8 +76,9 @@ payload alongside its declared shape. Check `truncated` before reading declared 
 harness caps tool output size (Claude Code saves MCP results above its token cap to a file), request
 smaller artifact pages, for example `limit: 32768`, so each base64 page stays inline.
 
-The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
-references share the same not-found result, so do not infer whether another workspace owns one.
+Workspace artifacts retain workspace-only ownership. User artifacts belong to User scope of the
+producing profile. Missing, expired, and foreign-scope references share the same not-found result,
+so do not infer ownership.
 Operator fallback is `compozy tool artifact read <artifact-uri> --workspace <workspace> [--offset N]
 [-o json]`; human output writes the exact page bytes, while structured output carries base64 bytes
 and paging metadata. A `result_persistence_failed` tool error preserves a bounded partial result but

@@ -5,14 +5,15 @@ description: Open, page, and retain exact tool results that exceed the active re
 
 Tool calls keep a bounded result in the transcript. When the final post-hook, redacted result is
 larger than its effective byte budget, CompozyOS also retains the exact canonical JSON envelope and
-returns an opaque workspace-scoped artifact reference.
+returns an opaque artifact reference scoped to its workspace or profile-owned User scope.
 
 Use this guide when a tool card says the result is truncated or a structured result contains
 `truncated: true` with a `compozy://tool-artifacts/...` URI.
 
-<OperatorNote label="Workspace boundary">
-  An artifact is readable only from the workspace that produced it. Missing, expired, and
-  foreign-workspace references return the same not-found response.
+<OperatorNote label="Scope boundary">
+  A workspace artifact is readable only from its workspace. A User artifact is readable only from
+  User sessions of the profile that produced it. Missing, expired, and foreign-scope references
+  return the same not-found response.
 </OperatorNote>
 
 ## Open a result in the Web UI
@@ -33,6 +34,8 @@ compozy tool artifact read \
   compozy://tool-artifacts/art_<sha256> \
   --workspace <workspace-id>
 ```
+
+For a User artifact, pass `--workspace @user` and select its profile with `--profile <name>`.
 
 For scripts, request structured output:
 

@@ -1744,6 +1744,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, artifactRead, "artifact_id", openapi3.ParameterInPath, true)
 				assertParameter(t, artifactRead, "offset", openapi3.ParameterInQuery, false)
 				assertParameter(t, artifactRead, "limit", openapi3.ParameterInQuery, false)
+				assertParameter(t, artifactRead, "profile", openapi3.ParameterInQuery, false)
 				artifactPage := jsonResponseSchema(t, artifactRead, 200)
 				assertRequired(
 					t,
@@ -3635,6 +3636,11 @@ func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	artifactRead := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}"].(map[string]any)["get"].(map[string]any)
+	parameters := artifactRead["parameters"].([]any)
+	artifactRead["parameters"] = append(parameters, map[string]any{
+		"in": "query", "name": "profile", "schema": map[string]any{"type": "string"},
+	})
 	// #1195: terminal detail, catalog stream and downloads document the owner-labeled aggregate.
 	addAllProfilesReadParameter(baseline, []string{
 		terminalPath + "/{id}", terminalPath + "/stream",

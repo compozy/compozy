@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -379,129 +381,155 @@ func newProfileScopedToolCoreEngine(t *testing.T) (*apiTestToolRegistry, *gin.En
 func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should page exact bytes through the durable workspace identity", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct{ name, workspaceID, selector, profileID, query string }{
+		{"Should page exact bytes through the durable workspace identity", "workspace-durable", "workspace-alias", "", ""},
+		{"Should page User artifacts in the selected profile", "", "@user", "profile-marketing", "&profile=marketing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		store, err := toolspkg.OpenFilesystemToolArtifactStore(
-			t.Context(),
-			t.TempDir(),
-			toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
-		}
-		content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
-		ref, err := store.Put(t.Context(), "workspace-durable", content)
-		if err != nil {
-			t.Fatalf("Put() error = %v", err)
-		}
-		artifactID, err := toolspkg.ParseToolArtifactURI(ref.URI)
-		if err != nil {
-			t.Fatalf("ParseToolArtifactURI() error = %v", err)
-		}
+			store, err := toolspkg.OpenFilesystemToolArtifactStore(
+				t.Context(),
+				t.TempDir(),
+				toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+			)
+			if err != nil {
+				t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+			}
+			content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
+			ref, err := store.Put(t.Context(), workspaceaccess.ScopeTarget(tc.workspaceID, tc.profileID), content)
+			if err != nil {
+				t.Fatalf("Put() error = %v", err)
+			}
+			artifactID, err := toolspkg.ParseToolArtifactURI(ref.URI)
+			if err != nil {
+				t.Fatalf("ParseToolArtifactURI() error = %v", err)
+			}
 
-		workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
-			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				if ref == "workspace-alias" {
+			workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref == "workspace-alias" {
+						return workspacepkg.ResolvedWorkspace{
+							ID:          "registry-workspace",
+							WorkspaceID: "workspace-durable",
+						}, nil
+					}
 					return workspacepkg.ResolvedWorkspace{
-						ID:          "registry-workspace",
-						WorkspaceID: "workspace-durable",
+						ID:          "registry-other",
+						WorkspaceID: "workspace-other",
 					}, nil
+				},
+			})
+			homePaths, cfg := testutil.NewHomeConfig(t)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName:      "api-core-test",
+				Profiles:           sessionProfileServiceStub{},
+				Workspaces:         workspaces,
+				ToolArtifacts:      store,
+				HomePaths:          homePaths,
+				Config:             cfg,
+				Logger:             testutil.DiscardLogger(),
+				MaskInternalErrors: false,
+			})
+			engine := newToolCoreEngine(t, handlers)
+
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?offset=2&limit=7"+tc.query,
+				nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("artifact read status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+			}
+			var page contract.ToolArtifactPageResponse
+			decodeToolJSON(t, response.Body.Bytes(), &page)
+			decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+			if err != nil {
+				t.Fatalf("DecodeString() error = %v", err)
+			}
+			if got, want := string(decoded), string(content[2:9]); got != want {
+				t.Fatalf("artifact page = %q, want %q", got, want)
+			}
+			if page.Artifact != ref || page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
+				t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
+			}
+
+			foreign := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/workspace-other/tool-artifacts/"+artifactID,
+				nil,
+			)
+			if foreign.Code != http.StatusNotFound {
+				t.Fatalf(
+					"foreign artifact status = %d, want %d; body=%s",
+					foreign.Code,
+					http.StatusNotFound,
+					foreign.Body,
+				)
+			}
+
+			if tc.profileID != "" {
+				response := performRequest(
+					t,
+					engine,
+					http.MethodGet,
+					"/workspaces/@user/tool-artifacts/"+artifactID,
+					nil,
+				)
+				var payload contract.ToolErrorResponse
+				decodeToolJSON(t, response.Body.Bytes(), &payload)
+				if response.Code != http.StatusNotFound || payload.Error.Code != toolspkg.ErrorCodeNotFound {
+					t.Fatalf("foreign profile = %d/%s, want not found", response.Code, response.Body)
 				}
-				return workspacepkg.ResolvedWorkspace{
-					ID:          "registry-other",
-					WorkspaceID: "workspace-other",
-				}, nil
-			},
-		})
-		homePaths, cfg := testutil.NewHomeConfig(t)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName:      "api-core-test",
-			Workspaces:         workspaces,
-			ToolArtifacts:      store,
-			HomePaths:          homePaths,
-			Config:             cfg,
-			Logger:             testutil.DiscardLogger(),
-			MaskInternalErrors: false,
-		})
-		engine := newToolCoreEngine(t, handlers)
+			}
 
-		response := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=2&limit=7",
-			nil,
-		)
-		if response.Code != http.StatusOK {
-			t.Fatalf("artifact read status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
-		}
-		var page contract.ToolArtifactPageResponse
-		decodeToolJSON(t, response.Body.Bytes(), &page)
-		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
-		if err != nil {
-			t.Fatalf("DecodeString() error = %v", err)
-		}
-		if got, want := string(decoded), string(content[2:9]); got != want {
-			t.Fatalf("artifact page = %q, want %q", got, want)
-		}
-		if page.Artifact != ref || page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
-			t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
-		}
-
-		foreign := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-other/tool-artifacts/"+artifactID,
-			nil,
-		)
-		if foreign.Code != http.StatusNotFound {
-			t.Fatalf("foreign artifact status = %d, want %d; body=%s", foreign.Code, http.StatusNotFound, foreign.Body)
-		}
-
-		invalid := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?limit=65537",
-			nil,
-		)
-		if invalid.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"invalid artifact status = %d, want %d; body=%s",
-				invalid.Code,
-				http.StatusBadRequest,
-				invalid.Body,
+			invalid := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?limit=65537"+tc.query,
+				nil,
 			)
-		}
-		var invalidPayload contract.ToolErrorResponse
-		decodeToolJSON(t, invalid.Body.Bytes(), &invalidPayload)
-		if invalidPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("invalid artifact error = %#v, want invalid_input", invalidPayload.Error)
-		}
+			if invalid.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"invalid artifact status = %d, want %d; body=%s",
+					invalid.Code,
+					http.StatusBadRequest,
+					invalid.Body,
+				)
+			}
+			var invalidPayload contract.ToolErrorResponse
+			decodeToolJSON(t, invalid.Body.Bytes(), &invalidPayload)
+			if invalidPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+				t.Fatalf("invalid artifact error = %#v, want invalid_input", invalidPayload.Error)
+			}
 
-		beyondEnd := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=999",
-			nil,
-		)
-		if beyondEnd.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"beyond-end artifact status = %d, want %d; body=%s",
-				beyondEnd.Code,
-				http.StatusBadRequest,
-				beyondEnd.Body,
+			beyondEnd := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/workspaces/"+tc.selector+"/tool-artifacts/"+artifactID+"?offset=999"+tc.query,
+				nil,
 			)
-		}
-		var beyondEndPayload contract.ToolErrorResponse
-		decodeToolJSON(t, beyondEnd.Body.Bytes(), &beyondEndPayload)
-		if beyondEndPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("beyond-end artifact error = %#v, want invalid_input", beyondEndPayload.Error)
-		}
-	})
+			if beyondEnd.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"beyond-end artifact status = %d, want %d; body=%s",
+					beyondEnd.Code,
+					http.StatusBadRequest,
+					beyondEnd.Body,
+				)
+			}
+			var beyondEndPayload contract.ToolErrorResponse
+			decodeToolJSON(t, beyondEnd.Body.Bytes(), &beyondEndPayload)
+			if beyondEndPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+				t.Fatalf("beyond-end artifact error = %#v, want invalid_input", beyondEndPayload.Error)
+			}
+		})
+	}
 }
 
 func TestToolErrorResponses(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type nativeToolArtifactReadInput struct {
@@ -35,15 +35,6 @@ func (n *daemonNativeTools) toolArtifactRead(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if strings.TrimSpace(scope.WorkspaceID) == "" {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeDenied,
-			req.ToolID,
-			"tool artifact read requires a workspace scope",
-			toolspkg.ErrToolDenied,
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
 	if n == nil || n.deps == nil || n.deps.ToolArtifacts == nil {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable,
@@ -62,7 +53,7 @@ func (n *daemonNativeTools) toolArtifactRead(
 	}
 	page, err := n.deps.ToolArtifacts.ReadPage(
 		ctx,
-		scope.WorkspaceID,
+		workspaceaccess.ScopeTarget(scope.WorkspaceID, scope.ProfileID),
 		input.ArtifactURI,
 		input.Offset,
 		input.Limit,

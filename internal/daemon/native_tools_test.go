@@ -2967,7 +2967,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		store := openDaemonTestToolArtifactStore(t)
-		ref, err := store.Put(t.Context(), "workspace-a", []byte("abcdefgh"))
+		ref, err := store.Put(t.Context(), workspaceaccess.ScopeTarget("workspace-a", ""), []byte("abcdefgh"))
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -3005,6 +3005,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		})
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Call(foreign workspace) error = %v, want indistinguishable not found", err)
+		}
+
+		for _, foreign := range []toolspkg.Scope{{}} {
+			_, err := registry.Call(t.Context(), foreign, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolArtifactRead,
+				Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, ref.URI)),
+			})
+			if !errors.Is(err, toolspkg.ErrToolNotFound) {
+				t.Fatalf("foreign scope read = %v, want not found", err)
+			}
 		}
 
 		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a"}, toolspkg.CallRequest{
@@ -3243,13 +3253,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
-			Skills: skillRegistry, HomePaths: home, Sessions: sessions,
-			SkillExposures: openDaemonTestGlobalDB(t),
-		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
-		for _, tc := range []struct{ name, input string }{
-			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`},
-			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`},
+		artifactStore := openDaemonTestToolArtifactStore(t)
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+			t,
+			&daemonNativeToolsDeps{
+				Skills: skillRegistry, HomePaths: home, Sessions: sessions,
+				SkillExposures: openDaemonTestGlobalDB(t), ToolArtifacts: artifactStore,
+			},
+			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			policy,
+			toolspkg.WithResultProcessor(
+				toolspkg.NewResultProcessor(compozyconfig.DefaultToolsMaxResultBytes, artifactStore),
+			),
+		)
+		for _, tc := range []struct{ name, input, resource string }{
+			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`, "references/tools-and-skills.md"},
+			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`, "references/tools-and-skills.md"},
+			{"Should recover an oversized User resource through artifact pages", `{"name":"compozy","file":"references/runtime-operations.md"}`, "references/runtime-operations.md"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -3263,7 +3283,32 @@ func TestDaemonNativeTools(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Registry.Call(skill_view) error = %v", err)
 				}
-				content, err := skillRegistry.LoadResource(t.Context(), skill, "references/tools-and-skills.md")
+				if tc.resource == "references/runtime-operations.md" {
+					if !result.Truncated || len(result.Artifacts) != 1 {
+						t.Fatal("large User resource was not offloaded with one artifact")
+					}
+					artifactURI := result.Artifacts[0].URI
+					result = readNativeRetainedResult(
+						t,
+						registry,
+						toolspkg.Scope{SessionID: "sess-user", AgentName: "coder", ProfileID: store.DefaultProfileID},
+						result,
+					)
+					for _, foreign := range []toolspkg.Scope{{WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID}, {ProfileID: "profile-other"}} {
+						_, err := registry.Call(
+							t.Context(),
+							foreign,
+							toolspkg.CallRequest{
+								ToolID: toolspkg.ToolIDToolArtifactRead,
+								Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, artifactURI)),
+							},
+						)
+						if !errors.Is(err, toolspkg.ErrToolNotFound) {
+							t.Fatalf("foreign artifact read error = %v, want not found", err)
+						}
+					}
+				}
+				content, err := skillRegistry.LoadResource(t.Context(), skill, tc.resource)
 				if err != nil {
 					t.Fatal(err)
 				}
