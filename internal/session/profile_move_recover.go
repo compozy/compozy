@@ -169,25 +169,53 @@ func (m *Manager) rollbackProfileMoveState(
 			errs = append(errs, err)
 		}
 	}
-	if err := m.restoreProfileMoveSource(ctx, &meta, restoredID); err != nil {
+	if err := m.restoreProfileMoveSource(ctx, &meta, move.SourceWorktreeID, restoredID, restoredID != ""); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
 
-// restoreProfileMoveSource unarchives the original and rebinds it to restoredID under
-// the session's conversation lock, so a resume cannot start it on a removed checkout
-// in between. The caller holds the profile-move lock the public Unarchive takes.
-func (m *Manager) restoreProfileMoveSource(ctx context.Context, meta *store.SessionMeta, restoredID string) error {
+// restoreProfileMoveSource restores the family before releasing its conversation locks.
+func (m *Manager) restoreProfileMoveSource(
+	ctx context.Context, meta *store.SessionMeta, previousID, restoredID string, rebind bool,
+) error {
 	operationCtx, unlock, err := m.lockConversationOperation(ctx, meta.ID)
 	if err != nil {
 		return fmt.Errorf("lock session %s: %w", meta.ID, err)
 	}
-	info, previous, changed, err := m.unarchiveAndRebindLocked(operationCtx, meta, restoredID)
-	unlock()
-	if changed {
-		// Published after the session's reservations release, as ChangeWorktreeBinding does.
-		m.notifyWorktreeBindingChanged(ctx, info, previous)
+	operationCtx, unlockFamily, children, err := m.lockProfileMoveArchiveFamily(operationCtx, meta)
+	if err != nil {
+		unlock()
+		return err
+	}
+	var info *Info
+	var previous string
+	var changed bool
+	var rebound []*Info
+	defer func() {
+		unlockFamily()
+		unlock()
+		if changed {
+			m.notifyWorktreeBindingChanged(ctx, info, previous)
+		}
+		for _, child := range rebound {
+			m.notifyWorktreeBindingChanged(ctx, child, previousID)
+		}
+	}()
+	info, previous, changed, err = m.unarchiveAndRebindLocked(operationCtx, meta, "", false)
+	if err != nil {
+		return err
+	}
+	if !rebind {
+		restoredID = meta.WorktreeIDValue()
+	}
+	// Restore children first so an interrupted unarchive retains the original binding for retry.
+	rebound, err = m.rebindProfileMoveSubagents(operationCtx, children, previousID, restoredID)
+	if err != nil {
+		return err
+	}
+	if rebind {
+		info, previous, changed, err = m.unarchiveAndRebindLocked(operationCtx, meta, restoredID, true)
 	}
 	return err
 }
@@ -196,6 +224,7 @@ func (m *Manager) unarchiveAndRebindLocked(
 	ctx context.Context,
 	meta *store.SessionMeta,
 	restoredID string,
+	rebind bool,
 ) (*Info, string, bool, error) {
 	err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID)
 	switch {
@@ -206,7 +235,7 @@ func (m *Manager) unarchiveAndRebindLocked(
 	case err != nil:
 		return nil, "", false, fmt.Errorf("read the archive state of %s: %w", meta.ID, err)
 	}
-	if restoredID == "" {
+	if !rebind {
 		return nil, "", false, nil
 	}
 	expected := meta.WorktreeIDValue()

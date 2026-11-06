@@ -70,6 +70,9 @@ worktree owned by that profile, and archives the original, whose history and usa
 Stopped subagents in the original's archive family are archived with it.
 Archived, stopped descendants remain in the source profile with their lineage pointing to the
 archived original. Live descendants or unarchived descendants outside the original's subagent archive family block the move; stop and archive them first.
+Rollback restores inherited family bindings to the replacement source checkout. Unarchiving the
+original after a completed move clears its family's bindings to the removed checkout, allowing
+resumption in the workspace directory; separate subagent checkouts are preserved.
 The refusal keeps code `session_move_to_profile_has_children` and counts only blocking descendants.
 
 Routes that name one session (`/api/workspaces/{workspace_id}/sessions/{session_id}/...` and

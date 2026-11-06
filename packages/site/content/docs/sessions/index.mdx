@@ -361,8 +361,11 @@ Archived, stopped descendants stay in the source profile with their lineage poin
 archived original. The `session_move_to_profile_has_children` refusal counts only descendants
 that still need to be stopped or archived.
 
-Archived sessions that shared the moved worktree keep their history but lose that checkout; bind
-them to another worktree after unarchiving them.
+When unarchiving an original with a subagent archive family, bindings to its removed checkout
+are cleared for the original and subagents, so they can resume in the workspace directory.
+Subagents with their own checkout keep it. A failed move restores inherited family bindings to
+the replacement source checkout. Other archived sessions that shared the moved worktree keep
+their history but lose that checkout; bind them to another worktree after unarchiving them.
 
 ```bash
 compozy session move-to-profile sess_1234 work -o json

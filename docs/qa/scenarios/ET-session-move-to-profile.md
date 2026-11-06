@@ -77,7 +77,8 @@ canceling lock acquisition releases already-held descendant locks.
     the fork belongs to the target. Repeat with a live subagent: the move refuses without changes.
     A subagent below an archived non-subagent remains a blocker until that separate family is archived.
 11. Force target checkout creation to fail after archiving a stopped subagent family. The rollback
-    restores the original and subagents to their prior unarchived state in the source profile.
+    restores the original and subagents to their prior unarchived state in the source profile,
+    all bound to the replacement checkout. Resume and stop each family member; all succeed.
 
 Automated verification for #1320 (2026-11-06): `TestManagerMoveToProfile` verifies steps 10–11
 against real SQLite, including stopped subagent children and grandchildren sharing the original's
@@ -86,3 +87,12 @@ checkout failure, live subagent refusal, and a stopped subagent outside the orig
 family. `TestManagerRecoverProfileMoves` and the existing integration suites
 `TestManagerIntegrationFullLifecycle` / `TestManagerIntegrationUserLifecycle` also passed.
 These results do not claim a fresh browser walk.
+
+12. After a successful move of a family sharing one checkout, unarchive the original. The original
+    and subagents return to the workspace directory without a binding to the removed checkout;
+    subagents with their own checkout retain it. Resume and stop the family successfully.
+
+The owning suite verifies family bindings and resumes after rollback, successful-move unarchive,
+and interrupted rollback recovery. It uses the public Manager move, archive, unarchive and resume
+methods with real SQLite; transport mapping remains covered separately by the existing handler,
+CLI and native-tool suites.

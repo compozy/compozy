@@ -102,7 +102,7 @@ func (m *Manager) Unarchive(ctx context.Context, workspaceID string, sessionID s
 		return nil, err
 	}
 	defer unlock()
-	return m.setArchived(lockedCtx, workspaceID, sessionID, false)
+	return m.unarchiveProfileMoveFamily(lockedCtx, workspaceID, sessionID)
 }
 
 func (m *Manager) setArchived(

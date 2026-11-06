@@ -489,8 +489,13 @@ func TestManagerMoveToProfile(t *testing.T) {
 				source := h.stoppedSource(t, sourceWorktree, "")
 				child := h.stoppedSource(t, sourceWorktree, source.ID, store.SubagentSpawnRole)
 				grandchild := h.stoppedSource(t, sourceWorktree, child.ID, store.SubagentSpawnRole)
+				isolatedWorktree := h.worktrees.add(t, store.DefaultProfileID)
+				h.worktrees.mu.Lock()
+				h.worktrees.worktrees[isolatedWorktree].branch = "feat/isolated-subagent"
+				h.worktrees.mu.Unlock()
+				isolated := h.stoppedSource(t, isolatedWorktree, source.ID, store.SubagentSpawnRole)
 				histories := make(map[string][]store.TurnHistory)
-				for _, member := range []*Info{source, child, grandchild} {
+				for _, member := range []*Info{source, child, grandchild, isolated} {
 					history, err := h.manager.History(t.Context(), member.ID, store.EventQuery{})
 					if err != nil || len(history) == 0 {
 						t.Fatalf("History() = %v, %v; want setup conversation", history, err)
@@ -519,17 +524,53 @@ func TestManagerMoveToProfile(t *testing.T) {
 				} else if err != nil || result.Copy.ProfileID != profileMoveTargetID {
 					t.Fatalf("MoveToProfile() = %#v, %v; want target copy", result, err)
 				}
-				for _, member := range []*Info{source, child, grandchild} {
+				if !fail {
+					for _, member := range []*Info{source, child, grandchild, isolated} {
+						if !h.archivedAt(t, member.ID) {
+							t.Fatal("successful move left a family member unarchived")
+						}
+					}
+					if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				root, err := h.manager.Status(t.Context(), source.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, member := range []*Info{source, child, grandchild, isolated} {
 					persisted, err := h.manager.Status(t.Context(), member.ID)
-					if err != nil || h.archivedAt(t, member.ID) != !fail ||
+					if err != nil || h.archivedAt(t, member.ID) ||
 						persisted.ProfileID != store.DefaultProfileID ||
 						persisted.State != StateStopped ||
 						!reflect.DeepEqual(persisted.Lineage, member.Lineage) {
 						t.Fatalf("family member = %#v, %v; want original profile, state and lineage", persisted, err)
 					}
+					wantBinding := root.WorktreeID
+					if member.ID == isolated.ID {
+						wantBinding = isolatedWorktree
+					}
+					if persisted.WorktreeID != wantBinding {
+						t.Fatalf("family binding = %q, want root binding %q", persisted.WorktreeID, wantBinding)
+					}
+					if fail {
+						if checkout, ok := h.worktrees.get(persisted.WorktreeID); !ok || checkout.released {
+							t.Fatal("rollback left a removed family checkout")
+						}
+					} else if member.ID != isolated.ID && persisted.WorktreeID != "" {
+						t.Fatal("unarchive retained removed checkout")
+					}
 					history, err := h.manager.History(t.Context(), member.ID, store.EventQuery{})
 					if err != nil || !reflect.DeepEqual(history, histories[member.ID]) {
 						t.Fatalf("family history changed: %v, %v", history, err)
+					}
+				}
+				for _, member := range []*Info{source, child, grandchild, isolated} {
+					if _, err := h.manager.Resume(t.Context(), member.ID); err != nil {
+						t.Fatalf("Resume(family) = %v", err)
+					}
+					if err := h.manager.Stop(t.Context(), member.ID); err != nil {
+						t.Fatal(err)
 					}
 				}
 			},
@@ -1194,6 +1235,8 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 
 		h := newStoppingProfileMoveHarness(t)
 		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		child := h.stoppedSource(t, source.WorktreeID, source.ID, store.SubagentSpawnRole)
+
 		h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
 		move, _ := h.openMove(t, source.ID)
 		h.stopAt(t, "created:"+store.DefaultProfileID, func() {
@@ -1211,6 +1254,16 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 		if original.WorktreeID != move.RestoreWorktreeID || restores != 1 {
 			t.Fatalf("original on %q after %d restore checkout(s), want the one restore checkout %s",
 				original.WorktreeID, restores, move.RestoreWorktreeID)
+		}
+		persisted, err := h.manager.Status(t.Context(), child.ID)
+		if err != nil || persisted.WorktreeID != original.WorktreeID || h.archivedAt(t, child.ID) {
+			t.Fatalf("recovered family binding = %#v, %v", persisted, err)
+		}
+		if _, err := h.manager.Resume(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
 		}
 	})
 

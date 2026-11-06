@@ -272,7 +272,7 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 	return m.refuseProfileMoveDescendants(ctx, meta)
 }
 
-// Only the source archive family may contain unarchived descendants.
+// refuseProfileMoveDescendants permits unarchived descendants only in the source archive family.
 func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.SessionMeta) error {
 	tree, err := m.sessionTreeStore()
 	if err != nil {
@@ -303,6 +303,7 @@ func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.
 	return nil
 }
 
+// profileMoveArchiveFamily follows only subagent links, matching the archive transaction.
 func profileMoveArchiveFamily(rootID string, children []store.SessionInfo) map[string]bool {
 	parents := make(map[string]string, len(children))
 	for i := range children {
