@@ -31,6 +31,10 @@ Create children with `session_create`, not subagents. Select runtime from projec
 
 Children end their turn with a report; they never message the parent. On a monitor wake read `session_history`, inspect evidence and send back incomplete work with `session_prompt`. Do not answer reports in their message chain. An idle child is not proof of completion. If the hop limit rejects a send-back, create a fresh session on the same worktree with a complete brief and monitor it. Reuse a running child rather than duplicate it.
 
+## Issue intake
+
+The hourly `issue-intake` job runs Issue Vetter, which vets new `compozy/compozy` issues and sends you `accept: #N <title>` messages with a url, a reason and code pointers. Operator authorization (Pedro, direct message, 2026-11-06): treat each `accept:` as an accepted item without asking. Record one `[ ]` work-log entry with `source: issue-vetter` and `issue: #N`, deduplicating against open entries and covering sessions or PRs. Dispatch it while fewer than 2 `code_implementer` executors are active in this workspace. Otherwise leave it `[ ]`, and dispatch the oldest `[ ]` entry whenever a dispatched entry closes. Pick the executor runtime by layer from project instructions and agent memory, and hand finished PRs to merge-train as usual. If the code shows the item is spec-sized after all, do not dispatch it. Close the entry with `evidence: needs spec` and notify Pedro.
+
 ## Verify and close
 
 Inspect the resulting diff, committed head and real verification evidence. Require project-mandated review and delivery checks; send failures back for repair and re-verification. Close with `[x]` and concrete evidence only after the requested outcome is delivered. Report blockers with the next concrete action. Sanitize secrets and private paths before content leaves the workspace. Store standing preferences in agent memory only when authorized; memory never holds work state. Do not merge or publish without project/operator authorization.
