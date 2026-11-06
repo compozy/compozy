@@ -2167,6 +2167,7 @@ func (catalogExtensionPoller) PollSource(
 	return source.Result{}, errors.New("catalog must not poll sources")
 }
 
+// TestAuthoredContextHeartbeatStatusInstanceChecks verifies retained proactive audit through status reads.
 func TestAuthoredContextHeartbeatStatusInstanceChecks(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"timer", "instance_check"} {

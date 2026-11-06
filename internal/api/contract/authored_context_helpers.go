@@ -234,6 +234,7 @@ func validSessionHealthIneligibilityReason(reason SessionHealthIneligibilityReas
 	}
 }
 
+// validHeartbeatWakeSource accepts both legacy wakes and proactive check origins.
 func validHeartbeatWakeSource(source HeartbeatWakeSource) bool {
 	switch source {
 	case HeartbeatWakeSourceTimer, HeartbeatWakeSourceInstanceCheck,
@@ -244,6 +245,7 @@ func validHeartbeatWakeSource(source HeartbeatWakeSource) bool {
 	}
 }
 
+// validHeartbeatWakeResult accepts both legacy wakes and proactive check outcomes.
 func validHeartbeatWakeResult(result HeartbeatWakeResult) bool {
 	switch result {
 	case HeartbeatWakeResultQuiet, HeartbeatWakeResultCancelled, HeartbeatWakeResultReported,

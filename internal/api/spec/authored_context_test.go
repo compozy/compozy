@@ -264,6 +264,9 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"coalesced",
 			"rate_limited",
 			"failed",
+			"quiet",
+			"cancelled", //nolint:misspell // Stored spelling.
+			"reported",
 		)
 		assertEnumValues(t, propertySchema(t, decisionSchema, "reason"),
 			"source_poll_in_flight",
@@ -282,6 +285,23 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"session_prompt_active_race",
 			"synthetic_prompt_failed",
 			"wake_coalesced",
+			"quiet",
+			"reported",
+			"cancelled", //nolint:misspell // Stored spelling.
+			"digest_empty",
+			"digest_unchanged",
+			"policy_disabled",
+			"definition_not_always_on",
+			"definition_missing",
+			"no_slot",
+			"hook_cancelled", //nolint:misspell // Stored spelling.
+			"duplicate_suppressed",
+			"triage_unsupported",
+			"triage_output_invalid",
+			"triage_timeout",
+			"triage_interrupted",
+			"triage_config_unavailable",
+			"triage_failed",
 		)
 	})
 

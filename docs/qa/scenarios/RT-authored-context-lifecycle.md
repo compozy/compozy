@@ -24,6 +24,8 @@ without mutation. Exercise history, rollback, and deletion; package-owned sideca
 With proactive checks enabled, let a timer check finish and run a manual instance check.
 Read heartbeat status with `include_recent_wake_events=true` over HTTP and UDS, and with
 `compozy__agent_heartbeat_status` and `compozy agent heartbeat status coder --json`.
+Use two profiles with the same agent in the same workspace; native and Host API status
+must return only the caller profile audit, including when no session is selected.
 Both `timer` and `instance_check` rows must appear, including quiet, reported, cancelled,
 skipped and failed outcomes. Repeat after reopening the database to cover retained rows.
 

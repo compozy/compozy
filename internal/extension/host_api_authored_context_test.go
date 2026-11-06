@@ -7,11 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
@@ -116,6 +118,46 @@ func TestHostAPIAuthoredContextProfile(t *testing.T) {
 			t.Fatal("missing profile reader fell back to default")
 		}
 	})
+	for _, profileName := range []string{"default", "marketing"} {
+		t.Run("Should isolate retained proactive audit in "+profileName, func(t *testing.T) {
+			t.Parallel()
+			env := newHostAPITestEnv(t)
+			for _, profileID := range []string{store.DefaultProfileID, env.marketingID} {
+				instance, _, err := env.registry.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					ProfileID: profileID, WorkspaceID: env.workspaceID, AgentName: "coder",
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 6, 23, 0, 0, 0, time.UTC)
+				_, err = env.registry.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+                    (id, workspace_id, agent_name, source, result, reason, detail, instance_id, created_at, expires_at)
+                    VALUES (?, ?, 'coder', 'timer', 'quiet', 'quiet', ?, ?, ?, ?)`,
+					profileID, env.workspaceID, profileID+"-only", instance.ID,
+					store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			profileID := store.DefaultProfileID
+			if profileName == "marketing" {
+				profileID = env.marketingID
+			}
+			env.workspace.ProfileID = profileID
+			env.workspaces.upsert(&env.workspace)
+			ctx := withHostAPIInstanceKey(t.Context(), InstanceKey{Name: "ext-profile-heartbeat", ProfileID: profileID})
+			target, err := env.handler.resolveHostAPIAuthoredAgentTarget(ctx, env.workspaceID, "coder")
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.handler.wakeEvents = env.registry
+			events, err := env.handler.hostAPIWakeEvents(ctx, target, "")
+			if err != nil || len(events) != 1 || events[0].Detail != profileID+"-only" {
+				t.Fatalf("profile audit = %+v error=%v", events, err)
+			}
+		})
+	}
 }
 
 func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.T) {
