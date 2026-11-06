@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.3 - 2026-11-06
+
+### Bug Fixes
+
+- Show a pending runtime switch on session rows (#1294)
+- Allow profile moves with archived descendants (#1299)
+- Wake pull request monitors when merge conflicts appear (#1289)
+- Keep code_implementer working until its item is done
+- Hide session chrome that doesn't apply to always-on main sessions (#1304)
+- Defer fallback steering until active tools finish (#1296)
+- Enable sign-in for bare OAuth MCP remotes (#1308)
+- Let agents attach MCP servers (#1309)
+- Align OAuth browser journeys with sign-in action (#1310)
+- Keep native CLI sign-in verdicts truthful (#1278)
+- Load skill resources in User sessions (#1312)
+- Back off provider usage 429s, collect each account once, and re-verify native sign-in after restart (#1307)
+- Keep CompozyOS usage aliases on their own account (#1280)
+
+### Features
+
+- Remove retired agent kind compatibility inputs (#1295)
+- Add a Marketplace MCPs view with a Plugins | MCPs toggle (#1306)
+
+### Performance Improvements
+
+- Batch forge lookups and refresh displayed branches on demand (#1291)
+
+### Testing
+
+- Give the post-upgrade phase of the destructive-cut reopen test its own budget
+
 ## 0.5.2 - 2026-11-04
 
 ### Bug Fixes
@@ -1251,6 +1282,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.5.3]: https://github.com/compozy/compozy/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/compozy/compozy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/compozy/compozy/compare/v0.4.8...v0.5.0
