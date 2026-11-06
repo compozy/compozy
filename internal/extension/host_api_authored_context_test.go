@@ -144,7 +144,9 @@ func TestHostAPIAuthoredContextProfile(t *testing.T) {
 			if profileName == "marketing" {
 				profileID = env.marketingID
 			}
-			env.workspace.ProfileID = profileID
+			if profileName == "marketing" {
+				env.workspace.ProfileID = profileID
+			}
 			env.workspaces.upsert(&env.workspace)
 			ctx := withHostAPIInstanceKey(t.Context(), InstanceKey{Name: "ext-profile-heartbeat", ProfileID: profileID})
 			target, err := env.handler.resolveHostAPIAuthoredAgentTarget(ctx, env.workspaceID, "coder")

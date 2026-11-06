@@ -143,7 +143,7 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 		return hostAPIAuthoredAgentTarget{}, err
 	}
 	return hostAPIAuthoredAgentTarget{
-		profileID:       resolved.ProfileID,
+		profileID:       profileID,
 		profileName:     resolved.ProfileName,
 		workspaceID:     workspaceID,
 		workspaceRoot:   root,
