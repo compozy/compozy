@@ -2,8 +2,8 @@ package session
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -23,20 +23,23 @@ func (m *Manager) lockProfileMoveArchiveFamily(
 	}
 	family := profileMoveArchiveFamily(meta.ID, children)
 	members := make([]store.SessionInfo, 0, len(children))
-	unlocks := make([]func(), 0, len(children))
+	ids := []string{meta.ID}
 	for i := range children {
-		child := &children[i]
-		if !family[child.ID] {
-			continue
+		if family[children[i].ID] {
+			members = append(members, children[i])
+			ids = append(ids, children[i].ID)
 		}
-		lockedCtx, unlock, err := m.lockConversationOperation(ctx, child.ID)
+	}
+	slices.Sort(ids)
+	unlocks := make([]func(), 0, len(ids))
+	for _, id := range ids {
+		lockedCtx, unlock, err := m.lockConversationOperation(ctx, id)
 		if err != nil {
 			releaseConversationOperations(unlocks)
 			return nil, nil, nil, err
 		}
 		ctx = lockedCtx
 		unlocks = append(unlocks, unlock)
-		members = append(members, *child)
 	}
 	return ctx, func() { releaseConversationOperations(unlocks) }, members, nil
 }
@@ -56,6 +59,11 @@ func (m *Manager) rebindProfileMoveSubagents(
 		meta, err := m.readMetaWithContext(ctx, child.ID)
 		if err != nil {
 			return rebound, err
+		}
+		if meta.WorktreeTransition != nil && meta.WorktreeTransition.Pending {
+			if err := m.persistSessionCatalogFromMeta(ctx, &meta); err != nil {
+				return rebound, err
+			}
 		}
 		if meta.WorktreeIDValue() != previousID {
 			continue
@@ -83,48 +91,23 @@ func (m *Manager) rebindProfileMoveSubagents(
 	return rebound, nil
 }
 
-// unarchiveProfileMoveFamily releases inherited bindings to a checkout the move removed.
+// unarchiveProfileMoveFamily cleans up only a checkout released by a recorded completed move.
 func (m *Manager) unarchiveProfileMoveFamily(ctx context.Context, workspaceID, sessionID string) (*Info, error) {
 	meta, err := m.readSessionMetaReadOnly(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	port, ok := m.worktreeResolver.(ProfileMoveWorktrees)
-	if !ok || meta.WorkspaceID != workspaceID || meta.State != string(StateStopped) || meta.WorktreeIDValue() == "" ||
-		(meta.Lineage != nil && meta.Lineage.SpawnRole == store.SubagentSpawnRole) {
+	move := meta.CompletedProfileMove
+	binding := meta.WorktreeIDValue()
+	if transition := meta.WorktreeTransition; transition != nil && transition.Pending &&
+		transition.Current.WorktreeID == "" {
+		binding = transition.Previous.WorktreeID
+	}
+	if meta.WorkspaceID != workspaceID || move == nil || move.SessionID != meta.ID || move.SourceWorktreeID == "" ||
+		binding != move.SourceWorktreeID {
 		return m.setArchived(ctx, workspaceID, sessionID, false)
 	}
-	checkout, err := port.InspectProfileMoveWorktree(ctx, workspaceID, meta.WorktreeIDValue())
-	if errors.Is(err, ErrProfileMoveWorktreeNotFound) {
-		return m.setArchived(ctx, workspaceID, sessionID, false)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !checkout.Gone {
-		return m.setArchived(ctx, workspaceID, sessionID, false)
-	}
-	tree, err := m.sessionTreeStore()
-	if err != nil {
-		return nil, err
-	}
-	children, err := tree.ListSessionDescendants(ctx, workspaceID, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	family := profileMoveArchiveFamily(sessionID, children)
-	hasFamily := false
-	for i := range children {
-		child := &children[i]
-		if family[child.ID] {
-			hasFamily = true
-			break
-		}
-	}
-	if !hasFamily {
-		return m.setArchived(ctx, workspaceID, sessionID, false)
-	}
-	if err := m.restoreProfileMoveSource(ctx, &meta, meta.WorktreeIDValue(), "", true); err != nil {
+	if err := m.restoreProfileMoveSource(ctx, &meta, move.SourceWorktreeID, "", true); err != nil {
 		return nil, err
 	}
 	return m.Status(ctx, sessionID)

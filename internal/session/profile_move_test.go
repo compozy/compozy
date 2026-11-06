@@ -279,6 +279,44 @@ func (c *archiveFailingCatalog) SessionArchivedAt(
 	return c.GlobalDB.SessionArchivedAt(ctx, workspaceID, sessionID)
 }
 
+type profileMoveBindingFailingCatalog struct {
+	*globaldb.GlobalDB
+	failID        string
+	onDescendants func(context.Context)
+	cause         error
+}
+
+func (c *profileMoveBindingFailingCatalog) UpdateSessionWorktreeBinding(
+	ctx context.Context,
+	update store.SessionWorktreeBindingUpdate,
+) error {
+	if update.SessionID == c.failID {
+		return c.cause
+	}
+	return c.GlobalDB.UpdateSessionWorktreeBinding(ctx, update)
+}
+
+func (c *profileMoveBindingFailingCatalog) RecoverSessionWorktreeBinding(
+	ctx context.Context,
+	update store.SessionWorktreeBindingUpdate,
+) error {
+	if update.SessionID == c.failID {
+		return c.cause
+	}
+	return c.GlobalDB.RecoverSessionWorktreeBinding(ctx, update)
+}
+
+func (c *profileMoveBindingFailingCatalog) ListSessionDescendants(
+	ctx context.Context,
+	workspaceID, sessionID string,
+) ([]store.SessionInfo, error) {
+	children, err := c.GlobalDB.ListSessionDescendants(ctx, workspaceID, sessionID)
+	if err == nil && c.onDescendants != nil {
+		c.onDescendants(ctx)
+	}
+	return children, err
+}
+
 func newProfileMoveHarness(t *testing.T) *profileMoveHarness {
 	t.Helper()
 	return newProfileMoveHarnessWith(t, nil)
@@ -530,7 +568,11 @@ func TestManagerMoveToProfile(t *testing.T) {
 							t.Fatal("successful move left a family member unarchived")
 						}
 					}
-					if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+					if _, err := h.manager.Unarchive(
+						t.Context(),
+						" "+h.workspaceID+" ",
+						" "+source.ID+" ",
+					); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -576,6 +618,213 @@ func TestManagerMoveToProfile(t *testing.T) {
 			},
 		)
 	}
+
+	for _, failChild := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should settle an open move before unarchive after child binding failure=%t", failChild),
+			func(t *testing.T) {
+				t.Parallel()
+				catalog := &profileMoveBindingFailingCatalog{cause: errors.New("binding store unavailable")}
+				h := newProfileMoveHarnessWith(
+					t,
+					func(db *globaldb.GlobalDB) store.SessionCatalog { catalog.GlobalDB = db; return catalog },
+				)
+				source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+				child := h.stoppedSource(t, source.WorktreeID, source.ID, store.SubagentSpawnRole)
+				catalog.failID = source.ID
+				if failChild {
+					catalog.failID = child.ID
+				}
+				h.worktrees.failCreate[profileMoveTargetID] = errors.New("target creation failed")
+				if _, err := h.move(t.Context(), source.ID); !errors.Is(err, catalog.cause) {
+					t.Fatalf("move error = %v", err)
+				}
+				if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err == nil {
+					t.Fatal("unarchive bypassed the open move")
+				}
+				catalog.failID = ""
+				if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.RecoverProfileMoves(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := h.db.ListSessions(
+					t.Context(),
+					store.SessionListQuery{
+						ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+						WorkspaceID: h.workspaceID,
+						Archive:     store.SessionArchiveInclude,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				bindings := make(map[string]string)
+				for i := range rows {
+					bindings[rows[i].ID] = rows[i].WorktreeID
+				}
+				if bindings[source.ID] == "" || bindings[source.ID] != bindings[child.ID] {
+					t.Fatalf("catalog bindings before Status repair = %v", bindings)
+				}
+				root, err := h.manager.Status(t.Context(), source.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				persisted, err := h.manager.Status(t.Context(), child.ID)
+				if err != nil || root.WorktreeID == "" || persisted.WorktreeID != root.WorktreeID ||
+					h.archivedAt(t, child.ID) {
+					t.Fatalf("family after retry = %#v, %#v, %v", root, persisted, err)
+				}
+				if checkout, ok := h.worktrees.get(root.WorktreeID); !ok || checkout.released {
+					t.Fatal("retry lost source checkout")
+				}
+				if _, open, err := h.db.SessionProfileMove(t.Context(), source.ID); err != nil || open {
+					t.Fatalf("journal still open: %t, %v", open, err)
+				}
+			},
+		)
+	}
+
+	t.Run("Should allow workspace removal preparation before locking a restore family", func(t *testing.T) {
+		t.Parallel()
+		catalog := &profileMoveBindingFailingCatalog{}
+		h := newProfileMoveHarnessWith(
+			t,
+			func(db *globaldb.GlobalDB) store.SessionCatalog { catalog.GlobalDB = db; return catalog },
+		)
+		created, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{DesiredSessionID: "z-root", AgentName: "coder", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		child := h.stoppedSource(t, "", created.ID, store.SubagentSpawnRole)
+		meta, err := h.manager.readSessionMetaReadOnly(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog.onDescendants = func(ctx context.Context) {
+			preparation, err := h.manager.PrepareWorkspaceRemoval(ctx, h.workspaceID)
+			if err != nil {
+				t.Fatalf("workspace removal preparation during restore = %v", err)
+			}
+			if err := preparation.Rollback(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.restoreProfileMoveSource(t.Context(), &meta, "", "", false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Status(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should finish a pending source unbind when completed-move unarchive is retried", func(t *testing.T) {
+		t.Parallel()
+		catalog := &profileMoveBindingFailingCatalog{cause: errors.New("source binding unavailable")}
+		h := newProfileMoveHarnessWith(
+			t,
+			func(db *globaldb.GlobalDB) store.SessionCatalog { catalog.GlobalDB = db; return catalog },
+		)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		child := h.stoppedSource(t, source.WorktreeID, source.ID, store.SubagentSpawnRole)
+		if _, err := h.move(t.Context(), source.ID); err != nil {
+			t.Fatal(err)
+		}
+		catalog.failID = source.ID
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); !errors.Is(err, catalog.cause) {
+			t.Fatalf("unarchive error = %v", err)
+		}
+		catalog.failID = ""
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.db.ListSessions(
+			t.Context(),
+			store.SessionListQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: h.workspaceID,
+				Archive:     store.SessionArchiveInclude,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range rows {
+			if (rows[i].ID == source.ID || rows[i].ID == child.ID) && rows[i].WorktreeID != "" {
+				t.Fatalf("pending catalog binding survived retry: %#v", rows[i])
+			}
+		}
+	})
+
+	t.Run("Should reject a stale family restore before changing inherited bindings", func(t *testing.T) {
+		t.Parallel()
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		child := h.stoppedSource(t, source.WorktreeID, source.ID, store.SubagentSpawnRole)
+		stale, err := h.manager.readSessionMetaReadOnly(t.Context(), source.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		newWorktree := h.worktrees.add(t, store.DefaultProfileID)
+		if _, err := h.manager.ChangeWorktreeBinding(
+			t.Context(),
+			source.ID,
+			newWorktree,
+			&source.WorktreeID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.restoreProfileMoveSource(
+			t.Context(),
+			&stale,
+			source.WorktreeID,
+			"",
+			true,
+		); !errors.Is(
+			err,
+			store.ErrSessionWorktreeConflict,
+		) {
+			t.Fatalf("stale restore = %v", err)
+		}
+		persisted, err := h.manager.Status(t.Context(), child.ID)
+		if err != nil || persisted.WorktreeID != child.WorktreeID {
+			t.Fatalf("stale restore changed child: %#v, %v", persisted, err)
+		}
+		root, err := h.manager.Status(t.Context(), source.ID)
+		if err != nil || root.WorktreeID != newWorktree {
+			t.Fatalf("stale restore changed root: %#v, %v", root, err)
+		}
+	})
+
+	t.Run("Should preserve ordinary unarchive bindings without inspecting Git", func(t *testing.T) {
+		t.Parallel()
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		child := h.stoppedSource(t, source.WorktreeID, source.ID, store.SubagentSpawnRole)
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.worktrees.mu.Lock()
+		h.worktrees.worktrees[source.WorktreeID].released = true
+		h.worktrees.mu.Unlock()
+		h.worktrees.onInspect = func() { t.Fatal("ordinary unarchive inspected Git") }
+		if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		for _, member := range []*Info{source, child} {
+			persisted, err := h.manager.Status(t.Context(), member.ID)
+			if err != nil || persisted.WorktreeID != source.WorktreeID || h.archivedAt(t, member.ID) {
+				t.Fatalf("ordinary unarchive changed binding: %#v, %v", persisted, err)
+			}
+		}
+	})
 
 	for _, role := range []string{"", store.SubagentSpawnRole} {
 		for _, live := range []bool{false, true} {

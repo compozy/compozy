@@ -96,3 +96,20 @@ The owning suite verifies family bindings and resumes after rollback, successful
 and interrupted rollback recovery. It uses the public Manager move, archive, unarchive and resume
 methods with real SQLite; transport mapping remains covered separately by the existing handler,
 CLI and native-tool suites.
+
+13. Fail an inherited child binding update, then a source binding update, during rollback. While
+    the failure persists, unarchive refuses with the open move unsettled. Remove the injected
+    store failure and unarchive again: rollback completes first, both catalog bindings point to
+    the restored checkout, and journal recovery is idempotent. No binding is cleared to bypass
+    recovery. Repeat with padded IDs and reject a different workspace without changing state.
+14. Ordinary archive/unarchive with a missing or damaged worktree and subagents keeps the existing
+    binding and does not inspect Git. Only the recorded original of a completed profile move can
+    clear inherited bindings to its released checkout. A stale restoration snapshot refuses before
+    changing any child binding. Family conversation locks use the same sorted order as workspace
+    removal, and restoration re-reads the root under those locks.
+
+The owning profile-move suite covers child/source binding-store failures followed by unarchive
+and journal retry, padded IDs, ordinary unarchive without Git, stale-root restoration, and workspace
+removal preparation during restoration. The optional completed-move provenance in source metadata
+is written before deleting the open journal; older metadata without it keeps ordinary unarchive
+behavior. No SQLite schema change is required.
