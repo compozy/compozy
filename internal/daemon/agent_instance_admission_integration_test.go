@@ -27,6 +27,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/goal"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -1715,6 +1716,17 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if status < 400 || !bytes.Contains(raw, []byte("agent_instance_paused")) {
 			t.Fatalf("direct Goal resume=%d %s", status, raw)
 		}
+		turnQuery := goal.TurnQuery{
+			WorkspaceID: looppkg.WorkspaceID(workspace),
+			LoopRunID:   looppkg.RunID(children[0].runID),
+		}
+		pausedTurns, err := db.ListGoalTurns(t.Context(), turnQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pausedTurns.Turns) > 0 {
+			turnQuery.AfterSeq = pausedTurns.Turns[len(pausedTurns.Turns)-1].Seq
+		}
 		status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
 		if status != http.StatusOK {
 			t.Fatalf("instance resume=%d %s", status, raw)
@@ -1726,6 +1738,10 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 			}
 			other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
 			return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
+		})
+		waitForRuntimeCondition(t, "resumed Goal claimed a new managed turn", 15*time.Second, func() bool {
+			turns, err := db.ListGoalTurns(t.Context(), turnQuery)
+			return err == nil && len(turns.Turns) > 0 && manager.IsPrompting(children[0].sessionID)
 		})
 		wake, err := db.Instances().WakeState(t.Context(), instance.ID)
 		if err != nil || wake.UnattendedTurns != 0 {
@@ -1745,6 +1761,19 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
 			return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
 		})
+		waitForRuntimeCondition(
+			t,
+			"operator-owned Goal remains paused after racing resume",
+			20*time.Second,
+			func() bool {
+				other, err := db.GetLoopRun(
+					t.Context(),
+					looppkg.WorkspaceID(workspace),
+					looppkg.RunID(operatorChild.runID),
+				)
+				return err == nil && other.Status == looppkg.StatusPaused && !other.PauseRequested
+			},
+		)
 		for _, child := range children {
 			status, _, raw := goalCommand(child.sessionID, "stop")
 			if status >= 400 {

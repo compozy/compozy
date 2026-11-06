@@ -96,7 +96,10 @@ Goal's pause while its provider turn drains and until its coordinator parks the 
 Resume the instance: only its own Goal resumes; the directly paused Goal stays paused.
 Repeat an immediate instance pause/resume while a Goal is draining. Managed Goal turns
 do not increment the unattended counter; child lifecycle notifications are separate
-autonomous inputs. `TestInstanceManagedGoalPauseIntegration` owns the real daemon/ACP
+autonomous inputs. Check that counter after resumed work starts and before another resume
+resets it. An interrupted operation already finalized as ambiguous must not be queued again
+when its pause is resumed; the Goal must still accept stop after the repeated pause/resume.
+`TestInstanceManagedGoalPauseIntegration` owns the real daemon/ACP
 walk, and `TestGoalTurnRuntimeLifecycleIntegration/Should_retain_an_instance_pause_until_the_coordinator_parks_the_run`
 forces maintenance into the interval between Goal turn settlement and coordinator pause.
 
