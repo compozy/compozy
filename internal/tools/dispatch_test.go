@@ -1709,6 +1709,13 @@ func (s *recordingToolArtifactStore) ReadPage(
 	return s.delegate.ReadPage(ctx, scope, uri, offset, limit)
 }
 
+func (s *recordingToolArtifactStore) RemoveUserArtifacts(ctx context.Context, profileID string) error {
+	if s.delegate == nil {
+		return nil
+	}
+	return s.delegate.RemoveUserArtifacts(ctx, profileID)
+}
+
 func (s *recordingToolArtifactStore) Sweep(ctx context.Context) error {
 	if s.delegate == nil {
 		return nil

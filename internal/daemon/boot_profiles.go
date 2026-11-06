@@ -42,6 +42,7 @@ func (d *Daemon) bootProfiles(
 		),
 		profile.WithDesktopPartitionCatalog(profileDesktopPartitions{state: state}),
 		profile.WithUserJournalRemover(profileUserJournal{state: state}),
+		profile.WithUserToolArtifactRemover(profileUserToolArtifacts{state: state}),
 		profile.WithAutomationReconciler(profileAutomationReconciler{state: state}),
 	)
 	if err != nil {

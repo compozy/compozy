@@ -23,6 +23,9 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootTerminal(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootToolArtifacts(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := recoverProfiles(ctx, state); err != nil {
 		return err
 	}

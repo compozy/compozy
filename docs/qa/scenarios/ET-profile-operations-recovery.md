@@ -68,3 +68,12 @@ succeeds or its workspace/profile binding changes. The existing hook suite owns 
 visibility-resume and explicit-retry coverage; the unchanged E2E-031 owns the real recovery
 journey. Current evidence and pending re-walk are recorded in
 `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+2026-11-06 (#1316) QA impact: seed retained User tool-result artifacts for two profiles
+and a workspace. Delete one profile after removing its work; its journaled
+`remove_user_tool_artifacts` step must remove only that profile's User bytes. Interrupt
+finalization before that step and restart: the artifact store must be available before
+profile recovery and replay must complete cleanup. Exercise a storage failure, correct it,
+retry the lifecycle operation, and repeat recovery to prove completed deletion is idempotent.
+The other profile and workspace artifacts remain readable. Canonical suite:
+`TestManagerRecoveryAndReservation` with the real filesystem artifact store.

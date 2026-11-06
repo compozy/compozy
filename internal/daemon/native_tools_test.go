@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,6 +20,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	"github.com/gin-gonic/gin"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -10524,6 +10529,85 @@ func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtif
 
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain the early artifact store through boot and both transport handlers", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		d := newTestDaemon(t, home, &cfg)
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		engines := make(map[string]*gin.Engine)
+		var artifactStore toolspkg.ToolArtifactStore
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			artifactStore = deps.ToolArtifacts
+			engine := gin.New()
+			if _, err := httpapi.New(append(httpServerOptions(&deps), httpapi.WithEngine(engine))...); err != nil {
+				return nil, err
+			}
+			engines["HTTP"] = engine
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			engine := gin.New()
+			options := append(
+				udsServerOptions(&deps),
+				udsapi.WithEngine(engine),
+				udsapi.WithSocketPath(shortSocketPath(t)),
+			)
+			if _, err := udsapi.New(options...); err != nil {
+				return nil, err
+			}
+			engines["UDS"] = engine
+			return &fakeServer{name: "uds"}, nil
+		}
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if artifactStore == nil {
+			t.Fatal("boot omitted tool artifact store from transport dependencies")
+		}
+		ref, err := artifactStore.Put(
+			t.Context(),
+			workspaceaccess.ScopeTarget("", store.DefaultProfileID),
+			[]byte("retained result"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := toolspkg.ParseToolArtifactURI(ref.URI)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for transport, engine := range engines {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"/api/workspaces/@user/tool-artifacts/"+id,
+					nil,
+				),
+			)
+			var page toolspkg.ToolArtifactPage
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || string(decoded) != "retained result" || !page.EOF {
+				t.Fatalf("%s artifact read = %d/%s", transport, response.Code, response.Body)
+			}
+		}
+	})
 
 	for _, tc := range []struct {
 		name        string

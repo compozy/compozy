@@ -89,3 +89,8 @@ Focused owning suites cover this behavior; previous provider-walk evidence above
 Workspace artifacts keep their existing workspace-only ownership and disk layout, including
 artifacts produced before the upgrade from a non-default profile. No profile migration is applied
 to these existing workspace artifacts; User artifacts have a separate profile-owned namespace.
+
+Profile deletion removes that profile's User artifacts through its recoverable lifecycle
+journal. A failed removal keeps the operation retryable; retry/recovery preserves other
+profiles' User artifacts and all workspace artifacts. The artifact store is initialized
+before boot replays profile operations.

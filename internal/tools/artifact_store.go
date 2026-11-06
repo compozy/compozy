@@ -199,6 +199,23 @@ func (s *FilesystemToolArtifactStore) ReadPage(
 	}, nil
 }
 
+// RemoveUserArtifacts removes one profile's retained User results without touching workspace results.
+func (s *FilesystemToolArtifactStore) RemoveUserArtifacts(ctx context.Context, profileID string) error {
+	if err := artifactContextErr(ctx); err != nil {
+		return err
+	}
+	scope := workspaceaccess.ScopeTarget("", strings.TrimSpace(profileID))
+	if !validToolArtifactScope(scope) {
+		return fmt.Errorf("%w: profile is required", ErrToolArtifactPersistence)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.RemoveAll(s.scopeDir(scope)); err != nil {
+		return fmt.Errorf("%w: remove User artifacts: %w", ErrToolArtifactPersistence, err)
+	}
+	return nil
+}
+
 // Sweep removes expired and over-budget artifacts in deterministic creation order.
 func (s *FilesystemToolArtifactStore) Sweep(ctx context.Context) error {
 	if err := artifactContextErr(ctx); err != nil {

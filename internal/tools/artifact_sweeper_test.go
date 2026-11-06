@@ -192,6 +192,8 @@ func (s *sweeperTestArtifactStore) ReadPage(
 	return ToolArtifactPage{}, ErrToolArtifactNotFound
 }
 
+func (s *sweeperTestArtifactStore) RemoveUserArtifacts(context.Context, string) error { return nil }
+
 func (s *sweeperTestArtifactStore) Sweep(context.Context) error {
 	if s.started != nil {
 		select {

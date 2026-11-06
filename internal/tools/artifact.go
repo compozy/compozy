@@ -79,6 +79,7 @@ type ToolArtifactStore interface {
 		offset int64,
 		limit int64,
 	) (ToolArtifactPage, error)
+	RemoveUserArtifacts(ctx context.Context, profileID string) error
 	Sweep(ctx context.Context) error
 }
 
