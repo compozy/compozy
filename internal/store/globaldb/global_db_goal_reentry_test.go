@@ -317,6 +317,15 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 				if checkpoint.Phase != "idle" || checkpoint.QueueEntryID != "" || checkpoint.PromptID != "" {
 					t.Fatalf("terminal operation retained after resume: %#v", checkpoint)
 				}
+				var terminalRows int
+				if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM session_input_queue
+					WHERE id = ? AND status = 'failed' AND terminal_kind = 'ambiguous' AND terminal_at = ?`,
+					ticket.QueueEntryID, store.FormatTimestamp(now)).Scan(&terminalRows); err != nil {
+					t.Fatal(err)
+				}
+				if terminalRows != 1 {
+					t.Fatal("resume changed the terminal Goal prompt")
+				}
 			}
 			if promptTaskRunID != wantPromptOwner || ownerEpoch != wantOwnerEpoch || fenceKind != nil {
 				t.Fatalf("reactivated prompt = task:%q epoch:%d fence:%v", promptTaskRunID, ownerEpoch, fenceKind)
