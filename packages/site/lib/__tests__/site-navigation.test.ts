@@ -12,7 +12,14 @@ type InternalLink = {
   source: string;
 };
 
-const appRoutes = new Set(["/", "/blog", "/changelog", "/blog/feed.xml", "/marketplace"]);
+const appRoutes = new Set([
+  "/",
+  "/blog",
+  "/changelog",
+  "/blog/feed.xml",
+  "/marketplace",
+  "/download",
+]);
 
 function normalizeRoute(route: string): string {
   return route.replace(/\/$/, "") || "/";

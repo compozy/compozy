@@ -6,6 +6,7 @@ import { useSidebar } from "fumadocs-ui/layouts/notebook/slots/sidebar";
 import { LinkItem, type LinkItemType } from "fumadocs-ui/layouts/shared";
 import { Sidebar as SidebarIcon } from "lucide-react";
 import type { ComponentProps } from "react";
+import { DownloadHeaderButton } from "@/components/site/download-header-button";
 import { HeaderSearchInput } from "@/components/site/header-search-input";
 
 type WithUrl = Extract<LinkItemType, { url: string }>;
@@ -80,6 +81,8 @@ export function DocsHeader(props: ComponentProps<"header">) {
             )}
           />
         )}
+
+        <DownloadHeaderButton className="max-md:ms-auto" />
 
         <div className="flex items-center md:gap-2">
           {iconItems.map((item, index) => {

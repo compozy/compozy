@@ -34,7 +34,7 @@ import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provid
 import { SupportedAgents } from "../supported-agents";
 
 describe("Hero", () => {
-  it("leads with the locked headline, subhead, and CompozyOS overview CTA", () => {
+  it("leads with the locked headline, subhead, desktop download, and command install CTAs", () => {
     render(<Hero />);
     // Locked hero pair (COPY.md §2 Hero Lock). The headline and the subhead ship verbatim, together.
     expect(
@@ -45,10 +45,10 @@ describe("Hero", () => {
         "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
       )
     ).toBeDefined();
-    const install = screen.getByText("Install CompozyOS");
-    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
-    const overview = screen.getByText("See how CompozyOS works");
-    expect(overview.closest("a")?.getAttribute("href")).toBe("/docs");
+    const download = screen.getByRole("link", { name: "Download CompozyOS" });
+    expect(download.getAttribute("href")).toBe("/download");
+    const command = screen.getByRole("link", { name: "Install the command" });
+    expect(command.getAttribute("href")).toBe("/docs/getting-started/installation");
   });
 });
 
@@ -160,10 +160,10 @@ describe("AutonomyKernelSection", () => {
 });
 
 describe("FinalCta", () => {
-  it("links the final actions to installation guidance and the repository", () => {
+  it("links the final actions to the download page, installation guidance, and the repository", () => {
     render(<FinalCta />);
-    const install = screen.getByText("Install CompozyOS");
-    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
+    const download = screen.getByRole("link", { name: "Download CompozyOS" });
+    expect(download.getAttribute("href")).toBe("/download");
     const spec = screen.getByText("Read the installation guide");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const star = screen.getByText("Star on GitHub");

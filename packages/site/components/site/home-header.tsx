@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
+import { DownloadHeaderButton } from "@/components/site/download-header-button";
 import { GitHubStarButton } from "@/components/site/github-star-button";
 import { HeaderSearchInput } from "@/components/site/header-search-input";
 import { SITE_NAV_LINKS } from "@/lib/site-nav";
@@ -89,6 +90,8 @@ export function HomeHeader(props: ComponentProps<"header">) {
           <div className="hidden md:flex">
             <GitHubStarButton />
           </div>
+
+          <DownloadHeaderButton className="order-last md:order-none" />
 
           {baseOptions.githubUrl && (
             <a

@@ -1,4 +1,5 @@
 import { Eyebrow } from "@compozy/ui";
+import { Download } from "lucide-react";
 
 import { HeroVisual } from "./hero-visual";
 import { CtaButton } from "./primitives/cta-button";
@@ -63,11 +64,12 @@ export function Hero() {
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
-              <CtaButton href="/docs/getting-started/installation" variant="primary">
-                Install CompozyOS
+              <CtaButton href="/download" variant="primary">
+                <Download aria-hidden data-icon="inline-start" />
+                Download CompozyOS
               </CtaButton>
-              <CtaButton href="/docs" variant="ghost">
-                See how CompozyOS works
+              <CtaButton href="/docs/getting-started/installation" variant="ghost">
+                Install the command
               </CtaButton>
             </div>
           </div>

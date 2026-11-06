@@ -179,6 +179,7 @@ describe("DocsHeader", () => {
     expect(screen.getByRole("link", { name: "CompozyOS docs home" }).getAttribute("href")).toBe(
       "/"
     );
+    expect(screen.getByRole("link", { name: "Download" }).getAttribute("href")).toBe("/download");
   });
 
   it("never renders a sub-tab bar, even when the layout still provides tabs (D3)", () => {

@@ -43,6 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       "/blog",
       "/changelog",
       "/changelog/feed.xml",
+      "/download",
       ...releasePaths,
       ...docsPaths,
       ...marketplacePaths,

@@ -1,6 +1,6 @@
 import { baseOptions } from "@/lib/layout.shared";
 import { Eyebrow } from "@compozy/ui";
-import { Star } from "lucide-react";
+import { Download, Star } from "lucide-react";
 import { CtaButton } from "./primitives/cta-button";
 import { SectionFrame } from "./primitives/section-frame";
 
@@ -20,12 +20,9 @@ export function FinalCta() {
         </div>
 
         <div className="flex flex-col items-start gap-3">
-          <CtaButton
-            href="/docs/getting-started/installation"
-            variant="primary"
-            className="w-full justify-center sm:w-auto"
-          >
-            Install CompozyOS
+          <CtaButton href="/download" variant="primary" className="w-full justify-center sm:w-auto">
+            <Download aria-hidden data-icon="inline-start" />
+            Download CompozyOS
           </CtaButton>
           <CtaButton
             href="/docs/getting-started/installation"

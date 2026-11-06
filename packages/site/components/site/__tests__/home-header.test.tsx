@@ -119,6 +119,14 @@ describe("HomeHeader", () => {
     }
   });
 
+  it("offers the desktop download page from every header", () => {
+    render(<HomeHeader />);
+
+    const download = screen.getByRole("link", { name: "Download" });
+    expect(download.getAttribute("href")).toBe("/download");
+    expect(download.getAttribute("class")).not.toContain("hidden");
+  });
+
   it("marks exact active navigation links as the current page", () => {
     mocks.pathname = "/blog";
 

@@ -16,6 +16,7 @@ export const footerColumns: FooterColumn[] = [
     title: "CompozyOS",
     items: [
       { label: "Overview", href: "/docs" },
+      { label: "Download", href: "/download" },
       { label: "Getting started", href: "/docs/getting-started/installation" },
       { label: "Migrate from v0.2", href: "/docs/migration" },
       { label: "API reference", href: "/docs/api" },
