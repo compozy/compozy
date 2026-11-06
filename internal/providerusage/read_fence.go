@@ -106,7 +106,7 @@ func (s *Manager) applyCredentialReadCheck(
 	state.hasIdentity = false
 	state.readFence = nil
 	state.lastSuccess = time.Time{}
-	state.cooldown = nil
+	state.cooldownUntil = time.Time{}
 	p := s.profiles[profile]
 	s.changedLocked(p)
 	s.admitFlightsLocked(p, []string{id}, RefreshRequest{ProfileID: profile, Intent: IntentBackground})

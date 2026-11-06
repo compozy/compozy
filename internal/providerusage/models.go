@@ -23,6 +23,7 @@ type TraySignal struct {
 }
 
 type Snapshot struct {
+	collectedAt   time.Time
 	ProviderID    string
 	CollectorID   string // collector family when it differs from ProviderID (an alias); "" otherwise
 	ProviderName  string

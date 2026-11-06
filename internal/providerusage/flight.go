@@ -90,16 +90,16 @@ func (s *Manager) collectOnce(
 		s.mu.Unlock()
 		return nil, true
 	}
-	allowed, skippedOutcome := s.admitLocked(profile, id, state, f, intent, identity, err, started)
+	allowed, skippedOutcome, published := s.admitLocked(profile, id, state, f, intent, identity, err, started)
+	status := state.snapshot.Status
 	s.mu.Unlock()
+	if published {
+		s.observeCollection(profile, id, "", status, intent, started, skippedOutcome)
+	}
 	if !allowed {
 		return skippedOutcome, false
 	}
-	snapshot := Snapshot{}
-	if err == nil {
-		snapshot, err = collector.Collect(ctx, target, intent, identity)
-	}
-	outcome := collectionOutcome(ctx, target.ProviderName, err)
+	snapshot, outcome := s.collectAccount(ctx, profile, state, epoch, target, intent, identity, err, f.maxAge)
 	if err, recollect := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
 		return err, recollect
 	}
@@ -138,7 +138,7 @@ func (s *Manager) collectOnce(
 		state.validationSeq++
 	}
 	s.publishLocked(profile, id, state, target, identity, snapshot, outcome)
-	status := state.snapshot.Status
+	status = state.snapshot.Status
 	source := snapshotSource(state.snapshot)
 	s.mu.Unlock()
 	s.observeCollection(profile, id, source, status, intent, started, outcome)
@@ -205,6 +205,6 @@ func (s *Manager) discardOwnership(profile, id string, state *targetState) {
 	state.snapshot = initialSnapshot(state.target, s.options.Collectors[state.target.Collector()])
 	state.hasIdentity = false
 	state.lastSuccess = time.Time{}
-	state.cooldown = nil
+	state.cooldownUntil = time.Time{}
 	s.changedLocked(s.profileLocked(profile))
 }

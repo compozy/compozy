@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useProviderUsage } from "@/systems/provider-usage";
 
+import { providerLogoKey } from "../lib/provider-logo-key";
 import {
   PROVIDER_USAGE_COLLECTOR_IDS,
   providerUsageCollectorFamily,
@@ -20,8 +21,8 @@ import {
 export interface ProviderUsageSettingsProvider {
   id: string;
   name: string;
-  /** Logo of the collector family: an alias shows its runtime provider's mark. */
-  logoId: string;
+  /** Logo key: the provider's own brand, else its runtime family. */
+  logo: string;
 }
 
 type ConfiguredProvider = {
@@ -46,7 +47,7 @@ function usageProviders(
   const entry = (id: string): ProviderUsageSettingsProvider => ({
     id,
     name: catalogNames.get(id) || settings.get(id)?.display_name?.trim() || id,
-    logoId: providerUsageCollectorFamily(id, settings.get(id)) ?? id,
+    logo: providerLogoKey({ name: id, settings: settings.get(id) }),
   });
   const builtins = PROVIDER_USAGE_COLLECTOR_IDS.filter(id => settings.has(id) || named.has(id));
   const aliases: ProviderUsageSettingsProvider[] = [];

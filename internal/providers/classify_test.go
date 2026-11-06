@@ -256,6 +256,18 @@ func TestClassifyProviderAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark only the native CLI probe fallback as unverified", func(t *testing.T) {
+		t.Parallel()
+
+		declared, err := ClassifyDeclared(testutil.Context(t), nativeProvider(), presentEnv())
+		if err != nil {
+			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		if declared.State != ProviderAuthStateUnknown || !declared.Unverified {
+			t.Fatalf("declared = %#v, want the unverified native CLI fallback", declared)
+		}
+	})
+
 	t.Run("Should keep an operational lookup failure unknown through final classification", func(t *testing.T) {
 		t.Parallel()
 
@@ -272,6 +284,9 @@ func TestClassifyProviderAuth(t *testing.T) {
 		declared, err := ClassifyDeclared(testutil.Context(t), nativeProvider(), env)
 		if err != nil {
 			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		if declared.Unverified {
+			t.Fatal("declared resolver error is marked unverified, want a current result a verdict cannot replace")
 		}
 		got := ClassifyProbeResult(
 			nativeProvider(),

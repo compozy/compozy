@@ -138,6 +138,9 @@ func providerAuthStatusRows(record providerAuthStatusRecord) []keyValue {
 			keyValue{Label: "Probe Stderr", Value: stringOrDash(strings.TrimSpace(record.Probe.Stderr))},
 		)
 	}
+	if record.ProbeSource != "" {
+		rows = append(rows, keyValue{Label: "Probe Source", Value: record.ProbeSource})
+	}
 	return rows
 }
 

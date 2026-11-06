@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -3203,6 +3204,80 @@ func TestDaemonNativeTools(t *testing.T) {
 						requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
 					})
 				}
+			})
+		}
+	})
+
+	t.Run("Should read a bundled skill resource in a User session without a workspace lookup", func(t *testing.T) {
+		t.Parallel()
+		skillRegistry := newLoadedNativeSkillRegistry(t)
+		skill, ok := skillRegistry.Get("compozy")
+		if !ok {
+			t.Fatal("bundled compozy skill is missing")
+		}
+		if err := skillRegistry.ApplyResourceRecords(t.Context(), 1, []resources.Record[skills.SkillResourceSpec]{{
+			Kind: skills.SkillResourceKind, ID: "bundled:compozy",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec:  skills.SkillToResourceSpec(skill),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		home := testHomePaths(t)
+		sessions := &nativeSessionAgentManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
+					State: session.StateActive, EffectivePermissions: string(workspaceaccess.ModeApproveReads),
+				}, nil
+			},
+			agent: testPromptAgent("Read the bundled skill resource."),
+		}
+		facts, err := newWorkspaceAccessModeSource(sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(workspaceaccess.Deps{
+			Facts: facts, Consent: newWorkspaceAccessConsentCache(),
+			Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Skills: skillRegistry, HomePaths: home, Sessions: sessions,
+			SkillExposures: openDaemonTestGlobalDB(t),
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		for _, tc := range []struct{ name, input string }{
+			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`},
+			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				input := json.RawMessage(tc.input)
+				result, err := registry.Call(t.Context(), toolspkg.Scope{
+					SessionID: "sess-user", AgentName: "coder", ProfileID: store.DefaultProfileID,
+				}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSkillView,
+					Input:  input,
+				})
+				if err != nil {
+					t.Fatalf("Registry.Call(skill_view) error = %v", err)
+				}
+				content, err := skillRegistry.LoadResource(t.Context(), skill, "references/tools-and-skills.md")
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload struct {
+					Content string `json:"content"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Content != content {
+					t.Fatal("skill_view did not return the complete bundled resource")
+				}
+				requireNativeStructuredContains(t, result, []byte(`"owner_scope":"user"`))
+				requireNativeStructuredContains(t, result, []byte(`"exposures":[]`))
 			})
 		}
 	})

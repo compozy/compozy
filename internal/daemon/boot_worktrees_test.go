@@ -727,7 +727,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			t.Cleanup(func() {
 				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 				defer cancel()
-				if err := stopManagedDeliveryRecovery(stopCtx, worker); err != nil {
+				if err := stopOwnedWorker(stopCtx, managedDeliveryRecoveryLabel, worker); err != nil {
 					t.Errorf("stop recovery fixture: %v", err)
 				}
 			})

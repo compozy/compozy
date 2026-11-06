@@ -119,7 +119,7 @@ export function ProviderUsageProvidersSection({
           data-testid={`settings-provider-usage-provider-${provider.id}-row`}
           label={
             <span className="flex items-center gap-2">
-              <ProviderLogo aria-hidden="true" provider={provider.logoId} />
+              <ProviderLogo aria-hidden="true" provider={provider.logo} />
               {provider.name}
             </span>
           }

@@ -14,7 +14,6 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -268,17 +267,10 @@ func (n *daemonNativeTools) skillViewPayload(
 	if !ok {
 		return payload, errors.New("daemon: skill exposure roots are required")
 	}
-	var resolved *workspacepkg.ResolvedWorkspace
 	workspaceRef := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
-	if workspaceRef != "" {
-		if n.deps.WorkspaceResolver == nil {
-			return payload, errors.New("daemon: workspace resolver is required for workspace skill exposure")
-		}
-		workspace, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceRef)
-		if err != nil {
-			return payload, err
-		}
-		resolved = &workspace
+	resolved, err := n.nativeSkillWorkspace(ctx, scope.ProfileID, workspaceRef)
+	if err != nil {
+		return payload, err
 	}
 	logger := n.deps.Logger
 	if logger == nil {
