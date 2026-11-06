@@ -90,6 +90,16 @@ The agent receives `agent_instance_forbidden` and the pause remains; an operator
 can still resume it. `TestInstanceResumeAuthority` injects each pause after the
 service's initial read and verifies both denial and operator recovery with SQLite.
 
+Managed Goal pause recovery (#1315): start two child Goals, pause one directly,
+then pause their always-on instance. Maintenance must retain ownership of the other
+Goal's pause while its provider turn drains and until its coordinator parks the run.
+Resume the instance: only its own Goal resumes; the directly paused Goal stays paused.
+Repeat an immediate instance pause/resume while a Goal is draining. Managed Goal turns
+do not increment the unattended counter; child lifecycle notifications are separate
+autonomous inputs. `TestInstanceManagedGoalPauseIntegration` owns the real daemon/ACP
+walk, and `TestGoalTurnRuntimeLifecycleIntegration/Should_retain_an_instance_pause_until_the_coordinator_parks_the_run`
+forces maintenance into the interval between Goal turn settlement and coordinator pause.
+
 B1 approval admission: with authenticated agent credentials, POST create and DELETE
 archive under approve-reads and deny-all must return `403 tool_approval_required`
 with the corresponding native tool hint and leave persisted instances untouched.

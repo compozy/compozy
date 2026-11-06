@@ -21,6 +21,77 @@ import (
 )
 
 func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
+	// Invariant: instance pause ownership survives maintenance between turn settlement and coordinator pause.
+	// Owner: Goal turn persistence; canonical turn lifecycle integration suite.
+	t.Run("Should retain an instance pause until the coordinator parks the run", func(t *testing.T) {
+		t.Parallel()
+		db, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-instance-pause")
+		ctx := t.Context()
+		promptID := "goal-prompt-instance-pause"
+		ticket := prepareGoalRuntimePrompt(t, db, key, taskRunID, promptID, now)
+		decision := flushGoalRuntimeBudget(t, db, key, taskRunID, goal.BudgetBeforeWork, promptID, 0)
+		claimed, err := db.ClaimPreparedWorkPrompt(ctx, goal.ClaimPreparedWorkPromptRequest{
+			Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID,
+			PromptID: promptID, SessionID: "session-goal-runtime", BindingHandle: "goal:runtime",
+			BindingEpoch: 1, BudgetDecision: decision, ActorKind: "daemon", ActorID: "loop-action",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "codex", WorkspaceID: string(key.WorkspaceID),
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, "session-goal-runtime", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("agent_instance:"+instance.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.RequestGoalPause(ctx, key.WorkspaceID, key.LoopRunID, actor); err != nil {
+			t.Fatal(err)
+		}
+		terminal := looppkg.ActionPromptResult{PromptID: promptID,
+			Outcome: looppkg.ActionPromptOutcomeCompleted, StopReason: looppkg.ActionStopEndTurn}
+		if err := db.FinalizeGoalPrompt(ctx, goal.FinalizePromptRequest{
+			Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, TaskRunID: taskRunID,
+			QueueEntryID: ticket.QueueEntryID, PromptID: promptID, SessionID: "session-goal-runtime",
+			BindingHandle: "goal:runtime", DispatchToken: claimed.DispatchToken,
+			Result: terminal, TerminalAt: now.Add(time.Second),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.CompleteTurn(ctx, goal.CompleteTurnRequest{
+			Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, TaskRunID: taskRunID,
+			QueueEntryID: ticket.QueueEntryID, PromptID: promptID, Result: terminal,
+			DispatchActorKind: "daemon", DispatchActorID: "loop-action",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Instances().ForgetSettledRuns(ctx, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		runs, err := db.Instances().ManagedRuns(ctx, instance.ID, "")
+		if err != nil || len(runs) != 1 || !runs[0].Recorded || !runs[0].PauseRequested {
+			t.Fatalf("instance pause before coordinator settlement = %+v, %v", runs, err)
+		}
+		if err := db.CompareAndSwapLoopRunStatus(ctx, key.LoopRunID, looppkg.StatusRunning,
+			looppkg.StatusPaused, looppkg.TransitionCausePauseBoundary, now.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Instances().ForgetSettledRuns(ctx, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		runs, err = db.Instances().ManagedRuns(ctx, instance.ID, "")
+		if err != nil || len(runs) != 1 || !runs[0].Recorded || runs[0].Status != "paused" || runs[0].PauseRequested {
+			t.Fatalf("instance pause after coordinator settlement = %+v, %v", runs, err)
+		}
+	})
+
 	// Invariant: pause intent prevents a new queue ticket even before a prompt lease exists.
 	// Owner: durable Goal prompt transaction; canonical turn lifecycle integration suite.
 	t.Run("Should fence preparation after a pause without a prompt lease", func(t *testing.T) {

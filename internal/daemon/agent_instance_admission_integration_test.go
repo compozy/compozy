@@ -1584,160 +1584,174 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 // recovers a committed instance pause and resumes only its own paused runs.
 // Owning layer and canonical suite: daemon instance admission integration.
 func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
-	d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
-		cfg.Session.Supervision.ActivityHeartbeatInterval = time.Second
-		cfg.Loops.Defaults.Delivery.RuntimeDefaults.Judge.Model = "goal-test-judge"
-	}, "", func(d *Daemon) {
-		config, err := os.ReadFile(d.homePaths.ConfigFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		config = append(
-			config,
-			[]byte("\n[loops.defaults.delivery.runtime_defaults.judge]\nmodel = \"goal-test-judge\"\n")...)
-		if err := os.WriteFile(d.homePaths.ConfigFile, config, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		configureInstancePermissionFixture(t, d, "approve-all", "", func(agent *acpmock.AgentFixture) {
-			agent.Turns = append([]acpmock.TurnFixture{{
-				Name: "child-goal", Match: acpmock.TurnMatch{RawUserTextContains: "Keep child working"},
-				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Goal work started"}, {
-					Kind:          acpmock.StepKindDriverControl,
-					DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
-				}},
-			}}, agent.Turns...)
-		})
-	})
-	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := d.registry.(*globaldb.GlobalDB)
-	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
-		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
-		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
-	}, main.ID, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	type childGoal struct{ sessionID, runID string }
-	var children []childGoal
-	goalCommand := func(id, operation string) (int, contract.GoalCommandResult, []byte) {
-		t.Helper()
-		input := map[string]string{"operation": operation}
-		if operation == "set" {
-			input["objective"] = "Keep child working"
-		}
-		body, err := json.Marshal(input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		status, raw := instanceIntegrationHTTP(
-			t,
-			d,
-			"POST",
-			"/api/workspaces/"+workspace+"/sessions/"+id+"/goal",
-			body,
-			nil,
-		)
-		var result contract.GoalCommandResult
-		if status < 400 {
-			if err := json.Unmarshal(raw, &result); err != nil {
+	t.Run("Should recover an instance pause and resume only owned Goals", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.ActivityHeartbeatInterval = time.Second
+			cfg.Loops.Defaults.Delivery.RuntimeDefaults.Judge.Model = "goal-test-judge"
+		}, "", func(d *Daemon) {
+			config, err := os.ReadFile(d.homePaths.ConfigFile)
+			if err != nil {
 				t.Fatal(err)
 			}
-		}
-		return status, result, raw
-	}
-	for i := range 2 {
-		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
-			Workspace: workspace, Name: fmt.Sprintf("Goal child %d", i), InheritPermissions: true, TTL: time.Minute})
+			config = append(
+				config,
+				[]byte("\n[loops.defaults.delivery.runtime_defaults.judge]\nmodel = \"goal-test-judge\"\n")...)
+			if err := os.WriteFile(d.homePaths.ConfigFile, config, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			configureInstancePermissionFixture(t, d, "approve-all", "", func(agent *acpmock.AgentFixture) {
+				agent.Turns = append([]acpmock.TurnFixture{{
+					Name: "child-goal", Match: acpmock.TurnMatch{RawUserTextContains: "Keep child working"},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Goal work started"}, {
+						Kind:          acpmock.StepKindDriverControl,
+						DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+					}},
+				}}, agent.Turns...)
+			})
+		})
+		main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 		if err != nil {
 			t.Fatal(err)
 		}
-		status, started, raw := goalCommand(child.ID, "set")
-		if status >= 400 || started.Outcome != contract.GoalOutcomeStarted || started.Snapshot == nil {
-			t.Fatalf("child Goal start=%d %s", status, raw)
+		db := d.registry.(*globaldb.GlobalDB)
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+			PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
 		}
-		children = append(children, childGoal{child.ID, started.Snapshot.RunID})
-	}
-	operatorChild := children[1]
-	t.Cleanup(func() {
-		if t.Failed() {
-			runs, err := db.Instances().ManagedRuns(context.Background(), instance.ID, "")
-			t.Logf("managed runs after failure=%+v error=%v", runs, err)
-			for _, child := range children {
-				run, err := db.GetLoopRun(
-					context.Background(),
-					looppkg.WorkspaceID(workspace),
-					looppkg.RunID(child.runID),
-				)
-				t.Logf("Goal child=%+v run status=%s pause=%v error=%v", child, run.Status, run.PauseRequested, err)
+		type childGoal struct{ sessionID, runID string }
+		var children []childGoal
+		goalCommand := func(id, operation string) (int, contract.GoalCommandResult, []byte) {
+			t.Helper()
+			input := map[string]string{"operation": operation}
+			if operation == "set" {
+				input["objective"] = "Keep child working"
 			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, raw := instanceIntegrationHTTP(
+				t,
+				d,
+				"POST",
+				"/api/workspaces/"+workspace+"/sessions/"+id+"/goal",
+				body,
+				nil,
+			)
+			var result contract.GoalCommandResult
+			if status < 400 {
+				if err := json.Unmarshal(raw, &result); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return status, result, raw
 		}
-	})
-	status, paused, raw := goalCommand(operatorChild.sessionID, "pause")
-	if status >= 400 || paused.Outcome != contract.GoalOutcomePaused {
-		t.Fatalf("operator pause=%d %s", status, raw)
-	}
-	// Deliberately omit post-commit effects to model a crash at this boundary.
-	if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
-		t.Fatal(err)
-	}
-	waitForRuntimeCondition(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
-		runs, err := db.Instances().ManagedRuns(t.Context(), instance.ID, "")
-		if err != nil || len(runs) != 1 {
-			return false
+		// Child lifecycle wakes are autonomous turns; isolate the managed Goal counter from those notifications.
+		for i := range 2 {
+			child, err := manager.Spawn(
+				t.Context(),
+				session.SpawnOpts{
+					ParentSessionID:    main.ID,
+					AgentName:          main.AgentName,
+					Workspace:          workspace,
+					Name:               fmt.Sprintf("Goal child %d", i),
+					InheritPermissions: true,
+					TTL:                time.Minute,
+					NotifyCreator:      false,
+					NotifyCreatorSet:   true,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, started, raw := goalCommand(child.ID, "set")
+			if status >= 400 || started.Outcome != contract.GoalOutcomeStarted || started.Snapshot == nil {
+				t.Fatalf("child Goal start=%d %s", status, raw)
+			}
+			children = append(children, childGoal{child.ID, started.Snapshot.RunID})
 		}
-		for _, run := range runs {
-			if run.Status != "paused" {
+		operatorChild := children[1]
+		t.Cleanup(func() {
+			if t.Failed() {
+				runs, err := db.Instances().ManagedRuns(context.Background(), instance.ID, "")
+				t.Logf("managed runs after failure=%+v error=%v", runs, err)
+				for _, child := range children {
+					run, err := db.GetLoopRun(
+						context.Background(),
+						looppkg.WorkspaceID(workspace),
+						looppkg.RunID(child.runID),
+					)
+					t.Logf("Goal child=%+v run status=%s pause=%v error=%v", child, run.Status, run.PauseRequested, err)
+				}
+			}
+		})
+		status, paused, raw := goalCommand(operatorChild.sessionID, "pause")
+		if status >= 400 || paused.Outcome != contract.GoalOutcomePaused {
+			t.Fatalf("operator pause=%d %s", status, raw)
+		}
+		// Deliberately omit post-commit effects to model a crash at this boundary.
+		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
+			runs, err := db.Instances().ManagedRuns(t.Context(), instance.ID, "")
+			if err != nil || len(runs) != 1 {
 				return false
 			}
-			if !run.Recorded || run.ID != children[0].runID {
+			for _, run := range runs {
+				if run.Status != "paused" {
+					return false
+				}
+				if !run.Recorded || run.ID != children[0].runID {
+					return false
+				}
+			}
+			return true
+		})
+		status, _, raw = goalCommand(children[0].sessionID, "resume")
+		if status < 400 || !bytes.Contains(raw, []byte("agent_instance_paused")) {
+			t.Fatalf("direct Goal resume=%d %s", status, raw)
+		}
+		status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
+		if status != http.StatusOK {
+			t.Fatalf("instance resume=%d %s", status, raw)
+		}
+		waitForRuntimeCondition(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
+			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
+			if err != nil || own.Status != looppkg.StatusRunning || own.PauseRequested {
 				return false
 			}
+			other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
+			return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
+		})
+		wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+		if err != nil || wake.UnattendedTurns != 0 {
+			t.Fatalf("managed turn counter=%+v error=%v", wake, err)
 		}
-		return true
-	})
-	status, _, raw = goalCommand(children[0].sessionID, "resume")
-	if status < 400 || !bytes.Contains(raw, []byte("agent_instance_paused")) {
-		t.Fatalf("direct Goal resume=%d %s", status, raw)
-	}
-	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
-	if status != http.StatusOK {
-		t.Fatalf("instance resume=%d %s", status, raw)
-	}
-	waitForRuntimeCondition(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
-		own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
-		if err != nil || own.Status != looppkg.StatusRunning || own.PauseRequested {
-			return false
+		// Invariant (IT-032): an operator resume racing the Goal's asynchronous pause never fails the committed
+		// instance resume; the instance-owned Goal resumes once its pause settles.
+		status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+		if status != http.StatusOK {
+			t.Fatalf("instance pause=%d %s", status, raw)
 		}
-		other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
-		return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
-	})
-	wake, err := db.Instances().WakeState(t.Context(), instance.ID)
-	if err != nil || wake.UnattendedTurns != 0 {
-		t.Fatalf("managed turn counter=%+v error=%v", wake, err)
-	}
-	// Invariant (IT-032): an operator resume racing the Goal's asynchronous pause never fails the committed
-	// instance resume; the instance-owned Goal resumes once its pause settles.
-	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
-	if status != http.StatusOK {
-		t.Fatalf("instance pause=%d %s", status, raw)
-	}
-	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
-	if status != http.StatusOK {
-		t.Fatalf("immediate instance resume=%d %s", status, raw)
-	}
-	waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
-		own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
-		return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
-	})
-	for _, child := range children {
-		status, _, raw := goalCommand(child.sessionID, "stop")
-		if status >= 400 {
-			t.Fatalf("Goal cleanup=%d %s", status, raw)
+		status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
+		if status != http.StatusOK {
+			t.Fatalf("immediate instance resume=%d %s", status, raw)
 		}
-	}
+		waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
+			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
+			return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
+		})
+		for _, child := range children {
+			status, _, raw := goalCommand(child.sessionID, "stop")
+			if status >= 400 {
+				t.Fatalf("Goal cleanup=%d %s", status, raw)
+			}
+		}
+	})
 }
 
 func instanceIntegrationHTTP(
