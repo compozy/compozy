@@ -204,7 +204,6 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil {
 		return err
 	}
-
 	completed, err := completeSessionPromptAdmission(
 		ctx,
 		exec,
