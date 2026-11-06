@@ -3563,7 +3563,7 @@ export type HeartbeatWakeByPathRequest = {
   dry_run?: boolean;
   idempotency_key?: string;
   session_id: string;
-  source: "scheduler" | "manual" | "harness_reentry";
+  source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
   workspace_id?: string;
 };
 
@@ -3573,6 +3573,23 @@ export type HeartbeatWakeDecisionPayload = {
   policy_digest?: string;
   policy_snapshot_id?: string;
   reason:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3589,7 +3606,15 @@ export type HeartbeatWakeDecisionPayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   synthetic_prompt_id?: string;
   wake_event_id?: string;
 };
@@ -3602,6 +3627,23 @@ export type HeartbeatWakeEventPayload = {
   id: string;
   policy_snapshot_id?: string;
   reason:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3618,9 +3660,17 @@ export type HeartbeatWakeEventPayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   session_id?: string;
-  source: "scheduler" | "manual" | "harness_reentry";
+  source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
   synthetic_prompt_id?: string;
   workspace_id?: string;
 };
@@ -3633,6 +3683,23 @@ export type HeartbeatWakeStatePayload = {
   agent_name?: string;
   coalesced_count: number;
   last_reason?:
+    | "quiet"
+    | "reported"
+    | "cancelled"
+    | "digest_empty"
+    | "digest_unchanged"
+    | "policy_disabled"
+    | "definition_not_always_on"
+    | "definition_missing"
+    | "no_slot"
+    | "hook_cancelled"
+    | "duplicate_suppressed"
+    | "triage_unsupported"
+    | "triage_output_invalid"
+    | "triage_timeout"
+    | "triage_interrupted"
+    | "triage_config_unavailable"
+    | "triage_failed"
     | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
@@ -3649,7 +3716,15 @@ export type HeartbeatWakeStatePayload = {
     | "session_prompt_active_race"
     | "synthetic_prompt_failed"
     | "wake_coalesced";
-  last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+  last_result:
+    | "quiet"
+    | "cancelled"
+    | "reported"
+    | "sent"
+    | "skipped"
+    | "coalesced"
+    | "rate_limited"
+    | "failed";
   last_wake_at?: string | null;
   next_allowed_at?: string | null;
   policy_snapshot_id?: string;

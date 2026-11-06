@@ -11290,7 +11290,7 @@ export interface components {
       idempotency_key?: string;
       session_id: string;
       /** @enum {string} */
-      source: "scheduler" | "manual" | "harness_reentry";
+      source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
       workspace_id?: string;
     };
     HeartbeatWakeDecisionPayload: {
@@ -11300,6 +11300,23 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11317,7 +11334,15 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       synthetic_prompt_id?: string;
       wake_event_id?: string;
     };
@@ -11332,6 +11357,23 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11349,10 +11391,18 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       session_id?: string;
       /** @enum {string} */
-      source: "scheduler" | "manual" | "harness_reentry";
+      source: "timer" | "instance_check" | "scheduler" | "manual" | "harness_reentry";
       synthetic_prompt_id?: string;
       workspace_id?: string;
     };
@@ -11364,6 +11414,23 @@ export interface components {
       coalesced_count: number;
       /** @enum {string} */
       last_reason?:
+        | "quiet"
+        | "reported"
+        | "cancelled"
+        | "digest_empty"
+        | "digest_unchanged"
+        | "policy_disabled"
+        | "definition_not_always_on"
+        | "definition_missing"
+        | "no_slot"
+        | "hook_cancelled"
+        | "duplicate_suppressed"
+        | "triage_unsupported"
+        | "triage_output_invalid"
+        | "triage_timeout"
+        | "triage_interrupted"
+        | "triage_config_unavailable"
+        | "triage_failed"
         | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
@@ -11381,7 +11448,15 @@ export interface components {
         | "synthetic_prompt_failed"
         | "wake_coalesced";
       /** @enum {string} */
-      last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+      last_result:
+        | "quiet"
+        | "cancelled"
+        | "reported"
+        | "sent"
+        | "skipped"
+        | "coalesced"
+        | "rate_limited"
+        | "failed";
       /** Format: date-time */
       last_wake_at?: string | null;
       /** Format: date-time */

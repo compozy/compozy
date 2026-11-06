@@ -68,7 +68,8 @@ func ValidSessionHealthIneligibilityReason(reason string) bool {
 // ValidWakeSource reports whether source is a supported wake source enum member.
 func ValidWakeSource(source WakeSource) bool {
 	switch source {
-	case WakeSourceScheduler, WakeSourceManual, WakeSourceHarnessReentry:
+	case WakeSourceTimer, WakeSourceInstanceCheck,
+		WakeSourceScheduler, WakeSourceManual, WakeSourceHarnessReentry:
 		return true
 	default:
 		return false
@@ -78,7 +79,8 @@ func ValidWakeSource(source WakeSource) bool {
 // ValidWakeResult reports whether result is a supported wake result enum member.
 func ValidWakeResult(result WakeResult) bool {
 	switch result {
-	case WakeResultSent,
+	case WakeResultQuiet, WakeResultCancelled, WakeResultReported,
+		WakeResultSent,
 		WakeResultSkipped,
 		WakeResultCoalesced,
 		WakeResultRateLimited,
@@ -92,7 +94,24 @@ func ValidWakeResult(result WakeResult) bool {
 // ValidWakeReason reports whether reason is a supported wake reason enum member.
 func ValidWakeReason(reason WakeReason) bool {
 	switch reason {
-	case WakeReasonSourcePollInFlight, WakeReasonSent,
+	case WakeReasonQuiet,
+		WakeReasonReported,
+		WakeReasonCancelled,
+		WakeReasonDigestEmpty,
+		WakeReasonDigestUnchanged,
+		WakeReasonPolicyDisabled,
+		WakeReasonDefinitionNotAlwaysOn,
+		WakeReasonDefinitionMissing,
+		WakeReasonNoSlot,
+		WakeReasonHookCancelled,
+		WakeReasonDuplicateSuppressed,
+		WakeReasonTriageUnsupported,
+		WakeReasonTriageOutputInvalid,
+		WakeReasonTriageTimeout,
+		WakeReasonTriageInterrupted,
+		WakeReasonTriageConfigUnavailable,
+		WakeReasonTriageFailed,
+		WakeReasonSourcePollInFlight, WakeReasonSent,
 		WakeReasonHeartbeatDisabled,
 		WakeReasonHeartbeatInvalid,
 		WakeReasonHeartbeatNoPolicy,

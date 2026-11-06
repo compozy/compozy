@@ -236,7 +236,8 @@ func validSessionHealthIneligibilityReason(reason SessionHealthIneligibilityReas
 
 func validHeartbeatWakeSource(source HeartbeatWakeSource) bool {
 	switch source {
-	case HeartbeatWakeSourceScheduler, HeartbeatWakeSourceManual, HeartbeatWakeSourceHarnessReentry:
+	case HeartbeatWakeSourceTimer, HeartbeatWakeSourceInstanceCheck,
+		HeartbeatWakeSourceScheduler, HeartbeatWakeSourceManual, HeartbeatWakeSourceHarnessReentry:
 		return true
 	default:
 		return false
@@ -245,7 +246,8 @@ func validHeartbeatWakeSource(source HeartbeatWakeSource) bool {
 
 func validHeartbeatWakeResult(result HeartbeatWakeResult) bool {
 	switch result {
-	case HeartbeatWakeResultSent,
+	case HeartbeatWakeResultQuiet, HeartbeatWakeResultCancelled, HeartbeatWakeResultReported,
+		HeartbeatWakeResultSent,
 		HeartbeatWakeResultSkipped,
 		HeartbeatWakeResultCoalesced,
 		HeartbeatWakeResultRateLimited,
