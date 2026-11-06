@@ -114,6 +114,19 @@ func (m *Manager) approveStoredPermission(
 		return ApprovalResult{}, true, err
 	}
 	if err := permissionResolutionError(interaction, m.now()); err != nil {
+		if interaction.Status == store.PendingInteractionStatusOrphaned && errors.Is(err, ErrPendingPermissionExpired) {
+			commit, settleErr := m.transitionPendingInteraction(
+				ctx,
+				terminalInteractionTransition(interaction, m.now().UTC(), "expired"),
+			)
+			if settleErr != nil {
+				return ApprovalResult{}, true, settleErr
+			}
+			if commit.Interaction != nil && commit.Interaction.Status == store.PendingInteractionStatusResolved {
+				result, winnerErr := m.resolveOrphanedPermission(ctx, target, *commit.Interaction, decision)
+				return result, true, winnerErr
+			}
+		}
 		return ApprovalResult{}, true, err
 	}
 	if interaction.Status == store.PendingInteractionStatusPending {

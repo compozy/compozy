@@ -139,21 +139,23 @@ func (m *Manager) recoverPendingInteractions(ctx context.Context, sessionID stri
 	if _, active := m.Get(target); active {
 		return 0, nil
 	}
-	statuses := []string{store.PendingInteractionStatusPending}
-	if expire {
-		statuses = append(statuses, store.PendingInteractionStatusOrphaned)
-	}
+	statuses := []string{store.PendingInteractionStatusPending, store.PendingInteractionStatusOrphaned}
 	interactions, err := m.attentionStore.ListPendingInteractions(ctx, target, statuses)
 	if err != nil {
 		return 0, fmt.Errorf("session: list pending interactions during restart recovery: %w", err)
 	}
 	settled := 0
 	for _, interaction := range interactions {
+		at := m.now().UTC()
+		expired := interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt)
+		if !expire && !expired && interaction.Status == store.PendingInteractionStatusOrphaned {
+			continue
+		}
 		transition := store.PendingInteractionTransition{
 			InteractionID: interaction.InteractionID,
-			Status:        store.PendingInteractionStatusOrphaned, At: m.now().UTC(),
+			Status:        store.PendingInteractionStatusOrphaned, At: at,
 		}
-		if expire {
+		if expire || expired {
 			transition = terminalInteractionTransition(interaction, transition.At, "failed-by-restart")
 		}
 		commit, err := m.transitionPendingInteraction(ctx, transition)

@@ -687,6 +687,90 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should settle an expired orphan when refusing a late approval", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID: "expired-answer", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "expired-answer", CreatedAt: expires.Add(-time.Hour), ExpiresAt: &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := catalog.TransitionPendingInteraction(
+			t.Context(),
+			store.PendingInteractionTransition{
+				InteractionID: "expired-answer",
+				Status:        store.PendingInteractionStatusOrphaned,
+				At:            restarted.now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, err := restarted.ApprovePermission(
+			t.Context(),
+			sessionID,
+			acp.ApproveRequest{RequestID: "expired-answer", Decision: "allow-once"},
+		)
+		if !errors.Is(err, ErrPendingPermissionExpired) {
+			t.Fatalf("late orphan approval = %v", err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired answer = %#v, %v", rows, err)
+		}
+		attention, err := catalog.GetSessionAttention(t.Context(), sessionID)
+		if err != nil || attention.PendingPermissionCount != 1 {
+			t.Fatalf("unrelated orphan attention = %#v, %v", attention, err)
+		}
+	})
+	t.Run("Should expire a retained orphan before resuming without requiring daemon restart", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID: "expired-resume", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "expired-resume", CreatedAt: expires.Add(-time.Hour), ExpiresAt: &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := catalog.TransitionPendingInteraction(
+			t.Context(),
+			store.PendingInteractionTransition{
+				InteractionID: "expired-resume",
+				Status:        store.PendingInteractionStatusOrphaned,
+				At:            restarted.now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if count, err := restarted.RecoverPendingInteractions(t.Context(), sessionID); err != nil || count != 1 {
+			t.Fatalf("resume expiry = %d, %v", count, err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired resume = %#v, %v", rows, err)
+		}
+		if count, err := restarted.RecoverPendingInteractions(t.Context(), sessionID); err != nil || count != 0 {
+			t.Fatalf("repeated resume = %d, %v", count, err)
+		}
+	})
 	t.Run("Should expire retained deadlines on restart and preserve terminal history", func(t *testing.T) {
 		t.Parallel()
 		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
