@@ -24,7 +24,7 @@ summaries (at least 20,000 rows), while the streams and interactive routes run.
 The report records exact eligible/deleted counts. The whole sweep has a one-minute
 deadline, with a stricter 30-second acceptance ceiling on every untraced head sweep; each interactive operation retains its two-second deadline. The sweep
 must complete. Write holds retain the one-second budget, with the narrowly paired
-transcript COMMIT decision described below.
+COMMIT-pause decision described below.
 
 Four 30-second pairs follow five-second warmups, alternating baseline/head
 order equally (AB, BA, AB, BA). Every trial starts from a fresh copy of the same fixture. Each fixture
@@ -34,7 +34,7 @@ boundary stops admission and waits for requests, health flush and checkpoints;
 it never cancels accepted work to manufacture clean latency results. Each
 request has a two-second deadline. Failed operations and long-lock/contention
 messages remain in the output. They fail untraced head acceptance except for
-transcript COMMIT pauses explained by their own baseline pair below. The checkpoint worker retains a 200 ms admission budget, but its
+the measured COMMIT pauses explained by their own baseline pair below. The checkpoint worker retains a 200 ms admission budget, but its
 I/O runs under the owned worker lifetime so it can advance the WAL backfill
 pointer. It has a dedicated connection and never reserves the foreground writer.
 Shutdown cancels and joins it; non-deadline I/O errors remain warnings. The family lease still serializes
@@ -85,25 +85,28 @@ items prioritize interactive work, which has no errors on head. This intentional
 count-1 throughput metric cannot measure sweep duration. The baseline remains fixed deliberately to
 retain the pre-change upgrade fixture and historical contention comparison.
 
-Transcript COMMIT acceptance also uses the four same-run pairs. For each pair,
+COMMIT-pause acceptance also uses the four same-run pairs. Transcript writes
+provide the shared-storage control on both binaries. For each pair,
 the budget is `max(1000 ms, baseline transcript_write max_ms)`, with no added
 relative margin. The median of the four head-max/budget ratios must be at most
-
-1. An individual long-hold warning can pass only when it names the session
-   `append session events and transcript` transaction, has a callback below one
-   second and a COMMIT of at least one second, and its entire elapsed time fits
-   **its own pair's** budget. A large baseline in another pair or a favorable median
-   cannot excuse that warning. Missing/nonfinite/nonpositive tail samples and baseline
-   transcript operation errors fail calibration. Head operation errors, other warnings,
-   retention and upgrade correctness remain strict. `results.json` and `report.md`
-   retain every raw warning in JSON and every head warning with its individual
-   decision in Markdown, alongside paired maxima, budgets and ratios.
+`1`. An individual long-hold warning can pass only when it names either the session
+`append session events and transcript` transaction or the telemetry
+`coalesced background writes` transaction, has a callback below one second and a
+COMMIT of at least one second, and its entire elapsed time fits **its own pair's**
+budget. A large baseline in another pair or a favorable median cannot excuse that
+warning. Missing/nonfinite/nonpositive tail samples and baseline transcript
+operation errors fail calibration. Head operation errors, other warnings,
+retention and upgrade correctness remain strict. `results.json` and `report.md`
+retain every raw warning in JSON and every head warning with its individual
+decision in Markdown, alongside paired maxima, budgets and ratios.
 
 This is a conservative paired order-statistic decision, not a confidence interval
 or a guarantee about individual production latency. The one-second floor retains
-the original budget on fast runners. It accounts only for the transcript COMMIT
-signature measured in #1324; core/telemetry/background holds and checkpoint errors
-are not exempted. The [eight-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#paired-transcript-commit-tail-investigation-2026-11-06)
+the original budget on fast runners. It accounts only for the transcript and telemetry COMMIT
+signatures measured in #1324. The telemetry layout differs from the fixed baseline,
+so the common transcript workload controls shared-storage variance rather than
+comparing unlike telemetry transactions. Core holds, background callback holds
+and checkpoint errors are not exempted. The [eight-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#paired-transcript-commit-tail-investigation-2026-11-06)
 records shared-runner fsync evidence and residual attribution limits.
 
 The runner's decision suite is `python3 -m unittest discover -s

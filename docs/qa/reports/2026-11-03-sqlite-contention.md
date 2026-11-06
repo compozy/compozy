@@ -811,7 +811,7 @@ cross-run baseline/head correlation, small callback times and simultaneous WAL
 sync stalls support runner I/O variance; no production defect was demonstrated.
 Production durability, checkpoints, deadlines and warnings are unchanged.
 
-The revised runner uses paired transcript maxima with the original 1000 ms floor
+The initial runner revision uses paired transcript maxima with the original 1000 ms floor
 and no added relative margin. Its median paired ratio must be at most 1. Each
 session transcript warning additionally must have a sub-second callback, a
 COMMIT of at least one second and total elapsed time within its own pair's
@@ -839,3 +839,37 @@ Impact: CI acceptance and its internal JSON/report receipts only. Native tools,
 CLI/HTTP/UDS, hooks/extensions/config, workspace isolation, persisted user state,
 Web, site docs and `skills/compozy/` are unchanged. No user-facing QA scenario
 changes; this report and the paired experiment are the owning QA surfaces.
+
+
+### Telemetry COMMIT evidence from the first PR-head run
+
+The first complete [PR-head run 42289506367](https://github.com/compozy/compozy/actions/runs/42289506367)
+on `1b3e179dc` failed for two telemetry `coalesced background writes` transactions,
+not for transcript acceptance. All four head trials had zero operation errors,
+no throughput regressions, complete retention and preserved upgrade data. Paired
+transcript maxima were baseline 1247/1189/1438/1346 ms and head
+968/878/1072/912 ms (median ratio 0.742). Head trials 0 and 2 emitted telemetry
+holds of 1072/1389 ms, with callbacks 25/343 ms and COMMITs 1046/1046 ms. Both
+whole holds fit their own baseline transcript pair (1247/1438 ms).
+
+The same run's `head-writes.strace` records 23 successful fsync calls above
+500 ms. A telemetry WAL fsync started at Unix time 1793998172.037015 and took
+882.255 ms; multiple independent session WAL fsyncs started around
+1793998171.825 and took up to 1122.390 ms. Their intervals overlap. This extends
+the shared-storage evidence to telemetry rather than assuming the transcript
+signature alone covers every source of the reported flake. The untraced
+COMMIT's exact syscall remains inferred, with the same ptrace attribution limit.
+
+Final acceptance includes only these two measured COMMIT signatures, each with
+sub-second callback work, COMMIT >= 1000 ms and the entire hold within its own
+baseline transcript budget. The baseline predates the telemetry split, so its
+common transcript workload is the storage control; unlike telemetry transaction
+layouts are not compared directly. Core holds, background callback holds,
+checkpoint/admission diagnostics and operation errors remain strict. Baseline
+transcript failures still invalidate calibration. No relative margin or retry
+policy was added. Replaying the failing real artifact through this revision
+passes with no throughput, correctness or tail rejection. The existing decision
+suite adds the invariant that telemetry needs its exact signature and own valid
+storage pair; callback holds, different operations/databases and head-only sync
+pauses remain failures. Seventeen focused decision tests pass. CI still owns the
+two consecutive successful runs on the final head.

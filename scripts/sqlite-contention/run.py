@@ -152,13 +152,14 @@ def transcript_tail_comparison(baseline, head):
 
 
 def paired_commit_pause(record, pair):
-    """Accept only a transcript COMMIT hold bounded by its valid baseline pair."""
-    # Only the measured transcript COMMIT signature is eligible. Never exempt
+    """Bound observed transcript/telemetry COMMIT holds by the paired storage control."""
+    # Only the measured COMMIT signatures are eligible. Never exempt
     # callback work, unknown diagnostics, admission exhaustion or checkpoint errors.
     return (pair["complete"]
             and record.get("msg") == "sqlite write transaction held for at least one second"
-            and record.get("database") == "session"
-            and record.get("operation") == "append session events and transcript"
+            and (record.get("database"), record.get("operation")) in (
+                ("session", "append session events and transcript"),
+                ("telemetry", "coalesced background writes"))
             and 0 <= record.get("callback_ms", -1) < LONG_HOLD_MS
             and record.get("commit_ms", 0) >= LONG_HOLD_MS
             and LONG_HOLD_MS <= record.get("elapsed_ms", 0) <= pair["limit_ms"])

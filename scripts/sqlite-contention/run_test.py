@@ -90,6 +90,23 @@ class AcceptanceTests(unittest.TestCase):
         trials["head"][0]["failures"] = {"transcript_write": ["deadline exceeded"]}
         self.assertEqual(acceptance_failures(trials, 20000)[2], [0])
 
+    def test_telemetry_commit_requires_its_exact_signature_and_own_storage_pair(self):
+        """Shared sync pauses can explain only the measured telemetry COMMIT signature."""
+        # Invariant/owner/suite: this runner's paired storage-control decision;
+        # telemetry callback holds and head-only COMMIT pauses remain failures.
+        warning = dict(self.commit_pause(), database="telemetry", operation="coalesced background writes")
+        for baseline_max, change, expected_invalid in (
+                (1500, {}, []), (1000, {}, [0]),
+                (1500, {"callback_ms": 1000}, [0]),
+                (1500, {"commit_ms": 999}, [0]),
+                (1500, {"operation": "sweep event summaries"}, [0]),
+                (1500, {"database": "core"}, [0])):
+            with self.subTest(baseline_max=baseline_max, change=change):
+                trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
+                trials["baseline"][0]["latency"]["transcript_write"]["max_ms"] = baseline_max
+                trials["head"][0]["contention_diagnostics"] = [dict(warning, **change)]
+                self.assertEqual(acceptance_failures(trials, 20000)[2], expected_invalid)
+
     @staticmethod
     def commit_pause():
         """Return the observed successful transcript COMMIT warning signature."""
