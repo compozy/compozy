@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/agentinstance"
-	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 var ErrTriageOutputInvalid = errors.New("triage_output_invalid")
@@ -202,25 +201,22 @@ func boundedTriageText(text string, budget int) string {
 	return string(runes[:budget-1]) + "…"
 }
 
-// invalidTriageReply preserves syntax evidence without trusting credential detection on arbitrary text.
+// invalidTriageReply generates diagnostics without copying potentially secret reply characters.
 func invalidTriageReply(reply string) TriageOutcome {
 	outcome := failedTriage("triage_output_invalid")
-	reply = strings.Map(func(r rune) rune {
-		switch r {
-		case '{', '}', '[', ']', ':', ',', '"', '`', ' ', '\n', '\r', '\t':
-			return r
-		default:
-			return '•'
-		}
-	}, reply)
-	excerpt := diagnostics.RedactAndBound(reply, 500)
-	if excerpt == "" {
+	reply = strings.TrimSpace(reply)
+	if reply == "" {
 		return outcome
+	}
+	format := "unfenced"
+	if strings.HasPrefix(reply, "```") {
+		format = "fenced"
 	}
 	payload, err := json.Marshal(struct {
 		Reason string `json:"reason"`
 		Detail string `json:"detail"`
-	}{Reason: outcome.Reason, Detail: "The proactive check returned an invalid response. Output excerpt: " + excerpt})
+	}{Reason: outcome.Reason, Detail: "The proactive check returned an invalid response. " +
+		"Output excerpt: [REDACTED]. Format: " + format + "."})
 	if err != nil {
 		return outcome
 	}

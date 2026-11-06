@@ -1360,7 +1360,9 @@ func TestTriageReplyOutcome(t *testing.T) {
 		t.Parallel()
 		secret := "ghp_" + strings.Repeat("a", 36)
 		oauthCode := "shortOAuthCode42"
-		reply := "```json\n{\"code\":\"" + oauthCode + "\",\"token\":\"" + secret + "\"}\n``` " + strings.Repeat(
+		punctuationCode := "[{::,}][{,::}]"
+		reply := "```json\n{\"code\":\"" + oauthCode + "\",\"token\":\"" + secret +
+			"\",\"other\":\"" + punctuationCode + "\"}\n``` " + strings.Repeat(
 			"界",
 			600,
 		)
@@ -1375,10 +1377,10 @@ func TestTriageReplyOutcome(t *testing.T) {
 		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "```••••\n{") ||
+		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") ||
 			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
-			strings.Contains(payload.Detail, "token") || !strings.Contains(payload.Detail, "•") ||
-			!strings.HasSuffix(payload.Detail, "...[truncated]") || len(payload.Detail) > 600 {
+			strings.Contains(payload.Detail, punctuationCode) || !strings.Contains(payload.Detail, "[REDACTED]") ||
+			strings.Contains(payload.Detail, "token") || len(payload.Detail) > 600 {
 			t.Fatalf("payload=%+v", payload)
 		}
 		outcome.Report.SourceKey = "occ:test"

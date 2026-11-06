@@ -208,9 +208,9 @@ Return a valid proposals object in one Markdown code fence, using `json`, `JSON`
 language tag, with surrounding whitespace and LF or CRLF. The occurrence publishes its
 proposal report. The same wrappers around `NOTHING_TO_REPORT` finish quietly. Prose before,
 after, or inside the fence, multiple objects or fences, and malformed JSON still produce
-`triage_output_invalid`. Its failure report includes a bounded, redacted output excerpt in
-`detail`. Only JSON/fence punctuation and whitespace survive; all other characters are
-masked, including unregistered OAuth codes and credential-shaped text.
+`triage_output_invalid`. Its failure report includes a fully redacted output placeholder
+and a generated fenced/unfenced format classification in `detail`. No reply characters
+survive, including punctuation-only OAuth codes; the diagnostic stays fixed in size.
 
 Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
 `internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns
