@@ -84,7 +84,11 @@ export function PermissionExpiredReceipt({
   interaction,
   askedAt,
 }: PermissionExpiredReceiptProps) {
-  const cause = interactionExpiredByRestart(interaction) ? "restart" : "canceled";
+  const cause = interactionExpiredByRestart(interaction)
+    ? "restart"
+    : interaction.status === "timed_out"
+      ? "expired"
+      : "canceled";
   const copy = permissionExpiredReceiptCopy(permission, cause);
   return (
     <Receipt

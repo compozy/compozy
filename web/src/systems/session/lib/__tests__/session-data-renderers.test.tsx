@@ -261,6 +261,17 @@ describe("CompozyPermissionDataRenderer", () => {
     expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
   });
 
+  it("Should replace a pending transcript ask with a durable timeout receipt", () => {
+    renderPermissionWithContext(
+      pendingTerminalPermission,
+      new Map([["req-1", restartExpired({ status: "timed_out", resolution: "expired" })]])
+    );
+    const receipt = screen.getByTestId("permission-expired-receipt");
+    expect(receipt).toHaveAttribute("data-cause", "expired");
+    expect(receipt).toHaveTextContent("Not decided · the request expired before you answered");
+    expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
+  });
+
   it("Should read a canceled row without the restart resolution as a plain cancellation", () => {
     renderPermissionWithContext(
       pendingTerminalPermission,

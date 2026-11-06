@@ -131,7 +131,7 @@ describe("expiredInteractionsByRequest", () => {
     };
   }
 
-  it("Should key only canceled rows by the provider request id the transcript carries", () => {
+  it("Should key canceled and timed-out rows by the provider request id the transcript carries", () => {
     const restartExpired = record({});
     const rows = [
       restartExpired,
@@ -143,7 +143,8 @@ describe("expiredInteractionsByRequest", () => {
 
     const expired = expiredInteractionsByRequest(rows);
 
-    expect([...expired.keys()]).toEqual(["req-1"]);
+    expect([...expired.keys()]).toEqual(["req-1", "req-3"]);
+    expect(expired.get("req-3")?.status).toBe("timed_out");
     expect(expired.get("req-1")).toBe(restartExpired);
   });
 

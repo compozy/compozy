@@ -68,16 +68,15 @@ export function maskedAttentionNote(session: SessionPayload, badge: string): str
 
 /**
  * Settled decisions the transcript never recorded an answer for, keyed by the provider
- * request id the transcript's permission/clarify parts carry. Only `canceled` rows
- * qualify: a resolved or timed-out decision reaches the transcript as its own event, so
- * projecting it here would double the receipt.
+ * request id the transcript's permission/clarify parts carry. Canceled and timed-out
+ * rows also settle asks whose prompt stream closed before the final event arrived.
  */
 export function expiredInteractionsByRequest(
   rows: readonly SessionInteractionRecord[]
 ): ReadonlyMap<string, SessionInteractionRecord> {
   const byRequest = new Map<string, SessionInteractionRecord>();
   for (const row of rows) {
-    if (row.status !== "canceled") continue;
+    if (row.status !== "canceled" && row.status !== "timed_out") continue;
     const requestId = row.provider_request_id.trim();
     if (requestId) byRequest.set(requestId, row);
   }

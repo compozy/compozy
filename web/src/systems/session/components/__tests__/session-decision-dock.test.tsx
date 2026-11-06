@@ -326,49 +326,52 @@ describe("SessionDecisionDock", () => {
     expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
   });
 
-  it("Should not dock a permission the daemon expired at a restart, and count only live asks", async () => {
-    const expired: SessionInteractionRecord = {
-      session_id: "sess-1",
-      interaction_id: "int-1",
-      kind: "permission",
-      provider_request_id: "req-expired",
-      turn_id: "turn-001",
-      status: "canceled",
-      created_at: "2026-09-05T10:00:00Z",
-      resolution: "failed-by-restart",
-      resolved_by: "system",
-    };
-    const { container, rerender } = renderDock({
-      messages: [permissionMessage("req-expired")],
-      expiredInteractions: new Map([["req-expired", expired]]),
-    });
-    await waitFor(() => expect(fetchSessionClarifications).toHaveBeenCalled());
-    expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
+  it.each(["canceled", "timed_out"] as const)(
+    "Should not dock a %s permission, and count only live asks",
+    async status => {
+      const expired: SessionInteractionRecord = {
+        session_id: "sess-1",
+        interaction_id: "int-1",
+        kind: "permission",
+        provider_request_id: "req-expired",
+        turn_id: "turn-001",
+        status,
+        created_at: "2026-09-05T10:00:00Z",
+        resolution: "failed-by-restart",
+        resolved_by: "system",
+      };
+      const { container, rerender } = renderDock({
+        messages: [permissionMessage("req-expired")],
+        expiredInteractions: new Map([["req-expired", expired]]),
+      });
+      await waitFor(() => expect(fetchSessionClarifications).toHaveBeenCalled());
+      expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
 
-    rerender(
-      <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-      >
-        <SessionRuntimeRenderProvider
-          expiredInteractions={new Map([["req-expired", expired]])}
-          sessionId={SESSION_ID}
-          workspaceId={WORKSPACE_ID}
+      rerender(
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
         >
-          <SessionTranscriptThreadProvider
-            messages={[permissionMessage("req-expired"), permissionMessage("req-live")]}
-            status="success"
-            error={null}
-            retry={vi.fn()}
+          <SessionRuntimeRenderProvider
+            expiredInteractions={new Map([["req-expired", expired]])}
+            sessionId={SESSION_ID}
+            workspaceId={WORKSPACE_ID}
           >
-            <SessionDecisionDock sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
-          </SessionTranscriptThreadProvider>
-        </SessionRuntimeRenderProvider>
-      </QueryClientProvider>
-    );
+            <SessionTranscriptThreadProvider
+              messages={[permissionMessage("req-expired"), permissionMessage("req-live")]}
+              status="success"
+              error={null}
+              retry={vi.fn()}
+            >
+              <SessionDecisionDock sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
+            </SessionTranscriptThreadProvider>
+          </SessionRuntimeRenderProvider>
+        </QueryClientProvider>
+      );
 
-    expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
-    expect(screen.queryByTestId("permission-dock-count")).not.toBeInTheDocument();
-  });
+      expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
+      expect(screen.queryByTestId("permission-dock-count")).not.toBeInTheDocument();
+    }
+  );
 
   it("Should decide on digit keys 1–4, with key 4 firing while the menu is closed", async () => {
     renderDock({ messages: [permissionMessage("req-1")] });
