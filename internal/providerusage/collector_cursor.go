@@ -16,8 +16,16 @@ func NewCursorCollector(options ...CollectorOption) *CursorCollector {
 	return &CursorCollector{newCollectorHTTP("https://cursor.com", options)}
 }
 func (*CursorCollector) ProviderID() string { return "cursor" }
+
+// SelectorKey implements AccountSelector.
+func (*CursorCollector) SelectorKey(env []string) string {
+	return homeSelectorKey(env, cursorConfigHomeKey)
+}
+
+const cursorConfigHomeKey = "XDG_CONFIG_HOME"
+
 func (c *CursorCollector) credential(t Target) (collectorCredential, error) {
-	home, err := collectorHomePath(t, "XDG_CONFIG_HOME", ".config")
+	home, err := collectorHomePath(t, cursorConfigHomeKey, ".config")
 	if err != nil {
 		return collectorCredential{}, err
 	}

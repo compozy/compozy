@@ -139,7 +139,7 @@ export function ProviderUsageRow({
           />
           <KindIcon
             aria-hidden="true"
-            kind={target.provider_id}
+            kind={target.collector_id ?? target.provider_id}
             registry={providerKindIconRegistry}
             size="sm"
             tone="muted"

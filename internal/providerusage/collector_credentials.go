@@ -17,8 +17,9 @@ type collectorCredential struct{ token, account, email, domain string }
 func (c collectorCredential) identity() CredentialIdentity {
 	return NewCredentialIdentity(SourceKindOAuthHTTP, []byte(c.token), c.account)
 }
-func routeEnvValue(t Target, key string) (string, bool) {
-	for _, entry := range slices.Backward(t.Route.Env) {
+func routeEnvValue(t Target, key string) (string, bool) { return envValue(t.Route.Env, key) }
+func envValue(env []string, key string) (string, bool) {
+	for _, entry := range slices.Backward(env) {
 		if value, ok := strings.CutPrefix(entry, key+"="); ok {
 			return value, true
 		}
@@ -26,23 +27,27 @@ func routeEnvValue(t Target, key string) (string, bool) {
 	return "", false
 }
 func routeEnv(t Target, key string) string { value, _ := routeEnvValue(t, key); return value }
-func collectorHomePath(t Target, override string, parts ...string) (string, error) {
-	if override != "" {
-		if value := routeEnv(t, override); value != "" {
-			if filepath.IsAbs(value) {
-				return value, nil
-			}
-			return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
+
+// homeSelectorKey is the variable a home-based collector reads its directory from: override when it
+// is set non-empty, otherwise HOME, or USERPROFILE when HOME is empty and USERPROFILE is set.
+func homeSelectorKey(env []string, override string) string {
+	for _, key := range []string{override, "HOME", "USERPROFILE"} {
+		if value, _ := envValue(env, key); key != "" && value != "" {
+			return key
 		}
 	}
-	home := routeEnv(t, "HOME")
-	if home == "" {
-		home = routeEnv(t, "USERPROFILE")
-	}
-	if !filepath.IsAbs(home) {
+	return "HOME"
+}
+func collectorHomePath(t Target, override string, parts ...string) (string, error) {
+	key := homeSelectorKey(t.Route.Env, override)
+	value := routeEnv(t, key)
+	if !filepath.IsAbs(value) {
 		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 	}
-	return filepath.Join(append([]string{home}, parts...)...), nil
+	if key == override {
+		return value, nil
+	}
+	return filepath.Join(append([]string{value}, parts...)...), nil
 }
 func readCredentialFile(path, provider string) ([]byte, error) {
 	if path == "" {

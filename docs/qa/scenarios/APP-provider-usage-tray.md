@@ -172,3 +172,23 @@ split strings continue to select the alias account.
 
 Validation: covered by the focused resolver suite; live account walk not run in
 the overloaded-host repair scope.
+
+## Alias rows in Settings and logos (#1266)
+
+QA-3 — With Claude aliases configured, plus a Codex alias whose `CODEX_HOME` keeps its login in the
+system keyring (its row is `unsupported`):
+
+- Settings → Provider usage lists the built-in providers, then each eligible alias by its display
+  name (for example "Claude (mm1)") with the Claude mark. Aliases with an unsupported auth mode or no
+  collector family are not listed; a saved toggle for a removed alias stays listed.
+- Turn **Show provider usage** off: the refresh cadence hides, the Providers group stays visible and
+  editable, and saving an alias switch writes only `provider_usage.providers.<alias>.enabled`.
+- In the usage popover and Usage app, alias rows show the Claude mark; the unsupported Codex alias in
+  the quiet group shows the Codex mark. Disabled rows stay hidden from the panel (unchanged).
+  `data-provider`, row actions, and refresh targets keep the alias ID.
+
+Supporting checks: `-provider-usage-settings-page.test.tsx` (UT-010–UT-012) and
+`provider-usage-panel.test.tsx` (UT-013/UT-014).
+
+Targeted evidence: [#1266 report](../reports/2026-11-04-provider-usage-runtime-alias.md) — QA-3 Pass. The
+broader scenario keeps its status.

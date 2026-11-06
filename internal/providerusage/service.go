@@ -204,8 +204,17 @@ func (s *Manager) shouldCollectTargetLocked(previous Target) bool {
 func targetChanged(previous, current Target) bool {
 	return previous.ProviderID == "" || previous.Collector() != current.Collector() ||
 		previous.RouteFingerprint != current.RouteFingerprint ||
-		previous.Status != current.Status ||
+		previous.Status != current.Status || usageErrorKey(previous.Error) != usageErrorKey(current.Error) ||
 		!maps.Equal(previous.Route.BoundSecrets, current.Route.BoundSecrets)
+}
+
+// usageErrorKey lets a resolver error whose message changes, such as a new selector key, replace the
+// published snapshot even when the status stays the same.
+func usageErrorKey(err *UsageError) string {
+	if err == nil {
+		return ""
+	}
+	return string(err.Code) + "\x00" + err.Message
 }
 
 func initialSnapshot(t Target, collector Collector) Snapshot {
@@ -264,6 +273,9 @@ func (s *Manager) envelopeLocked(profile string) Envelope {
 		}
 		snapshot := cloneSnapshot(row.snapshot)
 		snapshot.Refreshing = row.flight != nil && row.target.Status == ""
+		if collector := row.target.Collector(); collector != snapshot.ProviderID {
+			snapshot.CollectorID = collector
+		}
 		result.Targets = append(result.Targets, snapshot)
 	}
 	result.Revision = p.revision

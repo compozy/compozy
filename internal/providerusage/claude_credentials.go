@@ -199,8 +199,24 @@ func claudeHome(target Target) string {
 	}
 	return home
 }
+
+const (
+	claudeConfigDirKey     = "CLAUDE_CONFIG_DIR"
+	claudeSecureStorageKey = "CLAUDE_SECURESTORAGE_CONFIG_DIR"
+)
+
+// SelectorKey implements AccountSelector: a present CLAUDE_SECURESTORAGE_CONFIG_DIR takes
+// precedence over CLAUDE_CONFIG_DIR for the credential lookup.
+func (*ClaudeCollector) SelectorKey(env []string) string { return claudeSelectorKey(env) }
+
+func claudeSelectorKey(env []string) string {
+	if _, set := envValue(env, claudeSecureStorageKey); set {
+		return claudeSecureStorageKey
+	}
+	return claudeConfigDirKey
+}
 func claudeConfigDir(target Target) string {
-	dir, _ := routeEnvValue(target, "CLAUDE_CONFIG_DIR")
+	dir, _ := routeEnvValue(target, claudeConfigDirKey)
 	if dir == "" {
 		if home := claudeHome(target); home != "" {
 			dir = filepath.Join(home, ".claude")
@@ -210,7 +226,8 @@ func claudeConfigDir(target Target) string {
 }
 func claudeCredentialPath(target Target) string {
 	dir := claudeConfigDir(target)
-	if override, set := routeEnvValue(target, "CLAUDE_SECURESTORAGE_CONFIG_DIR"); set {
+	if claudeSelectorKey(target.Route.Env) == claudeSecureStorageKey {
+		override, _ := routeEnvValue(target, claudeSecureStorageKey)
 		dir = norm.NFC.String(override)
 		if dir == "" && claudeHome(target) != "" {
 			dir = filepath.Join(claudeHome(target), ".claude")
@@ -228,7 +245,7 @@ func claudeAccountPaths(target Target) (string, string) {
 		return "", ""
 	}
 	legacy := filepath.Join(dir, ".config.json")
-	modernDir, _ := routeEnvValue(target, "CLAUDE_CONFIG_DIR")
+	modernDir, _ := routeEnvValue(target, claudeConfigDirKey)
 	if modernDir == "" {
 		modernDir = claudeHome(target)
 	}

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ReloadExtensionRequest is a daemon API value.
+type ReloadExtensionRequest struct {
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
 // RemoveDiscoveredWorktreeRequest is a daemon API value.
 type RemoveDiscoveredWorktreeRequest struct {
 	Path        string `json:"path"`

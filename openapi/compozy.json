@@ -20910,6 +20910,9 @@
             "nullable": true,
             "type": "string"
           },
+          "collector_id": {
+            "type": "string"
+          },
           "confidence": {
             "type": "string"
           },

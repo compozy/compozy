@@ -3397,7 +3397,6 @@ func TestProviderUsageResolver(t *testing.T) {
 				Command:         command,
 			}
 		}
-		cfg.Providers["claude-unset"] = claudeAlias("env -u CLAUDE_CONFIG_DIR npx -y claude-agent-acp")
 		cfg.Providers["claude-chdir"] = claudeAlias(
 			"env -C /tmp CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp",
 		)
@@ -3410,7 +3409,9 @@ func TestProviderUsageResolver(t *testing.T) {
 		cfg.Providers["claude-split-expansion"] = claudeAlias(
 			`env --split-string='CLAUDE_CONFIG_DIR=${HOME}/work npx claude-agent-acp'`,
 		)
-		isolated := claudeAlias("env HOME=" + accountDir + " npx -y claude-agent-acp")
+		isolated := claudeAlias(
+			"env HOME=" + accountDir + " CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp",
+		)
 		isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
 		cfg.Providers["claude-isolated"] = isolated
 		cfg.Providers["openrouter-team"] = compozyconfig.ProviderConfig{
@@ -3434,15 +3435,6 @@ func TestProviderUsageResolver(t *testing.T) {
 		for _, target := range targets {
 			byID[target.ProviderID] = target
 		}
-		unset := byID["claude-unset"]
-		if unset.Error != nil || slices.ContainsFunc(unset.Route.Env, func(entry string) bool {
-			return strings.HasPrefix(entry, "CLAUDE_CONFIG_DIR=")
-		}) {
-			t.Fatal("env -u left the inherited CLAUDE_CONFIG_DIR in the alias route")
-		}
-		if !slices.ContainsFunc(unset.Route.Env, func(entry string) bool { return strings.HasPrefix(entry, "HOME=") }) {
-			t.Fatal("env -u dropped unrelated variables from the alias route")
-		}
 		for _, id := range []string{"claude-chdir", "claude-split"} {
 			if !slices.Contains(byID[id].Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
 				t.Fatalf("%s route lost its own CLAUDE_CONFIG_DIR", id)
@@ -3461,6 +3453,168 @@ func TestProviderUsageResolver(t *testing.T) {
 		if team := byID["openrouter-team"]; team.CollectorID != "openrouter-team" || team.Error == nil ||
 			team.Error.Code != providerusage.ErrorCodeNoCollector {
 			t.Fatalf("bound-secret alias without an api_key slot collected: collector=%s", team.CollectorID)
+		}
+	})
+	t.Run("Should fail closed for an alias without its own account selector", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		accountDir := filepath.Join(t.TempDir(), ".claude-mm1")
+		alias := func(runtime, command string) compozyconfig.ProviderConfig {
+			return compozyconfig.ProviderConfig{
+				Harness:         compozyconfig.ProviderHarnessACP,
+				RuntimeProvider: runtime,
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+				Command:         command,
+			}
+		}
+		resolve := func(baseEnv []string) map[string]providerusage.Target {
+			cfg := testConfig(t, home)
+			cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+			cfg.Providers["claude-mm1"] = alias(
+				"claude", "env -u ARGV0 CLAUDE_CONFIG_DIR="+accountDir+" npx -y claude-agent-acp",
+			)
+			cfg.Providers["claude-none"] = alias("claude", "npx -y claude-agent-acp")
+			cfg.Providers["claude-empty"] = alias("claude", "CLAUDE_CONFIG_DIR= npx -y claude-agent-acp")
+			cfg.Providers["claude-unset"] = alias("claude", "env -u CLAUDE_CONFIG_DIR npx -y claude-agent-acp")
+			isolated := alias("claude", "npx -y claude-agent-acp")
+			isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+			cfg.Providers["claude-isolated"] = isolated
+			cfg.Providers["cursor-alt"] = alias("cursor", "HOME="+accountDir+" cursor-agent acp")
+			cfg.Providers["gemini-win"] = alias("gemini", "HOME= USERPROFILE="+accountDir+" gemini --acp")
+			cfg.Providers["gemini-win-inherited"] = alias("gemini", "HOME= gemini --acp")
+			cfg.Providers["openrouter-alt"] = compozyconfig.ProviderConfig{
+				Command:         "pi-acp",
+				Harness:         compozyconfig.ProviderHarnessPiACP,
+				RuntimeProvider: "openrouter",
+				AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+					Name: "api_key", TargetEnv: "OPENROUTER_API_KEY", SecretRef: "env:ALT_KEY",
+				}},
+			}
+			resolver := &providerUsageResolver{cfg: cfg, home: home, baseEnv: baseEnv,
+				collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			}
+			targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			byID := make(map[string]providerusage.Target, len(targets))
+			for _, target := range targets {
+				byID[target.ProviderID] = target
+			}
+			return byID
+		}
+		requireGated := func(target providerusage.Target, key string) {
+			t.Helper()
+			want := "Set " + key + " in this provider's command so CompozyOS reads its own sign-in"
+			if target.Status != providerusage.StatusSignedOut || target.Error == nil ||
+				target.Error.Code != providerusage.ErrorCodeAuthMissing || target.Error.Message != want ||
+				len(target.Route.Env) != 0 {
+				t.Fatalf("%s not gated on %s: status=%s error=%+v", target.ProviderID, key, target.Status, target.Error)
+			}
+		}
+		byID := resolve([]string{
+			"HOME=" + t.TempDir(), "CLAUDE_CONFIG_DIR=/inherited/.claude", "XDG_CONFIG_HOME=/inherited/.config",
+		})
+		// UT-004: the alias's own selector collects through its route.
+		if mm1 := byID["claude-mm1"]; mm1.Error != nil ||
+			!slices.Contains(mm1.Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
+			t.Fatalf("alias with its own selector gated: %+v", mm1.Error)
+		}
+		// UT-005: missing, empty, unset, and isolated-home selectors read no credential.
+		for _, id := range []string{"claude-none", "claude-empty", "claude-unset", "claude-isolated"} {
+			requireGated(byID[id], "CLAUDE_CONFIG_DIR")
+		}
+		// UT-006: an inherited higher-precedence variable is the effective selector.
+		requireGated(byID["cursor-alt"], "XDG_CONFIG_HOME")
+		// UT-007: the family-ID provider and bound-secret aliases are exempt.
+		for _, id := range []string{"claude", "openrouter-alt"} {
+			if target := byID[id]; target.Error != nil {
+				t.Fatalf("%s gated: %+v", id, target.Error)
+			}
+		}
+		secure := resolve([]string{"HOME=" + t.TempDir(), "CLAUDE_SECURESTORAGE_CONFIG_DIR=/c"})
+		requireGated(secure["claude-mm1"], "CLAUDE_SECURESTORAGE_CONFIG_DIR")
+		// The Windows USERPROFILE fallback is the selector when HOME is empty.
+		windows := resolve([]string{"HOME=" + t.TempDir(), "USERPROFILE=/inherited"})
+		if target := windows["gemini-win"]; target.Error != nil {
+			t.Fatalf("alias with its own USERPROFILE gated: %+v", target.Error)
+		}
+		requireGated(windows["gemini-win-inherited"], "USERPROFILE")
+	})
+	t.Run("Should log a missing alias selector once per change", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		cfg.Providers["claude-mm5"] = compozyconfig.ProviderConfig{
+			Harness:         compozyconfig.ProviderHarnessACP,
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			Command:         "npx -y claude-agent-acp",
+		}
+		var logs bytes.Buffer
+		daemonHome := t.TempDir()
+		resolver := &providerUsageResolver{cfg: cfg, home: home, baseEnv: []string{"HOME=" + daemonHome},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			logger:     slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		warnings := func(want int, step string) {
+			t.Helper()
+			for range 3 {
+				if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != want {
+				t.Fatalf("%s: selector warnings = %d, want %d:\n%s", step, got, want, logs.String())
+			}
+		}
+		warnings(1, "unchanged missing selector")
+		resolver.baseEnv = append(resolver.baseEnv, "CLAUDE_SECURESTORAGE_CONFIG_DIR=/secure")
+		warnings(2, "changed effective selector")
+		resolver.baseEnv = []string{"HOME=" + daemonHome}
+		owned := resolver.cfg.Providers["claude-mm5"]
+		owned.Command = "CLAUDE_CONFIG_DIR=/accounts/mm5 npx -y claude-agent-acp"
+		resolver.cfg.Providers["claude-mm5"] = owned
+		warnings(2, "selector fixed")
+		owned.Command = "npx -y claude-agent-acp"
+		resolver.cfg.Providers["claude-mm5"] = owned
+		warnings(3, "selector removed again")
+		if !strings.Contains(logs.String(), "selector_key=CLAUDE_CONFIG_DIR") ||
+			!strings.Contains(logs.String(), "selector_key=CLAUDE_SECURESTORAGE_CONFIG_DIR") ||
+			strings.Contains(logs.String(), daemonHome) || strings.Contains(logs.String(), "/secure") {
+			t.Fatalf("selector warning must name the key without values:\n%s", logs.String())
+		}
+	})
+	t.Run("Should keep alias selector warnings apart per profile", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		resolver := &providerUsageResolver{
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			logger:     slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		alias := compozyconfig.ProviderConfig{
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		env := []string{"CLAUDE_CONFIG_DIR=/accounts/b"}
+		for range 3 {
+			if resolver.aliasSelectorError("work", "claude-mm5", "claude", alias, env, nil) == nil {
+				t.Fatal("profile without an owned selector was not gated")
+			}
+			owned := map[string]bool{"CLAUDE_CONFIG_DIR": true}
+			if resolver.aliasSelectorError("personal", "claude-mm5", "claude", alias, env, owned) != nil {
+				t.Fatal("profile with an owned selector was gated")
+			}
+		}
+		if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != 1 {
+			t.Fatalf("selector warnings = %d across alternating profiles, want 1:\n%s", got, logs.String())
+		}
+		resolver.pruneSelectorWarnings([]string{"personal"})
+		if _, kept := resolver.selectorWarned.Load("work\x00claude-mm5"); kept {
+			t.Fatal("selector warning of a removed profile was kept")
 		}
 	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
@@ -3520,6 +3674,143 @@ func TestProviderUsageResolver(t *testing.T) {
 		); err == nil ||
 			providerusage.AsUsageError(err, "").Code != providerusage.ErrorCodeProfileNotFound {
 			t.Fatal("unknown profile accepted")
+		}
+	})
+}
+
+func TestProviderUsageAliasSelector(t *testing.T) {
+	t.Run("Should keep alias accounts apart and tag alias rows with their family IT-001 IT-002", func(t *testing.T) {
+		t.Parallel()
+		writeAccount := func(dir, token string) {
+			t.Helper()
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			credential := fmt.Sprintf(
+				`{"claudeAiOauth":{"accessToken":%q,"expiresAt":%d,"scopes":["user:profile","user:inference"]}}`,
+				token, time.Now().Add(time.Hour).UnixMilli(),
+			)
+			if err := os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(credential), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		daemonHome, accounts := t.TempDir(), t.TempDir()
+		writeAccount(filepath.Join(daemonHome, ".claude"), "token-C")
+		writeAccount(filepath.Join(accounts, "a"), "token-A")
+		writeAccount(filepath.Join(accounts, "b"), "token-B")
+		utilization := map[string]int{"Bearer token-A": 10, "Bearer token-B": 20}
+		var mu sync.Mutex
+		var seen []string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			seen = append(seen, r.Header.Get("Authorization"))
+			mu.Unlock()
+			fmt.Fprintf(w, `{"five_hour":{"utilization":%d}}`, utilization[r.Header.Get("Authorization")])
+		}))
+		t.Cleanup(server.Close)
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		claude := compozyconfig.BuiltinProviders()["claude"]
+		claude.Command = "env CLAUDE_CONFIG_DIR=" + filepath.Join(accounts, "a") + " " + claude.Command
+		cfg.Providers["claude"] = claude
+		alias := func(command string) compozyconfig.ProviderConfig {
+			return compozyconfig.ProviderConfig{
+				Harness:         compozyconfig.ProviderHarnessACP,
+				RuntimeProvider: "claude",
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+				Command:         command,
+			}
+		}
+		cfg.Providers["claude-mm1"] = alias(
+			"env -u ARGV0 CLAUDE_CONFIG_DIR=" + filepath.Join(accounts, "b") + " npx -y claude-agent-acp",
+		)
+		cfg.Providers["claude-mm5"] = alias("npx -y claude-agent-acp")
+		cfg.Providers["claude-mm2"] = alias(
+			"env CLAUDE_CONFIG_DIR=" + filepath.Join(accounts, "b") + " claude-agent-acp",
+		)
+		cfg.ProviderUsage.Providers = map[string]compozyconfig.ProviderUsageProviderConfig{
+			"claude-mm2": {Enabled: false},
+		}
+		registry := providerusage.Registry{
+			"claude": providerusage.NewClaudeCollector(providerusage.WithClaudeHTTP(server.URL, nil)),
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home, baseEnv: []string{"HOME=" + daemonHome},
+			collectors: registry,
+		}
+		service := providerusage.NewService(providerusage.Options{Resolver: resolver, Collectors: registry})
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		envelope, err := service.Refresh(t.Context(), providerusage.RefreshRequest{
+			ProfileID: store.DefaultProfileID, Wait: 15 * time.Second, Intent: providerusage.IntentBackground,
+			ProviderIDs: []string{"claude", "claude-mm1", "claude-mm5"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]providerusage.Snapshot{}
+		for _, snapshot := range envelope.Targets {
+			byID[snapshot.ProviderID] = snapshot
+		}
+		for id, want := range map[string]float64{"claude": 10, "claude-mm1": 20} {
+			snapshot := byID[id]
+			if snapshot.Status != providerusage.StatusOK || len(snapshot.Windows) == 0 ||
+				*snapshot.Windows[0].UsedPercent != want {
+				t.Fatalf("%s snapshot = status %s windows %+v", id, snapshot.Status, snapshot.Windows)
+			}
+		}
+		if mm5 := byID["claude-mm5"]; mm5.Status != providerusage.StatusSignedOut || mm5.Error == nil ||
+			mm5.Error.Code != providerusage.ErrorCodeAuthMissing || len(mm5.Windows) != 0 {
+			t.Fatalf("alias without selector = status %s error %+v", mm5.Status, mm5.Error)
+		}
+		mu.Lock()
+		if slices.Contains(seen, "Bearer token-C") {
+			t.Fatal("daemon default account token was sent for an alias")
+		}
+		mu.Unlock()
+		full, err := service.Envelope(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(core.ProviderUsageEnvelopePayload(full))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire struct {
+			Targets []map[string]any `json:"targets"`
+		}
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatal(err)
+		}
+		collectors := map[string]any{}
+		for _, row := range wire.Targets {
+			collectors[row["provider_id"].(string)] = row["collector_id"]
+		}
+		// IT-002: ok, selector-rejected, and disabled aliases name their family; others omit it.
+		for _, id := range []string{"claude-mm1", "claude-mm5", "claude-mm2"} {
+			if collectors[id] != "claude" {
+				t.Fatalf("%s collector_id = %v, want claude", id, collectors[id])
+			}
+		}
+		for _, id := range []string{"claude", "opencode"} {
+			if got, ok := collectors[id]; !ok || got != nil {
+				t.Fatalf("%s collector_id = %v (listed %t), want omitted", id, got, ok)
+			}
+		}
+		// IT-002: with collection off, the single-provider diagnostic row still names the family.
+		for id, want := range map[string]string{"claude-mm1": "claude", "claude": ""} {
+			view, err := core.ProviderUsageView(providerusage.Envelope{}, id, &cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(view.Targets) != 1 || view.Targets[0].Status != providerusage.StatusDisabled ||
+				view.Targets[0].CollectorID != want {
+				t.Fatalf("master-off %s view = %+v, want collector %q", id, view.Targets, want)
+			}
 		}
 	})
 }

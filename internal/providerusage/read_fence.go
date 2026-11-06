@@ -158,7 +158,7 @@ func credentialEvidencePaths(target Target) []string {
 		legacy, modern := claudeAccountPaths(target)
 		return []string{claudeCredentialPath(target), legacy, modern}
 	case "cursor":
-		home, err := collectorHomePath(target, "XDG_CONFIG_HOME", ".config")
+		home, err := collectorHomePath(target, cursorConfigHomeKey, ".config")
 		if err != nil {
 			return nil
 		}
@@ -170,7 +170,7 @@ func credentialEvidencePaths(target Target) []string {
 		}
 		return []string{filepath.Join(home, "oauth_creds.json")}
 	case "kimi-cli":
-		home, err := collectorHomePath(target, "KIMI_CODE_HOME", ".kimi-code")
+		home, err := collectorHomePath(target, kimiCodeHomeKey, ".kimi-code")
 		if err != nil {
 			return nil
 		}

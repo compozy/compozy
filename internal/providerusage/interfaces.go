@@ -33,6 +33,16 @@ type ResolvedRoute struct {
 	KeychainAccess bool              // operator consent recorded in config
 }
 
+// AccountSelector is implemented by native-CLI collectors whose account is chosen by a route
+// variable. SelectorKey names the variable an alias's own launch command must assign for env, after
+// the collector's precedence: the dedicated account variable even when the lookup would fall back
+// to its HOME-derived default (Claude, Codex, Kimi CLI), or the variable a home-based collector reads
+// (Cursor, Gemini). It must share that precedence with the credential lookup. "" means the
+// collector has no such variable.
+type AccountSelector interface {
+	SelectorKey(env []string) string
+}
+
 // TargetResolver lists the enabled targets for one profile.
 type TargetResolver interface {
 	Targets(ctx context.Context, profileID string) ([]Target, error)

@@ -257,6 +257,7 @@ type ProviderUsageStreamEvent struct {
 // ProviderUsageTarget is a daemon API value.
 type ProviderUsageTarget struct {
 	ProviderID    string                  `json:"provider_id"`
+	CollectorID   string                  `json:"collector_id,omitempty"`
 	ProviderName  string                  `json:"provider_name"`
 	Status        string                  `json:"status"`
 	Source        *ProviderUsageSource    `json:"source"`
@@ -441,10 +442,4 @@ type Reference struct {
 // RejectPolicy is a daemon API value.
 type RejectPolicy struct {
 	Route NodeID `json:"route"`
-}
-
-// ReloadExtensionRequest is a daemon API value.
-type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
