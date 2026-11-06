@@ -213,10 +213,6 @@ func (m *Manager) restoreProfileMoveSource(
 		return store.ErrSessionWorktreeConflict
 	}
 	meta = &current
-	if rebind && restoredID == "" && len(children) == 0 {
-		_, err := m.setArchived(operationCtx, meta.WorkspaceID, meta.ID, false)
-		return err
-	}
 	info, previous, changed, err = m.unarchiveAndRebindLocked(operationCtx, meta, "", false)
 	if err != nil {
 		return err
@@ -235,6 +231,7 @@ func (m *Manager) restoreProfileMoveSource(
 	return err
 }
 
+// unarchiveAndRebindLocked restores catalog visibility before the binding store permits an update.
 func (m *Manager) unarchiveAndRebindLocked(
 	ctx context.Context,
 	meta *store.SessionMeta,
@@ -398,6 +395,8 @@ func (m *Manager) recordCompletedProfileMove(ctx context.Context, move *store.Se
 		return err
 	}
 	defer unlock()
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	meta, err := m.readSessionMetaReadOnly(lockedCtx, move.SessionID)
 	if errors.Is(err, ErrSessionNotFound) {
 		return nil

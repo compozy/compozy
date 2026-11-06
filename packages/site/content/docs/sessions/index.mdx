@@ -361,7 +361,7 @@ Archived, stopped descendants stay in the source profile with their lineage poin
 archived original. The `session_move_to_profile_has_children` refusal counts only descendants
 that still need to be stopped or archived.
 
-When unarchiving the recorded original of a completed move with a subagent archive family, bindings to its released checkout
+When unarchiving the recorded original of a completed move, bindings to its released checkout
 are cleared for the original and subagents, so they can resume in the workspace directory.
 Ordinary unarchive keeps the existing worktree binding without consulting Git, even when the
 checkout is missing; explicitly bind or unbind it before resuming. An unfinished move must settle

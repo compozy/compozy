@@ -470,8 +470,86 @@ func TestManagerMoveToProfile(t *testing.T) {
 			if err != nil || original.ProfileID != store.DefaultProfileID {
 				t.Fatalf("original after move = %#v, %v; want it kept in its own profile", original, err)
 			}
+			if _, err := h.manager.Unarchive(t.Context(), h.workspaceID, source.ID); err != nil {
+				t.Fatal(err)
+			}
+			restored, err := h.manager.Status(t.Context(), source.ID)
+			if err != nil || restored.WorktreeID != "" {
+				t.Fatalf("childless source binding after unarchive = %#v, %v", restored, err)
+			}
+			if _, err := h.manager.Resume(t.Context(), source.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+				t.Fatal(err)
+			}
 		},
 	)
+
+	t.Run("Should retain both a concurrent rename and completed move provenance", func(t *testing.T) {
+		t.Parallel()
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		renameRead, releaseRename := make(chan struct{}), make(chan struct{})
+		release := sync.OnceFunc(func() { close(releaseRename) })
+		t.Cleanup(release)
+		gate := make(chan struct{}, 1)
+		metaPath := store.SessionMetaFile(filepath.Join(h.manager.homePaths.SessionsDir, source.ID))
+		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err == nil && path == metaPath {
+				select {
+				case gate <- struct{}{}:
+					close(renameRead)
+					<-releaseRename
+				default:
+				}
+			}
+			return meta, err
+		}
+		renameDone := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Rename(t.Context(), h.workspaceID, source.ID, "Renamed original")
+			renameDone <- err
+		}()
+		select {
+		case <-renameRead:
+		case err := <-renameDone:
+			t.Fatalf("rename completed before the coordinated metadata read: %v", err)
+		}
+		recordDone := make(chan error, 1)
+		go func() {
+			recordDone <- h.manager.recordCompletedProfileMove(t.Context(), &store.SessionProfileMove{SessionID: source.ID, WorkspaceID: h.workspaceID, ProfileID: store.DefaultProfileID, SourceWorktreeID: source.WorktreeID})
+		}()
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		finished := false
+		select {
+		case err := <-recordDone:
+			if err != nil {
+				t.Error(err)
+			}
+			finished = true
+		case <-timer.C:
+		}
+		release()
+		if err := <-renameDone; err != nil {
+			t.Fatal(err)
+		}
+		if !finished {
+			if err := <-recordDone; err != nil {
+				t.Fatal(err)
+			}
+		}
+		persisted, err := store.ReadSessionMeta(metaPath)
+		if err != nil || persisted.Name != "Renamed original" || persisted.CompletedProfileMove == nil ||
+			persisted.CompletedProfileMove.SourceWorktreeID != source.WorktreeID {
+			t.Fatalf("concurrent metadata = %#v, %v", persisted, err)
+		}
+	})
 
 	t.Run("Should move with archived descendants while preserving their profile and lineage", func(t *testing.T) {
 		t.Parallel()

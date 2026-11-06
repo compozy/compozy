@@ -113,3 +113,8 @@ and journal retry, padded IDs, ordinary unarchive without Git, stale-root restor
 removal preparation during restoration. The optional completed-move provenance in source metadata
 is written before deleting the open journal; older metadata without it keeps ordinary unarchive
 behavior. No SQLite schema change is required.
+
+15. Move a source with no descendants, then unarchive and resume it: its released-checkout binding
+    is cleared as for a family. Rename an archived original while completion provenance is being
+    recorded: both the new name and the completed-move record survive. The owning move suite
+    covers the childless workflow and coordinates the rename snapshot with the provenance write.
