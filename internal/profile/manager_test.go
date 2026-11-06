@@ -1959,55 +1959,75 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 func TestManagerRecoveryAndReservation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should recover User artifact deletion after the profile catalog row is gone", func(t *testing.T) {
-		t.Parallel()
-		manager, db, home := newTestManager(t)
-		artifactStore, err := tools.OpenFilesystemToolArtifactStore(t.Context(), home.ToolArtifactsDir,
-			tools.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1024, MaxAge: time.Hour})
-		if err != nil {
-			t.Fatal(err)
-		}
-		manager.userArtifacts = artifactStore
-		profileID := strings.Repeat("T", 26)
-		scope := workspaceaccess.ScopeTarget("", profileID)
-		ref, err := artifactStore.Put(t.Context(), scope, []byte("interrupted deletion"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		insertLifecycleOperation(t.Context(), t, db, "op_artifacts", profileID, "delete", "gone", "", "applied")
-		if _, err := db.DB().ExecContext(t.Context(),
-			`INSERT INTO profile_lifecycle_op_steps (op_id, seq, action, status, updated_at)
-    VALUES ('op_artifacts', 0, ?, 'pending', ?)`, stepRemoveUserToolArtifacts, formatTimestamp(time.Now())); err != nil {
-			t.Fatal(err)
-		}
-		if err := manager.Recover(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if err := manager.Recover(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := artifactStore.ReadPage(
-			t.Context(),
-			scope,
-			ref.URI,
-			0,
-			0,
-		); !errors.Is(
-			err,
-			tools.ErrToolArtifactNotFound,
-		) {
-			t.Fatalf("recovered artifact error = %v", err)
-		}
-		var status string
-		if err := db.ReadDB().
-			QueryRowContext(t.Context(), `SELECT status FROM profile_lifecycle_ops WHERE id = 'op_artifacts'`).
-			Scan(&status); err != nil {
-			t.Fatal(err)
-		}
-		if status != opStatusDone {
-			t.Fatalf("recovered operation status = %q", status)
-		}
-	})
+	for _, tc := range []struct {
+		name, stepStatus string
+		wantCalls        int
+	}{
+		{"Should recover pending User artifact deletion after the profile row is gone", "pending", 1},
+		{"Should skip completed User artifact cleanup in an active recovery operation", "done", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager, db, home := newTestManager(t)
+			artifactStore, err := tools.OpenFilesystemToolArtifactStore(t.Context(), home.ToolArtifactsDir,
+				tools.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1024, MaxAge: time.Hour})
+			if err != nil {
+				t.Fatal(err)
+			}
+			profileID := strings.Repeat("T", 26)
+			scope := workspaceaccess.ScopeTarget("", profileID)
+			ref, err := artifactStore.Put(t.Context(), scope, []byte("interrupted deletion"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.stepStatus == "done" {
+				if err := artifactStore.RemoveUserArtifacts(t.Context(), profileID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			remover := &userArtifactRemovalProbe{store: artifactStore, fail: tc.stepStatus == "done"}
+			manager.userArtifacts = remover
+			insertLifecycleOperation(t.Context(), t, db, "op_artifacts", profileID, "delete", "gone", "", "applied")
+			if _, err := db.DB().ExecContext(t.Context(),
+				`INSERT INTO profile_lifecycle_op_steps (op_id, seq, action, status, updated_at)
+     VALUES ('op_artifacts', 0, ?, ?, ?)`, stepRemoveUserToolArtifacts, tc.stepStatus, formatTimestamp(time.Now())); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if remover.calls != tc.wantCalls {
+				t.Fatalf("recovery cleanup calls = %d, want %d", remover.calls, tc.wantCalls)
+			}
+			var status string
+			if err := db.ReadDB().
+				QueryRowContext(t.Context(), `SELECT status FROM profile_lifecycle_ops WHERE id = 'op_artifacts'`).
+				Scan(&status); err != nil {
+				t.Fatal(err)
+			}
+			if status != opStatusDone {
+				t.Fatalf("recovered operation status = %q", status)
+			}
+			if err := manager.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if remover.calls != tc.wantCalls {
+				t.Fatalf("repeated recovery cleanup calls = %d, want %d", remover.calls, tc.wantCalls)
+			}
+			if _, err := artifactStore.ReadPage(
+				t.Context(),
+				scope,
+				ref.URI,
+				0,
+				0,
+			); !errors.Is(
+				err,
+				tools.ErrToolArtifactNotFound,
+			) {
+				t.Fatalf("recovered artifact error = %v", err)
+			}
+		})
+	}
 
 	t.Run("Should retry User artifact cleanup and preserve other owners during profile deletion", func(t *testing.T) {
 		t.Parallel()
@@ -2019,6 +2039,8 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 		}
 		remover := &userArtifactRemovalProbe{store: artifactStore, fail: true}
 		manager.userArtifacts = remover
+		journal := &userJournalRemovalProbe{}
+		manager.userJournal = journal
 		profile, err := manager.Create(t.Context(), CreateInput{Name: "artifact-owner"})
 		if err != nil {
 			t.Fatal(err)
@@ -2054,9 +2076,27 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 		if _, err := artifactStore.ReadPage(t.Context(), owners[0], refs[0].URI, 0, 0); err != nil {
 			t.Fatal(err)
 		}
-		remover.fail = false
-		if _, err := manager.RetryOp(t.Context(), opID); err != nil {
+		var completed int
+		if err := db.ReadDB().QueryRowContext(t.Context(),
+			`SELECT count(*) FROM profile_lifecycle_op_steps WHERE op_id = ? AND seq < 4 AND status = 'done'`, opID).
+			Scan(&completed); err != nil {
 			t.Fatal(err)
+		}
+		if completed != 4 || journal.calls != 1 {
+			t.Fatalf("completed earlier steps = %d, journal calls = %d", completed, journal.calls)
+		}
+		remover.fail = false
+		retried, err := manager.RetryOp(t.Context(), opID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if retried.Status != opStatusDone || remover.calls != 2 || journal.calls != 1 {
+			t.Fatalf(
+				"retry status = %q, artifact calls = %d, journal calls = %d",
+				retried.Status,
+				remover.calls,
+				journal.calls,
+			)
 		}
 		if err := manager.Recover(t.Context()); err != nil {
 			t.Fatal(err)
@@ -2081,7 +2121,7 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 				t.Fatalf("foreign artifact removed: %v", err)
 			}
 		}
-		if remover.calls != 2 {
+		if remover.calls != 2 || journal.calls != 1 {
 			t.Fatalf("cleanup calls = %d, want failure then one successful retry", remover.calls)
 		}
 	})
