@@ -85,6 +85,7 @@ def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_t
 
 
 def operation_rates(result):
+    """Return completed operation rates, treating missing counts as missing work."""
     return {name: sample.get("count", 0) / result["seconds"]
             for name, sample in result["latency"].items()}
 
@@ -130,6 +131,7 @@ def load_failed(result, retention_rows):
 
 
 def transcript_tail_comparison(baseline, head):
+    """Compare paired transcript maxima without letting invalid controls calibrate head."""
     # Pair before aggregation, just as throughput does. The original one-second
     # budget remains the floor on fast runners; a slow baseline adds no margin.
     pairs = []
@@ -150,6 +152,7 @@ def transcript_tail_comparison(baseline, head):
 
 
 def paired_commit_pause(record, pair):
+    """Accept only a transcript COMMIT hold bounded by its valid baseline pair."""
     # Only the measured transcript COMMIT signature is eligible. Never exempt
     # callback work, unknown diagnostics, admission exhaustion or checkpoint errors.
     return (pair["complete"]
@@ -162,6 +165,7 @@ def paired_commit_pause(record, pair):
 
 
 def acceptance_failures(trials, retention_rows):
+    """Return throughput, correctness and paired-tail decisions for untraced trials."""
     comparison = throughput_comparison(trials["baseline"], trials["head"])
     regressions = {name: values for name, values in comparison.items()
                    if not values["baseline_complete"] or values["median_ratio"] < MIN_THROUGHPUT_RATIO}
@@ -178,6 +182,7 @@ def acceptance_failures(trials, retention_rows):
 
 
 def main():
+    """Run isolated upgrade/load experiments and preserve receipts before rejecting failures."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--head", type=Path, required=True)
@@ -278,6 +283,13 @@ def main():
     for label, runs in trials.items():
         lines += ["", f"{label}: {sum(sum(map(len,r['failures'].values())) for r in runs)} operation failures; {sum(len(r['contention_diagnostics']) for r in runs)} long-hold/contention warnings."]
         lines += [f"Retention rows removed: {[r['retention']['DeletedEventSummaries'] for r in runs]}."]
+    lines += ["", "Head warning records and individual paired-COMMIT decisions:"]
+    for i, head_trial in enumerate(trials["head"]):
+        for record in head_trial["contention_diagnostics"]:
+            decision = {"trial": i, "limit_ms": tails["pairs"][i]["limit_ms"],
+                        "accepted_by_pair": paired_commit_pause(record, tails["pairs"][i]),
+                        "record": record}
+            lines.append("- `" + json.dumps(decision) + "`")
     lines += ["", f"Upgrade: {before['rows']:,} rows, {seed['logical_bytes']:,} core bytes; all-column SHA-256 `{before['sha256']}` unchanged.",
               f"Open/upgrade/reopen: {baseline_view['open_ms']:.1f}/{head_view['open_ms']:.1f}/{reopened['open_ms']:.1f} ms.",
               "Observe results, surviving sequence and retired high-water mark match. Index pages/plans are in upgrade-before.json and upgrade-after.json.", "",

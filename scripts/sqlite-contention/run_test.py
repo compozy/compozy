@@ -11,6 +11,7 @@ from run import (MAX_RETENTION_SECONDS, MIN_THROUGHPUT_RATIO,
 
 
 def trial(count=100, seconds=30):
+    """Build a complete small trial for acceptance decisions."""
     return {"seconds": seconds, "latency": {"read": {"count": count},
             "transcript_write": {"count": count, "max_ms": 200},
             "retention_sweep": {"count": 1, "max_ms": 20000}},
@@ -23,6 +24,7 @@ class AcceptanceTests(unittest.TestCase):
     # within the same pair; neither the median nor unrelated baseline work may
     # hide a head-only pause. Owner: runner acceptance, canonical suite: this file.
     def test_paired_commit_tails_accept_shared_io_variance(self):
+        """Accept transcript COMMIT pauses explained by every matching baseline pair."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
         for b, h in zip(trials["baseline"], trials["head"]):
             b["latency"]["transcript_write"]["max_ms"] = 1500
@@ -34,6 +36,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(tails["median_ratio"], 0.75)
 
     def test_commit_pause_cannot_hide_behind_median_or_another_pair(self):
+        """Reject a head-only hold even when another pair and the median look healthy."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
         trials["baseline"][1]["latency"]["transcript_write"]["max_ms"] = 1800
         trials["head"][0]["contention_diagnostics"] = [self.commit_pause()]
@@ -43,12 +46,14 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(invalid, [0])
 
     def test_sustained_transcript_tail_regression_fails_without_warnings(self):
+        """Reject sustained tail loss independently of emitted warning records."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
         for h in trials["head"]:
             h["latency"]["transcript_write"]["max_ms"] = 1100
         self.assertTrue(acceptance_failures(trials, 20000)[3]["regression"])
 
     def test_missing_invalid_or_failed_baseline_tail_cannot_calibrate_head(self):
+        """Reject absent, nonfinite, empty or erroneous control measurements."""
         for sample in ({}, {"count": 0, "max_ms": 1500}, {"count": 100, "max_ms": float("nan")},
                        {"count": 100, "max_ms": float("inf")}, {"count": 100, "max_ms": 0}):
             with self.subTest(sample=sample):
@@ -63,6 +68,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertTrue(acceptance_failures(trials, 20000)[3]["regression"])
 
     def test_missing_head_tail_fails_even_without_a_warning(self):
+        """Require every head trial to supply a transcript tail measurement."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
         del trials["head"][0]["latency"]["transcript_write"]
         _, _, invalid, tails = acceptance_failures(trials, 20000)
@@ -70,6 +76,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertTrue(tails["regression"])
 
     def test_other_diagnostics_and_head_errors_remain_strict_on_slow_runner(self):
+        """Keep unknown holds, checkpoint diagnostics and operation errors blocking."""
         changes = ({"callback_ms": 1000}, {"callback_ms": -1}, {"commit_ms": 999},
                    {"elapsed_ms": 1501}, {"database": "telemetry"}, {"operation": "other"},
                    {"msg": "store: passive session wal checkpoint failed"})
@@ -85,6 +92,7 @@ class AcceptanceTests(unittest.TestCase):
 
     @staticmethod
     def commit_pause():
+        """Return the observed successful transcript COMMIT warning signature."""
         return {"msg": "sqlite write transaction held for at least one second", "database": "session",
                 "operation": "append session events and transcript", "elapsed_ms": 1125,
                 "callback_ms": 5, "commit_ms": 1120}
@@ -129,6 +137,7 @@ class AcceptanceTests(unittest.TestCase):
                 self.assertTrue(load_failed(run, 20000))
 
     def test_acceptance_rejects_slow_retention_and_real_regressions(self):
+        """Keep retention duration and completed-throughput regressions blocking."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)],
                   "traced": {"head": {"failures": {"read": ["tracer timeout"]}}}}
         self.assertEqual(acceptance_failures(trials, 20000)[1:3], ({}, []))
@@ -138,6 +147,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertIn("read", acceptance_failures(trials, 20000)[1])
 
     def test_acceptance_rejects_incomplete_baseline_pairs(self):
+        """Require a positive baseline sample for every throughput pair."""
         trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
         trials["baseline"][0]["latency"]["read"]["count"] = 0
         comparison, regressions, _, _ = acceptance_failures(trials, 20000)
@@ -157,6 +167,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertIn("read", acceptance_failures(trials, 20000)[1])
 
     def test_trace_failures_preserve_normal_acceptance_and_diagnostics(self):
+        """Preserve diagnostic failures without replacing untraced acceptance results."""
         for error in (subprocess.CalledProcessError(1, "strace"),
                       RuntimeError("incomplete write accounting"), ValueError("invalid trace result"),
                       KeyError("end")):

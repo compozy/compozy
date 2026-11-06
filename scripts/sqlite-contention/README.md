@@ -96,7 +96,8 @@ relative margin. The median of the four head-max/budget ratios must be at most
    cannot excuse that warning. Missing/nonfinite/nonpositive tail samples and baseline
    transcript operation errors fail calibration. Head operation errors, other warnings,
    retention and upgrade correctness remain strict. `results.json` and `report.md`
-   retain every raw warning, paired maximum, budget, ratio and decision.
+   retain every raw warning in JSON and every head warning with its individual
+   decision in Markdown, alongside paired maxima, budgets and ratios.
 
 This is a conservative paired order-statistic decision, not a confidence interval
 or a guarantee about individual production latency. The one-second floor retains

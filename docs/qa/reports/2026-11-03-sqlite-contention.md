@@ -817,7 +817,8 @@ session transcript warning additionally must have a sub-second callback, a
 COMMIT of at least one second and total elapsed time within its own pair's
 budget. Unknown warnings, other database/operation holds, operation failures,
 retention and upgrade checks remain strict. Missing/invalid samples or baseline
-transcript errors invalidate calibration. All raw warnings remain in the report.
+transcript errors invalidate calibration. JSON preserves all raw warnings; the Markdown report lists every head warning
+with its individual paired-COMMIT decision and budget.
 
 Replaying all eight retained results through the revised decision passes the
 specific #1322 failure and preserves all three original passes. Four historical
