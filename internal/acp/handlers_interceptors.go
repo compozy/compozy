@@ -181,5 +181,9 @@ func (p *AgentProcess) emitPermissionEvent(
 	if len(expiresAt) > 0 {
 		event = event.WithExpiresAt(expiresAt[0])
 	}
+	// Permission lifetime may extend beyond the prompt's event channel.
+	if p.permissionEventHandler != nil {
+		p.permissionEventHandler(event)
+	}
 	p.emitPromptEvent(event)
 }

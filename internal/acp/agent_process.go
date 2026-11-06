@@ -96,6 +96,7 @@ type AgentProcess struct {
 	permissionRequestSeq   uint64
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
+	permissionEventHandler func(AgentEvent)
 	hostedApprovals        hostedApprovals
 	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string
@@ -128,6 +129,7 @@ type pendingPermission struct {
 	response           chan permissionDecision
 	supportedDecisions map[permissionDecision]struct{}
 	resolvedBy         string
+	expiresAt          time.Time
 }
 
 // Done returns a channel that closes when the subprocess exits.

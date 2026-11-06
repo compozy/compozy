@@ -56,14 +56,8 @@ func (m *Manager) ApprovePermission(
 	if identity == "" {
 		identity = strings.TrimSpace(req.TurnID)
 	}
-	if m.attentionStore != nil {
-		interaction, err := m.interactionForResolution(ctx, target, store.PendingInteractionKindPermission, identity)
-		if err == nil && interaction.Status != store.PendingInteractionStatusPending {
-			return m.resolveOrphanedPermission(ctx, target, interaction, req.Decision)
-		}
-		if err != nil && !errors.Is(err, store.ErrPendingInteractionNotFound) {
-			return ApprovalResult{}, err
-		}
+	if result, handled, err := m.approveStoredPermission(ctx, target, identity, req.Decision); handled {
+		return result, err
 	}
 
 	active, ok := m.Get(target)
@@ -105,6 +99,30 @@ func (m *Manager) ApprovePermission(
 	}, nil
 }
 
+func (m *Manager) approveStoredPermission(
+	ctx context.Context,
+	target, identity, decision string,
+) (ApprovalResult, bool, error) {
+	if m.attentionStore == nil {
+		return ApprovalResult{}, false, nil
+	}
+	interaction, err := m.interactionForResolution(ctx, target, store.PendingInteractionKindPermission, identity)
+	if errors.Is(err, store.ErrPendingInteractionNotFound) {
+		return ApprovalResult{}, false, nil
+	}
+	if err != nil {
+		return ApprovalResult{}, true, err
+	}
+	if err := permissionResolutionError(interaction, m.now()); err != nil {
+		return ApprovalResult{}, true, err
+	}
+	if interaction.Status == store.PendingInteractionStatusPending {
+		return ApprovalResult{}, false, nil
+	}
+	result, err := m.resolveOrphanedPermission(ctx, target, interaction, decision)
+	return result, true, err
+}
+
 // bindApprovalActor validates the request and makes a trusted acting session the decision's actor on every
 // transport; an empty actor would otherwise be recorded as operator engagement and reset the lineage's
 // unattended counter. An always-on actor's "always" answer is narrowed to once so it leaves no durable grant.
@@ -125,6 +143,8 @@ func approvalError(sessionID string, err error) error {
 	switch {
 	case errors.Is(err, ErrSessionNotActive):
 		return err
+	case errors.Is(err, acp.ErrPendingPermissionExpired):
+		return ErrPendingPermissionExpired
 	case errors.Is(err, acp.ErrPendingPermissionNotFound):
 		return fmt.Errorf("%w: %s", ErrPendingPermissionNotFound, sessionID)
 	case errors.Is(err, acp.ErrPendingPermissionConflict):
@@ -142,6 +162,9 @@ func (m *Manager) resolveOrphanedPermission(
 	interaction store.PendingInteraction,
 	decision string,
 ) (ApprovalResult, error) {
+	if err := permissionResolutionError(interaction, m.now()); err != nil {
+		return ApprovalResult{}, err
+	}
 	result, err := m.resolveOrphanedInteraction(
 		ctx,
 		sessionID,

@@ -687,6 +687,168 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should expire retained deadlines on restart and preserve terminal history", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID:     "past-deadline",
+			SessionID:         sessionID,
+			Kind:              store.PendingInteractionKindPermission,
+			ProviderRequestID: "past-deadline",
+			TurnID:            "old-turn",
+			CreatedAt:         expires.Add(-time.Hour),
+			ExpiresAt:         &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID); err != nil || count != 2 {
+			t.Fatalf("recovery = %d, %v", count, err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].Resolution != "expired" || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired = %#v, %v", rows, err)
+		}
+		if count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID); err != nil || count != 0 {
+			t.Fatalf("repeated recovery = %d, %v", count, err)
+		}
+	})
+	for _, nextTurn := range []string{"first", "second"} {
+		t.Run("Should preserve a reused request occurrence in turn "+nextTurn, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			catalog := openManagerInputQueueStore(t)
+			registerManagerInputQueueWorkspace(t, catalog, h)
+			h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+			cleanupTestManager(t, h.manager)
+			target := createSession(t, h)
+			event := acp.AgentEvent{
+				Type:      acp.EventTypePermission,
+				TurnID:    "first",
+				Timestamp: h.manager.now(),
+			}.WithRequestID(
+				"reused",
+			)
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			event.Decision = "reject_once"
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			pending := event
+			pending.TurnID, pending.Decision = nextTurn, ""
+			pending.Timestamp = event.Timestamp.Add(time.Second)
+			if err := h.manager.recordEvent(t.Context(), target, pending); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := catalog.ListPendingInteractions(t.Context(), target.ID, nil)
+			if err != nil || len(rows) != 1 || rows[0].TurnID != nextTurn || target.Info().PendingPermissionCount != 1 {
+				t.Fatalf("pending = %#v, %v", rows, err)
+			}
+		})
+	}
+	t.Run("Should settle retained permissions on stop without a provider resolution event", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		at := h.manager.now()
+		other := createSession(t, h)
+		if err := h.manager.recordEvent(
+			ctx,
+			other,
+			acp.AgentEvent{
+				Type:      acp.EventTypePermission,
+				TurnID:    "other-turn",
+				Timestamp: at,
+			}.WithRequestID("other-permission").
+				WithExpiresAt(at.Add(time.Hour)),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, request := range []struct {
+			id      string
+			kind    string
+			expires time.Time
+		}{
+			{"expired", store.PendingInteractionKindPermission, at.Add(-time.Minute)},
+			{"pending", store.PendingInteractionKindPermission, at.Add(time.Hour)},
+			{"clarify", store.PendingInteractionKindClarify, at.Add(time.Hour)},
+		} {
+			if request.kind == store.PendingInteractionKindClarify {
+				if _, err := h.manager.createPendingInteraction(
+					ctx,
+					store.PendingInteractionCreate{
+						SessionID:         target.ID,
+						Kind:              request.kind,
+						ProviderRequestID: request.id,
+						TurnID:            "clarify:" + request.id,
+						CreatedAt:         at,
+						ExpiresAt:         &request.expires,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			event := acp.AgentEvent{Type: acp.EventTypePermission, TurnID: "turn-stale", Timestamp: at}.
+				WithRequestID(request.id).WithExpiresAt(request.expires)
+			if err := h.manager.recordEvent(ctx, target, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.Stop(ctx, target.ID); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(ctx, target.ID, []string{
+			store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled,
+		})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("settled interactions = %#v, %v", rows, err)
+		}
+		for _, row := range rows {
+			want := store.PendingInteractionStatusCanceled
+			if row.ProviderRequestID == "expired" {
+				want = store.PendingInteractionStatusTimedOut
+			}
+			if row.Status != want || row.ResolvedAt == nil {
+				t.Fatalf("settled row = %#v, want %s", row, want)
+			}
+		}
+		info, err := h.manager.Status(ctx, target.ID)
+		if err != nil || info.PendingPermissionCount != 0 || info.PendingClarifyCount != 0 ||
+			BadgeForInfo(info) == BadgeWaitingForAuth {
+			t.Fatalf("stopped attention = %#v, %v", info, err)
+		}
+		otherInfo, err := h.manager.Status(ctx, other.ID)
+		if err != nil || otherInfo.PendingPermissionCount != 1 || BadgeForInfo(otherInfo) != BadgeWaitingForAuth {
+			t.Fatalf("other session attention changed = %#v, %v", otherInfo, err)
+		}
+		_, err = h.manager.ApprovePermission(
+			ctx,
+			target.ID,
+			acp.ApproveRequest{RequestID: "expired", Decision: "allow-once"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "expired") {
+			t.Fatalf("late approval = %v", err)
+		}
+	})
 	for _, tc := range []struct{ name, actor, status, resolution string }{
 		{"Should persist native deadline cancellation as expiry", "timeout", store.PendingInteractionStatusTimedOut, "canceled"},
 		{"Should persist system cancellation without restart", "system", store.PendingInteractionStatusCanceled, "canceled"},

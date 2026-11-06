@@ -289,9 +289,9 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
-	wait := p.permissionTimeoutOrDefault()
-	expiresAt := timeNowUTC().Add(wait)
+	expiresAt := pending.expiresAt
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
+	wait := max(time.Until(expiresAt), 0)
 
 	decision, actor := p.awaitPendingPermission(ctx, pending, wait, cancellationActor)
 	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
@@ -325,8 +325,11 @@ func (p *AgentProcess) awaitPendingPermission(
 	case <-timer.C:
 		return p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
 	case <-p.permissionConnectionDone():
-		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
+		return p.expirePendingPermission(pending, decisionCanceled, permissionActorSystem)
 	case <-ctx.Done():
+		if p.stopWasRequested() || p.permissionConnectionClosed() {
+			cancellationActor = permissionActorSystem
+		}
 		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
 			cancellationActor = "timeout"
 		}

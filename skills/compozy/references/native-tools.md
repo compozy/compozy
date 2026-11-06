@@ -425,7 +425,10 @@ session's active prompt and returns `canceled` or `nothing-in-flight` without st
 `allow-always`, `reject-once`, or `reject-always`. `compozy__session_clarify_answer` resolves another
 session's pending question with either a one-based `choice` or text. Both preserve durable
 post-restart interactions and can return `already-resolved`, `resolved-after-restart`, or
-`queue-full`; self-action is denied. Read `compozy session interactions` or
+`queue-full`; self-action is denied. Expired permissions are retained as `timed_out`; stopping or losing
+their runtime cancels remaining requests. Late responses to expired/canceled permissions are
+refused with an explicit terminal-state message and never execute the operation.
+Read `compozy session interactions` or
 `compozy__session_status` for the durable request IDs instead of matching display text.
 
 `compozy__session_rewind` is a destructive conversation-only mutation. Pass the durable user

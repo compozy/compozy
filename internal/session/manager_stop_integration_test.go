@@ -60,6 +60,19 @@ func TestSessionStopACPHelperProcess(_ *testing.T) {
 		<-conn.Done()
 		select {} // This fixture requires verified process killing even after stdin closes.
 	}
+	if os.Getenv("COMPOZY_TEST_PERMISSION_PROVIDER") != "" {
+		forced := os.Getenv("COMPOZY_TEST_PERMISSION_FORCE") == "1"
+		if forced {
+			signal.Ignore(syscall.SIGTERM)
+		}
+		agent := &permissionLifetimeACPAgent{}
+		agent.conn = acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
+		<-agent.conn.Done()
+		if forced {
+			select {}
+		}
+		os.Exit(0)
+	}
 	conn := acpsdk.NewAgentSideConnection(sessionStopACPAgent{}, os.Stdout, os.Stdin)
 	<-conn.Done()
 	os.Exit(0)
@@ -146,6 +159,200 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	}
 	if *meta.StopReason != store.StopUserCanceled {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
+	}
+}
+
+// Invariant: permission settlement survives a closed prompt and verified runtime exit.
+func TestManagerIntegrationPermissionLifetime(t *testing.T) {
+	for _, source := range []string{"daemon", "provider"} {
+		for _, mode := range []string{"expiry", "stop", "forced stop", "crash"} {
+			t.Run("Should settle a "+source+" permission on "+mode, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t)
+				catalog := openManagerInputQueueStore(t)
+				wait := time.Hour
+				if mode == "expiry" {
+					wait = 500 * time.Millisecond
+				}
+				driver := newIntegrationACPDriver(
+					acp.WithPermissionTimeout(wait),
+					acp.WithStopTimeout(100*time.Millisecond),
+				)
+				command := sessionStopHelperCommand(t)
+				effectPath := filepath.Join(t.TempDir(), "executed")
+				if source == "provider" {
+					force := "0"
+					if mode == "forced stop" {
+						force = "1"
+					}
+					command = shellquote.Join(
+						"env",
+						"COMPOZY_TEST_PERMISSION_PROVIDER=1",
+						"COMPOZY_TEST_PERMISSION_FORCE="+force,
+						"COMPOZY_TEST_PERMISSION_EFFECT="+effectPath,
+					) + " " + command
+				} else if mode == "forced stop" {
+					command = shellquote.Join(
+						"env",
+						"COMPOZY_TEST_STUBBORN_PROMPTS="+filepath.Join(t.TempDir(), "prompts"),
+					) + " " + command
+				}
+				h := newRealACPIntegrationHarness(
+					t,
+					command,
+					WithSessionCatalog(catalog),
+					WithDriver(NewACPDriverAdapter(driver)),
+				)
+				registerManagerInputQueueWorkspace(t, catalog, h)
+				cleanupTestManager(t, h.manager)
+				target, err := h.manager.Create(
+					ctx,
+					&CreateOpts{
+						AgentName:   "coder",
+						Workspace:   h.workspaceID,
+						Permissions: compozyconfig.PermissionModeApproveReads,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Complete the prompt before asking: there is no event pump to persist the decision.
+				if source == "daemon" && mode != "forced stop" {
+					stream, err := h.manager.Prompt(ctx, target.ID, "complete the turn")
+					if err != nil {
+						t.Fatal(err)
+					}
+					for range stream {
+					}
+				}
+				result := make(chan error, 1)
+				if source == "provider" {
+					stream, err := h.manager.Prompt(ctx, target.ID, "request permission")
+					if err != nil {
+						t.Fatal(err)
+					}
+					go func() {
+						for range stream {
+						}
+						result <- nil
+					}()
+				} else {
+					go func() {
+						response, err := h.manager.RequestPermission(ctx, target.ID, acp.RequestPermissionRequest{
+							SessionId: acpsdk.SessionId(target.Info().ACPSessionID),
+							ToolCall: acpsdk.ToolCallUpdate{
+								ToolCallId: "permission-lifetime",
+								Title:      new("Session Stop"),
+								Kind:       new(acpsdk.ToolKindExecute),
+							},
+							Options: []acpsdk.PermissionOption{
+								{OptionId: "allow", Name: "Allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+								{OptionId: "reject", Name: "Reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+							},
+						})
+						if response.Outcome.Selected != nil && response.Outcome.Selected.OptionId == "allow" {
+							err = errors.New("expired or stopped permission approved the operation")
+						}
+						result <- err
+					}()
+				}
+				var requestID, interactionID string
+				waitForCondition(t, "permission settlement", func() bool {
+					select {
+					case err := <-result:
+						t.Fatalf("request ended before pending: %v", err)
+					default:
+					}
+					rows, err := catalog.ListPendingInteractions(ctx, target.ID, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(rows) == 1 {
+						requestID, interactionID = rows[0].ProviderRequestID, rows[0].InteractionID
+						if requestID == "" {
+							t.Fatal("persisted permission has no provider identity")
+						}
+						return true
+					}
+					return false
+				})
+				if mode == "stop" || mode == "forced stop" {
+					if err := h.manager.RequestStop(ctx, target.ID, CauseUserRequested); err != nil {
+						t.Fatal(err)
+					}
+					outcome, err := h.manager.AwaitStopped(ctx, target.ID)
+					if err != nil || !outcome.Verified || (mode == "forced stop" && !outcome.Escalated) {
+						t.Fatalf("stop = %#v, %v", outcome, err)
+					}
+				} else if mode == "crash" {
+					process, err := os.FindProcess(target.processHandle().PID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := process.Kill(); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if source == "provider" && mode == "crash" {
+					waitForCondition(t, "crashed permission canceled before runtime recovery cleanup", func() bool {
+						rows, err := catalog.ListPendingInteractions(
+							ctx,
+							target.ID,
+							[]string{store.PendingInteractionStatusCanceled},
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						return slices.ContainsFunc(rows, func(row store.PendingInteraction) bool {
+							return row.InteractionID == interactionID && row.ResolvedAt != nil
+						})
+					})
+					// Runtime recovery may re-ask; stop that new work only after proving the lost request settled.
+					if err := h.manager.Stop(ctx, target.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				select {
+				case err := <-result:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				if _, err := os.Stat(effectPath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("permission executed: stat = %v", err)
+				}
+				want := store.PendingInteractionStatusCanceled
+				if mode == "expiry" {
+					want = store.PendingInteractionStatusTimedOut
+				}
+				waitForCondition(t, "permission settlement", func() bool {
+					rows, err := catalog.ListPendingInteractions(ctx, target.ID, []string{want})
+					if err != nil {
+						t.Fatal(err)
+					}
+					return slices.ContainsFunc(rows, func(row store.PendingInteraction) bool {
+						return row.InteractionID == interactionID && row.ResolvedAt != nil
+					})
+				})
+				info, err := h.manager.Status(ctx, target.ID)
+				if err != nil || info.PendingPermissionCount != 0 || BadgeForInfo(info) == BadgeWaitingForAuth {
+					t.Fatalf("attention = %#v, %v", info, err)
+				}
+				_, err = h.manager.ApprovePermission(
+					ctx,
+					target.ID,
+					acp.ApproveRequest{RequestID: interactionID, Decision: "allow-once"},
+				)
+				if mode == "expiry" && !errors.Is(err, ErrPendingPermissionExpired) {
+					t.Fatalf("late response = %v", err)
+				}
+				if mode != "expiry" && !errors.Is(err, ErrPendingPermissionCanceled) {
+					t.Fatalf("late response = %v", err)
+				}
+			})
+		}
 	}
 }
 
@@ -766,7 +973,7 @@ func leavePartialCheckpointFixture(t *testing.T, path string) {
 	}
 }
 
-func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
+func newRealACPIntegrationHarness(t *testing.T, command string, options ...Option) *harness {
 	t.Helper()
 
 	h := newHarness(t)
@@ -787,7 +994,7 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 			Prompt:   "You are a coding assistant.",
 		}},
 	})
-	h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
+	h.manager = newManagerWithHarness(t, h, append([]Option{WithDriver(NewACPDriverAdapter(driver))}, options...)...)
 	return h
 }
 
@@ -923,6 +1130,38 @@ func sessionStopProcessAlive(pid int) bool {
 
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+type permissionLifetimeACPAgent struct {
+	sessionStopACPAgent
+	conn *acpsdk.AgentSideConnection
+}
+
+func (a *permissionLifetimeACPAgent) Prompt(
+	ctx context.Context,
+	req acpsdk.PromptRequest,
+) (acpsdk.PromptResponse, error) {
+	response, err := a.conn.RequestPermission(ctx, acpsdk.RequestPermissionRequest{
+		SessionId: req.SessionId,
+		ToolCall: acpsdk.ToolCallUpdate{
+			ToolCallId: "provider-permission",
+			Title:      new("Run operation"),
+			Kind:       new(acpsdk.ToolKindExecute),
+		},
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "allow", Name: "Allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+			{OptionId: "reject", Name: "Reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		},
+	})
+	if err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+	if response.Outcome.Selected != nil && response.Outcome.Selected.OptionId == "allow" {
+		if err := os.WriteFile(os.Getenv("COMPOZY_TEST_PERMISSION_EFFECT"), []byte("executed"), 0o600); err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+	}
+	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
 
 type sessionStopACPAgent struct{}

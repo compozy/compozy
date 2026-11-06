@@ -2,7 +2,7 @@ import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import type { PermissionDecision } from "../adapters/session-api";
+import { SessionApiError, type PermissionDecision } from "../adapters/session-api";
 import type { PermissionRequest } from "../types";
 
 type PermissionDecisionPhase = "idle" | "submitting" | "resolved";
@@ -73,7 +73,7 @@ export function createSessionPermissionDecisionLogic() {
         enqueue.effect(() => {
           console.error("Failed to submit permission decision", event.error);
           notifyUser({
-            message: "Failed to send permission response. The agent may continue waiting.",
+            message: permissionDecisionFailureMessage(event.error),
             tone: "error",
           });
         });
@@ -81,6 +81,18 @@ export function createSessionPermissionDecisionLogic() {
       },
     },
   });
+}
+
+function permissionDecisionFailureMessage(error: Error): string {
+  if (error instanceof SessionApiError && error.status === 409) {
+    if (error.message.includes("permission request expired")) {
+      return "This permission request expired. The action was not approved.";
+    }
+    if (error.message.includes("permission request canceled")) {
+      return "This permission request was canceled. The action was not approved.";
+    }
+  }
+  return "Failed to send permission response. The agent may continue waiting.";
 }
 
 function enqueueDecision(

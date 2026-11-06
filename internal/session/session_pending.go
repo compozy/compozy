@@ -15,6 +15,17 @@ func (m *Manager) createPendingInteraction(
 	ctx context.Context,
 	req store.PendingInteractionCreate,
 ) (store.SessionAttentionCommit, error) {
+	commit, err := m.commitCreatePendingInteraction(ctx, req)
+	if err == nil && commit.Interaction != nil {
+		m.publishAttentionCommit(ctx, commit.Interaction.SessionID, commit)
+	}
+	return commit, err
+}
+
+func (m *Manager) commitCreatePendingInteraction(
+	ctx context.Context,
+	req store.PendingInteractionCreate,
+) (store.SessionAttentionCommit, error) {
 	if m.attentionStore == nil {
 		return store.SessionAttentionCommit{}, errors.New("session: attention store is required")
 	}
@@ -34,11 +45,21 @@ func (m *Manager) createPendingInteraction(
 	if err != nil {
 		return store.SessionAttentionCommit{}, fmt.Errorf("session: create pending interaction: %w", err)
 	}
-	m.publishAttentionCommit(ctx, req.SessionID, commit)
 	return commit, nil
 }
 
 func (m *Manager) transitionPendingInteraction(
+	ctx context.Context,
+	req store.PendingInteractionTransition,
+) (store.SessionAttentionCommit, error) {
+	commit, err := m.commitTransitionPendingInteraction(ctx, req)
+	if err == nil && commit.Interaction != nil {
+		m.publishAttentionCommit(ctx, commit.Interaction.SessionID, commit)
+	}
+	return commit, err
+}
+
+func (m *Manager) commitTransitionPendingInteraction(
 	ctx context.Context,
 	req store.PendingInteractionTransition,
 ) (store.SessionAttentionCommit, error) {
@@ -54,11 +75,6 @@ func (m *Manager) transitionPendingInteraction(
 	if err != nil {
 		return store.SessionAttentionCommit{}, fmt.Errorf("session: transition pending interaction: %w", err)
 	}
-	if commit.Interaction == nil {
-		return commit, nil
-	}
-	sessionID := commit.Interaction.SessionID
-	m.publishAttentionCommit(ctx, sessionID, commit)
 	return commit, nil
 }
 
@@ -138,8 +154,7 @@ func (m *Manager) recoverPendingInteractions(ctx context.Context, sessionID stri
 			Status:        store.PendingInteractionStatusOrphaned, At: m.now().UTC(),
 		}
 		if expire {
-			transition.Status = store.PendingInteractionStatusCanceled
-			transition.Resolution, transition.ResolvedBy = "failed-by-restart", sessionSystemActorKind
+			transition = terminalInteractionTransition(interaction, transition.At, "failed-by-restart")
 		}
 		commit, err := m.transitionPendingInteraction(ctx, transition)
 		if err != nil {

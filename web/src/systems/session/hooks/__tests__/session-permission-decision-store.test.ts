@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@compozy/ui";
 
+import { SessionApiError } from "../../adapters/session-api";
+
 import { createSessionPermissionDecisionLogic } from "../session-permission-decision-store";
 
 beforeEach(() => {
@@ -71,6 +73,49 @@ describe("session permission decision store", () => {
     resolveSecond();
     await waitFor(() => expect(store.getSnapshot().context.phase).toBe("resolved"));
     expect(accepted).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      409,
+      "permission request expired",
+      "This permission request expired. The action was not approved.",
+    ],
+    [
+      409,
+      "permission request canceled",
+      "This permission request was canceled. The action was not approved.",
+    ],
+    [
+      500,
+      "internal database failure",
+      "Failed to send permission response. The agent may continue waiting.",
+    ],
+  ])("Should present a safe permission failure for %s %s", async (status, cause, message) => {
+    const store = createSessionPermissionDecisionLogic().createStore();
+    const failure = new SessionApiError(`session: pending permission not found: ${cause}`, status);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      store.trigger.decisionSubmitted({
+        workspaceId: "ws_alpha",
+        sessionId: "session-1",
+        decision: "allow-once",
+        permissionKey: "expired",
+        permission: {
+          requestId: "expired",
+          turnId: "turn-1",
+          toolName: "Session Stop",
+          toolInput: {},
+          action: "Stop session",
+          resource: "session-2",
+        },
+        execute: vi.fn().mockRejectedValue(failure),
+      });
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+      expect(store.getSnapshot().context.phase).toBe("idle");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("Should surface a rejected executor and return the active request to idle", async () => {

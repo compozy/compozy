@@ -26,46 +26,43 @@ type permissionAttentionPayload struct {
 
 const pendingInteractionActorOperator = "operator"
 
-func (m *Manager) applyAttentionAgentEvent(
-	ctx context.Context,
-	target *Session,
-	event acp.AgentEvent,
-) (bool, error) {
+func (m *Manager) applyAttentionAgentEvent(ctx context.Context, target *Session, event acp.AgentEvent) (bool, error) {
 	if target == nil || event.Type != acp.EventTypePermission {
 		return false, nil
 	}
+	target.interactionLifecycleMu.Lock()
+	commit, handled, err := m.commitApplyAttentionAgentEvent(ctx, target, event)
+	target.interactionLifecycleMu.Unlock()
+	if err == nil && commit.Interaction != nil {
+		m.publishAttentionCommit(ctx, target.ID, commit)
+	}
+	return handled, err
+}
+
+func (m *Manager) commitApplyAttentionAgentEvent(
+	ctx context.Context,
+	target *Session,
+	event acp.AgentEvent,
+) (store.SessionAttentionCommit, bool, error) {
+	if target == nil || event.Type != acp.EventTypePermission {
+		return store.SessionAttentionCommit{}, false, nil
+	}
 	requestID := strings.TrimSpace(event.RequestIDValue())
 	if requestID == "" {
-		return false, errors.New("session: permission event request id is required")
+		return store.SessionAttentionCommit{}, false, errors.New("session: permission event request id is required")
 	}
 	if strings.TrimSpace(event.Decision) == "" {
-		info := target.Info()
-		if pendingInteractionByProviderRequest(info, store.PendingInteractionKindPermission, requestID) != nil {
-			return true, nil
-		}
-		payload, title := permissionInteractionPayload(event)
-		_, err := m.createPendingInteraction(ctx, store.PendingInteractionCreate{
-			SessionID:         target.ID,
-			Kind:              store.PendingInteractionKindPermission,
-			ProviderRequestID: requestID,
-			TurnID:            event.TurnID,
-			Title:             title,
-			Payload:           payload,
-			CreatedAt:         event.Timestamp,
-			ExpiresAt:         event.ExpiresAtValue(),
-		})
-		if errors.Is(err, store.ErrPendingInteractionConflict) {
-			return true, m.refreshPendingInteractions(ctx, target.ID)
-		}
-		return err == nil, err
+		commit, err := m.applyPendingPermissionEvent(ctx, target, event, requestID)
+		return commit, err == nil, err
 	}
 	interaction := pendingInteractionByProviderRequest(
 		target.Info(),
 		store.PendingInteractionKindPermission,
 		requestID,
 	)
-	if interaction == nil {
-		return false, nil
+	if interaction == nil || interaction.TurnID != event.TurnID ||
+		(!event.Timestamp.IsZero() && event.Timestamp.Before(interaction.CreatedAt)) {
+		return store.SessionAttentionCommit{}, false, nil
 	}
 	resolvedBy := strings.TrimSpace(event.ResolvedByValue())
 	if resolvedBy == "" {
@@ -81,19 +78,19 @@ func (m *Manager) applyAttentionAgentEvent(
 		if resolvedBy == "timeout" {
 			status = store.PendingInteractionStatusTimedOut
 		}
-		if resolvedBy == "provider" {
+		if resolvedBy == "provider" && target.Info().State != StateStopping && target.Info().State != StateStopped {
 			status = store.PendingInteractionStatusTimedOut
 			resolution = "expired-by-provider"
 		}
 	}
-	_, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
+	commit, err := m.commitTransitionPendingInteraction(ctx, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
 		Status:        status,
 		Resolution:    resolution,
 		ResolvedBy:    resolvedBy,
 		At:            event.Timestamp,
 	})
-	return err == nil, err
+	return commit, err == nil, err
 }
 
 func permissionInteractionPayload(event acp.AgentEvent) (store.PendingInteractionPayload, string) {
@@ -122,13 +119,30 @@ func (m *Manager) applyClarifyAttentionEvent(
 	target *Session,
 	event toolspkg.ClarifyEvent,
 ) (bool, error) {
+	target.interactionLifecycleMu.Lock()
+	commit, handled, err := m.commitApplyClarifyAttentionEvent(ctx, target, event)
+	target.interactionLifecycleMu.Unlock()
+	if err == nil && commit.Interaction != nil {
+		m.publishAttentionCommit(ctx, target.ID, commit)
+	}
+	return handled, err
+}
+
+func (m *Manager) commitApplyClarifyAttentionEvent(
+	ctx context.Context,
+	target *Session,
+	event toolspkg.ClarifyEvent,
+) (store.SessionAttentionCommit, bool, error) {
 	requestID := strings.TrimSpace(event.Request.RequestID)
 	if event.Status == toolspkg.ClarifyStatusPending {
 		info := target.Info()
-		if pendingInteractionByProviderRequest(info, store.PendingInteractionKindClarify, requestID) != nil {
-			return true, nil
+		if info.State == StateStopping || info.State == StateStopped {
+			return store.SessionAttentionCommit{}, true, nil
 		}
-		_, err := m.createPendingInteraction(ctx, store.PendingInteractionCreate{
+		if pendingInteractionByProviderRequest(info, store.PendingInteractionKindClarify, requestID) != nil {
+			return store.SessionAttentionCommit{}, true, nil
+		}
+		commit, err := m.commitCreatePendingInteraction(ctx, store.PendingInteractionCreate{
 			SessionID:         target.ID,
 			Kind:              store.PendingInteractionKindClarify,
 			ProviderRequestID: requestID,
@@ -140,9 +154,9 @@ func (m *Manager) applyClarifyAttentionEvent(
 			CreatedAt: event.At,
 		})
 		if errors.Is(err, store.ErrPendingInteractionConflict) {
-			return true, m.refreshPendingInteractions(ctx, target.ID)
+			return store.SessionAttentionCommit{}, true, m.refreshPendingInteractions(ctx, target.ID)
 		}
-		return err == nil, err
+		return commit, err == nil, err
 	}
 	interaction := pendingInteractionByProviderRequest(
 		target.Info(),
@@ -150,11 +164,11 @@ func (m *Manager) applyClarifyAttentionEvent(
 		requestID,
 	)
 	if interaction == nil {
-		return false, nil
+		return store.SessionAttentionCommit{}, false, nil
 	}
 	status, err := clarifyInteractionStatus(event.Status)
 	if err != nil {
-		return false, err
+		return store.SessionAttentionCommit{}, false, err
 	}
 	transition := store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
@@ -169,8 +183,8 @@ func (m *Manager) applyClarifyAttentionEvent(
 		transition.Resolution = event.Answer.Resolution(question)
 		transition.ResolvedBy = event.ResolvedBy
 	}
-	_, err = m.transitionPendingInteraction(ctx, transition)
-	return err == nil, err
+	commit, err := m.commitTransitionPendingInteraction(ctx, transition)
+	return commit, err == nil, err
 }
 
 func clarifyInteractionStatus(status toolspkg.ClarifyStatus) (string, error) {

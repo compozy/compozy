@@ -80,37 +80,38 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	PermissionPolicy     *StartPermissionPolicy
-	AgentName            string
-	CompozySessionID     string
-	WorkspaceID          string
-	ProfileID            string
-	RuntimeGeneration    int64
-	Command              string
-	Cwd                  string
-	AdditionalDirs       []string
-	Env                  []string
-	MCPServers           []compozyconfig.MCPServer
-	Permissions          compozyconfig.PermissionMode
-	SystemPrompt         string
-	StartupManifest      StartupManifest
-	SystemPromptDelivery SystemPromptDeliveryMode
-	PreferredModel       string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	ACPOptions           []SessionConfigOptionSelection
-	RuntimeStrategy      RuntimeApplicationStrategy
-	LaunchModelID        string
-	ResumeSessionID      string
-	Launcher             Launcher
-	ToolHost             ToolHost
-	ToolGateway          ToolExecutionGateway
-	ProviderName         string
-	ProviderConfig       *compozyconfig.ProviderConfig
-	ProviderAuthEnv      *authproviders.ProbeEnv
-	ActivateMCPServers   func(context.Context) error
-	FinalizeStartup      func(context.Context) (string, StartupManifest, error)
-	Inspection           bool
+	PermissionPolicy       *StartPermissionPolicy
+	AgentName              string
+	CompozySessionID       string
+	WorkspaceID            string
+	ProfileID              string
+	RuntimeGeneration      int64
+	Command                string
+	Cwd                    string
+	AdditionalDirs         []string
+	Env                    []string
+	MCPServers             []compozyconfig.MCPServer
+	Permissions            compozyconfig.PermissionMode
+	SystemPrompt           string
+	StartupManifest        StartupManifest
+	SystemPromptDelivery   SystemPromptDeliveryMode
+	PreferredModel         string
+	ReasoningEffort        string
+	Speed                  speedpkg.Speed
+	ACPOptions             []SessionConfigOptionSelection
+	RuntimeStrategy        RuntimeApplicationStrategy
+	LaunchModelID          string
+	ResumeSessionID        string
+	Launcher               Launcher
+	ToolHost               ToolHost
+	ToolGateway            ToolExecutionGateway
+	ProviderName           string
+	ProviderConfig         *compozyconfig.ProviderConfig
+	ProviderAuthEnv        *authproviders.ProbeEnv
+	PermissionEventHandler func(AgentEvent)
+	ActivateMCPServers     func(context.Context) error
+	FinalizeStartup        func(context.Context) (string, StartupManifest, error)
+	Inspection             bool
 	// InputOnly marks a daemon-owned child that only transforms its prompt. The
 	// Claude Agent Bridge then skips built-in tools, user MCP servers, plugins,
 	// skills, hooks, and instruction files; other providers ignore it. Tool and

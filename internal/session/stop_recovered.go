@@ -87,6 +87,9 @@ func (m *Manager) prepareRecoveredStopRun(
 	run.notifyCommitted()
 	close(run.ready)
 	if meta.State == string(StateStopped) {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(operationCtx), defaultLifecycleTimeout)
+		defer cancel()
+		run.err = m.cancelSessionInteractions(cleanupCtx, id, "session-stopped")
 		run.outcome.FinalState, run.outcome.Verified = StateStopped, true
 		close(run.done)
 		unlock()
