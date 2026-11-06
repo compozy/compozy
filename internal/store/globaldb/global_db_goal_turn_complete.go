@@ -136,12 +136,11 @@ func finalizeGoalTurnSettlement(
 	req goal.CompleteTurnRequest,
 	now time.Time,
 ) error {
+	// Nonterminal pauses keep their intent until the coordinator parks the run and preserves instance ownership.
 	if settlement.phase == goalCheckpointPhaseTerminal {
 		if err := closeTerminalGoalCheckpointBinding(ctx, exec, checkpoint, now); err != nil {
 			return err
 		}
-	}
-	if settlement.pauseRequested || settlement.phase == goalCheckpointPhaseTerminal {
 		if err := clearSettledGoalPause(ctx, exec, req.Key.LoopRunID); err != nil {
 			return err
 		}
