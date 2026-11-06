@@ -12,6 +12,9 @@ func (d *Daemon) bootToolArtifacts(
 	state *bootState,
 	cleanup *bootCleanup,
 ) error {
+	if state.toolArtifacts != nil {
+		return nil
+	}
 	retention := toolspkg.ToolArtifactRetention{
 		MaxCount: state.cfg.Tools.Artifacts.MaxCount,
 		MaxBytes: state.cfg.Tools.Artifacts.MaxBytes,

@@ -21,3 +21,14 @@ func (p profileUserJournal) RemoveUserJournal(ctx context.Context, profileID str
 	}
 	return p.state.terminals.Journal().RemoveWorkspace(ctx, terminal.JournalWorkspaceID("", profileID))
 }
+
+type profileUserToolArtifacts struct{ state *bootState }
+
+var _ profile.UserToolArtifactRemover = profileUserToolArtifacts{}
+
+func (p profileUserToolArtifacts) RemoveUserArtifacts(ctx context.Context, profileID string) error {
+	if p.state == nil || p.state.toolArtifacts == nil {
+		return errors.New("daemon: tool artifact store is unavailable for profile deletion")
+	}
+	return p.state.toolArtifacts.RemoveUserArtifacts(ctx, profileID)
+}

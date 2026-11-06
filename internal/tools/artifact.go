@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -23,7 +25,7 @@ const (
 )
 
 var (
-	// ErrToolArtifactNotFound hides missing, expired, and foreign-workspace artifacts behind one error.
+	// ErrToolArtifactNotFound hides missing, expired, and foreign-scope artifacts behind one error.
 	ErrToolArtifactNotFound = errors.New("tools: tool artifact not found")
 	// ErrToolArtifactInvalidRange reports an offset or limit outside the retained content bounds.
 	ErrToolArtifactInvalidRange = errors.New("tools: invalid tool artifact range")
@@ -35,7 +37,7 @@ var (
 	toolArtifactIDPattern = regexp.MustCompile(`^art_([0-9a-f]{64})$`)
 )
 
-// ToolArtifactRetention defines global disk bounds for workspace-scoped artifacts.
+// ToolArtifactRetention defines global disk bounds for scope-owned artifacts.
 type ToolArtifactRetention struct {
 	MaxCount int
 	MaxBytes int64
@@ -67,16 +69,17 @@ type ToolArtifactPage struct {
 	EOF        bool        `json:"eof"`
 }
 
-// ToolArtifactStore persists and pages workspace-scoped result envelopes.
+// ToolArtifactStore persists and pages scope-owned result envelopes.
 type ToolArtifactStore interface {
-	Put(ctx context.Context, workspaceID string, content []byte) (ArtifactRef, error)
+	Put(ctx context.Context, scope workspaceaccess.TargetRef, content []byte) (ArtifactRef, error)
 	ReadPage(
 		ctx context.Context,
-		workspaceID string,
+		scope workspaceaccess.TargetRef,
 		uri string,
 		offset int64,
 		limit int64,
 	) (ToolArtifactPage, error)
+	RemoveUserArtifacts(ctx context.Context, profileID string) error
 	Sweep(ctx context.Context) error
 }
 

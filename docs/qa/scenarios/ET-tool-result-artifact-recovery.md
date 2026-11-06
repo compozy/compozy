@@ -4,7 +4,7 @@ area: ET
 title: Recover one oversized tool result across public surfaces
 persona: Rafa
 journey: J-14
-expected: An oversized post-hook redacted tool result keeps a truthful preview, opens as exact ordered bytes in Web, native tool, CLI, HTTP, and UDS, remains isolated to its workspace, survives daemon restart until deterministic retention removes it, and preserves a bounded partial result if persistence fails.
+expected: An oversized post-hook redacted tool result keeps a truthful preview, opens as exact ordered bytes in Web, native tool, CLI, HTTP, and UDS, remains isolated to its workspace or profile-owned User scope, survives daemon restart until deterministic retention removes it, and preserves a bounded partial result if persistence fails.
 entry_points: Web session tool-result card; compozy__tool_artifact_read; compozy tool artifact read; GET /api/workspaces/:workspace_id/tool-artifacts/:artifact_id
 qa_status: blocked-verify
 bug_ids:
@@ -74,3 +74,23 @@ resource with local references. Current-head CI owns the remaining integration g
 The same complete-turn invariant applies when walking backward with `next_before_sequence`:
 late events of the selected turn must remain present even if they occur beyond that turn-start
 cursor. The real-SQLite regression follows both cursor directions and checks the full old turn.
+
+QA impact 2026-11-06 (issue #1316): repeat the native walk in a User session with
+`compozy__skill_view` of `compozy` resource `references/runtime-operations.md` at the default
+256 KiB result budget. Require one retained artifact and page `compozy__tool_artifact_read`
+from offset zero through every `next_offset` until `eof`; the decoded envelope must contain
+the complete structured resource and preserve display redactions. Repeat the read through
+`GET /api/workspaces/@user/tool-artifacts/:artifact_id` and the operator CLI with `--workspace
+@user`, using the producing profile. Workspace-to-User, User-to-workspace, and other-profile User
+reads must return the same not-found shape as a missing artifact. Reopen the filesystem store
+and exercise shared count, byte, and age retention over workspace and User artifacts.
+Focused owning suites cover this behavior; previous provider-walk evidence above remains historical.
+
+Workspace artifacts keep their existing workspace-only ownership and disk layout, including
+artifacts produced before the upgrade from a non-default profile. No profile migration is applied
+to these existing workspace artifacts; User artifacts have a separate profile-owned namespace.
+
+Profile deletion removes that profile's User artifacts through its recoverable lifecycle
+journal. A failed removal keeps the operation retryable; retry/recovery preserves other
+profiles' User artifacts and all workspace artifacts. The artifact store is initialized
+before boot replays profile operations.

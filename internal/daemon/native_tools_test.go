@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,6 +20,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	"github.com/gin-gonic/gin"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -2967,7 +2972,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		store := openDaemonTestToolArtifactStore(t)
-		ref, err := store.Put(t.Context(), "workspace-a", []byte("abcdefgh"))
+		ref, err := store.Put(t.Context(), workspaceaccess.ScopeTarget("workspace-a", ""), []byte("abcdefgh"))
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -3005,6 +3010,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		})
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Call(foreign workspace) error = %v, want indistinguishable not found", err)
+		}
+
+		for _, foreign := range []toolspkg.Scope{{}} {
+			_, err := registry.Call(t.Context(), foreign, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolArtifactRead,
+				Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, ref.URI)),
+			})
+			if !errors.Is(err, toolspkg.ErrToolNotFound) {
+				t.Fatalf("foreign scope read = %v, want not found", err)
+			}
 		}
 
 		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a"}, toolspkg.CallRequest{
@@ -3243,13 +3258,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
-			Skills: skillRegistry, HomePaths: home, Sessions: sessions,
-			SkillExposures: openDaemonTestGlobalDB(t),
-		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
-		for _, tc := range []struct{ name, input string }{
-			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`},
-			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`},
+		artifactStore := openDaemonTestToolArtifactStore(t)
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+			t,
+			&daemonNativeToolsDeps{
+				Skills: skillRegistry, HomePaths: home, Sessions: sessions,
+				SkillExposures: openDaemonTestGlobalDB(t), ToolArtifacts: artifactStore,
+			},
+			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			policy,
+			toolspkg.WithResultProcessor(
+				toolspkg.NewResultProcessor(compozyconfig.DefaultToolsMaxResultBytes, artifactStore),
+			),
+		)
+		for _, tc := range []struct{ name, input, resource string }{
+			{"Should infer User scope from the session", `{"name":"compozy","file":"references/tools-and-skills.md"}`, "references/tools-and-skills.md"},
+			{"Should accept the explicit User selector", `{"name":"compozy","file":"references/tools-and-skills.md","workspace":"@user"}`, "references/tools-and-skills.md"},
+			{"Should recover an oversized User resource through artifact pages", `{"name":"compozy","file":"references/runtime-operations.md"}`, "references/runtime-operations.md"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -3263,7 +3288,32 @@ func TestDaemonNativeTools(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Registry.Call(skill_view) error = %v", err)
 				}
-				content, err := skillRegistry.LoadResource(t.Context(), skill, "references/tools-and-skills.md")
+				if tc.resource == "references/runtime-operations.md" {
+					if !result.Truncated || len(result.Artifacts) != 1 {
+						t.Fatal("large User resource was not offloaded with one artifact")
+					}
+					artifactURI := result.Artifacts[0].URI
+					result = readNativeRetainedResult(
+						t,
+						registry,
+						toolspkg.Scope{SessionID: "sess-user", AgentName: "coder", ProfileID: store.DefaultProfileID},
+						result,
+					)
+					for _, foreign := range []toolspkg.Scope{{WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID}, {ProfileID: "profile-other"}} {
+						_, err := registry.Call(
+							t.Context(),
+							foreign,
+							toolspkg.CallRequest{
+								ToolID: toolspkg.ToolIDToolArtifactRead,
+								Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, artifactURI)),
+							},
+						)
+						if !errors.Is(err, toolspkg.ErrToolNotFound) {
+							t.Fatalf("foreign artifact read error = %v, want not found", err)
+						}
+					}
+				}
+				content, err := skillRegistry.LoadResource(t.Context(), skill, tc.resource)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -10479,6 +10529,85 @@ func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtif
 
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain the early artifact store through boot and both transport handlers", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		d := newTestDaemon(t, home, &cfg)
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		engines := make(map[string]*gin.Engine)
+		var artifactStore toolspkg.ToolArtifactStore
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			artifactStore = deps.ToolArtifacts
+			engine := gin.New()
+			if _, err := httpapi.New(append(httpServerOptions(&deps), httpapi.WithEngine(engine))...); err != nil {
+				return nil, err
+			}
+			engines["HTTP"] = engine
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			engine := gin.New()
+			options := append(
+				udsServerOptions(&deps),
+				udsapi.WithEngine(engine),
+				udsapi.WithSocketPath(shortSocketPath(t)),
+			)
+			if _, err := udsapi.New(options...); err != nil {
+				return nil, err
+			}
+			engines["UDS"] = engine
+			return &fakeServer{name: "uds"}, nil
+		}
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if artifactStore == nil {
+			t.Fatal("boot omitted tool artifact store from transport dependencies")
+		}
+		ref, err := artifactStore.Put(
+			t.Context(),
+			workspaceaccess.ScopeTarget("", store.DefaultProfileID),
+			[]byte("retained result"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := toolspkg.ParseToolArtifactURI(ref.URI)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for transport, engine := range engines {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"/api/workspaces/@user/tool-artifacts/"+id,
+					nil,
+				),
+			)
+			var page toolspkg.ToolArtifactPage
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || string(decoded) != "retained result" || !page.EOF {
+				t.Fatalf("%s artifact read = %d/%s", transport, response.Code, response.Body)
+			}
+		}
+	})
 
 	for _, tc := range []struct {
 		name        string

@@ -22,6 +22,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
@@ -214,7 +216,11 @@ func newToolParityArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactSt
 	if err != nil {
 		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
 	}
-	if _, err := store.Put(t.Context(), "ws-1", []byte(toolParityArtifactContent)); err != nil {
+	if _, err := store.Put(
+		t.Context(),
+		workspaceaccess.ScopeTarget("ws-1", ""),
+		[]byte(toolParityArtifactContent),
+	); err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
 	return store

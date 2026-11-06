@@ -263,10 +263,11 @@ func (c *Client) ReadTerminal(ctx context.Context, params ReadTerminalParams) (*
 
 // ReadToolArtifactParams carries the path, query, and header parameters.
 type ReadToolArtifactParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	ArtifactID  string `url:"artifact_id"`
-	Offset      *int64 `url:"offset"`
-	Limit       *int64 `url:"limit"`
+	WorkspaceID string  `url:"workspace_id"`
+	ArtifactID  string  `url:"artifact_id"`
+	Offset      *int64  `url:"offset"`
+	Limit       *int64  `url:"limit"`
+	Profile     *string `url:"profile"`
 }
 
 // ReadToolArtifact Read one retained oversized tool-result page
@@ -280,6 +281,9 @@ func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactPa
 	}
 	if params.Limit != nil {
 		query.Set("limit", strconv.FormatInt(*params.Limit, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
