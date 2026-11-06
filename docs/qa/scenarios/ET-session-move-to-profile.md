@@ -4,10 +4,10 @@ area: ET
 title: Move a session started in the wrong profile to another profile
 persona: Ada
 journey: J-scope-work-by-profile
-expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live or unarchived descendants refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
+expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live descendants or unarchived descendants outside the original's subagent archive family refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
 entry_points: web session row menu and Move to profile dialog; compozy session move-to-profile; HTTP/UDS POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile; native compozy__session_move_to_profile
 qa_status: pending
-bug_ids: [1298]
+bug_ids: [1298, 1320]
 fix_status: fixed
 retest_status: pending
 fix_commits:
@@ -70,3 +70,19 @@ The fresh browser/daemon walk remains pending; these suite results do not claim 
 
 The profile-move suite also verifies unchanged descendant conversation history and that
 canceling lock acquisition releases already-held descendant locks.
+
+10. Stopped subagent family (#1320): create a stopped root with stopped subagent children and
+    grandchildren, then move the root without archiving it first. The original and its subagent
+    archive family are archived in the source profile, with history and lineage unchanged; only
+    the fork belongs to the target. Repeat with a live subagent: the move refuses without changes.
+    A subagent below an archived non-subagent remains a blocker until that separate family is archived.
+11. Force target checkout creation to fail after archiving a stopped subagent family. The rollback
+    restores the original and subagents to their prior unarchived state in the source profile.
+
+Automated verification for #1320 (2026-11-06): `TestManagerMoveToProfile` verifies steps 10–11
+against real SQLite, including stopped subagent children and grandchildren sharing the original's
+worktree, history/lineage retention, the individual subagent archive refusal, rollback after target
+checkout failure, live subagent refusal, and a stopped subagent outside the original's archive
+family. `TestManagerRecoverProfileMoves` and the existing integration suites
+`TestManagerIntegrationFullLifecycle` / `TestManagerIntegrationUserLifecycle` also passed.
+These results do not claim a fresh browser walk.
