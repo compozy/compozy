@@ -14,7 +14,7 @@ context:
     - id: stalled-sessions
       script: stalled-sessions
       with:
-        root: sess-e142e42803a2c0cf
+        root_agent: maestro
 ---
 
 Each item is one session in the orchestrator's tree that looks stalled, keyed `<session-id>@<updated_at>`. An item stays in every check-in while its stall lasts, so a new stall also shows the old ones: act only on keys you have not acted on, and never send the same nudge twice. Attributes carry `session_id`, `agent` and `stall` (the daemon badge, or `settled, nothing armed` for a settled session with no monitor, child, scheduled wait or pending reply). No item means no model turn.

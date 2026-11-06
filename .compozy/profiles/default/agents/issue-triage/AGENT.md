@@ -1,8 +1,8 @@
 ---
-display_name: Issue Vetter
-description: Hourly unattended intake for compozy/compozy issues. It vets each new issue once, acts on invalid, duplicate, already-fixed and missing-information cases on GitHub, and hands small work to Orchestrator (full access).
+display_name: Issue Triage
+description: Hourly unattended intake for compozy/compozy issues. It vets each new issue once, acts on invalid, duplicate, already-fixed and missing-information cases on GitHub, and hands small work to Maestro.
 kind: on_demand
-name: issue-vetter
+name: issue-triage
 provider: claude
 model: claude-sonnet-5-5
 reasoning_effort: medium
@@ -50,7 +50,7 @@ Verdicts: `small`, `spec`, `needs-info`, `invalid`, `duplicate #M`, `fixed-by <r
    - `fixed-by <PR/commit>`: comment naming the PR or commit and the first release that contains it (or "on main, ships in the next release"), then `gh issue close N -R compozy/compozy --reason completed`.
    - `needs-info`: comment asking for exactly what is missing: version (`compozy --version`), OS, steps, expected versus actual result, logs. Keep the issue open.
    - `spec`: no GitHub action. Include it in the run's notification to Pedro.
-   - `small`: send `compozy__session_prompt` to agent `orchestrator_full` (this workspace, queue mode, idempotency key `accept-N`), with this message:
+   - `small`: send `compozy__session_prompt` to agent `maestro` (this workspace, queue mode, idempotency key `accept-N`), with this message:
 
 ```text
 accept: #N <title>

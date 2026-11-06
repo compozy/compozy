@@ -98,11 +98,11 @@ scripts/ci-changes.sh|backend web desktop ci_infra
 .github/PULL_REQUEST_TEMPLATE.md|meta
 .agents/skills/eng/eng-delivery/SKILL.md|meta
 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py|backend
-.compozy/agents/merge-train/AGENT.md|meta
+.compozy/agents/merge-gate/AGENT.md|meta
 CLAUDE.md|meta
 internal/CLAUDE.md|meta
 web/AGENTS.md|meta
-docs/qa/scenarios/TA-merge-train-gate.md|meta
+docs/qa/scenarios/TA-merge-gate.md|meta
 docs/release/homebrew-beta-notice.md|web
 README.md|web
 DESIGN.md|meta

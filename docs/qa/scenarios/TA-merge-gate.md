@@ -1,11 +1,11 @@
 ---
-id: TA-merge-train-gate
+id: TA-merge-gate
 area: TA
-title: Merge only through the merge-train gate
+title: Merge only through the merge-gate gate
 persona: Bruno
 journey: J-deliver-through-agents
-expected: In a sandbox repository, merge-train refuses a moved head and a handoff without an exact head, merges a reviewed handoff directly even with pending or red CI, reports non-green checks after root sync, and runs a release only on a direct operator message. There is no merge queue; main may go red briefly and is fixed right after.
-entry_points: compozy session prompt <merge-train session> 'ready: #<pr> <sha>'
+expected: In a sandbox repository, merge-gate refuses a moved head and a handoff without an exact head, merges a reviewed handoff directly even with pending or red CI, reports non-green checks after root sync, and runs a release only on a direct operator message. There is no merge queue; main may go red briefly and is fixed right after.
+entry_points: compozy session prompt <merge-gate session> 'ready: #<pr> <sha>'
 qa_status: skipped
 bug_ids:
 fix_status:

@@ -20,7 +20,7 @@ make web-dev    # run the web UI locally
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
-- CI runs the fast lane (preflight, lint, typecheck, unit, build) for affected areas on pull requests. Heavy lanes (integration, Windows and E2E) run on pushes to `main` and nightly; add `ci:full` and re-run CI, or change the CI pipeline, to run them on a pull request. There is no merge queue: merge-train merges directly after its review criterion holds, even with pending or red CI. `main` may go red briefly and is fixed right after; every merge reports its non-green checks.
+- CI runs the fast lane (preflight, lint, typecheck, unit, build) for affected areas on pull requests. Heavy lanes (integration, Windows and E2E) run on pushes to `main` and nightly; add `ci:full` and re-run CI, or change the CI pipeline, to run them on a pull request. There is no merge queue: merge-gate merges directly after its review criterion holds, even with pending or red CI. `main` may go red briefly and is fixed right after; every merge reports its non-green checks.
 - `make gate-full` — optional local full verification when you want extra pre-push certainty.
 - Lint is zero-tolerance: `make lint` (Go) and `bun run lint` (JS/TS) must pass with no warnings.
 - A pre-commit hook formats staged files for you (oxfmt for JS/TS/YAML/Markdown, `make fmt` for Go).

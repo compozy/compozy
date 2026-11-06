@@ -23,7 +23,7 @@ import os
 import subprocess
 import sys
 
-DEFAULT_ROOT = "sess-e142e42803a2c0cf"
+DEFAULT_ROOT_AGENT = "maestro"
 ALWAYS_STALLED = {"hung", "unhealthy", "needs-attention", "waiting-for-auth", "failed"}
 SETTLED = {"idle", "done", "waiting"}
 ARMED = {
@@ -73,17 +73,30 @@ def stall_reason(session):
     return ""
 
 
+def resolve_main(agent):
+    proc = subprocess.run(
+        ["compozy", "agent", "instance", "list", "--agent", agent, "-o", "json"],
+        capture_output=True, text=True, timeout=20,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"agent instance list --agent {agent}: {proc.stderr.strip()[:500]}")
+    for inst in json.loads(proc.stdout or "{}").get("instances") or []:
+        if inst.get("agent_name") == agent and inst.get("main_session_id"):
+            return inst["main_session_id"]
+    raise RuntimeError(f"no {agent} main session")
+
+
 def main():
     raw = sys.stdin.read()
     request = json.loads(raw) if raw.strip() else {}
     params = request.get("params") or {}
     max_items = int((request.get("limits") or {}).get("max_items") or 20)
-    root = params.get("root", DEFAULT_ROOT)
 
     home = os.environ.get("HOME", "")
     extra = [f"{home}/.compozy/bin", "/opt/homebrew/bin", "/usr/local/bin"]
     os.environ["PATH"] = os.pathsep.join([os.environ.get("PATH", "")] + extra)
 
+    root = params.get("root") or resolve_main(params.get("root_agent") or DEFAULT_ROOT_AGENT)
     stalled, seen, queue = [], {root}, [root]
     while queue:
         for session in list_children(queue.pop(0)):
