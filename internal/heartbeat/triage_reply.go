@@ -30,8 +30,10 @@ type TriageProposal struct {
 // ParseTriageReply consumes only the final assistant message selected by the dispatcher.
 func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProposal, error) {
 	reply = strings.TrimSpace(reply)
-	if strings.HasPrefix(reply, "```json\n") && strings.HasSuffix(reply, "\n```") {
-		reply = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(reply, "```json\n"), "\n```"))
+	var err error
+	reply, err = unwrapTriageFence(reply)
+	if err != nil {
+		return nil, err
 	}
 	if reply == "NOTHING_TO_REPORT" {
 		return nil, nil
@@ -106,7 +108,7 @@ func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
 func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutcome {
 	proposals, err := ParseTriageReply(reply, digest, limit)
 	if err != nil {
-		return failedTriage("triage_output_invalid")
+		return invalidTriageReply(reply)
 	}
 	if len(proposals) == 0 {
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
@@ -197,4 +199,44 @@ func boundedTriageText(text string, budget int) string {
 		return ""
 	}
 	return string(runes[:budget-1]) + "…"
+}
+
+// invalidTriageReply generates diagnostics without copying potentially secret reply characters.
+func invalidTriageReply(reply string) TriageOutcome {
+	outcome := failedTriage("triage_output_invalid")
+	reply = strings.TrimSpace(reply)
+	if reply == "" {
+		return outcome
+	}
+	format := "unfenced"
+	if strings.HasPrefix(reply, "```") {
+		format = "fenced"
+	}
+	payload, err := json.Marshal(struct {
+		Reason string `json:"reason"`
+		Detail string `json:"detail"`
+	}{Reason: outcome.Reason, Detail: "The proactive check returned an invalid response. " +
+		"Output excerpt: [REDACTED]. Format: " + format + "."})
+	if err != nil {
+		return outcome
+	}
+	outcome.Report.Payload = payload
+	return outcome
+}
+
+// unwrapTriageFence accepts only one complete outer fence, leaving strict JSON validation to the parser.
+func unwrapTriageFence(reply string) (string, error) {
+	if strings.HasPrefix(reply, "```") {
+		opener, content, ok := strings.Cut(reply, "\n")
+		opener = strings.TrimSpace(opener)
+		if !ok || (opener != "```" && !strings.EqualFold(opener, "```json")) {
+			return "", ErrTriageOutputInvalid
+		}
+		body, closer, ok := strings.CutLast(content, "\n")
+		if !ok || strings.TrimSpace(closer) != "```" {
+			return "", ErrTriageOutputInvalid
+		}
+		reply = strings.TrimSpace(body)
+	}
+	return reply, nil
 }
