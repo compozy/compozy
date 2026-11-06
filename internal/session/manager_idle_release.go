@@ -65,7 +65,7 @@ func idleRuntimeReleaseDueLocked(
 func runtimeWorkPending(signals []WorkSignal) bool {
 	for _, signal := range signals {
 		switch signal.Kind {
-		case WorkSignalActiveMonitor:
+		case WorkSignalActiveMonitor, WorkSignalHeldInput:
 		default:
 			return true
 		}

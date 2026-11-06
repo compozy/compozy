@@ -1135,6 +1135,33 @@ func TestPromptActivitySupervisorEventBatch(t *testing.T) {
 // Invariant: quiet supervision is a hung-turn watchdog; a session waiting for the operator never warns or
 // stops for inactivity. Owner: session supervision; canonical activity/supervision suite.
 func TestSupervisionIgnoresSessionWaitingForOperator(t *testing.T) {
+	// Invariant: held queue attention does not suppress the hung-turn watchdog.
+	t.Run("Should warn about a silent in-flight turn while input is held", func(t *testing.T) {
+		now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Minute
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldInput,
+			Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+				return []WorkSignal{{Kind: WorkSignalHeldInput, Since: now, ValidUntil: now.Add(time.Hour),
+					AttentionReason: "Input held by paused instance: manual"}}, nil
+			}),
+		})
+		markTurnInFlight(target)
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Second)
+		}
+		if target.Info().Supervision.QuietWarning == nil {
+			t.Fatal("held input suppressed quiet warning")
+		}
+	})
+
 	t.Run("Should not warn or stop a session with no turn in flight", func(t *testing.T) {
 		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
 		cfg := testSupervisionConfig()
@@ -1538,6 +1565,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		{"Should retain a monitor runtime without session load", false, ""},
 		{"Should retain a runtime with a monitor and task lease", true, WorkSignalTaskLease},
 		{"Should retain a runtime with a monitor and scheduled wait", true, WorkSignalScheduledWait},
+		{"Should release a runtime with a monitor and held input", true, WorkSignalHeldInput},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1570,7 +1598,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 				})
 			}
 			superviseFor(t, h, clock, advance, 3)
-			if !tt.load || tt.other != "" {
+			if !tt.load || (tt.other != "" && tt.other != WorkSignalHeldInput) {
 				if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
 					t.Fatalf("blocked runtime = %s", info.RuntimeStatus)
 				}

@@ -280,6 +280,32 @@ func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstanc
 	return i, err
 }
 
+const getHeldSessionInput = `-- name: GetHeldSessionInput :one
+SELECT instance.id, instance.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
+WHERE target.id = ?1 AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+  AND q.status = 'queued' AND q.origin_class <> 'human'
+GROUP BY instance.id, instance.pause_reason
+`
+
+type GetHeldSessionInputRow struct {
+	ID          string `json:"id"`
+	PauseReason string `json:"pause_reason"`
+	Since       string `json:"since"`
+}
+
+func (q *Queries) GetHeldSessionInput(ctx context.Context, sessionID string) (GetHeldSessionInputRow, error) {
+	row := q.db.QueryRowContext(ctx, getHeldSessionInput, sessionID)
+	var i GetHeldSessionInputRow
+	err := row.Scan(&i.ID, &i.PauseReason, &i.Since)
+	return i, err
+}
+
 const getInstanceCaller = `-- name: GetInstanceCaller :one
 WITH RECURSIVE ancestry(id, parent_session_id, instance_id) AS (
 SELECT id, parent_session_id, instance_id FROM sessions WHERE id=?1
@@ -327,6 +353,27 @@ func (q *Queries) GetInstanceMainAttempt(ctx context.Context, instanceID sql.Nul
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getSessionInputHold = `-- name: GetSessionInputHold :one
+SELECT instance.id, instance.pause_reason FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+WHERE target.id = ?1 AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+`
+
+type GetSessionInputHoldRow struct {
+	ID          string `json:"id"`
+	PauseReason string `json:"pause_reason"`
+}
+
+func (q *Queries) GetSessionInputHold(ctx context.Context, sessionID string) (GetSessionInputHoldRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionInputHold, sessionID)
+	var i GetSessionInputHoldRow
+	err := row.Scan(&i.ID, &i.PauseReason)
+	return i, err
 }
 
 const insertAgentInstance = `-- name: InsertAgentInstance :exec

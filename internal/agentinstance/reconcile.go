@@ -122,9 +122,9 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 	case err == nil:
 		return s.rotateMain(ctx, instance)
 	case errors.Is(err, ErrDefinitionMissing):
-		reason = "definition_missing"
+		reason = pauseReasonDefinitionMissing
 	case errors.Is(err, ErrNotAlwaysOn):
-		reason = "definition_not_always_on"
+		reason = pauseReasonDefinitionNotAlwaysOn
 	default:
 		return err
 	}

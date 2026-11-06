@@ -414,7 +414,14 @@ func (q *Queries) GetCoalescibleSessionInput(ctx context.Context, arg GetCoalesc
 
 const getNextDispatchableSessionInput = `-- name: GetNextDispatchableSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = ?1 AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = ?1 AND owner_kind = 'goal'
     AND status = ?2 AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -541,27 +548,6 @@ func (q *Queries) GetSessionInputGeneration(ctx context.Context, id string) (int
 	var input_generation int64
 	err := row.Scan(&input_generation)
 	return input_generation, err
-}
-
-const getSessionInputHold = `-- name: GetSessionInputHold :one
-SELECT instance.id, instance.pause_reason FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
-WHERE target.id = ?1 AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-`
-
-type GetSessionInputHoldRow struct {
-	ID          string `json:"id"`
-	PauseReason string `json:"pause_reason"`
-}
-
-func (q *Queries) GetSessionInputHold(ctx context.Context, sessionID string) (GetSessionInputHoldRow, error) {
-	row := q.db.QueryRowContext(ctx, getSessionInputHold, sessionID)
-	var i GetSessionInputHoldRow
-	err := row.Scan(&i.ID, &i.PauseReason)
-	return i, err
 }
 
 const getSessionInputQueueEntry = `-- name: GetSessionInputQueueEntry :one
@@ -930,7 +916,14 @@ func (q *Queries) InsertSessionInputQueueEntry(ctx context.Context, arg InsertSe
 
 const listDispatchableSessionInputs = `-- name: ListDispatchableSessionInputs :many
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = ?1 AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = ?1 AND owner_kind = 'goal'
     AND status = 'queued' AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -1067,7 +1060,14 @@ func (q *Queries) ListDispatchableSessionInputs(ctx context.Context, arg ListDis
 
 const listPendingSessionInputs = `-- name: ListPendingSessionInputs :many
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = ?1 AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = ?1 AND owner_kind = 'goal'
     AND status = ?2 AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -1437,7 +1437,14 @@ func (q *Queries) MarkSessionInputSentInTurn(ctx context.Context, arg MarkSessio
 
 const peekNextSessionInput = `-- name: PeekNextSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = ?1 AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = ?1 AND owner_kind = 'goal'
     AND status = ?2 AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL

@@ -4494,7 +4494,7 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 // UT-001, UT-025: paused queue selection retains autonomous input and permits human input.
 func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 	// Invariant: definition pauses retain mains but release dispatched descendants; safety pauses hold both.
-	for _, reason := range []string{"definition_missing", "definition_not_always_on", "manual", "fatigue", "unattended", "unknown"} {
+	for _, reason := range []string{"definition_missing", "definition_not_always_on", "manual", "fatigue", "unattended", "unknown", "definition_future"} {
 		t.Run("Should preserve the lineage brake for "+reason, func(t *testing.T) {
 			t.Parallel()
 			db := openTestGlobalDB(t)
@@ -4531,7 +4531,7 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 			if _, err := db.Instances().Pause(ctx, instance.ID, reason); err != nil {
 				t.Fatal(err)
 			}
-			definition := strings.HasPrefix(reason, "definition_")
+			definition := reason == "definition_missing" || reason == "definition_not_always_on"
 			for _, id := range ids {
 				req := promptAdmissionRequest(workspace, id, "pause-"+id, now)
 				req.Origin = []byte(`{"kind":"session","session_id":"sender","hop":1}`)
@@ -4561,6 +4561,13 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 				rows, err := db.ListPendingSessionInputs(ctx, id)
 				if err != nil || len(rows) != 2 {
 					t.Fatalf("inputs: %+v %v", rows, err)
+				}
+				hold, err := db.SessionInputHold(ctx, id)
+				if err != nil || (hold != nil) != held {
+					t.Fatalf("hold summary: %+v %v", hold, err)
+				}
+				if held && (hold.InstanceID != instance.ID || hold.Reason != reason || !hold.Since.Equal(now)) {
+					t.Fatalf("hold summary: %+v", hold)
 				}
 				for _, row := range rows {
 					if row.Held != held || (held && (row.HeldReason != reason || row.HeldInstanceID != instance.ID)) {
@@ -4751,6 +4758,70 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: a paused prepared Goal cannot strand a released descendant's own continuations.
+	t.Run("Should select child continuation behind a prepared Goal during a definition pause", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "child-goal", "child-goal-main")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+		child := "goal-child"
+		if err := db.RegisterSession(ctx, &store.SessionInfo{
+			ID:            child,
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   workspace,
+			AgentName:     "coder",
+			State:         "active",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: main,
+				RootSessionID:   main,
+				SpawnDepth:      1,
+				Kind:            store.LineageKindSpawn,
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"prepared-child-goal", "child-monitor", "child-peer"} {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: child, Text: id, OriginClass: store.SessionInputOriginClassSynthetic,
+				QueueCap: 3, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE session_input_queue SET owner_kind='goal',dispatchable=0,goal_input_batch_max_rowid=0 WHERE id='prepared-child-goal'"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "definition_missing"); err != nil {
+			t.Fatal(err)
+		}
+		peek, found, err := db.PeekNextSessionInput(ctx, child)
+		if err != nil || !found || peek.ID != "child-monitor" {
+			t.Fatalf("peek: %+v %v %v", peek, found, err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(ctx, child, now.Add(time.Second))
+		if err != nil || !found || claimed.ID != "child-monitor" {
+			t.Fatalf("claim: %+v %v %v", claimed, found, err)
+		}
+		if err := db.MarkSessionInputSent(ctx, child, claimed.ID, now.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		claimed, found, err = db.ClaimNextSessionInput(ctx, child, now.Add(2*time.Second))
+		if err != nil || !found || claimed.ID != "child-peer" {
+			t.Fatalf("peer claim: %+v %v %v", claimed, found, err)
+		}
+	})
 	t.Run("Should select a human message behind a prepared Goal while paused", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

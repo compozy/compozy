@@ -220,7 +220,9 @@ Create an always-on main with a dispatched child and grandchild. Queue their own
 monitor wakes and a peer message. Remove the creator's definition, producing
 `definition_missing`: children deliver once, while the main retains its inputs.
 Repeat after rotation and with `definition_not_always_on`. Already queued work is
-released by instance reconciliation; stopped descendants stay stopped.
+released by instance reconciliation; stopped descendants stay stopped. Repeat with a
+prepared Goal ahead of those inputs: normal child continuations still deliver,
+while the Goal retains its explicit pause guard.
 
 Repeat with `manual`, `fatigue`, `unattended` and an unknown pause reason: all
 autonomous lineage input stays held. Read prompt results and input lists for

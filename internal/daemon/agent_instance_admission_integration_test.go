@@ -1085,7 +1085,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 		if err != nil || peer.Delivery != "held" || peer.HeldReason != "manual" || peer.HeldInstanceID != instance.ID {
 			t.Fatalf("held prompt: %+v %v", peer, err)
 		}
-		sources := sessionWorkSources{manager: manager, now: time.Now}
+		sources := sessionWorkSources{state: &bootState{registry: db}, manager: manager, now: time.Now}
 		manager.SetWorkSignalSources(
 			session.WorkSignalSource{
 				Kind:   session.WorkSignalHeldInput,

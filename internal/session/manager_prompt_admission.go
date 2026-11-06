@@ -398,9 +398,7 @@ func (m *Manager) stageAdmittedSteerPrompt(
 		return SendPromptResult{}, err
 	}
 	result.SteerDelivery = entry.SteerDelivery
-	if result.HeldInstanceID == "" {
-		result.Delivery = entry.Delivery
-	}
+	result.Delivery = entry.Delivery
 	result.PreviousTurnID = entry.TargetTurnID
 	result.Replayed = !created
 	m.replyWatchSendResult(ctx, admission, nil)

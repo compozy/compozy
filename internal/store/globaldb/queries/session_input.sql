@@ -9,7 +9,14 @@ RETURNING id;
 
 -- name: GetNextDispatchableSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -76,7 +83,14 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
 
 -- name: PeekNextSessionInput :one
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -111,7 +125,14 @@ LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = sqlc.arg(queued_status) AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -349,7 +370,14 @@ RETURNING id;
 -- Dispatch-ordered candidates for batching behind an already claimed head; same filter as
 -- GetNextDispatchableSessionInput, so the Goal cutoff still bounds the batch.
 WITH prepared_goal AS (
-  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sessions target
+    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances instance ON instance.id = root.instance_id
+    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
+      AND instance.state = 'paused'
+      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
+  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
   WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
     AND status = 'queued' AND dispatchable = 0
     AND terminal_at IS NULL AND fence_kind IS NULL
@@ -461,11 +489,3 @@ SELECT * FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id) AND mode = 'steer' AND status = 'canceled'
   AND superseded_by IS NOT NULL AND id > sqlc.arg(after_id)
 ORDER BY id LIMIT 100;
-
--- name: GetSessionInputHold :one
-SELECT instance.id, instance.pause_reason FROM sessions target
-JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-JOIN agent_instances instance ON instance.id = root.instance_id
-WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
-  AND (target.instance_id = instance.id
-    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));

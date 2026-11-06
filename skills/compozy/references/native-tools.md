@@ -1089,14 +1089,15 @@ reaching it replaces the definition pause with `unattended` and holds the lineag
 `session_prompt` returns `held_reason` and `held_instance_id` when delivery is held;
 `session_inputs_list` exposes the same fields with `held: true`. Session status adds
 an attention `held_input` work signal carrying those fields and the instance reference.
-Adoption keeps existing child lineage; it does not transfer another instance's children.
+A prepared Goal does not hold normal descendant input during a definition pause;
+the Goal itself retains its explicit pause guard. Adoption keeps existing child lineage; it does not transfer another instance's children.
 Human prompts still run and reset the counter without resuming the instance. A child
 spawned during a human turn may run without acquiring operator approval authority.
 Marking reports seen, an operator approval/clarification, and resume also reset the
 counter; presence alone does not. A pause cancels a running check without fatigue.
 
 Only the operator may resume `manual`, `fatigue`, `unattended` or unknown reasons;
-agents may resume `definition_*` reasons. Resume delivers held input within the
+agents may resume `definition_missing` or `definition_not_always_on`. Resume delivers held input within the
 existing queue limits and restores only Goals/Loops paused by the instance. Direct
 Goal/Loop resume during an instance pause returns `agent_instance_paused`. A stopped
 main can restart to deliver its queue; stopped descendants retain theirs. Archive

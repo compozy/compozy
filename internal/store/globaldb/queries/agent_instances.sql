@@ -181,3 +181,23 @@ AND EXISTS (
 UPDATE agent_instances SET state = 'paused', pause_reason = 'unattended', updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
 AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
+
+-- name: GetSessionInputHold :one
+SELECT instance.id, instance.pause_reason FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
+
+-- name: GetHeldSessionInput :one
+SELECT instance.id, instance.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+FROM sessions target
+JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+JOIN agent_instances instance ON instance.id = root.instance_id
+JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
+WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
+  AND (target.instance_id = instance.id
+    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+  AND q.status = 'queued' AND q.origin_class <> 'human'
+GROUP BY instance.id, instance.pause_reason;

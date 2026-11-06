@@ -54,8 +54,7 @@ func applyInstancePromptDelivery(
 		if callerErr != nil {
 			return callerErr
 		}
-		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" &&
-			req.Mode != store.SessionInputQueueModeSteer {
+		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" {
 			receipt.Delivery = "queued"
 		}
 		return nil

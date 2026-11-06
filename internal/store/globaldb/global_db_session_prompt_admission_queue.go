@@ -204,17 +204,14 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil {
 		return err
 	}
-	receipt := stagedPromptAdmissionResult(&inserted, len(canceledQueued))
-	if err := applyInstancePromptDelivery(ctx, exec, admissionReq, &receipt); err != nil {
-		return err
-	}
+
 	completed, err := completeSessionPromptAdmission(
 		ctx,
 		exec,
 		claimed.WorkspaceID,
 		claimed.SessionID,
 		claimed.IdempotencyKey,
-		receipt,
+		stagedPromptAdmissionResult(&inserted, len(canceledQueued)),
 		admissionReq.Now,
 		store.SessionPromptAdmissionReserved,
 	)
