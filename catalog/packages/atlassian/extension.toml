@@ -1,11 +1,11 @@
 name = "atlassian"
-version = "1.0.0"
+version = "1.0.1"
 description = "Work with Atlassian products through Atlassian's hosted MCP server."
 min_compozy_version = "0.3.0-beta.25"
 
 [resources.mcp_servers.atlassian]
 transport = "http"
-url = "https://mcp.atlassian.com/v1/mcp/authv2"
+url = "https://mcp.atlassian.com/v2/mcp"
 default_scope = "workspace"
 
 [resources.mcp_servers.atlassian.auth]
