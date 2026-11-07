@@ -126,28 +126,28 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		restartOptions.HomePaths = harness.HomePaths
 		restartOptions.Workspace = e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot}
 		restarted := e2etest.StartRuntimeHarness(t, &restartOptions)
-		// Boot reconciliation expires the pre-restart decision: the agent process
-		// that asked is gone, so no answer could ever reach it. The decision leaves
-		// the open-interaction list with restart attribution, attention clears, and
-		// a late answer changes nothing (invariant 12, US-009).
+		// The lost turn's settled permission must refuse late answers and clear attention.
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
 		assertAttentionListEmpty(t, ctx, restarted)
 
-		var approval compozycontract.SessionApprovalResponse
-		if err := restarted.CLI.RunJSONInDir(
+		_, stderr, err := restarted.CLI.RunInDir(
 			ctx,
 			restarted.WorkspaceRoot,
-			&approval,
 			"session", "approve", target.ID,
 			"--request-id", interaction.ProviderRequestID,
 			"--decision", "allow-once",
 			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI late permission approval after restart error = %v", err)
+		)
+		assertAttentionCLIExitCode(t, err, 65, stderr)
+		var refusal struct {
+			Error string `json:"error"`
 		}
-		if approval.Outcome != store.PendingInteractionOutcomeAlreadyResolved {
-			t.Fatalf("CLI late permission approval after restart = %#v, want already resolved", approval)
+		if err := json.Unmarshal([]byte(stderr), &refusal); err != nil {
+			t.Fatalf("decode CLI late permission refusal: %v; stderr=%s", err, stderr)
+		}
+		if refusal.Error != session.ErrPendingPermissionCanceled.Error() {
+			t.Fatalf("CLI late permission refusal = %q, want %q", refusal.Error, session.ErrPendingPermissionCanceled)
 		}
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		assertAttentionListEmpty(t, ctx, restarted)

@@ -4952,37 +4952,58 @@ func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashChec
 	rows, err := db.ListPendingInteractions(
 		t.Context(),
 		*checkpoint.Row.ChildSessionID,
-		[]string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled},
+		[]string{
+			store.PendingInteractionStatusTimedOut,
+			store.PendingInteractionStatusCanceled,
+			store.PendingInteractionStatusResolved,
+		},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := map[string]bool{}
 	for _, row := range rows {
+		var wantErr error
 		switch row.InteractionID {
 		case "b4-expired":
-			if row.Status != store.PendingInteractionStatusTimedOut || row.Resolution != "reject_once" {
+			if row.Status != store.PendingInteractionStatusTimedOut || row.Resolution != "reject_once" ||
+				row.ResolvedBy != "timeout" || row.ResolvedAt == nil {
 				t.Fatalf("expiry = %#v", row)
 			}
+			wantErr = session.ErrPendingPermissionExpired
 		case "b4-pending":
-			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "failed-by-restart" {
+			// Verified recovered-stop finalization precedes the boot interaction sweep.
+			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "session-stopped" ||
+				row.ResolvedBy != "system" || row.ResolvedAt == nil {
 				t.Fatalf("restart = %#v", row)
+			}
+			wantErr = session.ErrPendingPermissionCanceled
+		case "b4-resolved":
+			if row.Status != store.PendingInteractionStatusResolved || row.Resolution != "reject-once" ||
+				row.ResolvedBy != "operator" || row.ResolvedAt == nil {
+				t.Fatalf("resolved decision = %#v", row)
 			}
 		default:
 			continue
 		}
 		found[row.InteractionID] = true
-		result, err := d.sessions.ApprovePermission(
-			t.Context(),
-			row.SessionID,
-			acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
-		)
-		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
-			result.ResolvedDecision != row.Resolution {
-			t.Fatalf("late approval = %#v, %v; want existing terminal decision %s", result, err, row.Resolution)
+		for range 2 {
+			result, err := d.sessions.ApprovePermission(
+				t.Context(),
+				row.SessionID,
+				acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
+			)
+			if wantErr != nil {
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("late approval for %s = %#v, %v; want %v", row.InteractionID, result, err, wantErr)
+				}
+			} else if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+				result.ResolvedDecision != row.Resolution {
+				t.Fatalf("repeated approval = %#v, %v; want existing decision %s", result, err, row.Resolution)
+			}
 		}
 	}
-	if len(found) != 2 {
+	if len(found) != 3 {
 		t.Fatalf("recovered interactions = %#v", rows)
 	}
 	reports, err := db.InstanceReports().
@@ -5158,7 +5179,7 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	// Persist both sides of the crash boundary while a real child turn is running.
 	db := d.registry.(*globaldb.GlobalDB)
 	now := time.Now().UTC()
-	for _, id := range []string{"b4-expired", "b4-pending"} {
+	for _, id := range []string{"b4-expired", "b4-pending", "b4-resolved"} {
 		_, err := db.CreatePendingInteraction(
 			t.Context(),
 			store.PendingInteractionCreate{
@@ -5174,6 +5195,18 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := db.TransitionPendingInteraction(
+		t.Context(),
+		store.PendingInteractionTransition{
+			InteractionID: "b4-resolved",
+			Status:        store.PendingInteractionStatusResolved,
+			At:            now,
+			Resolution:    "reject-once",
+			ResolvedBy:    "operator",
+		},
+	); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := db.TransitionPendingInteraction(
 		t.Context(),

@@ -257,13 +257,13 @@ func TestManagerIntegrationPermissionLifetime(t *testing.T) {
 					}()
 				}
 				var requestID, interactionID string
+				statuses := []string{store.PendingInteractionStatusPending}
+				if mode == "expiry" {
+					// Expiry may finish before Prompt returns or the observer is scheduled.
+					statuses = append(statuses, store.PendingInteractionStatusTimedOut)
+				}
 				waitForCondition(t, "permission settlement", func() bool {
-					select {
-					case err := <-result:
-						t.Fatalf("request ended before pending: %v", err)
-					default:
-					}
-					rows, err := catalog.ListPendingInteractions(ctx, target.ID, nil)
+					rows, err := catalog.ListPendingInteractions(ctx, target.ID, statuses)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -333,7 +333,14 @@ func TestManagerIntegrationPermissionLifetime(t *testing.T) {
 						t.Fatal(err)
 					}
 					return slices.ContainsFunc(rows, func(row store.PendingInteraction) bool {
-						return row.InteractionID == interactionID && row.ResolvedAt != nil
+						if row.InteractionID != interactionID || row.ResolvedAt == nil {
+							return false
+						}
+						if mode == "expiry" && (row.ExpiresAt == nil || row.ResolvedAt.Before(*row.ExpiresAt) ||
+							row.Resolution != "reject-once" || row.ResolvedBy != "timeout") {
+							t.Fatalf("expiry attribution = %#v", row)
+						}
+						return true
 					})
 				})
 				info, err := h.manager.Status(ctx, target.ID)
