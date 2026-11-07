@@ -1,6 +1,6 @@
 # BUG-20261107-set-up-waits-on-slow-mcp-read: Set up stays disabled for up to 20 s after Add or page load
 
-- Status: open
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Impact (user-side): Degraded (action unavailable while a spinner shows)
 - Severity: Low; Priority: P3
 - Persona Affected: Bruno
@@ -17,3 +17,8 @@ which took 15.0 s and 9.2 s uncached and about 2 ms once cached.
 
 Expected: Set up is usable right away. It can open detail with `?setup=1` while the live server read
 is pending, and that read should not block on a remote probe.
+
+## Re-walk 2026-11-07 phase 4 (integration 92b36f639, fresh isolated lab, committed feed)
+
+After Add of `compozy-catalog/linear`, Set up is enabled 8 ms after it renders; after a reload, 6 ms.
+Evidence: /tmp/mpc-shots/final/set-up.png.

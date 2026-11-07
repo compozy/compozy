@@ -1,6 +1,6 @@
 # BUG-20261107-plugin-archive-symlink-unsupported: Plugins whose repository contains symlinks cannot load
 
-- Status: open
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Impact (user-side): Listed but not installable
 - Severity: Medium; Priority: P2
 - Persona Affected: Bruno
@@ -20,3 +20,10 @@ web search shows them as Blocked. The diagnostic code is `unknown_component`.
 
 Expected: symlinks contained in the archive are accepted (or skipped with a diagnostic) so the plugin
 loads, and the blocker names the load failure.
+
+## Re-walk 2026-11-07 phase 4 (integration 92b36f639, fresh isolated lab, committed feed)
+
+After a cold refresh, `claude-plugins-official` has 10 `load_failed` rows (was 46); `compozy-plugins` has 1.
+`data-engineering` reads version `35b9610bb271`, installable. Add in the web (one "Install anyway"
+consent) ends Ready with the toast "data-engineering added"; the package installs as `astronomer-data`
+(active), joined to the row through `installed_name`. Evidence: /tmp/mpc-shots/final/add-symlink-plugin.png.

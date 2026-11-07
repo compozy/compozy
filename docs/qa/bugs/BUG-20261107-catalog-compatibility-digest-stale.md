@@ -1,6 +1,6 @@
 # BUG-20261107-catalog-compatibility-digest-stale: Hand-edited catalog feed no longer matches its compatibility digest
 
-- Status: open
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Impact (user-side): Blocking once published (the whole CompozyOS catalog fails validation)
 - Severity: High; Priority: P1
 - Persona Affected: Bruno, Ada
@@ -20,3 +20,9 @@ feed" (`internal/marketplace/compatibility.go:26`), and lists none of its 18 ent
 and a `compatibility.json` with the new digest; with that output the feed loads.
 
 Expected: regenerate through the generator and commit `compatibility.json` together with the feed.
+
+## Re-walk 2026-11-07 phase 4 (integration 92b36f639, fresh isolated lab, committed feed)
+
+`catalog/v3/compatibility.json` records `bde95da6…`, matching `extensions.json`. A lab whose
+`marketplace.catalog.base_url` points at the committed `catalog/` refreshes `compozy-catalog`
+successfully (18 entries) without the temporary publish.

@@ -26,3 +26,8 @@ Reproduced the enable failure with a remote server whose typed host renders an i
 with the daemon cause, and Retry shows the same cause plus `extension_enable_failed` instead of
 "Internal Server Error". Follow-up polish, not blocking: one Retry press shows two toasts with the same
 message, and install accepts a value that only fails when the URL is rendered at enable.
+
+## Re-walk 2026-11-07 phase 4 (integration 92b36f639, fresh isolated lab, committed feed)
+
+One Retry press now shows exactly one toast with the daemon cause (toast count 0 → 1). Evidence:
+/tmp/mpc-shots/final/enable-failed-retry.png.

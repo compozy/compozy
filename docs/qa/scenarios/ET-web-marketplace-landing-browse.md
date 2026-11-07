@@ -128,3 +128,11 @@ Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a gene
 - Open, not blocking: BUG-20261107-catalog-compatibility-digest-stale (the committed feed must be
   regenerated before publishing), BUG-20261107-plugin-archive-symlink-unsupported (39 official plugins
   list as Blocked). Cosmetic: the GitHub and Linear logos are nearly invisible in light mode.
+
+### Re-walk 2026-11-07 phase 4 (integration 92b36f639, committed feed)
+
+Cold refresh ~96 s (compozy-catalog 18 from the committed feed, claude-plugins-official 316, compozy-plugins 333). Evidence: `/tmp/mpc-shots/final/` (lab-local).
+
+- PASS — the committed `compozy-catalog` feed validates (BUG-20261107-catalog-compatibility-digest-stale verified).
+- PASS — Browse home light and dark: Featured 8 plus twelve categories (360 rows). The GitHub and Linear
+  marks are visible in light mode.

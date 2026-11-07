@@ -7,11 +7,11 @@ journey: J-marketplace-acquisition
 expected: A catalog entry marked `format: agent-plugin` shows a neutral Agent Plugin badge on the card and detail view, follows the normal trust and install flow, lands on extension management with format and skipped diagnostics visible, and still relies on acquired-package detection when catalog metadata is absent or stale.
 entry_points: Web /marketplace and entry detail; Web extension trust/install dialog and /settings/extensions; compozy marketplace search; GET /api/marketplace over HTTP and UDS; POST /api/extensions; curated catalog feed
 qa_status: pass
-bug_ids: BUG-20261107-derived-secret-env-enable-fails; BUG-20261107-enablement-route-500; BUG-20261107-set-up-waits-on-slow-mcp-read
+bug_ids: BUG-20261107-derived-secret-env-enable-fails; BUG-20261107-enablement-route-500; BUG-20261107-set-up-waits-on-slow-mcp-read; BUG-20261107-plugin-archive-symlink-unsupported
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /tmp/mpc-shots/final (add-ready.png, set-up.png, turn-on.png, enable-failed-retry.png)
+evidence: /tmp/mpc-shots/final (add-ready.png, add-symlink-plugin.png, set-up.png, turn-on.png, enable-failed-retry.png)
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-catalog-navigation; ET-web-marketplace-detail-redesign; ET-web-marketplace-installed-management
 ---
@@ -127,3 +127,12 @@ Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a gene
   Retry, the toast reads "Added remote-probe but couldn't turn it on" plus the daemon cause, and Retry
   shows the cause and `extension_enable_failed` (no Internal Server Error). Polish: one Retry press shows
   two toasts with the same message.
+
+### Re-walk 2026-11-07 phase 4 (integration 92b36f639, committed feed)
+
+Cold refresh ~96 s (compozy-catalog 18 from the committed feed, claude-plugins-official 316, compozy-plugins 333). Evidence: `/tmp/mpc-shots/final/` (lab-local).
+
+- PASS — `claude-plugins-official/data-engineering` (archive with symlinks) adds and reads Ready;
+  installs as `astronomer-data`, active.
+- PASS — Set up is usable immediately: enabled 8 ms after Add and 6 ms after a reload.
+- PASS — one Retry press shows exactly one toast with the daemon cause.
