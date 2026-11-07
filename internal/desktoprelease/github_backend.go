@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -107,8 +108,14 @@ func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (stri
 	if err := b.get(ctx, "/repos/"+b.repository+"/git/commits/"+baseCommit, &parent); err != nil {
 		return "", err
 	}
-	treeEntries := make([]map[string]string, 0, len(request.Files))
+	treeEntries := make([]map[string]any, 0, len(request.Files))
 	for filePath, contents := range request.Files {
+		if contents == nil {
+			treeEntries = append(treeEntries, map[string]any{
+				"path": filePath, "mode": "100644", "type": "blob", githubObjectSHAKey: nil,
+			})
+			continue
+		}
 		var blob struct {
 			SHA string `json:"sha"`
 		}
@@ -117,7 +124,7 @@ func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (stri
 		}, &blob); err != nil {
 			return "", err
 		}
-		treeEntries = append(treeEntries, map[string]string{
+		treeEntries = append(treeEntries, map[string]any{
 			"path": filePath, "mode": "100644", "type": "blob", githubObjectSHAKey: blob.SHA,
 		})
 	}
@@ -229,7 +236,9 @@ func (b *GitHubBackend) VerifyAsset(ctx context.Context, version string, artifac
 			if !strings.EqualFold(digest, artifact.SHA256) {
 				return fmt.Errorf("desktop release: %s digest does not match", artifact.Name)
 			}
-			return nil
+			if artifact.expectedSHA512 == "" {
+				return nil
+			}
 		}
 		return b.verifyDownloadedAsset(ctx, asset.ID, artifact)
 	}
@@ -237,9 +246,13 @@ func (b *GitHubBackend) VerifyAsset(ctx context.Context, version string, artifac
 }
 
 func (b *GitHubBackend) ReadCommit(ctx context.Context, sha string) (ChannelCommit, error) {
-	files := make(map[string][]byte, 3)
-	for _, name := range []string{ManifestMac, ManifestLinux, GenerationFile} {
+	files := make(map[string][]byte, 4)
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows, GenerationFile} {
 		contents, err := b.readContents(ctx, path.Join(ChannelDirectory, name), sha)
+		// Older channel generations predate Windows; keep their rollback history readable.
+		if name == ManifestWindows && isGitHubStatus(err, http.StatusNotFound) {
+			continue
+		}
 		if err != nil {
 			return ChannelCommit{}, err
 		}
@@ -297,12 +310,17 @@ func (b *GitHubBackend) verifyDownloadedAsset(
 		return decodeGitHubError(response)
 	}
 	digest := sha256.New()
-	size, err := io.Copy(digest, response.Body)
+	manifestDigest := sha512.New()
+	size, err := io.Copy(io.MultiWriter(digest, manifestDigest), response.Body)
 	if err != nil {
 		return fmt.Errorf("desktop release: hash downloaded %s: %w", artifact.Name, err)
 	}
-	if size != artifact.Size || hex.EncodeToString(digest.Sum(nil)) != artifact.SHA256 {
+	if size != artifact.Size || !strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), artifact.SHA256) {
 		return fmt.Errorf("desktop release: downloaded %s failed digest verification", artifact.Name)
+	}
+	if artifact.expectedSHA512 != "" &&
+		base64.StdEncoding.EncodeToString(manifestDigest.Sum(nil)) != artifact.expectedSHA512 {
+		return fmt.Errorf("desktop release: downloaded %s does not match the channel manifest digest", artifact.Name)
 	}
 	return nil
 }

@@ -1,3 +1,31 @@
+## Windows desktop distribution — 2026-11-04
+
+Production signing reuses the organization Azure identity. Repository access to the existing `AZURE_*` secrets and the public endpoint/publisher variables must be available before a signed release.
+
+Owner: Windows desktop implementation, branch `feat/windows-desktop`.
+
+- **Native tools / CLI / HTTP / UDS:** no verbs, flags, DTOs, routes or tool IDs change. The existing
+  `app` commands use authenticated same-user named pipes on Windows; Unix control is unchanged.
+  `app.sock` is private Windows pipe discovery metadata. App update planning selects the x64 NSIS
+  asset. Standalone Windows runtime updates retain their existing manual replacement contract.
+- **Extensibility / hooks / config:** no new configuration or extension contract. Native Windows
+  providers inherit the launch environment; install Git and provider executables separately.
+- **User state / isolation:** no migration or persisted shape change. NSIS is per-user, never deletes
+  the runtime home on uninstall, and respects existing `COMPOZY_HOME` boundaries. Windows desktop
+  directories establish owner/SYSTEM/Administrators DACLs before writing tokens and metadata.
+  Recreated directories reapply protection; the control pipe permits only the owner and corrupt
+  discovery metadata recovers without discarding a valid live endpoint.
+  Bootstrap and update journals reuse the existing Windows-capable directory flush helper.
+- **Release:** Windows installer and blockmap join exact inventory, checksums, channel publication,
+  signed build and native smoke lanes. New channel generations require `latest.yml`; historical
+  channel reads still accept generations predating Windows. Repair binds the remote Windows
+  installer to the restored feed's SHA-512. No released asset is rewritten.
+- **Web / Docs / official skill:** the existing daemon-served product UI is reused. Installation,
+  release operations and `skills/compozy/references/desktop.md` explain the Windows workflow.
+- **QA:** `APP-app-auto-update` and `APP-desktop-runtime-bundle-coherence` gain Windows variants.
+  Native CI covers installer/update/uninstall and isolated runtime/control behavior. Local focused
+  checks and cross-compilation do not substitute for the Windows CI run.
+
 # Compozy Change Impact
 
 ## Oversized invoked skills deferred to `compozy__skill_view`

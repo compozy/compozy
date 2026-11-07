@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-import { buildReleaseConfig } from "../src/release/release-config";
+import {
+  buildReleaseConfig,
+  windowsAzureSigningFromEnvironment,
+} from "../src/release/release-config";
 import {
   parseBooleanFlag,
   parseReleaseArch,
@@ -17,11 +20,15 @@ const values = parseReleaseScriptFlags(
   ["arch", "channel", "notarize", "platform", "version"]
 );
 const output = resolve(values.get("output") ?? ".artifacts/release-config.json");
+const platform = parseReleasePlatform(values.get("platform"));
+const windowsAzureSigning =
+  platform === "win" ? windowsAzureSigningFromEnvironment(process.env) : undefined;
 const config = buildReleaseConfig({
   arch: parseReleaseArch(values.get("arch")),
   channel: parseReleaseChannel(values.get("channel")),
   notarize: parseBooleanFlag(values.get("notarize"), "notarize"),
-  platform: parseReleasePlatform(values.get("platform")),
+  platform,
+  ...(windowsAzureSigning ? { windowsAzureSigning } : {}),
   version: requiredReleaseFlag(values, "version"),
 });
 await mkdir(dirname(output), { recursive: true });

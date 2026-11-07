@@ -31,8 +31,8 @@ type updateManifest struct {
 }
 
 func LoadChannelFiles(dir string) (map[string][]byte, error) {
-	files := make(map[string][]byte, 3)
-	for _, name := range []string{ManifestMac, ManifestLinux, GenerationFile} {
+	files := make(map[string][]byte, 4)
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows, GenerationFile} {
 		contents, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return nil, fmt.Errorf("desktop release: read channel file %s: %w", name, err)
@@ -45,7 +45,7 @@ func LoadChannelFiles(dir string) (map[string][]byte, error) {
 				return nil, err
 			}
 		}
-		files[filepath.Join(ChannelDirectory, name)] = contents
+		files[path.Join(ChannelDirectory, name)] = contents
 	}
 	return files, nil
 }
@@ -82,19 +82,9 @@ func validateManifestInventory(
 	}
 	actual := make([]string, 0, len(manifest.Files))
 	for _, file := range manifest.Files {
-		parsed, err := url.Parse(file.URL)
+		assetName, err := manifestAssetName(file.URL, version, repository)
 		if err != nil {
-			return fmt.Errorf("desktop release: parse manifest asset URL %q: %w", file.URL, err)
-		}
-		assetName := path.Base(parsed.Path)
-		expectedPath := "/" + repository + "/releases/download/v" + version + "/" + assetName
-		if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil ||
-			parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != expectedPath {
-			return fmt.Errorf(
-				"desktop release: manifest %s asset URL is not an immutable GitHub release URL: %s",
-				name,
-				file.URL,
-			)
+			return err
 		}
 		sha512Digest, size, err := inspectManifestIntegrity(filepath.Join(assetDir, assetName))
 		if err != nil {
@@ -115,6 +105,56 @@ func validateManifestInventory(
 		return fmt.Errorf("desktop release: manifest %s assets = %v, want %v", name, actual, expected)
 	}
 	return nil
+}
+
+func manifestAssetName(assetURL, version, repository string) (string, error) {
+	parsed, err := url.Parse(assetURL)
+	if err != nil {
+		return "", fmt.Errorf("desktop release: parse manifest asset URL %q: %w", assetURL, err)
+	}
+	name := path.Base(parsed.Path)
+	expectedPath := "/" + repository + "/releases/download/v" + version + "/" + name
+	if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != expectedPath {
+		return "", fmt.Errorf(
+			"desktop release: manifest asset URL is not an immutable GitHub release URL: %s",
+			assetURL,
+		)
+	}
+	return name, nil
+}
+
+func bindWindowsManifestIntegrity(artifacts []Artifact, commit ChannelCommit, repository string) error {
+	contents, present := commit.Files[path.Join(ChannelDirectory, ManifestWindows)]
+	if !present {
+		return nil // Historical generations predate Windows.
+	}
+	manifest, err := decodeUpdateManifest(contents, ManifestWindows)
+	if err != nil {
+		return err
+	}
+	version := commit.Generation.Version
+	if manifest.Version != version || len(manifest.Files) != 1 {
+		return errors.New("desktop release: Windows manifest does not match the generation")
+	}
+	file := manifest.Files[0]
+	name, err := manifestAssetName(file.URL, version, repository)
+	if err != nil {
+		return err
+	}
+	if name != "CompozyOS-"+version+"-win-x64.exe" {
+		return errors.New("desktop release: Windows manifest does not name the canonical installer")
+	}
+	for i := range artifacts {
+		if artifacts[i].Name == name {
+			if artifacts[i].Size != file.Size {
+				return errors.New("desktop release: Windows manifest size does not match the remote installer")
+			}
+			artifacts[i].expectedSHA512 = file.SHA512
+			return nil
+		}
+	}
+	return errors.New("desktop release: Windows manifest installer is missing")
 }
 
 func inspectManifestIntegrity(filePath string) (string, int64, error) {
@@ -145,8 +185,9 @@ func inspectManifestIntegrity(filePath string) (string, int64, error) {
 func manifestArtifactNames(version string, manifestName string) ([]string, error) {
 	all := DesktopArtifactNames(version)
 	wantedSuffixes := map[string][]string{
-		ManifestMac:   {"-mac-arm64.zip", "-mac-x64.zip"},
-		ManifestLinux: {"-linux-x64.AppImage"},
+		ManifestMac:     {"-mac-arm64.zip", "-mac-x64.zip"},
+		ManifestLinux:   {"-linux-x64.AppImage"},
+		ManifestWindows: {"-win-x64.exe"},
 	}
 	suffixes, ok := wantedSuffixes[manifestName]
 	if !ok {

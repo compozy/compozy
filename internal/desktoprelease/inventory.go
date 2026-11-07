@@ -20,6 +20,8 @@ func DesktopArtifactNames(version string) []string {
 		"CompozyOS-" + version + "-mac-x64.zip",
 		"CompozyOS-" + version + "-linux-x64.AppImage",
 		"CompozyOS-" + version + "-linux-x64.deb",
+		"CompozyOS-" + version + "-win-x64.exe",
+		"CompozyOS-" + version + "-win-x64.exe.blockmap",
 	}
 }
 

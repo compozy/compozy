@@ -419,7 +419,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		source := filepath.Join(t.TempDir(), "bundled-compozy")
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		writeFile(t, source, "bundled-runtime")
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
@@ -459,7 +459,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		source := filepath.Join(t.TempDir(), "bundled-compozy")
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		writeFile(t, source, "bundled-runtime")
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
@@ -481,7 +481,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mustTestHomePaths(t)
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 		writeFile(t, installedPath, "old-runtime")
 		writeFile(t, bundlePath, "new-runtime")
@@ -535,7 +535,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mustTestHomePaths(t)
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 		writeFile(t, installedPath, "old-runtime")
 		writeFile(t, bundlePath, "new-runtime")
@@ -659,10 +659,8 @@ func probeRunningBootstrapReplacement(t *testing.T, installedPath string) {
 	if err := compozyupdate.WriteDesktopProvenance(homePaths, installedPath, metadata); err != nil {
 		t.Fatal(err)
 	}
-	previous, err := os.Stat(installedPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Windows os.Stat defers reading the file ID until SameFile, after the path changes.
+	previous := bootstrapRuntimeFileIdentity(t, installedPath)
 	bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 	writeFile(t, bundlePath, "new-runtime")
 	install, err := installBootstrapRuntime(&bootstrapProvisionRequest{
@@ -680,13 +678,23 @@ func probeRunningBootstrapReplacement(t *testing.T, installedPath string) {
 	if err != nil || string(payload) != "new-runtime" {
 		t.Fatalf("installed runtime = %q, %v; want new runtime", payload, err)
 	}
-	backup, err := os.Stat(install.backupPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	backup := bootstrapRuntimeFileIdentity(t, install.backupPath)
 	if !os.SameFile(previous, backup) {
 		t.Fatal("recovery copy no longer holds the previous runtime")
 	}
+}
+
+func bootstrapRuntimeFileIdentity(t *testing.T, path string) os.FileInfo {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, statErr := file.Stat()
+	if err := errors.Join(statErr, file.Close()); err != nil {
+		t.Fatal(err)
+	}
+	return info
 }
 
 func assertNoBootstrapBackups(t *testing.T, installedPath string) {

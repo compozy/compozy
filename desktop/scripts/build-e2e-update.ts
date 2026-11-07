@@ -46,7 +46,12 @@ async function packageTarget(output: string, version: string): Promise<void> {
   await rm(output, { recursive: true, force: true });
   await mkdir(output, { recursive: true });
   const generatedConfig = join(output, "builder.json");
-  const target = process.platform === "darwin" ? ["zip"] : ["AppImage"];
+  const target =
+    process.platform === "darwin"
+      ? ["zip"]
+      : process.platform === "win32"
+        ? ["nsis"]
+        : ["AppImage"];
   await writeFile(
     generatedConfig,
     `${JSON.stringify(
@@ -61,14 +66,21 @@ async function packageTarget(output: string, version: string): Promise<void> {
           : {}),
         ...(process.platform === "darwin"
           ? { mac: { target, identity: "-", hardenedRuntime: false } }
-          : { linux: { target } }),
+          : process.platform === "win32"
+            ? { win: { target }, nsis: { runAfterFinish: false } }
+            : { linux: { target } }),
       },
       null,
       2
     )}\n`,
     { mode: 0o600 }
   );
-  const platformTarget = process.platform === "darwin" ? ["--mac", "zip"] : ["--linux", "AppImage"];
+  const platformTarget =
+    process.platform === "darwin"
+      ? ["--mac", "zip"]
+      : process.platform === "win32"
+        ? ["--win", "nsis", "--x64"]
+        : ["--linux", "AppImage"];
   const build = Bun.spawn(
     [
       "bunx",
@@ -85,8 +97,8 @@ async function packageTarget(output: string, version: string): Promise<void> {
   if (exitCode !== 0) throw new Error(`E2E update package build exited with ${exitCode}.`);
 }
 
-if (process.platform !== "darwin" && process.platform !== "linux") {
-  throw new Error("Desktop E2E updates are supported on macOS and Linux.");
+if (process.platform !== "darwin" && process.platform !== "linux" && process.platform !== "win32") {
+  throw new Error("Desktop E2E updates are supported on macOS, Linux and Windows.");
 }
 await buildInstrumentedMain();
 await buildRuntime(packageMetadata.version);
@@ -100,7 +112,8 @@ try {
 }
 
 const updateFiles = await readdir(updateOutput);
-const assetSuffix = process.platform === "darwin" ? ".zip" : ".AppImage";
+const assetSuffix =
+  process.platform === "darwin" ? ".zip" : process.platform === "win32" ? ".exe" : ".AppImage";
 const manifestName = updateFiles.find(name => name.startsWith("latest") && name.endsWith(".yml"));
 const assetName = updateFiles.find(name => name.endsWith(assetSuffix));
 if (!manifestName || !assetName) throw new Error("The E2E updater fixture is incomplete.");
@@ -110,6 +123,9 @@ if (process.platform === "linux") {
   const baselineName = (await readdir(baselineOutput)).find(name => name.endsWith(".AppImage"));
   if (!baselineName) throw new Error("The E2E baseline AppImage is missing.");
   baselineAppImage = join(baselineOutput, baselineName);
+} else if (process.platform === "win32") {
+  baselineExecutable = join(baselineOutput, "win-unpacked", "CompozyOS.exe");
+  await access(baselineExecutable);
 } else {
   baselineExecutable = join(
     baselineOutput,
@@ -132,6 +148,14 @@ await writeFile(
       asset: assetName,
       ...(baselineAppImage ? { baseline_app_image: baselineAppImage } : {}),
       ...(baselineExecutable ? { baseline_executable: baselineExecutable } : {}),
+      ...(process.platform === "win32"
+        ? {
+            baseline_installer: join(
+              baselineOutput,
+              `CompozyOS-${packageMetadata.version}-win-x64.exe`
+            ),
+          }
+        : {}),
     },
     null,
     2

@@ -150,6 +150,6 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     if (!this.#prepared) throw new Error("The app installer is not ready to restart.");
     await this.#prepareForRestart(signal);
     signal.throwIfAborted();
-    this.#updater.quitAndInstall(false, true);
+    this.#updater.quitAndInstall(process.platform === "win32", true);
   }
 }

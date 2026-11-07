@@ -1,9 +1,13 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
+import { dirname } from "node:path";
 
 import { writeFileAtomic } from "../files/atomic-write";
+import { ensurePrivateDirectory } from "../files/private-directory";
 
 export async function rotateControlToken(path: string): Promise<string> {
+  // Refresh Windows permissions even when the same directory was secured previously.
+  await ensurePrivateDirectory(dirname(path), true);
   const token = randomBytes(32).toString("base64url");
   await writeFileAtomic(path, `${token}\n`, 0o600);
   return token;
