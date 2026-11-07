@@ -98,6 +98,31 @@ describe("buildAgentTeam", () => {
     expect(team.filter(member => matchesAgentFocus(member, "needs-you"))).toEqual([]);
   });
 
+  it("Should let a user-level definition claim its work in a project [#1340]", () => {
+    const instance = agentInstanceFixture({ workspace_id: "ws-compozy", needs_attention: true });
+    const team = build([teamItemFixture({}, { scopes: ["@user"] })], [instance]);
+    expect(team).toHaveLength(1);
+    expect(team[0]!.places.map(place => place.instance.id)).toEqual([instance.id]);
+    expect(team.filter(member => matchesAgentFocus(member, "needs-you"))).toHaveLength(1);
+  });
+
+  it("Should leave a project's work to that project's own definition of the same name", () => {
+    const team = build(
+      [
+        teamItemFixture(
+          { definition_digest: "user" },
+          { definition_digest: "user", scopes: ["@user"] }
+        ),
+        teamItemFixture(
+          { definition_digest: "project" },
+          { definition_digest: "project", scopes: ["ws-compozy"] }
+        ),
+      ],
+      [agentInstanceFixture({ workspace_id: "ws-compozy" })]
+    );
+    expect(team.map(member => member.places.length)).toEqual([0, 1]);
+  });
+
   it("Should neither list nor count an instance whose definition was deleted", () => {
     const team = build(teamItems(), [
       ...teamInstances(),

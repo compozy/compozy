@@ -26,10 +26,13 @@ export interface AgentTeamActions {
 /** The name is the card's link; its hit area stretches over the card, under the controls. */
 function CardName({
   member,
+  title,
   onOpen,
   onPreload,
 }: {
   member: AgentTeamMember;
+  /** Shown on hover anywhere over the card, since the link covers it. */
+  title?: string;
   onOpen: (member: AgentTeamMember) => void;
   onPreload?: (member: AgentTeamMember) => void | Promise<unknown>;
 }) {
@@ -40,6 +43,7 @@ function CardName({
       className="min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring"
       data-testid={`agent-fleet-row-link-${member.name}`}
       onClick={() => onOpen(member)}
+      title={title || undefined}
       type="button"
     >
       <CatalogCard.Title className="line-clamp-1 whitespace-normal">
@@ -49,7 +53,7 @@ function CardName({
   );
 }
 
-/** Two weeks of reports at a glance; the count is on hover and for screen readers. */
+/** Two weeks of reports at a glance; it sits above the card link so its count shows on hover. */
 function CardPulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
   const pulse = pulseRead?.pulse;
   if (!pulse?.values.some(value => value > 0)) return null;
@@ -57,7 +61,7 @@ function CardPulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?:
   return (
     <Sparkline
       ariaLabel={`${member.label}'s activity over the last 2 weeks`}
-      className="w-14 shrink-0 gap-px"
+      className="relative z-1 w-14 shrink-0 gap-px"
       height={16}
       title={recap}
       values={pulse.values}
@@ -89,10 +93,15 @@ export function AgentAlwaysOnCard({
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 items-center gap-2">
-            <CardName member={member} onOpen={actions.onOpen} onPreload={actions.onPreload} />
+            <CardName
+              member={member}
+              onOpen={actions.onOpen}
+              onPreload={actions.onPreload}
+              title={member.description}
+            />
             <AgentFlags member={member} />
           </div>
-          <CatalogCard.Description className="truncate" title={member.description}>
+          <CatalogCard.Description className="truncate">
             {member.description}
           </CatalogCard.Description>
         </div>

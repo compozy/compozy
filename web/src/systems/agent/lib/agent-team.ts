@@ -186,7 +186,7 @@ function memberFromItem(
 
 /**
  * Joins the grouped catalog with live instances. Same slug, different digest: separate cards.
- * An instance no definition here claims (its setup was deleted, or it isn't in reach) has no page
+ * An instance no definition here claims (its setup was deleted, or none resolves where it works) has no page
  * to open, so it stays off the team; the sidebar keeps it reachable to archive.
  */
 export function buildAgentTeam(input: {
@@ -199,12 +199,18 @@ export function buildAgentTeam(input: {
   for (const item of input.items) {
     definitions.set(item.name, (definitions.get(item.name) ?? 0) + 1);
   }
+  // A user-level definition resolves in every project, so it claims a project's instance too,
+  // unless a definition of the same name resolves there itself.
+  const claims = (item: AgentTeamItem, scope: string) =>
+    item.scopes.includes(scope) ||
+    (item.scopes.includes(GLOBAL_SCOPE) &&
+      !input.items.some(other => other.name === item.name && other.scopes.includes(scope)));
   return input.items.map(item => {
     const shared = (definitions.get(item.name) ?? 0) > 1;
-    const own = input.instances.filter(instance => {
-      if (instance.agent_name !== item.name) return false;
-      return item.scopes.includes(instance.workspace_id || GLOBAL_SCOPE);
-    });
+    const own = input.instances.filter(
+      instance =>
+        instance.agent_name === item.name && claims(item, instance.workspace_id || GLOBAL_SCOPE)
+    );
     const places = own.map(instance => agentPlaceFromInstance(instance, names));
     return memberFromItem(item, places, names, shared);
   });
