@@ -4114,3 +4114,21 @@ func TestClientInputConnection(t *testing.T) {
 		}
 	})
 }
+
+func TestClientStdioLiteralInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve spaces and empty rendered arguments", func(t *testing.T) {
+		t.Parallel()
+		server := compozyconfig.MCPServer{
+			Name:        "literal",
+			Command:     "node",
+			Args:        []string{" ${QUERY} ", "${EMPTY}"},
+			InputValues: map[string]compozyconfig.MCPInputValue{"QUERY": {Value: "  query  "}, "EMPTY": {Value: ""}},
+		}
+		executor := newTestMCPExecutor(t, server)
+		spec, err := executor.resolveMCPStdioSpec(t.Context(), server, userMCPExecutorTarget(server.Name))
+		if err != nil || !slices.Equal(spec.args, []string{"  query  ", ""}) {
+			t.Fatalf("literal arguments = %q, %v", spec.args, err)
+		}
+	})
+}

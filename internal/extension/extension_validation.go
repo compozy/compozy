@@ -132,6 +132,11 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 	if pluginExists || status == agentplugin.SchemaUnsupportedVersion {
 		return "", false, agentPluginFormatDetectionError(root)
 	}
+	for _, component := range []string{"skills", "mcp.json", ".mcp.json"} {
+		if _, err := os.Lstat(filepath.Join(root, component)); err == nil {
+			return FormatAgentPlugin, false, nil
+		}
+	}
 	return FormatCompozy, false, nil
 }
 
@@ -148,7 +153,13 @@ func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	pkg, err := agentplugin.Load(root, agentplugin.LoadOptions{DataDir: dataDir})
+	opts := agentplugin.LoadOptions{DataDir: dataDir}
+	if _, err := agentplugin.ReadManifest(root); err != nil {
+		if _, missing := errors.AsType[*agentplugin.NotManifestError](err); missing {
+			opts.Name = filepath.Base(root)
+		}
+	}
+	pkg, err := agentplugin.Load(root, opts)
 	if err != nil {
 		if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](err); ok {
 			return invalidAgentPluginValidationReport(

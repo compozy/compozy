@@ -584,6 +584,11 @@ func TestClientMCPCompatibility(t *testing.T) {
 				t.Fatalf("missing field %s: %#v", field, pkg.Diagnostics)
 			}
 		}
+		for _, server := range pkg.Servers {
+			if server.Name == "remote" && server.Auth != nil {
+				t.Fatal("ignored auth enabled OAuth")
+			}
+		}
 		if !hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth") {
 			t.Fatal("missing auth diagnostic")
 		}
@@ -664,4 +669,26 @@ func TestClientDerivedInputs(t *testing.T) {
 			t.Fatalf("invalid placeholder = %+v", pkg)
 		}
 	})
+}
+
+func TestClientEndpointInputs(t *testing.T) {
+	t.Parallel()
+	for _, endpoint := range []string{"https://api.example.com:${PORT}/mcp", "${MCP_URL}"} {
+		t.Run("Should load endpoint "+endpoint, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeJSONFile(
+				t,
+				filepath.Join(root, ".cursor-plugin", "plugin.json"),
+				map[string]any{
+					"name":       "client",
+					"mcpServers": map[string]any{"remote": map[string]any{"url": endpoint}},
+				},
+			)
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 1 || len(pkg.Inputs) != 1 {
+				t.Fatalf("endpoint inputs = %+v", pkg)
+			}
+		})
+	}
 }

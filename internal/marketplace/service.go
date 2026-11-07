@@ -153,6 +153,10 @@ func (s *CatalogService) BrowseFiltered(
 			filter.Installed = append(filter.Installed, Origin{SourceRef: item.SourceRef, EntryID: item.EntryID})
 		}
 	}
+	if err := s.projectReplacementAvailability(ctx, page.Entries); err != nil {
+		return BrowseResult{}, err
+	}
+
 	page, err = FilterBrowse(page, filter, offset, limit)
 	if err != nil {
 		return BrowseResult{}, err
@@ -245,4 +249,17 @@ func (s *CatalogService) checkReady(ctx context.Context) error {
 		return err
 	}
 	return s.lifecycleError()
+}
+
+func (s *CatalogService) projectReplacementAvailability(ctx context.Context, entries []Entry) error {
+	for index := range entries {
+		details, err := ProjectEntry(entries[index])
+		if err != nil || len(details.Supersedes) == 0 {
+			continue
+		}
+		if err := s.projectPackageAvailability(ctx, &entries[index]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

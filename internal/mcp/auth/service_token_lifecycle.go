@@ -139,7 +139,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			Scope:       cfg.Target.Scope,
 			WorkspaceID: cfg.Target.WorkspaceID,
 			Status:      StatusUnconfigured,
-			RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+			RemoteURL:   cfg.publicRemoteURL(),
 		}, nil
 	}
 	if err := cfg.Validate(); err != nil {

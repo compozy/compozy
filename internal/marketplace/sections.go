@@ -77,7 +77,9 @@ func FilterBrowse(page BrowseResult, filter BrowseFilter, offset, limit int) (Br
 	if limit == AllEntries {
 		pageLimit = len(matches)
 	}
-	for _, row := range matches[min(offset, len(matches)):min(offset+pageLimit, len(matches))] {
+	start := min(max(offset, 0), len(matches))
+	end := start + min(pageLimit, len(matches)-start)
+	for _, row := range matches[start:end] {
 		page.Entries = append(page.Entries, row.entry)
 	}
 
@@ -171,6 +173,9 @@ func visibleCategoryCandidates(entries []Entry, origins []Origin) []categoryCand
 	}
 	hidden := make(map[int]bool)
 	for index, row := range rows {
+		if !row.entry.Installable || row.entry.InstallBlocker != "" {
+			continue
+		}
 		for _, key := range row.details.Supersedes {
 			target, found := byKey[key]
 			if !found || target == index {

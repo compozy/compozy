@@ -532,3 +532,59 @@ func TestClientSearch(t *testing.T) {
 		}
 	})
 }
+
+func TestHexadecimalNamedRefs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should fetch only the advertised commit for an abbreviated tip", func(t *testing.T) {
+		t.Parallel()
+		client := newFixtureGitClient(t, t.TempDir(), 1)
+		WithCheckoutTempDir(t.TempDir())(client)
+		commit := strings.Repeat("a", 40)
+		var commands [][]string
+		client.output = func(_ context.Context, _ string, args ...string) (string, error) {
+			if slices.Contains(args, "ls-remote") {
+				return commit + "\trefs/heads/main\n", nil
+			}
+			return commit, nil
+		}
+		client.run = func(_ context.Context, _ string, args ...string) error {
+			commands = append(commands, slices.Clone(args))
+			return nil
+		}
+		checkout, err := client.Checkout(t.Context(), "https://example.com/acme/repo", commit[:7])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := checkout.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if len(commands) != 3 || !slices.Contains(commands[1], "--depth") || commands[1][len(commands[1])-1] != commit {
+			t.Fatalf("abbreviated tip commands=%v", commands)
+		}
+	})
+
+	for _, namespace := range []string{"heads", "tags"} {
+		t.Run("Should preserve hexadecimal "+namespace+" refs", func(t *testing.T) {
+			t.Parallel()
+			client := newFixtureGitClient(t, t.TempDir(), 1)
+			WithCheckoutTempDir(t.TempDir())(client)
+			commit := strings.Repeat("b", 40)
+			client.output = func(_ context.Context, _ string, args ...string) (string, error) {
+				if slices.Contains(args, "ls-remote") {
+					return commit + "\trefs/" + namespace + "/deadbee\n", nil
+				}
+				return commit, nil
+			}
+			checkout, err := client.Checkout(t.Context(), "https://example.com/acme/repo", "deadbee")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := checkout.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if checkout.Commit != commit {
+				t.Fatal("named ref changed commit")
+			}
+		})
+	}
+}

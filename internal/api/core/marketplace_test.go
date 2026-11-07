@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +36,7 @@ func (s marketplaceInspectionService) InspectCatalogExtension(
 }
 
 type marketplaceCatalogStub struct {
+	rawEntries   []marketplacepkg.Entry
 	entryFn      func(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error)
 	browseFn     func(context.Context, string, int) (marketplacepkg.BrowseResult, error)
 	browsePageFn func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
@@ -62,6 +64,14 @@ func (s marketplaceCatalogStub) BrowseFiltered(
 	filter marketplacepkg.BrowseFilter,
 	offset, limit int,
 ) (marketplacepkg.BrowseResult, error) {
+	if s.rawEntries != nil {
+		return marketplacepkg.FilterBrowse(
+			marketplacepkg.BrowseResult{Entries: s.rawEntries, Revision: "one"},
+			filter,
+			offset,
+			limit,
+		)
+	}
 	if filter.Category == "" {
 		return s.Browse(ctx, filter.Query, offset, limit)
 	}
@@ -1561,61 +1571,72 @@ func TestMarketplaceCategoryContracts(t *testing.T) {
 
 func TestMarketplaceSupersedeContracts(t *testing.T) {
 	t.Parallel()
-	t.Run("Should collapse sections and search while retaining direct detail", func(t *testing.T) {
-		t.Parallel()
-		curated, upstream := marketplaceEntryForTest(), marketplaceEntryForTest()
-		curated.EntryID, upstream.EntryID = "linear", "linear"
-		curated.Name, upstream.Name = "Linear", "Linear"
-		curated.SourceName, upstream.SourceName = "compozy-plugins", "claude-plugins-official"
-		curated.Payload = json.RawMessage(
-			`{"source_ref":"github:compozy/plugins","category":"productivity","supersedes":["claude-plugins-official/linear"]}`,
-		)
-		upstream.Payload = json.RawMessage(
-			`{"source_ref":"github:anthropics/claude-plugins-official","category":"productivity"}`,
-		)
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
-		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			browsePageFn: func(_ context.Context, q string, offset, limit int) (marketplacepkg.BrowseResult, error) {
-				return marketplacepkg.FilterBrowse(
-					marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{curated, upstream}, Revision: "one"},
-					marketplacepkg.BrowseFilter{Query: q},
-					offset,
-					limit,
-				)
-			},
-			detailFn: func(_ context.Context, source, id string) (*marketplacepkg.Entry, error) {
-				if source == upstream.SourceName && id == upstream.EntryID {
-					return &upstream, nil
+	for _, installed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retain scoped origin installed=%t", installed), func(t *testing.T) {
+			t.Parallel()
+			curated, upstream := marketplaceEntryForTest(), marketplaceEntryForTest()
+			curated.EntryID, upstream.EntryID = "linear", "linear"
+			curated.Name, upstream.Name = "Linear", "Linear"
+			curated.Installable, upstream.Installable = true, true
+			curated.SourceName, upstream.SourceName = "compozy-plugins", "claude-plugins-official"
+			curated.Payload = json.RawMessage(
+				`{"source_ref":"github:compozy/plugins","category":"productivity","supersedes":["claude-plugins-official/linear"]}`,
+			)
+			upstream.Payload = json.RawMessage(
+				`{"source_ref":"github:anthropics/claude-plugins-official","category":"productivity"}`,
+			)
+			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+			handlers.MarketplaceCatalog = marketplaceCatalogStub{
+				rawEntries: []marketplacepkg.Entry{curated, upstream},
+				detailFn: func(_ context.Context, source, id string) (*marketplacepkg.Entry, error) {
+					if source == upstream.SourceName && id == upstream.EntryID {
+						return &upstream, nil
+					}
+					return nil, marketplacepkg.ErrEntryNotFound
+				},
+			}
+			if installed {
+				handlers.Extensions = marketplaceInspectionService{
+					listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+						return []contract.ExtensionPayload{
+							{
+								Name: "linear",
+								Origin: &contract.MarketplaceOriginPayload{
+									SourceRef: "github:anthropics/claude-plugins-official",
+									EntryID:   "linear",
+								},
+							},
+						}, nil
+					},
 				}
-				return nil, marketplacepkg.ErrEntryNotFound
-			},
-		}
-		for _, path := range []string{"/api/marketplace?q=linear", "/api/marketplace/sections"} {
+			}
+			for _, path := range []string{"/api/marketplace?q=linear", "/api/marketplace/sections"} {
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+				if strings.Contains(path, "sections") {
+					handlers.ListMarketplaceSections(ctx)
+				} else {
+					handlers.ListMarketplace(ctx)
+				}
+				if recorder.Code != 200 || strings.Count(recorder.Body.String(), `"entry_id":"linear"`) != 1 ||
+					strings.Contains(recorder.Body.String(), `"source":"claude-plugins-official"`) != installed {
+					t.Fatalf("collapsed response=%d %s", recorder.Code, recorder.Body.String())
+				}
+			}
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
-			if strings.Contains(path, "sections") {
-				handlers.ListMarketplaceSections(ctx)
-			} else {
-				handlers.ListMarketplace(ctx)
+			ctx.Request = httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/marketplace/entries/linear?source=claude-plugins-official",
+				http.NoBody,
+			)
+			ctx.Params = gin.Params{{Key: "entry_id", Value: "linear"}}
+			handlers.GetMarketplaceCatalogEntry(ctx)
+			if recorder.Code != 200 || !strings.Contains(recorder.Body.String(), `"source":"claude-plugins-official"`) {
+				t.Fatalf("detail=%d %s", recorder.Code, recorder.Body.String())
 			}
-			if recorder.Code != 200 || strings.Count(recorder.Body.String(), `"entry_id":"linear"`) != 1 ||
-				strings.Contains(recorder.Body.String(), `"source":"claude-plugins-official"`) {
-				t.Fatalf("collapsed response=%d %s", recorder.Code, recorder.Body.String())
-			}
-		}
-		recorder := httptest.NewRecorder()
-		ctx, _ := gin.CreateTestContext(recorder)
-		ctx.Request = httptest.NewRequestWithContext(
-			t.Context(),
-			http.MethodGet,
-			"/api/marketplace/entries/linear?source=claude-plugins-official",
-			http.NoBody,
-		)
-		ctx.Params = gin.Params{{Key: "entry_id", Value: "linear"}}
-		handlers.GetMarketplaceCatalogEntry(ctx)
-		if recorder.Code != 200 || !strings.Contains(recorder.Body.String(), `"source":"claude-plugins-official"`) {
-			t.Fatalf("detail=%d %s", recorder.Code, recorder.Body.String())
-		}
-	})
+		})
+	}
 }

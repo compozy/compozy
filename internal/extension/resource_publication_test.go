@@ -754,3 +754,39 @@ func TestClientOAuthRuntimeBinding(t *testing.T) {
 		}
 	})
 }
+
+func TestTemplateBindingName(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use the binding name independently of input identity", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{
+			Name:    "bound",
+			Version: "1.0.0",
+			Inputs: []ManifestInput{
+				{
+					ID:       "host",
+					Prompt:   "Host",
+					Type:     "string",
+					Required: true,
+					Binding:  marketplace.InputBinding{Type: "template", Name: "HOST"},
+				},
+			},
+			Resources: ResourcesConfig{
+				MCPServers: map[string]MCPServerConfig{"remote": {Transport: "http", URL: "https://${HOST}/mcp"}},
+			},
+		}
+		state := InputState{
+			Values: map[string]InputValueRecord{
+				"host": {Type: "string", Value: json.RawMessage(`"example.com"`), Active: true},
+			},
+		}
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, state, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, _, err := servers[0].RenderInputs(nil)
+		if err != nil || rendered.URL != "https://example.com/mcp" {
+			t.Fatalf("bound URL=%q %v", rendered.URL, err)
+		}
+	})
+}

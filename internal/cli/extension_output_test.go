@@ -738,7 +738,8 @@ func TestExtensionInstallEnableFailureOutput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(human, "manifest_permission_denied") ||
+		if !strings.Contains(human, "couldn't turn on broken") ||
+			!strings.Contains(human, "manifest_permission_denied") ||
 			!strings.Contains(human, "Retry: compozy extension enable broken") {
 			t.Fatalf("human output = %q", human)
 		}

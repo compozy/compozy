@@ -38,7 +38,13 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 		return errors.Join(err, binder.Rollback(ctx, plan), s.rollbackInstallMCPAllocations(ctx, allocations))
 	}
 	if req.Enable {
-		return s.enableInstalledExtension(ctx, prepared, req, actor, item)
+		if err := s.enableInstalledExtension(ctx, prepared, req, actor, item); err != nil {
+			return errors.Join(
+				s.rollbackFailedInstall(ctx, prepared.name, err, plan),
+				s.rollbackInstallMCPAllocations(ctx, allocations),
+			)
+		}
+		return nil
 	}
 	return nil
 }

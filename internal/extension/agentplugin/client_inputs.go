@@ -123,6 +123,10 @@ func decodeClientAuth(name string, raw json.RawMessage, transport string) (*OAut
 		auth.ClientSecret = ""
 		ignored("auth.CLIENT_SECRET")
 	}
+	if onlyIgnoredAuthFields(fields) {
+		return nil, diagnostics
+	}
+
 	return auth, diagnostics
 }
 
@@ -140,4 +144,14 @@ func validClientInput(value string, secret bool) bool {
 		return ""
 	})
 	return valid
+}
+
+func onlyIgnoredAuthFields(fields map[string]json.RawMessage) bool {
+	for key := range fields {
+		switch key {
+		case "CLIENT_ID", "CLIENT_SECRET", "scopes":
+			return false
+		}
+	}
+	return len(fields) > 0
 }

@@ -1642,3 +1642,74 @@ func daemonSettingsOperationRequest(
 	}
 	return request
 }
+
+func TestSettingsMCPSecretURLStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain URL secrets only in private auth requests", func(t *testing.T) {
+		t.Parallel()
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		manager, err := newSettingsMCPAuthManagerWithConfig(db, nil, db, nil, compozyconfig.MCPOAuthConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			mcpAuthManager: manager,
+			secretResolver: func(context.Context, string) (string, error) { return "private-api-key", nil },
+		}
+		target := globalMCPTestTarget("secret-url")
+		server := compozyconfig.MCPServer{
+			Name:      target.ServerName,
+			Owner:     "extension:client",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       "https://example.com/mcp?key=${API_KEY}",
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"API_KEY": {SecretRef: "vault:extensions/global/client/env/API_KEY"},
+			},
+		}
+		cfg, err := surface.mcpAuthServerConfig(t.Context(), target, server)
+		if err != nil || cfg.RemoteURL != "https://example.com/mcp?key=private-api-key" {
+			t.Fatal("private auth URL was not rendered", err)
+		}
+		for _, available := range []bool{true, false} {
+			if !available {
+				surface.mcpAuthManager = nil
+			}
+			status, err := surface.MCPAuthStatus(t.Context(), target, server)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.RemoteURL != server.URL || strings.Contains(string(encoded), "private-api-key") {
+				t.Fatal("public auth status exposed a secret")
+			}
+		}
+	})
+}
+
+func TestDaemonMCPCloneInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve isolated input values through runtime rendering", func(t *testing.T) {
+		t.Parallel()
+		original := compozyconfig.MCPServer{
+			Headers:     map[string]string{"X-Tenant": "${TENANT}"},
+			InputValues: map[string]compozyconfig.MCPInputValue{"TENANT": {Value: "tenant-a"}},
+		}
+		cloned := cloneDaemonMCPServer(original)
+		original.InputValues["TENANT"] = compozyconfig.MCPInputValue{Value: "tenant-b"}
+		rendered, _, err := cloned.RenderInputs(nil)
+		if err != nil || rendered.Headers["X-Tenant"] != "tenant-a" {
+			t.Fatalf("clone rendering failed: %v", err)
+		}
+	})
+}

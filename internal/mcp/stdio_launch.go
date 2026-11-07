@@ -78,6 +78,7 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	server compozyconfig.MCPServer,
 	target mcpauth.Target,
 ) (mcpStdioSpec, error) {
+	server.Args = trimStrings(server.Args)
 	server, inputSecrets, err := server.RenderInputs(
 		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
 	)
@@ -95,7 +96,7 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	spec := mcpStdioSpec{
 		slot:    slot,
 		command: strings.TrimSpace(server.Command),
-		args:    trimStrings(server.Args),
+		args:    slices.Clone(server.Args),
 		env:     env,
 		dir:     strings.TrimSpace(server.CWD),
 		secrets: append(secrets, inputSecrets...),

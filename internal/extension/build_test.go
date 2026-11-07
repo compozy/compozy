@@ -1190,3 +1190,20 @@ func writePackageBuildFixture(t *testing.T, dir string) {
   "scripts": {"build": "tsc", "start": "node dist/index.js"}
 }`)
 }
+
+func TestManifestlessValidationReport(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report discovered inputs and components for manifestless plugins", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "manifestless")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(root, "mcp.json"), `{"mcpServers":{"remote":{"url":"https://${HOST}/mcp"}}}`)
+		report, err := ValidateBundleReport(root)
+		if err != nil || report.Format != string(FormatAgentPlugin) || len(report.Inputs) != 1 ||
+			len(report.WouldIngest) != 1 {
+			t.Fatalf("report=%+v %v", report, err)
+		}
+	})
+}

@@ -1257,6 +1257,7 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 		jsonOutput    bool
 	}{
 		{name: "Should preserve omitted selectors"},
+		{name: "Should return activation failure in command JSON", flags: []string{"--enable", "-o", "json"}, wantEnable: true, failEnable: true, jsonOutput: true},
 		{name: "Should forward enable for install and preview", flags: []string{"--enable", "-o", "json"}, wantEnable: true, jsonOutput: true},
 		{name: "Should keep successful exit and show retry when enable fails", flags: []string{"--enable"}, wantEnable: true, failEnable: true},
 		{name: "Should forward an explicit global profile", flags: []string{"--scope", "global", "--profile", "marketing"}, wantScope: "global", wantProfile: "marketing"},
@@ -1311,7 +1312,8 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if scenario.failEnable && !strings.Contains(stdout, "Retry: compozy extension enable scope-install-ext") {
+			if scenario.failEnable && !scenario.jsonOutput &&
+				!strings.Contains(stdout, "Retry: compozy extension enable scope-install-ext") {
 				t.Fatalf("failure output = %s", stdout)
 			}
 			if scenario.jsonOutput {
@@ -1319,7 +1321,8 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 				if err := json.Unmarshal([]byte(stdout), &response); err != nil {
 					t.Fatal(err)
 				}
-				if !response.Extension.Enabled || response.EnableError != nil {
+				if response.Extension.Enabled != (scenario.wantEnable && !scenario.failEnable) ||
+					(response.EnableError != nil) != scenario.failEnable {
 					t.Fatalf("install output = %s", stdout)
 				}
 			}

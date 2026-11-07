@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -17,16 +18,26 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	var result contract.ExtensionEnableResult
 	var err error
 	switch {
-	case item.Enabled:
+	case item.Enabled && len(item.MissingEnv) == 0 && len(item.MissingInputs) == 0:
 		result.Extension = *item
 	case prepared.target.profile.ID == extensionDefaultProfileLens().ID:
 		result, err = s.enableTargetUnlocked(ctx, prepared.name, contract.EnableExtensionRequest{
 			ConfirmGatewayDigest: req.ConfirmGatewayDigest,
 		}, actor, prepared.target)
 	default:
-		err = s.applyProfileEnablement(
-			ctx, prepared.name, prepared.target.profile.ID, prepared.target.profile.Name, true, actor,
-		)
+		preview, previewErr := s.previewExtensionTarget(ctx, prepared.name, prepared.target)
+		err = previewErr
+		if err == nil && (len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0) {
+			err = &extensionpkg.InputsRequiredError{
+				MissingInputs: slices.Clone(preview.MissingInputs),
+				MissingEnv:    slices.Clone(preview.MissingEnv),
+			}
+		}
+		if err == nil {
+			err = s.applyProfileEnablement(
+				ctx, prepared.name, prepared.target.profile.ID, prepared.target.profile.Name, true, actor,
+			)
+		}
 		if err == nil {
 			result.Extension, err = s.installedTargetStatus(ctx, prepared.name, prepared.target)
 			if err != nil {

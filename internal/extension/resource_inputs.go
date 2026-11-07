@@ -30,15 +30,15 @@ func applyManifestMCPInputs(
 			if server.InputValues == nil {
 				server.InputValues = make(map[string]compozyconfig.MCPInputValue)
 			}
-			server.InputValues[input.ID] = compozyconfig.MCPInputValue{Value: value, SecretRef: ref}
-			if declaration.Auth != nil && declaration.Auth.ClientID == "${"+input.ID+"}" {
+			server.InputValues[input.Binding.Name] = compozyconfig.MCPInputValue{Value: value, SecretRef: ref}
+			if declaration.Auth != nil && declaration.Auth.ClientID == "${"+input.Binding.Name+"}" {
 				server.Auth.ClientID = value
 			}
-			if declaration.Auth != nil && declaration.Auth.ClientSecretInput == "${"+input.ID+"}" {
+			if declaration.Auth != nil && declaration.Auth.ClientSecretInput == "${"+input.Binding.Name+"}" {
 				server.Auth.ClientSecretRef = ref
 			}
 			if input.Type == manifestInputTypeSecret && present {
-				applyTemplateSecretEnv(server, declaration, input.ID, ref)
+				applyTemplateSecretEnv(server, declaration, input.Binding.Name, ref)
 			}
 			continue
 		}

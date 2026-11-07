@@ -2962,6 +2962,95 @@ func TestDaemonExtensionInstallEnable(t *testing.T) {
 		}
 	})
 
+	t.Run("Should compensate enabled install when completion ledger write fails", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+
+		writer := &daemonExtensionEventStoreStub{
+			writeErr: errors.New("completion refused"),
+			failType: "extension.install.completed",
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger()}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{}), withDaemonExtensionEventWriter(writer)).(*daemonExtensionService)
+		fixture := writeNativeLocalExtensionFixture(t, "ledger-failure", "1.0.0")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "completion rollback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             fixture,
+				Enable:          true,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		if err == nil {
+			t.Fatal("expected completion failure")
+		}
+		if _, err := registry.Get("ledger-failure"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry after failure=%v", err)
+		}
+		if _, err := os.Stat(
+			extensionpkg.ManagedInstallPath(deps.HomePaths, "ledger-failure"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("files after failure=%v", err)
+		}
+	})
+
+	t.Run("Should retain named profile install disabled when legacy environment is missing", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		profile, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := newLifecycleStateRuntime(registry)
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(), Getenv: func(string) string { return "" }}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+		fixture := writeNativeLocalExtensionFixture(t, "profile-env", "1.0.0")
+		path := filepath.Join(fixture, "extension.toml")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(
+			content,
+			[]byte("[extension]"),
+			[]byte("[extension]\nrequires_env = [\"LEGACY_HOST\"]"),
+			1,
+		)
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "profile env")
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             fixture,
+				Profile:         profile.Name,
+				Enable:          true,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		if err != nil || item.Enabled || item.InstallEnableError == nil {
+			t.Fatalf("missing profile env outcome=%+v %v", item, err)
+		}
+		enabled, err := registry.IsEnabledForProfile(item.Name, profile.ID)
+		if err != nil || enabled {
+			t.Fatalf("profile enablement=%t %v", enabled, err)
+		}
+	})
+
 	for _, failEnable := range []bool{false, true} {
 		name := "Should install and enable in one operation"
 		if failEnable {
@@ -3147,6 +3236,13 @@ func TestDerivedInputInstallPreflight(t *testing.T) {
 		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
 		if !ok || !slices.Equal(required.MissingInputs, []string{"HOST"}) {
 			t.Fatalf("missing input install = %v", err)
+		}
+		name := filepath.Base(root)
+		if _, err := registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("rejected install registry = %v", err)
+		}
+		if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("rejected install files = %v", err)
 		}
 	})
 }

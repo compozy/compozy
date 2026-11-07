@@ -89,7 +89,7 @@ func resolveManifestPath(dir string) (string, error) {
 	} else {
 		status, declared := document.Classify()
 		switch status {
-		case agentplugin.SchemaSupported:
+		case agentplugin.SchemaSupported, agentplugin.SchemaUnrelated:
 			return document.Path, nil
 		case agentplugin.SchemaUnsupportedVersion:
 			return "", &agentplugin.SchemaUnsupportedError{Root: dir, Declared: declared}

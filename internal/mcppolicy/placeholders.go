@@ -22,7 +22,10 @@ func SecretInputName(name string) bool { return secretInputPattern.MatchString(n
 
 // PlaceholderURL validates the fixed URL structure before user input is available.
 func PlaceholderURL(value string) string {
-	return ReplaceInputs(value, func(_, _ string, _ bool) string { return "input.example" })
+	if placeholderPattern.MatchString(value) && placeholderPattern.FindString(value) == value {
+		return "https://input.example/mcp"
+	}
+	return ReplaceInputs(value, func(_, _ string, _ bool) string { return "443" })
 }
 
 // InputHeaders separates user credential templates from package-fixed credentials.

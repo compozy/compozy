@@ -163,6 +163,31 @@ func (c *Client) fetchAbbreviatedCommit(
 	checkout *Checkout,
 	ref string,
 ) error {
+	advertised, err := c.output(
+		ctx,
+		checkout.executable,
+		append(repositoryArgs(repository, addresses), "ls-remote", "--", repository.raw)...)
+	if err != nil {
+		return err
+	}
+	for line := range strings.SplitSeq(advertised, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && (fields[1] == "refs/heads/"+ref || fields[1] == "refs/tags/"+ref) {
+			return c.run(ctx, checkout.executable, cloneArgs(repository, addresses, ref, checkout.Path)...)
+		}
+	}
+	advertisedCommits := make(map[string]bool)
+	for line := range strings.SplitSeq(advertised, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && gitCommitPattern.MatchString(fields[0]) && strings.HasPrefix(fields[0], ref) {
+			advertisedCommits[fields[0]] = true
+		}
+	}
+	if len(advertisedCommits) == 1 {
+		for commit := range advertisedCommits {
+			return c.fetchCommit(ctx, repository, addresses, checkout, commit)
+		}
+	}
 	repositoryDir := filepath.Join(checkout.tempRoot, "repository")
 	for _, command := range [][]string{
 		{"init", "--bare", "--", repositoryDir},

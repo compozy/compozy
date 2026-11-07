@@ -113,8 +113,10 @@ func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.V
 		portable := strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin)
 		blocks := []string{fmt.Sprintf("✓ install %s", strings.TrimSpace(item.Name))}
 		if item.InstallEnableError != nil {
-			blocks = append(blocks,
-				"Couldn't turn on: "+item.InstallEnableError.Code, "Retry: compozy extension enable "+item.Name,
+			blocks = append(
+				blocks,
+				"Couldn't turn on: "+item.InstallEnableError.Code+": "+item.InstallEnableError.Error,
+				"Retry: compozy extension enable "+item.Name,
 			)
 		}
 		if portable {

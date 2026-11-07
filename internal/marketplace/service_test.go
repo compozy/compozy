@@ -1695,3 +1695,35 @@ func TestCatalogSectionsAvailability(t *testing.T) {
 		}
 	})
 }
+
+func TestCatalogBoundaryFiltering(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bound maximum cursor offsets", func(t *testing.T) {
+		t.Parallel()
+		page, err := FilterBrowse(
+			BrowseResult{Entries: []Entry{testEntry("one", "One", "")}},
+			BrowseFilter{},
+			int(^uint(0)>>1),
+			10,
+		)
+		if err != nil || len(page.Entries) != 0 || page.Total != 1 {
+			t.Fatalf("page=%+v err=%v", page, err)
+		}
+	})
+	t.Run("Should retain upstream when its curated replacement is blocked", func(t *testing.T) {
+		t.Parallel()
+		curated := testEntry("linear", "Linear", "")
+		curated.SourceName = "compozy-plugins"
+		curated.InstallBlocker = "package_unavailable"
+		curated.Installable = false
+		curated.Payload = json.RawMessage(
+			`{"source_ref":"github:compozy/plugins","category":"productivity","supersedes":["official/linear"]}`,
+		)
+		upstream := testEntry("linear", "Linear", "")
+		upstream.SourceName = "official"
+		page, err := FilterBrowse(BrowseResult{Entries: []Entry{curated, upstream}}, BrowseFilter{}, 0, 10)
+		if err != nil || len(page.Entries) != 2 {
+			t.Fatalf("blocked supersession=%+v %v", page, err)
+		}
+	})
+}

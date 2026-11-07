@@ -3662,11 +3662,15 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 }
 
 type daemonExtensionEventStoreStub struct {
+	failType   string
 	writeErr   error
 	writeCalls int
 }
 
-func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store.EventSummary) error {
+func (s *daemonExtensionEventStoreStub) WriteEventSummary(_ context.Context, event store.EventSummary) error {
+	if s.failType != "" && event.Type != s.failType {
+		return nil
+	}
 	s.writeCalls++
 	return s.writeErr
 }
