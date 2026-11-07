@@ -4,7 +4,7 @@ area: APP
 title: Open a viewed file in a detected desktop application and remember the target
 persona: Dora
 journey: J-desktop-attach-daily
-expected: In the packaged desktop app, the viewer header's Open in split button lists the configured editor (only when desktop.editor_command is set), every detected catalog editor with its icon, Finder (Show in folder / Show in Explorer), Copy path, and a Refresh list / Editor settings footer, or "Set an editor in Settings" when no editor exists; choosing one launches it at the file and line without a shell and remembers it as the primary action; tree rows and the root header offer the same menu for files and folders without a line; Cmd/Ctrl-click on a transcript path opens the remembered target named in its tooltip; outside-project paths and credential files ask first with distinct titles and Cancel launches nothing; a vanished editor is named in the toast and the list refreshes; Finder only reveals; browser tabs show no Open in control and keep Copy path.
+expected: In the packaged desktop app, the viewer header's Open in split button lists the configured editor (only when desktop.editor_command is set), every detected catalog editor (brand icon where available, generic icon otherwise), Finder (Show in folder / Show in Explorer), Copy path, and a Refresh list / Editor settings footer, or "Set an editor in Settings" when no editor exists; choosing one launches it at the file and line without a shell and remembers it as the primary action; tree rows and the root header offer the same menu for files and folders without a line; Cmd/Ctrl-click on a transcript path opens the remembered target named in its tooltip; outside-project paths and credential files ask first with distinct titles and Cancel launches nothing; a vanished editor is named in the toast and the list refreshes; Finder only reveals; browser tabs show no Open in control and keep Copy path.
 entry_points: packaged desktop main window: Review panel and Files app viewer header (Open in split button, Choose application); tree row context menu and tree header "Open folder in…"; viewer "Outside this project" state; transcript path Cmd/Ctrl-click; Settings › General › Editor command
 qa_status: partial
 bug_ids:
@@ -24,7 +24,7 @@ and Zed) and `desktop.editor_command` set.
 Walk:
 
 1. With `desktop.editor_command` unset, open a file in the Review panel viewer. The header shows
-   **Open in <first detected editor>** with its icon and a **Choose application** chevron.
+   **Open in <first detected editor>** with its icon (or the generic editor icon) and a **Choose application** chevron.
 2. Open Choose application. The menu lists every detected application from the catalog (Cursor,
    VS Code, VS Code Insiders, Windsurf, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, PyCharm,
    Xcode, Android Studio, Fleet), a separator, Finder (macOS), Show in folder (Linux) or Show in
