@@ -1038,6 +1038,11 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				f.Turns = append(f.Turns, acpmock.TurnFixture{
 					Name: "monitor continuation", Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
 					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "monitor work complete"}},
+				}, acpmock.TurnFixture{
+					Name: "peer continuation", Match: acpmock.TurnMatch{
+						TurnSource: acp.PromptTurnSourceUser, RawUserTextContains: "\n\npeer work",
+					},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "peer work complete"}},
 				})
 			})
 		})
@@ -1182,6 +1187,16 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				t.Fatalf("wake delivered before release: %+v %v", row, err)
 			}
 		}
+		wake, err := db.GetSessionInputQueueEntry(ctx, child.ID, wakeID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wakeSettled := make(chan struct{})
+		manager.AddTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
+			if identity.SessionID == child.ID && identity.TurnID == wake.TurnID {
+				close(wakeSettled)
+			}
+		})
 		if err := releaseInstanceInputs(
 			ctx,
 			&bootState{sessions: manager},
@@ -1190,17 +1205,20 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
+		// Observe the monitor's settled turn before checking its dispatch receipts.
+		select {
+		case <-wakeSettled:
+		case <-ctx.Done():
+			t.Fatalf("child monitor turn did not settle: %v", ctx.Err())
+		}
 		waitForCondition(t, "child wake and peer delivered", func() bool {
-			wake, err := db.GetSessionInputQueueEntry(ctx, child.ID, wakeID)
-			if err != nil || wake.Status != store.SessionInputQueueStatusSent {
-				return false
+			for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
+				row, err := db.GetSessionInputQueueEntry(ctx, child.ID, id)
+				if err != nil || row.Status != store.SessionInputQueueStatusSent {
+					return false
+				}
 			}
-			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, peer.QueueEntryID)
-			if err != nil || row.Status != store.SessionInputQueueStatusSent {
-				return false
-			}
-			manual, err := db.GetSessionInputQueueEntry(ctx, child.ID, takeover.QueueEntryID)
-			return err == nil && manual.Status == store.SessionInputQueueStatusSent && !manager.IsPrompting(child.ID)
+			return !manager.IsPrompting(child.ID)
 		})
 		if err := manager.Supervise(ctx, time.Now()); err != nil {
 			t.Fatal(err)
