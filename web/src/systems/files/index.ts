@@ -30,6 +30,7 @@ export {
 export {
   filesAppPlace,
   filesAppPlaceStorageKey,
+  requestFilesAppPlace,
   useFilesAppPlace,
   type FilesAppPlace,
 } from "./hooks/use-files-app-place";

@@ -1,7 +1,8 @@
 import { CodeHighlightPoolProvider, Tabs, TabsList, TabsTrigger } from "@compozy/ui";
 import { createCodeHighlightWorker } from "@compozy/ui/lib/code-highlight-worker";
 
-import { FilesExplorer, fileViewerTarget } from "@/systems/files";
+import { FilesExplorer, fileViewerTarget, requestFilesAppPlace } from "@/systems/files";
+import { useOpenFilesApp } from "@/systems/os";
 
 import type { UseSessionReviewPanelStateResult } from "../hooks/use-session-review-panel-state";
 import { SessionChangesTab } from "./session-changes/session-changes-tab";
@@ -36,6 +37,7 @@ export interface SessionReviewPanelProps {
  * the explorer over the bound worktree, else the project checkout; Changes is the session's diff.
  */
 export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionReviewPanelProps) {
+  const openFiles = useOpenFilesApp();
   return (
     <CodeHighlightPoolProvider workerFactory={createCodeHighlightWorker}>
       <Tabs
@@ -63,6 +65,17 @@ export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionRe
               target={review.target}
               onOpenFile={path => review.openFile(fileViewerTarget(path))}
               treeLabel="Session files"
+              onOpenInFilesWindow={
+                openFiles
+                  ? (root, path) => {
+                      requestFilesAppPlace(root.workspace_id, {
+                        worktreeId: root.worktree_id ?? null,
+                        path,
+                      });
+                      openFiles(root.workspace_id);
+                    }
+                  : undefined
+              }
             />
           )}
         </div>

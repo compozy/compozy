@@ -1,10 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { filesAppPlaceStorageKey, filesAppPlaceStore } from "../../hooks/use-files-app-place";
+import {
+  filesAppPlaceStorageKey,
+  filesAppPlaceStore,
+  requestFilesAppPlace,
+} from "../../hooks/use-files-app-place";
+import { fileViewerTarget } from "../../lib/file-viewer-target";
+import { FilesExplorer } from "../files-explorer";
 import { filesAppProjectStatus, filesSwitcherProjects } from "../../lib/files-app-roots";
 import { FilesAppWindow } from "../files-app-window";
 
@@ -52,7 +58,30 @@ function stubDaemon(options: { archivedIds?: string[] } = {}) {
       if (url.pathname.endsWith("/worktrees")) {
         return Response.json({ worktrees: [], discovered: [], repo: { git_backed: true } });
       }
+      if (url.pathname.endsWith("/files/content")) {
+        return Response.json({
+          root: { kind: "workspace", workspace_id: "ws_1", name: "compozy" },
+          path: url.searchParams.get("path"),
+          kind: "text",
+          size: 10,
+          text: "# compozy\n",
+          truncated: false,
+        });
+      }
       if (url.pathname.endsWith("/files/entries")) {
+        if (url.pathname.includes("/sessions/")) {
+          return Response.json({
+            root: {
+              kind: "worktree",
+              workspace_id: "ws_1",
+              worktree_id: "wt-1",
+              name: "compozy",
+              branch: "feat/x",
+            },
+            entries: [{ name: "README.md", path: "README.md", kind: "file", size: 10 }],
+            truncated: false,
+          });
+        }
         if (url.searchParams.get("worktree_id") === "wt-gone") {
           return Response.json(
             { code: "root_unavailable", error: "this worktree is no longer on disk" },
@@ -130,5 +159,49 @@ describe("FilesAppWindow", () => {
     renderWindow();
     expect(await screen.findByText("Project archived")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByTestId("files-explorer")).toBeNull());
+  });
+
+  it("Should hand the session root and open path to Open in Files window (US-002.AC-6)", async () => {
+    stubDaemon();
+    const onOpenInFilesWindow = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <div style={{ height: 500 }}>
+            <FilesExplorer
+              root={{ kind: "session", workspaceId: "ws_1", sessionId: "sess-1" }}
+              target={fileViewerTarget("README.md")}
+              onOpenFile={() => {}}
+              onOpenInFilesWindow={onOpenInFilesWindow}
+            />
+          </div>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Open in Files window" }));
+    expect(onOpenInFilesWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace_id: "ws_1", worktree_id: "wt-1" }),
+      "README.md"
+    );
+  });
+
+  it("Should re-root an open Files window and open the requested path (US-002.AC-6)", async () => {
+    const calls = stubDaemon();
+    renderWindow();
+    await waitFor(() => expect(screen.getByTestId("files-root-name")).toHaveTextContent("compozy"));
+    act(() => requestFilesAppPlace("ws_1", { worktreeId: "wt-1", path: "README.md" }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          url =>
+            url.pathname.endsWith("/files/entries") &&
+            url.searchParams.get("worktree_id") === "wt-1"
+        )
+      ).toBe(true)
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("file-viewer-header")).toHaveTextContent("README.md")
+    );
   });
 });

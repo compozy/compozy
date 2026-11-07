@@ -42,10 +42,22 @@ function writeStoredPlace(workspaceId: string, place: FilesAppPlace): void {
 }
 
 export const filesAppPlaceStore = createStore({
-  context: { byWorkspace: {} as Record<string, FilesAppPlace> },
+  context: {
+    byWorkspace: {} as Record<string, FilesAppPlace>,
+    /** Transient: bumps when another surface asks the window to show a place. */
+    requests: {} as Record<string, number>,
+  },
   on: {
     placed: (context, event: { workspaceId: string; place: FilesAppPlace }) => ({
+      ...context,
       byWorkspace: { ...context.byWorkspace, [event.workspaceId]: event.place },
+    }),
+    requested: (context, event: { workspaceId: string; place: FilesAppPlace }) => ({
+      byWorkspace: { ...context.byWorkspace, [event.workspaceId]: event.place },
+      requests: {
+        ...context.requests,
+        [event.workspaceId]: (context.requests[event.workspaceId] ?? 0) + 1,
+      },
     }),
   },
 });
@@ -62,7 +74,18 @@ function placeFiles(workspaceId: string, patch: Partial<FilesAppPlace>): void {
   filesAppPlaceStore.trigger.placed({ workspaceId, place });
 }
 
+/**
+ * Points a project's Files window at `place` (the Review panel's "Open in Files window",
+ * US-002.AC-6): an open window re-roots and opens the path; a new one starts there.
+ */
+export function requestFilesAppPlace(workspaceId: string, place: FilesAppPlace): void {
+  writeStoredPlace(workspaceId, place);
+  filesAppPlaceStore.trigger.requested({ workspaceId, place });
+}
+
 export interface UseFilesAppPlaceResult extends FilesAppPlace {
+  /** Counts open requests from other surfaces; a change means "show this place now". */
+  request: number;
   /** A root switch keeps the open path; the viewer reports a path the new root lacks. */
   selectRoot: (worktreeId: string | null) => void;
   openPath: (path: string) => void;
@@ -74,9 +97,14 @@ export function useFilesAppPlace(workspaceId: string): UseFilesAppPlaceResult {
     filesAppPlaceStore,
     snapshot => snapshot.context.byWorkspace[workspaceId] ?? null
   );
+  const request = useSelector(
+    filesAppPlaceStore,
+    snapshot => snapshot.context.requests[workspaceId] ?? 0
+  );
   const place = known ?? readStoredPlace(workspaceId);
   return {
     ...place,
+    request,
     selectRoot: worktreeId => placeFiles(workspaceId, { worktreeId }),
     openPath: path => placeFiles(workspaceId, { path }),
   };

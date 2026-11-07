@@ -78,6 +78,37 @@ Known results outside S6:
 - `golangci-lint` on `internal/daemon` reports a `golines` issue in
   `session_files_integration_test.go` (S8); left untouched.
 
+## Follow-up on the integration head (merge of `feat/file-explorer` at `bd5a80dd6`)
+
+- **US-002.AC-6**: the Review panel's Files tab tree header has "Open in Files window"
+  (`FilesExplorer.onOpenInFilesWindow`). It hands the session root (checkout, or the bound
+  worktree's `worktree_id`) and the open path to `requestFilesAppPlace`, then opens or focuses
+  the project's Files window. An open window re-roots and opens the path. Coverage:
+  `files-app-window.test.tsx` "Should hand the session root and open path to Open in Files
+  window (US-002.AC-6)" and "Should re-root an open Files window and open the requested path
+  (US-002.AC-6)".
+- **Regression, 7 cases** (`thinking-block.test.tsx`, `session-compaction-item.test.tsx`,
+  "No QueryClient set"): `MessageMarkdown` mounted the file-path link scope for every
+  `openPaths` render. Since S4 that scope always calls `useQueryClient`/`useNavigate`; on `main`
+  it mounted only on a desktop with the files bridge. Path links resolve against a session root
+  and `useFilePathLinks` already returns `null` without a session, so the production fix mounts
+  the scope only inside a session transcript. Thinking blocks and compaction summaries outside
+  one render plain markdown.
+- **Regression, 19 cases** (`session-window-content.test.tsx`,
+  `use-session-window-controller.test.tsx`): S4 added `review` to `useSessionWindowController`
+  and a `useSessionReviewPanelState` call. The suites' full controller and session-barrel
+  fixtures were never extended, so they now carry `review: { open: false }` and a
+  `useSessionReviewPanelState` stub shaped like their `inspector` stubs. No assertion changed.
+- `golines` in `session_files_integration_test.go` was already wrapped on integration by S7
+  (`50c0faa93`). That file builds only with the `integration` tag; with the default config,
+  `golangci-lint run ./internal/daemon/...` reports 0 issues.
+
+```sh
+cd web && bunx vitest run src/systems/os src/systems/files src/systems/session   # 260 files, 3586 passed
+bunx turbo run typecheck --filter=./web                                          # 4/4
+golangci-lint run ./internal/daemon/...                                          # No issues found
+```
+
 ## Browser verification
 
 Isolated lab (`COMPOZY_HOME=/tmp/s6/lab/home`, port 47761, `COMPOZY_WEB_DIST_DIR` = this

@@ -8,6 +8,7 @@ import {
 } from "@compozy/ui";
 
 import { usePrefersReducedMotion } from "@/components/assistant-ui/hooks/use-prefers-reduced-motion";
+import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useFilePathLinks } from "../hooks/use-file-path-links";
 import { FilePathLinksContext } from "../lib/file-path-links-context";
 import { FilePathAnchor, FilePathInlineCode, FilePathLocalLink } from "./file-path-link";
@@ -151,7 +152,10 @@ export const MessageMarkdown = memo(
           {content}
         </StreamMarkdown>
       );
-    return openPaths ? (
+    // Path links resolve against a session's root, so they exist only inside its transcript;
+    // anywhere else (no session) the markdown stays plain and needs no Query or router context.
+    const inSession = useSessionRuntimeRenderContext() !== null;
+    return openPaths && inSession ? (
       <FilePathLinksScope>{render}</FilePathLinksScope>
     ) : (
       render(PLAIN_MARKDOWN_PROPS)

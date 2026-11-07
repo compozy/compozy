@@ -12,9 +12,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@compozy/ui";
-import { Eye, GitBranch, RefreshCw } from "@compozy/ui/icons";
+import { AppWindow, Eye, GitBranch, RefreshCw } from "@compozy/ui/icons";
 
-import type { FilesRootRef } from "../adapters/files-api";
+import type { FileRootPayload, FilesRootRef } from "../adapters/files-api";
 import { useFileTreeBridge, type FileTreeBridge } from "../hooks/use-file-tree-bridge";
 import type { FileViewerTarget } from "../lib/file-viewer-target";
 import { FileTreeUnavailableState, FileViewerMessageState } from "./file-viewer-states";
@@ -29,6 +29,11 @@ export interface FilesExplorerProps {
   onOpenFile: (path: string) => void;
   /** Accessible name of the tree. */
   treeLabel?: string;
+  /**
+   * Opens this root and the selected path in the project's Files window (the Review panel's
+   * "Open in Files window", US-002.AC-6). Absent where there is no such window.
+   */
+  onOpenInFilesWindow?: (root: FileRootPayload, path: string | null) => void;
   /** The way out of a root that is gone (the Files app's "Switch to project root"). */
   unavailableAction?: React.ReactNode;
 }
@@ -74,12 +79,14 @@ function TreeHeader({
   onFilterChange,
   showIgnored,
   onShowIgnoredChange,
+  onOpenInFilesWindow,
 }: {
   bridge: FileTreeBridge;
   filter: string;
   onFilterChange: (next: string) => void;
   showIgnored: boolean;
   onShowIgnoredChange: (next: boolean) => void;
+  onOpenInFilesWindow?: () => void;
 }) {
   const root = bridge.root.status === "ready" ? bridge.root.root : null;
   return (
@@ -108,6 +115,15 @@ function TreeHeader({
         <TreeIconAction label="Refresh" testId="files-refresh" onClick={bridge.refresh}>
           <RefreshCw aria-hidden className="size-3.5" />
         </TreeIconAction>
+        {root && onOpenInFilesWindow ? (
+          <TreeIconAction
+            label="Open in Files window"
+            testId="files-open-in-files-window"
+            onClick={onOpenInFilesWindow}
+          >
+            <AppWindow aria-hidden className="size-3.5" />
+          </TreeIconAction>
+        ) : null}
       </div>
       <SearchInput
         aria-label="Filter files"
@@ -189,6 +205,7 @@ export function FilesExplorer({
   target,
   onOpenFile,
   treeLabel = "Project files",
+  onOpenInFilesWindow,
   unavailableAction,
 }: FilesExplorerProps) {
   const [filter, setFilter] = useState("");
@@ -198,6 +215,7 @@ export function FilesExplorer({
   if (bridge.root.status === "unavailable") {
     return <FileTreeUnavailableState action={unavailableAction} />;
   }
+  const readyRoot = bridge.root.status === "ready" ? bridge.root.root : null;
   return (
     <ResizablePanelGroup
       orientation="horizontal"
@@ -212,6 +230,11 @@ export function FilesExplorer({
             onFilterChange={setFilter}
             showIgnored={showIgnored}
             onShowIgnoredChange={setShowIgnored}
+            onOpenInFilesWindow={
+              onOpenInFilesWindow && readyRoot
+                ? () => onOpenInFilesWindow(readyRoot, selectedPath)
+                : undefined
+            }
           />
           <TreeBody
             bridge={bridge}
