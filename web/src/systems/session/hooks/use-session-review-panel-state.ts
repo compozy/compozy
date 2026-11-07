@@ -4,22 +4,42 @@ import { useSelector } from "@xstate/store-react";
 
 import type { FileViewerTarget } from "@/systems/files";
 
+import type { SessionChangesScope } from "../adapters/session-changes-api";
+
 import { sessionInspectorStore } from "./use-session-inspector-state";
 
-/** The Review panel's tabs; S5 adds `changes` beside `files`. */
-export type SessionReviewTab = "files";
+/** The Review panel's tabs. */
+export type SessionReviewTab = "changes" | "files";
+
+export type SessionDiffMode = "split" | "unified";
 
 export interface SessionReviewPanelPreference {
   open: boolean;
   tab: SessionReviewTab;
   /** Panel width as a percentage of the session window ("45%"). */
   size?: string;
+  /** Changes: split or unified diffs (US-007.AC-5). */
+  diffMode?: SessionDiffMode;
+  /** Changes: the operator's scope; absent means the daemon default (US-008.AC-3). */
+  scope?: SessionChangesScope;
+  /** Changes: the operator's base ref; absent means the daemon default. */
+  base?: string;
+  /** Changes: the changed-files tree beside the diffs; shown unless hidden. */
+  changesTree?: boolean;
+}
+
+/** Transient: a changed file a click asked Changes to focus. `nonce` re-focuses the same path. */
+export interface SessionChangeFocus {
+  path: string;
+  nonce: number;
 }
 
 interface SessionReviewPanelContext {
   bySession: Record<string, SessionReviewPanelPreference>;
   /** Transient: the file a link click asked for, per session. Never persisted. */
   targets: Record<string, FileViewerTarget>;
+  /** Transient: the changed file a click asked Changes to show, per session. */
+  focusedChanges: Record<string, SessionChangeFocus>;
 }
 
 export const SESSION_REVIEW_PANEL_STORAGE_KEY = "compozy:session:review-panel:v1";
@@ -33,7 +53,20 @@ function normalizedPreference(value: unknown): SessionReviewPanelPreference | nu
   if (typeof record.open !== "boolean") return null;
   const size =
     typeof record.size === "string" && /^\d+(\.\d+)?%$/.test(record.size) ? record.size : undefined;
-  return { open: record.open, tab: "files", ...(size ? { size } : {}) };
+  const diffMode =
+    record.diffMode === "split" || record.diffMode === "unified" ? record.diffMode : undefined;
+  const scope =
+    record.scope === "branch" || record.scope === "uncommitted" ? record.scope : undefined;
+  const base = typeof record.base === "string" && record.base !== "" ? record.base : undefined;
+  return {
+    open: record.open,
+    tab: record.tab === "changes" ? "changes" : "files",
+    ...(size ? { size } : {}),
+    ...(diffMode ? { diffMode } : {}),
+    ...(scope ? { scope } : {}),
+    ...(base ? { base } : {}),
+    ...(record.changesTree === false ? { changesTree: false } : {}),
+  };
 }
 
 function mergeReviewPanelPreferences(
@@ -48,7 +81,7 @@ function mergeReviewPanelPreferences(
       if (preference) bySession[sessionId] = preference;
     }
   }
-  return { bySession, targets: current.targets };
+  return { bySession, targets: current.targets, focusedChanges: current.focusedChanges };
 }
 
 function withPreference(
@@ -60,8 +93,14 @@ function withPreference(
   return { ...context, bySession: { ...context.bySession, [sessionId]: { ...current, ...patch } } };
 }
 
+let focusNonce = 0;
+function nextFocusNonce(): number {
+  focusNonce += 1;
+  return focusNonce;
+}
+
 export const sessionReviewPanelLogic = createStoreLogic({
-  context: (): SessionReviewPanelContext => ({ bySession: {}, targets: {} }),
+  context: (): SessionReviewPanelContext => ({ bySession: {}, targets: {}, focusedChanges: {} }),
   on: {
     visibilityChanged: (context, event: { sessionId: string; open: boolean }) =>
       event.sessionId ? withPreference(context, event.sessionId, { open: event.open }) : context,
@@ -73,6 +112,27 @@ export const sessionReviewPanelLogic = createStoreLogic({
       if (!event.sessionId) return context;
       const next = withPreference(context, event.sessionId, { open: true, tab: "files" });
       return { ...next, targets: { ...next.targets, [event.sessionId]: event.target } };
+    },
+    changesPreferenceChanged: (
+      context,
+      event: {
+        sessionId: string;
+        patch: Pick<SessionReviewPanelPreference, "diffMode" | "scope" | "base" | "changesTree">;
+      }
+    ) => (event.sessionId ? withPreference(context, event.sessionId, event.patch) : context),
+    changesRequested: (
+      context,
+      event: { sessionId: string; path?: string; scope?: SessionChangesScope }
+    ) => {
+      if (!event.sessionId) return context;
+      const next = withPreference(context, event.sessionId, {
+        open: true,
+        tab: "changes",
+        ...(event.scope ? { scope: event.scope } : {}),
+      });
+      if (!event.path) return next;
+      const focus = { path: event.path, nonce: nextFocusNonce() };
+      return { ...next, focusedChanges: { ...next.focusedChanges, [event.sessionId]: focus } };
     },
   },
 });
@@ -125,11 +185,33 @@ export function requestSessionReviewFile(sessionId: string, target: FileViewerTa
   sessionReviewPanelStore.trigger.fileRequested({ sessionId, target });
 }
 
+/**
+ * Opens the session's Review panel on Changes (the PR chip's **Review changes**, a turn's
+ * changed-file row). With `path`, the tab focuses that file, or falls back to Files when the
+ * summary doesn't list it (US-005.AC-6).
+ */
+export function requestSessionReviewChanges(
+  sessionId: string,
+  request: { path?: string; scope?: SessionChangesScope } = {}
+): void {
+  if (!sessionId) return;
+  closeInspector(sessionId);
+  sessionReviewPanelStore.trigger.changesRequested({ sessionId, ...request });
+}
+
 export interface UseSessionReviewPanelStateResult {
   open: boolean;
   tab: SessionReviewTab;
   size: string;
   target: FileViewerTarget | null;
+  diffMode: SessionDiffMode;
+  scope: SessionChangesScope | undefined;
+  base: string | undefined;
+  changesTree: boolean;
+  focusedChange: SessionChangeFocus | null;
+  setChangesPreference: (
+    patch: Pick<SessionReviewPanelPreference, "diffMode" | "scope" | "base" | "changesTree">
+  ) => void;
   toggle: () => void;
   close: () => void;
   setTab: (tab: SessionReviewTab) => void;
@@ -147,6 +229,10 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
     sessionReviewPanelStore,
     snapshot => snapshot.context.targets[sessionId] ?? null
   );
+  const focusedChange = useSelector(
+    sessionReviewPanelStore,
+    snapshot => snapshot.context.focusedChanges[sessionId] ?? null
+  );
   const setOpen = (open: boolean) => {
     if (!sessionId) return;
     if (open) closeInspector(sessionId);
@@ -157,6 +243,13 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
     tab: preference.tab,
     size: preference.size ?? SESSION_REVIEW_PANEL_DEFAULT_SIZE,
     target,
+    diffMode: preference.diffMode ?? "unified",
+    scope: preference.scope,
+    base: preference.base,
+    changesTree: preference.changesTree ?? true,
+    focusedChange,
+    setChangesPreference: patch =>
+      sessionReviewPanelStore.trigger.changesPreferenceChanged({ sessionId, patch }),
     toggle: () => setOpen(!preference.open),
     close: () => setOpen(false),
     setTab: tab => sessionReviewPanelStore.trigger.tabSelected({ sessionId, tab }),

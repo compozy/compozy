@@ -2,7 +2,7 @@ import { FileText } from "@compozy/ui/icons";
 
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "@compozy/ui";
+import { TranscriptDisclosure, cn } from "@compozy/ui";
 
 // Signal palette as information, never decoration: additions read `--success`,
 // deletions `--color-destructive`. The +/− sign carries the meaning too, so the stat never
@@ -25,13 +25,19 @@ function splitPath(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, index + 1), name: path.slice(index + 1) };
 }
 
-function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
+const ROW_CLASS = "flex min-h-transcript-row min-w-0 items-center gap-2 text-transcript-body";
+
+function ChangedFileRow({
+  file,
+  onOpen,
+}: {
+  file: ChangedFileEntry;
+  /** Opens Changes at this file (US-005.AC-6); absent for a session without a file root. */
+  onOpen?: (path: string) => void;
+}) {
   const { dir, name } = splitPath(file.path);
-  return (
-    <div
-      data-testid="changed-file-row"
-      className="flex min-h-transcript-row min-w-0 items-center gap-2 text-transcript-body"
-    >
+  const body = (
+    <>
       <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <span
         className="flex min-w-0 flex-1 items-baseline font-mono text-transcript-caption"
@@ -41,22 +47,46 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
         <span className="shrink-0 text-fg">{name}</span>
       </span>
       <DiffStat additions={file.additions} deletions={file.deletions} />
-    </div>
+    </>
+  );
+  if (!onOpen) {
+    return (
+      <div data-testid="changed-file-row" className={ROW_CLASS}>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-testid="changed-file-row"
+      aria-label={`Review changes in ${name}`}
+      className={cn(
+        ROW_CLASS,
+        "w-full cursor-pointer rounded-sm text-left outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
+      )}
+      onClick={() => onOpen(file.path)}
+    >
+      {body}
+    </button>
   );
 }
 
 /**
  * The settled-turn changed-files outcome, calm-transcript grammar: one
  * "Edited N files +A −D" line that expands to bare mono file lines behind the
- * detail rail — no card, no fill. Display-only (CompozyOS exposes no
- * checkpoint/Undo semantics), capped at 8 lines with a bare "+N more" tail.
+ * detail rail — no card, no fill. A file opens the session's Changes at it
+ * (no checkpoint/Undo semantics), capped at 8 lines with a bare "+N more" tail.
  */
 export function SessionChangedFilesRowView({
   row,
   onToggle,
+  onOpenFile,
 }: {
   row: SessionChangedFilesRow;
   onToggle: () => void;
+  /** Opens the session's Changes at a file; absent where there is no file root. */
+  onOpenFile?: (path: string) => void;
 }) {
   const fileCount = row.files.length;
   const visibleFiles = row.files.slice(0, CHANGED_FILES_VISIBLE_CAP);
@@ -91,7 +121,11 @@ export function SessionChangedFilesRowView({
         {row.expanded ? (
           <>
             {visibleFiles.map(file => (
-              <ChangedFileRow key={file.path} file={file} />
+              <ChangedFileRow
+                key={file.path}
+                file={file}
+                {...(onOpenFile ? { onOpen: onOpenFile } : {})}
+              />
             ))}
             {hiddenCount > 0 ? (
               <span className="min-h-transcript-row content-center text-transcript-meta text-subtle">

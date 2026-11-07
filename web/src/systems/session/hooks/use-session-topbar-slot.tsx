@@ -35,6 +35,8 @@ import { isOwnBranch, type SessionLinkedWorkItem } from "../lib/session-linked-w
 import { sessionPullRequestFacts, sessionWaitingOn } from "../lib/session-pull-request";
 import { isUserControllableSession } from "../lib/session-running";
 import { requestSessionLinkDialog } from "./use-session-link-dialog";
+import { requestSessionReviewChanges } from "./use-session-review-panel-state";
+import { sessionHasFileRoot } from "../lib/session-file-root";
 import type { SessionLinkedWorkModel } from "./use-session-linked-work";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
@@ -155,10 +157,15 @@ function useLinkedWorkList(
 
 /** The delivery actions a chip carries for the session's own branch. */
 function ownChipActions({
+  session,
   pullRequestExit,
   pullRequestRefresh,
 }: UseSessionTopbarSlotInput): SessionLinkedWorkStatusProps["ownChip"] {
   return {
+    // The session's own branch diff (US-007.AC-8): Branch scope, absent in user scope.
+    onReviewChanges: sessionHasFileRoot(session.workspace_id)
+      ? () => requestSessionReviewChanges(session.id, { scope: "branch" })
+      : undefined,
     exitPlan: pullRequestExit?.plan,
     exitRunning: pullRequestExit?.running ?? false,
     onExitAction: pullRequestExit?.onAction,

@@ -27,6 +27,7 @@ import { SessionWindowPresentationContext } from "../../contexts/session-window-
 import { closeSessionLinkDialog, sessionLinkDialogStore } from "../use-session-link-dialog";
 import type { SessionLinkedWorkModel } from "../use-session-linked-work";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
+import { sessionReviewPanelStore } from "../use-session-review-panel-state";
 import { SessionTransportChip } from "../../components/session-transport-chip";
 import { SESSION_TRANSPORT_LIVE } from "../../lib/session-transport";
 import {
@@ -330,7 +331,12 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["fix", "open", "refresh"]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
+      "fix",
+      "open",
+      "refresh",
+      "review-changes",
+    ]);
     expect(items[0]).toHaveTextContent("Fix failing checks");
 
     fireEvent.click(items[0]!);
@@ -353,9 +359,29 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["open", "refresh"]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
+      "open",
+      "refresh",
+      "review-changes",
+    ]);
     fireEvent.click(items[1]!);
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  // US-007.AC-8. Invariant: the PR chip's Review changes opens the Review panel on Changes,
+  // Branch scope, for the session's own branch.
+  it("Should open the Review panel on Changes with Branch scope from the chip menu", async () => {
+    const session = withPullRequest({});
+    renderWithTopbar(<SessionPublisher onStop={vi.fn()} session={session} />);
+
+    fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+    const menu = await screen.findByTestId("session-pull-request-menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Review changes" }));
+    expect(sessionReviewPanelStore.getSnapshot().context.bySession[session.id]).toMatchObject({
+      open: true,
+      tab: "changes",
+      scope: "branch",
+    });
   });
 
   it.each(["system", "coordinator", "spawned"] as const)(

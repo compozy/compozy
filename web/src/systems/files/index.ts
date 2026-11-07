@@ -21,3 +21,4 @@ export { FilesExplorer, type FilesExplorerProps } from "./components/files-explo
 export { FileViewerPane, type FileViewerPaneProps } from "./components/file-viewer-pane";
 export { OpenInButton } from "./components/open-in-button";
 export { canListOpenTargets } from "./lib/open-in-targets";
+export { copyFilePath } from "./lib/copy-file-path";

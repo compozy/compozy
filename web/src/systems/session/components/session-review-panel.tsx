@@ -4,6 +4,7 @@ import { createCodeHighlightWorker } from "@compozy/ui/lib/code-highlight-worker
 import { FilesExplorer, fileViewerTarget } from "@/systems/files";
 
 import type { UseSessionReviewPanelStateResult } from "../hooks/use-session-review-panel-state";
+import { SessionChangesTab } from "./session-changes/session-changes-tab";
 import { SessionPanelToggle } from "./session-panel-toggle";
 import { sessionHasFileRoot } from "../lib/session-file-root";
 
@@ -32,7 +33,7 @@ export interface SessionReviewPanelProps {
 
 /**
  * The session window's right Review panel (`_uiux.md` S1): tabs over the session root. Files is
- * the explorer over the bound worktree, else the project checkout; the Changes tab joins it.
+ * the explorer over the bound worktree, else the project checkout; Changes is the session's diff.
  */
 export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionReviewPanelProps) {
   return (
@@ -45,18 +46,25 @@ export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionRe
       >
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line-soft px-2">
           <TabsList>
+            <TabsTrigger value="changes" data-testid="session-review-tab-changes">
+              Changes
+            </TabsTrigger>
             <TabsTrigger value="files" data-testid="session-review-tab-files">
               Files
             </TabsTrigger>
           </TabsList>
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
-          <FilesExplorer
-            root={{ kind: "session", workspaceId, sessionId }}
-            target={review.target}
-            onOpenFile={path => review.openFile(fileViewerTarget(path))}
-            treeLabel="Session files"
-          />
+          {review.tab === "changes" ? (
+            <SessionChangesTab workspaceId={workspaceId} sessionId={sessionId} review={review} />
+          ) : (
+            <FilesExplorer
+              root={{ kind: "session", workspaceId, sessionId }}
+              target={review.target}
+              onOpenFile={path => review.openFile(fileViewerTarget(path))}
+              treeLabel="Session files"
+            />
+          )}
         </div>
       </Tabs>
     </CodeHighlightPoolProvider>
