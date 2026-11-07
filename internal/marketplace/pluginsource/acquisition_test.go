@@ -330,6 +330,7 @@ func TestGitSourceSnapshot(t *testing.T) {
 			[]byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`),
 		)
 		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"1.0.0"}`))
+		writeMarketplaceDocument(t, fixture, "plugin.json", []byte(`{"name":"whole"}`))
 		commands := [][]string{
 			{"init", "-b", "main", fixture},
 			{"-C", fixture, "add", "."},
@@ -341,6 +342,11 @@ func TestGitSourceSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		bare := filepath.Join(t.TempDir(), "fixture.git")
+		if err := runFixtureGit(t.Context(), t, executable, "clone", "--bare", fixture, bare); err != nil {
+			t.Fatal(err)
+		}
+
 		temporary := t.TempDir()
 		repository := "https://8.8.8.8/owner/repo"
 		source, err := NewGitSource("git+"+repository,
@@ -349,7 +355,7 @@ func TestGitSourceSnapshot(t *testing.T) {
 			gitsrc.WithRunner(func(ctx context.Context, executable string, args ...string) error {
 				for index, arg := range args {
 					if arg == repository {
-						args[index] = fixture
+						args[index] = bare
 					}
 				}
 				return runFixtureGit(
@@ -423,6 +429,67 @@ func TestGitSourceSnapshot(t *testing.T) {
 			external.ResolvedRef != record.ResolvedRef || external.DigestSHA256 != record.DigestSHA256 {
 			t.Fatalf("external Git acquisition = %+v, %v", external, err)
 		}
+		commit := strings.TrimPrefix(record.ResolvedRef, source.ref+"@")
+		// Advance the branch so the pinned subdirectory must retain the original bytes.
+		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"2.0.0"}`))
+		for _, args := range [][]string{
+			{"-C", fixture, "add", "."},
+			{"-C", fixture, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "core.hooksPath=" + os.DevNull, "commit", "--no-gpg-sign", "-m", "advance"},
+			{"-C", fixture, "push", bare, "main"},
+		} {
+			if err := runFixtureGit(t.Context(), t, executable, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, kind := range []Kind{SourceGitSubdir, SourceURL} {
+			path := "tool"
+			if kind == SourceURL {
+				path = ""
+			}
+			external, err := resolver.Resolve(
+				t.Context(),
+				externalDoc,
+				nil,
+				Plugin{Name: "tool", Source: PluginSource{Kind: kind, Ref: repository, GitRef: commit, Path: path}},
+			)
+			if err != nil || external.ResolvedRef != record.ResolvedRef {
+				t.Fatalf("%s acquisition = %+v, %v", kind, external, err)
+			}
+			if kind == SourceGitSubdir &&
+				(external.PackagePath != "tool" || external.DigestSHA256 != record.DigestSHA256) {
+				t.Fatalf("pinned subtree = %+v", external)
+			}
+			reader, err := resolver.Cache.Open(t.Context(), external.DigestSHA256)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, readErr := io.ReadAll(reader)
+			if err := errors.Join(readErr, reader.Close()); err != nil {
+				t.Fatal(err)
+			}
+			archive := tar.NewReader(bytes.NewReader(raw))
+			found := false
+			for {
+				header, err := archive.Next()
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if header.Name == "plugin.json" {
+					found = true
+				}
+				if kind == SourceGitSubdir && header.Name != "plugin.json" {
+					t.Fatalf("subtree included %q", header.Name)
+				}
+			}
+			if !found {
+				t.Fatal("package root has no manifest")
+			}
+			assertAcquisitionClean(t, resolver)
+		}
+
 		assertAcquisitionClean(t, resolver)
 	})
 }

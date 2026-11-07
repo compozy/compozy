@@ -82,7 +82,7 @@ func (s *Sources) openPlugin(ctx context.Context, plugin PluginSource) (_ *Snaps
 		return s.openArchive(ctx, plugin.Ref)
 	}
 	ref := plugin.Ref
-	if plugin.Kind == SourceHTTPS {
+	if plugin.Kind == SourceHTTPS || plugin.Kind == SourceURL || plugin.Kind == SourceGitSubdir {
 		ref = "git+" + ref
 	}
 	normalized, err := NormalizeRef(ref)
