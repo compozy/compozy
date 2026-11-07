@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -72,7 +73,7 @@ func (e *GitEngine) snapshot(ctx context.Context, root projectfiles.Root, req Re
 		".",
 	)
 	if err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	files := parseRaw(raw)
 	num, err := e.git(
@@ -89,22 +90,22 @@ func (e *GitEngine) snapshot(ctx context.Context, root projectfiles.Root, req Re
 		".",
 	)
 	if err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	if _, err := worktree.ParseNumstat(num); err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	applyNumstat(files, num)
 	status, err := e.git(ctx, root, metadataLimit, "status", "--porcelain=v2", "--branch", "-z", "--", ".")
 	if err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	if _, err := worktree.ParseStatusV2(status); err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	prefix, err := e.git(ctx, root, 4096, "rev-parse", "--show-prefix")
 	if err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	for record := range bytes.SplitSeq(status, []byte{0}) {
 		if len(record) > 0 && record[0] == 'u' {
@@ -121,7 +122,7 @@ func (e *GitEngine) snapshot(ctx context.Context, root projectfiles.Root, req Re
 	}
 	untracked, err := e.git(ctx, root, metadataLimit, "ls-files", "--others", "--exclude-standard", "-z", "--", ".")
 	if err != nil {
-		return s, ErrUnavailable
+		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	if err := e.addUntracked(ctx, root, untracked, files, &s.Totals); err != nil {
 		return s, err

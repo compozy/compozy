@@ -22,18 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/httpapi"
-	"github.com/compozy/compozy/internal/api/udsapi"
-	"github.com/gin-gonic/gin"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -49,6 +45,8 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sessionprocess"
@@ -68,6 +66,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
+	"github.com/gin-gonic/gin"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
@@ -16955,6 +16955,60 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 }
 
 func TestNativeSessionChanges(t *testing.T) {
+	t.Run("Should log sanitized failures and keep public errors fixed", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		root := "/private/project"
+		cause := fmt.Errorf("%w: git diff at %s: %w", changes.ErrUnavailable, root, context.DeadlineExceeded)
+		result, err := nativeChangesError(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root, cause)
+		if err != nil || !bytes.Contains(result.Structured, []byte("changes_unavailable")) ||
+			bytes.Contains(result.Structured, []byte("deadline")) {
+			t.Fatalf("result=%s err=%v", result.Structured, err)
+		}
+		if strings.Contains(logs.String(), root) || !strings.Contains(logs.String(), "deadline exceeded") {
+			t.Fatalf("logs=%s", &logs)
+		}
+	})
+
+	for _, continuous := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should fence changing summary fingerprints continuous=%v", continuous), func(t *testing.T) {
+			t.Parallel()
+			root, rootErr := projectfiles.CanonicalRoot(projectfiles.Root{AbsPath: t.TempDir()})
+			if rootErr != nil {
+				t.Fatal(rootErr)
+			}
+			for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+				cmd := exec.CommandContext(t.Context(), "git", args...)
+				cmd.Dir = root.AbsPath
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s %v", out, err)
+				}
+			}
+			path := filepath.Join(root.AbsPath, "a.go")
+			if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			engine := &editingChangesEngine{Engine: changes.NewEngine(), t: t, path: path, continuous: continuous}
+			summary, patches, err := readSessionChanges(
+				t.Context(),
+				engine,
+				root,
+				changes.Request{Scope: changes.Uncommitted},
+				[]string{"a.go"},
+			)
+			if engine.calls != 2 {
+				t.Fatalf("summary calls=%d err=%v", engine.calls, err)
+			}
+			if continuous {
+				if !errors.Is(err, changes.ErrStale) {
+					t.Fatalf("error=%v", err)
+				}
+			} else if err != nil || len(patches) != 1 || patches[0].Fingerprint != summary.Files[0].Fingerprint {
+				t.Fatalf("mixed response: %+v %+v %v", summary, patches, err)
+			}
+		})
+	}
+
 	t.Parallel()
 	t.Run("Should return real changes and gate sensitive patches", func(t *testing.T) {
 		t.Parallel()
@@ -17076,4 +17130,28 @@ func TestNativeSessionChanges(t *testing.T) {
 			t.Fatalf("result %s err %v", result.Structured, err)
 		}
 	})
+}
+
+type editingChangesEngine struct {
+	changes.Engine
+	t          *testing.T
+	path       string
+	calls      int
+	continuous bool
+}
+
+func (e *editingChangesEngine) Summary(
+	ctx context.Context,
+	root projectfiles.Root,
+	req changes.Request,
+) (changes.Summary, error) {
+	e.t.Helper()
+	s, err := e.Engine.Summary(ctx, root, req)
+	e.calls++
+	if e.continuous || e.calls == 1 {
+		if err := os.WriteFile(e.path, []byte(fmt.Sprintf("edit %d\n", e.calls)), 0600); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	return s, err
 }

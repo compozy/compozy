@@ -24,6 +24,58 @@ import (
 // The reader suite owns confinement, classification, caps, ordering and read-only Git policy.
 func TestReader(t *testing.T) {
 	t.Parallel()
+	for _, list := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should reject FIFOs without blocking list=%v", list), func(t *testing.T) {
+			t.Parallel()
+			root := readerRoot(t)
+			pipe := filepath.Join(root.AbsPath, "pipe")
+			if out, err := exec.CommandContext(t.Context(), "mkfifo", pipe).CombinedOutput(); err != nil {
+				t.Skipf("mkfifo unavailable: %s %v", out, err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				var err error
+				if list {
+					_, err = NewReader().List(t.Context(), root, "pipe", ListOptions{})
+				} else {
+					_, err = NewReader().Read(t.Context(), root, "pipe", ReadOptions{})
+				}
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				want := ErrNotAFile
+				if list {
+					want = ErrNotADirectory
+				}
+				if !errors.Is(err, want) {
+					t.Fatalf("list=%v error=%v", list, err)
+				}
+			case <-time.After(time.Second):
+				// Release the blocked open before failing.
+				f, err := os.OpenFile(pipe, os.O_RDWR, 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				<-done
+				if err := f.Close(); err != nil {
+					t.Fatal(err)
+				}
+				t.Fatalf("list=%v blocked opening FIFO", list)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			var err error
+			if list {
+				_, err = NewReader().List(ctx, root, "pipe", ListOptions{})
+			} else {
+				_, err = NewReader().Read(ctx, root, "pipe", ReadOptions{})
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancel=%v", err)
+			}
+		})
+	}
 	t.Run("Should sort directories first in natural order", func(t *testing.T) {
 		t.Parallel()
 		root := readerRoot(t)

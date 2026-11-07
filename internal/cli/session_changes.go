@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,27 @@ type sessionChangesClient interface {
 }
 
 func (c *daemonClient) SessionChanges(
+	ctx context.Context,
+	id string,
+	options sessionChangesOptions,
+) (sessionChangesRecord, error) {
+	for range 2 {
+		result, err := c.sessionChangesOnce(ctx, id, options)
+		if errors.Is(err, changes.ErrStale) {
+			continue
+		}
+		return result, err
+	}
+	return sessionChangesRecord{}, &daemonAPIError{
+		statusCode: 409,
+		payload: contract.ErrorPayload{
+			Code:  "changes_stale",
+			Error: "changes moved since revision; refetch the summary",
+		},
+	}
+}
+
+func (c *daemonClient) sessionChangesOnce(
 	ctx context.Context,
 	id string,
 	options sessionChangesOptions,
@@ -59,7 +81,24 @@ func (c *daemonClient) SessionChanges(
 		}
 		var patches contract.SessionChangePatchesResponse
 		if err := c.doJSON(ctx, http.MethodGet, path+"/patches", query, nil, &patches); err != nil {
+			if api, ok := errors.AsType[*daemonAPIError](err); ok && api.payload.Code == "changes_stale" {
+				return result, changes.ErrStale
+			}
 			return result, err
+		}
+		valid := len(patches.Patches) == len(options.Paths)
+		for _, patch := range patches.Patches {
+			found := false
+			for _, file := range result.Files {
+				if file.Path == patch.Path && file.Fingerprint == patch.Fingerprint {
+					found = true
+					break
+				}
+			}
+			valid = valid && found
+		}
+		if !valid {
+			return sessionChangesRecord{}, changes.ErrStale
 		}
 		result.Patches = patches.Patches
 	}

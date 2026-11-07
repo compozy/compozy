@@ -75,3 +75,14 @@ with Playwright Chromium at 1600×1000.
 BUG-20261107-files-root-internal-workspace-id: file, search and changes responses (HTTP/UDS and
 `compozy__session_changes`) set `root.workspace_id` to the project's internal identity instead of
 the public registry ID. Fixed in `c5d1d54a6`.
+
+## Backend safety regression checks
+
+- Create a named pipe in the project without attaching a writer. Content reads must promptly return
+  `422 not_a_file`; listing that path must promptly return `422 not_a_directory`.
+- Cancel a request before opening a path. It must return cancellation without starting a read.
+- Replacing a regular path with a special file during opening must never block the daemon.
+  Descriptor validation still runs after the confined, nonblocking open.
+
+The existing `TestReader` suite owns special-file rejection. Windows compilation validates the
+platform-specific open flags; it does not constitute a Windows runtime walk.

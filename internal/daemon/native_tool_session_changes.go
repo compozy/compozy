@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -11,6 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+)
+
+const (
+	nativeChangesUnavailable     = "changes_unavailable"
+	nativeChangesRootUnavailable = "root_unavailable"
 )
 
 type sessionChangesInput struct {
@@ -51,7 +57,7 @@ func (n *daemonNativeTools) sessionChanges(
 		return sessionChangesFailure("session_not_found")
 	}
 	if info.WorkspaceID == "" {
-		return sessionChangesFailure("root_unavailable")
+		return sessionChangesFailure(nativeChangesRootUnavailable)
 	}
 	root := projectfiles.Root{
 		Kind:        projectfiles.RootKindWorkspace,
@@ -61,11 +67,11 @@ func (n *daemonNativeTools) sessionChanges(
 	}
 	if info.WorktreeID != "" {
 		if n.deps.Worktrees == nil {
-			return sessionChangesFailure("root_unavailable")
+			return sessionChangesFailure(nativeChangesRootUnavailable)
 		}
 		item, resolveErr := n.deps.Worktrees.Resolve(ctx, workspaceID, info.WorktreeID)
 		if resolveErr != nil {
-			return sessionChangesFailure("root_unavailable")
+			return sessionChangesFailure(nativeChangesRootUnavailable)
 		}
 		if !readScope.Matches(item.ProfileID) {
 			return sessionChangesFailure("session_not_found")
@@ -76,35 +82,26 @@ func (n *daemonNativeTools) sessionChanges(
 	}
 	root, err = projectfiles.CanonicalRoot(root)
 	if err != nil {
-		return sessionChangesFailure("root_unavailable")
+		return sessionChangesFailure(nativeChangesRootUnavailable)
 	}
 	engine := changes.NewEngine()
 	request := changes.Request{Scope: input.Scope, BaseRef: input.Base, Reveal: input.Reveal}
-	summary, err := engine.Summary(ctx, root, request)
+	summary, patches, err := readSessionChanges(ctx, engine, root, request, input.PatchPaths)
 	if err != nil {
-		return nativeChangesError(err)
+		return nativeChangesError(ctx, n.deps.Logger, root.AbsPath, err)
 	}
 	payload := core.SessionChangesPayload(root, summary)
 	payload.PullRequest = n.sessionChangesPullRequest(ctx, info)
 	response := struct {
 		contract.SessionChangesResponse
 		Patches []contract.ChangePatchPayload `json:"patches,omitempty"`
-	}{SessionChangesResponse: payload}
-	if len(input.PatchPaths) > 0 {
-		request.Revision = summary.Revision
-		targets := sessionChangeTargets(summary, input.PatchPaths)
-		patches, patchErr := engine.Patches(ctx, root, request, targets)
-		if patchErr != nil {
-			return nativeChangesError(patchErr)
-		}
-		response.Patches = core.ChangePatchPayloads(patches)
-	}
+	}{SessionChangesResponse: payload, Patches: core.ChangePatchPayloads(patches)}
 	return structuredResult(response, fmt.Sprintf("%d files changed", summary.Totals.Files))
 }
 
 func sessionChangesFailure(code string) (toolspkg.ToolResult, error) {
 	message := map[string]string{
-		"session_not_found": "session not found", "root_unavailable": "this session has no available project root",
+		"session_not_found": "session not found", nativeChangesRootUnavailable: "this session has no available project root",
 		"path_denied":    "path cannot be shown",
 		"file_not_found": "file not found",
 		"not_a_file":     "path is not a file",
@@ -112,7 +109,7 @@ func sessionChangesFailure(code string) (toolspkg.ToolResult, error) {
 		"too_many_paths":       "request at most 20 paths (8 KiB)",
 		"changes_stale":        "changes moved since revision; refetch the summary",
 		"not_a_git_repository": "this folder is not a git repository", "invalid_path": "invalid root-relative path",
-		"path_outside_root": "path is outside this project", "changes_unavailable": "could not read changes; try again",
+		"path_outside_root": "path is outside this project", nativeChangesUnavailable: "could not read changes; try again",
 	}[code]
 	return structuredResult(
 		map[string]any{watchEventsPayloadErrorKey: map[string]string{"code": code, "message": message}},
@@ -120,8 +117,8 @@ func sessionChangesFailure(code string) (toolspkg.ToolResult, error) {
 	)
 }
 
-func nativeChangesError(err error) (toolspkg.ToolResult, error) {
-	code := "changes_unavailable"
+func nativeChangesError(ctx context.Context, logger *slog.Logger, root string, err error) (toolspkg.ToolResult, error) {
+	code := nativeChangesUnavailable
 	for _, item := range []struct {
 		err  error
 		code string
@@ -136,12 +133,15 @@ func nativeChangesError(err error) (toolspkg.ToolResult, error) {
 		{projectfiles.ErrPathDenied, "path_denied"},
 		{projectfiles.ErrNotFound, "file_not_found"},
 		{projectfiles.ErrNotAFile, "not_a_file"},
-		{projectfiles.ErrRootUnavailable, "root_unavailable"},
+		{projectfiles.ErrRootUnavailable, nativeChangesRootUnavailable},
 	} {
 		if errors.Is(err, item.err) {
 			code = item.code
 			break
 		}
+	}
+	if code == nativeChangesUnavailable || code == nativeChangesRootUnavailable {
+		changes.LogFailure(ctx, logger, root, err)
 	}
 	return sessionChangesFailure(code)
 }
@@ -175,4 +175,46 @@ func (n *daemonNativeTools) sessionChangesPullRequest(
 		}
 	}
 	return nil
+}
+
+func readSessionChanges(
+	ctx context.Context,
+	engine changes.Engine,
+	root projectfiles.Root,
+	request changes.Request,
+	paths []string,
+) (changes.Summary, []changes.Patch, error) {
+	for range 2 {
+		summary, err := engine.Summary(ctx, root, request)
+		if err != nil {
+			return changes.Summary{}, nil, err
+		}
+		if len(paths) == 0 {
+			return summary, nil, nil
+		}
+		request.Revision = summary.Revision
+		patches, err := engine.Patches(ctx, root, request, sessionChangeTargets(summary, paths))
+		request.Revision = ""
+		if errors.Is(err, changes.ErrStale) {
+			continue
+		}
+		if err != nil {
+			return changes.Summary{}, nil, err
+		}
+		valid := len(patches) == len(paths)
+		for _, patch := range patches {
+			found := false
+			for _, file := range summary.Files {
+				if file.Path == patch.Path && file.Fingerprint == patch.Fingerprint {
+					found = true
+					break
+				}
+			}
+			valid = valid && found
+		}
+		if valid {
+			return summary, patches, nil
+		}
+	}
+	return changes.Summary{}, nil, changes.ErrStale
 }

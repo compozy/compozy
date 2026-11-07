@@ -3,6 +3,7 @@ package projectfiles
 import (
 	"cmp"
 	"context"
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,7 +14,10 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
-func (r *FileReader) List(ctx context.Context, root Root, dir string, opts ListOptions) (Listing, error) {
+func (r *FileReader) List(ctx context.Context, root Root, dir string, opts ListOptions) (listing Listing, err error) {
+	if err := ctx.Err(); err != nil {
+		return Listing{}, err
+	}
 	rel, _, err := resolvePath(root, dir)
 	if err != nil {
 		return Listing{}, err
@@ -22,13 +26,17 @@ func (r *FileReader) List(ctx context.Context, root Root, dir string, opts ListO
 	if err != nil {
 		return Listing{}, ErrRootUnavailable
 	}
-	defer confined.Close()
-	file, err := confined.Open(rel)
+	defer func() { err = errors.Join(err, confined.Close()) }()
+	info, err := confined.Stat(rel)
+	if err != nil || !info.IsDir() {
+		return Listing{}, ErrNotADirectory
+	}
+	file, err := confined.OpenFile(rel, os.O_RDONLY|directoryOpenFlags, 0)
 	if err != nil {
 		return Listing{}, ErrPathOutsideRoot
 	}
-	defer file.Close()
-	info, err := file.Stat()
+	defer func() { err = errors.Join(err, file.Close()) }()
+	info, err = file.Stat()
 	if err != nil || !info.IsDir() {
 		return Listing{}, ErrNotADirectory
 	}

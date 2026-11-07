@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,6 +62,23 @@ func summary(t *testing.T, e Engine, root projectfiles.Root, req Request) Summar
 	return s
 }
 func TestEngine(t *testing.T) {
+	t.Run("Should preserve Git failure causes and redact request diagnostics", func(t *testing.T) {
+		t.Parallel()
+		root, e := repo(t)
+		cause := fmt.Errorf("git at %s: %w", root.AbsPath, context.DeadlineExceeded)
+		e.runner = failingChangesRunner{StreamingGitRunner: e.runner, cause: cause}
+		_, err := e.Summary(t.Context(), root, Request{Scope: Uncommitted})
+		if !errors.Is(err, ErrUnavailable) || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("cause lost: %v", err)
+		}
+		var logs bytes.Buffer
+		LogFailure(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root.AbsPath, err)
+		if strings.Contains(logs.String(), root.AbsPath) || !strings.Contains(logs.String(), "deadline exceeded") ||
+			!strings.Contains(logs.String(), "diff") {
+			t.Fatalf("logs: %s", &logs)
+		}
+	})
+
 	t.Parallel()
 	t.Run("Should describe branch renames working edits and untracked files", func(t *testing.T) {
 		t.Parallel()
@@ -586,4 +605,21 @@ func (r *recordingReader) Read(
 ) (projectfiles.Content, error) {
 	r.paths = append(r.paths, path)
 	return r.Reader.Read(ctx, root, path, opts)
+}
+
+type failingChangesRunner struct {
+	worktree.StreamingGitRunner
+	cause error
+}
+
+func (r failingChangesRunner) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	if slices.Contains(args, "diff") {
+		return nil, nil, r.cause
+	}
+	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
 }

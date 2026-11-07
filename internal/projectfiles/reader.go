@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,7 +36,7 @@ func WithGitRunner(runner worktree.StreamingGitRunner) Option {
 	return func(r *FileReader) { r.gitRunner = runner }
 }
 func NewReader(opts ...Option) *FileReader {
-	r := &FileReader{open: func(root *os.Root, path string) (*os.File, error) { return root.Open(path) }}
+	r := &FileReader{open: OpenRegularFile}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -47,7 +48,7 @@ func NewReader(opts ...Option) *FileReader {
 	}
 	return r
 }
-func (r *FileReader) Read(ctx context.Context, root Root, path string, opts ReadOptions) (Content, error) {
+func (r *FileReader) Read(ctx context.Context, root Root, path string, opts ReadOptions) (content Content, err error) {
 	if err := ctx.Err(); err != nil {
 		return Content{}, err
 	}
@@ -59,13 +60,23 @@ func (r *FileReader) Read(ctx context.Context, root Root, path string, opts Read
 	if err != nil {
 		return Content{}, ErrRootUnavailable
 	}
-	defer confined.Close()
+	defer func() { err = errors.Join(err, confined.Close()) }()
+	info, err := confined.Stat(rel)
+	if err != nil {
+		return Content{}, ErrNotFound
+	}
+	if !info.Mode().IsRegular() {
+		return Content{}, ErrNotAFile
+	}
 	file, err := r.open(confined, rel)
 	if err != nil {
+		if errors.Is(err, ErrNotAFile) {
+			return Content{}, err
+		}
 		return Content{}, ErrPathOutsideRoot
 	}
-	defer file.Close()
-	info, err := file.Stat()
+	defer func() { err = errors.Join(err, file.Close()) }()
+	info, err = file.Stat()
 	if err != nil {
 		return Content{}, ErrNotFound
 	}

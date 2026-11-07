@@ -55,11 +55,14 @@ func (e *GitEngine) stream(
 	}
 	argv, err := projectfiles.GitReadArgs(ctx, e.runner, root.AbsPath, command, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", command, err)
 	}
 	argv = append([]string{"--literal-pathspecs"}, argv...)
 	_, _, err = e.runner.RunStreaming(ctx, root.AbsPath, fn, argv...)
-	return err
+	if err != nil {
+		return fmt.Errorf("%s: %w", command, err)
+	}
+	return nil
 }
 
 func (e *GitEngine) git(

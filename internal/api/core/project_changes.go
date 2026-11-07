@@ -27,7 +27,7 @@ func (h *BaseHandlers) changeRequest(c *gin.Context, details bool) (projectfiles
 	if raw := c.Query("reveal"); raw != "" {
 		v, err := strconv.ParseBool(raw)
 		if err != nil {
-			h.changeError(c, projectfiles.ErrInvalidPath)
+			h.changeError(c, projectfiles.ErrInvalidPath, root.AbsPath)
 			return root, req, false
 		}
 		req.Reveal = v
@@ -54,7 +54,7 @@ func (h *BaseHandlers) GetSessionChanges(c *gin.Context) {
 	}
 	s, err := h.SessionChanges.Summary(c.Request.Context(), root, req)
 	if err != nil {
-		h.changeError(c, err)
+		h.changeError(c, err, root.AbsPath)
 		return
 	}
 	response := SessionChangesPayload(root, s)
@@ -93,7 +93,7 @@ func (h *BaseHandlers) GetSessionChangePatches(c *gin.Context) {
 	}
 	patches, err := h.SessionChanges.Patches(c.Request.Context(), root, req, targets)
 	if err != nil {
-		h.changeError(c, err)
+		h.changeError(c, err, root.AbsPath)
 		return
 	}
 	result := contract.SessionChangePatchesResponse{Revision: req.Revision, Patches: []contract.ChangePatchPayload{}}
@@ -112,7 +112,7 @@ func (h *BaseHandlers) GetSessionChangeContents(c *gin.Context) {
 		changes.PatchTarget{Path: c.Query("path"), OldPath: c.Query("old_path")},
 	)
 	if err != nil {
-		h.changeError(c, err)
+		h.changeError(c, err, root.AbsPath)
 		return
 	}
 	c.JSON(
@@ -153,7 +153,7 @@ func (h *BaseHandlers) ListSessionChangeBases(c *gin.Context) {
 	}
 	v, err := h.SessionChanges.Bases(c.Request.Context(), root, c.Query("q"), limit)
 	if err != nil {
-		h.changeError(c, err)
+		h.changeError(c, err, root.AbsPath)
 		return
 	}
 	result := contract.SessionChangeBasesResponse{
@@ -177,7 +177,7 @@ func (h *BaseHandlers) ListSessionChangeBases(c *gin.Context) {
 	}
 	c.JSON(200, result)
 }
-func (h *BaseHandlers) changeError(c *gin.Context, err error) {
+func (h *BaseHandlers) changeError(c *gin.Context, err error, root string) {
 	status, code, message := 500, "changes_unavailable", "could not read changes"
 	switch {
 	case errors.Is(err, changes.ErrNotARepository):
@@ -195,8 +195,14 @@ func (h *BaseHandlers) changeError(c *gin.Context, err error) {
 	default:
 		if !errors.Is(err, changes.ErrUnavailable) {
 			h.projectFileError(c, err)
+			if c.Writer.Status() >= 500 {
+				changes.LogFailure(c.Request.Context(), h.Logger, root, err)
+			}
 			return
 		}
+	}
+	if status >= 500 {
+		changes.LogFailure(c.Request.Context(), h.Logger, root, err)
 	}
 	h.respondSessionFilesError(c, status, code, errors.New(message))
 }

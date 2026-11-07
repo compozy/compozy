@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -5676,6 +5677,72 @@ func TestSessionPendingDescendants(t *testing.T) {
 }
 
 func TestSessionChanges(t *testing.T) {
+	for _, continuous := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retry mixed fingerprints continuous=%v", continuous), func(t *testing.T) {
+			t.Parallel()
+			summaries, patches := 0, 0
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+			client.httpClient = &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					body := `{"id":"sess-1","workspace_id":"ws-1"}`
+					switch {
+					case strings.HasSuffix(req.URL.Path, "/patches"):
+						patches++
+						fingerprint := fmt.Sprint(summaries)
+						if continuous || summaries == 1 {
+							fingerprint = "newer"
+						}
+						body = fmt.Sprintf(
+							`{"revision":"same","patches":[{"path":"a.go","fingerprint":%q}]}`,
+							fingerprint,
+						)
+					case strings.HasSuffix(req.URL.Path, "/changes"):
+						summaries++
+						body = fmt.Sprintf(
+							`{"revision":"same","files":[{"path":"a.go","fingerprint":%q}]}`,
+							fmt.Sprint(summaries),
+						)
+					}
+					return &http.Response{
+						StatusCode: 200,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(body)),
+					}, nil
+				}),
+			}
+			result, err := client.SessionChanges(
+				t.Context(),
+				"sess-1",
+				sessionChangesOptions{Scope: "uncommitted", Paths: []string{"a.go"}},
+			)
+			if summaries != 2 || patches != 2 {
+				t.Fatalf("requests summary=%d patches=%d", summaries, patches)
+			}
+			if continuous {
+				api, ok := errors.AsType[*daemonAPIError](err)
+				if !ok || api.payload.Code != "changes_stale" {
+					t.Fatalf("error=%v", err)
+				}
+				deps := newWorkspaceTestDeps(
+					t,
+					&stubClient{
+						sessionChangesFn: func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error) { return result, err },
+					},
+				)
+				_, _, commandErr := executeRootCommand(t, deps, "session", "changes", "sess-1")
+				if commandErr == nil || !strings.Contains(commandErr.Error(), "changes_stale") {
+					t.Fatalf("command error=%v", commandErr)
+				}
+				exit, ok := errors.AsType[*commandExitError](commandErr)
+				if !ok || exit.cliExitCode() != 1 {
+					t.Fatalf("exit error=%v", commandErr)
+				}
+			} else if err != nil || result.Files[0].Fingerprint != result.Patches[0].Fingerprint {
+				t.Fatalf("mixed result: %+v %v", result, err)
+			}
+		})
+	}
+
 	t.Parallel()
 	t.Run("Should render summary and forward patch options", func(t *testing.T) {
 		t.Parallel()

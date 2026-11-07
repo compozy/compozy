@@ -80,3 +80,15 @@ next diagnostic step.
 Observations, not defects: after "Compare against <ref>" with a ref that does not exist, the base
 popover stays open; with a valid ref it closes. While the missing base is selected, each focus or
 live refresh retries the summary, and the browser console logs the `409 base_not_found` response.
+
+## Backend consistency and diagnostics regression checks
+
+- Edit a requested file between the summary and patch reads from the CLI or native tool. The
+  combined consumer must refresh summary and patches once. If another edit makes the retry
+  inconsistent, return `changes_stale`; the CLI exits non-zero and includes the domain code.
+- Cause a Git diff failure or timeout. Every Changes 5xx from HTTP/UDS (including requests made
+  by the CLI) and the native tool must record one warning containing the Git cause and subcommand.
+  The absolute root is redacted and the public message remains fixed.
+- The owning regression suites are `TestEngine`, `TestProjectChangesDiagnostics`,
+  `TestSessionChanges`, and `TestNativeSessionChanges`. They cover deterministic failures and
+  concurrent edits. The original transient restart incident still has no proven root cause.

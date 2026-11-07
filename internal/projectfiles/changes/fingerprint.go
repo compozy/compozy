@@ -40,7 +40,7 @@ func (e *GitEngine) fingerprint(
 	}
 	raw, err := e.git(ctx, root, metadataLimit, "diff", args...)
 	if err != nil {
-		return "", ErrUnavailable
+		return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	f, ok := parseRaw(raw)[t.Path]
 	if !ok {
@@ -48,7 +48,7 @@ func (e *GitEngine) fingerprint(
 	}
 	status, err := e.git(ctx, root, metadataLimit, "status", "--porcelain=v2", "-z", "--", t.Path)
 	if err != nil {
-		return "", ErrUnavailable
+		return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	if bytes.HasPrefix(status, []byte("u ")) {
 		f.Status = Conflicted
@@ -95,30 +95,30 @@ func normalizeOID(oid string) string {
 	return oid
 }
 
-func fileIdentity(root projectfiles.Root, path string) (string, error) {
+func fileIdentity(root projectfiles.Root, path string) (value string, err error) {
 	confined, err := os.OpenRoot(root.AbsPath)
 	if err != nil {
 		return "", projectfiles.ErrRootUnavailable
 	}
-	defer confined.Close()
-	file, err := confined.Open(path)
+	defer func() { err = errors.Join(err, confined.Close()) }()
+	file, err := projectfiles.OpenRegularFile(confined, path)
 	if err != nil {
 		return "", ErrStale
 	}
-	defer file.Close()
+	defer func() { err = errors.Join(err, file.Close()) }()
 	info, err := file.Stat()
 	if err != nil {
 		return "", ErrStale
 	}
 	identity, err := statIdentity(file, info)
 	if err != nil {
-		return "", ErrUnavailable
+		return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	digest := ""
 	if info.Size() <= PatchLimit {
 		h := sha256.New()
 		if _, err := io.Copy(h, io.LimitReader(file, PatchLimit+1)); err != nil {
-			return "", ErrUnavailable
+			return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
 		}
 		digest = fmt.Sprintf("%x", h.Sum(nil))
 	}

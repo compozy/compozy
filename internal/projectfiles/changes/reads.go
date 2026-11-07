@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -145,13 +146,13 @@ func (e *GitEngine) renderPatch(
 	if err != nil {
 		exit, ok := errors.AsType[*exec.ExitError](err)
 		if !untracked || !ok || exit.ExitCode() != 1 {
-			return Patch{}, ErrUnavailable
+			return Patch{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 		}
 	}
 	if !p.TooLarge && patch.Len() > 0 {
 		files, _, err := gitdiff.Parse(bytes.NewReader(patch.Bytes()))
 		if err != nil {
-			return Patch{}, ErrUnavailable
+			return Patch{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 		}
 		for _, file := range files {
 			if file.NewName == t.Path || (file.IsDelete && file.OldName == t.Path) {
@@ -210,7 +211,7 @@ func (e *GitEngine) Contents(
 				data.Write(o.Chunk[:min(len(o.Chunk), PatchLimit-data.Len())])
 			}, "cat-file", "blob", s.MergeBaseSHA+":./"+old)
 			if err != nil {
-				return Contents{}, ErrUnavailable
+				return Contents{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 			}
 			if overflow {
 				return Contents{}, ErrTooLargeToExpand
