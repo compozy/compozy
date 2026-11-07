@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -20,7 +21,8 @@ func ValidatePath(path string) error {
 		return ErrInvalidPath
 	}
 	for part := range strings.SplitSeq(path, "/") {
-		if part == ".." || strings.EqualFold(part, ".git") {
+		if part == ".." || strings.EqualFold(part, ".git") ||
+			(runtime.GOOS == "windows" && strings.HasSuffix(part, " ")) {
 			return ErrInvalidPath
 		}
 	}
@@ -48,20 +50,23 @@ func resolvePath(root Root, path string) (string, bool, error) {
 	if info, err := os.Stat(root.AbsPath); err != nil || !info.IsDir() {
 		return "", false, ErrRootUnavailable
 	}
-	_, target, err := fileutil.ResolveExistingPathWithinRoot(
-		root.AbsPath,
-		filepath.Join(root.AbsPath, filepath.FromSlash(path)),
-	)
-	if errors.Is(err, fileutil.ErrPathOutsideRoot) {
-		return "", false, ErrPathOutsideRoot
+	canonicalRoot, err := filepath.EvalSymlinks(root.AbsPath)
+	if err != nil {
+		return "", false, ErrRootUnavailable
 	}
+	// Tree and Git names are filesystem identities, including edge whitespace.
+	target, err := filepath.EvalSymlinks(filepath.Join(root.AbsPath, filepath.FromSlash(path)))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", false, ErrNotFound
 		}
 		return "", false, ErrPathDenied
 	}
-	rel, err := filepath.Rel(root.AbsPath, target)
+	contained, err := fileutil.PathWithinRoot(canonicalRoot, target)
+	if err != nil || !contained {
+		return "", false, ErrPathOutsideRoot
+	}
+	rel, err := filepath.Rel(canonicalRoot, target)
 	if err != nil {
 		return "", false, ErrPathOutsideRoot
 	}

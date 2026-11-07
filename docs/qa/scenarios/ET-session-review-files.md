@@ -92,3 +92,8 @@ the public registry ID. Fixed in `c5d1d54a6`.
 
 The existing `TestReader` suite owns special-file rejection. Windows compilation validates the
 platform-specific open flags; it does not constitute a Windows runtime walk.
+
+- On filesystems that support trailing spaces, create both `notes.txt` and `notes.txt ` with
+  different content. Each tree entry must retain its exact name and return its own content.
+  Repeat with only `notes.txt ` present. Windows rejects these unsupported names instead of
+  opening a different file.

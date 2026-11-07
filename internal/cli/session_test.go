@@ -5677,6 +5677,49 @@ func TestSessionPendingDescendants(t *testing.T) {
 }
 
 func TestSessionChanges(t *testing.T) {
+	t.Run("Should disclose incomplete reports and unavailable patches", func(t *testing.T) {
+		t.Parallel()
+		record := sessionChangesRecord{
+			Truncated: true, Totals: contract.ChangeTotalsPayload{Files: 3, Additions: 5, Partial: true},
+			Files: []contract.FileChangePayload{{Path: "a.go", Status: "modified"}},
+			Patches: []contract.ChangePatchPayload{
+				{Path: "large.go", TooLarge: true},
+				{Path: "missing.go"},
+				{Path: "secret.env", Sensitive: true},
+				{Path: "a.go", Patch: "diff --git a/a.go b/a.go\n"},
+			},
+		}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error) { return record, nil },
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "changes", "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Summary truncated at 1 file.", "Totals are a lower bound.", "large.go (patch too large to display)", "missing.go (patch unavailable)", "secret.env (sensitive)", "diff --git a/a.go b/a.go"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+		for _, flags := range [][]string{{"--json"}, {"-o", "jsonl"}} {
+			args := append([]string{"session", "changes", "sess-1"}, flags...)
+			stdout, _, err = executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got sessionChangesRecord
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, record) {
+				t.Fatalf("structured report changed for %v: %+v", flags, got)
+			}
+		}
+	})
+
 	t.Run("Should return requested patches beyond the capped summary", func(t *testing.T) {
 		t.Parallel()
 		calls := 0

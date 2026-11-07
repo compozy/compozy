@@ -487,10 +487,21 @@ func TestEngineLimitsAndRaces(t *testing.T) {
 		git(t, root, "switch", "main")
 		write(t, root, "sub/c.go", "main\n")
 		git(t, root, "commit", "-am", "main")
-		cmd := exec.CommandContext(t.Context(), "git", "merge", "other")
+		cmd := exec.CommandContext(
+			t.Context(),
+			"git",
+			"-c",
+			"user.name=Test",
+			"-c",
+			"user.email=test@example.com",
+			"merge",
+			"other",
+		)
 		cmd.Dir = root.AbsPath
-		if _, err := cmd.CombinedOutput(); err == nil {
-			t.Fatal("expected merge conflict")
+		output, err := cmd.CombinedOutput()
+		exit, ok := errors.AsType[*exec.ExitError](err)
+		if !ok || exit.ExitCode() != 1 {
+			t.Fatalf("merge did not reach a conflict: %s: %v", output, err)
 		}
 		root.AbsPath = filepath.Join(root.AbsPath, "sub")
 		s := summary(t, e, root, Request{Scope: Uncommitted})

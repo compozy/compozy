@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,45 @@ import (
 )
 
 // The reader suite owns confinement, classification, caps, ordering and read-only Git policy.
+
 func TestReader(t *testing.T) {
+	for _, neighbor := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should read exact trailing-space names neighbor=%v", neighbor), func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows does not support trailing-space filenames")
+			}
+			root := readerRoot(t)
+			writeReaderFile(t, root, "notes.txt ", "exact content")
+			if neighbor {
+				writeReaderFile(t, root, "notes.txt", "neighbor content")
+			}
+			content, err := NewReader().Read(t.Context(), root, "notes.txt ", ReadOptions{})
+			if err != nil || content.Text != "exact content" {
+				t.Fatalf("exact content=%+v err=%v", content, err)
+			}
+			if neighbor {
+				content, err = NewReader().Read(t.Context(), root, "notes.txt", ReadOptions{})
+				if err != nil || content.Text != "neighbor content" {
+					t.Fatalf("neighbor content=%+v err=%v", content, err)
+				}
+			}
+			listing, err := NewReader().List(t.Context(), root, "", ListOptions{ShowIgnored: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, entry := range listing.Entries {
+				if entry.Name == "notes.txt " {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("exact name missing from listing: %+v", listing)
+			}
+		})
+	}
+
 	t.Parallel()
 	for _, list := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should reject FIFOs without blocking list=%v", list), func(t *testing.T) {

@@ -107,3 +107,7 @@ live refresh retries the summary, and the browser console logs the `409 base_not
 - Configure a missing external `diff.orderFile` in an isolated fixture and request Changes.
   The warning must classify the Git subcommand, exit status and timeout without retaining that
   external path. Path-bearing diagnostic lines are omitted, including quoted, Windows and home paths.
+
+- Read a truncated/partial report through `compozy session changes`. Human output must state the
+  summary file limit and that totals are a lower bound. Requested oversized or unavailable patches
+  must be named explicitly; JSON and JSONL keep the existing structured flags.

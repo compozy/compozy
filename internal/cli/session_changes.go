@@ -193,6 +193,16 @@ func sessionChangesTable(record sessionChangesRecord) string {
 		fmt.Fprintf(table, "%s\t%d\t%d\t%s\n", status, file.Additions, file.Deletions, path)
 	}
 	table.Flush()
+	if record.Truncated {
+		noun := "files"
+		if len(record.Files) == 1 {
+			noun = "file"
+		}
+		fmt.Fprintf(&out, "Summary truncated at %d %s.\n", len(record.Files), noun)
+	}
+	if record.Totals.Partial {
+		out.WriteString("Totals are a lower bound.\n")
+	}
 	fmt.Fprintf(
 		&out,
 		"%d files changed, +%d −%d\n",
@@ -201,9 +211,14 @@ func sessionChangesTable(record sessionChangesRecord) string {
 		record.Totals.Deletions,
 	)
 	for _, patch := range record.Patches {
-		if patch.Sensitive {
+		switch {
+		case patch.Sensitive:
 			fmt.Fprintf(&out, "%s (sensitive)\n", patch.Path)
-		} else {
+		case patch.TooLarge:
+			fmt.Fprintf(&out, "%s (patch too large to display)\n", patch.Path)
+		case patch.Patch == "":
+			fmt.Fprintf(&out, "%s (patch unavailable)\n", patch.Path)
+		default:
 			out.WriteString(patch.Patch)
 		}
 	}
