@@ -64,7 +64,7 @@ type Reader interface {
 	List(context.Context, Root, string, ListOptions) (Listing, error)
 	Read(context.Context, Root, string, ReadOptions) (Content, error)
 }
-type ListOptions struct{ ShowIgnored bool }
+type ListOptions struct{ ShowIgnored, Refresh bool }
 type ReadOptions struct{ Reveal bool }
 
 var (

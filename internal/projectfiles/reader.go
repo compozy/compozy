@@ -11,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/worktree"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -24,6 +26,13 @@ const (
 )
 
 type FileReader struct {
+	statusMu     sync.Mutex
+	statusCache  map[Root]statusSnapshot
+	statusFlight singleflight.Group
+	statusEpoch  uint64
+	statusTTL    time.Duration
+	now          func() time.Time
+
 	gitRunner worktree.StreamingGitRunner
 	open      func(*os.Root, string) (*os.File, error)
 }
@@ -32,11 +41,19 @@ var _ Reader = (*FileReader)(nil)
 
 type Option func(*FileReader)
 
+// WithStatusTTL sets status retention; zero disables retention while keeping coalescing.
+func WithStatusTTL(ttl time.Duration) Option { return func(r *FileReader) { r.statusTTL = ttl } }
+
 func WithGitRunner(runner worktree.StreamingGitRunner) Option {
 	return func(r *FileReader) { r.gitRunner = runner }
 }
 func NewReader(opts ...Option) *FileReader {
-	r := &FileReader{open: OpenRegularFile}
+	r := &FileReader{
+		open:        OpenRegularFile,
+		statusCache: make(map[Root]statusSnapshot),
+		statusTTL:   time.Second,
+		now:         time.Now,
+	}
 	for _, opt := range opts {
 		opt(r)
 	}

@@ -45,21 +45,24 @@ func (r *FileReader) List(ctx context.Context, root Root, dir string, opts ListO
 		return Listing{}, ErrNotADirectory
 	}
 	result := Listing{Root: root, Path: dir, Entries: []Entry{}}
-	states, ignored, branch, statusErr := r.status(ctx, root)
+	states, ignored, changedDirs, branch, statusErr := r.cachedStatus(ctx, root, opts.Refresh)
 	result.StatusUnavailable = statusErr != nil
 	if result.Root.Branch == "" {
 		result.Root.Branch = branch
 	}
-	for _, child := range children {
+	for _, child := range orderedListingChildren(root, confined, dir, children) {
 		if err := ctx.Err(); err != nil {
 			return Listing{}, err
 		}
-		entry, ok := listingEntry(root, confined, dir, child, states, ignored)
+		entry, ok := listingEntry(root, confined, dir, child, states, ignored, changedDirs)
 		if !ok || (!opts.ShowIgnored && entry.Ignored) {
 			continue
 		}
 
 		result.Entries = append(result.Entries, entry)
+		if len(result.Entries) > EntryLimit {
+			break
+		}
 	}
 	slices.SortFunc(result.Entries, func(a, b Entry) int {
 		if a.Kind != b.Kind {
@@ -144,6 +147,7 @@ func listingEntry(
 	child os.DirEntry,
 	states map[string]GitStatus,
 	ignored map[string]bool,
+	changedDirs map[string]bool,
 ) (Entry, bool) {
 	name := path.Join(dir, child.Name())
 	if child.Type()&os.ModeSymlink != 0 {
@@ -171,8 +175,8 @@ func listingEntry(
 		Sensitive: sensitive,
 		GitStatus: states[name],
 	}
-	for ignore := range ignored {
-		if name == ignore || strings.HasPrefix(name, ignore+"/") {
+	for parent := name; parent != "." && parent != "/"; parent = path.Dir(parent) {
+		if ignored[parent] {
 			entry.Ignored = true
 			break
 		}
@@ -180,12 +184,7 @@ func listingEntry(
 	if stat.IsDir() {
 		entry.Kind = EntryKindDirectory
 		entry.Size = 0
-		for changed := range states {
-			if strings.HasPrefix(changed, name+"/") {
-				entry.ContainsChanges = true
-				break
-			}
-		}
+		entry.ContainsChanges = changedDirs[name]
 	}
 	return entry, true
 }
@@ -245,4 +244,14 @@ func parseStatusEntries(data []byte, prefix string, states map[string]GitStatus,
 			states[name] = state
 		}
 	}
+}
+
+func changedDirectories(states map[string]GitStatus) map[string]bool {
+	changedDirs := map[string]bool{}
+	for changed := range states {
+		for parent := path.Dir(changed); parent != "." && parent != "/"; parent = path.Dir(parent) {
+			changedDirs[parent] = true
+		}
+	}
+	return changedDirs
 }

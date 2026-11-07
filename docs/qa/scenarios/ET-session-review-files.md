@@ -97,3 +97,10 @@ platform-specific open flags; it does not constitute a Windows runtime walk.
   different content. Each tree entry must retain its exact name and return its own content.
   Repeat with only `notes.txt ` present. Windows rejects these unsupported names instead of
   opening a different file.
+
+## Backend status snapshot checks
+
+Sibling expansions share one root-scoped status snapshot for one second. Explicit Refresh, folder
+Retry and change-event refreshes send `Cache-Control: no-cache`, bypassing that snapshot through
+the shared HTTP/UDS handler. Verify a new working-tree change appears after that request.
+Directory ordering and ignored-file filtering still precede the 5,000-entry response cap.

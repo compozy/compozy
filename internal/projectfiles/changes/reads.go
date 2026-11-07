@@ -5,10 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
-	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/compozy/compozy/internal/projectfiles"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -47,125 +45,15 @@ func (e *GitEngine) Patches(
 	if err != nil {
 		return nil, err
 	}
-	result := make([]Patch, 0, len(targets))
-	for _, t := range targets {
-		p, err := e.patch(ctx, root, s, req, t)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, p)
+	result, err := e.patchBatch(ctx, root, s, req, targets)
+	if err != nil {
+		return nil, err
 	}
 
 	if _, err := e.resolve(ctx, root, Request{Scope: s.Scope, BaseRef: req.BaseRef, Revision: s.Revision}); err != nil {
 		return nil, err
 	}
 	return result, nil
-}
-
-func (e *GitEngine) patch(
-	ctx context.Context,
-	root projectfiles.Root,
-	s Summary,
-	req Request,
-	t PatchTarget,
-) (Patch, error) {
-	before, err := e.fingerprint(ctx, root, s.MergeBaseSHA, t)
-	if err != nil {
-		return Patch{}, err
-	}
-	p := Patch{Path: t.Path, Fingerprint: before}
-	for _, path := range []string{t.Path, t.OldPath} {
-		sensitive, err := e.sensitive(ctx, root, path)
-		if err != nil {
-			return Patch{}, err
-		}
-		p.Sensitive = p.Sensitive || sensitive
-	}
-	if p.Sensitive && !req.Reveal {
-		after, err := e.fingerprint(ctx, root, s.MergeBaseSHA, t)
-		if err != nil {
-			return Patch{}, err
-		}
-		if after != before {
-			return Patch{}, ErrStale
-		}
-		return p, nil
-	}
-	p.Sensitive = false
-	p, err = e.renderPatch(ctx, root, s, t, p)
-	if err != nil {
-		return Patch{}, err
-	}
-
-	after, err := e.fingerprint(ctx, root, s.MergeBaseSHA, t)
-	if err != nil {
-		return Patch{}, err
-	}
-	if before != after {
-		return Patch{}, ErrStale
-	}
-	return p, nil
-}
-
-func (e *GitEngine) renderPatch(
-	ctx context.Context,
-	root projectfiles.Root,
-	s Summary,
-	t PatchTarget,
-	p Patch,
-) (Patch, error) {
-	args := []string{"-M", "--relative", "--src-prefix=a/", "--dst-prefix=b/", "-U3", s.MergeBaseSHA, "--", t.Path}
-	if t.OldPath != "" {
-		args = append(args, t.OldPath)
-	}
-	untracked := false
-	if _, err := e.git(
-		ctx,
-		root,
-		256,
-		"rev-parse",
-		"--verify",
-		s.MergeBaseSHA+":./"+t.Path,
-	); err != nil &&
-		t.OldPath == "" {
-		untracked = true
-		args = []string{"--no-index", "--src-prefix=a/", "--dst-prefix=b/", "-U3", "--", "/dev/null", t.Path}
-	}
-	var patch bytes.Buffer
-	err := e.stream(ctx, root, func(o worktree.GitOutput) {
-		if o.Stream != worktree.GitOutputStdout || p.TooLarge {
-			return
-		}
-		if patch.Len()+len(o.Chunk) > PatchLimit {
-			p.TooLarge = true
-			patch.Reset()
-			return
-		}
-		patch.Write(o.Chunk)
-	}, "diff", args...)
-	if err != nil {
-		exit, ok := errors.AsType[*exec.ExitError](err)
-		if !untracked || !ok || exit.ExitCode() != 1 {
-			return Patch{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
-		}
-	}
-	if !p.TooLarge && patch.Len() > 0 {
-		files, _, err := gitdiff.Parse(bytes.NewReader(patch.Bytes()))
-		if err != nil {
-			return Patch{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
-		}
-		for _, file := range files {
-			if file.NewName == t.Path || (file.IsDelete && file.OldName == t.Path) {
-				p.Patch = file.String()
-				break
-			}
-		}
-		if p.Patch == "" {
-			return Patch{}, projectfiles.ErrInvalidPath
-		}
-	}
-
-	return p, nil
 }
 
 func (e *GitEngine) Contents(

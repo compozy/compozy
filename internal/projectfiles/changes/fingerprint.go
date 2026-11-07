@@ -34,7 +34,7 @@ func (e *GitEngine) fingerprint(
 	if err := validateTarget(t); err != nil {
 		return "", err
 	}
-	args := []string{"-M", "--raw", "-z", "--abbrev=40", "--relative", from, "--", t.Path}
+	args := []string{"-M", "--raw", "-z", "--abbrev=40", relativeDiffFlag, from, "--", t.Path}
 	if t.OldPath != "" {
 		args = append(args, t.OldPath)
 	}
@@ -44,7 +44,7 @@ func (e *GitEngine) fingerprint(
 	}
 	f, ok := parseRaw(raw)[t.Path]
 	if !ok {
-		f = FileChange{Status: "untracked"}
+		f = FileChange{Status: untrackedStatus}
 	}
 	status, err := e.git(ctx, root, metadataLimit, "status", "--porcelain=v2", "-z", "--", t.Path)
 	if err != nil {
@@ -63,6 +63,17 @@ func (e *GitEngine) fingerprintWithOID(
 	oid string,
 	status Status,
 ) (string, error) {
+	value, _, err := e.fingerprintDetails(ctx, root, t, oid, status)
+	return value, err
+}
+func (e *GitEngine) fingerprintDetails(
+	ctx context.Context,
+	root projectfiles.Root,
+	t PatchTarget,
+	oid string,
+	status Status,
+) (string, bool, error) {
+	sensitive := false
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\x00%s\x00%s", t.Path, t.OldPath, status)
 	for _, path := range []string{t.Path, t.OldPath} {
@@ -71,20 +82,21 @@ func (e *GitEngine) fingerprintWithOID(
 		}
 		h.Write([]byte(normalizeOID(oid)))
 		c, err := e.reader.Read(ctx, root, path, projectfiles.ReadOptions{Reveal: true})
+		sensitive = sensitive || projectfiles.Sensitive(path) || c.Sensitive
 		if errors.Is(err, projectfiles.ErrNotFound) {
 			h.Write([]byte("missing"))
 			continue
 		}
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		identity, err := fileIdentity(root, path)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		fmt.Fprintf(h, "%s:%s", identity, c.Revision)
 	}
-	return fmt.Sprintf("f:%x", h.Sum(nil)), nil
+	return fmt.Sprintf("f:%x", h.Sum(nil)), sensitive, nil
 }
 
 func normalizeOID(oid string) string {

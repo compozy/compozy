@@ -111,3 +111,10 @@ live refresh retries the summary, and the browser console logs the `409 base_not
 - Read a truncated/partial report through `compozy session changes`. Human output must state the
   summary file limit and that totals are a lower bound. Requested oversized or unavailable patches
   must be named explicitly; JSON and JSONL keep the existing structured flags.
+
+## Backend batch and overlap checks
+
+Request 20 changed files together. The batch uses one rendered Git diff, bounded per-file patch
+buffers and matching before/after fingerprints. Untracked additions are formatted with go-gitdiff
+from confined reads; sensitive items remain gated. Concurrent identical summaries share only the
+in-flight work; a later request still computes a fresh pair of snapshots.

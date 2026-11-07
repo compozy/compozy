@@ -11,11 +11,13 @@ import (
 
 	"github.com/compozy/compozy/internal/projectfiles"
 	"github.com/compozy/compozy/internal/worktree"
+	"golang.org/x/sync/singleflight"
 )
 
 type GitEngine struct {
-	runner worktree.StreamingGitRunner
-	reader projectfiles.Reader
+	summaries singleflight.Group
+	runner    worktree.StreamingGitRunner
+	reader    projectfiles.Reader
 }
 
 var _ Engine = (*GitEngine)(nil)

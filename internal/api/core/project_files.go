@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/projectfiles"
@@ -109,7 +110,10 @@ func (h *BaseHandlers) listProjectFiles(c *gin.Context) {
 		c.Request.Context(),
 		root,
 		c.Query("path"),
-		projectfiles.ListOptions{ShowIgnored: show},
+		projectfiles.ListOptions{
+			ShowIgnored: show,
+			Refresh:     strings.Contains(strings.ToLower(c.GetHeader("Cache-Control")), "no-cache"),
+		},
 	)
 	if err != nil {
 		h.projectFileError(c, err)

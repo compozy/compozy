@@ -3,7 +3,6 @@ package changes
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -23,6 +22,24 @@ const (
 )
 
 func (e *GitEngine) Summary(ctx context.Context, root projectfiles.Root, req Request) (Summary, error) {
+	key := fmt.Sprintf("%#v:%#v", root, req)
+	result := e.summaries.DoChan(key, func() (any, error) { return e.summary(ctx, root, req) })
+	select {
+	case <-ctx.Done():
+		return Summary{}, ctx.Err()
+	case item := <-result:
+		if item.Err != nil {
+			return Summary{}, item.Err
+		}
+		value, ok := item.Val.(Summary)
+		if !ok {
+			return Summary{}, ErrUnavailable
+		}
+		value.Files = slices.Clone(value.Files)
+		return value, nil
+	}
+}
+func (e *GitEngine) summary(ctx context.Context, root projectfiles.Root, req Request) (Summary, error) {
 	started := time.Now()
 	for range 2 {
 		before, err := e.snapshot(ctx, root, req)
@@ -65,26 +82,10 @@ func (e *GitEngine) snapshot(ctx context.Context, root projectfiles.Root, req Re
 		"diff",
 		"-M",
 		"--raw",
-		"-z",
-		"--abbrev=40",
-		"--relative",
-		s.MergeBaseSHA,
-		"--",
-		".",
-	)
-	if err != nil {
-		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
-	}
-	files := parseRaw(raw)
-	num, err := e.git(
-		ctx,
-		root,
-		metadataLimit,
-		"diff",
-		"-M",
-		"--relative",
 		"--numstat",
 		"-z",
+		"--abbrev=40",
+		relativeDiffFlag,
 		s.MergeBaseSHA,
 		"--",
 		".",
@@ -92,6 +93,8 @@ func (e *GitEngine) snapshot(ctx context.Context, root projectfiles.Root, req Re
 	if err != nil {
 		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
+	raw, num := splitRawNumstat(raw)
+	files := parseRaw(raw)
 	if _, err := worktree.ParseNumstat(num); err != nil {
 		return s, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
@@ -220,93 +223,6 @@ func (e *GitEngine) generatedAttributes(ctx context.Context, root projectfiles.R
 	return result
 }
 
-func (e *GitEngine) addUntracked(
-	ctx context.Context,
-	root projectfiles.Root,
-	untracked []byte,
-	files map[string]FileChange,
-	totals *Totals,
-) error {
-	budget := 64 << 20
-	started := time.Now()
-	counted := 0
-	for path := range strings.SplitSeq(string(untracked), "\x00") {
-		if path == "" {
-			continue
-		}
-		if counted >= 100000 {
-			totals.Partial = true
-			break
-		}
-		counted++
-		f := FileChange{Path: path, Status: "untracked"}
-		if budget > 0 && time.Since(started) < 3*time.Second {
-			c, readErr := e.reader.Read(ctx, root, path, projectfiles.ReadOptions{Reveal: true})
-			if readErr == nil && c.Kind == projectfiles.ContentKindText && !c.Truncated && len(c.Text) <= budget {
-				budget -= len(c.Text)
-				f.Additions = strings.Count(c.Text, "\n")
-				if c.Text != "" && !strings.HasSuffix(c.Text, "\n") {
-					f.Additions++
-				}
-			} else {
-				totals.Partial = true
-				f.Binary = c.Kind == projectfiles.ContentKindBinary || c.Kind == projectfiles.ContentKindImage
-			}
-		} else {
-			totals.Partial = true
-		}
-		files[path] = f
-	}
-	return ctx.Err()
-}
-
-func (e *GitEngine) decorate(
-	ctx context.Context,
-	root projectfiles.Root,
-	s Summary,
-	files map[string]FileChange,
-) (Summary, error) {
-	var err error
-	paths := make([]string, 0, len(files))
-	for path := range files {
-		paths = append(paths, path)
-	}
-	slices.Sort(paths)
-	attributes := e.generatedAttributes(ctx, root, paths[:min(len(paths), FileLimit)])
-	for _, path := range paths {
-		f := files[path]
-		if projectfiles.ValidatePath(path) != nil || (f.OldPath != "" && projectfiles.ValidatePath(f.OldPath) != nil) {
-			continue
-		}
-		s.Totals.Files++
-		s.Totals.Additions += f.Additions
-		s.Totals.Deletions += f.Deletions
-		if f.Binary {
-			s.Totals.Partial = true
-		}
-		if len(s.Files) >= FileLimit {
-			s.Truncated = true
-			continue
-		}
-		f.Sensitive = projectfiles.Sensitive(path) || projectfiles.Sensitive(f.OldPath)
-		if sensitive, err := e.sensitive(ctx, root, path); err == nil {
-			f.Sensitive = f.Sensitive || sensitive
-		}
-		f.Generated = generatedPath(path) || attributes[path]
-		f.Fingerprint, err = e.fingerprintWithOID(ctx, root, PatchTarget{path, f.OldPath}, f.oldOID, f.Status)
-		if errors.Is(err, projectfiles.ErrPathOutsideRoot) || errors.Is(err, projectfiles.ErrPathDenied) ||
-			errors.Is(err, projectfiles.ErrNotAFile) {
-			s.Totals.Partial = true
-			continue
-		}
-		if err != nil {
-			return s, err
-		}
-		s.Files = append(s.Files, f)
-	}
-	return s, nil
-}
-
 func stableSummary(a, b Summary) bool {
 	if a.Revision != b.Revision || a.Totals.Files != b.Totals.Files || len(a.Files) != len(b.Files) {
 		return false
@@ -319,4 +235,19 @@ func stableSummary(a, b Summary) bool {
 		}
 	}
 	return true
+}
+
+func splitRawNumstat(data []byte) ([]byte, []byte) {
+	fields := bytes.Split(data, []byte{0})
+	i := 0
+	for i < len(fields) && bytes.HasPrefix(fields[i], []byte(":")) {
+		parts := strings.Fields(string(fields[i]))
+		step := 2
+		if len(parts) == 5 && (strings.HasPrefix(parts[4], "R") || strings.HasPrefix(parts[4], "C")) {
+			step = 3
+		}
+		i += step
+	}
+	i = min(i, len(fields))
+	return append(bytes.Join(fields[:i], []byte{0}), 0), bytes.Join(fields[i:], []byte{0})
 }

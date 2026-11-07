@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +26,41 @@ import (
 // The reader suite owns confinement, classification, caps, ordering and read-only Git policy.
 
 func TestReader(t *testing.T) {
+	t.Run("Should reuse status until expiry and invalidate on refresh", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		gitReader(t, root, "init")
+		writeReaderFile(t, root, "a.go", "old")
+		gitReader(t, root, "add", ".")
+		gitReader(t, root, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base")
+		r := NewReader()
+		runner := &statusCountingRunner{StreamingGitRunner: r.gitRunner}
+		r.gitRunner = runner
+		var clock atomic.Int64
+		r.now = func() time.Time { return time.Unix(0, clock.Load()) }
+		if _, err := r.List(t.Context(), root, "", ListOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		writeReaderFile(t, root, "a.go", "new")
+		if _, err := r.List(t.Context(), root, "", ListOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		if runner.calls.Load() != 1 {
+			t.Fatalf("uncached sibling status: %d", runner.calls.Load())
+		}
+		clock.Store(int64(2 * time.Second))
+		listing, err := r.List(t.Context(), root, "", ListOptions{})
+		if err != nil || runner.calls.Load() != 2 || listing.Entries[0].GitStatus != "modified" {
+			t.Fatalf("expiry listing=%+v err=%v calls=%d", listing, err, runner.calls.Load())
+		}
+		writeReaderFile(t, root, "b.go", "new")
+		listing, err = r.List(t.Context(), root, "", ListOptions{Refresh: true})
+		if err != nil || runner.calls.Load() != 3 || len(listing.Entries) != 2 ||
+			listing.Entries[1].GitStatus != "untracked" {
+			t.Fatalf("refresh listing=%+v err=%v calls=%d", listing, err, runner.calls.Load())
+		}
+	})
+
 	for _, neighbor := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should read exact trailing-space names neighbor=%v", neighbor), func(t *testing.T) {
 			t.Parallel()
@@ -864,4 +900,21 @@ func BenchmarkFileFinder100k(b *testing.B) {
 			b.Fatalf("find results=%d err=%v", len(result.Results), err)
 		}
 	}
+}
+
+type statusCountingRunner struct {
+	worktree.StreamingGitRunner
+	calls atomic.Int64
+}
+
+func (r *statusCountingRunner) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	if slices.Contains(args, "status") {
+		r.calls.Add(1)
+	}
+	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
 }

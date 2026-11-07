@@ -12,7 +12,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/projectfiles"
 	"github.com/compozy/compozy/internal/testutil"
@@ -64,6 +67,76 @@ func summary(t *testing.T, e Engine, root projectfiles.Root, req Request) Summar
 }
 
 func TestEngine(t *testing.T) {
+	t.Run("Should use a bounded number of Git calls for twenty patches", func(t *testing.T) {
+		t.Parallel()
+		root, e := repo(t)
+		targets := []PatchTarget{}
+		for i := range 20 {
+			name := fmt.Sprintf("batch%02d.go", i)
+			write(t, root, name, "old\n")
+			targets = append(targets, PatchTarget{Path: name})
+		}
+		git(t, root, "add", ".")
+		git(t, root, "commit", "-m", "batch")
+		for _, target := range targets {
+			write(t, root, target.Path, "new\n")
+		}
+		runner := &batchCountingRunner{StreamingGitRunner: e.runner}
+		if input, ok := e.runner.(worktree.GitInputRunner); ok {
+			runner.GitInputRunner = input
+		}
+		e.runner = runner
+		patches, err := e.Patches(t.Context(), root, Request{Scope: Uncommitted}, targets)
+		if err != nil || len(patches) != 20 {
+			t.Fatalf("patches=%+v err=%v", patches, err)
+		}
+		if runner.calls.Load() > 20 || runner.diffs.Load() != 1 {
+			t.Fatalf("calls=%d rendered diffs=%d", runner.calls.Load(), runner.diffs.Load())
+		}
+		for _, patch := range patches {
+			if !strings.Contains(patch.Patch, "+new") {
+				t.Fatalf("missing patch %+v", patch)
+			}
+		}
+	})
+	t.Run("Should coalesce overlapping summaries without caching later requests", func(t *testing.T) {
+		t.Parallel()
+		root, e := repo(t)
+		runner := &summaryBlockingRunner{
+			StreamingGitRunner: e.runner,
+			started:            make(chan struct{}),
+			release:            make(chan struct{}),
+		}
+		e.runner = runner
+		done := make(chan error, 1)
+		go func() { _, err := e.Summary(t.Context(), root, Request{Scope: Uncommitted}); done <- err }()
+		select {
+		case <-runner.started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("summary did not start")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		_, err := e.Summary(ctx, root, Request{Scope: Uncommitted})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("waiter error=%v", err)
+		}
+		calls := runner.calls.Load()
+		close(runner.release)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if calls != 1 || runner.calls.Load() != 2 {
+			t.Fatalf("snapshots before release=%d total=%d", calls, runner.calls.Load())
+		}
+		if _, err := e.Summary(t.Context(), root, Request{Scope: Uncommitted}); err != nil {
+			t.Fatal(err)
+		}
+		if runner.calls.Load() != 4 {
+			t.Fatal("later summary was cached")
+		}
+	})
+
 	t.Run("Should redact external orderfile failures and classify Git exits", func(t *testing.T) {
 		t.Parallel()
 		root, e := repo(t)
@@ -638,6 +711,7 @@ func (r *mutatingRunner) RunStreaming(
 }
 
 type recordingReader struct {
+	mu sync.Mutex
 	projectfiles.Reader
 	paths []string
 }
@@ -650,7 +724,9 @@ func (r *recordingReader) Read(
 	path string,
 	opts projectfiles.ReadOptions,
 ) (projectfiles.Content, error) {
+	r.mu.Lock()
 	r.paths = append(r.paths, path)
+	r.mu.Unlock()
 	return r.Reader.Read(ctx, root, path, opts)
 }
 
@@ -667,6 +743,59 @@ func (r failingChangesRunner) RunStreaming(
 ) ([]byte, []byte, error) {
 	if slices.Contains(args, "diff") {
 		return nil, nil, r.cause
+	}
+	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
+}
+
+type batchCountingRunner struct {
+	worktree.StreamingGitRunner
+	worktree.GitInputRunner
+	calls, diffs atomic.Int64
+}
+
+func (r *batchCountingRunner) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	r.calls.Add(1)
+	if slices.Contains(args, "-U3") {
+		r.diffs.Add(1)
+	}
+	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
+}
+
+func (r *batchCountingRunner) RunWithInput(
+	ctx context.Context,
+	root, input string,
+	args ...string,
+) ([]byte, []byte, error) {
+	r.calls.Add(1)
+	return r.GitInputRunner.RunWithInput(ctx, root, input, args...)
+}
+
+type summaryBlockingRunner struct {
+	worktree.StreamingGitRunner
+	started, release chan struct{}
+	calls            atomic.Int64
+}
+
+func (r *summaryBlockingRunner) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	if slices.Contains(args, "rev-parse") && slices.Contains(args, "HEAD") {
+		if r.calls.Add(1) == 1 {
+			close(r.started)
+		}
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		}
 	}
 	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
 }
