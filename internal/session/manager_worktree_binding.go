@@ -79,7 +79,7 @@ func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, exp
 	// a disconnected caller while retaining a bounded lifecycle deadline.
 	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
-	if err := m.releaseWorktreeBindingRuntime(execCtx, target); err != nil {
+	if err := m.releaseBoundRuntime(execCtx, target); err != nil {
 		return nil, err
 	}
 	info, err := m.persistWorktreeBinding(execCtx, target, cwd, worktreeID)
@@ -135,35 +135,6 @@ func (s *Session) releaseWorktreeBinding() {
 	s.mu.Lock()
 	s.worktreeBindingReserved = false
 	s.mu.Unlock()
-}
-
-func (m *Manager) releaseWorktreeBindingRuntime(ctx context.Context, target *Session) error {
-	target.mu.Lock()
-	release := target.runtimeRelease
-	if target.process != nil {
-		target.captureProcessCapabilitiesLocked()
-		release = &runtimeRelease{acpSessionID: target.ACPSessionID, process: target.process, done: make(chan struct{})}
-		target.process = nil
-		target.runtimeRelease = release
-		target.RuntimeStatus = RuntimeStatusUnbound
-		target.RuntimeTransition = RuntimeTransitionNone
-		target.mu.Unlock()
-		if err := m.persistSessionLifecycleState(ctx, target, false); err != nil {
-			return errors.Join(err, m.stopReleasedRuntime(target, release))
-		}
-		if err := m.stopReleasedRuntime(target, release); err != nil {
-			return err
-		}
-	} else {
-		target.mu.Unlock()
-		if err := m.waitRuntimeRelease(ctx, target, release); err != nil {
-			return err
-		}
-	}
-	if release != nil && target.clearReleasedRuntimeIdentity(release) {
-		return m.persistSessionLifecycleState(ctx, target, false)
-	}
-	return nil
 }
 
 func (m *Manager) persistWorktreeBinding(ctx context.Context, target *Session, cwd, worktreeID string) (*Info, error) {

@@ -49,8 +49,20 @@ func (s *HostedService) Bind(
 	}
 	projection, err := s.bootstrapProjection(ctx, record)
 	if err != nil {
+		if record.eagerTools {
+			s.failHostedProjection(record)
+		}
 		s.ReleaseBind(bindID)
 		return HostedBindResponse{}, err
+	}
+	s.mu.Lock()
+	active := s.binds[bindID]
+	if active != nil {
+		active.initialToolDigest = hostedExternalToolDigest(projection.Tools)
+	}
+	s.mu.Unlock()
+	if active == nil {
+		return HostedBindResponse{}, ErrHostedBindNotFound
 	}
 	return HostedBindResponse{
 		BindID: bindID,

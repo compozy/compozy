@@ -3,6 +3,7 @@ package session
 import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerexec"
 )
 
 // AgentDefinition returns the concrete definition snapshot that owns this
@@ -66,4 +67,8 @@ func (s *Session) setRuntimeDefinition(runtime *sessionStartRuntime) {
 	s.agentDef = compozyconfig.CloneAgentDef(runtime.agentDef)
 	s.startupManifest = acp.CloneStartupManifest(runtime.startupManifest)
 	s.nativeToolsUnavailable = runtime.nativeToolsUnavailable
+	s.hostedMCPRequiresReload = runtime.agent.SessionMCP && providerexec.IsCodexAgentBridge(runtime.agent.Command)
+	if !s.hostedMCPRequiresReload {
+		s.hostedMCPDigest = ""
+	}
 }

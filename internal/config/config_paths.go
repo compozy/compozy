@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -76,28 +75,4 @@ func hasDistinctWorkspaceOverlay(homePaths HomePaths, root string) bool {
 	globalConfig := filepath.Clean(homePaths.ConfigFile)
 	workspaceConfig := filepath.Clean(workspaceConfigFile(root))
 	return !samePath(globalConfig, workspaceConfig)
-}
-
-// WorkspaceDeclaredMCPServerNames returns the MCP server names that one workspace declares in
-// its own `.compozy/config.toml` and `.compozy/mcp.json` layers. Definitions the workspace only
-// inherits from the user or profile layers are excluded, so callers can keep the declaring
-// scope as the OAuth credential owner.
-func WorkspaceDeclaredMCPServerNames(homePaths HomePaths, workspaceRoot string) (map[string]struct{}, error) {
-	names := make(map[string]struct{})
-	if !hasDistinctWorkspaceOverlay(homePaths, workspaceRoot) {
-		return names, nil
-	}
-	cfg := DefaultWithHome(homePaths)
-	if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
-		return nil, fmt.Errorf("load workspace config: %w", err)
-	}
-	if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
-		return nil, fmt.Errorf("load workspace MCP JSON: %w", err)
-	}
-	for _, server := range cfg.MCPServers {
-		if name := strings.TrimSpace(server.Name); name != "" {
-			names[name] = struct{}{}
-		}
-	}
-	return names, nil
 }

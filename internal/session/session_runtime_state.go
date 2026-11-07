@@ -12,29 +12,31 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
-	runtimeStrategy        acp.RuntimeApplicationStrategy
-	process                *AgentProcess
-	selection              RuntimeSelection
-	status                 RuntimeStatus
-	transition             RuntimeTransitionStrategy
-	failure                string
-	generation             int64
-	recovery               *store.SessionRuntimeRecovery
-	acpSessionID           string
-	acceptedRoute          *store.SessionAcceptedRoute
-	acceptedCommand        string
-	acceptedSessionEnv     compozyconfig.SessionEnv
-	pendingResumeReplay    string
-	acpCaps                acp.Caps
-	acpCapsKnown           bool
-	speedResolution        *speedpkg.Resolution
-	liveness               *store.SessionLivenessMeta
-	agentDef               compozyconfig.AgentDef
-	advertisedCommands     []store.SessionAdvertisedCommand
-	startupManifest        acp.StartupManifest
-	nativeToolsUnavailable bool
-	runtimeRelease         *runtimeRelease
-	configUnverified       bool
+	hostedMCPDigest         string
+	hostedMCPRequiresReload bool
+	runtimeStrategy         acp.RuntimeApplicationStrategy
+	process                 *AgentProcess
+	selection               RuntimeSelection
+	status                  RuntimeStatus
+	transition              RuntimeTransitionStrategy
+	failure                 string
+	generation              int64
+	recovery                *store.SessionRuntimeRecovery
+	acpSessionID            string
+	acceptedRoute           *store.SessionAcceptedRoute
+	acceptedCommand         string
+	acceptedSessionEnv      compozyconfig.SessionEnv
+	pendingResumeReplay     string
+	acpCaps                 acp.Caps
+	acpCapsKnown            bool
+	speedResolution         *speedpkg.Resolution
+	liveness                *store.SessionLivenessMeta
+	agentDef                compozyconfig.AgentDef
+	advertisedCommands      []store.SessionAdvertisedCommand
+	startupManifest         acp.StartupManifest
+	nativeToolsUnavailable  bool
+	runtimeRelease          *runtimeRelease
+	configUnverified        bool
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -44,8 +46,10 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
-		runtimeStrategy: s.runtimeStrategyLocked(),
-		process:         s.process,
+		hostedMCPDigest:         s.hostedMCPDigest,
+		hostedMCPRequiresReload: s.hostedMCPRequiresReload,
+		runtimeStrategy:         s.runtimeStrategyLocked(),
+		process:                 s.process,
 		selection: RuntimeSelection{
 			Provider:        s.Provider,
 			Model:           s.Model,
@@ -275,6 +279,8 @@ func (s *Session) restoreRecoveryBinding(
 
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
+	s.hostedMCPDigest = snapshot.hostedMCPDigest
+	s.hostedMCPRequiresReload = snapshot.hostedMCPRequiresReload
 	s.runtimeRelease = snapshot.runtimeRelease
 	s.Provider = snapshot.selection.Provider
 	s.Model = snapshot.selection.Model

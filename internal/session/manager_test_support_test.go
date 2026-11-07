@@ -906,14 +906,16 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 }
 
 type recordingHostedMCPLauncher struct {
-	mu       sync.Mutex
-	bindErr  error
-	waits    []string
-	server   compozyconfig.MCPServer
-	requests []HostedMCPLaunchRequest
-	arms     []string
-	cancels  []string
-	releases []string
+	toolDigest    string
+	toolDigestErr error
+	mu            sync.Mutex
+	bindErr       error
+	waits         []string
+	server        compozyconfig.MCPServer
+	requests      []HostedMCPLaunchRequest
+	arms          []string
+	cancels       []string
+	releases      []string
 }
 
 func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID string) error {
@@ -1481,4 +1483,14 @@ func testMetadataFromEvents(rows []store.SessionEvent) []store.EventMetadata {
 		}
 	}
 	return result
+}
+
+func (l *recordingHostedMCPLauncher) ToolDigest(context.Context, string) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.toolDigest, l.toolDigestErr
+}
+
+func (l *recordingHostedMCPLauncher) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
+	return l.ToolDigest(ctx, sessionID)
 }

@@ -61,12 +61,17 @@ func (s *HostedService) StreamProjection(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	s.acknowledgeHostedBind(record)
+	// An eager bind already delivered a complete projection. Its first stream is
+	// a receipt, not another cold discovery pass racing the launch deadline.
+	if record.eagerTools && s.acknowledgeHostedBind(record) {
+		return HostedProjectionResponse{Digest: lastDigest}, nil
+	}
 	// A fresh unversioned entry exists only after the generation was unknown; serving it first
 	// skips repeating that lookup inside the refresh window.
 	if cached, ok := s.projectionCache.loadUnversioned(
 		record.bindID, s.currentProjectionEpoch(), s.now(), s.StreamRefreshInterval(),
 	); ok {
+		s.acknowledgeHostedBind(record)
 		return hostedStreamProjectionAfter(cached, lastDigest), nil
 	}
 	registry := s.currentRegistry()
@@ -81,6 +86,11 @@ func (s *HostedService) StreamProjection(
 		return s.boundedUnversionedProjection(ctx, registry, record)
 	}
 	response, err := s.projectionForGeneration(ctx, record, registry, unversioned)
+	if err != nil {
+		s.failHostedProjection(record)
+	} else {
+		s.acknowledgeHostedBind(record)
+	}
 	return hostedStreamProjectionAfter(response, lastDigest), err
 }
 

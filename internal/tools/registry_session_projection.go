@@ -63,6 +63,9 @@ func (r *RuntimeRegistry) bootstrapRequiresDeferredDiscovery(
 		}
 	}
 	if inputs.Session.Enforced {
+		if len(inputs.Session.MCPServers) > 0 {
+			return true, nil
+		}
 		for _, requiredID := range inputs.Session.Tools {
 			if !containsToolID(projected, requiredID) {
 				return true, nil

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
@@ -95,7 +96,11 @@ func (e *EffectivePolicyEvaluator) applyRestrictions(d Descriptor, decision *Eff
 		return true
 	}
 	if e.inputs.Session.Enforced {
-		if _, ok := e.sessionAllowed[d.ID]; !ok {
+		_, allowed := e.sessionAllowed[d.ID]
+		if d.Source.Kind == SourceMCP {
+			allowed = e.sessionAllowsMCP(d)
+		}
+		if !allowed {
 			denyDecision(decision, ReasonSessionDenied)
 			decision.SessionPolicyResult = policyResultDenied
 			return true
@@ -149,4 +154,24 @@ func isInstanceSelfServiceCall(d Descriptor, input json.RawMessage) bool {
 	default:
 		return false
 	}
+}
+
+func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
+	if !slices.Contains(e.inputs.Session.MCPServers, mcpSourceServerName(d.Source)) {
+		return false
+	}
+	if _, allowed := e.sessionAllowed[d.ID]; allowed {
+		return true
+	}
+	owner, err := mcpOwnerFromID(d.ID)
+	if err != nil {
+		return false
+	}
+	for id := range e.sessionAllowed {
+		narrowed, err := mcpOwnerFromID(id)
+		if err == nil && narrowed == owner {
+			return false
+		}
+	}
+	return true
 }

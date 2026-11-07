@@ -110,6 +110,7 @@ type HostedMCPLauncher interface {
 
 // HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
 type HostedMCPLaunchRequest struct {
+	EagerTools  bool
 	SessionID   string
 	ProfileID   string
 	WorkspaceID string

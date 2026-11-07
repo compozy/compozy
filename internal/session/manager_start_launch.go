@@ -104,12 +104,18 @@ func (m *Manager) prepareHostedMCPStartup(
 	startOpts acp.StartOpts,
 ) acp.StartOpts {
 	const failedOutcome = "failed"
+	reloadTools := providerexec.IsCodexAgentBridge(startOpts.Command)
 	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP && m.hostedMCP != nil &&
-		len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
+		len(startOpts.MCPServers) > 0 && (providerexec.IsClaudeAgentBridge(startOpts.Command) || reloadTools) {
 		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
 		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
 			started := time.Now()
-			err := m.hostedMCP.WaitForBind(ctx, session.ID)
+			var err error
+			if reloadTools {
+				err = m.captureHostedMCPDigest(ctx, session)
+			} else {
+				err = m.hostedMCP.WaitForBind(ctx, session.ID)
+			}
 			outcome := "succeeded"
 			if err != nil {
 				outcome = failedOutcome

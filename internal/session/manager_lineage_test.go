@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,53 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		}
 		if got := resumed.Info().Lineage.PermissionPolicy; !reflect.DeepEqual(got, want) {
 			t.Fatalf("resumed ceiling = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("Should refresh current root MCP identities while preserving delegated grants", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.Config.MCPServers = []compozyconfig.MCPServer{{Name: "old-name", Command: "test-mcp"}}
+		h.resolver.upsert(&resolved)
+		created := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), created.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		resolved.Config.MCPServers = []compozyconfig.MCPServer{
+			{Name: "zeta", Command: "test-mcp"},
+			{Name: "alpha", Command: "test-mcp"},
+		}
+		h.resolver.upsert(&resolved)
+		if err := h.manager.refreshRootMCPPolicy(t.Context(), created); err != nil {
+			t.Fatal(err)
+		}
+		if got := readMeta(
+			t,
+			created.MetaPath(),
+		).Lineage.PermissionPolicy.MCPServers; !slices.Equal(
+			got,
+			[]string{"alpha", "zeta"},
+		) {
+			t.Fatalf("root MCP budget = %v", got)
+		}
+		original := created.Info().Lineage
+		defer func() { created.mu.Lock(); created.Lineage = original; created.mu.Unlock() }()
+		created.mu.Lock()
+		created.Lineage.Kind = store.LineageKindSpawn
+		created.Lineage.ParentSessionID = "sess-parent"
+		created.Lineage.PermissionPolicy.MCPServers = []string{"old-name"}
+		created.mu.Unlock()
+		if err := h.manager.refreshRootMCPPolicy(t.Context(), created); err != nil {
+			t.Fatal(err)
+		}
+		if got := created.Info().Lineage.PermissionPolicy.MCPServers; !slices.Equal(got, []string{"old-name"}) {
+			t.Fatalf("delegated budget widened: %v", got)
 		}
 	})
 

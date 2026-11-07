@@ -51,3 +51,11 @@ The delayed-server race probe returned all 114 tools in 0.76 s for the operator 
 session; failing the 79-tool source retained all 35 healthy tools. Before batching, the same
 operator list took 36.04 s. These synthetic upstreams establish the repeated-discovery defect;
 they do not identify the cause in the reporter's original services.
+
+Issue #1334 targeted coverage also owns the configuration-to-provider seam: user and profile
+`mcp.json` declarations must reach the runtime catalog in their declaring scope. Ready sources
+must be present on the first provider list, and an OAuth transition must update an already-open
+session. Test subscribed modern clients and provider legacy clients. For Codex versions that do
+not re-list on notifications, require a turn-boundary reload only after the old native writer has
+exited; the logical session and native history remain usable. Do not count a new logical session
+or a registry-only tool-info response as proof of provider access.

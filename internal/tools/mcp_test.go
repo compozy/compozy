@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
@@ -1263,6 +1264,36 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 
 func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	t.Parallel()
+	t.Run("Should omit a stalled source within budget and still discover healthy sources", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executor := &stalledMCPExecutor{
+				fakeMCPExecutor: newFakeMCPExecutor(
+					[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+				),
+			}
+			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{
+					{Kind: SourceMCP, Owner: "blocked", RawServerName: "blocked"},
+					{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy"},
+				}, nil
+			}), executor, executor, WithMCPDiscoveryBudget(10*time.Second))
+			if err != nil {
+				t.Fatal(err)
+			}
+			caller, cancel := context.WithTimeout(t.Context(), 6*time.Second)
+			defer cancel()
+			started := time.Now()
+			listed, err := provider.List(caller, Scope{})
+			if err != nil || len(listed) != 1 || listed[0].ID != "mcp__healthy__lookup" {
+				t.Fatalf("bounded discovery = %+v, %v", listed, err)
+			}
+			if caller.Err() != nil || time.Since(started) > 3*time.Second {
+				t.Fatal("source deadline consumed the caller or catalog budget")
+			}
+		})
+	})
+
 	for _, operator := range []bool{false, true} {
 		name := "Should discover once per batch for hosted sessions"
 		if operator {
@@ -1387,4 +1418,14 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			}
 		})
 	}
+}
+
+type stalledMCPExecutor struct{ *fakeMCPExecutor }
+
+func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([]MCPToolDescriptor, error) {
+	if source.RawServerName == "blocked" {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return e.fakeMCPExecutor.ListTools(ctx, source)
 }

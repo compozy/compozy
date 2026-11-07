@@ -52,8 +52,11 @@ func (m *Manager) sessionMCPServers(
 		return m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
-		SessionID: spec.sessionID, ProfileID: spec.profileID,
-		WorkspaceID: spec.workspace.ID, AgentName: resolved.Name,
+		EagerTools:  true,
+		SessionID:   spec.sessionID,
+		ProfileID:   spec.profileID,
+		WorkspaceID: spec.workspace.ID,
+		AgentName:   resolved.Name,
 	})
 	if err != nil {
 		return nil, errors.Join(

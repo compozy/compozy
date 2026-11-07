@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"fmt"
 
@@ -430,7 +431,7 @@ func (c *daemonClient) StreamHostedMCPProjection(
 	if trimmed := strings.TrimSpace(lastDigest); trimmed != "" {
 		query.Set("last_digest", trimmed)
 	}
-	return c.doSSE(
+	err := c.doSSE(
 		ctx,
 		"/api/internal/hosted-mcp/projection/stream",
 		query,
@@ -452,6 +453,15 @@ func (c *daemonClient) StreamHostedMCPProjection(
 			return handler(snapshot)
 		},
 	)
+	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok {
+		switch {
+		case strings.HasPrefix(apiErr.payload.Error, "hosted_mcp_bind_not_found:"):
+			return errors.Join(mcppkg.ErrHostedBindNotFound, err)
+		case strings.HasPrefix(apiErr.payload.Error, "hosted_mcp_bind_required:"):
+			return errors.Join(mcppkg.ErrHostedBindRequired, err)
+		}
+	}
+	return err
 }
 
 func (c *daemonClient) CallHostedMCP(

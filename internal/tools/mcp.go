@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -40,11 +41,12 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
-	source      SourceRef
-	sources     MCPSourceLister
-	exec        MCPCallExecutor
-	auth        MCPAuthStatusProvider
-	reliability *mcpReliability
+	discoveryBudget time.Duration
+	source          SourceRef
+	sources         MCPSourceLister
+	exec            MCPCallExecutor
+	auth            MCPAuthStatusProvider
+	reliability     *mcpReliability
 }
 
 var _ Provider = (*MCPProvider)(nil)
@@ -120,8 +122,22 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 		p.reliability.retainActiveSources(scope, sources)
 	}
 	descriptors := make([]Descriptor, 0)
-	for _, source := range sources {
-		sourceDescriptors, err := p.listSourceDescriptors(ctx, source, scope.ProfileID)
+	var deadline time.Time
+	if p.discoveryBudget > 0 {
+		deadline = time.Now().Add(p.discoveryBudget)
+		if callerDeadline, ok := ctx.Deadline(); ok {
+			remaining := time.Now().Add(time.Until(callerDeadline) / 2)
+			if remaining.Before(deadline) {
+				deadline = remaining
+			}
+		}
+	}
+	for idx, source := range sources {
+		var timeout time.Duration
+		if !deadline.IsZero() {
+			timeout = max(time.Until(deadline)/time.Duration(len(sources)-idx), time.Nanosecond)
+		}
+		sourceDescriptors, err := p.listSourceDescriptors(ctx, source, scope.ProfileID, timeout)
 		if err != nil {
 			return nil, err
 		}

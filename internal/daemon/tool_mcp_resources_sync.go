@@ -193,6 +193,7 @@ func (d *Daemon) newToolMCPPublisher(
 			state.registry,
 			state.workspaceResolver,
 			state.logger,
+			profiles,
 		),
 		extensionManifestToolMCPDeclarationProvider(
 			registry,

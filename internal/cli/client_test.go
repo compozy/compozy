@@ -2254,6 +2254,26 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		}
 	})
 
+	for _, testCase := range []struct {
+		code string
+		want error
+	}{
+		{"hosted_mcp_bind_not_found", mcppkg.ErrHostedBindNotFound},
+		{"hosted_mcp_bind_required", mcppkg.ErrHostedBindRequired},
+	} {
+		t.Run("Should preserve retired bind identity for "+testCase.code, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{
+				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return newHTTPResponse(http.StatusNotFound, `{"error":"`+testCase.code+`: bind is gone"}`), nil
+				}),
+			}}
+			if err := client.StreamHostedMCPProjection(t.Context(), "bind-1", "", nil); !errors.Is(err, testCase.want) {
+				t.Fatalf("stream error = %v, want %v", err, testCase.want)
+			}
+		})
+	}
+
 	t.Run("Should redact hosted MCP stream errors", func(t *testing.T) {
 		t.Parallel()
 

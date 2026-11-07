@@ -88,6 +88,7 @@ func (l hostedMCPLauncherAdapter) Launch(
 		return compozyconfig.MCPServer{}, mcppkg.ErrHostedDisabled
 	}
 	return l.service.Launch(ctx, mcppkg.HostedLaunchRequest{
+		EagerTools:  req.EagerTools,
 		SessionID:   req.SessionID,
 		ProfileID:   req.ProfileID,
 		WorkspaceID: req.WorkspaceID,
@@ -140,4 +141,16 @@ func hostedMCPLauncher(service *mcppkg.HostedService) session.HostedMCPLauncher 
 
 func (l hostedMCPLauncherAdapter) WaitForBind(ctx context.Context, sessionID string) error {
 	return l.service.WaitForBind(ctx, sessionID)
+}
+
+func (l hostedMCPLauncherAdapter) ToolDigest(ctx context.Context, sessionID string) (string, error) {
+	digest, err := l.service.ToolDigest(ctx, sessionID)
+	if errors.Is(err, mcppkg.ErrHostedBindNotFound) {
+		return "", session.ErrHostedMCPBindMissing
+	}
+	return digest, err
+}
+
+func (l hostedMCPLauncherAdapter) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
+	return l.service.WaitForBindToolDigest(ctx, sessionID)
 }

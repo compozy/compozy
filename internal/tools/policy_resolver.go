@@ -64,5 +64,6 @@ func clonePolicyInputs(src PolicyInputs) PolicyInputs {
 	cloned.Agent.Toolsets = append([]ToolsetID(nil), src.Agent.Toolsets...)
 	cloned.Agent.DenyTools = append([]ToolPattern(nil), src.Agent.DenyTools...)
 	cloned.Session.Tools = append([]ToolID(nil), src.Session.Tools...)
+	cloned.Session.MCPServers = append([]string(nil), src.Session.MCPServers...)
 	return cloned
 }

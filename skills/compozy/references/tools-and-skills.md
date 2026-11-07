@@ -40,6 +40,18 @@ denied tools; page `compozy__tool_list` with `offset`/`next_offset` for compact 
 currently callable set, then
 `compozy__tool_info` for one complete schema and backend descriptor.
 
+External MCP declarations in user, personal-profile, workspace and workspace-profile config or
+`mcp.json` feed the same hosted catalog. Adding or enabling a source and completing or refreshing
+OAuth updates open hosted Claude and Codex sessions; removing a source or logging out withdraws its callable tools.
+Claude refreshes the stable proxy connection through `notifications/tools/list_changed`. Codex
+currently caches discovery, so CompozyOS releases its idle provider process and loads the same
+native session at the next turn boundary when MCP tools change. The Compozy session ID and
+transcript remain intact. A failed native load uses the existing transcript replay fallback.
+Workspace/profile isolation, source policy and delegated `mcp_servers` allowlists still apply;
+a concrete MCP tool ID also requires its server in that allowlist and never bypasses an empty server budget.
+Ready alone does not override an explicit denial. Root delegation budgets follow current server
+names on the next turn; child and instance grants stay bounded by their recorded policy.
+
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 
 `compozy skill` commands reject accidental use while `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present and point to native skill tools. Treat this as a supported-path guard, not authorization: clearing environment markers or opening the same-user operator socket is outside this guard.

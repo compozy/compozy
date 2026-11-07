@@ -56,3 +56,17 @@ func (r *RuntimeRegistry) ProjectionGeneration(ctx context.Context, scope Scope)
 func appendProjectionGenerationPart(dst *strings.Builder, name string, generation string) {
 	fmt.Fprintf(dst, "%d:%s%d:%s", len(name), name, len(generation), generation)
 }
+
+// BootstrapProjectionGeneration is authoritative only when bootstrap excludes no provider.
+// A complete catalog generation cannot validate a native-only bootstrap snapshot.
+func (r *RuntimeRegistry) BootstrapProjectionGeneration(ctx context.Context, scope Scope) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	for _, provider := range r.providers {
+		if !includeInitialProvider(provider) {
+			return "", false
+		}
+	}
+	return r.ProjectionGeneration(ctx, scope)
+}

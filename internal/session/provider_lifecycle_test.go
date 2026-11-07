@@ -98,6 +98,127 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 	t.Parallel()
 
+	for _, change := range []string{"catalog change", "missing proxy bind"} {
+		t.Run("Should release the writer and reload the same session after "+change, func(t *testing.T) {
+			t.Parallel()
+			h := newHostedMCPHarness(t)
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := workspace.Config.Providers["codex"]
+			provider.Command = "codex-acp"
+			workspace.Config.Providers["codex"] = provider
+			h.resolver.upsert(&workspace)
+			active, err := h.manager.Create(
+				t.Context(),
+				&CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "codex"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			previous := active.processHandle()
+			nativeID := active.Info().ACPSessionID
+			hosted := h.manager.hostedMCP.(*recordingHostedMCPLauncher)
+			hosted.toolDigest = "initial"
+			if err := h.manager.captureHostedMCPDigest(t.Context(), active); err != nil {
+				t.Fatal(err)
+			}
+			hosted.toolDigestErr = errors.New("transient policy read failure")
+			unchanged, err := h.manager.Prompt(t.Context(), active.ID, "continue through a transient catalog failure")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, unchanged)
+			if active.processHandle() != previous {
+				t.Fatal("transient catalog failure replaced a healthy runtime")
+			}
+			hosted.toolDigestErr = nil
+			previous.Command = "npx"
+			previous.Args = []string{"-y", "@agentclientprotocol/codex-acp"}
+
+			hosted.mu.Lock()
+			hosted.toolDigest = "changed"
+			if change == "missing proxy bind" {
+				hosted.toolDigestErr = ErrHostedMCPBindMissing
+			}
+			hosted.mu.Unlock()
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				if !isProcessDone(previous) {
+					return nil, errors.New("native session still has a writer")
+				}
+				hosted.mu.Lock()
+				hosted.toolDigestErr = nil
+				hosted.mu.Unlock()
+				if opts.FinalizeStartup != nil {
+					if _, _, err := opts.FinalizeStartup(t.Context()); err != nil {
+						return nil, err
+					}
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+			}
+			events, err := h.manager.Prompt(t.Context(), active.ID, "use the changed MCP catalog")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if active.processHandle() == previous || active.Info().ACPSessionID != nativeID {
+				t.Fatal("MCP refresh failed to reload the native session")
+			}
+			if got := h.driver.startCalls[1].ResumeSessionID; got != nativeID {
+				t.Fatalf("loaded %q, want %q", got, nativeID)
+			}
+			events, err = h.manager.Prompt(t.Context(), active.ID, "keep using the same catalog")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if got := len(h.driver.startCalls); got != 2 {
+				t.Fatalf("unchanged catalog started %d processes", got)
+			}
+			h.driver.startHook = nil
+			switched, err := h.manager.SendPrompt(
+				t.Context(),
+				active.ID,
+				SendPromptOpts{Message: "continue on Claude", Runtime: &RuntimeSelection{Provider: "claude"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, switched.Events)
+			hosted.mu.Lock()
+			hosted.toolDigestErr = errors.New("old Codex bind gone")
+			hosted.mu.Unlock()
+			events, err = h.manager.Prompt(t.Context(), active.ID, "continue without Codex reload state")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if got := len(h.driver.startCalls); got != 3 {
+				t.Fatalf("provider switch kept stale MCP state: %d starts", got)
+			}
+		})
+	}
+
+	t.Run("Should keep a healthy runtime usable when its agent definition is unavailable", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		previous := active.processHandle()
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Agents = nil
+		h.resolver.upsert(&workspace)
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, nil, previous)
+		if err != nil || process != previous {
+			t.Fatalf("healthy runtime = %p, %v", process, err)
+		}
+	})
+
 	t.Run("Should replace a provider runtime with replay while ignoring the retired process exit", func(t *testing.T) {
 		t.Parallel()
 

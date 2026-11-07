@@ -436,8 +436,9 @@ func applyConcreteSessionToolPolicy(
 		ids = append(ids, id)
 	}
 	inputs.Session = toolspkg.SessionToolPolicy{
-		Enforced: true,
-		Tools:    ids,
+		Enforced:   true,
+		Tools:      ids,
+		MCPServers: append([]string(nil), policy.MCPServers...),
 	}
 	return nil
 }

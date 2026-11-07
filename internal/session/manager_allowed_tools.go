@@ -111,8 +111,13 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		}
 		lineage.PermissionPolicy.Tools = tools
 	}
+	lineage.PermissionPolicy.MCPServers = nil
+	for _, server := range resolved.MCPServers {
+		lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
+	}
 	// Preserve authored resource grants after the existing native-tool materialization.
 	if s.preserveDelegationPolicy {
+		lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 		s.lineage = lineage
 		return nil
 	}
@@ -126,10 +131,6 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		if !slices.Contains(definition.Skills.Disabled, name) {
 			lineage.PermissionPolicy.Skills = append(lineage.PermissionPolicy.Skills, name)
 		}
-	}
-	lineage.PermissionPolicy.MCPServers = nil
-	for _, server := range resolved.MCPServers {
-		lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
 	}
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {

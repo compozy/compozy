@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type promptRuntimePlan struct {
@@ -39,21 +38,23 @@ func (m *Manager) ensurePromptRuntime(
 	if err != nil {
 		return nil, err
 	}
+	if err := m.refreshRootMCPPolicy(ctx, session); err != nil {
+		m.sessionLogger(session).
+			WarnContext(ctx, "session: MCP delegation budget refresh deferred", "reason", "configuration_unavailable")
+	}
 	snapshot := session.runtimeBindingSnapshot()
 	if reservedProcess != snapshot.process {
 		return nil, errors.New("session: runtime process changed while reserving prompt")
 	}
-	controlsDrifted := runtimeControlsDrifted(&snapshot)
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, *selection) &&
-		!controlsDrifted {
+	mcpChanged := m.hostedMCPToolsChanged(ctx, session)
+	if canReusePromptRuntime(&snapshot, *selection, mcpChanged) {
 		return snapshot.process, nil
 	}
 	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
 	if err != nil {
 		return nil, err
 	}
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, plan.selection) &&
-		!controlsDrifted {
+	if canReusePromptRuntime(&snapshot, plan.selection, mcpChanged) {
 		return snapshot.process, nil
 	}
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
@@ -63,6 +64,13 @@ func (m *Manager) ensurePromptRuntime(
 		if proc, handled, err := m.bindUnboundPromptRuntime(ctx, session, &snapshot, plan); handled {
 			return proc, err
 		}
+	}
+	if mcpChanged {
+		if err := m.releaseBoundRuntime(ctx, session); err != nil {
+			return nil, err
+		}
+		released := session.runtimeBindingSnapshot()
+		return m.rebindReleasedRuntime(ctx, session, &released, plan)
 	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
@@ -125,21 +133,6 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 	currentSpeed := acp.CurrentSpeed(caps.ConfigOptions)
 	return selection.Speed != "" && acp.SupportsSpeed(selection.Speed, caps.ConfigOptions) &&
 		currentSpeed != selection.Speed
-}
-
-// Provider negotiation refusals are retried only by a subsequent prompt request;
-// replacing a healthy process cannot grant an unavailable capability or account tier.
-func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
-	if _, ok := errors.AsType[*acp.NegotiationError](err); !ok || isProcessDone(process) {
-		return false
-	}
-	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
-		switch failure.Kind {
-		case store.FailureTransport, store.FailureProcess, store.FailureCanceled, store.FailureTimeout:
-			return false
-		}
-	}
-	return true
 }
 
 // bindUnboundPromptRuntime owns the binds that differ for a session without a process:
@@ -491,4 +484,9 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	return &promptRuntimePlan{
 		selection: resolvedSelection, spec: spec, runtime: runtime,
 	}, nil
+}
+
+func canReusePromptRuntime(snapshot *runtimeBindingSnapshot, selection RuntimeSelection, mcpChanged bool) bool {
+	return snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, selection) &&
+		!runtimeControlsDrifted(snapshot) && !mcpChanged
 }

@@ -712,6 +712,38 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discover a deferred server granted by the session during bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		registry, err := NewRegistry(
+			WithProviders(
+				providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local),
+				remoteProvider,
+			),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				Session: SessionToolPolicy{
+					Enforced:   true,
+					Tools:      []ToolID{local.ID},
+					MCPServers: []string{"github"},
+				},
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bootstrap, err := registry.BootstrapSessionProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireToolIDs(t, bootstrap, local.ID, remote.ID)
+	})
+
 	t.Run("Should retain deferred descriptor metadata after a bootstrap projection", func(t *testing.T) {
 		t.Parallel()
 

@@ -245,6 +245,61 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonApprovalRequired)
 	})
 
+	t.Run("Should retain concrete MCP tool narrowing inside an allowed server", func(t *testing.T) {
+		t.Parallel()
+		for _, tool := range []string{"lookup", "delete"} {
+			descriptor := validDescriptor()
+			descriptor.ID = ToolID("mcp__docs__" + tool)
+			descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: tool}
+			evaluator, err := NewEffectivePolicyEvaluator(
+				PolicyInputs{
+					SystemPermissionMode: PermissionModeApproveAll,
+					ExternalDefault:      ExternalDefaultEnabled,
+					Session: SessionToolPolicy{
+						Enforced:   true,
+						Tools:      []ToolID{"mcp__docs__lookup"},
+						MCPServers: []string{"docs"},
+					},
+				},
+				ToolsetCatalog{},
+				[]ToolID{descriptor.ID},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable != (tool == "lookup") {
+				t.Fatalf("concrete narrowing for %s: %+v", tool, decision)
+			}
+		}
+	})
+
+	t.Run("Should narrow MCP tools by the session server allowlist", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		for _, servers := range [][]string{nil, {"docs"}, {"other"}} {
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
+				Session: SessionToolPolicy{Enforced: true, MCPServers: servers},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable != (len(servers) > 0 && servers[0] == "docs") {
+				t.Fatalf("servers %v: %+v", servers, decision)
+			}
+		}
+	})
+
 	t.Run("Should enforce session lineage concrete atoms independently", func(t *testing.T) {
 		t.Parallel()
 

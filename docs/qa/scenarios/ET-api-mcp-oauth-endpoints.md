@@ -66,3 +66,12 @@ Gap 1 retest 2026-11-05: the changed bare-remote, header exclusion, header prese
 and OAuth-toggle branches passed in the isolated daemon lab. See
 `docs/qa/reports/2026-11-05-issue-1305-gap1.md`. This does not replace historical coverage or
 vendor-consent blockers for unrelated branches in this scenario.
+
+Issue #1334 regression: open Claude and Codex sessions before adding a user-scope HTTP MCP
+server backed by an OAuth stub. Complete manual PKCE authorization through the public API and
+require each same session to discover and call a real stub tool. Start another session after
+Ready and require the same call. Log out and require the old sessions to lose callable access;
+a subsequent login restores it, while deleting or disabling the source withdraws it again.
+Record logical and native session IDs, provider reloads, successful stub calls and redacted status.
+Renaming a source updates root delegation budgets at the next turn without widening a child or
+instance allowlist. A failed full hosted projection must fail readiness instead of claiming success.
