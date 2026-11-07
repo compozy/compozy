@@ -282,6 +282,30 @@ describe("CompozyPermissionDataRenderer", () => {
     }
   );
 
+  it.each([
+    ["system", "canceled"],
+    ["timeout", "expired"],
+    ["provider", "expired"],
+  ])(
+    "Should settle a delivered canceled event from %s without its original timestamp",
+    (actor, cause) => {
+      renderPermissionWithContext(
+        {
+          ...pendingTerminalPermission,
+          decision: "canceled",
+          resolved_by: actor,
+          timestamp: "2026-09-05T10:02:00Z",
+        },
+        new Map([["req-1", restartExpired()]])
+      );
+      const receipt = screen.getByTestId("permission-expired-receipt");
+      expect(receipt).toHaveAttribute("data-cause", cause);
+      expect(receipt.querySelector("time")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("permission-allowed-receipt")).not.toBeInTheDocument();
+    }
+  );
+
   it("Should replace a pending transcript ask with a durable timeout receipt", () => {
     renderPermissionWithContext(
       pendingTerminalPermission,

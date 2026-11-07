@@ -107,7 +107,9 @@ export function permissionOccurrenceKey(
 }
 
 /** The daemon expired this decision because it restarted before anyone answered. */
-export function interactionExpiredByRestart(row: SessionInteractionRecord): boolean {
+export function interactionExpiredByRestart(
+  row: Pick<SessionInteractionRecord, "status" | "resolution">
+): boolean {
   return row.status === "canceled" && row.resolution === RESTART_EXPIRED_RESOLUTION;
 }
 

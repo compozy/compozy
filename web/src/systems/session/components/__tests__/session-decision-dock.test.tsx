@@ -337,6 +337,21 @@ describe("SessionDecisionDock", () => {
     }
   });
 
+  it("Should treat a delivered canceled permission as terminal and expose the next ask", () => {
+    renderDock({
+      messages: [
+        permissionMessage("canceled", {
+          decision: "canceled",
+          resolved_by: "system",
+          timestamp: "2026-09-05T10:02:00Z",
+        }),
+        permissionMessage("next", { title: "Write" }),
+      ],
+    });
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("write file?");
+    expect(screen.queryByTestId("permission-dock-count")).not.toBeInTheDocument();
+  });
+
   it("Should not dock a permission the transcript already resolved", () => {
     const { container } = renderDock({
       messages: [permissionMessage("req-1", { decision: "allow-once" })],

@@ -4,7 +4,11 @@ import { Receipt, Time } from "@compozy/ui";
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
-import { normalizePermissionDecision, toPermissionRequest } from "../lib/message-parts";
+import {
+  normalizePermissionDecision,
+  permissionCancellationStatus,
+  toPermissionRequest,
+} from "../lib/message-parts";
 import {
   permissionExpiredReceiptCopy,
   permissionReceiptCopy,
@@ -70,13 +74,12 @@ export function PermissionReceipt({
 
 export interface PermissionExpiredReceiptProps {
   permission: PermissionRequest;
-  interaction: SessionInteractionRecord;
+  interaction: Pick<SessionInteractionRecord, "status" | "resolution" | "resolved_by">;
   askedAt?: string;
 }
 
 /**
- * Receipt for an ask the daemon settled without a decision: the transcript never records
- * an answer, so the durable interaction row is the evidence. Neutral tone — nobody
+ * Receipt for an ask settled without a decision, from its canonical event or durable row. Neutral tone — nobody
  * decided, nothing was refused. The restart is named only when the row's resolution is
  * `failed-by-restart`; any other canceled row reads as a plain cancellation.
  */
@@ -138,6 +141,20 @@ export function PermissionDataPart({ data }: { data: CompozyPermissionData }) {
         askedAt={data.timestamp}
         decision={decision}
         permission={permission}
+      />
+    );
+  }
+  const canceledStatus = permissionCancellationStatus(data);
+  if (canceledStatus !== null) {
+    // A cancellation timestamp identifies the resolution, not the original ask.
+    return (
+      <PermissionExpiredReceipt
+        permission={permission}
+        interaction={{
+          status: canceledStatus,
+          resolution: "",
+          resolved_by: data.resolved_by,
+        }}
       />
     );
   }

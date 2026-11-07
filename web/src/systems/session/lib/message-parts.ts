@@ -30,6 +30,15 @@ export function normalizePermissionDecision(value: unknown): PermissionDecision 
   }
 }
 
+export function permissionCancellationStatus(
+  data: Pick<CompozyPermissionData, "decision" | "resolved_by">
+): "canceled" | "timed_out" | null {
+  if (data.decision?.trim() !== "canceled") return null;
+  return data.resolved_by === "timeout" || data.resolved_by === "provider"
+    ? "timed_out"
+    : "canceled";
+}
+
 function permissionSupportedDecisions(
   raw: Record<string, unknown> | undefined
 ): string[] | undefined {
