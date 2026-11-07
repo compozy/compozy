@@ -799,6 +799,34 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		}
 	})
 
+	t.Run("Should never let a credential slot target an internal handoff variable", func(t *testing.T) {
+		t.Parallel()
+
+		const key = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			"env:" + key: "restart-1",
+		}}}
+		resolved := compozyconfig.ResolvedAgent{
+			Provider: "openrouter",
+			Harness:  compozyconfig.ProviderHarnessACP,
+			AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+				Name: "handoff", TargetEnv: key, SecretRef: "env:" + key, Required: true,
+			}},
+		}
+		session := &Session{sessionDir: t.TempDir()}
+		t.Cleanup(session.clearProviderSecretRedactions)
+		opts, err := manager.prepareProviderForStart(t.Context(), session, resolved, acp.StartOpts{})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(handoff target) error = %v", err)
+		}
+		for _, entry := range opts.Env {
+			if strings.HasPrefix(entry, key+"=") {
+				t.Fatalf("agent env contains %q, want internal handoff absent", entry)
+			}
+		}
+	})
+
 	t.Run("Should inject resolved provider secrets and redact dynamic values", func(t *testing.T) {
 		t.Parallel()
 

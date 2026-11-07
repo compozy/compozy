@@ -489,8 +489,10 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 				"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
 				"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
 			} {
-				if got := envValue(env, key); got != "" {
-					t.Fatalf("%s policy: %s = %q, want absent", policy, key, got)
+				for _, entry := range env {
+					if strings.HasPrefix(entry, key+"=") {
+						t.Fatalf("%s policy: %s present as %q, want absent", policy, key, entry)
+					}
 				}
 			}
 			if got := envValue(env, "COMPOZY_HOME"); got != "/tmp/compozy" {
