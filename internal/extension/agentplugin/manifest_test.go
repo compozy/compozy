@@ -204,6 +204,58 @@ func TestLoadEmptyAndDeterministic(t *testing.T) {
 }
 
 func TestClientManifestAdapter(t *testing.T) {
+	for _, tc := range []struct{ name, authored, identity string }{
+		{"Should normalize an uppercase publisher identity", "Notion", ""},
+		{"Should use marketplace identity instead of unsafe publisher metadata", "../Notion", "notion"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeJSONFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), map[string]any{
+				"name": tc.authored, "$schema": "https://publisher.example/plugin.schema.json", "homepage": 42,
+				"author": map[string]any{"name": "Publisher", "handle": "ignored"},
+			})
+			writeMCPFile(t, root, map[string]any{"remote": map[string]any{"url": "https://example.com/mcp"}})
+			pkg, err := Load(root, LoadOptions{Name: tc.identity})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pkg.Name != "notion" || len(pkg.Servers) != 1 || pkg.Author.Name != "Publisher" {
+				t.Fatalf("package = %#v", pkg)
+			}
+			for _, field := range []string{"name", "$schema", "homepage", "author.handle"} {
+				if !hasDiagnostic(pkg.Diagnostics, scopeManifest, field) {
+					t.Fatalf("missing %s diagnostic: %#v", field, pkg.Diagnostics)
+				}
+			}
+		})
+	}
+	t.Run("Should load a root client manifest only with marketplace identity", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(t, filepath.Join(root, "plugin.json"), map[string]any{"name": "Root Client"})
+		writeMCPFile(t, root, map[string]any{"local": map[string]any{"command": "node"}})
+		pkg, err := Load(root, LoadOptions{Name: "root-client", DataDir: filepath.Join(t.TempDir(), "data")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pkg.Name != "root-client" || len(pkg.Servers) != 1 {
+			t.Fatalf("package=%#v", pkg)
+		}
+		if _, err := Load(root, LoadOptions{}); err == nil {
+			t.Fatal("accepted native manifest without schema")
+		}
+	})
+
+	t.Run("Should reject an unsafe client identity without a marketplace replacement", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), map[string]any{"name": "../escape"})
+		if _, err := Load(root, LoadOptions{}); err == nil {
+			t.Fatal("accepted unsafe identity")
+		}
+	})
+
 	t.Run("Should load declared skills and both MCP transports and report ignored components", func(t *testing.T) {
 		t.Parallel()
 		root := canonicalPathForTest(t, t.TempDir())

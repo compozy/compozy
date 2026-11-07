@@ -524,6 +524,32 @@ func TestMarketplaceSourceConfigPath(t *testing.T) {
 
 func TestMarketplaceCategories(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should show nonempty sections in human output and retain zero counts in structured output",
+		func(t *testing.T) {
+			t.Parallel()
+			deps := newWorkspaceTestDeps(
+				t,
+				&stubClient{
+					searchMarketplaceFn: func(context.Context, string, int, string, MarketplaceReadScope) (MarketplaceListRecord, error) {
+						return MarketplaceListRecord{Revision: "one", Categories: []contract.MarketplaceCategoryCount{
+							{ID: "featured", Label: "Featured", Count: 2}, {ID: "design", Label: "Design", Count: 0},
+						}}, nil
+					},
+				},
+			)
+			for _, format := range []string{"human", "json", "jsonl"} {
+				stdout, _, err := executeRootCommand(t, deps, "marketplace", "categories", "-o", format)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(stdout, "Featured") || strings.Contains(stdout, "Design") != (format != "human") {
+					t.Fatalf("%s output=%s", format, stdout)
+				}
+			}
+		},
+	)
+
 	t.Run("Should return daemon category counts and forward the filter", func(t *testing.T) {
 		t.Parallel()
 		deps := newWorkspaceTestDeps(

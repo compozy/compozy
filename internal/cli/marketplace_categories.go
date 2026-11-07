@@ -52,7 +52,7 @@ func newMarketplaceCategoriesCommand(deps commandDeps) *cobra.Command {
 			response := contract.MarketplaceCategoriesResponse{Revision: page.Revision, Categories: page.Categories}
 			humanItems := []contract.MarketplaceCategoryCount{}
 			for _, category := range response.Categories {
-				if category.ID != marketplace.CategoryFeatured {
+				if category.Count > 0 {
 					humanItems = append(humanItems, category)
 				}
 			}

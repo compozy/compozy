@@ -2,6 +2,7 @@ package pluginsource
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -89,6 +90,9 @@ func (s *Sources) openPlugin(ctx context.Context, plugin PluginSource) (_ *Snaps
 	if err != nil {
 		return nil, err
 	}
+	if (plugin.Kind == SourceURL || plugin.Kind == SourceGitSubdir) && strings.HasPrefix(normalized, "github:") {
+		return s.openGitHubRepository(ctx, normalized, plugin.GitRef)
+	}
 	if strings.HasPrefix(normalized, "github:") {
 		source, err := NewGitHubSource(normalized, s.GitHubOptions...)
 		if err != nil {
@@ -110,6 +114,30 @@ func (s *Sources) openPlugin(ctx context.Context, plugin PluginSource) (_ *Snaps
 		return nil, err
 	}
 	checkout, err := source.checkout(ctx, plugin.GitRef, s.TempDir)
+	if err != nil {
+		return nil, remoteSourceError(err)
+	}
+	return &Snapshot{Root: checkout.Path, ResolvedRef: normalized + "@" + checkout.Commit, release: checkout.Close}, nil
+}
+
+func (s *Sources) openGitHubRepository(ctx context.Context, normalized, ref string) (*Snapshot, error) {
+	repository := "https://github.com/" + strings.TrimPrefix(normalized, "github:") + ".git"
+	if err := gitsrc.ValidateRepositoryRef(repository); err != nil {
+		return nil, err
+	}
+	if sha, decodeErr := hex.DecodeString(ref); decodeErr == nil && len(sha) == 20 {
+		snapshot, err := s.openArchive(
+			ctx,
+			"https://github.com/"+strings.TrimPrefix(normalized, "github:")+"/archive/"+ref+".tar.gz",
+		)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.ResolvedRef = normalized + "@" + strings.ToLower(ref)
+		return snapshot, nil
+	}
+	source := &GitSource{repository: repository, options: s.GitOptions}
+	checkout, err := source.checkout(ctx, ref, s.TempDir)
 	if err != nil {
 		return nil, remoteSourceError(err)
 	}

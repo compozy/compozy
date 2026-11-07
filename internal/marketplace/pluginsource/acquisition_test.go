@@ -217,6 +217,76 @@ func TestResolveRemotePackages(t *testing.T) {
 			assertAcquisitionClean(t, resolver)
 		})
 	}
+	for _, ref := range []string{"abcdef1", "main", ""} {
+		t.Run("Should use Git rather than REST for GitHub ref "+ref, func(t *testing.T) {
+			t.Parallel()
+			lookedUp := false
+			sources := Sources{
+				TempDir: t.TempDir(),
+				GitOptions: []gitsrc.Option{gitsrc.WithLookPath(func(string) (string, error) {
+					lookedUp = true
+					return "", errors.New("fixture Git unavailable")
+				})},
+				HTTPClient: &http.Client{
+					Transport: marketplaceRoundTripper(func(*http.Request) (*http.Response, error) {
+						t.Error("unexpected HTTP API request")
+						return nil, errors.New("unexpected HTTP request")
+					}),
+				},
+			}
+			snapshot, err := sources.openPlugin(
+				t.Context(),
+				PluginSource{Kind: SourceURL, Ref: "https://github.com/owner/repository.git", GitRef: ref},
+			)
+			if snapshot != nil || err == nil || !lookedUp {
+				t.Fatalf("snapshot=%v err=%v Git lookup=%v", snapshot, err, lookedUp)
+			}
+		})
+	}
+
+	t.Run("Should acquire a pinned GitHub subdirectory without REST API requests", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeMarketplaceDocument(t, root, "repo/tool/.claude-plugin/plugin.json", []byte(`{"name":"tool"}`))
+		archive := githubSnapshotArchive(t, root)
+		requests := 0
+		client := &http.Client{Transport: marketplaceRoundTripper(func(req *http.Request) (*http.Response, error) {
+			requests++
+			if req.URL.String() != "https://github.com/owner/repository/archive/"+commit+".tar.gz" {
+				t.Errorf("unexpected URL: %s", req.URL)
+			}
+			response := marketplaceHTTPResponse(t, req, http.StatusOK, string(archive))
+			response.Header.Set("Content-Type", "application/gzip")
+			return response, nil
+		})}
+		resolver := &Resolver{
+			Cache:   &PackageCache{Root: t.TempDir()},
+			Sources: Sources{TempDir: t.TempDir(), HTTPClient: client},
+		}
+		record, err := resolver.Resolve(
+			t.Context(),
+			Document{SourceRef: "github:team/gallery"},
+			nil,
+			Plugin{
+				Name: "tool",
+				Source: PluginSource{
+					Kind:   SourceGitSubdir,
+					Ref:    "https://github.com/owner/repository.git",
+					GitRef: commit,
+					Path:   "tool",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if requests != 1 || record.ResolvedRef != "github:owner/repository@"+commit {
+			t.Fatalf("record=%+v requests=%d", record, requests)
+		}
+		assertAcquiredPackage(t, resolver, record)
+		assertAcquisitionClean(t, resolver)
+	})
+
 	t.Run("Should remove extracted archives when the HTTP reader fails to close", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -421,6 +491,23 @@ func TestGitSourceSnapshot(t *testing.T) {
 		if _, err := source.OpenSnapshot(t.Context(), unpinned, temporary); err == nil {
 			t.Fatal("accepted a branch in a resolved repository revision")
 		}
+		_, commit, _ := strings.CutLast(record.ResolvedRef, "@")
+		for _, ref := range []string{commit, commit[:8], "main", ""} {
+			external, err := resolver.Resolve(
+				t.Context(),
+				document,
+				nil,
+				Plugin{
+					Name:   "tool",
+					Source: PluginSource{Kind: SourceGitSubdir, Ref: repository, GitRef: ref, Path: "tool"},
+				},
+			)
+			if err != nil || external.DigestSHA256 != record.DigestSHA256 ||
+				external.ResolvedRef != record.ResolvedRef {
+				t.Fatalf("ref %q = %+v, %v", ref, external, err)
+			}
+		}
+
 		externalDoc := Document{SourceRef: "github:team/gallery"}
 		external, err := resolver.Resolve(t.Context(), externalDoc, nil, Plugin{
 			Name: "tool", Source: PluginSource{Kind: SourceHTTPS, Ref: repository, Path: "tool"},
@@ -429,7 +516,7 @@ func TestGitSourceSnapshot(t *testing.T) {
 			external.ResolvedRef != record.ResolvedRef || external.DigestSHA256 != record.DigestSHA256 {
 			t.Fatalf("external Git acquisition = %+v, %v", external, err)
 		}
-		commit := strings.TrimPrefix(record.ResolvedRef, source.ref+"@")
+		commit = strings.TrimPrefix(record.ResolvedRef, source.ref+"@")
 		// Advance the branch so the pinned subdirectory must retain the original bytes.
 		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"2.0.0"}`))
 		for _, args := range [][]string{

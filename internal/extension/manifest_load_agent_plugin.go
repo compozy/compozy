@@ -26,19 +26,31 @@ func loadAgentPluginManifest(root, dataDir string, pluginName ...string) (*Manif
 	if err != nil {
 		return nil, err
 	}
-	return loadAgentPluginDocument(root, dataDir, document)
+	return loadAgentPluginDocument(root, dataDir, document, pluginName...)
 }
 
-func loadAgentPluginDocument(root, dataDir string, document *agentplugin.ManifestDocument) (*Manifest, error) {
+func loadAgentPluginDocument(
+	root, dataDir string,
+	document *agentplugin.ManifestDocument,
+	pluginName ...string,
+) (*Manifest, error) {
 	status, declared := document.Classify()
 	if status == agentplugin.SchemaUnsupportedVersion {
 		return nil, &agentplugin.SchemaUnsupportedError{Root: root, Path: document.Path, Declared: declared}
 	}
-	if document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && document.ValidJSON() {
+	if document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && document.ValidJSON() &&
+		len(pluginName) == 0 {
 		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{document.Path}}
+	}
+	nameOverride := ""
+	if (document.Layout != agentplugin.LayoutStandard || status == agentplugin.SchemaUnrelated) && len(pluginName) > 0 {
+		nameOverride = pluginName[0]
 	}
 	if dataDir == "" {
 		name, err := document.Name()
+		if err != nil && nameOverride != "" {
+			name, err = nameOverride, agentplugin.ValidateName(nameOverride)
+		}
 		if err != nil {
 			return nil, agentPluginLoadError(document.Path, err)
 		}
@@ -47,7 +59,7 @@ func loadAgentPluginDocument(root, dataDir string, document *agentplugin.Manifes
 			return nil, err
 		}
 	}
-	pkg, err := document.Load(agentplugin.LoadOptions{DataDir: dataDir})
+	pkg, err := document.Load(agentplugin.LoadOptions{DataDir: dataDir, Name: nameOverride})
 	if err != nil {
 		return nil, agentPluginLoadError(document.Path, err)
 	}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 var manifestFields = map[string]struct{}{
@@ -49,6 +50,10 @@ func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", m.root, err)
 	}
 	content, layout := m.content, m.Layout
+	if status, _ := m.Classify(); opts.Name != "" && layout == LayoutStandard && status == SchemaUnrelated &&
+		m.ValidJSON() {
+		layout = "client-root"
+	}
 
 	var pkg *Package
 	if layout == LayoutStandard {
@@ -81,6 +86,9 @@ func (m *ManifestDocument) Name() (string, error) {
 	issues := make([]Issue, 0, 1)
 	name, ok := requiredString(fields, fieldName, &issues)
 	if ok {
+		if m.Layout != LayoutStandard {
+			name = strings.ToLower(name)
+		}
 		if err := ValidateName(name); err != nil {
 			issues = append(issues, Issue{Path: fieldName, Message: fmt.Sprintf("name %q %s", name, err)})
 		}
