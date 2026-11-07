@@ -13,6 +13,7 @@ export {
   type FileSearchResponse,
 } from "./adapters/files-api";
 export { filesKeys } from "./lib/query-keys";
+export { requestFreshListings } from "./lib/fresh-listings";
 export {
   fileContentOptions,
   fileEntriesOptions,

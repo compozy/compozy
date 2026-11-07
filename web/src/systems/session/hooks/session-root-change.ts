@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
-import { filesKeys } from "@/systems/files";
+import { filesKeys, requestFreshListings } from "@/systems/files";
 
 import { sessionKeys } from "../lib/query-keys";
 import { sessionChangesKeys } from "../lib/session-changes-query";
@@ -19,6 +19,8 @@ export async function resetSessionRootReads(
   isOpen: () => boolean = () => true
 ): Promise<void> {
   resetSessionReviewRoot(sessionId);
+  // The new checkout's listings must not come from the old root's status snapshot.
+  requestFreshListings(queryClient, { kind: "session", workspaceId, sessionId });
   const dropped: QueryKey[] = [
     filesKeys.root({ kind: "session", workspaceId, sessionId }),
     sessionChangesKeys.session(workspaceId, sessionId),

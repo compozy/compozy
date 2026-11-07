@@ -322,4 +322,77 @@ describe("FilesAppWindow", () => {
     expect(screen.queryByTestId("files-tree-folder-error")).toBeNull();
     expect(srcCalls).toHaveLength(3);
   });
+
+  // Perf audit P-5 and the status-snapshot contract. Invariant: Refresh refetches only the
+  // folders on screen, each with `Cache-Control: no-cache`; a collapsed folder issues no request
+  // (it is only marked stale), and a plain expansion never bypasses the snapshot.
+  it("Should refresh only shown folders, fresh, and leave collapsed ones idle", async () => {
+    const requests: { path: string; fresh: boolean }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(String(input));
+        const url = new URL(request.url);
+        if (!url.pathname.endsWith("/files/entries")) return new Response("{}", { status: 404 });
+        const path = url.searchParams.get("path") ?? "";
+        requests.push({ path, fresh: request.headers.get("cache-control") === "no-cache" });
+        const root = { kind: "workspace", workspace_id: "ws_1", name: "compozy" };
+        const entries =
+          path === ""
+            ? [
+                { name: "docs", path: "docs", kind: "directory" },
+                { name: "src", path: "src", kind: "directory" },
+              ]
+            : [{ name: "a.txt", path: `${path}/a.txt`, kind: "file", size: 1 }];
+        return Response.json({ root, entries, truncated: false });
+      })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <div style={{ height: 500 }}>
+            <FilesExplorer
+              root={{ kind: "workspace", workspaceId: "ws_1" }}
+              target={null}
+              onOpenFile={() => {}}
+            />
+          </div>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const treeRow = (path: string) =>
+      container
+        .querySelector("file-tree-container")
+        ?.shadowRoot?.querySelector<HTMLElement>(`[data-type="item"][data-item-path="${path}"]`) ??
+      null;
+    await waitFor(() => expect(treeRow("src/")).not.toBeNull());
+
+    // docs stays open; src is expanded, loaded, then collapsed.
+    act(() => treeRow("docs/")!.click());
+    act(() => treeRow("src/")!.click());
+    await waitFor(() => expect(treeRow("src/a.txt")).not.toBeNull());
+    await waitFor(() => expect(treeRow("docs/a.txt")).not.toBeNull());
+    act(() => treeRow("src/")!.click());
+    expect(requests).toEqual([
+      { path: "", fresh: false },
+      { path: "docs", fresh: false },
+      { path: "src", fresh: false },
+    ]);
+
+    requests.length = 0;
+    fireEvent.click(screen.getByTestId("files-refresh"));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        { path: "", fresh: true },
+        { path: "docs", fresh: true },
+      ])
+    );
+
+    // Re-expanding the collapsed folder reads it again (it was marked stale), from the snapshot.
+    act(() => treeRow("src/")!.click());
+    await waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2]).toEqual({ path: "src", fresh: false });
+  });
 });

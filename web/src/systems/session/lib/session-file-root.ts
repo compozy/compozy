@@ -1,4 +1,4 @@
-import { USER_SCOPE_SELECTOR } from "@/systems/workspace/lib/destination";
+import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 /**
  * Whether a session has a file root: its bound worktree or its project checkout. User-scope

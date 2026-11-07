@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileTree, UIProvider } from "@compozy/ui";
 
-import type { CompozyShellBridge, OpenTarget } from "@/systems/os/lib/desktop-shell-bridge";
+import type { CompozyShellBridge, OpenTarget } from "@/systems/os";
 import { workspaceDetailOptions } from "@/systems/workspace";
 
 import type { FilesRootRef } from "../../adapters/files-api";

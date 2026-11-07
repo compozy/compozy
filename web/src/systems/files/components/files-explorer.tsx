@@ -194,6 +194,7 @@ function TreeBody({
             selectedPath={selectedPath}
             onSelect={onOpenFile}
             onExpand={bridge.expand}
+            onExpandedChange={bridge.expandedChanged}
             filter={filter}
             filterEmpty={
               <p className="px-3 py-2 text-xs text-muted-foreground">No loaded files match</p>

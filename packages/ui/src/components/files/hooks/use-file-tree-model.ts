@@ -2,6 +2,7 @@
 
 import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
 import { useFileTree } from "@pierre/trees/react";
+import { useReducedMotionConfig } from "motion/react";
 import * as React from "react";
 
 import {
@@ -23,6 +24,7 @@ export interface UseFileTreeModelOptions {
   initialExpansion: "closed" | "open";
   loadingPaths?: readonly string[];
   onExpand?: (directoryPath: string) => void;
+  onExpandedChange?: (directoryPaths: readonly string[]) => void;
   onSelect?: (path: string) => void;
   paths: readonly string[];
   resetKey?: string | number;
@@ -81,6 +83,7 @@ export function useFileTreeModel({
   initialExpansion,
   loadingPaths,
   onExpand,
+  onExpandedChange,
   onSelect,
   paths,
   resetKey,
@@ -89,6 +92,9 @@ export function useFileTreeModel({
   const decorationsRef = useLatest(decorations);
   const loadingRef = useLatest(new Set(loadingPaths));
   const onExpandRef = useLatest(onExpand);
+  const onExpandedChangeRef = useLatest(onExpandedChange);
+  // Under UIProvider's motion config: reduced motion shows a still loading arc.
+  const reducedMotionRef = useLatest(useReducedMotionConfig() === true);
   const onSelectRef = useLatest(onSelect);
 
   const { model } = useFileTree({
@@ -102,10 +108,14 @@ export function useFileTreeModel({
     icons: { set: "standard", colored: false, spriteSheet: TREE_SPRITE_SHEET },
     composition: { contextMenu: { triggerMode: "right-click" } },
     renderRowDecoration: ({ item }) =>
-      buildRowDecoration(decorationsRef.current?.[item.path], loadingRef.current.has(item.path)),
+      buildRowDecoration(
+        decorationsRef.current?.[item.path],
+        loadingRef.current.has(item.path),
+        reducedMotionRef.current
+      ),
   });
 
-  useLazyExpansion(model, paths, resetKey, onExpandRef);
+  useLazyExpansion(model, paths, resetKey, onExpandRef, onExpandedChangeRef);
   useDecorations(model, decorations, loadingPaths, decorationsRef);
   useControlledSelection(model, selectedPath, paths);
   const filterMatches = useFilter(model, filter, paths);
@@ -122,7 +132,8 @@ function useLazyExpansion(
   model: PierreFileTreeModel,
   paths: readonly string[],
   resetKey: string | number | undefined,
-  onExpandRef: React.RefObject<((directoryPath: string) => void) | undefined>
+  onExpandRef: React.RefObject<((directoryPath: string) => void) | undefined>,
+  onExpandedChangeRef: React.RefObject<((directoryPaths: readonly string[]) => void) | undefined>
 ) {
   // What the model holds, which directories already have children, and which
   // expanded, still childless directories were already handed to `onExpand`.
@@ -130,12 +141,16 @@ function useLazyExpansion(
   const parentsRef = React.useRef(new Set<string>());
   const requestedRef = React.useRef(new Set<string>());
   const resetKeyRef = React.useRef(resetKey);
+  const expandedKeyRef = React.useRef("");
 
   const notifyExpanded = React.useCallback(() => {
+    const open: string[] = [];
     for (const path of knownRef.current) {
-      if (!isDirectoryPath(path) || parentsRef.current.has(path)) continue;
+      if (!isDirectoryPath(path)) continue;
       const item = model.getItem(path);
       const expanded = Boolean(item && "isExpanded" in item && item.isExpanded());
+      if (expanded) open.push(path);
+      if (parentsRef.current.has(path)) continue;
       // A folder that got no children (its listing failed, or is still on the way) may ask
       // again: collapsing it re-arms `onExpand` for the next expansion.
       if (!expanded) {
@@ -146,7 +161,13 @@ function useLazyExpansion(
       requestedRef.current.add(path);
       onExpandRef.current?.(path);
     }
-  }, [model, onExpandRef]);
+    // The expanded set, reported only when it changes: the bridge keeps collapsed folders idle.
+    const key = open.sort().join("\n");
+    if (key !== expandedKeyRef.current) {
+      expandedKeyRef.current = key;
+      onExpandedChangeRef.current?.(open);
+    }
+  }, [model, onExpandRef, onExpandedChangeRef]);
 
   React.useLayoutEffect(() => {
     if (resetKeyRef.current !== resetKey) {

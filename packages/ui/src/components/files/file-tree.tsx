@@ -39,6 +39,11 @@ export interface FileTreeProps extends Omit<
    * is still childless (its listing failed) fires again on its next expansion.
    */
   onExpand?: (directoryPath: string) => void;
+  /**
+   * Every expanded directory (`dir/`), reported whenever the set changes, including collapses.
+   * A lazy explorer uses it to keep collapsed folders' listings idle.
+   */
+  onExpandedChange?: (directoryPaths: readonly string[]) => void;
   /** Directories whose children are being fetched; they show a spinner. */
   loadingPaths?: readonly string[];
   /** Fires for every file activation, including re-clicking the selected row. */
@@ -71,6 +76,7 @@ function FileTree({
   paths,
   initialExpansion = "closed",
   onExpand,
+  onExpandedChange,
   loadingPaths,
   onSelect,
   selectedPath,
@@ -89,6 +95,7 @@ function FileTree({
     initialExpansion,
     loadingPaths,
     onExpand,
+    onExpandedChange,
     onSelect,
     paths,
     resetKey,

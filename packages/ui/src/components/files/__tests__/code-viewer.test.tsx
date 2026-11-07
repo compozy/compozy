@@ -5,6 +5,13 @@ import { CodeHighlightPoolProvider } from "../code-highlight-pool";
 import { CodeViewer } from "../code-viewer";
 import { countLines, resolveTargetLine } from "../code-viewer-lines";
 import { FileImagePreview } from "../file-image-preview";
+import {
+  FIND_DIRECT_PAINT_LIMIT,
+  FIND_PAINT_BUDGET,
+  FIND_WINDOW_MARGIN,
+  matchesInWindow,
+  visibleCharWindow,
+} from "../find-highlight-window";
 import { imageDataUrl } from "../image-data-url";
 
 function sourceText(lines: number): string {
@@ -157,5 +164,49 @@ describe("FileImagePreview", () => {
     );
     expect(getByText("No preview")).toBeInTheDocument();
     expect(imageDataUrl("image/png", "<svg>")).toBeNull();
+  });
+});
+
+// Perf audit P-4. Invariant: Find never registers a highlight range per match on a pathological
+// line, and never measures ranges deep inside it. A minified line's 10,000 matches paint only the
+// ones in the viewport's character window, capped by the paint budget.
+describe("find highlight window", () => {
+  const view = { top: 0, bottom: 600, left: 0, right: 800 };
+  const starts = Array.from({ length: 10_000 }, (_, index) => index * 100);
+
+  it("Should map the viewport to the visible characters of a scrolled long line", () => {
+    // 8 px glyphs, scrolled 40,000 px: characters 5,000..5,100 are on screen.
+    const line = { top: 100, bottom: 120, left: -40_000, right: 8_000_000 };
+    const window = visibleCharWindow({ line, view, charWidth: 8, length: 1_000_000, wrap: false });
+    expect(window).toEqual([5_000 - FIND_WINDOW_MARGIN, 5_100 + FIND_WINDOW_MARGIN]);
+  });
+
+  it("Should map visible rows of a wrapped long line to characters", () => {
+    // 100 glyphs per row, 20 px rows, the viewport shows rows 50..80.
+    const line = { top: -1_000, bottom: 199_000, left: 0, right: 800 };
+    const [from, to] = visibleCharWindow({
+      line,
+      view,
+      charWidth: 8,
+      length: 1_000_000,
+      wrap: true,
+    });
+    expect(from).toBe(5_000 - FIND_WINDOW_MARGIN);
+    expect(to).toBe(8_100 + FIND_WINDOW_MARGIN);
+  });
+
+  it("Should paint only the window's matches of a 10,000-match line, within the budget", () => {
+    const painted = matchesInWindow(starts, [500_000, 510_000], FIND_PAINT_BUDGET);
+    expect(painted[0]).toBe(5_000);
+    expect(painted.at(-1)).toBe(5_099);
+    expect(matchesInWindow(starts, [0, 1_000_000], FIND_PAINT_BUDGET)).toHaveLength(
+      FIND_PAINT_BUDGET
+    );
+    expect(matchesInWindow(starts, [0, 1_000_000], 0)).toEqual([]);
+  });
+
+  it("Should paint an ordinary line whole", () => {
+    const few = starts.slice(0, FIND_DIRECT_PAINT_LIMIT);
+    expect(matchesInWindow(few, [0, 1], FIND_PAINT_BUDGET)).toHaveLength(FIND_DIRECT_PAINT_LIMIT);
   });
 });

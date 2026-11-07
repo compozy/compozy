@@ -63,11 +63,13 @@ function throwFilesError(response: Response, error: unknown, fallback: string): 
 export async function listFileEntries(
   root: FilesRootRef,
   path: string,
-  options: { showIgnored: boolean },
+  options: { showIgnored: boolean; fresh?: boolean },
   signal?: AbortSignal
 ): Promise<FileEntriesResponse> {
   const fallback = "Couldn't list files";
   const query = { ...(path ? { path } : {}), show_ignored: options.showIgnored };
+  // A refresh skips the daemon's short-lived status snapshot; expansions reuse it.
+  const headers = options.fresh ? { "Cache-Control": "no-cache" } : undefined;
   const result =
     root.kind === "session"
       ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries", {
@@ -76,6 +78,7 @@ export async function listFileEntries(
             // A session owned by another profile still resolves, as the transcript read does.
             query: { ...query, all_profiles: true },
           },
+          headers,
           signal,
         })
       : await apiClient.GET("/api/workspaces/{workspace_id}/files/entries", {
@@ -83,6 +86,7 @@ export async function listFileEntries(
             path: { workspace_id: root.workspaceId },
             query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
           },
+          headers,
           signal,
         });
   if (apiRequestFailed(result.response, result.error)) {

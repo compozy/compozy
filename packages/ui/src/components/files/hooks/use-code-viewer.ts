@@ -74,7 +74,7 @@ export function useCodeViewer({
     });
   }, [path, targetLineNumber, version]);
 
-  const find = useCodeViewerFind(findMatches, activeFindMatch);
+  const find = useCodeViewerFind(findMatches, activeFindMatch, wrap);
   const activeFind = activeFindMatch === null ? undefined : findMatches[activeFindMatch];
   const activeFindLine = activeFind?.line ?? null;
   // The current match scrolls into view even when its line was never rendered (US-015.AC-1).

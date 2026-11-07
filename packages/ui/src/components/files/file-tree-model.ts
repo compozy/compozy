@@ -42,6 +42,8 @@ interface DecorationPart {
 export type FileTreeDecorations = Readonly<Record<string, FileTreeDecoration>>;
 
 export const TREE_SPINNER_ICON = "compozy-tree-spinner";
+/** The same arc without motion, for reduced-motion users. */
+export const TREE_SPINNER_STATIC_ICON = "compozy-tree-spinner-static";
 export const TREE_SYMLINK_ICON = "compozy-tree-symlink";
 const TREE_LOCK_ICON = "file-tree-icon-lock";
 /**
@@ -61,6 +63,9 @@ export const TREE_SPRITE_SHEET = [
   '<path d="M21 12a9 9 0 1 1-6.219-8.56">',
   '<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>',
   "</path></symbol>",
+  `<symbol id="${TREE_SPINNER_STATIC_ICON}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">`,
+  '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  "</symbol>",
   `<symbol id="${TREE_SYMLINK_ICON}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`,
   '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/>',
   "</symbol></svg>",
@@ -156,9 +161,12 @@ function formatCount(value: number): string {
  */
 export function buildRowDecoration(
   decoration: FileTreeDecoration | undefined,
-  loading: boolean
+  loading: boolean,
+  reducedMotion = false
 ): FileTreeRowDecoration | null {
-  if (loading) return { icon: TREE_SPINNER_ICON, title: "Loading" };
+  if (loading) {
+    return { icon: reducedMotion ? TREE_SPINNER_STATIC_ICON : TREE_SPINNER_ICON, title: "Loading" };
+  }
   if (!decoration) return null;
 
   const parts: DecorationPart[] = [];

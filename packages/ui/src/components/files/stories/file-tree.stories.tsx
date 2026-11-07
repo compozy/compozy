@@ -159,6 +159,7 @@ export const EmptyFolder: Story = {
 
 export const RowMenu: Story = {
   name: "Row menu",
+  tags: ["play-fn"],
   args: {
     "aria-label": "Project files",
     paths: CHANGED_PATHS,

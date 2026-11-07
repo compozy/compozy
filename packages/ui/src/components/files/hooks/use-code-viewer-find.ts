@@ -2,6 +2,13 @@
 
 import * as React from "react";
 
+import {
+  FIND_DIRECT_PAINT_LIMIT,
+  FIND_PAINT_BUDGET,
+  matchesInWindow,
+  visibleCharWindow,
+} from "../find-highlight-window";
+
 /** One find match: a 1-based line and a half-open UTF-16 range within that line's text. */
 export interface CodeViewerMatch {
   line: number;
@@ -40,6 +47,41 @@ function lineRange(line: Element, start: number, end: number): Range | null {
   return null;
 }
 
+/** Glyphs measured to get the monospace width; a short prefix keeps the measurement cheap. */
+const CHAR_SAMPLE = 32;
+
+/**
+ * The visible character span of a long rendered line, from its box, the viewport, and one glyph
+ * width measured near the line's start. Never measures ranges deep inside the line.
+ */
+function lineCharWindow(line: Element, view: DOMRect, wrap: boolean): [number, number] | null {
+  const length = line.textContent?.length ?? 0;
+  const sample = Math.min(CHAR_SAMPLE, length);
+  const probe = sample > 0 ? lineRange(line, 0, sample) : null;
+  if (!probe) return null;
+  const prefix = probe.getBoundingClientRect();
+  const charWidth = prefix.width / sample;
+  const box = line.getBoundingClientRect();
+  const lineBox = {
+    top: box.top,
+    bottom: box.bottom,
+    left: prefix.left,
+    right: box.right,
+  };
+  return visibleCharWindow({ line: lineBox, view, charWidth, length, wrap });
+}
+
+/** Spans of `[start, end)` covering the matches, touching or overlapping ones joined. */
+function mergedSpans(entries: readonly { match: CodeViewerMatch }[]): [number, number][] {
+  const spans: [number, number][] = [];
+  for (const { match } of entries) {
+    const last = spans.at(-1);
+    if (last && match.start <= last[1]) last[1] = Math.max(last[1], match.end);
+    else spans.push([match.start, match.end]);
+  }
+  return spans;
+}
+
 /** Rendered content lines (`[data-line]`) inside the viewer's Pierre shadow roots. */
 function renderedLines(container: HTMLElement): Element[] {
   const lines: Element[] = [];
@@ -52,10 +94,16 @@ function renderedLines(container: HTMLElement): Element[] {
 
 /**
  * Paints find matches over the virtualized lines with the CSS Custom Highlight API, so
- * Pierre's DOM is never rewritten. Only rendered lines get ranges; `sync` runs again after
- * every render or scroll. Without the API (older engines, jsdom) nothing is painted.
+ * Pierre's DOM is never rewritten. Only rendered lines get ranges, and on a line with many
+ * matches only the visible ones, within a fixed budget (`visibleMatchIndexes`); `sync` runs again
+ * after every render or scroll. The full match list still drives the count and navigation.
+ * Without the API (older engines, jsdom) nothing is painted.
  */
-export function useCodeViewerFind(matches: readonly CodeViewerMatch[], active: number | null) {
+export function useCodeViewerFind(
+  matches: readonly CodeViewerMatch[],
+  active: number | null,
+  wrap = false
+) {
   const id = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const names = React.useMemo(
     () => ({ all: `cz-find-${id}`, active: `cz-find-active-${id}` }),
@@ -83,18 +131,37 @@ export function useCodeViewerFind(matches: readonly CodeViewerMatch[], active: n
     }
     const all: Range[] = [];
     const current: Range[] = [];
+    const view = container.getBoundingClientRect();
     for (const line of renderedLines(container)) {
       const found = byLine.get(Number(line.getAttribute("data-line")));
       if (!found) continue;
-      for (const { match, index } of found) {
-        const range = lineRange(line, match.start, match.end);
-        if (!range) continue;
-        (index === active ? current : all).push(range);
+      // The current match always paints; the rest share one bounded budget (perf audit P-4).
+      const activeEntry = found.find(entry => entry.index === active);
+      if (activeEntry) {
+        const range = lineRange(line, activeEntry.match.start, activeEntry.match.end);
+        if (range) current.push(range);
+      }
+      const window =
+        found.length > FIND_DIRECT_PAINT_LIMIT ? lineCharWindow(line, view, wrap) : null;
+      const visible = matchesInWindow(
+        found.map(entry => entry.match.start),
+        window,
+        FIND_PAINT_BUDGET - all.length
+      );
+      // Touching matches paint as one range: each range costs paint time inside a long line.
+      const others: { match: CodeViewerMatch }[] = [];
+      for (const position of visible) {
+        const entry = found[position]!;
+        if (entry.index !== active) others.push(entry);
+      }
+      for (const [start, end] of mergedSpans(others)) {
+        const range = lineRange(line, start, end);
+        if (range) all.push(range);
       }
     }
     api.registry.set(names.all, new api.Highlight(...all));
     api.registry.set(names.active, new api.Highlight(...current));
-  }, [active, byLine, names]);
+  }, [active, byLine, names, wrap]);
 
   // `scheduleSync` stays stable, so Pierre's options never change with the matches.
   const syncRef = React.useRef(sync);

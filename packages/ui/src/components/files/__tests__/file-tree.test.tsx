@@ -8,6 +8,9 @@ import {
   buildRowDecoration,
   planPathSync,
   toGitStatusEntries,
+  TREE_SPINNER_ICON,
+  TREE_SPINNER_STATIC_ICON,
+  TREE_SPRITE_SHEET,
   UNLOADED_CHANGES_ENTRY,
 } from "../file-tree-model";
 
@@ -166,8 +169,22 @@ describe("FileTree", () => {
     ]);
   });
 
+  // Reduced motion: the loading mark keeps its shape but never spins (UI guide, motion).
+  it("Should show a still loading mark under reduced motion", () => {
+    expect(buildRowDecoration(undefined, true, true)).toEqual({
+      icon: TREE_SPINNER_STATIC_ICON,
+      title: "Loading",
+    });
+    expect(TREE_SPRITE_SHEET).toContain(`<symbol id="${TREE_SPINNER_STATIC_ICON}"`);
+    const still = TREE_SPRITE_SHEET.slice(TREE_SPRITE_SHEET.indexOf(TREE_SPINNER_STATIC_ICON));
+    expect(still.slice(0, still.indexOf("</symbol>"))).not.toContain("animate");
+  });
+
   it("Should prefer the loading spinner, then counts, and never guess an unknown status", () => {
-    expect(buildRowDecoration({ additions: 3 }, true)).toMatchObject({ title: "Loading" });
+    expect(buildRowDecoration({ additions: 3 }, true)).toMatchObject({
+      title: "Loading",
+      icon: TREE_SPINNER_ICON,
+    });
     expect(buildRowDecoration({ additions: 1200, deletions: 4 }, false)).toMatchObject({
       text: "+1,200 −4",
     });

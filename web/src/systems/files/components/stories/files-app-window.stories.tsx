@@ -49,6 +49,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ProjectTitle: Story = {
+  tags: ["play-fn"],
   beforeEach: () => placeFile(null),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -59,6 +60,7 @@ export const ProjectTitle: Story = {
 };
 
 export const OpenFileTitle: Story = {
+  tags: ["play-fn"],
   beforeEach: () => placeFile("web/src/main.tsx"),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
