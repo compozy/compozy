@@ -29,11 +29,13 @@ export function MCPNameField({
   name,
   isCreate,
   error,
+  onBlur,
   onChange,
 }: {
   name: string;
   isCreate: boolean;
   error?: string;
+  onBlur?: () => void;
   onChange: (name: string) => void;
 }) {
   return (
@@ -48,6 +50,7 @@ export function MCPNameField({
         placeholder="e.g. filesystem"
         disabled={!isCreate}
         aria-invalid={error ? true : undefined}
+        onBlur={onBlur}
         onChange={event => onChange(event.target.value)}
         data-testid="settings-mcp-servers-editor-name-input"
       />

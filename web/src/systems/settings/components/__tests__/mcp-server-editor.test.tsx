@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { emptyDraft, toDraft, toRequest, type MCPDraft } from "../../lib/mcp-editor-model";
+import {
+  emptyDraft,
+  toDraft,
+  toRequest,
+  validateDraft,
+  type MCPDraft,
+} from "../../lib/mcp-editor-model";
 import type { SettingsMCPServerEntry } from "../../types";
 import { MCPServerEditor, type MCPServerEditorProps } from "../mcp-server-editor";
 
@@ -38,6 +44,21 @@ function EditorHarness(overrides: Partial<MCPServerEditorProps> = {}) {
       <MCPServerEditor {...base} draft={draft} onChange={updater => setDraft(updater)} />
       <output data-testid="mcp-draft-probe">{JSON.stringify(draft)}</output>
     </>
+  );
+}
+
+/** Host that derives errors and validity from the draft, as the owning hooks do. */
+function ValidatingEditorHarness({ draft: initial }: { draft: MCPDraft }) {
+  const [draft, setDraft] = useState<MCPDraft>(initial);
+  const validation = validateDraft(draft);
+  return (
+    <MCPServerEditor
+      {...makeProps()}
+      draft={draft}
+      errors={validation.errors}
+      isValid={validation.valid}
+      onChange={updater => setDraft(updater)}
+    />
   );
 }
 
@@ -169,6 +190,46 @@ describe("MCPServerEditor", () => {
     const request = toRequest({ ...draft, url: "https://mcp.example/mcp" });
     expect(request.server).not.toHaveProperty("command");
     expect(request.server).not.toHaveProperty("args");
+  });
+
+  // Invariant: a pristine form shows no field errors; a required field speaks up only after
+  // it is blurred or edited, and a transport switch leaves the newly shown fields pristine.
+  it("Should hold required-field errors until the field is touched", async () => {
+    const user = userEvent.setup();
+    render(<ValidatingEditorHarness draft={emptyDraft("stdio")} />);
+
+    const name = screen.getByTestId("settings-mcp-servers-editor-name-input");
+    const command = screen.getByTestId("settings-mcp-servers-editor-command-input");
+    expect(screen.queryByText("Name is required")).toBeNull();
+    expect(screen.queryByText("Command is required")).toBeNull();
+    expect(name).not.toHaveAttribute("aria-invalid");
+    expect(command).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+
+    await user.click(name);
+    await user.click(command);
+    expect(screen.getByText("Name is required")).toBeInTheDocument();
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Command is required")).toBeNull();
+
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
+    expect(screen.queryByText("URL is required for http transport")).toBeNull();
+    const url = screen.getByTestId("settings-mcp-servers-editor-url-input");
+    expect(url).not.toHaveAttribute("aria-invalid");
+
+    await user.click(url);
+    await user.click(name);
+    expect(screen.getByText("URL is required for http transport")).toBeInTheDocument();
+    expect(url).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-stdio"));
+    expect(screen.queryByText("Command is required")).toBeNull();
+    expect(screen.getByText("Name is required")).toBeInTheDocument();
+
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-command-input"), "x");
+    await user.clear(screen.getByTestId("settings-mcp-servers-editor-command-input"));
+    expect(screen.getByText("Command is required")).toBeInTheDocument();
   });
 
   it("Should keep remote HTTP transport fixed without an unsupported wire picker", () => {
