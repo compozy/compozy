@@ -44,7 +44,7 @@ function pulseBatches(members: readonly AgentTeamMember[]) {
 export function useAgentPulses(members: readonly AgentTeamMember[]) {
   const { destination } = useProfileReadScope();
   const selected = members
-    .filter(member => member.kind === "always_on" && member.agent !== null)
+    .filter(member => member.kind === "always_on")
     .sort((a, b) => a.key.localeCompare(b.key));
   const batches = pulseBatches(selected);
   const reads = useQueries({

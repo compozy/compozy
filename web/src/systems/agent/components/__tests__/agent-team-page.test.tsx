@@ -111,19 +111,16 @@ describe("AgentTeamPage", () => {
             workspaces: [...member.scopes].sort(),
           })),
       });
-      expect(
-        await screen.findByRole("img", {
-          name: `${alwaysOn.label}'s activity over the last 2 weeks`,
-        })
-      ).toBeVisible();
+      const pulse = await screen.findByRole("img", {
+        name: `${alwaysOn.label}'s activity over the last 2 weeks`,
+      });
+      expect(pulse).toBeVisible();
       expect(
         screen.queryByRole("img", { name: "Other definition's activity over the last 2 weeks" })
       ).toBeNull();
       if (view === "cards") {
-        const card = screen.getByText(alwaysOn.label).closest('[data-testid^="agent-card-"]')!;
-        expect(within(card as HTMLElement).getByText("2 reports in 2 weeks")).toBeVisible();
-        const other = screen.getByText("Other definition").closest('[data-testid^="agent-card-"]')!;
-        expect(within(other as HTMLElement).getByText("No activity yet")).toBeVisible();
+        // The compact card keeps the recap on hover, not in a line of its own.
+        expect(pulse).toHaveAccessibleDescription("2 reports in 2 weeks");
       }
     }
   );
@@ -160,8 +157,11 @@ describe("AgentTeamPage", () => {
         { ...base, key: "empty", scopes: [] },
       ],
     });
-    for (let i = 0; i < 8; i++)
-      await userEvent.click(screen.getByRole("button", { name: "Load more agents" }));
+    let more = screen.queryByRole("button", { name: "Load more agents" });
+    while (more) {
+      await userEvent.click(more);
+      more = screen.queryByRole("button", { name: "Load more agents" });
+    }
     await waitFor(() =>
       expect(requests.flatMap(request => request.items).some(item => item.name === "wide")).toBe(
         true

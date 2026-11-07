@@ -315,4 +315,19 @@ describe("AlwaysOnRow", () => {
       search,
     });
   });
+
+  it("Should offer no agent page for an agent whose definition was deleted [#1340]", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture({ state: "paused", pause_reason: "definition_missing" });
+    renderRow([instance]);
+
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId(`always-on-seat-${instance.id}`),
+    });
+
+    expect(await screen.findByRole("menuitem", { name: "Archive" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Open agent" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Heartbeat" })).toBeNull();
+  });
 });
