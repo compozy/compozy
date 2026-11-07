@@ -32,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -1046,7 +1047,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				})
 			})
 		})
-		ctx := t.Context()
+		ctx := testutil.Context(t)
 		if err := d.runtimeWorkers.instanceMaintenance.Shutdown(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -1209,7 +1210,12 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 		select {
 		case <-wakeSettled:
 		case <-ctx.Done():
-			t.Fatalf("child monitor turn did not settle: %v", ctx.Err())
+			diagnosticsCtx := testutil.Context(t)
+			for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
+				row, err := db.GetSessionInputQueueEntry(diagnosticsCtx, child.ID, id)
+				t.Logf("child input: %+v error: %v", row, err)
+			}
+			t.Fatalf("child monitor turn did not settle: %v; child: %+v", ctx.Err(), child.Info())
 		}
 		waitForCondition(t, "child wake and peer delivered", func() bool {
 			for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
