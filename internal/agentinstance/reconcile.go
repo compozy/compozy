@@ -84,6 +84,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	}
 }
 
+// reconcileInstance applies definition availability without weakening an operator-owned pause.
 func (s *Service) reconcileInstance(ctx context.Context, recovery ReconciliationSessions, instance Instance) error {
 	if instance.State == "starting" {
 		outcome, err := recovery.StartOutcome(ctx, instance)
@@ -122,9 +123,9 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 	case err == nil:
 		return s.rotateMain(ctx, instance)
 	case errors.Is(err, ErrDefinitionMissing):
-		reason = "definition_missing"
+		reason = pauseReasonDefinitionMissing
 	case errors.Is(err, ErrNotAlwaysOn):
-		reason = "definition_not_always_on"
+		reason = pauseReasonDefinitionNotAlwaysOn
 	default:
 		return err
 	}

@@ -38,6 +38,10 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 	}
 	sources := sessionWorkSources{state: state, manager: manager, now: d.now}
 	manager.SetWorkSignalSources(
+		session.WorkSignalSource{
+			Kind:   session.WorkSignalHeldInput,
+			Source: session.SignalSourceFunc(sources.heldInputs),
+		},
 		session.WorkSignalSource{Kind: session.WorkSignalToolRunning, Source: session.SignalSourceFunc(sources.tools)},
 		session.WorkSignalSource{
 			Kind:   session.WorkSignalActiveChild,

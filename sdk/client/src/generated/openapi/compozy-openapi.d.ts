@@ -14648,6 +14648,8 @@ export interface components {
       /** Format: date-time */
       estimated_send_at?: string | null;
       goal?: components["schemas"]["GoalCommandResult"] | null;
+      held_instance_id?: string;
+      held_reason?: string;
       idempotency_key: string;
       message_id: string;
       mode?: string;
@@ -15260,6 +15262,8 @@ export interface components {
       /** Format: date-time */
       enqueued_at: string;
       held: boolean;
+      held_instance_id?: string;
+      held_reason?: string;
       id: string;
       idempotency_key?: string;
       mentions?: components["schemas"]["SessionInputMentionPayload"][];
@@ -17519,7 +17523,8 @@ export interface components {
         | "scheduled_wait"
         | "awaiting_reply"
         | "active_monitor"
-        | "held_permission";
+        | "held_permission"
+        | "held_input";
       ref?: string;
       state: string;
     };
@@ -21323,6 +21328,8 @@ export interface components {
       supports_pr_discovery: boolean;
     };
     WorkSignal: {
+      held_instance_id?: string;
+      held_reason?: string;
       /** @enum {string} */
       kind:
         | "agent_progress"
@@ -21333,7 +21340,8 @@ export interface components {
         | "scheduled_wait"
         | "awaiting_reply"
         | "active_monitor"
-        | "held_permission";
+        | "held_permission"
+        | "held_input";
       ref?: string;
       /** Format: date-time */
       since: string;

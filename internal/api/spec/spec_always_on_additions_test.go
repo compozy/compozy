@@ -26,6 +26,10 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/components/schemas/AgentInstanceReportSource", []string{"source_id", "source_ref", "item_key", "url"}},
 	// Every session payload: the mode a session runs at, and whether the reviewer fell back.
 	{"#/", []string{"effective_permissions", "permission_mode_degraded"}},
+	// Held diagnostics are optional additions to these three exact contracts.
+	{"#/components/schemas/SendPromptResultPayload", []string{"held_reason", "held_instance_id"}},
+	{"#/components/schemas/SessionInputPayload", []string{"held_reason", "held_instance_id"}},
+	{"#/components/schemas/WorkSignal", []string{"held_reason", "held_instance_id"}},
 	// Queued input rows: input held while an always-on lineage is paused.
 	{"#/", []string{"held"}},
 	// Agent definitions: operator-only approval reach and exceptions.
@@ -100,6 +104,8 @@ type approvedAdditionWalker struct {
 
 // alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
 var alwaysOnHardeningEnumValues = map[string][]string{
+	"#/components/schemas/WorkSignal/properties/kind":                     {"held_input"},
+	"#/components/schemas/SignalSourceState/properties/kind":              {"held_input"},
 	"#/components/schemas/CreateAgentPayload/properties/permissions":      {"approve-edits", "auto"},
 	"#/components/schemas/DuplicateAgentOverrides/properties/permissions": {"approve-edits", "auto"},
 	"#/components/schemas/SettingsPermissionsPayload/properties/mode":     {"approve-edits", "auto"},

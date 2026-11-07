@@ -35,6 +35,7 @@ func TestInstanceAuthority(t *testing.T) {
 		{"Should reject manual resume", "resume", "manual", "own", false},
 		{"Should reject fatigue resume", "resume", "fatigue", "own", false},
 		{"Should reject unattended resume", "resume", "unattended", "own", false},
+		{"Should reject an unknown definition pause resume", "resume", "definition_future", "own", false},
 		{"Should reject unknown pause resume", "resume", "future_reason", "own", false},
 		{"Should reject empty pause resume", "resume", "", "own", false},
 		{"Should allow changed definition resume", "resume", "definition_not_always_on", "own", true},

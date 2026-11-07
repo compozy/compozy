@@ -357,7 +357,26 @@ were away, the While you were away card says when it paused and offers **Resume*
 place. When two or more agents in a project paused this way, the `+N` crew panel offers
 **Resume all**. An agent's hover card shows what wakes it up next.
 
-Monitor wakes are held during pause, but not during a quiet window. Lost main-session
+Manual, fatigue, unattended and unknown pauses hold monitor wakes throughout the
+instance's lineage. Definition pauses (`definition_missing` or
+`definition_not_always_on`) hold only its main sessions, including old mains after
+rotation. Dispatched children continue their monitor wakes and agent messages, and
+their turns still count toward the unattended limit. Reaching that limit replaces
+the definition pause with `unattended` and holds the whole lineage. A prepared Goal's
+ordering boundary does not hold normal child continuations during a definition
+pause; the Goal itself retains its explicit pause guard. Manually pausing an instance
+that has a definition pause replaces it with the full lineage brake; other existing
+safety pauses remain unchanged. If an idle-released child also used the removed
+definition, its queued work can reload the same runtime from its accepted definition;
+new sessions and runtime switches still require an available definition.
+
+Held prompt results and queued inputs include `held_reason` and `held_instance_id`.
+A session with held input shows Needs attention; its status includes a `held_input`
+work signal with the reason and instance. Holds belonging to an archived instance
+report `instance_archived`, since that instance cannot be resumed. Archiving a
+paused instance holds its descendants even when the pause was caused by a missing
+definition; human input remains available. Restoring or adopting an agent does not
+transfer children from a different instance. Quiet windows do not hold monitor wakes. Lost main-session
 wakes produce one interrupted report per wake, except shutdown cancellations. A
 delivered wake does not trigger another check.
 

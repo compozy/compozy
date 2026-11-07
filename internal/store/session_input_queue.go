@@ -82,8 +82,16 @@ type InstancePauseTrip struct {
 	CreatedAt, PausedAt                                                  time.Time
 }
 
+// SessionInputHold summarizes queued input blocked by an instance pause.
+type SessionInputHold struct {
+	InstanceID, Reason string
+	Since              time.Time
+}
+
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
+	HeldReason     string
+	HeldInstanceID string
 	Held           bool
 	PausedInstance *InstancePauseTrip
 	Priority       int

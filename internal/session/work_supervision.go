@@ -112,7 +112,9 @@ func updateSupervisionQuietStateLocked(
 ) {
 	unknown := supervisionSourceUnknown(state)
 	switch {
-	case !turnInFlight || len(state.WorkSignals) > 0 || (policy.WarningAfter == 0 && policy.StopAfterQuiet == 0):
+	case !turnInFlight || slices.ContainsFunc(state.WorkSignals, func(signal WorkSignal) bool {
+		return signal.Kind != WorkSignalHeldInput
+	}) || (policy.WarningAfter == 0 && policy.StopAfterQuiet == 0):
 		target.supervisionQuietSince = time.Time{}
 		state.QuietWarning = nil
 	case unknown:

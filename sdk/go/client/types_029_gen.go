@@ -258,9 +258,11 @@ type WorkCandidates struct {
 
 // WorkSignal is a daemon API value.
 type WorkSignal struct {
-	Kind  WorkSignalKind `json:"kind"`
-	Since time.Time      `json:"since"`
-	Ref   string         `json:"ref,omitempty"`
+	HeldReason     string         `json:"held_reason,omitempty"`
+	HeldInstanceID string         `json:"held_instance_id,omitempty"`
+	Kind           WorkSignalKind `json:"kind"`
+	Since          time.Time      `json:"since"`
+	Ref            string         `json:"ref,omitempty"`
 }
 
 // WorkSignalKind is a daemon API value.

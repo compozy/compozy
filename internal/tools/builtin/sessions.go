@@ -385,6 +385,8 @@ const sessionPromptOutputSchema = `{
 				"entry_id":{"type":"string"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 				"delivery":{"type":"string","enum":["held","queued","none","direct","after_turn","interrupt_then_prompt"]},
+"held_reason":{"type":"string"},
+"held_instance_id":{"type":"string"},
 				"message_id":{"type":"string"},
 				"idempotency_key":{"type":"string"},
 				"replayed":{"type":"boolean"},

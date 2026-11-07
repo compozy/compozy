@@ -118,12 +118,8 @@ func enqueueAdmittedSessionInputInTransaction(
 		return err
 	}
 	receipt := queuedPromptAdmissionResult(&inserted, result.position, result.canceled)
-	delivery, err := instancePromptDelivery(ctx, exec, admissionReq)
-	if err != nil {
+	if err := applyInstancePromptDelivery(ctx, exec, admissionReq, &receipt); err != nil {
 		return err
-	}
-	if delivery != "" {
-		receipt.Delivery = delivery
 	}
 	completed, err := completeSessionPromptAdmission(
 		ctx,

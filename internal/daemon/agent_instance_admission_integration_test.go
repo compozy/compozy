@@ -115,7 +115,7 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("held=%+v %v", held, err)
 		}
 		heldPayload, err := core.PromptResultPayloadFromSession(held)
-		if err != nil {
+		if err != nil || heldPayload.HeldReason != "manual" || heldPayload.HeldInstanceID != instance.ID {
 			t.Fatal(err)
 		}
 		heldResult, err := json.Marshal(map[string]any{"prompt": heldPayload})
@@ -1019,6 +1019,206 @@ func TestInstancePermissionExpiryIntegration(t *testing.T) {
 // Invariant (UT-083, IT-001): pause permits an in-flight turn to finish. A child first
 // prompt from a human turn runs without counting; the same spawn from an autonomous turn is held.
 func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
+	// Invariant: a definition pause releases dispatched child wakes; safety holds remain visible and resumable.
+	t.Run("Should release child monitor work after a definition pause and explain safety holds", func(t *testing.T) {
+		var definitionSync core.AgentDefinitionSync
+		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.IdleReleaseAfter = time.Second
+			for name, provider := range cfg.Providers {
+				provider.Models.Discovery.Enabled = new(false)
+				cfg.Providers[name] = provider
+			}
+		}, "", func(d *Daemon) {
+			httpFactory := d.httpFactory
+			d.httpFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+				definitionSync = deps.AgentDefinitionSync
+				return httpFactory(ctx, deps)
+			}
+			configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
+				f.Turns = append(f.Turns, acpmock.TurnFixture{
+					Name: "monitor continuation", Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "monitor work complete"}},
+				})
+			})
+		})
+		ctx := t.Context()
+		if err := d.runtimeWorkers.instanceMaintenance.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		main, err := manager.Create(ctx, &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+			PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := manager.Create(ctx, &session.CreateOpts{AgentName: main.AgentName, Workspace: workspace,
+			Lineage: &store.SessionLineage{ParentSessionID: main.ID, RootSessionID: main.ID,
+				SpawnDepth: 1, Kind: store.LineageKindProvenance},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		promptBoundedRebuild(t, manager, child.ID, "child work")
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		waker := monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		if err := waker.WakeSession(ctx, monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{ID: "mon-000000000001", SessionID: child.ID, Kind: monitorpkg.KindTimer,
+				Description: "Inspect dispatched work"}, Outcome: monitorpkg.Outcome{Reason: "timer"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		inputs, err := manager.ListPendingInputs(ctx, child.ID)
+		if err != nil || len(inputs) != 1 || !inputs[0].Held || inputs[0].HeldReason != "manual" ||
+			inputs[0].HeldInstanceID != instance.ID {
+			t.Fatalf("held wake: %+v %v", inputs, err)
+		}
+		wakeID := inputs[0].ID
+		peer, err := manager.SendPrompt(ctx, child.ID, session.SendPromptOpts{
+			Message:        "peer work",
+			MessageID:      "held-peer",
+			IdempotencyKey: "held-peer",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: workspace,
+				Hop:         1,
+			},
+		})
+		if err != nil || peer.Delivery != "held" || peer.HeldReason != "manual" || peer.HeldInstanceID != instance.ID {
+			t.Fatalf("held prompt: %+v %v", peer, err)
+		}
+		sources := sessionWorkSources{state: &bootState{registry: db}, manager: manager, now: time.Now}
+		manager.SetWorkSignalSources(
+			session.WorkSignalSource{
+				Kind:   session.WorkSignalHeldInput,
+				Source: session.SignalSourceFunc(sources.heldInputs),
+			},
+		)
+		if err := manager.Supervise(ctx, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		info, err := manager.Status(ctx, child.ID)
+		if err != nil || session.BadgeForInfo(info) != session.BadgeNeedsAttention ||
+			!slices.ContainsFunc(info.Supervision.WorkSignals, func(signal session.WorkSignal) bool {
+				return signal.Kind == session.WorkSignalHeldInput && signal.HeldReason == "manual" &&
+					signal.HeldInstanceID == instance.ID
+			}) {
+			t.Fatalf("held attention: %+v %v", info, err)
+		}
+
+		// A manual pause takes over a definition pause before any new work can escape.
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE agent_instances SET pause_reason='definition_missing' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		status, raw := instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+		if status != http.StatusOK {
+			t.Fatalf("manual takeover HTTP=%d %s", status, raw)
+		}
+		takeover, err := manager.SendPrompt(ctx, child.ID, session.SendPromptOpts{
+			Message:        "child work",
+			MessageID:      "manual-after-definition",
+			IdempotencyKey: "manual-after-definition",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: workspace,
+				Hop:         1,
+			},
+		})
+		if err != nil || takeover.Delivery != "held" || takeover.HeldReason != "manual" ||
+			takeover.HeldInstanceID != instance.ID {
+			t.Fatalf("manual takeover delivery: %+v %v", takeover, err)
+		}
+		// Invariant: an idle-released child can finish its accepted work without the live definition.
+		now := time.Now().Add(2*d.config.Session.Supervision.ActivityHeartbeatInterval + time.Second)
+		for _, tick := range []time.Time{now, now.Add(2 * time.Second)} {
+			if err := manager.Supervise(ctx, tick); err != nil {
+				t.Fatal(err)
+			}
+		}
+		released, err := manager.Status(ctx, child.ID)
+		if err != nil || released.RuntimeStatus != session.RuntimeStatusUnbound {
+			t.Fatalf("child not idle-released: %+v %v", released, err)
+		}
+		definitionPath := filepath.Join(d.homePaths.AgentsDir, main.AgentName, "AGENT.md")
+		if err := os.Remove(definitionPath); err != nil {
+			t.Fatal(err)
+		}
+		if definitionSync == nil {
+			t.Fatal("definition publisher is unavailable")
+		}
+		if err := definitionSync.Sync(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := agentCatalogDependency(
+			d.agentCatalog,
+		).ResolveAgent(main.AgentName, nil); !errors.Is(
+			err,
+			workspacepkg.ErrAgentNotAvailable,
+		) {
+			t.Fatalf("removed definition remained available: %v", err)
+		}
+		// Simulate pre-upgrade held work without an active interval that could deliver it early.
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE agent_instances SET pause_reason='definition_missing' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		paused, err := db.Instances().Get(ctx, instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
+			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, id)
+			if err != nil || row.Status != store.SessionInputQueueStatusQueued {
+				t.Fatalf("wake delivered before release: %+v %v", row, err)
+			}
+		}
+		if err := releaseInstanceInputs(
+			ctx,
+			&bootState{sessions: manager},
+			db.Instances(),
+			paused,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "child wake and peer delivered", func() bool {
+			wake, err := db.GetSessionInputQueueEntry(ctx, child.ID, wakeID)
+			if err != nil || wake.Status != store.SessionInputQueueStatusSent {
+				return false
+			}
+			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, peer.QueueEntryID)
+			if err != nil || row.Status != store.SessionInputQueueStatusSent {
+				return false
+			}
+			manual, err := db.GetSessionInputQueueEntry(ctx, child.ID, takeover.QueueEntryID)
+			return err == nil && manual.Status == store.SessionInputQueueStatusSent && !manager.IsPrompting(child.ID)
+		})
+		if err := manager.Supervise(ctx, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		info, err = manager.Status(ctx, child.ID)
+		if err != nil || info.Failure != nil ||
+			slices.ContainsFunc(
+				info.Supervision.WorkSignals,
+				func(signal session.WorkSignal) bool { return signal.Kind == session.WorkSignalHeldInput },
+			) {
+			t.Fatalf("stale held attention: %+v %v", info, err)
+		}
+		current, err := db.Instances().Get(ctx, instance.ID)
+		if err != nil || current.State != "paused" || current.PauseReason != "definition_missing" {
+			t.Fatalf("creator resumed: %+v %v", current, err)
+		}
+	})
+
 	for _, human := range []bool{true, false} {
 		t.Run(fmt.Sprintf("Should classify first child prompt with human parent=%v", human), func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {

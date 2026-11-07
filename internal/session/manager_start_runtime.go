@@ -22,7 +22,16 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
-	agentDef := artifacts.Agent
+	return m.resolveSessionRuntimeWithDefinition(ctx, spec, dropInheritedUnrestricted, artifacts.Agent)
+}
+
+// resolveSessionRuntimeWithDefinition applies current config and permission ceilings to an accepted definition.
+func (m *Manager) resolveSessionRuntimeWithDefinition(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	dropInheritedUnrestricted bool,
+	agentDef compozyconfig.AgentDef,
+) (sessionStartRuntime, error) {
 	if spec.startAction == sessionStartActionResume && spec.acceptedRoute != nil {
 		m.applyResumeRouteAffinity(ctx, spec, agentDef)
 	}

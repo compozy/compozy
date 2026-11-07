@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/store"
@@ -12,17 +14,10 @@ func (g *SessionRepo) observeHeldInstanceInput(ctx context.Context, entry *store
 	if entry.OriginClass == store.SessionInputOriginClassHuman {
 		return
 	}
-	caller, err := g.readQueries.GetInstanceCaller(ctx, entry.SessionID)
-	if err != nil {
-		return
-	}
-	id, ok := caller.OriginatingInstanceID.(string)
-	if !ok || id == "" {
-		return
-	}
-	instance, err := g.readQueries.GetAgentInstance(ctx, id)
-	if err == nil && instance.State == goalStatusPaused && !instance.ArchivedAt.Valid {
-		slog.InfoContext(ctx, "input.held", "instance_id", id, "session_id", entry.SessionID, "input_id", entry.ID)
+	hold, err := g.readQueries.GetSessionInputHold(ctx, entry.SessionID)
+	if err == nil {
+		slog.InfoContext(ctx, "input.held", "instance_id", hold.ID, "reason", hold.PauseReason,
+			"session_id", entry.SessionID, "input_id", entry.ID)
 	}
 }
 
@@ -30,4 +25,23 @@ func observeReleasedInstanceInput(ctx context.Context, entry *store.SessionInput
 	if entry.OriginClass != store.SessionInputOriginClassHuman {
 		slog.InfoContext(ctx, "input.released", "session_id", entry.SessionID, "input_id", entry.ID)
 	}
+}
+
+// SessionInputHold reads the oldest queued input blocked by an instance pause.
+func (g *SessionRepo) SessionInputHold(ctx context.Context, sessionID string) (*store.SessionInputHold, error) {
+	if err := g.checkReady(ctx, "read session input hold"); err != nil {
+		return nil, err
+	}
+	row, err := g.readQueries.GetHeldSessionInput(ctx, sessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	since, err := store.ParseTimestamp(row.Since)
+	if err != nil {
+		return nil, err
+	}
+	return &store.SessionInputHold{InstanceID: row.ID, Reason: row.PauseReason, Since: since}, nil
 }

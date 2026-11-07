@@ -84,13 +84,15 @@ func reconcileInstanceRun(ctx context.Context, state *bootState, instance agenti
 	return err
 }
 
+// releaseInstanceInputs nudges eligible queues; transactional selection still fences held sessions.
 func releaseInstanceInputs(
 	ctx context.Context,
 	state *bootState,
 	repo *globaldb.InstanceRepo,
 	instance agentinstance.Instance,
 ) error {
-	if instance.State != nativeFilterActiveValue {
+	if instance.State != nativeFilterActiveValue &&
+		(instance.State != string(looppkg.StatusPaused) || agentinstance.OperatorOnlyResume(instance.PauseReason)) {
 		return nil
 	}
 	releaser, ok := state.sessions.(interface {

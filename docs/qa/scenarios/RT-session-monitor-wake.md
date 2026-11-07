@@ -213,3 +213,40 @@ Merge queue removal is not currently observable independently.
 Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`
 exercise transition detection, durable recovery and wake rendering. `TestMonitorIdleReleaseIntegration` verifies conflict wake admission through real
 SQLite and an ACP subprocess. Live GitHub conflict/restart walk remains unverified.
+
+### Definition pauses and dispatched children
+
+Create an always-on main with a dispatched child and grandchild. Queue their own
+monitor wakes and a peer message. Remove the creator's definition, producing
+`definition_missing`: children deliver once, while the main retains its inputs.
+Repeat after rotation and with `definition_not_always_on`. Already queued work is
+released by instance reconciliation; stopped descendants stay stopped. Idle-release a
+child using the removed definition before releasing its queued work: the accepted
+runtime reloads on the same route and both inputs are delivered. Repeat Pi startup
+finalization after definition removal: accepted guidance remains byte-identical
+across reloads rather than accumulating prior startup sections. A new session or
+runtime switch still requires an available definition. Repeat with a
+prepared Goal ahead of those inputs: normal child continuations still deliver,
+while the Goal retains its explicit pause guard. Explicitly pause the definition-paused
+instance manually: the reason becomes `manual`, and later child messages and wakes
+stay held. Definition reconciliation must not weaken that manual brake.
+
+Repeat with `manual`, `fatigue`, `unattended` and an unknown pause reason: all
+autonomous lineage input stays held. Read prompt results and input lists for
+`held_reason` and `held_instance_id`, then session status for the `held_input`
+attention signal and Needs attention badge. A human prompt still runs. Resume and
+confirm the hold explanation and attention clear. Under a definition pause, lower
+the unattended limit and let a child reach it: the pause becomes `unattended`,
+and later child wakes stay held. Adoption preserves child lineage and does not
+implicitly transfer it to another instance. Archive an instance paused manually or for either definition reason, then
+queue later child monitor and peer input: the receipt, queue and attention say `instance_archived`,
+and the input remains fenced rather than suggesting a resumable pause. A later
+human message still runs; no autonomous input is released behind it.
+
+Backend verification 2026-11-06 (#1328): passed the owning paused-input queue,
+coalesced wake, prompt-admission and unattended-brake tests; the prepared Goal
+lifecycle integration rejected claims for both definition reasons on descendants
+and retained queued rows without dispatch tokens. The HTTP/ACP child journey
+verified held attention, manual takeover, idle release, definition removal and
+queued wake/message delivery without resuming the creator. Browser and live-provider
+walks are not claimed.

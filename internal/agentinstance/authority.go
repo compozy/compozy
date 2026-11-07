@@ -3,7 +3,6 @@ package agentinstance
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -101,8 +100,13 @@ func intersectAtoms(a, b []string) []string {
 	return result
 }
 
-const pauseReasonManual = "manual"
+const (
+	pauseReasonManual                = "manual"
+	pauseReasonDefinitionMissing     = "definition_missing"
+	pauseReasonDefinitionNotAlwaysOn = "definition_not_always_on"
+)
 
+// OperatorOnlyResume keeps safety and unknown pauses under operator control.
 func OperatorOnlyResume(reason string) bool {
-	return !strings.HasPrefix(reason, "definition_")
+	return reason != pauseReasonDefinitionMissing && reason != pauseReasonDefinitionNotAlwaysOn
 }

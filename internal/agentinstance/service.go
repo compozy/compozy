@@ -127,9 +127,10 @@ func (s *Service) deleteUnstarted(ctx context.Context, id string) error {
 	return s.store.DeleteUnstarted(cleanupCtx, id)
 }
 
+// Pause persists the winning pause reason before applying its runtime effects.
 func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error) {
 	switch reason {
-	case pauseReasonManual, "fatigue", "unattended", "definition_not_always_on", "definition_missing":
+	case pauseReasonManual, "fatigue", "unattended", pauseReasonDefinitionNotAlwaysOn, pauseReasonDefinitionMissing:
 	default:
 		return Instance{}, errors.New("agentinstance: invalid pause reason")
 	}

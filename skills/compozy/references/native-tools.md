@@ -1084,14 +1084,28 @@ or failed checks count, while quiet checks and managed Goal/Loop turns do not.
 The turn reaching the limit runs, pauses the instance with reason `unattended`,
 and publishes one report and notification. Later autonomous input stays queued.
 
-A pause holds main and descendant input, including descendants of an older main.
+Manual, fatigue, unattended and unknown pauses hold main and descendant input,
+including descendants of an older main. Definition pauses (`definition_missing` and
+`definition_not_always_on`) hold mains only: dispatched children retain their own
+monitor wakes and agent input. Their turns still count toward the unattended limit;
+reaching it replaces the definition pause with `unattended` and holds the lineage.
+`session_prompt` returns `held_reason` and `held_instance_id` when delivery is held;
+`session_inputs_list` exposes the same fields with `held: true`. Session status adds
+an attention `held_input` work signal carrying those fields and the instance reference.
+An explicit manual pause replaces a definition pause and holds the whole lineage;
+other safety pauses retain their reason. An archived hold reports `instance_archived`
+because that instance cannot be resumed. Archive overrides the definition-pause
+exception for descendants; human input remains runnable. An idle-released child whose definition
+disappeared can reload its accepted runtime for queued work on the same route; new
+sessions and runtime switches still require a live definition. A prepared Goal does not hold normal descendant input during a definition pause;
+the Goal itself retains its explicit pause guard. Adoption keeps existing child lineage; it does not transfer another instance's children.
 Human prompts still run and reset the counter without resuming the instance. A child
 spawned during a human turn may run without acquiring operator approval authority.
 Marking reports seen, an operator approval/clarification, and resume also reset the
 counter; presence alone does not. A pause cancels a running check without fatigue.
 
 Only the operator may resume `manual`, `fatigue`, `unattended` or unknown reasons;
-agents may resume `definition_*` reasons. Resume delivers held input within the
+agents may resume `definition_missing` or `definition_not_always_on`. Resume delivers held input within the
 existing queue limits and restores only Goals/Loops paused by the instance. Direct
 Goal/Loop resume during an instance pause returns `agent_instance_paused`. A stopped
 main can restart to deliver its queue; stopped descendants retain theirs. Archive

@@ -13,6 +13,8 @@ import (
 
 // PendingInput is one daemon-owned operator input waiting for dispatch.
 type PendingInput struct {
+	HeldReason       string
+	HeldInstanceID   string
 	Held             bool
 	Origin           json.RawMessage
 	ID               string
@@ -97,6 +99,8 @@ type ReplyWatchRef struct{ ID, State string }
 
 // SendPromptResult reports how and when the daemon accepted input for delivery.
 type SendPromptResult struct {
+	HeldReason            string
+	HeldInstanceID        string
 	TargetSessionID       string
 	TargetWorkspaceID     string
 	ReplyWatch            *ReplyWatchRef
