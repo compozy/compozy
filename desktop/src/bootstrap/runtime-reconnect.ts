@@ -9,7 +9,12 @@ export interface ProductRuntimeShell {
   readonly reloadProduct: () => Promise<void>;
   /** Shows the boot window. It must exist before the product window closes, or the app quits. */
   readonly showBoot: () => void;
-  /** Destroys the product window (even if its state cannot be saved) and keeps its route. */
+  /** Renders a snapshot in the boot window without waiting for it to be persisted. */
+  readonly renderBoot: (snapshot: ShellSnapshot) => void;
+  /**
+   * Destroys the product window (even if its state cannot be saved) and queues its route after
+   * the close resets the deep-link queue, so the replacement window reopens it.
+   */
   readonly closeProduct: () => Promise<void>;
   /** Attaches to or starts the runtime again and opens a new product window. */
   readonly resolveRuntime: () => Promise<void>;
@@ -47,7 +52,12 @@ export function monitorProductRuntime(
     onReconnected: async () => {
       if (shell.stopped()) return;
       shell.logger.info("runtime reconnected; reloading product window", fields);
-      await shell.publish({ state: "product", origin: runtime.origin, owned: runtime.owned });
+      try {
+        await shell.publish({ state: "product", origin: runtime.origin, owned: runtime.owned });
+      } catch (error) {
+        // The app record is advisory and the next state change rewrites it; reload regardless.
+        shell.logger.error("publish reconnected runtime state", error);
+      }
       await shell.reloadProduct();
     },
     onLost: async () => {
@@ -66,14 +76,21 @@ export function monitorProductRuntime(
       } catch (error) {
         // Without this, the boot page would stay "disconnected", which offers no Retry.
         shell.logger.error("close product window for runtime recovery", error);
-        await shell.publish({
+        const failure = {
           state: "error",
           error: {
             code: "runtime_recovery_failed",
             safe_message: "CompozyOS stopped responding and could not reconnect.",
             log_path: shell.logPath,
           },
-        });
+        } as const;
+        // The boot window shows Retry even when the app record cannot be written.
+        shell.renderBoot(failure);
+        try {
+          await shell.publish(failure);
+        } catch (publishError) {
+          shell.logger.error("publish runtime recovery failure", publishError);
+        }
         return;
       }
       await shell.resolveRuntime();

@@ -344,11 +344,11 @@ async function start(): Promise<void> {
             publish: async snapshot => await statePublisher.publish(snapshot),
             reloadProduct: async () => await product?.reload(),
             showBoot: showBootWindow,
+            renderBoot: snapshot => boot?.render(snapshot),
             closeProduct: async () => {
               const current = product;
               product = null;
               const route = current?.route();
-              // Queued after the close resets the queue; the replacement window opens this route.
               try {
                 await current?.discard();
               } finally {

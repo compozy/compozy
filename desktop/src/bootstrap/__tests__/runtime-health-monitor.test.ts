@@ -156,6 +156,8 @@ describe("product runtime follower", () => {
         ),
       reloadProduct: async () => void steps.push("reload"),
       showBoot: () => void steps.push("show-boot"),
+      renderBoot: snapshot =>
+        void steps.push(`render-boot:${snapshot.state}:${snapshot.error?.code ?? ""}`),
       closeProduct: async () => void steps.push("close-product"),
       resolveRuntime: async () => void steps.push("resolve"),
       logger: { info: () => undefined, error: () => undefined },
@@ -236,6 +238,7 @@ describe("product runtime follower", () => {
         "publish:disconnected",
         "show-boot",
         "close-product",
+        "render-boot:error:runtime_recovery_failed",
         "publish:error:runtime_recovery_failed",
       ]);
     } finally {
@@ -298,6 +301,70 @@ describe("product runtime follower", () => {
     try {
       await vi.advanceTimersByTimeAsync(10);
       expect(steps).toEqual(["publish:disconnected", "publish:disconnected"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should show the recovery error in the boot window when it cannot be persisted", async () => {
+    vi.useFakeTimers();
+    const steps: string[] = [];
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true },
+      shell(steps, {
+        publish: async snapshot => {
+          if (snapshot.state === "error") throw new Error("app record write failed");
+          steps.push(`publish:${snapshot.state}`);
+        },
+        closeProduct: async () => {
+          steps.push("close-product");
+          throw new Error("window state write failed");
+        },
+      }),
+      {
+        intervalMs: 2,
+        failureThreshold: 1,
+        reconnectTimeoutMs: 4,
+        fetcher: runtimeFetcher(() => false),
+      }
+    );
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      expect(steps.slice(-2)).toEqual([
+        "close-product",
+        "render-boot:error:runtime_recovery_failed",
+      ]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should reload the product on reconnect even when its state cannot be written", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    const steps: string[] = [];
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true },
+      shell(steps, {
+        publish: async snapshot => {
+          if (snapshot.state === "product") throw new Error("app record write failed");
+          steps.push(`publish:${snapshot.state}`);
+        },
+      }),
+      {
+        intervalMs: 2,
+        failureThreshold: 1,
+        reconnectTimeoutMs: 100,
+        fetcher: runtimeFetcher(() => up),
+      }
+    );
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(2);
+      up = true;
+      await vi.advanceTimersByTimeAsync(2);
+      expect(steps).toEqual(["publish:disconnected", "reload"]);
     } finally {
       monitor.stop();
     }

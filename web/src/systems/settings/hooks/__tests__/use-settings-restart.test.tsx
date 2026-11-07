@@ -29,6 +29,7 @@ import {
   triggerSettingsRestart,
 } from "../../adapters/settings-api";
 import { settingsKeys } from "../../lib/query-keys";
+import { settingsRestartPresentation } from "../../lib/restart-presentation";
 import { settingsApplyRecordsFixture } from "../../mocks/fixtures";
 import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
@@ -372,6 +373,7 @@ describe("useSettingsRestart", () => {
     await waitFor(() => expect(result.current.statusQueryError).toBeTruthy());
     expect(result.current.operationId).toBe("op_outage");
     expect(result.current.status).toBe("stopping");
+    expect(result.current.isOutageProlonged).toBe(false);
 
     // The poll interval, not a manual refetch, carries the notice to the replacement's status.
     vi.mocked(getSettingsRestartStatus).mockResolvedValue({
@@ -385,6 +387,14 @@ describe("useSettingsRestart", () => {
   });
 
   it("Should fall back to the restart action when the status endpoint returns an HTTP error", async () => {
+    settingsRestartStore.trigger.settingsMutationRecorded({
+      mutation: {
+        section: "general",
+        restartRequired: true,
+        warnings: [],
+        completedAt: "2026-04-17T10:05:00Z",
+      },
+    });
     settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_broken" });
     vi.mocked(getSettingsRestartStatus).mockRejectedValue(
       new SettingsApiError("Failed to load restart status", 500)
@@ -394,6 +404,19 @@ describe("useSettingsRestart", () => {
 
     await waitFor(() => expect(result.current.statusQueryError).toBeTruthy(), { timeout: 5_000 });
     expect(result.current.operationId).toBeNull();
+    expect(result.current.isNoticeSnoozed).toBe(false);
+    const presentation = settingsRestartPresentation({
+      isVisible: result.current.isRestartRequired && !result.current.isNoticeSnoozed,
+      isRestartRequired: result.current.isRestartRequired,
+      operationId: result.current.operationId,
+      status: result.current.status,
+      activeSessionCount: result.current.activeSessionCount,
+      isTriggerPending: result.current.isTriggerPending,
+      isOutageProlonged: result.current.isOutageProlonged,
+      trigger: () => undefined,
+      dismiss: () => undefined,
+    });
+    expect(presentation).toMatchObject({ phase: "required", triggerLabel: "Restart CompozyOS" });
   });
 
   it("Should reset the restart singleton to its exact initial snapshot", () => {

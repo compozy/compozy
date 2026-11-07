@@ -15,6 +15,8 @@ import { useSettingsRestartState } from "../stores/use-settings-restart-store";
 import { settingsRestartStore } from "../stores/settings-restart-store";
 import { invalidateSettingsApplyRecords } from "./settings-mutation-helpers";
 
+const RESTART_OUTAGE_GUIDANCE_MS = 30_000;
+
 function selectRestartReadiness(status: StatusPayload) {
   return {
     activeSessionCount: status.daemon.active_sessions,
@@ -48,8 +50,13 @@ export function useSettingsRestart() {
   const applyRecordsQuery = useQuery(settingsApplyRecordsOptions({ limit: 1 }));
   // The daemon is unreachable while it restarts: transport failures keep polling on "Restarting…".
   // An HTTP error ends the operation and falls back to "Restart needed" and its Restart action.
-  const resolvedOperationId =
-    statusQuery.isError && !isRestartStatusUnreachable(statusQuery.error) ? null : operationId;
+  const isStatusUnreachable = isRestartStatusUnreachable(statusQuery.error);
+  const resolvedOperationId = statusQuery.isError && !isStatusUnreachable ? null : operationId;
+  // Polling continues through a slow restart; past a normal restart's length the notice adds guidance.
+  const isOutageProlonged =
+    isStatusUnreachable &&
+    statusQuery.dataUpdatedAt > 0 &&
+    statusQuery.errorUpdatedAt - statusQuery.dataUpdatedAt >= RESTART_OUTAGE_GUIDANCE_MS;
   const triggerStatus =
     triggerMutation.data?.operation_id === operationId ? triggerMutation.data : null;
   const status = statusQuery.data?.status ?? triggerStatus?.status ?? null;
@@ -84,6 +91,7 @@ export function useSettingsRestart() {
     trigger: triggerMutation.mutate,
     triggerAsync: triggerMutation.mutateAsync,
     isTriggerPending: triggerMutation.isPending,
+    isOutageProlonged,
     triggerError: triggerMutation.error,
     isRestartRequired,
     isNoticeSnoozed,
