@@ -2,8 +2,7 @@ import { Globe, TerminalSquare } from "@compozy/ui/icons";
 
 import { FormSection, ImmutableIdentity, Input, RadioCard } from "@compozy/ui";
 
-import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
-import { withTransport } from "../lib/mcp-editor-model";
+import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
 import type { SettingsLayeredScope, SettingsMCPServerTarget } from "../types";
 
 import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
@@ -12,6 +11,9 @@ import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields
  * Local vs remote is the consequence-bearing choice. HTTP is the sole remote
  * transport, so a wire-level picker would imply unsupported runtime behavior.
  */
+
+/** Required fields whose errors wait until the operator has touched them. */
+export type MCPRequiredField = "name" | "command" | "url";
 
 export interface MCPEditorConnectionSectionProps {
   draft: MCPDraft;
@@ -22,6 +24,8 @@ export interface MCPEditorConnectionSectionProps {
   availableTargets: SettingsMCPServerTarget[];
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
   onTargetChange: (target: SettingsMCPServerTarget) => void;
+  onTouch: (field: MCPRequiredField) => void;
+  onTransportChange: (transport: MCPTransport) => void;
 }
 
 /**
@@ -40,6 +44,8 @@ export function MCPEditorConnectionSection({
   availableTargets,
   onChange,
   onTargetChange,
+  onTouch,
+  onTransportChange,
 }: MCPEditorConnectionSectionProps) {
   const isRemote = draft.transport !== "stdio";
 
@@ -69,7 +75,7 @@ export function MCPEditorConnectionSection({
           data-testid="settings-mcp-servers-editor-transport-stdio"
           description="Runs a program on this computer."
           icon={TerminalSquare}
-          onSelect={() => onChange(current => withTransport(current, "stdio"))}
+          onSelect={() => onTransportChange("stdio")}
           selected={!isRemote}
           title="Local program"
           titleClassName="min-w-0 flex-1 truncate"
@@ -78,7 +84,7 @@ export function MCPEditorConnectionSection({
           data-testid="settings-mcp-servers-editor-transport-remote"
           description="Connects to a server on the internet, with sign-in if it needs one."
           icon={Globe}
-          onSelect={() => onChange(current => withTransport(current, "http"))}
+          onSelect={() => onTransportChange("http")}
           selected={isRemote}
           title="Remote URL"
           titleClassName="min-w-0 flex-1 truncate"
@@ -90,7 +96,11 @@ export function MCPEditorConnectionSection({
           error={errors.name}
           isCreate={isCreate}
           name={draft.name}
-          onChange={name => onChange(current => ({ ...current, name }))}
+          onBlur={() => onTouch("name")}
+          onChange={name => {
+            onTouch("name");
+            onChange(current => ({ ...current, name }));
+          }}
         />
       ) : null}
 
@@ -105,7 +115,11 @@ export function MCPEditorConnectionSection({
               className="font-mono"
               data-testid="settings-mcp-servers-editor-url-input"
               id="mcp-editor-url"
-              onChange={event => onChange(current => ({ ...current, url: event.target.value }))}
+              onBlur={() => onTouch("url")}
+              onChange={event => {
+                onTouch("url");
+                onChange(current => ({ ...current, url: event.target.value }));
+              }}
               placeholder="https://mcp.linear.app/mcp"
               value={draft.url}
             />
@@ -132,7 +146,11 @@ export function MCPEditorConnectionSection({
             className="font-mono"
             data-testid="settings-mcp-servers-editor-command-input"
             id="mcp-editor-command"
-            onChange={event => onChange(current => ({ ...current, command: event.target.value }))}
+            onBlur={() => onTouch("command")}
+            onChange={event => {
+              onTouch("command");
+              onChange(current => ({ ...current, command: event.target.value }));
+            }}
             placeholder="npx"
             value={draft.command}
           />
