@@ -242,4 +242,64 @@ describe("product runtime follower", () => {
       monitor.stop();
     }
   });
+
+  it("Should still hand off to boot when the lost-runtime snapshot cannot be written", async () => {
+    vi.useFakeTimers();
+    const steps: string[] = [];
+    let writes = 0;
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true },
+      shell(steps, {
+        publish: async snapshot => {
+          writes += 1;
+          if (writes === 2) throw new Error("app record write failed");
+          steps.push(`publish:${snapshot.state}`);
+        },
+      }),
+      {
+        intervalMs: 2,
+        failureThreshold: 1,
+        reconnectTimeoutMs: 4,
+        fetcher: runtimeFetcher(() => false),
+      }
+    );
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      expect(steps).toEqual(["publish:disconnected", "show-boot", "close-product", "resolve"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should not touch windows when shutdown starts while the lost runtime is published", async () => {
+    vi.useFakeTimers();
+    const steps: string[] = [];
+    let stopping = false;
+    let writes = 0;
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true },
+      shell(steps, {
+        stopped: () => stopping,
+        publish: async snapshot => {
+          writes += 1;
+          if (writes === 2) stopping = true;
+          steps.push(`publish:${snapshot.state}`);
+        },
+      }),
+      {
+        intervalMs: 2,
+        failureThreshold: 1,
+        reconnectTimeoutMs: 4,
+        fetcher: runtimeFetcher(() => false),
+      }
+    );
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      expect(steps).toEqual(["publish:disconnected", "publish:disconnected"]);
+    } finally {
+      monitor.stop();
+    }
+  });
 });

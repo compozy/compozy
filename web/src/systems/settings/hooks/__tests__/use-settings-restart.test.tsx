@@ -373,17 +373,27 @@ describe("useSettingsRestart", () => {
     expect(result.current.operationId).toBe("op_outage");
     expect(result.current.status).toBe("stopping");
 
+    // The poll interval, not a manual refetch, carries the notice to the replacement's status.
     vi.mocked(getSettingsRestartStatus).mockResolvedValue({
       ...stopping,
       status: "ready",
       new_pid: 2000,
       updated_at: "2026-04-17T10:05:09Z",
     });
-    await act(async () => {
-      await queryClient.refetchQueries({ queryKey: settingsKeys.restartStatus("op_outage") });
-    });
-    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(result.current.status).toBe("ready"), { timeout: 5_000 });
     expect(result.current.operationId).toBe("op_outage");
+  });
+
+  it("Should fall back to the restart action when the status endpoint returns an HTTP error", async () => {
+    settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_broken" });
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(
+      new SettingsApiError("Failed to load restart status", 500)
+    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy(), { timeout: 5_000 });
+    expect(result.current.operationId).toBeNull();
   });
 
   it("Should reset the restart singleton to its exact initial snapshot", () => {

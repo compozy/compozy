@@ -6,7 +6,7 @@ import { statusOptions, type StatusPayload } from "@/systems/status";
 import { triggerSettingsRestart } from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
 import {
-  isTerminalRestartError,
+  isRestartStatusUnreachable,
   settingsApplyRecordsOptions,
   settingsRestartStatusOptions,
 } from "../lib/query-options";
@@ -46,9 +46,10 @@ export function useSettingsRestart() {
   const statusQuery = useQuery(settingsRestartStatusOptions(operationId));
   const daemonStatusQuery = useQuery({ ...statusOptions(), select: selectRestartReadiness });
   const applyRecordsQuery = useQuery(settingsApplyRecordsOptions({ limit: 1 }));
-  // The daemon is unreachable while it restarts, so only a terminal status error ends the
-  // operation; transport failures keep polling and keep the notice on "Restarting…".
-  const resolvedOperationId = isTerminalRestartError(statusQuery.error) ? null : operationId;
+  // The daemon is unreachable while it restarts: transport failures keep polling on "Restarting…".
+  // An HTTP error ends the operation and falls back to "Restart needed" and its Restart action.
+  const resolvedOperationId =
+    statusQuery.isError && !isRestartStatusUnreachable(statusQuery.error) ? null : operationId;
   const triggerStatus =
     triggerMutation.data?.operation_id === operationId ? triggerMutation.data : null;
   const status = statusQuery.data?.status ?? triggerStatus?.status ?? null;

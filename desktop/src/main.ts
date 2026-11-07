@@ -345,8 +345,15 @@ async function start(): Promise<void> {
             reloadProduct: async () => await product?.reload(),
             showBoot: showBootWindow,
             closeProduct: async () => {
-              await product?.close();
+              const current = product;
               product = null;
+              const route = current?.route();
+              // Queued after the close resets the queue; the replacement window opens this route.
+              try {
+                await current?.discard();
+              } finally {
+                if (route) links.push(productDeepLink(route));
+              }
             },
             resolveRuntime: runBootstrap,
             logger,

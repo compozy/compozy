@@ -9,6 +9,7 @@ export interface ProductRuntimeShell {
   readonly reloadProduct: () => Promise<void>;
   /** Shows the boot window. It must exist before the product window closes, or the app quits. */
   readonly showBoot: () => void;
+  /** Destroys the product window (even if its state cannot be saved) and keeps its route. */
   readonly closeProduct: () => Promise<void>;
   /** Attaches to or starts the runtime again and opens a new product window. */
   readonly resolveRuntime: () => Promise<void>;
@@ -52,7 +53,13 @@ export function monitorProductRuntime(
     onLost: async () => {
       if (shell.stopped()) return;
       shell.logger.info("runtime did not return; resolving it again", fields);
-      await shell.publish({ state: "disconnected" });
+      try {
+        await shell.publish({ state: "disconnected" });
+      } catch (error) {
+        // The snapshot is advisory; a failed write must not strand the handoff below.
+        shell.logger.error("publish lost runtime state", error);
+      }
+      if (shell.stopped()) return;
       shell.showBoot();
       try {
         await shell.closeProduct();

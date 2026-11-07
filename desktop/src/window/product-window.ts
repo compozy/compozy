@@ -193,6 +193,33 @@ export class ProductWindow {
     await this.#save();
   }
 
+  /** The current product path with its query, or `null` before load or on the default view. */
+  route(): string | null {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return null;
+    try {
+      const url = new URL(window.webContents.getURL());
+      if (url.origin !== new URL(this.#origin).origin || url.pathname === "/") return null;
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Destroys the window even when its state cannot be saved, so a runtime recovery never leaves
+   * a stale window beside its replacement. The save failure still rejects.
+   */
+  async discard(): Promise<void> {
+    try {
+      await this.flushState();
+    } finally {
+      const window = this.#window;
+      if (window && !window.isDestroyed()) window.destroy();
+      this.#window = null;
+    }
+  }
+
   async close(): Promise<void> {
     await this.flushState();
     const window = this.#window;
