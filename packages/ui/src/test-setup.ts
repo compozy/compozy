@@ -45,6 +45,11 @@ if (typeof window !== "undefined") {
     Element.prototype.scrollIntoView = function scrollIntoView() {};
   }
 
+  // Virtualized viewers (Pierre CodeView) drive their scroll container directly.
+  if (typeof Element !== "undefined" && !Element.prototype.scrollTo) {
+    Element.prototype.scrollTo = function scrollTo() {};
+  }
+
   // ProseMirror (the Markdown editor) measures the selection on every edit;
   // jsdom has no layout, so the measurements read as empty boxes.
   const emptyRects = () => Object.assign([], { item: () => null }) as unknown as DOMRectList;

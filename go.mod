@@ -9,7 +9,9 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Masterminds/semver/v3 v3.5.0
+	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bmatcuk/doublestar v1.3.4
+	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/x/conpty v0.2.0
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/charmbracelet/x/xpty v0.1.4
@@ -28,6 +30,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/joho/godotenv v1.5.1
 	github.com/jonboulle/clockwork v0.5.0
+	github.com/junegunn/fzf v0.74.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/looplab/fsm v1.0.4
 	github.com/magefile/mage v1.17.2
@@ -155,6 +158,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 // indirect
 	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.1 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect

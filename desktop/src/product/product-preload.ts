@@ -9,6 +9,7 @@ import {
   validProductResponse,
   type GlobalShortcutBinding,
   type GlobalShortcutRegistration,
+  type OpenWithParams,
   type OpenInEditorParams,
   type OpenInEditorResult,
   type PickDirectoryParams,
@@ -69,6 +70,12 @@ contextBridge.exposeInMainWorld("compozyShell", {
     },
   },
   files: {
+    async listOpenTargets() {
+      return await invoke("files.list_open_targets", {});
+    },
+    async openWith(params: OpenWithParams) {
+      return await invoke("files.open_with", params);
+    },
     /**
      * Asks the shell to open a local file in the operator's editor. The shell confirms
      * outside-workspace targets natively and reads the editor command itself.

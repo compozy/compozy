@@ -1,0 +1,109 @@
+---
+id: ET-session-review-changes
+area: ET
+title: Review a session's branch and uncommitted changes in the Changes tab
+persona: Dora
+journey: J-14
+expected: The Review panel Changes tab shows the session root's diff against its base with scope, head → base, totals and a changed-files tree; sensitive sides stay gated, generated files collapse, split/unified persists; Uncommitted drops committed files; any git-resolvable base works and a missing one shows "Base <ref> not found" with Choose base; agent edits appear without a manual refresh and external edits appear on Refresh; a turn's changed-file row focuses that file; diffs over 200 files or 20,000 lines show one file at a time; a file too large to expand says so instead of failing silently; a saved missing base falls back to the default with a notice; focusing the session window from another in-app window refreshes the summary.
+entry_points: web session Review panel Changes tab; PR chip menu Review changes; a turn's Changed files rows; compozy session changes
+qa_status: pass
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
+evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/C01–C10, notes/cli-*.txt|json)
+last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
+overlaps: ET-session-review-files
+---
+
+Introduced by the file-explorer spec (US-005.AC-6, US-007–US-010). Walk it on a real daemon with a
+git project on a feature branch that has a committed edit, uncommitted edits (including a sensitive
+`.env` and a generated lock file), an untracked file, and an agent that edits files.
+
+Walk:
+
+1. Open the Review panel and choose **Changes**. The header shows the scope (**Branch**),
+   `head → base` (for example `feat/review → main`), the totals and the toolbar. The tree and the
+   diff list hold the same files.
+2. Select `.env` in the tree: its diff is gated behind **Show contents**. The generated lock file
+   shows a **Generated** pill, collapsed.
+3. Switch to split, reload: the mode persists, along with the scope and base.
+4. Switch the scope to **Uncommitted**: committed-only files leave the list. Switch back to Branch.
+5. Open the base selector, filter, and choose a branch or a typed ref (`feat/review~1`) through
+   "Compare against …": the summary follows. Type a missing ref: the panel shows "Base <ref> not
+   found" with **Choose base**, which recovers.
+6. Ask the agent to create a file. Its header appears without a manual refresh, within about 2 s of
+   the tool call.
+7. Edit a file outside the agent and choose **Refresh**: the new line appears.
+8. In the turn's "Edited N files" row, choose **Review changes in <file>**: Changes selects that
+   file and scrolls it into view.
+9. In a project with more than 200 changed files, the panel shows "This diff is large, showing one
+   file at a time" with `1 of N`. The next-file stepper moves to `2 of N` while the tree lists every
+   file.
+10. `compozy session changes <id>` prints the same summary. `--scope uncommitted --patch <path>`
+    adds patches; a sensitive patch carries only `sensitive: true` until `--reveal`; a User-scope
+    session exits 1 with `root_unavailable`, and a missing base with `base_not_found`.
+11. With a forge-linked PR, the PR chip menu's **Review changes** opens Changes on Branch scope.
+12. Review remediation (2026-11-07): expand context on a file over 1 MiB. The expand control goes
+    away and the header says **File too large to expand**; nothing fails silently. Press `]` and `[`
+    to step files (Next is disabled on the last file) and Alt+S to flip split/unified (ignored while
+    typing in the tree filter or in a narrow window).
+13. Save a base, then delete that branch and reopen the session: Changes falls back to the default
+    base with "Base <ref> no longer exists. Showing changes against the default base." and the
+    browser stops re-requesting the missing base on focus.
+14. Edit a file outside the agent, switch to another CompozyOS window, then back to the session
+    window: the summary refreshes without pressing Refresh.
+
+Owning automated coverage: web `session-changes.test.ts` (UT-056), `use-session-changes.test.tsx`
+(UT-053, UT-057, UT-058), `use-session-topbar-slot.test.tsx` (Review changes), and
+`web/e2e/__tests__/session-changes.spec.ts` E2E-004–E2E-007; engine `TestEngine` and
+`TestEngineLimitsAndRaces`; CLI and hosted MCP parity in `TestDaemonSearchSessionFilesWorktreeBoundIT005`.
+
+## Walk 2026-11-07
+
+Same lab and build as `ET-session-review-files` (integration `410a3566e`, fix `c5d1d54a6`). A second
+project held 250 untracked files for large mode.
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| 1 Branch summary | pass | `Branch`, `feat/review → main`, `+8−3`, 6 files (`C01-branch-summary.png`) |
+| 2 Sensitive and generated | pass | `.env` gated (`C02-sensitive-env.png`); `bun.lock` header "Generated +1−1" |
+| 3 Split persists | pass | `split` after reload (`C03-split.png`) |
+| 4 Uncommitted | pass | 5 files, `src/b.go` dropped (`C04-uncommitted.png`) |
+| 5 Base selector and missing base | pass | `feat/review~1` applied (`C05-base-custom.png`); "Base nope-ref not found" + Choose base recovered to `main` (`C06-base-not-found-closed.png`) |
+| 6 Live refresh | pass | `e.go` header 70 ms after the reply rendered (`C07-live-refresh.png`) |
+| 7 Refresh after an external edit | pass | `C08-refresh.png` |
+| 8 Changed-file row | pass | `src/b.go` selected (`C09-changed-row-focus.png`) |
+| 9 Large mode | pass | Banner, `1 of 251` → `2 of 251`, one header, tree 251 (`C10-large-mode.png`; the 251st file is the project's `.compozy/workspace.toml`) |
+| 10 CLI | pass | `notes/cli-changes-human.txt`, `notes/cli-changes-uncommitted.json`, `notes/cli-api-edges.txt` |
+| 11 PR chip | not walked | The lab has no forge remote; `use-session-topbar-slot.test.tsx` covers the menu entry |
+
+Open finding (not reproduced): in the first minutes after a lab daemon restart, two
+`GET …/changes/patches` calls and one summary call returned `500 changes_unavailable`, the engine's
+"git read failed" case. The diff list then showed headers with a per-file retry control and no
+bodies (`C02-sensitive-env.png`, `C03-split.png`). A fresh load rendered every diff
+(`C11-diff-bodies.png`), and 50 concurrent patch and summary requests all returned 200. The daemon
+logs the status but not the underlying git error, so the cause is unknown. Logging that error is the
+next diagnostic step.
+
+Observations, not defects: after "Compare against <ref>" with a ref that does not exist, the base
+popover stays open; with a valid ref it closes. While the missing base is selected, each focus or
+live refresh retries the summary, and the browser console logs the `409 base_not_found` response.
+
+## Backend consistency and diagnostics regression checks
+
+- Edit a requested file between the summary and patch reads from the CLI or native tool. The
+  combined consumer must refresh summary and patches once. If another edit makes the retry
+  inconsistent, return `changes_stale`; the CLI exits non-zero and includes the domain code.
+- Cause a Git diff failure or timeout. Every Changes 5xx from HTTP/UDS (including requests made
+  by the CLI) and the native tool must record one warning containing the Git cause and subcommand.
+  The absolute root is redacted and the public message remains fixed.
+- The owning regression suites are `TestEngine`, `TestProjectChangesDiagnostics`,
+  `TestSessionChanges`, and `TestNativeSessionChanges`. They cover deterministic failures and
+  concurrent edits. The original transient restart incident still has no proven root cause.
+
+- Request a changed path omitted from a truncated summary page. A stable patch must be returned;
+  summarized paths still require exact fingerprint equality.
+- Configure a missing external `diff.orderFile` in an isolated fixture and request Changes.
+  The warning must classify the Git subcommand, exit status and timeout without retaining that
+  external path. Path-bearing diagnostic lines are omitted, including quoted, Windows and home paths.

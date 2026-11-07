@@ -1,7 +1,7 @@
 package udsapi
 
 func (s *Server) handlerConfig() *handlerConfig {
-	return &handlerConfig{
+	return s.withChangesConfig(&handlerConfig{
 		sessions:              s.sessions,
 		drainController:       s.drainController,
 		subagents:             s.subagents,
@@ -25,6 +25,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		toolArtifacts:         s.toolArtifacts,
 		sessionAttachments:    s.sessionAttachments,
 		sessionFiles:          s.sessionFiles,
+		fileTree:              s.fileTree,
 		toolsets:              s.toolsets,
 		toolApprovals:         s.toolApprovals,
 		approvalGrants:        s.approvalGrants,
@@ -77,8 +78,12 @@ func (s *Server) handlerConfig() *handlerConfig {
 		extensions:            s.extensions,
 		hostedMCP:             s.hostedMCP,
 		mcpHostAPI:            s.mcpHostAPI,
-
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
 		providerAuthVerdicts:  s.providerAuthVerdicts,
-	}
+	})
+}
+
+func (s *Server) withChangesConfig(cfg *handlerConfig) *handlerConfig {
+	cfg.sessionChanges = s.sessionChanges
+	return cfg
 }

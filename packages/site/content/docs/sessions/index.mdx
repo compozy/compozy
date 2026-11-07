@@ -81,6 +81,21 @@ the daemon or database itself, use Operations after you identify the affected se
   enforced while the agent runs.
 </OperatorNote>
 
+## Review a session's files and changes
+
+A project session window has a **Review panel** on its right, toggled from the session header. Its
+**Changes** tab shows what the session changed against its base branch, or only its uncommitted
+edits. Its **Files** tab shows the project tree and a read-only file viewer. Both read the session's
+worktree when it has one, otherwise the project folder. Opening the Review panel closes the context
+sidebar, and the other way around.
+
+A file path in an assistant message is a link: a plain click opens it in the viewer at its line.
+In the desktop app, Cmd-click (macOS) or Ctrl-click opens it in your last-used
+[Open in](/docs/files/open-in) application instead. User-scope sessions have no project, so they
+have no Review panel. Read the same changes with
+[`compozy session changes`](/docs/cli/session/changes). See [Files and changes](/docs/files) and
+the [Review panel](/docs/files/review-panel) reference.
+
 ## Browse the session catalog
 
 `compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact

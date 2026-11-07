@@ -4,6 +4,7 @@
         "index",
         "approve",
         "archive",
+        "changes",
         "commands",
         "compact",
         "continue",

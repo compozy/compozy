@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -5671,6 +5672,162 @@ func TestSessionPendingDescendants(t *testing.T) {
 		if err != nil || !strings.Contains(toon, "child") ||
 			!strings.Contains(toon, expiresAt.UTC().Format(time.RFC3339)) {
 			t.Fatalf("pending toon = %q, %v", toon, err)
+		}
+	})
+}
+
+func TestSessionChanges(t *testing.T) {
+	t.Run("Should return requested patches beyond the capped summary", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+		client.httpClient = &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"id":"sess-1","workspace_id":"ws-1"}`
+			if strings.HasSuffix(req.URL.Path, "/changes") {
+				calls++
+				body = `{"revision":"same","truncated":true,"files":[{"path":"a.go","fingerprint":"visible"}]}`
+			}
+			if strings.HasSuffix(req.URL.Path, "/patches") {
+				body = `{"revision":"same","patches":[{"path":"zz-last.go","fingerprint":"stable","patch":"diff"}]}`
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		})}
+		result, err := client.SessionChanges(
+			t.Context(),
+			"sess-1",
+			sessionChangesOptions{Scope: "uncommitted", Paths: []string{"zz-last.go"}},
+		)
+		if err != nil || calls != 1 || len(result.Patches) != 1 || result.Patches[0].Path != "zz-last.go" {
+			t.Fatalf("result=%+v calls=%d err=%v", result, calls, err)
+		}
+	})
+
+	for _, continuous := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retry mixed fingerprints continuous=%v", continuous), func(t *testing.T) {
+			t.Parallel()
+			summaries, patches := 0, 0
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+			client.httpClient = &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					body := `{"id":"sess-1","workspace_id":"ws-1"}`
+					switch {
+					case strings.HasSuffix(req.URL.Path, "/patches"):
+						patches++
+						fingerprint := fmt.Sprint(summaries)
+						if continuous || summaries == 1 {
+							fingerprint = "newer"
+						}
+						body = fmt.Sprintf(
+							`{"revision":"same","patches":[{"path":"a.go","fingerprint":%q}]}`,
+							fingerprint,
+						)
+					case strings.HasSuffix(req.URL.Path, "/changes"):
+						summaries++
+						body = fmt.Sprintf(
+							`{"revision":"same","files":[{"path":"a.go","fingerprint":%q}]}`,
+							fmt.Sprint(summaries),
+						)
+					}
+					return &http.Response{
+						StatusCode: 200,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(body)),
+					}, nil
+				}),
+			}
+			result, err := client.SessionChanges(
+				t.Context(),
+				"sess-1",
+				sessionChangesOptions{Scope: "uncommitted", Paths: []string{"a.go"}},
+			)
+			if summaries != 2 || patches != 2 {
+				t.Fatalf("requests summary=%d patches=%d", summaries, patches)
+			}
+			if continuous {
+				api, ok := errors.AsType[*daemonAPIError](err)
+				if !ok || api.payload.Code != "changes_stale" {
+					t.Fatalf("error=%v", err)
+				}
+				deps := newWorkspaceTestDeps(
+					t,
+					&stubClient{
+						sessionChangesFn: func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error) { return result, err },
+					},
+				)
+				_, _, commandErr := executeRootCommand(t, deps, "session", "changes", "sess-1")
+				if commandErr == nil || !strings.Contains(commandErr.Error(), "changes_stale") {
+					t.Fatalf("command error=%v", commandErr)
+				}
+				exit, ok := errors.AsType[*commandExitError](commandErr)
+				if !ok || exit.cliExitCode() != 1 {
+					t.Fatalf("exit error=%v", commandErr)
+				}
+			} else if err != nil || result.Files[0].Fingerprint != result.Patches[0].Fingerprint {
+				t.Fatalf("mixed result: %+v %v", result, err)
+			}
+		})
+	}
+
+	t.Parallel()
+	t.Run("Should render summary and forward patch options", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, id string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if id != "sess-1" || options.Scope != "uncommitted" || len(options.Paths) != 1 ||
+						options.Paths[0] != "c.go" ||
+						!options.Reveal {
+						t.Fatalf("request: %s %+v", id, options)
+					}
+					return sessionChangesRecord{
+						Scope:  "uncommitted",
+						Files:  []contract.FileChangePayload{{Path: "c.go", Status: "M", Additions: 3}},
+						Totals: contract.ChangeTotalsPayload{Files: 1, Additions: 3},
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"changes",
+			"sess-1",
+			"--scope",
+			"uncommitted",
+			"--patch",
+			" c.go ",
+			"--reveal",
+		)
+		if err != nil || !strings.Contains(stdout, "c.go") || !strings.Contains(stdout, "1 files changed, +3") {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+	})
+	t.Run("Should preserve structured output and errors", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, _ string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if options.Base != "" {
+						return sessionChangesRecord{}, errors.New("base ref not found (base_not_found)")
+					}
+					return sessionChangesRecord{Revision: "sha256:test"}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "changes", "sess-1", "--json")
+		if err != nil || !strings.Contains(stdout, `"revision": "sha256:test"`) {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+		_, _, err = executeRootCommand(t, deps, "session", "changes", "sess-1", "--base", "missing")
+		if err == nil || !strings.Contains(err.Error(), "base_not_found") {
+			t.Fatalf("error %v", err)
 		}
 	})
 }

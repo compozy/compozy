@@ -235,7 +235,7 @@ const FILE_PATHS_MARKDOWN = `I changed \`internal/mcp/hosted_proxy.go:42\` and \
 The config lives in [your config file](~/.compozy/config.toml); the report is at [report](/tmp/report.md).
 Docs: [compozy.com](https://compozy.com). \`compozy start\` is not a path.`;
 
-/** Desktop app (spec #1167): path inline code and links open in the editor on ⌘-click. */
+/** Desktop app: path inline code and links open in the viewer, and in the editor on ⌘-click. */
 export const DesktopFilePaths: Story = {
   beforeEach: () => {
     window.compozyShell = {
@@ -258,7 +258,13 @@ export const DesktopFilePaths: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Open hosted_proxy.go in editor" }));
+    // A plain click opens the session viewer; the modifier click is the editor path.
+    await expect(
+      canvas.getByRole("button", { name: "Open hosted_proxy.go in viewer" })
+    ).toBeVisible();
+    await userEvent.keyboard("{Meta>}");
+    await userEvent.click(canvas.getByText("internal/mcp/hosted_proxy.go:42"));
+    await userEvent.keyboard("{/Meta}");
     await waitFor(() =>
       expect(openInEditor).toHaveBeenCalledWith({
         path: "/Users/dora/compozy/internal/mcp/hosted_proxy.go",

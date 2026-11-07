@@ -1,0 +1,30 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "files-explorer-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "Render the fixture response.",
+            "turns": [
+                {
+                    "name": "cite-project-files",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "where are the files?"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "The entry point is `web/src/main.tsx:12`. ",
+                                "Secrets live in `.env:1`, the logo is `docs/logo.png`, ",
+                                "and the build output is in `logs/build.log:1`."
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

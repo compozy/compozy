@@ -216,6 +216,7 @@ export {
   useDeleteWorkspace,
   useResolveWorkspace,
   useWorkspace,
+  useArchivedWorkspaces,
   useWorkspaces,
 } from "./hooks/use-workspaces";
 export {

@@ -32,6 +32,8 @@ export interface OpenInEditorParams {
 }
 
 export type OpenInEditorErrorCode =
+  | "target_unknown"
+  | "target_unavailable"
   | "not_found"
   | "not_a_file"
   | "editor_invalid"
@@ -77,6 +79,8 @@ export interface CompozyShellBridge {
    * natively and reads the editor command itself. Absent on desktop shells that predate it.
    */
   readonly files?: {
+    listOpenTargets?(): Promise<OpenTarget[]>;
+    openWith?(params: OpenInEditorParams & { target: string }): Promise<OpenInEditorResult>;
     openInEditor(params: OpenInEditorParams): Promise<OpenInEditorResult>;
   };
 }
@@ -98,4 +102,11 @@ export function desktopShellBridge(): CompozyShellBridge | null {
 
 export function isDesktopShell(): boolean {
   return desktopShellBridge() !== null;
+}
+
+export interface OpenTarget {
+  id: string;
+  label: string;
+  kind: "editor" | "reveal";
+  supportsLine: boolean;
 }

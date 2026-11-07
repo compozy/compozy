@@ -4177,6 +4177,85 @@
         },
         "type": "object"
       },
+      "ChangeBasePayload": {
+        "properties": {
+          "merge_base_sha": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "merge_base_sha",
+          "ref",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ChangeBaseRefPayload": {
+        "properties": {
+          "is_default": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "ChangeHeadPayload": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "sha": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "sha"
+        ],
+        "type": "object"
+      },
+      "ChangePatchPayload": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "too_large": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "path"
+        ],
+        "type": "object"
+      },
       "ChangeSet": {
         "properties": {
           "client_ids": {
@@ -4222,6 +4301,40 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ChangeSidePayload": {
+        "properties": {
+          "sensitive": {
+            "type": "boolean"
+          },
+          "text": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChangeTotalsPayload": {
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "partial": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "additions",
+          "deletions",
+          "files"
+        ],
         "type": "object"
       },
       "Chip": {
@@ -9249,6 +9362,394 @@
           "generation",
           "node_id",
           "total"
+        ],
+        "type": "object"
+      },
+      "FileChangePayload": {
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "binary": {
+            "type": "boolean"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "generated": {
+            "type": "boolean"
+          },
+          "old_path": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "additions",
+          "deletions",
+          "fingerprint",
+          "path",
+          "status"
+        ],
+        "type": "object"
+      },
+      "FileContentResponse": {
+        "properties": {
+          "image_base64": {
+            "type": "string"
+          },
+          "image_mime": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "text": {
+            "nullable": true,
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "root",
+          "size",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FileEntriesResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FileEntryPayload"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "status_unavailable": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "path",
+          "root",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FileEntryPayload": {
+        "properties": {
+          "contains_changes": {
+            "type": "boolean"
+          },
+          "git_status": {
+            "type": "string"
+          },
+          "ignored": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "symlink": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "path"
+        ],
+        "type": "object"
+      },
+      "FileFindMatch": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "match_ranges": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "sensitive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "match_ranges",
+          "path",
+          "score"
+        ],
+        "type": "object"
+      },
+      "FileFindResponse": {
+        "properties": {
+          "index_truncated": {
+            "type": "boolean"
+          },
+          "indexed_files": {
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/FileFindMatch"
+            },
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          }
+        },
+        "required": [
+          "index_truncated",
+          "indexed_files",
+          "query",
+          "results",
+          "root"
+        ],
+        "type": "object"
+      },
+      "FileRootPayload": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "worktree_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "FileSearchFile": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/FileSearchMatch"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated_matches": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "matches",
+          "path"
+        ],
+        "type": "object"
+      },
+      "FileSearchMatch": {
+        "properties": {
+          "column": {
+            "type": "integer"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "ranges": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          },
+          "text_offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "column",
+          "line",
+          "ranges",
+          "text",
+          "text_offset"
+        ],
+        "type": "object"
+      },
+      "FileSearchQuery": {
+        "properties": {
+          "case_sensitive": {
+            "type": "boolean"
+          },
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "regex": {
+            "type": "boolean"
+          },
+          "whole_word": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "case_sensitive",
+          "exclude",
+          "include",
+          "pattern",
+          "regex",
+          "whole_word"
+        ],
+        "type": "object"
+      },
+      "FileSearchResponse": {
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileSearchFile"
+            },
+            "type": "array"
+          },
+          "query": {
+            "$ref": "#/components/schemas/FileSearchQuery"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "sensitive_excluded": {
+            "type": "integer"
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/FileSearchTotals"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "engine",
+          "files",
+          "query",
+          "root",
+          "sensitive_excluded",
+          "timed_out",
+          "totals",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FileSearchTotals": {
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "matches": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "files",
+          "matches"
         ],
         "type": "object"
       },
@@ -24829,6 +25330,163 @@
         "required": [
           "page",
           "sessions"
+        ],
+        "type": "object"
+      },
+      "SessionChangeBasesResponse": {
+        "properties": {
+          "default": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeBaseRefPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeBaseRefPayload"
+            },
+            "type": "array"
+          },
+          "resolvable": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "default",
+          "refs",
+          "resolvable",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "SessionChangeContentsResponse": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "new": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeSidePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "old": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeSidePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "old_path": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "path",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "SessionChangePatchesResponse": {
+        "properties": {
+          "patches": {
+            "items": {
+              "$ref": "#/components/schemas/ChangePatchPayload"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "patches",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "SessionChangesResponse": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/ChangeBasePayload"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileChangePayload"
+            },
+            "type": "array"
+          },
+          "head": {
+            "$ref": "#/components/schemas/ChangeHeadPayload"
+          },
+          "pull_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "revision": {
+            "type": "string"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ChangeTotalsPayload"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "base",
+          "files",
+          "head",
+          "revision",
+          "root",
+          "scope",
+          "totals",
+          "truncated"
         ],
         "type": "object"
       },
@@ -52541,6 +53199,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -52548,7 +53207,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Group identical scoped definitions",
@@ -57033,6 +57693,7 @@
           },
           {
             "description": "Project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -57040,7 +57701,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by job source",
@@ -57790,6 +58452,7 @@
           },
           {
             "description": "Source project IDs or @user; excludes unknown attribution",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -57797,7 +58460,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Opaque source-filter-bound cursor",
@@ -58033,6 +58697,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -58040,7 +58705,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by suggestion status",
@@ -58155,6 +58821,7 @@
           },
           {
             "description": "Project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -58162,7 +58829,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by trigger source",
@@ -63913,6 +64581,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -63920,7 +64589,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by Loop run id",
@@ -64039,6 +64709,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -64046,7 +64717,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by Loop name",
@@ -64200,6 +64872,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -64207,7 +64880,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Search Loop name or contract goal",
@@ -66362,6 +67036,7 @@
           },
           {
             "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -66369,7 +67044,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by task scope",
@@ -66579,6 +67255,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -66586,7 +67263,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by active run worktree ID",
@@ -71370,6 +72048,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -71377,7 +72056,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Include metadata-only health for returned sessions",
@@ -71533,6 +72213,7 @@
           },
           {
             "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
+            "explode": true,
             "in": "query",
             "name": "board_column",
             "schema": {
@@ -71540,7 +72221,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by comma-separated exact session badges",
@@ -72001,6 +72683,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -72008,7 +72691,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by bound worktree id",
@@ -79619,6 +80303,7 @@
           },
           {
             "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -79626,7 +80311,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by catalog visibility",
@@ -83308,6 +83994,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -83315,7 +84002,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Read one profile's rows by name",
@@ -83441,6 +84129,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -83448,7 +84137,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Resume after the last terminal catalog event",
@@ -87219,6 +87909,581 @@
         "summary": "Durably dismiss one automation suggestion",
         "tags": [
           "automation"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/content": {
+      "get": {
+        "operationId": "readFileContent",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reveal sensitive content; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          }
+        },
+        "summary": "Read project file content",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/entries": {
+      "get": {
+        "operationId": "listFileEntries",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include ignored entries",
+            "in": "query",
+            "name": "show_ignored",
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntriesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          }
+        },
+        "summary": "List project file entries",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/find": {
+      "get": {
+        "operationId": "findFiles",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result limit; defaults and clamps to 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFindResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Find project files",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/search": {
+      "get": {
+        "operationId": "searchFileContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use POSIX ERE",
+            "in": "query",
+            "name": "regex",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match case",
+            "in": "query",
+            "name": "case_sensitive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match whole words",
+            "in": "query",
+            "name": "whole_word",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "exclude",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSearchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Search project file contents",
+        "tags": [
+          "workspaces"
         ],
         "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
@@ -92977,6 +94242,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -92984,7 +94250,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Include metadata-only health for returned sessions",
@@ -93140,6 +94407,7 @@
           },
           {
             "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
+            "explode": true,
             "in": "query",
             "name": "board_column",
             "schema": {
@@ -93147,7 +94415,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by comma-separated exact session badges",
@@ -94299,6 +95568,689 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes": {
+      "get": {
+        "operationId": "getSessionChanges",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases": {
+      "get": {
+        "operationId": "listSessionChangeBases",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Substring ref filter",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default 200, maximum 500",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangeBasesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents": {
+      "get": {
+        "operationId": "getSessionChangeContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Summary revision fence",
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Aligned old path for renames",
+            "in": "query",
+            "name": "old_path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reveal sensitive contents; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangeContentsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches": {
+      "get": {
+        "operationId": "getSessionChangePatches",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Summary revision fence",
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "explode": true,
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Aligned old path for renames",
+            "explode": true,
+            "in": "query",
+            "name": "old_path",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Reveal sensitive contents; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangePatchesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications": {
       "get": {
         "operationId": "listSessionClarifications",
@@ -95394,6 +97346,585 @@
         "summary": "Search files and folders under a session's working directory",
         "tags": [
           "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content": {
+      "get": {
+        "operationId": "readSessionFileContent",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reveal sensitive content; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          }
+        },
+        "summary": "Read project file content",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries": {
+      "get": {
+        "operationId": "listSessionFileEntries",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include ignored entries",
+            "in": "query",
+            "name": "show_ignored",
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntriesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "File operation failed"
+          }
+        },
+        "summary": "List project file entries",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find": {
+      "get": {
+        "operationId": "findSessionFiles",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result limit; defaults and clamps to 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFindResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Find project files",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search": {
+      "get": {
+        "operationId": "searchSessionFileContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use POSIX ERE",
+            "in": "query",
+            "name": "regex",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match case",
+            "in": "query",
+            "name": "case_sensitive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match whole words",
+            "in": "query",
+            "name": "whole_word",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "exclude",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSearchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Search project file contents",
+        "tags": [
+          "workspaces"
         ],
         "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
@@ -106873,6 +109404,7 @@
           },
           {
             "description": "Exact worktree-relative reviewed file paths; scoped plans return a complete include set and fingerprint.",
+            "explode": true,
             "in": "query",
             "name": "include",
             "schema": {
@@ -106880,7 +109412,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -107499,6 +110032,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -107506,7 +110040,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           }
         ],
         "responses": {

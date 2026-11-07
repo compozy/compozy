@@ -5,6 +5,7 @@ import {
   isProductMethod,
   validProductParams,
   type GlobalShortcutBinding,
+  type OpenWithParams,
   type OpenInEditorParams,
   type PickDirectoryParams,
   type ThemePreference,
@@ -82,10 +83,19 @@ export class ProductBridgeController {
         const { default_path } = params as PickDirectoryParams;
         return { path: await this.#directories.pick(event.sender, default_path) };
       }
-      if (method === "files.open_in_editor") {
+      if (
+        method === "files.open_in_editor" ||
+        method === "files.open_with" ||
+        method === "files.list_open_targets"
+      ) {
         const target = this.#productTarget();
         if (!isProductMainFrame(event, target)) {
           throw new Error("The product action is not allowed from this frame.");
+        }
+        if (method === "files.list_open_targets")
+          return (await this.#files.listOpenTargets?.()) ?? [];
+        if (method === "files.open_with") {
+          return await this.#files.openWith(params as OpenWithParams, target?.window ?? null);
         }
         return await this.#files.open(params as OpenInEditorParams, target?.window ?? null);
       }
