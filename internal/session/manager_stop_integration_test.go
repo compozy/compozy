@@ -162,7 +162,7 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	}
 }
 
-// Invariant: permission settlement survives a closed prompt and verified runtime exit.
+// TestManagerIntegrationPermissionLifetime verifies settlement after a closed prompt or verified runtime exit.
 func TestManagerIntegrationPermissionLifetime(t *testing.T) {
 	for _, source := range []string{"daemon", "provider"} {
 		for _, mode := range []string{"expiry", "stop", "forced stop", "crash"} {

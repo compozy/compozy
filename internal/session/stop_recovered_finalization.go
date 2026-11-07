@@ -78,6 +78,7 @@ func (m *Manager) settleRecoveredStop(
 	return m.finishRecoveredStop(ctx, run.recoveredID)
 }
 
+// cancelRecoveredSessionInteractions retains lost-turn attribution without reclassifying explicit stops.
 func (m *Manager) cancelRecoveredSessionInteractions(ctx context.Context, id string, cause StopCause) error {
 	reason := "session-stopped"
 	if cause == CauseProcessExited || cause == CauseShutdown {

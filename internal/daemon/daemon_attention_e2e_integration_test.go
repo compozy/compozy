@@ -26,6 +26,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// TestDaemonE2EAttentionTruthJourneys verifies public attention and durable decision outcomes.
 func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	acpmock.RequireDriver(t)
 
@@ -130,6 +131,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
 		assertAttentionListEmpty(t, ctx, restarted)
+		settled := readAttentionCanceledInteraction(t, ctx, restarted, target.ID, interaction.InteractionID)
 
 		_, stderr, err := restarted.CLI.RunInDir(
 			ctx,
@@ -148,6 +150,11 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		}
 		if refusal.Error != session.ErrPendingPermissionCanceled.Error() {
 			t.Fatalf("CLI late permission refusal = %q, want %q", refusal.Error, session.ErrPendingPermissionCanceled)
+		}
+		after := readAttentionCanceledInteraction(t, ctx, restarted, target.ID, interaction.InteractionID)
+		if after.Resolution != settled.Resolution || after.ResolvedBy != settled.ResolvedBy ||
+			!after.ResolvedAt.Equal(*settled.ResolvedAt) {
+			t.Fatalf("late approval changed cancellation: before %#v, after %#v", settled, after)
 		}
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		assertAttentionListEmpty(t, ctx, restarted)
@@ -962,6 +969,37 @@ func waitForAttentionStatusOutsideNeedsYou(
 		case <-time.After(25 * time.Millisecond):
 		}
 	}
+}
+
+// readAttentionCanceledInteraction verifies the public terminal row and its cancellation attribution.
+func readAttentionCanceledInteraction(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID, interactionID string,
+) compozycontract.PendingInteractionPayload {
+	t.Helper()
+	var response compozycontract.SessionInteractionsResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
+		url.PathEscape(sessionID) + "/interactions?status=canceled"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("read canceled permission: %v", err)
+	}
+	index := slices.IndexFunc(response.Interactions, func(row compozycontract.PendingInteractionPayload) bool {
+		return row.InteractionID == interactionID
+	})
+	if index < 0 {
+		t.Fatalf("canceled permission %q missing: %#v", interactionID, response)
+	}
+	row := response.Interactions[index]
+	if row.Status != store.PendingInteractionStatusCanceled || row.ResolvedBy != "system" || row.ResolvedAt == nil {
+		t.Fatalf("canceled permission attribution = %#v", row)
+	}
+	// Cancellation may settle at ACP disconnect, shutdown finalization, or boot recovery.
+	if !slices.Contains([]string{"canceled", "session-stopped", "failed-by-restart"}, row.Resolution) {
+		t.Fatalf("canceled permission resolution = %#v", row)
+	}
+	return row
 }
 
 func waitForAttentionInteraction(

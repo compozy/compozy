@@ -4946,6 +4946,7 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 }
 
 // IT-019/IT-020: full boot preserves expiry and reports interrupted decisions once.
+// assertB4CrashRecovery checks terminal decisions and exactly-once reports after daemon restart.
 func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashCheckpoint) {
 	t.Helper()
 	db := d.registry.(*globaldb.GlobalDB)
@@ -5117,6 +5118,7 @@ func TestInstanceApprovalCrashRestartDaemonIntegration(t *testing.T) {
 	})
 }
 
+// runInstanceApprovalCrashProcess retains the permission fixtures while a real child turn runs.
 func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	t.Helper()
 	// This journey owns mock ACP processes only. Persist discovery opt-outs so

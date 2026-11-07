@@ -30,6 +30,7 @@ import (
 
 // Invariant: extension auth policy survives desired-resource persistence and boot reconstruction.
 // Owner: daemon resource publication, canonical real SQLite integration suite.
+// TestToolMCPStaticPublicationAndBootRebuild verifies persisted config and extension publication.
 func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 	t.Parallel()
 	// Invariant: explicit profile installations publish only into their owning
@@ -169,7 +170,7 @@ binding = { type = "url_query", name = "workspace" }
 			},
 			daemonConfigMCPDeclarationProvider(
 				&publishedConfig,
-				compozyconfig.HomePaths{HomeDir: t.TempDir()},
+				testHomePaths(t),
 				nil,
 				discardLogger(),
 				nil,
