@@ -195,15 +195,24 @@ test("E2E-002: the Files dock app browses the active project and switches to a w
 
     const files = await openAppWindow(appPage, "Files", "files");
     await expect(files.getByTestId("files-root-name")).toContainText(workspace.name);
+    // One head row: the window is titled by its project until a file opens, and the project and
+    // root pickers sit in that row.
+    const windowTitle = files.getByTestId("topbar-title-text");
+    await expect(windowTitle).toHaveText(workspace.name);
+    await expect(
+      files.locator('[data-slot="topbar-leading"] [data-testid="files-root-picker"]')
+    ).toBeVisible();
 
     await files.locator('[data-type="item"][data-item-path="web/"]').click();
     await files.locator('[data-type="item"][data-item-path="web/README.md"]').click();
     await expect(files.getByTestId("file-viewer-header")).toContainText("web/README.md");
     await expect(files.locator("[data-slot='code-viewer']")).toContainText("Files app fixture.");
+    await expect(windowTitle).toHaveText("README.md");
 
     await appPage.getByTestId("files-root-picker").click();
     await appPage.getByTestId(`files-root-option-${worktree.id}`).click();
     await expect(files.getByTestId("files-root-name")).toContainText(worktree.branch);
+    await expect(windowTitle).toHaveText("README.md");
 
     await dock.getByRole("button", { name: "Files" }).click();
     await expect(appPage.locator('[data-slot="os-window-surface"][data-app="files"]')).toHaveCount(

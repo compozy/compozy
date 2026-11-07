@@ -31,9 +31,17 @@ export interface FileTreeBridge {
   truncated: string[];
   /** Expanded directories that listed no entries. */
   empty: string[];
+  /** Expanded directories whose listing failed, with nothing cached to show (listing paths). */
+  failed: FileTreeFolderFailure[];
   /** The tree asked for a directory's children (`dir/`). */
   expand: (directory: string) => void;
   refresh: () => void;
+}
+
+export interface FileTreeFolderFailure {
+  path: string;
+  message: string;
+  retry: () => void;
 }
 
 function addListings(current: readonly string[], next: readonly string[]): readonly string[] {
@@ -64,11 +72,17 @@ export function useFileTreeBridge(
   const loadingPaths: string[] = [];
   const truncated: string[] = [];
   const empty: string[] = [];
+  const failed: FileTreeFolderFailure[] = [];
   let statusUnavailable = false;
   requested.forEach((path, index) => {
     const result = results[index];
     if (!result) return;
-    if (result.isPending && path !== "") loadingPaths.push(`${path}/`);
+    // A retry of a failed folder spins too; with `retry: false` it stays `error` until it answers.
+    if ((result.isPending || (result.isError && result.isFetching)) && path !== "")
+      loadingPaths.push(`${path}/`);
+    if (result.isError && !result.data && path !== "" && !result.isFetching) {
+      failed.push({ path, message: result.error.message, retry: () => void result.refetch() });
+    }
     if (!result.data) return;
     entries.push(...result.data.entries);
     if (result.data.truncated) truncated.push(path);
@@ -100,7 +114,14 @@ export function useFileTreeBridge(
     decorations: entriesDecorations(entries),
     truncated,
     empty,
-    expand: directory => setRequested(current => addListings(current, [listingPath(directory)])),
+    failed,
+    expand: directory => {
+      const path = listingPath(directory);
+      // Re-expanding a folder whose listing failed asks again; `retry: false` never would.
+      const failure = failed.find(item => item.path === path);
+      if (failure) failure.retry();
+      else setRequested(current => addListings(current, [path]));
+    },
     refresh: () => void queryClient.invalidateQueries({ queryKey: filesKeys.entriesRoot(root) }),
   };
 }

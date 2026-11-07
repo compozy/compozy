@@ -59,6 +59,21 @@ describe("FileTree", () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
+  it("Should fire onExpand again when a still-childless directory is re-expanded", async () => {
+    const onExpand = vi.fn();
+    const { container } = render(
+      <FileTree aria-label="Project files" paths={["src/", "README.md"]} onExpand={onExpand} />
+    );
+    await waitFor(() => row(container, "src/"));
+
+    act(() => row(container, "src/").click());
+    await waitFor(() => expect(onExpand).toHaveBeenCalledTimes(1));
+    act(() => row(container, "src/").click());
+    act(() => row(container, "src/").click());
+    await waitFor(() => expect(onExpand).toHaveBeenCalledTimes(2));
+    expect(onExpand).toHaveBeenLastCalledWith("src/");
+  });
+
   it("Should fire onSelect for every file click, including the selected row", async () => {
     const onSelect = vi.fn();
     const { container } = render(

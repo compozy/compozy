@@ -56,7 +56,8 @@ export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionRe
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
+        {/* Keyed by the checkout: a worktree change starts tree, search and Changes state over. */}
+        <div key={review.rootKey} className="flex min-h-0 flex-1 flex-col">
           {review.tab === "changes" ? (
             <SessionChangesTab workspaceId={workspaceId} sessionId={sessionId} review={review} />
           ) : (

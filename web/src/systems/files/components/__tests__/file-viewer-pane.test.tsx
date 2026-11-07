@@ -141,6 +141,39 @@ describe("FileViewerPane", () => {
     expect(onRefreshTree).toHaveBeenCalledTimes(1);
   });
 
+  // US-003.EC-2/EC-3: a refresh never leaves old text on screen as if it were current.
+  it("Should replace the text with File not found when a refresh finds the file deleted", async () => {
+    let deleted = false;
+    stubContent(() =>
+      deleted
+        ? Response.json({ error: "file not found", code: "file_not_found" }, { status: 404 })
+        : content({ path: "a.ts", kind: "text", size: 14, text: "const old = 1;" })
+    );
+    renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("a.ts")} />);
+    expect(await screen.findByTestId("file-viewer-focus")).toBeInTheDocument();
+    deleted = true;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText("File not found")).toBeInTheDocument();
+    expect(screen.queryByTestId("file-viewer-focus")).toBeNull();
+  });
+
+  it("Should keep the text under a stale notice when a refresh fails transiently", async () => {
+    let failing = false;
+    stubContent(() =>
+      failing
+        ? Response.json({ error: "busy", code: "internal" }, { status: 500 })
+        : content({ path: "a.ts", kind: "text", size: 14, text: "const old = 1;" })
+    );
+    renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("a.ts")} />);
+    expect(await screen.findByTestId("file-viewer-focus")).toBeInTheDocument();
+    failing = true;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByTestId("file-viewer-stale")).toHaveTextContent(
+      "Couldn't refresh this file. Showing the last loaded version."
+    );
+    expect(screen.getByTestId("file-viewer-focus")).toBeInTheDocument();
+  });
+
   // UT-055. Invariant: Open in exists only with the desktop target bridge (US-006.AC-6).
   it("Should render no Open in control without the desktop target bridge (UT-055)", () => {
     const control = <OpenInButton>Open in</OpenInButton>;

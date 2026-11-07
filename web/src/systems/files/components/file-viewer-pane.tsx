@@ -9,7 +9,7 @@ import type { FilesRootRef } from "../adapters/files-api";
 import { useViewerFind } from "../hooks/use-viewer-find";
 import { copyFilePath } from "../lib/copy-file-path";
 import { FILE_TEXT_LIMIT, formatFileSize } from "../lib/format-file-size";
-import { fileViewerState, type FileViewerState } from "../lib/file-viewer-state";
+import { fileViewerStale, fileViewerState, type FileViewerState } from "../lib/file-viewer-state";
 import type { FileViewerTarget, ViewerFindSeed } from "../lib/file-viewer-target";
 import { isFindChord } from "../lib/files-shortcuts";
 import { fileContentOptions } from "../lib/query-options";
@@ -53,6 +53,20 @@ function TruncationNotice({ size }: { size: number }) {
   );
 }
 
+/** The latest refresh failed but the file may still exist: the text shown is the last good read. */
+function StaleNotice() {
+  return (
+    <p
+      role="status"
+      data-testid="file-viewer-stale"
+      className="flex items-center gap-2 border-b border-line-soft px-3 py-1.5 text-xs text-muted-foreground"
+    >
+      <Info aria-hidden className="size-3.5 shrink-0" />
+      Couldn't refresh this file. Showing the last loaded version.
+    </p>
+  );
+}
+
 /**
  * One open file: its content query, the sensitive gate, and the state to show. Keyed by the
  * target's nonce, so a reopened file starts gated again and old content never mixes with new.
@@ -75,6 +89,7 @@ function OpenFileView({
   const reveal = useQuery({ ...fileContentOptions(root, path, true), enabled: revealed });
   const active = revealed ? reveal : gated;
   const state: FileViewerState = fileViewerState(active);
+  const stale = fileViewerStale(active);
   const content = "content" in state ? state.content : undefined;
   const find = useViewerFind(state.kind === "text" ? state.text : "", findSeed, line);
   const viewerRef = useRef<HTMLDivElement | null>(null);
@@ -129,6 +144,7 @@ function OpenFileView({
           header={header}
           notice={
             <>
+              {stale ? <StaleNotice /> : null}
               {truncation}
               {find.open ? (
                 <ViewerFindBar

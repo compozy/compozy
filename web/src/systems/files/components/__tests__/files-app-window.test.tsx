@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider, UIProvider } from "@compozy/ui";
 
 import {
   filesAppPlaceStorageKey,
@@ -125,6 +125,55 @@ describe("FilesAppWindow", () => {
     vi.unstubAllGlobals();
   });
 
+  // Operator review: the window and its tab read the open file, else the project, and the
+  // project and root pickers sit in the head row instead of a row of their own.
+  it("Should title the window with the open file, else the project, and keep the pickers in the head", async () => {
+    stubDaemon();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const frame = (workspaceId: string) => (
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <TopbarSlotProvider>
+            <Topbar title="Files" />
+            <div style={{ height: 500 }}>
+              <FilesAppWindow
+                key={workspaceId}
+                workspaceId={workspaceId}
+                onSwitchProject={() => {}}
+              />
+            </div>
+          </TopbarSlotProvider>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const view = render(frame("ws_1"));
+    const title = () => screen.getByTestId("topbar-title-text");
+    await waitFor(() => expect(title()).toHaveTextContent("compozy"));
+    const head = view.container.querySelector('[data-slot="topbar-leading"]');
+    expect(head?.querySelector('[data-testid="files-project-switcher"]')).not.toBeNull();
+    expect(head?.querySelector('[data-testid="files-root-picker"]')).not.toBeNull();
+
+    act(() => requestFilesAppPlace("ws_1", { worktreeId: null, path: "docs/README.md" }));
+    await waitFor(() => expect(title()).toHaveTextContent("README.md"));
+    expect(title()).not.toHaveTextContent("docs/");
+
+    // A root switch keeps the open file, so the title stays on it.
+    act(() =>
+      filesAppPlaceStore.trigger.placed({
+        workspaceId: "ws_1",
+        place: { worktreeId: "wt-1", path: "docs/README.md" },
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("files-root-picker")).toHaveTextContent("Worktree unavailable")
+    );
+    expect(title()).toHaveTextContent("README.md");
+
+    // Another project: its own place, so the title falls back to that project's name.
+    view.rerender(frame("ws_old"));
+    await waitFor(() => expect(title()).toHaveTextContent("legacy"));
+  });
+
   it("Should offer Switch to project root when the worktree is gone and reload the checkout (UT-047)", async () => {
     filesAppPlaceStore.trigger.placed({
       workspaceId: "ws_1",
@@ -203,5 +252,74 @@ describe("FilesAppWindow", () => {
     await waitFor(() =>
       expect(screen.getByTestId("file-viewer-header")).toHaveTextContent("README.md")
     );
+  });
+
+  // US-001: a folder whose listing fails says so with Retry, instead of looking empty, and
+  // asks again on Retry or on the next expansion (`retry: false` never would).
+  it("Should show a failed folder with Retry and list it once the retry succeeds", async () => {
+    let srcFails = true;
+    const srcCalls: number[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(String(input));
+        const url = new URL(request.url);
+        if (!url.pathname.endsWith("/files/entries")) return new Response("{}", { status: 404 });
+        const root = { kind: "workspace", workspace_id: "ws_1", name: "compozy" };
+        if (url.searchParams.get("path") === "src") {
+          srcCalls.push(srcCalls.length);
+          return srcFails
+            ? Response.json({ code: "internal", error: "listing failed" }, { status: 500 })
+            : Response.json({
+                root,
+                entries: [{ name: "main.go", path: "src/main.go", kind: "file", size: 1 }],
+                truncated: false,
+              });
+        }
+        return Response.json({
+          root,
+          entries: [{ name: "src", path: "src", kind: "directory" }],
+          truncated: false,
+        });
+      })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <div style={{ height: 500 }}>
+            <FilesExplorer
+              root={{ kind: "workspace", workspaceId: "ws_1" }}
+              target={null}
+              onOpenFile={() => {}}
+            />
+          </div>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const treeRow = (path: string) =>
+      container
+        .querySelector("file-tree-container")
+        ?.shadowRoot?.querySelector<HTMLElement>(`[data-type="item"][data-item-path="${path}"]`) ??
+      null;
+    await waitFor(() => expect(treeRow("src/")).not.toBeNull());
+
+    act(() => treeRow("src/")!.click());
+    expect(await screen.findByTestId("files-tree-folder-error")).toHaveTextContent(
+      "src: Couldn't load this folder"
+    );
+    expect(srcCalls).toHaveLength(1);
+
+    // Collapsing and re-expanding asks again.
+    act(() => treeRow("src/")!.click());
+    act(() => treeRow("src/")!.click());
+    await waitFor(() => expect(srcCalls).toHaveLength(2));
+    expect(await screen.findByTestId("files-tree-folder-error")).toBeInTheDocument();
+
+    srcFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(treeRow("src/main.go")).not.toBeNull());
+    expect(screen.queryByTestId("files-tree-folder-error")).toBeNull();
+    expect(srcCalls).toHaveLength(3);
   });
 });

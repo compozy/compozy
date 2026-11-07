@@ -40,6 +40,8 @@ interface SessionReviewPanelContext {
   targets: Record<string, FileViewerTarget>;
   /** Transient: the changed file a click asked Changes to show, per session. */
   focusedChanges: Record<string, SessionChangeFocus>;
+  /** Transient: bumps when the session's checkout changes, remounting root-bound panel state. */
+  rootGenerations: Record<string, number>;
 }
 
 export const SESSION_REVIEW_PANEL_STORAGE_KEY = "compozy:session:review-panel:v1";
@@ -81,7 +83,12 @@ function mergeReviewPanelPreferences(
       if (preference) bySession[sessionId] = preference;
     }
   }
-  return { bySession, targets: current.targets, focusedChanges: current.focusedChanges };
+  return {
+    bySession,
+    targets: current.targets,
+    focusedChanges: current.focusedChanges,
+    rootGenerations: current.rootGenerations,
+  };
 }
 
 function withPreference(
@@ -100,7 +107,12 @@ function nextFocusNonce(): number {
 }
 
 export const sessionReviewPanelLogic = createStoreLogic({
-  context: (): SessionReviewPanelContext => ({ bySession: {}, targets: {}, focusedChanges: {} }),
+  context: (): SessionReviewPanelContext => ({
+    bySession: {},
+    targets: {},
+    focusedChanges: {},
+    rootGenerations: {},
+  }),
   on: {
     visibilityChanged: (context, event: { sessionId: string; open: boolean }) =>
       event.sessionId ? withPreference(context, event.sessionId, { open: event.open }) : context,
@@ -120,6 +132,28 @@ export const sessionReviewPanelLogic = createStoreLogic({
         patch: Pick<SessionReviewPanelPreference, "diffMode" | "scope" | "base" | "changesTree">;
       }
     ) => (event.sessionId ? withPreference(context, event.sessionId, event.patch) : context),
+    /**
+     * The session now runs in another checkout: nothing chosen in the old one (the viewer target,
+     * a focused change, the Changes base) carries over, and root-bound panel state remounts.
+     */
+    rootChanged: (context, event: { sessionId: string }) => {
+      if (!event.sessionId) return context;
+      const { [event.sessionId]: _target, ...targets } = context.targets;
+      const { [event.sessionId]: _focus, ...focusedChanges } = context.focusedChanges;
+      const current = context.bySession[event.sessionId];
+      let bySession = context.bySession;
+      if (current) {
+        const { base: _base, ...kept } = current;
+        bySession = { ...context.bySession, [event.sessionId]: kept };
+      }
+      const generation = (context.rootGenerations[event.sessionId] ?? 0) + 1;
+      return {
+        bySession,
+        targets,
+        focusedChanges,
+        rootGenerations: { ...context.rootGenerations, [event.sessionId]: generation },
+      };
+    },
     changesRequested: (
       context,
       event: { sessionId: string; path?: string; scope?: SessionChangesScope }
@@ -185,6 +219,11 @@ export function requestSessionReviewFile(sessionId: string, target: FileViewerTa
   sessionReviewPanelStore.trigger.fileRequested({ sessionId, target });
 }
 
+/** The session's checkout changed; see the `rootChanged` transition. */
+export function resetSessionReviewRoot(sessionId: string): void {
+  if (sessionId) sessionReviewPanelStore.trigger.rootChanged({ sessionId });
+}
+
 /**
  * Opens the session's Review panel on Changes (the PR chip's **Review changes**, a turn's
  * changed-file row). With `path`, the tab focuses that file, or falls back to Files when the
@@ -209,6 +248,8 @@ export interface UseSessionReviewPanelStateResult {
   base: string | undefined;
   changesTree: boolean;
   focusedChange: SessionChangeFocus | null;
+  /** Changes when the session's checkout changes; keys the panel's root-bound state. */
+  rootKey: number;
   setChangesPreference: (
     patch: Pick<SessionReviewPanelPreference, "diffMode" | "scope" | "base" | "changesTree">
   ) => void;
@@ -233,6 +274,10 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
     sessionReviewPanelStore,
     snapshot => snapshot.context.focusedChanges[sessionId] ?? null
   );
+  const rootKey = useSelector(
+    sessionReviewPanelStore,
+    snapshot => snapshot.context.rootGenerations[sessionId] ?? 0
+  );
   const setOpen = (open: boolean) => {
     if (!sessionId) return;
     if (open) closeInspector(sessionId);
@@ -248,6 +293,7 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
     base: preference.base,
     changesTree: preference.changesTree ?? true,
     focusedChange,
+    rootKey,
     setChangesPreference: patch =>
       sessionReviewPanelStore.trigger.changesPreferenceChanged({ sessionId, patch }),
     toggle: () => setOpen(!preference.open),

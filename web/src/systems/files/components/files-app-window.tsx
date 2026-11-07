@@ -22,31 +22,39 @@ export interface FilesAppWindowProps {
 
 const FILES_GLYPH = <FolderTree />;
 
+/** `web/src/http.go` → `http.go`; a trailing separator never leaves an empty name. */
+function fileBaseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
 /** The Files OS app (`_uiux.md` S6): project and root pickers over the shared explorer. */
 export function FilesAppWindow({ workspaceId, onSwitchProject }: FilesAppWindowProps) {
   const { status, projects, workspaceName, rootOptions, place, target, openFile } =
     useFilesAppWindow(workspaceId);
 
+  // The window and its tab read the open file, else the project (the dock still says "Files").
+  const named = status === "ready" || status === "archived";
   useTopbarSlot({
     glyph: FILES_GLYPH,
-    toolbar:
-      status === "ready" || status === "archived" ? (
-        <div className="flex min-w-0 items-center gap-2" data-testid="files-app-pickers">
-          <FilesProjectSwitcher
-            workspaceId={workspaceId}
-            workspaceName={workspaceName}
-            projects={projects}
-            onSwitch={onSwitchProject}
+    crumb: named ? (target ? fileBaseName(target.path) : workspaceName) : undefined,
+    // The project and root are the window's host context, in the head row before the title.
+    leading: named ? (
+      <div className="flex min-w-0 items-center gap-1.5" data-testid="files-app-pickers">
+        <FilesProjectSwitcher
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          projects={projects}
+          onSwitch={onSwitchProject}
+        />
+        {status === "ready" ? (
+          <FilesRootPicker
+            options={rootOptions}
+            worktreeId={place.worktreeId}
+            onSelect={place.selectRoot}
           />
-          {status === "ready" ? (
-            <FilesRootPicker
-              options={rootOptions}
-              worktreeId={place.worktreeId}
-              onSelect={place.selectRoot}
-            />
-          ) : null}
-        </div>
-      ) : undefined,
+        ) : null}
+      </div>
+    ) : undefined,
   });
 
   if (status === "loading") {

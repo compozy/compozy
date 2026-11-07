@@ -34,8 +34,9 @@ export interface FileTreeProps extends Omit<
   /** Directory expansion when paths first appear. Lazy explorers keep `closed`. */
   initialExpansion?: "closed" | "open";
   /**
-   * Fires once when a directory with no loaded children is first expanded.
-   * Collapsing and re-expanding does not fire again until `resetKey` changes.
+   * Fires when a directory with no loaded children is expanded. Once its children load,
+   * collapsing and re-expanding does not fire again until `resetKey` changes; a directory that
+   * is still childless (its listing failed) fires again on its next expansion.
    */
   onExpand?: (directoryPath: string) => void;
   /** Directories whose children are being fetched; they show a spinner. */

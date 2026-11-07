@@ -27,9 +27,16 @@ export function FilesProjectSwitcher({
         if (typeof next === "string" && next !== "" && next !== workspaceId) onSwitch(next);
       }}
     >
-      <SelectTrigger size="sm" aria-label="Project" data-testid="files-project-switcher">
+      <SelectTrigger
+        size="sm"
+        aria-label="Project"
+        className="min-w-0 shrink"
+        data-testid="files-project-switcher"
+      >
         <FolderGit2 aria-hidden className="size-3.5 text-subtle" />
-        <SelectValue>{workspaceName}</SelectValue>
+        <SelectValue className="min-w-0">
+          <span className="min-w-0 truncate">{workspaceName}</span>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {projects.map(project => (
@@ -66,9 +73,16 @@ export function FilesRootPicker({
         onSelect(next === CHECKOUT_VALUE ? null : next);
       }}
     >
-      <SelectTrigger size="sm" aria-label="Root" data-testid="files-root-picker">
+      <SelectTrigger
+        size="sm"
+        aria-label="Root"
+        className="min-w-0 shrink-[2]"
+        data-testid="files-root-picker"
+      >
         <GitBranch aria-hidden className="size-3.5 text-subtle" />
-        <SelectValue>{current?.label ?? "Worktree unavailable"}</SelectValue>
+        <SelectValue className="min-w-0">
+          <span className="min-w-0 truncate">{current?.label ?? "Worktree unavailable"}</span>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent className="min-w-64">
         {options.map(option => {

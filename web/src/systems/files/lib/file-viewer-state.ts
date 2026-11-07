@@ -15,11 +15,31 @@ export type FileViewerState =
   | { kind: "binary"; content: FileContentResponse }
   | { kind: "sensitive"; content: FileContentResponse };
 
+/**
+ * Errors that make retained content wrong, not merely old: after a refresh that reports one of
+ * these, the viewer shows the failure instead of the last loaded text.
+ */
+const DEFINITIVE_ERRORS: ReadonlySet<string> = new Set([
+  "file_not_found",
+  "path_outside_root",
+  "invalid_path",
+  "path_denied",
+  "not_a_file",
+  "root_unavailable",
+]);
+
+/**
+ * The viewer state for the latest read. TanStack Query keeps `data` after a failed refetch, so a
+ * definitive failure (the file was deleted, the root is gone) replaces it; any other failed
+ * refresh keeps the content and is reported as stale by `fileViewerStale`.
+ */
 export function fileViewerState(query: {
   data: FileContentResponse | undefined;
   error: Error | null;
 }): FileViewerState {
-  if (query.error && !query.data) {
+  const definitive =
+    query.error !== null && DEFINITIVE_ERRORS.has(filesErrorCode(query.error) ?? "");
+  if (query.error && (!query.data || definitive)) {
     switch (filesErrorCode(query.error)) {
       case "file_not_found":
         return { kind: "not_found" };
@@ -48,4 +68,16 @@ export function fileViewerState(query: {
     default:
       return { kind: "binary", content };
   }
+}
+
+/** The content on screen is the last good read; the latest refresh failed transiently. */
+export function fileViewerStale(query: {
+  data: FileContentResponse | undefined;
+  error: Error | null;
+}): boolean {
+  return (
+    query.data !== undefined &&
+    query.error !== null &&
+    !DEFINITIVE_ERRORS.has(filesErrorCode(query.error) ?? "")
+  );
 }

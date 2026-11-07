@@ -1,4 +1,4 @@
-import { sessionFilesHandlers } from "./files-handlers";
+import { sessionFilesHandlers, workspaceFilesHandlers } from "./files-handlers";
 
 export {
   fileContentFixture,
@@ -6,6 +6,7 @@ export {
   filesRootFixture,
   sessionFilesHandlers,
   sessionFilesRootUnavailableHandlers,
+  workspaceFilesHandlers,
 } from "./files-handlers";
 
-export const handlers = [...sessionFilesHandlers];
+export const handlers = [...sessionFilesHandlers, ...workspaceFilesHandlers];

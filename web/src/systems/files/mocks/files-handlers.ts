@@ -138,6 +138,32 @@ export const sessionFilesHandlers = [
   ),
 ];
 
+/** Project-root file routes (the Files app) over the same fixtures. */
+export const workspaceFilesHandlers = [
+  compozyApiMock.get("/api/workspaces/{workspace_id}/files/entries", ({ request }) => {
+    const path = new URL(request.url).searchParams.get("path") ?? "";
+    const entries = fileListingsFixture[path];
+    if (!entries) {
+      return HttpResponse.json(
+        { code: "file_not_found", error: "file not found" },
+        { status: 404 }
+      );
+    }
+    return HttpResponse.json({ root: filesRootFixture, path, entries, truncated: false });
+  }),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/files/content", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const body = fileContentFixture(params.get("path") ?? "", params.get("reveal") === "true");
+    if (!body) {
+      return HttpResponse.json(
+        { code: "file_not_found", error: "file not found" },
+        { status: 404 }
+      );
+    }
+    return HttpResponse.json(body);
+  }),
+];
+
 /** The bound worktree's directory is gone (US-001.EC-2). */
 export const sessionFilesRootUnavailableHandlers = [
   compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries", () =>

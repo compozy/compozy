@@ -125,7 +125,7 @@ function useLazyExpansion(
   onExpandRef: React.RefObject<((directoryPath: string) => void) | undefined>
 ) {
   // What the model holds, which directories already have children, and which
-  // directories were already handed to `onExpand`.
+  // expanded, still childless directories were already handed to `onExpand`.
   const knownRef = React.useRef(new Set<string>());
   const parentsRef = React.useRef(new Set<string>());
   const requestedRef = React.useRef(new Set<string>());
@@ -133,13 +133,18 @@ function useLazyExpansion(
 
   const notifyExpanded = React.useCallback(() => {
     for (const path of knownRef.current) {
-      if (!isDirectoryPath(path) || requestedRef.current.has(path)) continue;
-      if (parentsRef.current.has(path)) continue;
+      if (!isDirectoryPath(path) || parentsRef.current.has(path)) continue;
       const item = model.getItem(path);
-      if (item && "isExpanded" in item && item.isExpanded()) {
-        requestedRef.current.add(path);
-        onExpandRef.current?.(path);
+      const expanded = Boolean(item && "isExpanded" in item && item.isExpanded());
+      // A folder that got no children (its listing failed, or is still on the way) may ask
+      // again: collapsing it re-arms `onExpand` for the next expansion.
+      if (!expanded) {
+        requestedRef.current.delete(path);
+        continue;
       }
+      if (requestedRef.current.has(path)) continue;
+      requestedRef.current.add(path);
+      onExpandRef.current?.(path);
     }
   }, [model, onExpandRef]);
 
