@@ -86,12 +86,13 @@ func (c *daemonClient) sessionChangesOnce(
 			}
 			return result, err
 		}
-		valid := len(patches.Patches) == len(options.Paths)
+		valid := patches.Revision == result.Revision && len(patches.Patches) == len(options.Paths)
 		for _, patch := range patches.Patches {
-			found := false
+			// Off-page patches retain the engine revision and before/after fingerprint checks.
+			found := result.Truncated && patch.Fingerprint != ""
 			for _, file := range result.Files {
-				if file.Path == patch.Path && file.Fingerprint == patch.Fingerprint {
-					found = true
+				if file.Path == patch.Path {
+					found = file.Fingerprint == patch.Fingerprint
 					break
 				}
 			}

@@ -3,6 +3,7 @@ package changes
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -61,7 +62,42 @@ func summary(t *testing.T, e Engine, root projectfiles.Root, req Request) Summar
 	}
 	return s
 }
+
 func TestEngine(t *testing.T) {
+	t.Run("Should redact external orderfile failures and classify Git exits", func(t *testing.T) {
+		t.Parallel()
+		root, e := repo(t)
+		outside := filepath.Join(t.TempDir(), "private-host-orderfile")
+		git(t, root, "config", "diff.orderFile", outside)
+		write(t, root, "a.go", "changed\n")
+		_, err := e.Summary(t.Context(), root, Request{Scope: Uncommitted})
+		if !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("error=%v", err)
+		}
+		var logs bytes.Buffer
+		LogFailure(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)), root.AbsPath, err)
+		var entry map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(logs.String(), "private-host-orderfile") || entry["subcommand"] != "diff" ||
+			entry["exit_status"] != float64(128) ||
+			entry["timeout"] != false {
+			t.Fatalf("logs=%s", &logs)
+		}
+	})
+	for _, path := range []string{"/outside/private-host/file", "'/outside/private-host/a file'", `"C:\private-host\a file"`, `\\private-host\share\file`, "~/private-host/file", "'~user/private-host/a file'"} {
+		t.Run("Should omit path-bearing diagnostics "+path, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			cause := fmt.Errorf("failed to read %s: %w", path, context.DeadlineExceeded)
+			LogFailure(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), "/project", cause)
+			if strings.Contains(logs.String(), "private-host") || !strings.Contains(logs.String(), "timeout=true") {
+				t.Fatalf("logs=%s", &logs)
+			}
+		})
+	}
+
 	t.Run("Should preserve Git failure causes and redact request diagnostics", func(t *testing.T) {
 		t.Parallel()
 		root, e := repo(t)

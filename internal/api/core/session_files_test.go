@@ -432,7 +432,14 @@ func TestProjectChangesDiagnostics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cause := fmt.Errorf("%w: git diff at %s: %w", changes.ErrUnavailable, root, context.DeadlineExceeded)
+			external := "/outside/private-orderfile"
+			cause := fmt.Errorf(
+				"%w: git diff at %s orderfile '%s': %w",
+				changes.ErrUnavailable,
+				root,
+				external,
+				context.DeadlineExceeded,
+			)
 			engine, log := newSessionFilesHandlerEngine(
 				t,
 				root,
@@ -444,7 +451,8 @@ func TestProjectChangesDiagnostics(t *testing.T) {
 				strings.Contains(response.Body.String(), "deadline") {
 				t.Fatalf("response %d %s", response.Code, response.Body)
 			}
-			if strings.Contains(log.logs.String(), root) || !strings.Contains(log.logs.String(), "deadline exceeded") ||
+			if strings.Contains(log.logs.String(), external) || strings.Contains(log.logs.String(), root) ||
+				!strings.Contains(log.logs.String(), "deadline exceeded") ||
 				!strings.Contains(log.logs.String(), "WARN") {
 				t.Fatalf("logs %s", log.logs)
 			}

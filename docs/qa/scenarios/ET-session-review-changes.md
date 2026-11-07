@@ -92,3 +92,9 @@ live refresh retries the summary, and the browser console logs the `409 base_not
 - The owning regression suites are `TestEngine`, `TestProjectChangesDiagnostics`,
   `TestSessionChanges`, and `TestNativeSessionChanges`. They cover deterministic failures and
   concurrent edits. The original transient restart incident still has no proven root cause.
+
+- Request a changed path omitted from a truncated summary page. A stable patch must be returned;
+  summarized paths still require exact fingerprint equality.
+- Configure a missing external `diff.orderFile` in an isolated fixture and request Changes.
+  The warning must classify the Git subcommand, exit status and timeout without retaining that
+  external path. Path-bearing diagnostic lines are omitted, including quoted, Windows and home paths.

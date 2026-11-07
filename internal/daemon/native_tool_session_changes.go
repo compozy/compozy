@@ -203,10 +203,11 @@ func readSessionChanges(
 		}
 		valid := len(patches) == len(paths)
 		for _, patch := range patches {
-			found := false
+			// Off-page patches retain the engine revision and before/after fingerprint checks.
+			found := summary.Truncated && patch.Fingerprint != ""
 			for _, file := range summary.Files {
-				if file.Path == patch.Path && file.Fingerprint == patch.Fingerprint {
-					found = true
+				if file.Path == patch.Path {
+					found = file.Fingerprint == patch.Fingerprint
 					break
 				}
 			}

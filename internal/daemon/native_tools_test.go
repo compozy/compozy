@@ -16959,19 +16959,28 @@ func TestNativeSessionChanges(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer
 		root := "/private/project"
-		cause := fmt.Errorf("%w: git diff at %s: %w", changes.ErrUnavailable, root, context.DeadlineExceeded)
+		external := "/outside/private-orderfile"
+		cause := fmt.Errorf(
+			"%w: git diff at %s orderfile '%s': %w",
+			changes.ErrUnavailable,
+			root,
+			external,
+			context.DeadlineExceeded,
+		)
 		result, err := nativeChangesError(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root, cause)
 		if err != nil || !bytes.Contains(result.Structured, []byte("changes_unavailable")) ||
 			bytes.Contains(result.Structured, []byte("deadline")) {
 			t.Fatalf("result=%s err=%v", result.Structured, err)
 		}
-		if strings.Contains(logs.String(), root) || !strings.Contains(logs.String(), "deadline exceeded") {
+		if strings.Contains(logs.String(), external) || strings.Contains(logs.String(), root) ||
+			!strings.Contains(logs.String(), "deadline exceeded") {
 			t.Fatalf("logs=%s", &logs)
 		}
 	})
 
-	for _, continuous := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should fence changing summary fingerprints continuous=%v", continuous), func(t *testing.T) {
+	for _, mode := range []string{"once", "continuous", "capped"} {
+		continuous := mode == "continuous"
+		t.Run(fmt.Sprintf("Should fence changing summary fingerprints mode=%s", mode), func(t *testing.T) {
 			t.Parallel()
 			root, rootErr := projectfiles.CanonicalRoot(projectfiles.Root{AbsPath: t.TempDir()})
 			if rootErr != nil {
@@ -16988,7 +16997,13 @@ func TestNativeSessionChanges(t *testing.T) {
 			if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			engine := &editingChangesEngine{Engine: changes.NewEngine(), t: t, path: path, continuous: continuous}
+			engine := &editingChangesEngine{
+				Engine:     changes.NewEngine(),
+				t:          t,
+				path:       path,
+				continuous: continuous,
+				capped:     mode == "capped",
+			}
 			summary, patches, err := readSessionChanges(
 				t.Context(),
 				engine,
@@ -16996,6 +17011,12 @@ func TestNativeSessionChanges(t *testing.T) {
 				changes.Request{Scope: changes.Uncommitted},
 				[]string{"a.go"},
 			)
+			if engine.capped {
+				if err != nil || len(patches) != 1 || engine.calls != 1 {
+					t.Fatalf("capped patches=%+v calls=%d err=%v", patches, engine.calls, err)
+				}
+				return
+			}
 			if engine.calls != 2 {
 				t.Fatalf("summary calls=%d err=%v", engine.calls, err)
 			}
@@ -17138,6 +17159,7 @@ type editingChangesEngine struct {
 	path       string
 	calls      int
 	continuous bool
+	capped     bool
 }
 
 func (e *editingChangesEngine) Summary(
@@ -17148,6 +17170,11 @@ func (e *editingChangesEngine) Summary(
 	e.t.Helper()
 	s, err := e.Engine.Summary(ctx, root, req)
 	e.calls++
+	if e.capped {
+		s.Files = nil
+		s.Truncated = true
+		return s, err
+	}
 	if e.continuous || e.calls == 1 {
 		if err := os.WriteFile(e.path, []byte(fmt.Sprintf("edit %d\n", e.calls)), 0600); err != nil {
 			e.t.Fatal(err)

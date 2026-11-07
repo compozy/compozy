@@ -55,12 +55,12 @@ func (e *GitEngine) stream(
 	}
 	argv, err := projectfiles.GitReadArgs(ctx, e.runner, root.AbsPath, command, args...)
 	if err != nil {
-		return fmt.Errorf("%s: %w", command, err)
+		return &gitReadError{command: command, err: err}
 	}
 	argv = append([]string{"--literal-pathspecs"}, argv...)
 	_, _, err = e.runner.RunStreaming(ctx, root.AbsPath, fn, argv...)
 	if err != nil {
-		return fmt.Errorf("%s: %w", command, err)
+		return &gitReadError{command: command, err: err}
 	}
 	return nil
 }
@@ -172,3 +172,11 @@ func (e *GitEngine) resolve(ctx context.Context, root projectfiles.Root, req Req
 	}
 	return s, nil
 }
+
+type gitReadError struct {
+	command string
+	err     error
+}
+
+func (e *gitReadError) Error() string { return fmt.Sprintf("%s: %v", e.command, e.err) }
+func (e *gitReadError) Unwrap() error { return e.err }
