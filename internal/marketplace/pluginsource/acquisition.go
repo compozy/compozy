@@ -78,6 +78,7 @@ func capturePackage(
 	_, err = fileutil.WriteTarDirectory(ctx, io.MultiWriter(archive, hash), packagePath,
 		map[string]struct{}{".git": {}}, fileutil.TarLimits{
 			MaxBytes: min(capacity, registry.DefaultMaxArchiveSize), MaxFileCount: registry.DefaultMaxFileCount,
+			MaterializeSymlinks: true,
 		})
 	if err != nil {
 		return nil, err

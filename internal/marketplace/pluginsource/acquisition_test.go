@@ -868,3 +868,122 @@ func TestCapturePackage(t *testing.T) {
 		assertCacheEmpty(t, cache)
 	})
 }
+
+func TestPackageSymlinks(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"tar", "gzip", "checkout"} {
+		for _, fixture := range []struct {
+			name   string
+			target string
+			second string
+			want   string
+			reject bool
+		}{
+			{name: "Should materialize an internal file", target: "data/file", want: "alias"},
+			{name: "Should materialize an internal directory", target: "data", want: "alias/file"},
+			{name: "Should materialize a link chain", target: "second", second: "data/file", want: "alias"},
+			{name: "Should reject a sibling package target", target: "../sibling/file", reject: true},
+			{name: "Should reject an archive escape", target: "../../../outside", reject: true},
+			{name: "Should reject an absolute target", target: "/etc/passwd", reject: true},
+			{name: "Should reject a dangling target", target: "missing", reject: true},
+			{name: "Should reject a link cycle", target: "second", second: "alias", reject: true},
+			{name: "Should reject a recursive directory", target: ".", reject: true},
+		} {
+			t.Run(fixture.name+" from "+format, func(t *testing.T) {
+				t.Parallel()
+				checkout := t.TempDir()
+				writeMarketplaceDocument(t, checkout, "repo/package/data/file", []byte("payload"))
+				writeMarketplaceDocument(t, checkout, "repo/sibling/file", []byte("secret"))
+				if err := os.Symlink(fixture.target, filepath.Join(checkout, "repo", "package", "alias")); err != nil {
+					t.Fatal(err)
+				}
+				if fixture.second != "" {
+					if err := os.Symlink(
+						fixture.second,
+						filepath.Join(checkout, "repo", "package", "second"),
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				root := checkout
+				var extractErr error
+				if format != "checkout" {
+					var raw bytes.Buffer
+					contentType := registry.TarContentType
+					if format == "gzip" {
+						raw.Write(githubSnapshotArchive(t, checkout))
+						contentType = "application/gzip"
+					} else {
+						if _, err := fileutil.WriteTarDirectory(
+							t.Context(),
+							&raw,
+							checkout,
+							nil,
+							fileutil.TarLimits{},
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+					root = t.TempDir()
+					extractErr = extractSnapshot(
+						t.Context(),
+						root,
+						&registry.DownloadResult{
+							Reader:      io.NopCloser(bytes.NewReader(raw.Bytes())),
+							ContentType: contentType,
+						},
+					)
+				}
+				cache := &PackageCache{Root: t.TempDir()}
+				var digest string
+				err := extractErr
+				if err == nil {
+					digest, err = CapturePackage(t.Context(), root, "repo/package", cache)
+				}
+				if fixture.reject {
+					if err == nil {
+						t.Fatal("unsafe link accepted")
+					}
+					assertCacheEmpty(t, cache)
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				reader, err := cache.Open(t.Context(), digest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := reader.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				archive := tar.NewReader(reader)
+				found := false
+				for {
+					header, err := archive.Next()
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if header.Typeflag == tar.TypeSymlink {
+						t.Fatal("cached package retained a symlink")
+					}
+					if header.Name == fixture.want {
+						content, err := io.ReadAll(archive)
+						if err != nil || string(content) != "payload" {
+							t.Fatalf("materialized content = %q, %v", content, err)
+						}
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("missing materialized entry %q", fixture.want)
+				}
+			})
+		}
+	}
+}
