@@ -4065,3 +4065,52 @@ func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (stri
 func userMCPExecutorTarget(serverName string) mcpauth.Target {
 	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
+
+func TestClientInputConnection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve derived URL and bearer input against a real MCP server", func(t *testing.T) {
+		t.Parallel()
+		handler := newTestMCPHandler(newFakeSDKServer(nil))
+		remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer private-token" {
+				http.Error(w, "missing input", http.StatusUnauthorized)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(remote.Close)
+		server := compozyconfig.MCPServer{
+			Name:      "client",
+			Owner:     "extension:client",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       "http://${HOST}/mcp",
+			Headers:   map[string]string{"Authorization": "Bearer ${API_KEY}"},
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"HOST": {
+					Value: strings.TrimPrefix(remote.URL, "http://"),
+				},
+				"API_KEY": {SecretRef: "vault:extensions/global/client/env/API_KEY"},
+			},
+		}
+		executor := newTestMCPExecutor(
+			t,
+			server,
+			WithSecretResolver(
+				secretRefResolverFunc(func(context.Context, string) (string, error) { return "private-token", nil }),
+			),
+		)
+		if _, err := executor.ListTools(
+			t.Context(),
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name},
+		); err != nil {
+			t.Fatal(err)
+		}
+		serialized, err := json.Marshal(server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(serialized, []byte("private-token")) {
+			t.Fatal("published declaration leaked secret")
+		}
+	})
+}

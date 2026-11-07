@@ -3002,3 +3002,41 @@ func TestDaemonConcurrentAdd(t *testing.T) {
 		}
 	})
 }
+
+func TestDerivedInputInstallPreflight(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject missing derived input before committing local plugin install", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, runtime := newNativeExtensionToolDeps(t)
+		db, ok := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("fixture requires real database")
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Logger: discardLogger(), Now: time.Now}, withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources)).(*daemonExtensionService)
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "derived input install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             root,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"HOST"}) {
+			t.Fatalf("missing input install = %v", err)
+		}
+	})
+}

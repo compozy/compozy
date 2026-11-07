@@ -3,11 +3,14 @@ package extensionpkg
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/marketplace"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -79,6 +82,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		default:
 			return nil, fmt.Errorf("extension: unsupported synthesized MCP transport %q", server.Transport)
 		}
+		config.Auth = clientManifestOAuth(server)
 		servers[name] = config
 	}
 
@@ -94,6 +98,11 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		Permissions:       PermissionsConfig{},
 		Subprocess:        SubprocessConfig{},
 	}
+	manifest.Inputs, err = derivedManifestInputs(pkg.Inputs)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -117,6 +126,8 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 		}
 		severity, title := diagnosticcontract.SeverityWarn, "Component skipped"
 		switch value.Code {
+		case agentplugin.ClientPlaceholderInvalid:
+			code = diagnosticcontract.CodeExtensionClientPlaceholderInvalid
 		case agentplugin.ClientFieldIgnored:
 			code = diagnosticcontract.CodeExtensionClientFieldIgnored
 		case agentplugin.ClientMCPDiscovered:
@@ -177,4 +188,49 @@ func agentPluginDiagnosticMessage(component, scope, message string) string {
 		return fmt.Sprintf("skill %q: %s", strings.TrimPrefix(scope, "skill:"), message)
 	}
 	return message
+}
+
+func derivedManifestInputs(derivedInputs []agentplugin.DerivedInput) ([]ManifestInput, error) {
+	var inputs []ManifestInput
+
+	for _, derived := range derivedInputs {
+		input := ManifestInput{
+			ID:       derived.ID,
+			Prompt:   derived.ID,
+			Type:     "string",
+			Required: derived.Required,
+			Binding:  marketplace.InputBinding{Type: manifestInputBindingTemplate, Name: derived.ID},
+		}
+		if derived.Secret {
+			input.Type = manifestInputTypeSecret
+		} else if !derived.Required {
+			value, err := json.Marshal(derived.Default)
+			if err != nil {
+				return nil, err
+			}
+			input.Default = value
+		}
+		inputs = append(inputs, input)
+	}
+	return inputs, nil
+}
+
+func clientManifestOAuth(server agentplugin.ServerSpec) *MCPServerAuthConfig {
+	if server.Auth == nil {
+		return nil
+	}
+	auth := &MCPServerAuthConfig{
+		Method:            "oauth",
+		Registration:      "dynamic",
+		ClientID:          server.Auth.ClientID,
+		Scopes:            slices.Clone(server.Auth.Scopes),
+		ClientSecretInput: server.Auth.ClientSecret,
+	}
+	if server.Auth.ClientID != "" {
+		auth.Registration = "pre_registered"
+		scheme, authority, _ := strings.Cut(server.URL, "://")
+		authority, _, _ = strings.Cut(authority, "/")
+		auth.IssuerURL = scheme + "://" + authority
+	}
+	return auth
 }

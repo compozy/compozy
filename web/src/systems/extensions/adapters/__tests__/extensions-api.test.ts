@@ -110,6 +110,13 @@ describe("extensions management mutations", () => {
         binding: { type: "url_query", name: "region" },
         default: "eu",
       },
+      {
+        id: "HOST",
+        prompt: "HOST",
+        type: "string",
+        required: true,
+        binding: { type: "template", name: "HOST" },
+      },
     ];
     mockJsonResponse(
       {

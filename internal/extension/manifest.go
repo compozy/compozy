@@ -219,11 +219,12 @@ type MCPServerConfig struct {
 
 // MCPServerAuthConfig declares authentication policy without embedding credentials.
 type MCPServerAuthConfig struct {
-	Method       string   `toml:"method"                 json:"method"`
-	Registration string   `toml:"registration,omitempty" json:"registration,omitempty"`
-	IssuerURL    string   `toml:"issuer_url,omitempty"   json:"issuer_url,omitempty"`
-	ClientID     string   `toml:"client_id,omitempty"    json:"client_id,omitempty"`
-	Scopes       []string `toml:"scopes,omitempty"       json:"scopes,omitempty"`
+	ClientSecretInput string   `toml:"-"                      json:"-"`
+	Method            string   `toml:"method"                 json:"method"`
+	Registration      string   `toml:"registration,omitempty" json:"registration,omitempty"`
+	IssuerURL         string   `toml:"issuer_url,omitempty"   json:"issuer_url,omitempty"`
+	ClientID          string   `toml:"client_id,omitempty"    json:"client_id,omitempty"`
+	Scopes            []string `toml:"scopes,omitempty"       json:"scopes,omitempty"`
 }
 
 // ToolConfig declares one static tool packaged with the extension.

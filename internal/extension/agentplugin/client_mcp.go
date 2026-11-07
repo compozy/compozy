@@ -29,6 +29,7 @@ func loadClientMCP(root, dataDir string, raw json.RawMessage, pkg *Package) {
 			continue
 		}
 		pkg.Servers = append(pkg.Servers, spec)
+		deriveClientInputs(pkg, spec)
 	}
 }
 
@@ -80,8 +81,10 @@ func decodeClientServer(name string, raw json.RawMessage, root, dataDir string) 
 		return ServerSpec{}, nil, fmt.Errorf("encode client MCP transport: %w", err)
 	}
 	fields["type"] = encodedTransport
+	auth, authDiagnostics := decodeClientAuth(name, fields["auth"], transport)
+	delete(fields, "auth")
 	allowed := []string{"type", "command", "args", "env", "cwd", "url", "headers"}
-	var diagnostics []Diagnostic
+	diagnostics := authDiagnostics
 	for _, field := range slices.Sorted(maps.Keys(fields)) {
 		if !slices.Contains(allowed, field) {
 			delete(fields, field)
@@ -99,7 +102,13 @@ func decodeClientServer(name string, raw json.RawMessage, root, dataDir string) 
 	if err != nil {
 		return ServerSpec{}, nil, fmt.Errorf("normalize client MCP server: %w", err)
 	}
-	spec, err := decodeServer(name, normalized, root, dataDir)
+	var spec ServerSpec
+	if transport == transportStreamableHTTP || transport == transportSSE {
+		spec, err = decodeRemoteServer(name, transport, fields, true)
+	} else {
+		spec, err = decodeServer(name, normalized, root, dataDir)
+	}
+	spec.Auth = auth
 	return spec, diagnostics, err
 }
 

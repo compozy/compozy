@@ -78,6 +78,12 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 	server compozyconfig.MCPServer,
 	target mcpauth.Target,
 ) (mcpStdioSpec, error) {
+	server, inputSecrets, err := server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return mcpStdioSpec{}, err
+	}
 	slot, err := target.Key()
 	if err != nil {
 		return mcpStdioSpec{}, fmt.Errorf("mcp: derive stdio target identity: %w", err)
@@ -92,7 +98,7 @@ func (e *CallExecutor) resolveMCPStdioSpec(
 		args:    trimStrings(server.Args),
 		env:     env,
 		dir:     strings.TrimSpace(server.CWD),
-		secrets: secrets,
+		secrets: append(secrets, inputSecrets...),
 	}
 	spec.digest = spec.identityDigest()
 	return spec, nil

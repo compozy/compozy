@@ -163,6 +163,7 @@ const (
 )
 
 const (
+	CodeExtensionClientPlaceholderInvalid     = "client_placeholder_invalid"
 	CodeExtensionClientFieldIgnored           = "client_field_ignored"
 	CodeExtensionClientMCPDiscovered          = "client_mcp_discovered"
 	CodeExtensionClientComponentIgnored       = "client_component_ignored"
@@ -244,6 +245,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
 	{Code: CodeExtensionClientComponentIgnored, Category: CategoryExtension},
+	{Code: CodeExtensionClientPlaceholderInvalid, Category: CategoryExtension},
 	{Code: CodeExtensionClientFieldIgnored, Category: CategoryExtension},
 	{Code: CodeExtensionClientMCPDiscovered, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginManifestInvalid, Category: CategoryExtension},

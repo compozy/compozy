@@ -26,6 +26,16 @@ func applyManifestMCPInputs(
 		if err != nil {
 			return err
 		}
+		if input.Binding.Type == manifestInputBindingTemplate {
+			if server.InputValues == nil {
+				server.InputValues = make(map[string]compozyconfig.MCPInputValue)
+			}
+			server.InputValues[input.ID] = compozyconfig.MCPInputValue{Value: value, SecretRef: ref}
+			if declaration.Auth != nil && declaration.Auth.ClientSecretInput == "${"+input.ID+"}" {
+				server.Auth.ClientSecretRef = ref
+			}
+			continue
+		}
 		if input.Binding.Type == "url_query" {
 			if err := applyManifestURLInput(server, input, value, present); err != nil {
 				return err

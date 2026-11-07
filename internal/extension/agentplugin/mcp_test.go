@@ -566,7 +566,7 @@ func TestClientMCPCompatibility(t *testing.T) {
 				},
 				"remote": map[string]any{
 					"url":  "https://example.com/mcp",
-					"auth": map[string]any{"CLIENT_ID": "client"},
+					"auth": map[string]any{"unsupported": "client"},
 				},
 			}},
 		)
@@ -586,6 +586,59 @@ func TestClientMCPCompatibility(t *testing.T) {
 		}
 		if !hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth") {
 			t.Fatal("missing auth diagnostic")
+		}
+	})
+}
+
+func TestClientDerivedInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should derive OAuth and typed inputs and deduplicate their server owners", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"remote": map[string]any{
+					"url":     "https://${HOST}/mcp",
+					"headers": map[string]string{"Authorization": "Bearer ${LINEAR_API_KEY}"},
+				},
+				"other": map[string]any{
+					"url": "https://${HOST}/mcp",
+					"auth": map[string]any{
+						"CLIENT_ID":     "abc",
+						"CLIENT_SECRET": "${CLIENT_SECRET}",
+						"scopes":        []string{"s"},
+					},
+				},
+				"local": map[string]any{
+					"command": "node",
+					"env":     map[string]string{"R": "${REGION:-us-east-1}"},
+					"args":    []string{"${host-name}"},
+				},
+			}},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 3 || len(pkg.Inputs) != 4 {
+			t.Fatalf("package = %+v", pkg)
+		}
+		want := []DerivedInput{
+			{ID: "CLIENT_SECRET", Secret: true, Required: true, Servers: []string{"other"}},
+			{ID: "HOST", Required: true, Servers: []string{"other", "remote"}},
+			{ID: "LINEAR_API_KEY", Secret: true, Required: true, Servers: []string{"remote"}},
+			{ID: "REGION", Default: "us-east-1", Servers: []string{"local"}},
+		}
+		if !reflect.DeepEqual(pkg.Inputs, want) {
+			t.Fatalf("inputs = %+v, want %+v", pkg.Inputs, want)
+		}
+		auth := pkg.Servers[1].Auth
+		if auth == nil || auth.ClientID != "abc" || auth.ClientSecret != "${CLIENT_SECRET}" ||
+			!reflect.DeepEqual(auth.Scopes, []string{"s"}) {
+			t.Fatalf("auth = %+v", auth)
+		}
+		if pkg.Servers[0].Args[0] != "${host-name}" || len(pkg.Diagnostics) != 1 ||
+			pkg.Diagnostics[0].Code != ClientPlaceholderInvalid {
+			t.Fatalf("invalid placeholder = %+v", pkg)
 		}
 	})
 }

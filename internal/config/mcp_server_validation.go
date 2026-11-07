@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -17,12 +18,18 @@ import (
 // Validate ensures the MCP server entry is usable.
 func (s MCPServer) Validate(path string) error {
 	transport := s.EffectiveTransport()
+	var err error
+	s, err = s.validateInputValues(path)
+	if err != nil {
+		return err
+	}
+
 	if err := ValidateMCPServerName(s.Name); err != nil {
 		return fmt.Errorf("%s.name: %w", path, err)
 	}
 	if s.Reference {
 		if s.Command != "" || s.URL != "" || s.Transport != "" || s.CatalogEntry != "" || s.CatalogVersion != "" ||
-			len(s.Args)+len(s.Env)+len(s.SecretEnv)+len(s.Headers)+len(s.SecretHeaders) > 0 ||
+			len(s.Args)+len(s.Env)+len(s.SecretEnv)+len(s.Headers)+len(s.SecretHeaders)+len(s.InputValues) > 0 ||
 			!s.Auth.IsZero() {
 			return fmt.Errorf("%s: a reference must contain only name and reference", path)
 		}
@@ -45,9 +52,10 @@ func (s MCPServer) Validate(path string) error {
 	if err := validateMCPServerTransportFields(path, transport, s); err != nil {
 		return err
 	}
-	if err := validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv, s.Owner); err != nil {
+	if err := s.validateInputEnvironment(path, transport); err != nil {
 		return err
 	}
+
 	if transport == MCPServerTransportStdio {
 		return nil
 	}
@@ -101,9 +109,17 @@ func validateRemoteMCPServer(path string, server MCPServer) error {
 	if err := mcppolicy.ValidateRemoteURL(server.URL); err != nil {
 		return fmt.Errorf("%s.url: %w", path, err)
 	}
-	if err := mcppolicy.ValidateHeaders(
+	fixed, bound := mcppolicy.InputHeaders(
 		server.Headers,
-		server.SecretHeaders,
+		func(name string) bool {
+			_, declared := server.InputValues[name]
+			return declared && mcppolicy.SecretInputName(name)
+		},
+	)
+	maps.Copy(bound, server.SecretHeaders)
+	if err := mcppolicy.ValidateHeaders(
+		fixed,
+		bound,
 		mcppolicy.SourceOperatorSecret,
 		server.Auth.Enabled(),
 	); err != nil {
@@ -153,7 +169,7 @@ func (a MCPAuthConfig) Validate(path string) error {
 			return err
 		}
 		if strings.TrimSpace(a.ClientSecretRef) != "" {
-			if err := vault.ValidateRefNamespace(a.ClientSecretRef, "mcp"); err != nil {
+			if err := validateOAuthClientSecretRef(a.ClientSecretRef); err != nil {
 				return fmt.Errorf("%s.client_secret_ref is invalid: %w", path, err)
 			}
 		}
@@ -342,4 +358,60 @@ func forbiddenStdioMCPEnvKey(key string) bool {
 	default:
 		return strings.HasPrefix(normalized, "DYLD_")
 	}
+}
+
+func validateOAuthClientSecretRef(ref string) error {
+	if strings.HasPrefix(ref, "vault:extensions/") {
+		return vault.ValidateRefNamespace(ref, "extensions")
+	}
+	return vault.ValidateRefNamespace(ref, "mcp")
+}
+
+func (s MCPServer) validateInputValues(path string) (MCPServer, error) {
+	for name, input := range s.InputValues {
+		if !mcppolicy.ValidInputName(name) {
+			return MCPServer{}, fmt.Errorf("%s: invalid input name", path)
+		}
+		if mcppolicy.SecretInputName(name) && input.Value != "" {
+			return MCPServer{}, fmt.Errorf("%s: secret input requires a reference", path)
+		}
+		if input.SecretRef != "" {
+			if err := validateMCPServerSecretRef(input.SecretRef, s.Owner); err != nil {
+				return MCPServer{}, fmt.Errorf("%s: invalid input reference", path)
+			}
+		}
+	}
+	if len(s.InputValues) > 0 {
+		rendered, _, err := s.RenderInputs(func(string) (string, error) { return "input.example", nil })
+		if err != nil {
+			return MCPServer{}, err
+		}
+		s.URL = rendered.URL
+		s.Auth.IssuerURL = rendered.Auth.IssuerURL
+	}
+	if strings.HasPrefix(s.Auth.ClientSecretRef, "vault:extensions/") {
+		if err := validateMCPServerSecretRef(s.Auth.ClientSecretRef, s.Owner); err != nil {
+			return MCPServer{}, err
+		}
+	}
+	return s, nil
+}
+
+func (s MCPServer) validateInputEnvironment(path string, transport MCPServerTransport) error {
+	fixedEnv, boundEnv := mcppolicy.InputHeaders(
+		s.Env,
+		func(name string) bool {
+			_, declared := s.InputValues[name]
+			return declared && mcppolicy.SecretInputName(name)
+		},
+	)
+	for key := range boundEnv {
+		if err := ValidateMCPStdioEnvName(path+".env", key, true); err != nil {
+			return err
+		}
+	}
+	if err := validateStdioMCPEnv(path, transport, fixedEnv, s.SecretEnv, s.Owner); err != nil {
+		return err
+	}
+	return nil
 }
