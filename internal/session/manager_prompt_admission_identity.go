@@ -272,6 +272,7 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	return result, nil
 }
 
+// sessionPromptAdmissionResult encodes delivery and Goal data for durable idempotent replay.
 func sessionPromptAdmissionResult(result SendPromptResult) (store.SessionPromptAdmissionResult, error) {
 	stored := store.SessionPromptAdmissionResult{
 		HeldReason: result.HeldReason, HeldInstanceID: result.HeldInstanceID,
