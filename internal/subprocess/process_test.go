@@ -230,19 +230,30 @@ func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 	}
 }
 
-// Invariant: an unspecified launch env inherits the parent without internal handoff variables.
+// Invariant: managed subprocess environments never carry internal handoff variables.
 // not parallel: mutates process environment with t.Setenv.
-func TestEffectiveEnvironmentFallbackDropsInternalHandoff(t *testing.T) {
-	t.Setenv("COMPOZY_INTERNAL_RESTART_OPERATION_ID", "restart-1")
+func TestEffectiveEnvironmentDropsInternalHandoff(t *testing.T) {
+	const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
+	t.Setenv(handoff, "restart-1")
 	t.Setenv("SUBPROCESS_FALLBACK_MARKER", "kept")
 
 	t.Run("Should inherit the parent environment without internal handoff variables", func(t *testing.T) {
 		env := effectiveEnvironment(nil)
-		if _, ok := lookupEnvForPlatform(env, "COMPOZY_INTERNAL_RESTART_OPERATION_ID", false); ok {
-			t.Fatalf("effectiveEnvironment(nil) kept the internal handoff in %#v", env)
+		if _, ok := lookupEnvForPlatform(env, handoff, false); ok {
+			t.Fatalf("effectiveEnvironment(nil) kept %s", handoff)
 		}
 		if got, ok := lookupEnvForPlatform(env, "SUBPROCESS_FALLBACK_MARKER", false); !ok || got != "kept" {
 			t.Fatalf("effectiveEnvironment(nil) marker = %q, %t; want kept, true", got, ok)
+		}
+	})
+
+	t.Run("Should drop internal handoff variables from an explicit environment", func(t *testing.T) {
+		env := effectiveEnvironment([]string{"PATH=/usr/bin", handoff + "=copied"})
+		if _, ok := lookupEnvForPlatform(env, handoff, false); ok {
+			t.Fatalf("effectiveEnvironment(explicit) kept %s", handoff)
+		}
+		if got, ok := lookupEnvForPlatform(env, "PATH", false); !ok || got != "/usr/bin" {
+			t.Fatalf("effectiveEnvironment(explicit) PATH = %q, %t; want /usr/bin, true", got, ok)
 		}
 	})
 }

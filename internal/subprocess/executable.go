@@ -98,13 +98,13 @@ func executableSearchBase(dir string) (string, error) {
 	return filepath.Clean(base), nil
 }
 
-// effectiveEnvironment inherits the parent environment for an unspecified env, without the
-// parent's internal handoff variables, which never reach a launched subprocess.
+// effectiveEnvironment inherits the parent environment for an unspecified env. Internal handoff
+// variables never reach a managed subprocess, whether inherited or supplied explicitly.
 func effectiveEnvironment(env []string) []string {
 	if len(env) == 0 {
-		return procutil.WithoutInternalHandoffEnv(os.Environ())
+		env = os.Environ()
 	}
-	return append([]string(nil), env...)
+	return procutil.WithoutInternalHandoffEnv(env)
 }
 
 func resolveExecutableCandidate(candidate string, pathExt string, base string) (string, error) {
