@@ -992,12 +992,15 @@ func readAttentionCanceledInteraction(
 		t.Fatalf("canceled permission %q missing: %#v", interactionID, response)
 	}
 	row := response.Interactions[index]
-	if row.Status != store.PendingInteractionStatusCanceled || row.ResolvedBy != "system" || row.ResolvedAt == nil {
+	if row.Status != store.PendingInteractionStatusCanceled || row.ResolvedAt == nil {
 		t.Fatalf("canceled permission attribution = %#v", row)
 	}
-	// Cancellation may settle at ACP disconnect, shutdown finalization, or boot recovery.
-	if !slices.Contains([]string{"canceled", "session-stopped", "failed-by-restart"}, row.Resolution) {
-		t.Fatalf("canceled permission resolution = %#v", row)
+	// Provider cancellation during stop may win before disconnect or daemon finalization.
+	providerCanceled := row.ResolvedBy == "provider" && row.Resolution == "canceled"
+	systemCanceled := row.ResolvedBy == "system" &&
+		slices.Contains([]string{"canceled", "session-stopped", "failed-by-restart"}, row.Resolution)
+	if !providerCanceled && !systemCanceled {
+		t.Fatalf("canceled permission attribution = %#v", row)
 	}
 	return row
 }
