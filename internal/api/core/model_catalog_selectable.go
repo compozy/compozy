@@ -8,7 +8,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -30,8 +29,7 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 		return compozyconfig.Config{}, NewModelCatalogValidationError(err)
 	}
 	workspaceID := strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace")))
-	switch {
-	case workspaceID != "" && h.Workspaces != nil:
+	if workspaceID != "" && h.Workspaces != nil {
 		resolve := func() (workspacepkg.ResolvedWorkspace, error) { return h.Workspaces.Resolve(ctx, workspaceID) }
 		profiles, layered := h.Workspaces.(workspacepkg.ProfileRuntimeResolver)
 		if name := strings.TrimSpace(selection.ProfileName); name != "" && layered {
@@ -44,21 +42,16 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 			return compozyconfig.Config{}, fmt.Errorf("api: resolve model catalog workspace %q: %w", workspaceID, err)
 		}
 		return resolved.Config, nil
-	case namedProfile(selection.Scope.ProfileID):
-		// ponytail: a named profile's layers are read from its files, the same source session
-		// admission uses; the default profile keeps the active snapshot so pending global edits
-		// stay isolated (B-013). Any resolution failure keeps the active snapshot too.
-		if users, ok := h.Workspaces.(workspacepkg.UserRuntimeResolver); ok {
-			if resolved, err := users.ResolveUser(ctx, selection.Scope.ProfileID); err == nil {
-				return resolved.Config, nil
-			}
-		}
 	}
-	return h.activeConfig(ctx)
-}
-
-// namedProfile reports a selected profile other than the default one.
-func namedProfile(profileID string) bool {
-	profileID = strings.TrimSpace(profileID)
-	return profileID != "" && profileID != store.DefaultProfileID
+	active, err := h.activeConfig(ctx)
+	if err != nil {
+		return compozyconfig.Config{}, err
+	}
+	// The active global snapshot plus the selected profile's own enabled overrides: pending global
+	// edits stay isolated (B-013) and every profile, default included, keeps its overrides (BR-2).
+	scoped, err := compozyconfig.WithProfileProviderEnabled(&active, h.HomePaths, selection.ProfileName)
+	if err != nil {
+		return compozyconfig.Config{}, err
+	}
+	return scoped, nil
 }

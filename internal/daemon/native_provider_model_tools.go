@@ -19,7 +19,6 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type providerModelsListInput struct {
@@ -125,37 +124,37 @@ func (n *daemonNativeTools) providerModelsList(
 	return structuredResult(payload, summary)
 }
 
-// selectionConfig resolves the caller's effective config for selection filtering, the way session
-// admission does: the scope's workspace with its profile layers, else the profile's user config,
-// else the active config (BR-2, BR-9).
+// selectionConfig resolves the caller's effective config for selection filtering: the scope's
+// workspace with its profile layers (the source session admission uses), else the active global
+// snapshot plus the selected profile's own enabled overrides, so pending global edits stay isolated
+// (B-013) and every profile, default included, keeps its overrides (BR-2).
 func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.Scope) compozyconfig.Config {
-	resolver := n.deps.WorkspaceResolver
-	if resolver == nil {
-		return n.activeConfig(ctx)
-	}
+	active := n.activeConfig(ctx)
 	var profiles session.ProfileNameResolver
 	if n.deps.Profiles != nil {
 		profiles = n.deps.Profiles
 	}
 	profileID := strings.TrimSpace(scope.ProfileID)
-	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" {
-		resolved, err := resolveRuntimeProfileWorkspace(ctx, resolver, profiles, workspaceID, profileID)
+	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" && n.deps.WorkspaceResolver != nil {
+		resolved, err := resolveRuntimeProfileWorkspace(ctx, n.deps.WorkspaceResolver, profiles, workspaceID, profileID)
 		if err == nil {
 			return resolved.Config
 		}
 		slog.Warn("provider_models.selection_config_unresolved", "workspace_id", workspaceID, "error", err)
-		return n.activeConfig(ctx)
+		return active
 	}
-	// The default profile keeps the active snapshot so pending global edits stay isolated (B-013).
-	if users, ok := resolver.(workspacepkg.UserRuntimeResolver); ok && profileID != "" &&
-		profileID != store.DefaultProfileID {
-		resolved, err := users.ResolveUser(ctx, profileID)
-		if err == nil {
-			return resolved.Config
+	if profileID == "" {
+		return active
+	}
+	profileName, err := resolvePromptSkillsProfileName(ctx, profiles, profileID)
+	if err == nil {
+		var scoped compozyconfig.Config
+		if scoped, err = compozyconfig.WithProfileProviderEnabled(&active, n.deps.HomePaths, profileName); err == nil {
+			return scoped
 		}
-		slog.Warn("provider_models.selection_config_unresolved", "profile_id", profileID, "error", err)
 	}
-	return n.activeConfig(ctx)
+	slog.Warn("provider_models.selection_config_unresolved", "profile_id", profileID, "error", err)
+	return active
 }
 
 // activeConfig reads the live active config through settings, falling back to the boot snapshot.
