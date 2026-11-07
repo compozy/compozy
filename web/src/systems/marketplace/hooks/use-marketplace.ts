@@ -1,7 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
 
-import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
 import {
   marketplaceCatalogOptions,
   marketplaceCatalogEntryOptions,
@@ -31,26 +29,11 @@ export function useMarketplaceSections(options: MarketplaceSectionsOptions = {},
  */
 export function useMarketplaceCategory(options: MarketplaceCatalogOptions, enabled = true) {
   const query = useInfiniteQuery(marketplaceCategoryOptions(options, enabled));
-  const { error, isFetching, refetch } = query;
-  // The stale error a restart could not recover; a later stale error restarts again.
-  const [unrecovered, setUnrecovered] = useState<unknown>(null);
-  const stale = isMarketplaceCursorStale(error);
-  const restartPending = stale && error !== unrecovered;
-  // One restart at a time: its answer settles before the next stale error can start another.
-  const restarting = useRef(false);
-  useEffect(() => {
-    if (!restartPending || isFetching || restarting.current) return;
-    restarting.current = true;
-    void refetch().then(result => {
-      restarting.current = false;
-      if (isMarketplaceCursorStale(result.error)) setUnrecovered(result.error);
-    });
-  }, [restartPending, isFetching, refetch]);
   const loadMore = async () => {
     if (!query.hasNextPage || query.isFetchingNextPage) return;
     await query.fetchNextPage();
   };
-  return { ...query, error: restartPending ? null : error, loadMore };
+  return { ...query, loadMore };
 }
 
 export function useMarketplaceCatalogEntry(

@@ -1940,15 +1940,17 @@ describe("Category browse and row actions", () => {
     } = {}
   ) {
     let reads = 0;
+    // Stale answers already given per cursor; callers may list more cursors after setup.
+    const rejectedCursors = new Map<string, number>();
     server.use(
       http.get("*/api/marketplace", ({ request }) => {
         const params = new URL(request.url).searchParams;
         mocks.readCatalog(params);
         reads += 1;
         const cursor = params.get("cursor") ?? "";
-        const stale = staleCursors.indexOf(cursor);
-        if (stale >= 0) {
-          staleCursors.splice(stale, 1);
+        const rejected = rejectedCursors.get(cursor) ?? 0;
+        if (staleCursors.filter(stale => stale === cursor).length > rejected) {
+          rejectedCursors.set(cursor, rejected + 1);
           return HttpResponse.json(
             { code: "marketplace_cursor_stale", error: "cursor is stale", restart: true },
             { status: 409 }

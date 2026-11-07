@@ -90,7 +90,7 @@ func extensionInstallValidationReport(
 		if !info.IsDir() {
 			continue
 		}
-		report, err := extensionpkg.ValidateBundleReport(path)
+		report, err := extensionpkg.ValidateBundleReport(path, item.Name)
 		if err != nil {
 			continue
 		}
@@ -106,7 +106,7 @@ func extensionInstallValidationReport(
 		return nil
 	}
 	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
-	report, err := extensionpkg.ValidateBundleReport(path)
+	report, err := extensionpkg.ValidateBundleReport(path, item.Name)
 	if err != nil {
 		return nil
 	}

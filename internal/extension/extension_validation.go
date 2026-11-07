@@ -61,7 +61,7 @@ func validationIssuesForError(dir string, err error) ([]ValidationIssue, error) 
 }
 
 // ValidateBundleReport adds the permission-derived consent summary to ValidateBundle.
-func ValidateBundleReport(dir string) (*ValidationReport, error) {
+func ValidateBundleReport(dir string, pluginName ...string) (*ValidationReport, error) {
 	format, dualManifest, err := extensionValidationFormat(dir)
 	if err != nil {
 		if errors.Is(err, ErrAgentPluginManifestInvalid) {
@@ -70,7 +70,7 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 		return nil, err
 	}
 	if format == FormatAgentPlugin {
-		return validateAgentPluginBundleReport(dir)
+		return validateAgentPluginBundleReport(dir, pluginName...)
 	}
 
 	manifest, issues, err := ValidateBundle(dir)
@@ -129,6 +129,12 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 	if status == agentplugin.SchemaSupported {
 		return FormatAgentPlugin, false, nil
 	}
+	if status == agentplugin.SchemaUnrelated && pluginExists {
+		document, readErr := agentplugin.ReadManifest(root)
+		if readErr == nil && document.ValidJSON() {
+			return FormatAgentPlugin, false, nil
+		}
+	}
 	if pluginExists || status == agentplugin.SchemaUnsupportedVersion {
 		return "", false, agentPluginFormatDetectionError(root)
 	}
@@ -147,17 +153,24 @@ func agentPluginFormatDetectionError(root string) error {
 	return fmt.Errorf("extension: Agent Plugins format detection failed for %q", root)
 }
 
-func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
+func validateAgentPluginBundleReport(dir string, pluginName ...string) (*ValidationReport, error) {
 	root := strings.TrimSpace(dir)
 	dataDir, err := defaultAgentPluginDataDir(root, filepath.Base(root))
 	if err != nil {
 		return nil, err
 	}
 	opts := agentplugin.LoadOptions{DataDir: dataDir}
-	if _, err := agentplugin.ReadManifest(root); err != nil {
-		if _, missing := errors.AsType[*agentplugin.NotManifestError](err); missing {
-			opts.Name = filepath.Base(root)
-		}
+	document, readErr := agentplugin.ReadManifest(root)
+	_, missing := errors.AsType[*agentplugin.NotManifestError](readErr)
+	clientRoot := false
+	if readErr == nil {
+		status, _ := document.Classify()
+		clientRoot = document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated
+	}
+	if len(pluginName) > 0 {
+		opts.Name = pluginName[0]
+	} else if missing || clientRoot {
+		opts.Name = filepath.Base(root)
 	}
 	pkg, err := agentplugin.Load(root, opts)
 	if err != nil {

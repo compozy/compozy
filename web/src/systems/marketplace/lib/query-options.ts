@@ -3,13 +3,13 @@ import {
   previewMarketplaceSource,
 } from "../adapters/marketplace-sources-api";
 import type { AddMarketplaceSourceRequest } from "../types";
-import { infiniteQueryOptions, queryOptions, skipToken } from "@tanstack/react-query";
+import { infiniteQueryOptions, noop, queryOptions, skipToken } from "@tanstack/react-query";
 import {
   browseMarketplace,
   getMarketplaceCatalogEntry,
   getMarketplaceSections,
 } from "../adapters/marketplace-api";
-import { MarketplaceApiError } from "../adapters/marketplace-api-error";
+import { isMarketplaceCursorStale, MarketplaceApiError } from "../adapters/marketplace-api-error";
 import { marketplaceKeys } from "./query-keys";
 import { readMarketplaceSnapshot } from "./catalog-snapshot";
 import type {
@@ -74,13 +74,38 @@ export function marketplaceSectionsOptions(
   });
 }
 
-/** One category, daemon-paged by cursor; the cursor stays in `pageParam`. */
+/** Marks the fetch that restarts a category after a stale cursor; identity is the marker. */
+const STALE_CURSOR_RESTART = {};
+
+/**
+ * One category, daemon-paged by cursor; the cursor stays in `pageParam`. A stale cursor — met by
+ * Load more or by a background refetch — silently cancels that fetch, keeping the rows shown, and
+ * reads every loaded page again from page one with fresh cursors (US-002.EC-2). A restart that
+ * meets a stale cursor again fails with that error, so the page offers Retry.
+ */
 export function marketplaceCategoryOptions(options: MarketplaceCatalogOptions, enabled = true) {
   const population = JSON.stringify(marketplaceKeys.category({ ...options, q: undefined }));
   return infiniteQueryOptions({
     queryKey: marketplaceKeys.category(options),
-    queryFn: ({ pageParam, signal }) =>
-      browseMarketplace({ ...options, limit: options.limit ?? 50, cursor: pageParam }, signal),
+    queryFn: async ({ client, pageParam, queryKey, signal }) => {
+      try {
+        return await browseMarketplace(
+          { ...options, limit: options.limit ?? 50, cursor: pageParam },
+          signal
+        );
+      } catch (error) {
+        const query = client.getQueryCache().find({ queryKey, exact: true });
+        if (
+          isMarketplaceCursorStale(error) &&
+          query &&
+          query.state.fetchMeta !== STALE_CURSOR_RESTART
+        ) {
+          // The restart's failure lands in the query state the page reads, not here.
+          query.fetch(undefined, { cancelRefetch: true, meta: STALE_CURSOR_RESTART }).catch(noop);
+        }
+        throw error;
+      }
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => lastPage.next_cursor || undefined,
     meta: { population },

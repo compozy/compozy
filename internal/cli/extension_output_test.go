@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -271,6 +273,33 @@ func TestExtensionStatusShowsFailureSummary(t *testing.T) {
 
 func TestExtensionAgentPluginOutputContract(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: report reloads retain the approved client identity across source directory names.
+	t.Run("Should report a root client plugin with its approved install identity", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "plugin.json"),
+			[]byte(`{"name":"Display Name","version":"1.2.0"}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		item := ExtensionRecord{Name: "acme.tools", Format: string(extensionpkg.FormatAgentPlugin)}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		report := extensionInstallValidationReport(commandDeps{}, plan, &item)
+		if report == nil || report.Status != "valid" || report.Name != item.Name {
+			t.Fatalf("install report = %+v, want valid approved identity %q", report, item.Name)
+		}
+		for _, format := range []OutputFormat{OutputHuman, OutputJSON} {
+			output, err := renderExtensionOutput(t, extensionInstallSuccessBundle(&item, report), format)
+			if err != nil || !strings.Contains(output, item.Name) {
+				t.Fatalf("install %s output = %q, error = %v", format, output, err)
+			}
+		}
+	})
 
 	report := &extensionpkg.ValidationReport{
 		Status: "valid", Format: string(extensionpkg.FormatAgentPlugin), Name: "acme.tools", Version: "1.2.0",
