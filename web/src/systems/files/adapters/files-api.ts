@@ -11,6 +11,21 @@ export type FileEntriesResponse = OperationResponse<"listSessionFileEntries", 20
 export type FileEntry = FileEntriesResponse["entries"][number];
 export type FileContentResponse = OperationResponse<"readSessionFileContent", 200>;
 export type FileRootPayload = FileEntriesResponse["root"];
+export type FileFindResponse = OperationResponse<"findSessionFiles", 200>;
+export type FileFindMatch = FileFindResponse["results"][number];
+export type FileSearchResponse = OperationResponse<"searchSessionFileContents", 200>;
+export type FileSearchFile = FileSearchResponse["files"][number];
+export type FileSearchMatch = FileSearchFile["matches"][number];
+
+/** Content search request; `include`/`exclude` are root-relative globs (at most ten each). */
+export interface FileSearchParams {
+  pattern: string;
+  regex: boolean;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  include: string[];
+  exclude: string[];
+}
 
 /**
  * Which root a read names. A session's root is its bound worktree, else its project checkout
@@ -98,6 +113,72 @@ export async function readFileContent(
           signal,
         })
       : await apiClient.GET("/api/workspaces/{workspace_id}/files/content", {
+          params: {
+            path: { workspace_id: root.workspaceId },
+            query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
+          },
+          signal,
+        });
+  if (apiRequestFailed(result.response, result.error)) {
+    throwFilesError(result.response, result.error, fallback);
+  }
+  return requireResponseData(result.data, result.response, fallback);
+}
+
+/** Ranks the root's paths by fuzzy name match on the daemon (ADR-005); `q` is never empty. */
+export async function findFiles(
+  root: FilesRootRef,
+  q: string,
+  signal?: AbortSignal
+): Promise<FileFindResponse> {
+  const fallback = "Couldn't search files";
+  const result =
+    root.kind === "session"
+      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/find", {
+          params: {
+            path: { workspace_id: root.workspaceId, session_id: root.sessionId },
+            query: { q, all_profiles: true },
+          },
+          signal,
+        })
+      : await apiClient.GET("/api/workspaces/{workspace_id}/files/find", {
+          params: {
+            path: { workspace_id: root.workspaceId },
+            query: { q, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
+          },
+          signal,
+        });
+  if (apiRequestFailed(result.response, result.error)) {
+    throwFilesError(result.response, result.error, fallback);
+  }
+  return requireResponseData(result.data, result.response, fallback);
+}
+
+/** Searches file contents under the root; globs travel as repeated `include`/`exclude`. */
+export async function searchFileContents(
+  root: FilesRootRef,
+  params: FileSearchParams,
+  signal?: AbortSignal
+): Promise<FileSearchResponse> {
+  const fallback = "Couldn't search file contents";
+  const query = {
+    q: params.pattern,
+    ...(params.regex ? { regex: true } : {}),
+    ...(params.caseSensitive ? { case_sensitive: true } : {}),
+    ...(params.wholeWord ? { whole_word: true } : {}),
+    ...(params.include.length > 0 ? { include: params.include } : {}),
+    ...(params.exclude.length > 0 ? { exclude: params.exclude } : {}),
+  };
+  const result =
+    root.kind === "session"
+      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/search", {
+          params: {
+            path: { workspace_id: root.workspaceId, session_id: root.sessionId },
+            query: { ...query, all_profiles: true },
+          },
+          signal,
+        })
+      : await apiClient.GET("/api/workspaces/{workspace_id}/files/search", {
           params: {
             path: { workspace_id: root.workspaceId },
             query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },

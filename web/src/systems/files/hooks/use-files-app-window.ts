@@ -7,7 +7,11 @@ import {
   filesAppRootOptions,
   filesSwitcherProjects,
 } from "../lib/files-app-roots";
-import { fileViewerTarget, type FileViewerTarget } from "../lib/file-viewer-target";
+import {
+  fileViewerTarget,
+  type FileViewerTarget,
+  type ViewerFindSeed,
+} from "../lib/file-viewer-target";
 import { useFilesAppPlace } from "./use-files-app-place";
 
 /** The Files window's view model: its project's catalog standing, roots, and open file. */
@@ -38,9 +42,10 @@ export function useFilesAppWindow(workspaceId: string) {
     rootOptions: filesAppRootOptions(worktrees.data?.worktrees),
     place,
     target,
-    openFile: (path: string) => {
+    // Go to file and Search open at a line, and Search seeds Find in file.
+    openFile: (path: string, line?: number, find?: ViewerFindSeed) => {
       place.openPath(path);
-      setTarget(fileViewerTarget(path));
+      setTarget(fileViewerTarget(path, line, find));
     },
   };
 }

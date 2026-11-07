@@ -81,3 +81,25 @@ export const Truncated: Story = {
     ),
   },
 };
+
+/** Literal matches of `query` by 1-based line, as a caller computes them for Find in file. */
+function matchesOf(text: string, query: string) {
+  return text.split("\n").flatMap((line, index) => {
+    const found = [];
+    for (let at = line.indexOf(query); at >= 0; at = line.indexOf(query, at + query.length)) {
+      found.push({ line: index + 1, start: at, end: at + query.length });
+    }
+    return found;
+  });
+}
+
+export const FindMatches: Story = {
+  name: "Find matches",
+  args: {
+    path: "internal/projectfiles/reader.go",
+    text: SAMPLE_GO,
+    findMatches: matchesOf(SAMPLE_GO, "err"),
+    activeFindMatch: 2,
+    header: <Header path="internal/projectfiles/reader.go" size="1.9 KB" />,
+  },
+};

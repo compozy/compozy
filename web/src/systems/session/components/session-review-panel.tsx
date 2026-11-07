@@ -63,7 +63,7 @@ export function SessionReviewPanel({ sessionId, workspaceId, review }: SessionRe
             <FilesExplorer
               root={{ kind: "session", workspaceId, sessionId }}
               target={review.target}
-              onOpenFile={path => review.openFile(fileViewerTarget(path))}
+              onOpenFile={(path, line, find) => review.openFile(fileViewerTarget(path, line, find))}
               treeLabel="Session files"
               onOpenInFilesWindow={
                 openFiles

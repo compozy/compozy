@@ -6,6 +6,9 @@ import type * as React from "react";
 import { InfoIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { useCodeViewer } from "./hooks/use-code-viewer";
+import type { CodeViewerMatch } from "./hooks/use-code-viewer-find";
+
+export type { CodeViewerMatch } from "./hooks/use-code-viewer-find";
 
 export interface CodeViewerProps extends Omit<React.ComponentProps<"div">, "children"> {
   /** Root-relative path; names the file for language inference. */
@@ -24,6 +27,10 @@ export interface CodeViewerProps extends Omit<React.ComponentProps<"div">, "chil
   /** Copy for a target past the end of the file. */
   pastEndNotice?: (requestedLine: number, lastLine: number) => React.ReactNode;
   wrap?: boolean;
+  /** Find matches to paint over the text; the caller computes them from `text`. */
+  findMatches?: readonly CodeViewerMatch[];
+  /** Index into `findMatches` of the current match; it scrolls into view with stronger emphasis. */
+  activeFindMatch?: number | null;
 }
 
 function defaultPastEndNotice(requestedLine: number, lastLine: number): React.ReactNode {
@@ -45,23 +52,30 @@ function CodeViewer({
   notice,
   pastEndNotice = defaultPastEndNotice,
   wrap = false,
+  findMatches,
+  activeFindMatch,
   className,
   ...props
 }: CodeViewerProps) {
-  const { handleRef, items, lineCount, options, selectedLines, target } = useCodeViewer({
+  const viewer = useCodeViewer({
+    activeFindMatch,
     cacheKey,
+    findMatches,
     language,
     path,
     targetLine,
     text,
     wrap,
   });
+  const { handleRef, items, lineCount, options, selectedLines, target } = viewer;
 
   return (
     <div
       data-slot="code-viewer"
       data-line-count={lineCount}
       data-highlighted-line={target?.line}
+      data-find-matches={findMatches ? findMatches.length : undefined}
+      data-find-active-line={viewer.activeFindLine ?? undefined}
       className={cn("flex h-full min-h-0 flex-col bg-canvas", className)}
       {...props}
     >
@@ -82,6 +96,8 @@ function CodeViewer({
         items={items}
         options={options}
         selectedLines={selectedLines}
+        containerRef={viewer.containerRef}
+        onScroll={viewer.onScroll}
         className="min-h-0 flex-1 overflow-auto"
       />
     </div>

@@ -144,7 +144,10 @@ test("E2E-003: the browser viewer gates sensitive files, previews images, and tr
     "Showing the first 1 MB of 2 MB"
   );
 
-  await expect(panel.getByRole("button", { name: /^Open in/ })).toHaveCount(0);
+  // No desktop target control (S7's "Open in …" split button); the Files window action is a
+  // browser-available navigation, not an Open in target.
+  await expect(panel.getByRole("button", { name: /^Open in (?!Files window$)/ })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Choose application" })).toHaveCount(0);
 });
 
 /** Seeds a ready worktree through the API so the spec starts at the Files app step. */
@@ -212,4 +215,168 @@ test("E2E-002: the Files dock app browses the active project and switches to a w
   } finally {
     await repo.cleanup();
   }
+});
+
+const CHANGES_TAB = [
+  'import { Tabs } from "@compozy/ui";',
+  "",
+  'import { useSessionChanges } from "../hooks/use-session-changes";',
+  ...Array.from({ length: 36 }, (_, index) => `// filler ${index + 4}`),
+  "export function SessionChangesTab({ sessionId }: { sessionId: string }) {",
+  "  const changes = useSessionChanges(sessionId);",
+  "  return changes;",
+  "}",
+];
+const USE_CHANGES = [
+  ...Array.from({ length: 13 }, (_, index) => `// header ${index + 1}`),
+  "export function useSessionChanges(sessionId: string) {",
+  "  return sessionId;",
+  "}",
+];
+
+/** Files for the search journeys; written before the session's first name lookup. */
+async function seedSearchFiles(root: string) {
+  const session = path.join(root, "web/src/systems/session");
+  await mkdir(path.join(session, "components"), { recursive: true });
+  await mkdir(path.join(session, "hooks"), { recursive: true });
+  await mkdir(path.join(root, "docs"), { recursive: true });
+  const long = Array.from({ length: 5_000 }, (_, index) =>
+    index + 1 === 4_800
+      ? "export const needleOnlyHere = 4800;"
+      : `export const row${index + 1} = 0;`
+  );
+  await Promise.all([
+    writeFile(
+      path.join(session, "components/session-review-panel.tsx"),
+      "export function SessionReviewPanel() {}\n"
+    ),
+    writeFile(path.join(session, "components/session-row.tsx"), "export const row = 1;\n"),
+    writeFile(
+      path.join(session, "components/session-changes-tab.tsx"),
+      `${CHANGES_TAB.join("\n")}\n`
+    ),
+    writeFile(path.join(session, "hooks/use-session-changes.ts"), `${USE_CHANGES.join("\n")}\n`),
+    writeFile(path.join(root, "docs/long.ts"), `${long.join("\n")}\n`),
+  ]);
+}
+
+/** Opens the Review panel on Files and puts focus inside the explorer. */
+async function focusExplorer(window: Locator) {
+  await window.getByRole("button", { name: "Open main.tsx in viewer" }).click();
+  const panel = reviewPanel(window);
+  await expect(panel.getByTestId("files-tree")).toBeVisible();
+  await panel.getByTestId("files-filter").click();
+  return panel;
+}
+
+// Invariant: Go to file ranks names on the daemon, opens the chosen file in the viewer with the
+// tree revealing it, and `name:line` opens at that line. Owner: files explorer; this file.
+test("E2E-009: Go to file opens a fuzzy match and a name:line target", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) throw new Error("files E2E requires an isolated runtime");
+  await seedSearchFiles(runtime.paths.workspaceDir);
+  const { window } = await openSessionWithReply(appPage, runtime);
+  const panel = await focusExplorer(window);
+
+  await window.page().keyboard.press("ControlOrMeta+P");
+  const box = panel.getByTestId("go-to-file");
+  await box.getByTestId("go-to-file-input").fill("sesrevpan");
+  const first = box.getByTestId("go-to-file-row").first();
+  await expect(first).toHaveAttribute(
+    "data-path",
+    "web/src/systems/session/components/session-review-panel.tsx"
+  );
+  await expect(first.locator("mark").first()).toBeVisible();
+  await window.page().keyboard.press("Enter");
+  await expect(box).toHaveCount(0);
+  await expect(panel.getByTestId("file-viewer-header")).toContainText("session-review-panel.tsx");
+  await expect(
+    panel.locator(
+      '[data-type="item"][data-item-path="web/src/systems/session/components/session-review-panel.tsx"]'
+    )
+  ).toHaveAttribute("aria-selected", "true");
+
+  await panel.getByTestId("files-go-to-file").click();
+  await panel.getByTestId("go-to-file-input").fill("main.tsx:12");
+  await expect(panel.getByTestId("go-to-file-footer")).toContainText("Opens at line 12");
+  await expect(panel.getByTestId("go-to-file-row").first()).toHaveAttribute(
+    "data-path",
+    "web/src/main.tsx"
+  );
+  await window.page().keyboard.press("Enter");
+  await expect(panel.getByTestId("file-viewer-header")).toContainText("web/src/main.tsx");
+  await expect(panel.locator("[data-slot='code-viewer']")).toHaveAttribute(
+    "data-highlighted-line",
+    "12"
+  );
+
+  // Escape closes the box and hands focus back, so explorer shortcuts keep working.
+  await window.page().keyboard.press("ControlOrMeta+P");
+  await expect(panel.getByTestId("go-to-file")).toBeVisible();
+  await window.page().keyboard.press("Escape");
+  await expect(panel.getByTestId("go-to-file")).toHaveCount(0);
+  await window.page().keyboard.press("ControlOrMeta+Shift+F");
+  await expect(panel.getByTestId("files-search-input")).toBeFocused();
+});
+
+// Invariant: content search groups daemon results by file, a match opens the viewer at its line
+// with Find in file seeded, and an invalid regex shows inline. Owner: files explorer; this file.
+test("E2E-010: Search finds content, opens a match at its line, and reports a bad regex", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) throw new Error("files E2E requires an isolated runtime");
+  await seedSearchFiles(runtime.paths.workspaceDir);
+  const { window } = await openSessionWithReply(appPage, runtime);
+  const panel = await focusExplorer(window);
+
+  await window.page().keyboard.press("ControlOrMeta+Shift+F");
+  const input = panel.getByTestId("files-search-input");
+  await expect(input).toBeFocused();
+  await input.fill("useSessionChanges");
+  await expect(panel.getByTestId("files-search-summary")).toHaveText("3 results in 2 files");
+  const tab = panel.locator(
+    '[data-testid="files-search-file"][data-path="web/src/systems/session/components/session-changes-tab.tsx"]'
+  );
+  await expect(tab).toContainText("2");
+  await panel.getByTestId("files-search-match").and(panel.locator('[data-line="41"]')).click();
+  await expect(panel.getByTestId("file-viewer-header")).toContainText("session-changes-tab.tsx");
+  const code = panel.locator("[data-slot='code-viewer']");
+  await expect(code).toHaveAttribute("data-highlighted-line", "41");
+  await expect(code).toHaveAttribute("data-find-active-line", "41");
+  await expect(panel.getByTestId("viewer-find-input")).toHaveValue("useSessionChanges");
+  await expect(panel.getByTestId("viewer-find-count")).toHaveText("2 of 2");
+
+  await panel.getByRole("button", { name: "Use regular expression" }).click();
+  await input.fill("foo(");
+  await expect(panel.getByTestId("files-search-error")).toBeVisible();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+});
+
+// Invariant: Find in file searches the viewer's full text, so a match on a never-rendered line
+// scrolls into view. Owner: files viewer; this file.
+test("E2E-011: Find in file reaches a match deep in a long file", async ({ appPage, runtime }) => {
+  if (!runtime.paths) throw new Error("files E2E requires an isolated runtime");
+  await seedSearchFiles(runtime.paths.workspaceDir);
+  const { window } = await openSessionWithReply(appPage, runtime);
+  const panel = await focusExplorer(window);
+
+  await window.page().keyboard.press("ControlOrMeta+P");
+  await panel.getByTestId("go-to-file-input").fill("docs/long.ts");
+  await expect(panel.getByTestId("go-to-file-row").first()).toHaveAttribute(
+    "data-path",
+    "docs/long.ts"
+  );
+  await window.page().keyboard.press("Enter");
+  const code = panel.locator("[data-slot='code-viewer']");
+  await expect(code).toHaveAttribute("data-line-count", "5000");
+
+  await panel.getByTestId("file-viewer-focus").focus();
+  await window.page().keyboard.press("ControlOrMeta+F");
+  await panel.getByTestId("viewer-find-input").fill("needleOnlyHere");
+  await expect(panel.getByTestId("viewer-find-count")).toHaveText("1 of 1");
+  await expect(code).toHaveAttribute("data-find-active-line", "4800");
+  await expect(code.locator('[data-line="4800"]')).toBeInViewport();
 });

@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useRef, useState } from "react";
 
 import { CodeViewer, FileImagePreview } from "@compozy/ui";
 import { Info } from "@compozy/ui/icons";
 
 import type { FilesRootRef } from "../adapters/files-api";
+import { useViewerFind } from "../hooks/use-viewer-find";
 import { copyFilePath } from "../lib/copy-file-path";
 import { FILE_TEXT_LIMIT, formatFileSize } from "../lib/format-file-size";
 import { fileViewerState, type FileViewerState } from "../lib/file-viewer-state";
-import type { FileViewerTarget } from "../lib/file-viewer-target";
+import type { FileViewerTarget, ViewerFindSeed } from "../lib/file-viewer-target";
+import { isFindChord } from "../lib/files-shortcuts";
 import { fileContentOptions } from "../lib/query-options";
 import { FileViewerHeader } from "./file-viewer-header";
 import {
@@ -22,6 +25,7 @@ import {
   FileViewerSensitiveState,
 } from "./file-viewer-states";
 import { OpenInButton } from "./open-in-button";
+import { ViewerFindBar } from "./viewer-find-bar";
 
 export interface FileViewerPaneProps {
   root: FilesRootRef;
@@ -57,12 +61,14 @@ function OpenFileView({
   root,
   path,
   line,
+  findSeed,
   onRevealInTree,
   onRefreshTree,
 }: {
   root: FilesRootRef;
   path: string;
   line?: number;
+  findSeed?: ViewerFindSeed;
 } & Pick<FileViewerPaneProps, "onRevealInTree" | "onRefreshTree">) {
   const [revealed, setRevealed] = useState(false);
   const gated = useQuery(fileContentOptions(root, path, false));
@@ -70,6 +76,8 @@ function OpenFileView({
   const active = revealed ? reveal : gated;
   const state: FileViewerState = fileViewerState(active);
   const content = "content" in state ? state.content : undefined;
+  const find = useViewerFind(state.kind === "text" ? state.text : "", findSeed, line);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
   const header = (
     <FileViewerHeader
       path={path}
@@ -83,19 +91,58 @@ function OpenFileView({
   );
 
   if (state.kind === "text") {
+    const closeFind = () => {
+      find.close();
+      viewerRef.current?.focus({ preventScroll: true });
+    };
+    // Viewer-scoped: Cmd/Ctrl+F only takes over while focus is inside the viewer, so the
+    // browser's find runs everywhere else (US-015.EC-3).
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (isFindChord(event)) {
+        event.preventDefault();
+        find.show();
+      } else if (event.key === "Escape" && find.open) {
+        event.preventDefault();
+        closeFind();
+      }
+    };
+    const truncation = state.content.truncated ? (
+      <TruncationNotice size={state.content.size} />
+    ) : null;
     return (
-      <CodeViewer
-        path={path}
-        text={state.text}
-        targetLine={line ?? null}
-        cacheKey={state.content.revision ?? `${state.content.size}`}
-        header={header}
-        notice={state.content.truncated ? <TruncationNotice size={state.content.size} /> : null}
-        pastEndNotice={(requested, last) =>
-          `Line ${requested.toLocaleString("en-US")} is past the end (${last.toLocaleString("en-US")} lines)`
-        }
-        data-testid="file-viewer-text"
-      />
+      <div
+        ref={viewerRef}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+        className="flex h-full min-h-0 flex-col outline-none"
+        data-testid="file-viewer-focus"
+      >
+        <CodeViewer
+          path={path}
+          text={state.text}
+          targetLine={line ?? null}
+          cacheKey={state.content.revision ?? `${state.content.size}`}
+          header={header}
+          notice={
+            <>
+              {truncation}
+              {find.open ? (
+                <ViewerFindBar
+                  find={find}
+                  truncated={state.content.truncated}
+                  onClose={closeFind}
+                />
+              ) : null}
+            </>
+          }
+          findMatches={find.matches}
+          activeFindMatch={find.active}
+          pastEndNotice={(requested, last) =>
+            `Line ${requested.toLocaleString("en-US")} is past the end (${last.toLocaleString("en-US")} lines)`
+          }
+          data-testid="file-viewer-text"
+        />
+      </div>
     );
   }
 
@@ -209,6 +256,7 @@ export function FileViewerPane({
       root={root}
       path={target.path}
       line={target.line}
+      findSeed={target.find}
       onRevealInTree={onRevealInTree}
       onRefreshTree={onRefreshTree}
     />

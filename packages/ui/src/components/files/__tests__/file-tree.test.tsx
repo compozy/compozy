@@ -71,6 +71,20 @@ describe("FileTree", () => {
     expect(onSelect).toHaveBeenLastCalledWith("README.md");
   });
 
+  it("Should reveal a selected directory open with its children", async () => {
+    const { container } = render(
+      <FileTree
+        aria-label="Project files"
+        paths={["web/", "web/src/", "web/src/main.tsx", "README.md"]}
+        selectedPath="web/src/"
+      />
+    );
+    await waitFor(() =>
+      expect(row(container, "web/src/")).toHaveAttribute("aria-selected", "true")
+    );
+    await waitFor(() => row(container, "web/src/main.tsx"));
+  });
+
   it("Should render the empty slot when there are no paths", () => {
     const { getByText } = render(
       <FileTree aria-label="Project files" paths={[]} empty={<p>This folder is empty</p>} />

@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import {
   Button,
   FileTree,
@@ -15,8 +13,12 @@ import {
 import { AppWindow, Eye, GitBranch, RefreshCw } from "@compozy/ui/icons";
 
 import type { FileRootPayload, FilesRootRef } from "../adapters/files-api";
-import { useFileTreeBridge, type FileTreeBridge } from "../hooks/use-file-tree-bridge";
-import type { FileViewerTarget } from "../lib/file-viewer-target";
+import type { FileTreeBridge } from "../hooks/use-file-tree-bridge";
+import { useFilesExplorer } from "../hooks/use-files-explorer";
+import type { FileViewerTarget, ViewerFindSeed } from "../lib/file-viewer-target";
+import { ExplorerPaneSwitch } from "./explorer-pane-switch";
+import { FilesSearchPane } from "./files-search-pane";
+import { GoToFileBox } from "./go-to-file-box";
 import { FileTreeUnavailableState, FileViewerMessageState } from "./file-viewer-states";
 import { FileTreeNotes } from "./file-tree-notes";
 import { FileViewerPane } from "./file-viewer-pane";
@@ -25,8 +27,11 @@ export interface FilesExplorerProps {
   root: FilesRootRef;
   /** What the viewer shows; a file target is also the tree's selection. */
   target: FileViewerTarget | null;
-  /** The operator picked a file in the tree. */
-  onOpenFile: (path: string) => void;
+  /**
+   * The operator opened a file: from the tree, Go to file (`line` from `name:42`), or a
+   * Search match (`line` plus the Find in file seed).
+   */
+  onOpenFile: (path: string, line?: number, find?: ViewerFindSeed) => void;
   /** Accessible name of the tree. */
   treeLabel?: string;
   /**
@@ -208,55 +213,92 @@ export function FilesExplorer({
   onOpenInFilesWindow,
   unavailableAction,
 }: FilesExplorerProps) {
-  const [filter, setFilter] = useState("");
-  const [showIgnored, setShowIgnored] = useState(true);
-  const selectedPath = target?.kind === "file" ? target.path : null;
-  const bridge = useFileTreeBridge(root, { showIgnored, revealPath: selectedPath });
+  const explorer = useFilesExplorer(root, target);
+  const { bridge, pane } = explorer;
   if (bridge.root.status === "unavailable") {
     return <FileTreeUnavailableState action={unavailableAction} />;
   }
   const readyRoot = bridge.root.status === "ready" ? bridge.root.root : null;
   return (
-    <ResizablePanelGroup
-      orientation="horizontal"
-      className="min-h-0 flex-1"
-      data-testid="files-explorer"
-    >
-      <ResizablePanel defaultSize={280} minSize={180} maxSize="60%" style={{ overflow: "hidden" }}>
-        <div className="flex h-full min-h-0 flex-col bg-sunken">
-          <TreeHeader
-            bridge={bridge}
-            filter={filter}
-            onFilterChange={setFilter}
-            showIgnored={showIgnored}
-            onShowIgnoredChange={setShowIgnored}
-            onOpenInFilesWindow={
-              onOpenInFilesWindow && readyRoot
-                ? () => onOpenInFilesWindow(readyRoot, selectedPath)
-                : undefined
-            }
-          />
-          <TreeBody
-            bridge={bridge}
-            filter={filter}
-            selectedPath={selectedPath}
-            onOpenFile={onOpenFile}
-            treeLabel={treeLabel}
-            resetKey={showIgnored ? "all" : "visible"}
-          />
-        </div>
-      </ResizablePanel>
-      <ResizableHandle aria-label="Resize file tree" />
-      <ResizablePanel minSize={240} style={{ overflow: "hidden" }}>
-        <div className="flex h-full min-h-0 flex-col" data-testid="file-viewer">
-          <FileViewerPane
-            root={root}
-            target={target}
-            onRevealInTree={() => setFilter("")}
-            onRefreshTree={bridge.refresh}
-          />
-        </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <div className="relative flex min-h-0 flex-1 flex-col" onKeyDown={explorer.onKeyDown}>
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+        data-testid="files-explorer"
+      >
+        <ResizablePanel
+          defaultSize={280}
+          minSize={180}
+          maxSize="60%"
+          style={{ overflow: "hidden" }}
+        >
+          <div className="flex h-full min-h-0 flex-col bg-sunken">
+            <ExplorerPaneSwitch
+              pane={pane}
+              onPaneChange={explorer.setPane}
+              onGoToFile={explorer.openGoToFile}
+              primaryKey={explorer.primaryKey}
+            />
+            {/* Both panes stay mounted, so switching keeps the tree and the last search. */}
+            <div className={pane === "files" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+              <TreeHeader
+                bridge={bridge}
+                filter={explorer.filter}
+                onFilterChange={explorer.setFilter}
+                showIgnored={explorer.showIgnored}
+                onShowIgnoredChange={explorer.setShowIgnored}
+                onOpenInFilesWindow={
+                  onOpenInFilesWindow && readyRoot
+                    ? () =>
+                        onOpenInFilesWindow(readyRoot, target?.kind === "file" ? target.path : null)
+                    : undefined
+                }
+              />
+              <TreeBody
+                bridge={bridge}
+                filter={explorer.filter}
+                selectedPath={explorer.selectedPath}
+                onOpenFile={path => onOpenFile(path)}
+                treeLabel={treeLabel}
+                resetKey={explorer.showIgnored ? "all" : "visible"}
+              />
+            </div>
+            <div className={pane === "search" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+              <FilesSearchPane
+                root={root}
+                focusToken={explorer.searchFocus}
+                onOpenMatch={onOpenFile}
+              />
+            </div>
+          </div>
+        </ResizablePanel>
+        <ResizableHandle aria-label="Resize file tree" />
+        <ResizablePanel minSize={240} style={{ overflow: "hidden" }}>
+          <div className="flex h-full min-h-0 flex-col" data-testid="file-viewer">
+            <FileViewerPane
+              root={root}
+              target={target}
+              onRevealInTree={() => {
+                explorer.setFilter("");
+                explorer.showFiles();
+              }}
+              onRefreshTree={bridge.refresh}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+      {explorer.goToFileOpen ? (
+        <GoToFileBox
+          root={root}
+          recent={explorer.recent}
+          onClose={explorer.closeGoToFile}
+          onOpenFile={(path, line) => {
+            explorer.showFiles();
+            onOpenFile(path, line);
+          }}
+          onRevealFolder={explorer.revealFolder}
+        />
+      ) : null}
+    </div>
   );
 }

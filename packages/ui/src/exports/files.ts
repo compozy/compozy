@@ -11,7 +11,11 @@ export {
   type FileTreeRowMenuItem,
   type FileTreeStatus,
 } from "../components/files/file-tree";
-export { CodeViewer, type CodeViewerProps } from "../components/files/code-viewer";
+export {
+  CodeViewer,
+  type CodeViewerMatch,
+  type CodeViewerProps,
+} from "../components/files/code-viewer";
 export {
   DiffViewer,
   type DiffViewerChangeType,

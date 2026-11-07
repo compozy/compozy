@@ -204,4 +204,104 @@ describe("FileViewerPane", () => {
     expect(localStorage.getItem("compozy.open-target")).toBe("cursor");
     localStorage.removeItem("compozy.open-target");
   });
+
+  describe("Find in file", () => {
+    // 17 `foo` matches spread over 20,000 lines; the third sits on line 12,000.
+    const FOO_LINES = [
+      10,
+      4_000,
+      12_000,
+      ...Array.from({ length: 14 }, (_, i) => 15_000 + i * 300),
+    ];
+    function longText(): string {
+      const foo = new Set(FOO_LINES);
+      return Array.from({ length: 20_000 }, (_, index) =>
+        foo.has(index + 1) ? `const foo${index + 1} = ${index + 1};` : `const bar${index + 1} = 0;`
+      ).join("\n");
+    }
+    function renderedLine(container: HTMLElement, line: number): HTMLElement | null {
+      const host = container.querySelector("diffs-container");
+      return host?.shadowRoot?.querySelector<HTMLElement>(`[data-line="${line}"]`) ?? null;
+    }
+    function stubLongFile() {
+      stubContent(() =>
+        content({ path: "big.ts", kind: "text", size: 400_000, text: longText(), revision: "r1" })
+      );
+    }
+
+    // UT-094
+    it("Should count matches over the full text and scroll an unrendered match into view", async () => {
+      stubLongFile();
+      const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+      const view = renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("big.ts")} />);
+      const viewer = await screen.findByTestId("file-viewer-focus");
+      expect(renderedLine(view.container, 12_000)).toBeNull();
+
+      viewer.focus();
+      fireEvent.keyDown(viewer, { key: "f", code: "KeyF", metaKey: true });
+      const input = await screen.findByTestId("viewer-find-input");
+      expect(input).toHaveFocus();
+      fireEvent.change(input, { target: { value: "foo" } });
+      expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("1 of 17");
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("3 of 17");
+
+      const code = view.container.querySelector("[data-slot='code-viewer']");
+      expect(code).toHaveAttribute("data-find-matches", "17");
+      expect(code).toHaveAttribute("data-find-active-line", "12000");
+      await waitFor(() => expect(renderedLine(view.container, 12_000)).not.toBeNull());
+      const scrolledTo = scrollTo.mock.calls.map(
+        ([options]) => (options as ScrollToOptions).top ?? 0
+      );
+      expect(Math.max(...scrolledTo)).toBeGreaterThan(0);
+
+      fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+      expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("2 of 17");
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(screen.queryByTestId("viewer-find-bar")).toBeNull();
+      expect(viewer).toHaveFocus();
+      scrollTo.mockRestore();
+    });
+
+    // UT-095
+    it("Should leave Cmd+F to the browser while the viewer is not focused", async () => {
+      stubLongFile();
+      renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("big.ts")} />);
+      const viewer = await screen.findByTestId("file-viewer-focus");
+      const outside = fireEvent.keyDown(document.body, { key: "f", code: "KeyF", metaKey: true });
+      expect(outside).toBe(true);
+      expect(screen.queryByTestId("viewer-find-bar")).toBeNull();
+
+      const inside = fireEvent.keyDown(viewer, { key: "f", code: "KeyF", metaKey: true });
+      expect(inside).toBe(false);
+      expect(screen.getByTestId("viewer-find-bar")).toBeInTheDocument();
+    });
+
+    it("Should open pre-filled from Search at the opened line's match and note truncation", async () => {
+      stubContent(() =>
+        content({
+          path: "big.ts",
+          kind: "text",
+          size: 2 * 1024 * 1024,
+          text: longText(),
+          truncated: true,
+        })
+      );
+      renderPane(
+        <FileViewerPane
+          root={ROOT}
+          target={fileViewerTarget("big.ts", 4_000, { query: "FOO", matchCase: false })}
+        />
+      );
+      expect(await screen.findByTestId("viewer-find-input")).toHaveValue("FOO");
+      expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("2 of 17");
+      expect(screen.getByTestId("viewer-find-truncated")).toHaveTextContent(
+        "Searching the first 1 MB"
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Match case" }));
+      expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("No results");
+      expect(screen.getByTestId("viewer-find-input")).toHaveAttribute("aria-invalid", "true");
+    });
+  });
 });

@@ -181,6 +181,11 @@ function useControlledSelection(
 ) {
   React.useLayoutEffect(() => {
     if (selectedPath) expandAncestors(model, selectedPath);
+    // A selected directory (`dir/`) is revealed open, so its children show.
+    if (selectedPath?.endsWith("/")) {
+      const directory = model.getItem(selectedPath);
+      if (directory && "expand" in directory && !directory.isExpanded()) directory.expand();
+    }
     selectOnly(model, selectedPath);
     if (selectedPath && model.getItem(selectedPath)) {
       model.scrollToPath(selectedPath, { offset: "nearest" });

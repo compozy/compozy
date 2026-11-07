@@ -43,7 +43,8 @@ export interface FileTreeProps extends Omit<
   onSelect?: (path: string) => void;
   /**
    * Controlled selection. The tree selects it, expands its loaded ancestors
-   * (which fires `onExpand` for unloaded ones), and scrolls it into view.
+   * (which fires `onExpand` for unloaded ones), and scrolls it into view. A
+   * directory (`dir/`) is expanded too.
    */
   selectedPath?: string | null;
   decorations?: FileTreeDecorations;

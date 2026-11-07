@@ -56,6 +56,31 @@ describe("CodeViewer", () => {
     await waitFor(() => expect(renderedLine(container, 312)).toHaveAttribute("data-selected-line"));
   });
 
+  it("Should scroll the active find match into view without selecting its line", async () => {
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const findMatches = [
+      { line: 3, start: 6, end: 11 },
+      { line: 280, start: 6, end: 13 },
+    ];
+    const { container } = render(
+      <CodeViewer
+        path="internal/a.go"
+        text={sourceText(312)}
+        findMatches={findMatches}
+        activeFindMatch={1}
+      />
+    );
+    const viewer = container.querySelector('[data-slot="code-viewer"]');
+    expect(viewer).toHaveAttribute("data-find-matches", "2");
+    expect(viewer).toHaveAttribute("data-find-active-line", "280");
+    await waitFor(() => expect(renderedLine(container, 280)).not.toBeNull());
+    expect(renderedLine(container, 280)).not.toHaveAttribute("data-selected-line");
+    const scrolledTo = scrollTo.mock.calls.map(
+      ([options]) => (options as ScrollToOptions).top ?? 0
+    );
+    expect(Math.max(...scrolledTo)).toBeGreaterThan(0);
+  });
+
   it("Should count lines without a phantom trailing line and clamp targets", () => {
     expect(countLines("a\nb\n")).toBe(2);
     expect(countLines("")).toBe(1);

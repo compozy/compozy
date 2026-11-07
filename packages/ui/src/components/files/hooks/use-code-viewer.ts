@@ -7,9 +7,12 @@ import { useResolvedCodeTheme } from "../../custom/hooks/use-code-block";
 import { contentVersion, countLines, resolveTargetLine } from "../code-viewer-lines";
 import type { ResolvedTargetLine } from "../code-viewer-lines";
 import { PIERRE_CODE_THEMES } from "../pierre-theme";
+import { useCodeViewerFind, type CodeViewerMatch } from "./use-code-viewer-find";
 
 export interface UseCodeViewerOptions {
   cacheKey?: string;
+  findMatches?: readonly CodeViewerMatch[];
+  activeFindMatch?: number | null;
   language?: string;
   path: string;
   targetLine?: number | null;
@@ -17,8 +20,12 @@ export interface UseCodeViewerOptions {
   wrap: boolean;
 }
 
+const NO_MATCHES: readonly CodeViewerMatch[] = [];
+
 export function useCodeViewer({
   cacheKey,
+  findMatches = NO_MATCHES,
+  activeFindMatch = null,
   language,
   path,
   targetLine,
@@ -67,15 +74,42 @@ export function useCodeViewer({
     });
   }, [path, targetLineNumber, version]);
 
+  const find = useCodeViewerFind(findMatches, activeFindMatch);
+  const activeFind = activeFindMatch === null ? undefined : findMatches[activeFindMatch];
+  const activeFindLine = activeFind?.line ?? null;
+  // The current match scrolls into view even when its line was never rendered (US-015.AC-1).
+  React.useEffect(() => {
+    if (activeFindLine === null) return;
+    handleRef.current?.scrollTo({
+      type: "line",
+      id: path,
+      lineNumber: activeFindLine,
+      align: "center",
+    });
+  }, [path, activeFindLine, activeFindMatch, version]);
+
+  const { scheduleSync, unsafeCSS } = find;
   const options = React.useMemo(
     () => ({
       theme: PIERRE_CODE_THEMES,
       themeType,
       disableFileHeader: true,
       overflow: wrap ? ("wrap" as const) : ("scroll" as const),
+      onPostRender: scheduleSync,
+      unsafeCSS,
     }),
-    [themeType, wrap]
+    [themeType, wrap, scheduleSync, unsafeCSS]
   );
 
-  return { handleRef, items, lineCount, options, selectedLines, target };
+  return {
+    activeFindLine,
+    containerRef: find.containerRef,
+    handleRef,
+    items,
+    lineCount,
+    onScroll: scheduleSync,
+    options,
+    selectedLines,
+    target,
+  };
 }

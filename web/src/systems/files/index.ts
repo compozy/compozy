@@ -8,13 +8,22 @@ export {
   type FileEntry,
   type FileRootPayload,
   type FilesRootRef,
+  type FileFindResponse,
+  type FileSearchParams,
+  type FileSearchResponse,
 } from "./adapters/files-api";
 export { filesKeys } from "./lib/query-keys";
-export { fileContentOptions, fileEntriesOptions } from "./lib/query-options";
+export {
+  fileContentOptions,
+  fileEntriesOptions,
+  fileFindOptions,
+  fileSearchOptions,
+} from "./lib/query-options";
 export {
   fileViewerTarget,
   outsideViewerTarget,
   type FileViewerTarget,
+  type ViewerFindSeed,
 } from "./lib/file-viewer-target";
 export { useFileTreeBridge, type FileTreeBridge } from "./hooks/use-file-tree-bridge";
 export { FilesExplorer, type FilesExplorerProps } from "./components/files-explorer";
