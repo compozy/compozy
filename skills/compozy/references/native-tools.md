@@ -1091,7 +1091,8 @@ reaching it replaces the definition pause with `unattended` and holds the lineag
 an attention `held_input` work signal carrying those fields and the instance reference.
 An explicit manual pause replaces a definition pause and holds the whole lineage;
 other safety pauses retain their reason. An archived hold reports `instance_archived`
-because that instance cannot be resumed. An idle-released child whose definition
+because that instance cannot be resumed. Archive overrides the definition-pause
+exception for descendants; human input remains runnable. An idle-released child whose definition
 disappeared can reload its accepted runtime for queued work on the same route; new
 sessions and runtime switches still require a live definition. A prepared Goal does not hold normal descendant input during a definition pause;
 the Goal itself retains its explicit pause guard. Adoption keeps existing child lineage; it does not transfer another instance's children.

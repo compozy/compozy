@@ -52,6 +52,7 @@ func advanceLineageUnattended(
 	return advanceInstanceUnattended(ctx, q, id, entry.ID, limit, now)
 }
 
+// advanceInstanceUnattended counts admitted autonomous turns and applies the lineage spend brake.
 func advanceInstanceUnattended(
 	ctx context.Context,
 	q *sqlcgen.Queries,

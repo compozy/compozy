@@ -1021,6 +1021,7 @@ func TestInstancePermissionExpiryIntegration(t *testing.T) {
 func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 	// Invariant: a definition pause releases dispatched child wakes; safety holds remain visible and resumable.
 	t.Run("Should release child monitor work after a definition pause and explain safety holds", func(t *testing.T) {
+		var definitionSync core.AgentDefinitionSync
 		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.IdleReleaseAfter = time.Second
 			for name, provider := range cfg.Providers {
@@ -1028,6 +1029,11 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				cfg.Providers[name] = provider
 			}
 		}, "", func(d *Daemon) {
+			httpFactory := d.httpFactory
+			d.httpFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+				definitionSync = deps.AgentDefinitionSync
+				return httpFactory(ctx, deps)
+			}
 			configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
 				f.Turns = append(f.Turns, acpmock.TurnFixture{
 					Name: "monitor continuation", Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
@@ -1147,10 +1153,20 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 		if err := os.Remove(definitionPath); err != nil {
 			t.Fatal(err)
 		}
-		waitForCondition(t, "removed definition leaves the catalog", func() bool {
-			_, err := agentCatalogDependency(d.agentCatalog).ResolveAgent(main.AgentName, nil)
-			return errors.Is(err, workspacepkg.ErrAgentNotAvailable)
-		})
+		if definitionSync == nil {
+			t.Fatal("definition publisher is unavailable")
+		}
+		if err := definitionSync.Sync(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := agentCatalogDependency(
+			d.agentCatalog,
+		).ResolveAgent(main.AgentName, nil); !errors.Is(
+			err,
+			workspacepkg.ErrAgentNotAvailable,
+		) {
+			t.Fatalf("removed definition remained available: %v", err)
+		}
 		// Simulate pre-upgrade held work without an active interval that could deliver it early.
 		if _, err := db.DB().
 			ExecContext(ctx, "UPDATE agent_instances SET pause_reason='definition_missing' WHERE id=?", instance.ID); err != nil {

@@ -123,7 +123,7 @@ AND q.session_generation = current.input_generation
 AND EXISTS (
  SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
  WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
- AND (current.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
 );
 
 -- name: ListInstanceQueuedSessions :many
@@ -139,7 +139,7 @@ WHERE s.id > sqlc.arg(after_id) AND s.archived_at IS NULL
 AND NOT EXISTS (
  SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
  WHERE root.id = COALESCE(NULLIF(s.root_session_id, ''), s.id) AND i.state = 'paused'
- AND (s.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+ AND (s.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
 )
 AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = sqlc.arg(instance_id)))
 AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
@@ -176,7 +176,7 @@ AND q.session_generation = current.input_generation
 AND EXISTS (
  SELECT 1 FROM sessions root JOIN agent_instances i ON i.id = root.instance_id
  WHERE root.id = COALESCE(NULLIF(current.root_session_id, ''), current.id)
- AND (current.instance_id = i.id OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+ AND (current.instance_id = i.id OR i.archived_at IS NOT NULL OR i.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
 );
 
 -- name: TripInstanceUnattendedPause :execrows
@@ -191,7 +191,7 @@ JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), tar
 JOIN agent_instances instance ON instance.id = root.instance_id
 WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
   AND (target.instance_id = instance.id
-    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
 
 -- name: GetHeldSessionInput :one
 SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
@@ -202,6 +202,6 @@ JOIN agent_instances instance ON instance.id = root.instance_id
 JOIN session_input_queue q ON q.session_id = target.id AND q.session_generation = target.input_generation
 WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
   AND (target.instance_id = instance.id
-    OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
+    OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   AND q.status = 'queued' AND q.origin_class <> 'human'
 GROUP BY instance.id, instance.pause_reason;

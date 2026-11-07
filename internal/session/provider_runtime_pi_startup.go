@@ -7,6 +7,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+// preparePiBridgeStartup finalizes guidance after bridge readiness, preserving accepted fallback prompts.
 func (m *Manager) preparePiBridgeStartup(
 	spec *sessionStartSpec,
 	session *Session,

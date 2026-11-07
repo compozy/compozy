@@ -4852,6 +4852,96 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: archive overrides definition-pause child eligibility, while human input remains runnable.
+	for _, reason := range []string{"definition_missing", "definition_not_always_on"} {
+		t.Run("Should hold archived definition descendants after "+reason, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "archive-definition", "archive-main")
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			child := "archived-definition-child"
+			if err := db.RegisterSession(ctx, &store.SessionInfo{
+				ID:            child,
+				ProfileID:     store.DefaultProfileID,
+				WorkspaceID:   workspace,
+				AgentName:     "coder",
+				State:         "active",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: main,
+					RootSessionID:   main,
+					SpawnDepth:      1,
+					Kind:            store.LineageKindSpawn,
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Pause(ctx, instance.ID, reason); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Archive(ctx, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			req := promptAdmissionRequest(workspace, child, "archived-peer", now)
+			req.Origin = []byte(`{"kind":"session","session_id":"sender","hop":1}`)
+			receipt, _, _, _, err := db.EnqueueAdmittedSessionInput(ctx, req, store.SessionInputQueueInsert{
+				ID: "archived-peer", SessionID: child, Text: req.AuthoredText, QueueCap: 10, Now: now,
+			})
+			if err != nil || receipt.Result.Delivery != "held" || receipt.Result.HeldReason != "instance_archived" ||
+				receipt.Result.HeldInstanceID != instance.ID {
+				t.Fatalf("archived definition receipt: %+v %v", receipt.Result, err)
+			}
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID:          "archived-monitor",
+				SessionID:   child,
+				Text:        "monitor wake",
+				OriginClass: store.SessionInputOriginClassSynthetic,
+				QueueCap:    10,
+				Now:         now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := db.ListPendingSessionInputs(ctx, child)
+			if err != nil || len(rows) != 2 {
+				t.Fatalf("archived definition rows: %+v %v", rows, err)
+			}
+			for _, row := range rows {
+				if !row.Held || row.HeldReason != "instance_archived" || row.HeldInstanceID != instance.ID {
+					t.Fatalf("archived definition hold: %+v", row)
+				}
+			}
+			hold, err := db.SessionInputHold(ctx, child)
+			if err != nil || hold == nil || hold.Reason != "instance_archived" {
+				t.Fatalf("archived definition attention: %+v %v", hold, err)
+			}
+			if _, found, err := db.PeekNextSessionInput(ctx, child); err != nil || found {
+				t.Fatalf("archived definition peek: %v %v", found, err)
+			}
+			if _, found, err := db.ClaimNextSessionInput(ctx, child, now); err != nil || found {
+				t.Fatalf("archived definition claim: %v %v", found, err)
+			}
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: "archived-human", SessionID: child, Text: "operator follow-up", QueueCap: 10, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			claimed, found, err := db.ClaimNextSessionInput(ctx, child, now)
+			if err != nil || !found || claimed.ID != "archived-human" {
+				t.Fatalf("archived human exception: %+v %v %v", claimed, found, err)
+			}
+		})
+	}
+
 	// Invariant: a paused prepared Goal cannot strand a released descendant's own continuations.
 	t.Run("Should select child continuation behind a prepared Goal during a definition pause", func(t *testing.T) {
 		t.Parallel()

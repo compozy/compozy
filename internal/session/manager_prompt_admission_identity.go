@@ -242,6 +242,7 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	return req, nil
 }
 
+// sendPromptResultFromAdmission replays the durable admission-time delivery and hold diagnostics.
 func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (SendPromptResult, error) {
 	if admission.Result == nil {
 		return SendPromptResult{}, errors.New("session: completed prompt admission has no result")

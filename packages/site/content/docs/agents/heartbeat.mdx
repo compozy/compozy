@@ -373,7 +373,9 @@ new sessions and runtime switches still require an available definition.
 Held prompt results and queued inputs include `held_reason` and `held_instance_id`.
 A session with held input shows Needs attention; its status includes a `held_input`
 work signal with the reason and instance. Holds belonging to an archived instance
-report `instance_archived`, since that instance cannot be resumed. Restoring or adopting an agent does not
+report `instance_archived`, since that instance cannot be resumed. Archiving a
+paused instance holds its descendants even when the pause was caused by a missing
+definition; human input remains available. Restoring or adopting an agent does not
 transfer children from a different instance. Quiet windows do not hold monitor wakes. Lost main-session
 wakes produce one interrupted report per wake, except shutdown cancellations. A
 delivered wake does not trigger another check.

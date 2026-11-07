@@ -106,6 +106,7 @@ const (
 	pauseReasonDefinitionNotAlwaysOn = "definition_not_always_on"
 )
 
+// OperatorOnlyResume keeps safety and unknown pauses under operator control.
 func OperatorOnlyResume(reason string) bool {
 	return reason != pauseReasonDefinitionMissing && reason != pauseReasonDefinitionNotAlwaysOn
 }

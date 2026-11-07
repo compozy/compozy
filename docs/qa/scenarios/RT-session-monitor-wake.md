@@ -238,9 +238,10 @@ attention signal and Needs attention badge. A human prompt still runs. Resume an
 confirm the hold explanation and attention clear. Under a definition pause, lower
 the unattended limit and let a child reach it: the pause becomes `unattended`,
 and later child wakes stay held. Adoption preserves child lineage and does not
-implicitly transfer it to another instance. Archive a manually paused instance, then
-queue later child input: the receipt, queue and attention say `instance_archived`,
-and the input remains fenced rather than suggesting a resumable pause.
+implicitly transfer it to another instance. Archive an instance paused manually or for either definition reason, then
+queue later child monitor and peer input: the receipt, queue and attention say `instance_archived`,
+and the input remains fenced rather than suggesting a resumable pause. A later
+human message still runs; no autonomous input is released behind it.
 
 Backend verification 2026-11-06 (#1328): passed the owning paused-input queue,
 coalesced wake, prompt-admission and unattended-brake tests; the prepared Goal

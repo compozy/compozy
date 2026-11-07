@@ -104,8 +104,8 @@ type approvedAdditionWalker struct {
 
 // alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
 var alwaysOnHardeningEnumValues = map[string][]string{
-	"#/components/schemas/WorkSignal/properties/kind": {"held_input"},
-	"#/components/schemas/SignalSourceState/properties/kind": {"held_input"},
+	"#/components/schemas/WorkSignal/properties/kind":                     {"held_input"},
+	"#/components/schemas/SignalSourceState/properties/kind":              {"held_input"},
 	"#/components/schemas/CreateAgentPayload/properties/permissions":      {"approve-edits", "auto"},
 	"#/components/schemas/DuplicateAgentOverrides/properties/permissions": {"approve-edits", "auto"},
 	"#/components/schemas/SettingsPermissionsPayload/properties/mode":     {"approve-edits", "auto"},
