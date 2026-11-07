@@ -222,7 +222,9 @@ monitor wakes and a peer message. Remove the creator's definition, producing
 Repeat after rotation and with `definition_not_always_on`. Already queued work is
 released by instance reconciliation; stopped descendants stay stopped. Idle-release a
 child using the removed definition before releasing its queued work: the accepted
-runtime reloads on the same route and both inputs are delivered. A new session or
+runtime reloads on the same route and both inputs are delivered. Repeat Pi startup
+finalization after definition removal: accepted guidance remains byte-identical
+across reloads rather than accumulating prior startup sections. A new session or
 runtime switch still requires an available definition. Repeat with a
 prepared Goal ahead of those inputs: normal child continuations still deliver,
 while the Goal retains its explicit pause guard. Explicitly pause the definition-paused

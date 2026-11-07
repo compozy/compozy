@@ -71,5 +71,11 @@ func (m *Manager) resolvePromptStartRuntime(
 		}) {
 		return runtime, err
 	}
-	return m.resolveSessionRuntimeWithDefinition(ctx, spec, dropInheritedUnrestricted, snapshot.agentDef)
+	runtime, err = m.resolveSessionRuntimeWithDefinition(ctx, spec, dropInheritedUnrestricted, snapshot.agentDef)
+	if err != nil {
+		return runtime, err
+	}
+	runtime.reuseStartupDefinition = true
+	runtime.startupManifest = snapshot.startupManifest
+	return runtime, nil
 }

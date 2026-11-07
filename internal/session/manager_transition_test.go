@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
@@ -2963,6 +2964,67 @@ func TestPromptRuntimePiStartupRecovery(t *testing.T) {
 		}
 		if !active.NativeToolsUnavailable() || active.AgentDefinition().Prompt != prompt {
 			t.Fatal("Pi finalizer did not commit unavailable-tool guidance")
+		}
+	})
+
+	// Invariant: a removed definition cannot make Pi wrap accepted startup guidance on each idle reload.
+	t.Run("Should preserve accepted Pi guidance when its definition disappears", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, WithPromptAssembler(startupPromptAssemblerFunc(
+			func(_ context.Context, _ StartupPromptContext, agent compozyconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
+				return agent.Prompt + "\nFresh Pi guidance.", nil
+			},
+		)))
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		active, err := h.manager.Create(t.Context(), &CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Provider: "pi", Model: "test-model",
+			Lineage: &store.SessionLineage{ParentSessionID: parent.ID, RootSessionID: parent.ID,
+				SpawnDepth: 1, Kind: store.LineageKindProvenance},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		selection := active.runtimeBindingSnapshot().selection
+		plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active, selection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := acp.StartOpts{Command: "pi-acp", Cwd: t.TempDir()}
+		opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, start)
+		accepted, _, err := opts.FinalizeStartup(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		active.mu.RLock()
+		progress := active.supervisionProgressAt
+		active.mu.RUnlock()
+		if err := h.manager.releaseIdleRuntime(t.Context(), active, progress); err != nil {
+			t.Fatal(err)
+		}
+		if active.Info().RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatal("child was not idle-released")
+		}
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.Agents = nil
+		h.resolver.upsert(&resolved)
+		for range 3 {
+			plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active, selection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, start)
+			prompt, _, err := opts.FinalizeStartup(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if prompt != accepted || active.AgentDefinition().Prompt != accepted {
+				t.Fatalf("Pi reload duplicated accepted guidance: %q, want %q", prompt, accepted)
+			}
 		}
 	})
 

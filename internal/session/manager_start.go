@@ -17,11 +17,13 @@ import (
 type sessionStartRuntime struct {
 	nativeToolsUnavailable bool
 	// startupRebuilt marks a startup definition reassembled for a switched provider or model.
-	startupRebuilt  bool
-	startupManifest acp.StartupManifest
-	agent           compozyconfig.ResolvedAgent
-	agentDef        compozyconfig.AgentDef
-	mcpServers      []compozyconfig.MCPServer
+	startupRebuilt bool
+	// reuseStartupDefinition retains accepted guidance when the authored definition is unavailable.
+	reuseStartupDefinition bool
+	startupManifest        acp.StartupManifest
+	agent                  compozyconfig.ResolvedAgent
+	agentDef               compozyconfig.AgentDef
+	mcpServers             []compozyconfig.MCPServer
 }
 
 type sessionStartStorage struct {

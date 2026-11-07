@@ -39,8 +39,10 @@ func (m *Manager) preparePiBridgeStartup(
 				return "", acp.StartupManifest{}, err
 			}
 		}
-		if err := m.assembleAcceptedStartupDefinition(ctx, spec, runtime, m.now()); err != nil {
-			return "", acp.StartupManifest{}, err
+		if !runtime.reuseStartupDefinition {
+			if err := m.assembleAcceptedStartupDefinition(ctx, spec, runtime, m.now()); err != nil {
+				return "", acp.StartupManifest{}, err
+			}
 		}
 		session.setRuntimeDefinition(runtime)
 		return runtime.agent.Prompt, runtime.startupManifest, nil
