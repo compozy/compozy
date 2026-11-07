@@ -67,6 +67,26 @@ func summary(t *testing.T, e Engine, root projectfiles.Root, req Request) Summar
 }
 
 func TestEngine(t *testing.T) {
+	for _, denied := range []error{projectfiles.ErrPathDenied, projectfiles.ErrPathOutsideRoot, projectfiles.ErrInvalidPath} {
+		for _, read := range []int{1, 2, 3} {
+			t.Run(fmt.Sprintf("Should preserve patch safety errors %s read=%d", denied, read), func(t *testing.T) {
+				t.Parallel()
+				root, e := repo(t)
+				write(t, root, "allowed.go", "new\n")
+				e.reader = &patchSafetyReader{Reader: e.reader, failAt: read, cause: fmt.Errorf("guard: %w", denied)}
+				patches, err := e.Patches(
+					t.Context(),
+					root,
+					Request{Scope: Uncommitted},
+					[]PatchTarget{{Path: "allowed.go"}, {Path: "c.go"}},
+				)
+				if !errors.Is(err, denied) || len(patches) != 0 {
+					t.Fatalf("patches=%+v err=%v", patches, err)
+				}
+			})
+		}
+	}
+
 	for _, kind := range []string{"tree", "directory", "gitlink", "gitlink-directory"} {
 		t.Run("Should isolate patch targets across type changes "+kind, func(t *testing.T) {
 			t.Parallel()
@@ -912,4 +932,25 @@ type summaryWaitContext struct {
 func (c *summaryWaitContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.observed) })
 	return c.Context.Done()
+}
+
+type patchSafetyReader struct {
+	projectfiles.Reader
+	calls, failAt int
+	cause         error
+}
+
+func (r *patchSafetyReader) Read(
+	ctx context.Context,
+	root projectfiles.Root,
+	path string,
+	opts projectfiles.ReadOptions,
+) (projectfiles.Content, error) {
+	if path == "allowed.go" {
+		r.calls++
+		if r.calls == r.failAt {
+			return projectfiles.Content{}, r.cause
+		}
+	}
+	return r.Reader.Read(ctx, root, path, opts)
 }

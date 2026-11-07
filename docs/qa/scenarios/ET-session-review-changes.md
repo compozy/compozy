@@ -130,3 +130,9 @@ must complete by retrying canceled shared work. Cancel all requests and verify G
 Through both CLI and the native tool, request one valid patch and one current directory. The
 report must retain both items and the valid patch instead of reporting changes_stale. Items with
 content still require summary fingerprint equality; unavailable items have no content to fence.
+
+Security errors are not unavailable patch items. Request a symlink into protected Git metadata,
+a symlink outside the approved root, and an invalid relative path through patches HTTP/UDS,
+CLI and the native tool. Preserve path_denied, path_outside_root and invalid_path respectively;
+return no partial patch batch and disclose no absolute host path. Verify these outcomes both
+while obtaining fingerprints and if denial appears during sensitivity or untracked-content reads.

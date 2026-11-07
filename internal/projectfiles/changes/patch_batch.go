@@ -67,7 +67,7 @@ func (e *GitEngine) batchFingerprints(
 		}
 		value, err := e.fingerprintWithOID(ctx, root, t, f.oldOID, f.Status)
 		if err != nil {
-			if errors.Is(err, ErrStale) || ctx.Err() != nil {
+			if !patchItemUnavailable(err) {
 				return nil, err
 			}
 			// An empty fingerprint marks an unavailable target, not a failed batch.
@@ -180,8 +180,8 @@ func (e *GitEngine) patchBatch(
 				continue
 			}
 			if err != nil {
-				if ctx.Err() != nil {
-					return nil, ctx.Err()
+				if !patchItemUnavailable(err) {
+					return nil, err
 				}
 				result[i].Fingerprint = ""
 				continue
@@ -220,8 +220,8 @@ func (e *GitEngine) preparePatches(
 		for _, path := range []string{t.Path, t.OldPath} {
 			sensitive, err := e.sensitive(ctx, root, path)
 			if err != nil {
-				if ctx.Err() != nil {
-					return nil, nil, ctx.Err()
+				if !patchItemUnavailable(err) {
+					return nil, nil, err
 				}
 				unavailable = true
 				break
@@ -239,4 +239,14 @@ func (e *GitEngine) preparePatches(
 		allowed = append(allowed, t)
 	}
 	return result, allowed, nil
+}
+
+// Only file-kind changes and the Reader's transient not-found result are item-local.
+// Confinement/validation failures (including joined errors) must retain their domain error.
+func patchItemUnavailable(err error) bool {
+	if errors.Is(err, projectfiles.ErrPathDenied) || errors.Is(err, projectfiles.ErrPathOutsideRoot) ||
+		errors.Is(err, projectfiles.ErrInvalidPath) {
+		return false
+	}
+	return errors.Is(err, projectfiles.ErrNotAFile) || errors.Is(err, projectfiles.ErrNotFound)
 }

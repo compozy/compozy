@@ -384,11 +384,36 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 		if err := os.Mkdir(filepath.Join(ready.Worktree.Path, "unavailable-patch-dir"), 0755); err != nil {
 			t.Fatal(err)
 		}
-		callHostedMCPToolJSON(t, ctx, client, "compozy__session_changes", map[string]any{"session_id": bound.ID, "scope": "uncommitted", "patch_paths": []string{"worktree_only.go", "unavailable-patch-dir"}}, &nativeDetails)
-		if len(nativeDetails.Patches) != 2 || nativeDetails.Patches[0].Patch == "" || nativeDetails.Patches[1].Fingerprint != "" {
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			"compozy__session_changes",
+			map[string]any{
+				"session_id":  bound.ID,
+				"scope":       "uncommitted",
+				"patch_paths": []string{"worktree_only.go", "unavailable-patch-dir"},
+			},
+			&nativeDetails,
+		)
+		if len(nativeDetails.Patches) != 2 || nativeDetails.Patches[0].Patch == "" ||
+			nativeDetails.Patches[1].Fingerprint != "" {
 			t.Fatalf("mixed native patches: %+v", nativeDetails.Patches)
 		}
-		stdout, stderr, cliErr = harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "session", "changes", bound.ID, "--scope", "uncommitted", "--patch", "worktree_only.go", "--patch", "unavailable-patch-dir", "--json")
+		stdout, stderr, cliErr = harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"changes",
+			bound.ID,
+			"--scope",
+			"uncommitted",
+			"--patch",
+			"worktree_only.go",
+			"--patch",
+			"unavailable-patch-dir",
+			"--json",
+		)
 		if cliErr != nil {
 			t.Fatalf("mixed CLI patches: %v %s", cliErr, stderr)
 		}
@@ -396,6 +421,69 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertWorktreeE2EJSONParity(t, "unavailable patch reports", nativeDetails.Patches, cliDetails.Patches)
+
+		outside := filepath.Join(t.TempDir(), "outside.txt")
+		if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for name, target := range map[string]string{"protected-patch.txt": filepath.Join(ready.Worktree.Path, ".git"), "outside-patch.txt": outside} {
+			if err := os.Symlink(target, filepath.Join(ready.Worktree.Path, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, tc := range []struct {
+			path, code string
+			status     int
+		}{
+			{"protected-patch.txt", "path_denied", 403}, {"outside-patch.txt", "path_outside_root", 403}, {"../invalid", "invalid_path", 400},
+		} {
+			for _, transport := range []struct {
+				client *http.Client
+				base   string
+			}{{harness.HTTPClient, harness.HTTPBaseURL}, {harness.UDSClient, "http://unix"}} {
+				response, err := transport.client.Get(
+					transport.base + base + "/patches?scope=uncommitted&revision=" + url.QueryEscape(
+						a.Revision,
+					) + "&path=" + url.QueryEscape(
+						tc.path,
+					),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				data, readErr := io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil || closeErr != nil || response.StatusCode != tc.status ||
+					!bytes.Contains(data, []byte(tc.code)) ||
+					bytes.Contains(data, []byte(ready.Worktree.Path)) ||
+					bytes.Contains(data, []byte(outside)) {
+					t.Fatalf(
+						"patch guard status=%d data=%s read=%v close=%v",
+						response.StatusCode,
+						data,
+						readErr,
+						closeErr,
+					)
+				}
+			}
+			stdout, stderr, cliErr = harness.CLI.RunInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				"session",
+				"changes",
+				bound.ID,
+				"--scope",
+				"uncommitted",
+				"--patch",
+				tc.path,
+				"--json",
+			)
+			if cliErr == nil || !strings.Contains(stderr, tc.code) ||
+				strings.Contains(stdout+stderr, ready.Worktree.Path) ||
+				strings.Contains(stdout+stderr, outside) {
+				t.Fatalf("CLI guard stdout=%s stderr=%s error=%v", stdout, stderr, cliErr)
+			}
+		}
 
 		var ca, cb compozycontract.SessionChangeContentsResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/contents"+query, nil, &ca); err != nil {
