@@ -3692,6 +3692,33 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name    string
+		err     error
+		message string
+	}{
+		{"Should report an expired permission", session.ErrPendingPermissionExpired, "permission request expired"},
+		{"Should report a canceled permission", session.ErrPendingPermissionCanceled, "permission request canceled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
+				ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+					return session.ApprovalResult{}, tc.err
+				},
+			}, stubObserver{}, homePaths))
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-1/approve",
+				[]byte(`{"request_id":"stale","decision":"allow-once"}`),
+			)
+			if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), tc.message) {
+				t.Fatalf("late permission response = %d %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
 	t.Run("Should pending permission missing", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {

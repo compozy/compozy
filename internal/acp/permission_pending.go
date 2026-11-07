@@ -20,6 +20,7 @@ func (p *AgentProcess) registerPendingPermission(
 	turnID string,
 	request acpsdk.RequestPermissionRequest,
 ) (string, *pendingPermission, error) {
+	expiresAt := timeNowUTC().Add(p.permissionTimeoutOrDefault())
 	p.pendingPermissionMu.Lock()
 	defer p.pendingPermissionMu.Unlock()
 
@@ -39,6 +40,7 @@ func (p *AgentProcess) registerPendingPermission(
 		requestID:          requestID,
 		turnID:             strings.TrimSpace(turnID),
 		response:           make(chan permissionDecision, 1),
+		expiresAt:          expiresAt,
 		supportedDecisions: supportedPermissionDecisions(request.Options),
 	}
 	p.pendingPermissions[requestID] = pending
@@ -126,6 +128,10 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 	if err != nil {
 		p.pendingPermissionMu.Unlock()
 		return err
+	}
+	if !pending.expiresAt.IsZero() && !timeNowUTC().Before(pending.expiresAt) {
+		p.pendingPermissionMu.Unlock()
+		return ErrPendingPermissionExpired
 	}
 	if len(pending.supportedDecisions) > 0 {
 		if _, ok := pending.supportedDecisions[decision]; !ok {

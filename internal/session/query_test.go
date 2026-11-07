@@ -2044,7 +2044,7 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 func TestManagerStatusReturnsDurableAttentionForStoppedSession(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should retain pending permission attention after the runtime stops", func(t *testing.T) {
+	t.Run("Should read retained legacy attention without reconciling during status reads", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -2058,6 +2058,9 @@ func TestManagerStatusReturnsDurableAttentionForStoppedSession(t *testing.T) {
 		cleanupTestManager(t, h.manager)
 
 		target := createSession(t, h)
+		if err := h.manager.Stop(ctx, target.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
 		if _, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
 			InteractionID:     "interaction-status-restart",
 			SessionID:         target.ID,
@@ -2069,10 +2072,6 @@ func TestManagerStatusReturnsDurableAttentionForStoppedSession(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("createPendingInteraction() error = %v", err)
 		}
-		if err := h.manager.Stop(ctx, target.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-
 		info, err := h.manager.Status(ctx, target.ID)
 		if err != nil {
 			t.Fatalf("Status(stopped with attention) error = %v", err)

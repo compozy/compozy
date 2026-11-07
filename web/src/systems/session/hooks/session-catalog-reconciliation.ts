@@ -157,7 +157,7 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
  * (the expiring session upserts, and the reconnect after a restart wakes every scope).
  * While the stream is live these reads keep only a safety cadence, so its wake re-reads them.
  */
-const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "canceled"]);
+const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "settled"]);
 
 function isStreamCoveredInteractionRead(
   key: QueryKey,

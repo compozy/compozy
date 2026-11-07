@@ -12,6 +12,8 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+const pendingInteractionTimeoutActor = "timeout"
+
 // CreatePendingInteraction persists the canonical record and count projection together.
 func (g *SessionRepo) CreatePendingInteraction(
 	ctx context.Context,
@@ -91,6 +93,18 @@ func (g *SessionRepo) TransitionPendingInteraction(
 		return store.SessionAttentionCommit{}, err
 	}
 	err = g.withImmediateTransaction(ctx, "transition pending interaction", func(exec globalSQLExecutor) error {
+		if normalized.OrphanInput != nil {
+			interaction, readErr := getPendingInteraction(ctx, exec, normalized.InteractionID)
+			if readErr != nil {
+				return readErr
+			}
+			at := g.now().UTC()
+			if interaction.Kind == store.PendingInteractionKindPermission &&
+				interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt) {
+				normalized.Status, normalized.Resolution = store.PendingInteractionStatusTimedOut, "expired"
+				normalized.ResolvedBy, normalized.At, normalized.OrphanInput = pendingInteractionTimeoutActor, at, nil
+			}
+		}
 		transitioned, transitionErr := transitionPendingInteraction(ctx, exec, normalized)
 		if transitionErr != nil {
 			return transitionErr

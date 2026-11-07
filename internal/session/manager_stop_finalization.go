@@ -127,6 +127,11 @@ func (m *Manager) markStorageStopped(ctx context.Context, session *Session, caus
 // finishStoppedPersistence retains the receipt until stop history, Goal cancellation
 // and supervised task recovery settle.
 func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session) error {
+	if err := m.cancelSessionInteractions(ctx, session.ID, "session-stopped"); err != nil {
+		session.setPendingStopState(true, true)
+		m.dispatchSessionPostStop(ctx, session)
+		return errors.Join(session.stopFinalizationErr, ErrRecoveryPersistence, err)
+	}
 	if err := m.markSessionStopped(ctx, session); err != nil {
 		m.dispatchSessionPostStop(ctx, session)
 		return errors.Join(session.stopFinalizationErr, err)

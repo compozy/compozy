@@ -441,9 +441,88 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 }
 
+type permissionTransitionFailOnce struct {
+	store.SessionAttentionStore
+	failed atomic.Bool
+}
+
+func (s *permissionTransitionFailOnce) TransitionPendingInteraction(
+	ctx context.Context, req store.PendingInteractionTransition,
+) (store.SessionAttentionCommit, error) {
+	if req.Status == store.PendingInteractionStatusTimedOut && !s.failed.Swap(true) {
+		return store.SessionAttentionCommit{}, errors.New("injected transient terminal write failure")
+	}
+	return s.SessionAttentionStore.TransitionPendingInteraction(ctx, req)
+}
+
 // TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+	t.Run("Should classify retained clarification deadlines during stop cleanup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		for _, id := range []string{"finite", "unbounded"} {
+			request := toolspkg.ClarifyPending{RequestID: id, Question: "Continue?"}
+			if id == "finite" {
+				request.Deadline = h.manager.now().Add(-time.Minute)
+			}
+			if _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
+				Status: toolspkg.ClarifyStatusPending, Request: request, At: h.manager.now().Add(-time.Hour),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.cancelSessionInteractions(t.Context(), target.ID, "stopped"); err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled} {
+			rows, err := catalog.ListPendingInteractions(t.Context(), target.ID, []string{status})
+			if err != nil || len(rows) != 1 || (rows[0].ProviderRequestID == "finite") != (status == "timed_out") {
+				t.Fatalf("clarification %s = %#v, %v", status, rows, err)
+			}
+		}
+	})
+	t.Run("Should retry a failed terminal permission write and record each callback event once", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		h.manager.attentionStore = &permissionTransitionFailOnce{SessionAttentionStore: h.manager.attentionStore}
+		callback := h.manager.permissionEventHandler(target)
+		pending := acp.AgentEvent{Type: acp.EventTypePermission, TurnID: "turn", Timestamp: h.manager.now()}.
+			WithRequestID("request").WithEventID("pending-event")
+		callback(pending, false)
+		if err := h.manager.recordEvent(t.Context(), target, pending); err != nil {
+			t.Fatal(err)
+		}
+		terminal := pending.WithEventID("terminal-event").WithResolvedBy("timeout")
+		terminal.Decision = string(acp.PermissionDecisionCanceled)
+		callback(terminal, false)
+		if err := h.manager.recordEvent(t.Context(), target, terminal); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			target.ID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || target.Info().PendingPermissionCount != 0 {
+			t.Fatalf("settled after retry = %#v, %v", rows, err)
+		}
+		events, err := target.recorderHandle().
+			Query(t.Context(), store.EventQuery{Types: []string{acp.EventTypePermission}})
+		if err != nil || len(events) != 2 {
+			t.Fatalf("permission events = %#v, %v", events, err)
+		}
+	})
 
 	t.Run("Should retain the creation witness across initial binding and provider replacement", func(t *testing.T) {
 		t.Parallel()
@@ -685,6 +764,252 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 					t.Fatalf("repeated expiry: %d, %v", count, err)
 				}
 			})
+		}
+	})
+	t.Run("Should settle an expired orphan when refusing a late approval", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID: "expired-answer", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "expired-answer", CreatedAt: expires.Add(-time.Hour), ExpiresAt: &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := catalog.TransitionPendingInteraction(
+			t.Context(),
+			store.PendingInteractionTransition{
+				InteractionID: "expired-answer",
+				Status:        store.PendingInteractionStatusOrphaned,
+				At:            restarted.now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, err := restarted.ApprovePermission(
+			t.Context(),
+			sessionID,
+			acp.ApproveRequest{RequestID: "expired-answer", Decision: "allow-once"},
+		)
+		if !errors.Is(err, ErrPendingPermissionExpired) {
+			t.Fatalf("late orphan approval = %v", err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired answer = %#v, %v", rows, err)
+		}
+		attention, err := catalog.GetSessionAttention(t.Context(), sessionID)
+		if err != nil || attention.PendingPermissionCount != 1 {
+			t.Fatalf("unrelated orphan attention = %#v, %v", attention, err)
+		}
+	})
+	t.Run("Should expire a retained orphan before resuming without requiring daemon restart", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID: "expired-resume", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "expired-resume", CreatedAt: expires.Add(-time.Hour), ExpiresAt: &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := catalog.TransitionPendingInteraction(
+			t.Context(),
+			store.PendingInteractionTransition{
+				InteractionID: "expired-resume",
+				Status:        store.PendingInteractionStatusOrphaned,
+				At:            restarted.now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if count, err := restarted.RecoverPendingInteractions(t.Context(), sessionID); err != nil || count != 1 {
+			t.Fatalf("resume expiry = %d, %v", count, err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired resume = %#v, %v", rows, err)
+		}
+		if count, err := restarted.RecoverPendingInteractions(t.Context(), sessionID); err != nil || count != 0 {
+			t.Fatalf("repeated resume = %d, %v", count, err)
+		}
+	})
+	t.Run("Should expire retained deadlines on restart and preserve terminal history", func(t *testing.T) {
+		t.Parallel()
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{},
+		)
+		expires := restarted.now().Add(-time.Minute)
+		if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+			InteractionID:     "past-deadline",
+			SessionID:         sessionID,
+			Kind:              store.PendingInteractionKindPermission,
+			ProviderRequestID: "past-deadline",
+			TurnID:            "old-turn",
+			CreatedAt:         expires.Add(-time.Hour),
+			ExpiresAt:         &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID); err != nil || count != 2 {
+			t.Fatalf("recovery = %d, %v", count, err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			sessionID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || rows[0].Resolution != "expired" || rows[0].ResolvedAt == nil {
+			t.Fatalf("expired = %#v, %v", rows, err)
+		}
+		if count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID); err != nil || count != 0 {
+			t.Fatalf("repeated recovery = %d, %v", count, err)
+		}
+	})
+	for _, nextTurn := range []string{"first", "second"} {
+		t.Run("Should preserve a reused request occurrence in turn "+nextTurn, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			catalog := openManagerInputQueueStore(t)
+			registerManagerInputQueueWorkspace(t, catalog, h)
+			h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+			cleanupTestManager(t, h.manager)
+			target := createSession(t, h)
+			event := acp.AgentEvent{
+				Type:      acp.EventTypePermission,
+				TurnID:    "first",
+				Timestamp: h.manager.now(),
+			}.WithRequestID(
+				"reused",
+			)
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			event.Decision = "reject_once"
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			pending := event
+			pending.TurnID, pending.Decision = nextTurn, ""
+			pending.Timestamp = event.Timestamp.Add(time.Second)
+			if err := h.manager.recordEvent(t.Context(), target, pending); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := catalog.ListPendingInteractions(t.Context(), target.ID, nil)
+			if err != nil || len(rows) != 1 || rows[0].TurnID != nextTurn || target.Info().PendingPermissionCount != 1 {
+				t.Fatalf("pending = %#v, %v", rows, err)
+			}
+		})
+	}
+	t.Run("Should settle retained permissions on stop without a provider resolution event", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		at := h.manager.now()
+		other := createSession(t, h)
+		if err := h.manager.recordEvent(
+			ctx,
+			other,
+			acp.AgentEvent{
+				Type:      acp.EventTypePermission,
+				TurnID:    "other-turn",
+				Timestamp: at,
+			}.WithRequestID("other-permission").
+				WithExpiresAt(at.Add(time.Hour)),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, request := range []struct {
+			id      string
+			kind    string
+			expires time.Time
+		}{
+			{"expired", store.PendingInteractionKindPermission, at.Add(-time.Minute)},
+			{"pending", store.PendingInteractionKindPermission, at.Add(time.Hour)},
+			{"clarify", store.PendingInteractionKindClarify, at.Add(time.Hour)},
+		} {
+			if request.kind == store.PendingInteractionKindClarify {
+				if _, err := h.manager.createPendingInteraction(
+					ctx,
+					store.PendingInteractionCreate{
+						SessionID:         target.ID,
+						Kind:              request.kind,
+						ProviderRequestID: request.id,
+						TurnID:            "clarify:" + request.id,
+						CreatedAt:         at,
+						ExpiresAt:         &request.expires,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			event := acp.AgentEvent{Type: acp.EventTypePermission, TurnID: "turn-stale", Timestamp: at}.
+				WithRequestID(request.id).WithExpiresAt(request.expires)
+			if err := h.manager.recordEvent(ctx, target, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.Stop(ctx, target.ID); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(ctx, target.ID, []string{
+			store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled,
+		})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("settled interactions = %#v, %v", rows, err)
+		}
+		for _, row := range rows {
+			want := store.PendingInteractionStatusCanceled
+			if row.ProviderRequestID == "expired" {
+				want = store.PendingInteractionStatusTimedOut
+			}
+			if row.Status != want || row.ResolvedAt == nil {
+				t.Fatalf("settled row = %#v, want %s", row, want)
+			}
+		}
+		info, err := h.manager.Status(ctx, target.ID)
+		if err != nil || info.PendingPermissionCount != 0 || info.PendingClarifyCount != 0 ||
+			BadgeForInfo(info) == BadgeWaitingForAuth {
+			t.Fatalf("stopped attention = %#v, %v", info, err)
+		}
+		otherInfo, err := h.manager.Status(ctx, other.ID)
+		if err != nil || otherInfo.PendingPermissionCount != 1 || BadgeForInfo(otherInfo) != BadgeWaitingForAuth {
+			t.Fatalf("other session attention changed = %#v, %v", otherInfo, err)
+		}
+		_, err = h.manager.ApprovePermission(
+			ctx,
+			target.ID,
+			acp.ApproveRequest{RequestID: "expired", Decision: "allow-once"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "expired") {
+			t.Fatalf("late approval = %v", err)
 		}
 	})
 	for _, tc := range []struct{ name, actor, status, resolution string }{

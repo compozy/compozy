@@ -7,9 +7,33 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
+
+// HasPermissionOccurrence recognizes an actionable request or an exact replay of a settled occurrence.
+func (g *SessionRepo) HasPermissionOccurrence(
+	ctx context.Context,
+	sessionID, requestID, turnID string,
+	createdAt time.Time,
+) (bool, error) {
+	if err := g.checkReady(ctx, "find permission occurrence"); err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(requestID) == "" {
+		return false, errors.New("store: session id and permission request id are required")
+	}
+	exists, err := sqlcgen.New(g.readDB).HasPermissionOccurrence(ctx, sqlcgen.HasPermissionOccurrenceParams{
+		SessionID: strings.TrimSpace(sessionID), RequestID: strings.TrimSpace(requestID),
+		TurnID: strings.TrimSpace(turnID), CreatedAt: store.FormatTimestamp(createdAt),
+	})
+	if err != nil {
+		return false, fmt.Errorf("store: find permission occurrence: %w", err)
+	}
+	return exists, nil
+}
 
 type pendingInteractionRow struct {
 	interactionID     string

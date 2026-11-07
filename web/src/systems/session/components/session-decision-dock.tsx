@@ -6,6 +6,7 @@ import { useSessionClarifications } from "../hooks/use-session-clarifications";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useSessionDecisionMessages } from "../hooks/use-session-transcript-thread-messages";
 import { derivePendingPermissions } from "../lib/pending-permissions";
+import { permissionOccurrenceKey } from "../lib/session-pending-interactions";
 import { ClarificationDock } from "./clarification-dock";
 import { PermissionDock } from "./permission-dock";
 import { RelayedApprovalDock } from "./always-on/reports/relayed-approvals";
@@ -44,7 +45,8 @@ export function SessionDecisionDock({
 
   const pendingPermissions = derivePendingPermissions(decisionMessages).filter(
     permission =>
-      !resolvedIds.has(permission.requestId) && !expiredInteractions?.has(permission.requestId)
+      !resolvedIds.has(permissionOccurrenceKey(permission)) &&
+      !expiredInteractions?.has(permissionOccurrenceKey(permission))
   );
   const pendingClarifications = clarifications.error
     ? []
@@ -57,12 +59,12 @@ export function SessionDecisionDock({
     return (
       <PermissionDock
         enabled={enabled}
-        key={permission.requestId}
+        key={permissionOccurrenceKey(permission)}
         permission={permission}
         sessionId={sessionId}
         workspaceId={workspaceId}
         countLabel={total > 1 ? `1/${total}` : null}
-        onResolved={() => markResolved(permission.requestId)}
+        onResolved={() => markResolved(permissionOccurrenceKey(permission))}
       />
     );
   }

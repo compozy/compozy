@@ -93,7 +93,29 @@ func (m *Manager) recordEventWithAuthoredText(
 	event acp.AgentEvent,
 	authoredText string,
 ) error {
+	if event.Type == acp.EventTypePermission && event.EventIDValue() != "" {
+		event = m.normalizeEvent(session, event.TurnID, event)
+		return m.recordEventWithWriter(ctx, session, event, authoredText, recordPermissionEventIfAbsent)
+	}
 	return m.recordEventWithWriter(ctx, session, event, authoredText, recordPersistedSessionEvent)
+}
+
+var errPermissionEventRecorded = errors.New("session: permission event already recorded")
+
+func recordPermissionEventIfAbsent(
+	ctx context.Context,
+	recorder EventRecorder,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	appender, ok := recorder.(idempotentSessionEventAppender)
+	if !ok {
+		return recordPersistedSessionEvent(ctx, recorder, event)
+	}
+	persisted, inserted, err := appender.AppendEventIfAbsent(ctx, event)
+	if err == nil && !inserted {
+		return persisted, errPermissionEventRecorded
+	}
+	return persisted, err
 }
 
 func (m *Manager) recordEventWithWriter(
@@ -144,6 +166,9 @@ func (m *Manager) recordEventWithWriter(
 		Content:   payload,
 		Timestamp: event.Timestamp,
 	})
+	if errors.Is(err, errPermissionEventRecorded) {
+		return nil
+	}
 	if err != nil {
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
@@ -160,7 +185,7 @@ func (m *Manager) recordEventWithWriter(
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)
-	if !attentionCommitted {
+	if !attentionCommitted || event.EventIDValue() != "" {
 		m.publishSessionCatalogWakeForEvent(session, event)
 	}
 

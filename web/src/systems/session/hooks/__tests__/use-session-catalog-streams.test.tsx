@@ -263,29 +263,34 @@ describe("useSessionCatalogStreams", () => {
     );
     const relayed = vi.mocked(fetchSessionPendingWithDescendants);
     const expired = vi.mocked(fetchSessionInteractions);
+    const readCounts = () => ({
+      canceled: expired.mock.calls.filter(([, , options]) => options?.status === "canceled").length,
+      timedOut: expired.mock.calls.filter(([, , options]) => options?.status === "timed_out")
+        .length,
+    });
     const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
 
     await settle(1);
     expect(result.current.streamCovered).toBe(false);
     // Before the stream is live both reads keep their fallback polls.
     await settle(5_000);
-    expect(expired).toHaveBeenCalledTimes(2);
+    expect(readCounts()).toEqual({ canceled: 2, timedOut: 2 });
 
     act(() => source!.emit("open"));
     expect(result.current).toEqual({ streamCovered: true, foreignCovered: false });
     await settle(5_000);
     let relayedLive = relayed.mock.calls.length;
-    let expiredLive = expired.mock.calls.length;
+    let expiredLive = readCounts().canceled;
     // Only the 30s safety cadence remains, so neither 5s nor 15s fallback poll fires.
     await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive);
-    expect(expired).toHaveBeenCalledTimes(expiredLive);
+    expect(readCounts()).toEqual({ canceled: expiredLive, timedOut: expiredLive });
     // The safety cadence still re-reads both covered reads while the stream stays live.
     await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
-    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    expect(readCounts()).toEqual({ canceled: expiredLive + 1, timedOut: expiredLive + 1 });
     relayedLive = relayed.mock.calls.length;
-    expiredLive = expired.mock.calls.length;
+    expiredLive = readCounts().canceled;
 
     // A catalog change in the read's workspace re-reads both; another workspace does not.
     act(() =>
@@ -306,7 +311,7 @@ describe("useSessionCatalogStreams", () => {
     );
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
-    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    expect(readCounts()).toEqual({ canceled: expiredLive + 1, timedOut: expiredLive + 1 });
 
     // Once the stream is lost past its grace the fallback polls return.
     act(() => source!.emit("error"));
@@ -314,7 +319,8 @@ describe("useSessionCatalogStreams", () => {
     expect(result.current.streamCovered).toBe(false);
     await settle(15_000);
     expect(relayed.mock.calls.length).toBeGreaterThan(relayedLive + 1);
-    expect(expired.mock.calls.length).toBeGreaterThan(expiredLive + 1);
+    expect(readCounts().canceled).toBeGreaterThan(expiredLive + 1);
+    expect(readCounts().timedOut).toBeGreaterThan(expiredLive + 1);
 
     unmount();
     expect(client.getQueryData(sessionKeys.catalogStreamStatus(source!.url))).toBe("disabled");

@@ -414,6 +414,7 @@ export interface UIMessage {
 
 export interface PermissionRequest {
   requestId: string;
+  timestamp?: string;
   /** Stable runtime identity when the permission originated from a CompozyOS native tool. */
   toolId?: string;
   toolName: string;

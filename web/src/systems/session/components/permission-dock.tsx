@@ -48,14 +48,15 @@ export function PermissionDock({
     permission.toolInput
   );
   const blockedDecisions = terminalBlockedRememberedDecisions(terminalDetail);
-  const { decide, decisionOptions, isResolved, isSubmitting, subject } = usePermissionDock({
-    enabled,
-    permission,
-    sessionId,
-    workspaceId,
-    onResolved,
-    blockedDecisions,
-  });
+  const { decide, decisionOptions, isResolved, isSubmitting, isUnavailable, subject } =
+    usePermissionDock({
+      enabled,
+      permission,
+      sessionId,
+      workspaceId,
+      onResolved,
+      blockedDecisions,
+    });
   const session = useSession(sessionId);
   const sessionAgent = session.data?.agent_name?.trim() ?? "";
   const agent = useAgentIdentityView(sessionAgent, { workspace: workspaceId });
@@ -66,7 +67,7 @@ export function PermissionDock({
     terminalDetail ? terminalIdFromDetail(terminalDetail) : null
   );
 
-  if (isResolved) {
+  if (isResolved || isUnavailable) {
     return null;
   }
 
