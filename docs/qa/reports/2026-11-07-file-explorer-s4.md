@@ -66,10 +66,65 @@ bunx oxfmt --check <changed files>
 cd web && bunx playwright test e2e/__tests__/files-explorer.spec.ts
 ```
 
-Results are recorded in the S4 delivery report. The focused Playwright run could not complete in
-this environment: the machine's data volume was full (`No space left on device` while the
-harness built `web/dist`). E2E-001/E2E-003 and real-browser verification remain owed by CI or
-the next run with free disk.
+Results: typecheck passed; the four focused suites passed (120 tests); lint 0 warnings/errors;
+format clean.
+
+### E2E (follow-up run, 2026-11-07)
+
+The first attempt stopped on a full data volume (`No space left on device` while the harness
+built `web/dist`). After space was freed:
+
+```sh
+cd web && env -u COMPOZY_INTERNAL_RESTART_OPERATION_ID -u COMPOZY_INTERNAL_LOG_MIRROR_STDERR \
+  bunx playwright test e2e/__tests__/files-explorer.spec.ts --reporter=line
+```
+
+- The `env -u` is needed only when the run starts inside a managed Compozy session.
+  `COMPOZY_INTERNAL_RESTART_OPERATION_ID` leaks from the parent daemon into the session shell,
+  and the harness passes it to the test daemon. That daemon then exits before readiness with
+  `load restart operation …: restart operation not found`. CI is unaffected. The leak is a
+  separate runtime finding, outside this slice.
+- E2E-003 passed as written.
+- E2E-001 first timed out. Below 1440 px, `DetailInspector` is a modal sheet over the
+  transcript, so the link click could not reach the transcript while the Inspector was open
+  (existing behavior). The spec now runs at 1600×900, where the Inspector sits inline and the
+  Review panel ↔ Inspector exchange (Business Rule 9) is observable. Every assertion is
+  unchanged, and it passes.
+
+### Real-browser walk (Storybook, Chromium)
+
+`web/src/systems/files/components/stories/files-explorer.stories.tsx` renders `FilesExplorer`
+over the MSW fixtures in `web/src/systems/files/mocks/`. That module is registered as the `files`
+Storybook handler group, ahead of the API guard. Each state was captured in Chromium at
+1200×660, in dark and in light where noted:
+
+- no selection;
+- text at line 12 (dark and light): line highlighted, tree revealed `web/src/main.tsx`;
+- line past end: "Line 420 is past the end (40 lines)", scrolled to the last line;
+- truncated: "Showing the first 1 MB of 14.2 MB";
+- sensitive gate (dark and light), then Show contents: the revealed text renders;
+- image;
+- binary: "2.3 MB · No preview";
+- not found, with Refresh tree;
+- outside this project;
+- root unavailable (dark and light);
+- tree interactions: a file click opens it, and expanding a folder lazy-loads its children.
+
+Fixed during the walk: compact `Empty` hints render larger than their description. The
+"Outside this project" hint was removed; the title says it. The sensitive state's unreachable
+error hint was also removed: a failed reveal already shows the error state.
+
+Observed, owned elsewhere:
+
+- `CodeViewer` shows an empty body until the first highlight arrives. On a cold Vite dev
+  server, the worker pool start makes that about 1–5 s. That belongs to the S3 primitive, which
+  could add a plain-text first paint.
+- The target-line highlight is faint, especially in light theme (S3 theme bridge).
+- The image fixture is 1×1, and dimensions are not shown (`FileImagePreview` exposes no natural
+  size).
+
+Transcript link → viewer was verified in real Chromium against a real daemon by E2E-001 and
+E2E-003.
 
 ## Integration notes and residuals
 

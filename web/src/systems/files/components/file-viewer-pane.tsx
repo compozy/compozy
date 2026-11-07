@@ -106,7 +106,6 @@ function OpenFileView({
         {stateBody(state, {
           path,
           revealing: revealed && reveal.isPending,
-          revealError: revealed && reveal.isError ? reveal.error.message : undefined,
           onReveal: () => setRevealed(true),
           onRetry: () => void active.refetch(),
           onRefreshTree,
@@ -121,7 +120,6 @@ function stateBody(
   props: {
     path: string;
     revealing: boolean;
-    revealError?: string;
     onReveal: () => void;
     onRetry: () => void;
     onRefreshTree?: () => void;
@@ -170,7 +168,6 @@ function stateBody(
         <FileViewerSensitiveState
           size={state.content.size}
           revealing={props.revealing}
-          error={props.revealError}
           onReveal={props.onReveal}
         />
       );

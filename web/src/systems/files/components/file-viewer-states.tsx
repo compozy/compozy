@@ -32,7 +32,6 @@ export function FileViewerOutsideState({ path, openIn }: { path: string; openIn?
       icon={Ban}
       title="Outside this project"
       description={<span className="font-mono break-all">{path}</span>}
-      hint="Only files inside this project open in the viewer."
       action={openIn}
       data-testid="file-viewer-outside"
     />
@@ -120,12 +119,10 @@ export function FileViewerImageTooLargeState({ size }: { size: number }) {
 export function FileViewerSensitiveState({
   size,
   revealing,
-  error,
   onReveal,
 }: {
   size: number;
   revealing: boolean;
-  error?: string;
   onReveal: () => void;
 }) {
   return (
@@ -134,7 +131,6 @@ export function FileViewerSensitiveState({
       icon={Lock}
       title="Sensitive file"
       description={`${formatFileSize(size)} · Its contents stay hidden until you show them.`}
-      hint={error}
       action={
         <Button type="button" size="sm" disabled={revealing} onClick={onReveal}>
           Show contents

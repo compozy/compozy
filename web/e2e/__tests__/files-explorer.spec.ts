@@ -16,6 +16,9 @@ const fixture = path.resolve(
 const agentName = "files-explorer-agent";
 
 test.use({
+  // Wide enough for the Inspector to sit inline beside the transcript (below 1440 px it is a
+  // modal sheet over it), so the Review panel ↔ Inspector exchange is observable.
+  viewport: { width: 1600, height: 900 },
   runtimeOptions: {
     seed: { mockAgents: [{ fixturePath: fixture, fixtureAgent: agentName }] },
   },
