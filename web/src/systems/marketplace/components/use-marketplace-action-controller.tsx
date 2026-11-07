@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
 import {
@@ -28,7 +28,9 @@ import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
   marketplaceActionControllerLogic,
+  marketplaceInstallNeedsReview,
   marketplaceInstallPreviewLogic,
+  type MarketplaceInstallPreview,
 } from "./marketplace-action-controller-logic";
 import {
   formatMarketplaceVersion,
@@ -37,13 +39,30 @@ import {
   marketplaceErrorCode,
 } from "./marketplace-ui";
 import { useMarketplaceUpdateRecovery } from "./use-marketplace-update-recovery";
-import { prepareExtensionInputs, type ExtensionInputDraft } from "./extension-install-model";
+import {
+  createExtensionInputDraft,
+  prepareExtensionInputs,
+  type ExtensionInputDraft,
+} from "./extension-install-model";
 import { useMarketplacePending } from "./use-marketplace-pending";
+import {
+  useMarketplaceEnableRecovery,
+  type MarketplaceEnableFailure,
+  type MarketplaceEnableTarget,
+} from "./use-marketplace-enable-recovery";
 
 interface MarketplaceActionController {
   dialogs: React.ReactNode;
-  /** Catalog row Install: direct for a verified entry, through the trust dialog when unverified. */
+  /**
+   * Catalog row Add: install and enable in one call. Consent comes first for an unverified entry;
+   * the review dialog opens only when a required input or the gateway needs a decision.
+   */
   install: (entry: MarketplaceCatalogListing) => void;
+  /** The enable an Add could not finish, still on the row until Retry or Turn on succeeds. */
+  enableFailureFor: (entry: MarketplaceCatalogListing) => MarketplaceEnableFailure | null;
+  isEntryEnabling: (entry: MarketplaceCatalogListing) => boolean;
+  retryEnable: (entry: MarketplaceCatalogListing) => void;
+  turnOn: (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => void;
   /** Catalog row Update, addressed by the daemon-joined installed name. */
   update: (entry: MarketplaceCatalogListing) => void;
   /** Installed row Update, addressed by the local installed name. */
@@ -80,6 +99,7 @@ function catalogInstallRequest(
     scope: destination.workspaceId ? "workspace" : "global",
     ...(destination.workspaceId ? { workspace_id: destination.workspaceId } : {}),
     allow_unverified: allowUnverified,
+    enable: true,
     expected_digest: entry.digest_sha256,
     ref: marketplaceEntrySlug(entry),
     source: entry.source_ref === "catalog:compozy" ? "curated" : "marketplace",
@@ -112,15 +132,19 @@ function useMarketplaceActionController(
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
+  const enableRecovery = useMarketplaceEnableRecovery();
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
   const { runUpdate } = updateFlow;
-  const { store: acquisition } = useStoreBinding(
-    JSON.stringify([destination.profileName, destination.workspaceId]),
-    () => ({
-      trust: marketplaceActionControllerLogic.createStore(),
-      preview: marketplaceInstallPreviewLogic.createStore(),
-    })
-  );
+  const destinationKey = JSON.stringify([destination.profileName, destination.workspaceId]);
+  // The destination now on screen: a preview answered for an older one never installs inline.
+  const liveDestination = useRef(destinationKey);
+  useEffect(() => {
+    liveDestination.current = destinationKey;
+  });
+  const { store: acquisition } = useStoreBinding(destinationKey, () => ({
+    trust: marketplaceActionControllerLogic.createStore(),
+    preview: marketplaceInstallPreviewLogic.createStore(),
+  }));
   const installPreview = useSelector(acquisition.preview, snapshot => snapshot.context.selected);
   const [installedTrust, setInstalledTrust] = useState<InstalledExtensionView | null>(null);
   const store = acquisition.trust;
@@ -131,6 +155,7 @@ function useMarketplaceActionController(
       : null;
 
   const viewInstalledToast = (message: string, needsAuthorization: boolean) => {
+    // The row itself now reads Set up or Ready; the toast only links the Installed view.
     toast.success(message, {
       ...(needsAuthorization ? { description: "Needs authorization before it can run" } : {}),
       action: {
@@ -164,7 +189,13 @@ function useMarketplaceActionController(
   const loadInstallPreview = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
     const request = catalogInstallRequest(entry, allowUnverified, destination);
     const preview = await previewExtensionInstall(request);
-    acquisition.preview.trigger.previewLoaded({ selected: { entry, preview, request } });
+    if (liveDestination.current !== destinationKey) return;
+    const selected = { entry, preview, request };
+    if (marketplaceInstallNeedsReview(preview)) {
+      acquisition.preview.trigger.previewLoaded({ selected });
+      return;
+    }
+    await submitInstall(selected, createExtensionInputDraft(preview.inputs));
   };
 
   const previewInstall = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
@@ -308,37 +339,50 @@ function useMarketplaceActionController(
     await loadInstallPreview(entry, false);
   };
 
+  /** Install + enable one previewed selection; a changed package reopens review. */
+  const submitInstall = async (selected: MarketplaceInstallPreview, draft: ExtensionInputDraft) => {
+    const prepared = prepareExtensionInputs(selected.preview.inputs, draft);
+    if (!prepared.valid) return;
+    try {
+      const { enable_error: enableError, extension } = await installExtension.mutateAsync({
+        ...selected.request,
+        ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
+        ...(selected.preview.gateway_requirement_digest
+          ? { confirm_gateway_digest: selected.preview.gateway_requirement_digest }
+          : {}),
+      });
+      acquisition.preview.trigger.previewDismissed();
+      pending.flashEntry(selected.entry);
+      if (enableError) {
+        enableRecovery.record(selected.entry, {
+          cause: enableError,
+          name: extension.name,
+          profileName: extension.profile,
+          workspaceId: extension.workspace_id ?? null,
+        });
+        toast.error(`Added ${selected.entry.name} but couldn't turn it on`, {
+          description: enableError.error,
+        });
+        return;
+      }
+      enableRecovery.record(selected.entry, null);
+      viewInstalledToast(
+        `${selected.entry.name} added`,
+        extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false
+      );
+    } catch (error) {
+      acquisition.preview.trigger.previewDismissed();
+      if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
+      reportFailure(error, "The extension changed. Review the current package before installing.");
+      await reopenCurrentInstall(selected.entry);
+    }
+  };
+
   const confirmInstall = (draft: ExtensionInputDraft = {}) => {
     const selected = installPreview;
     if (!selected) return;
-    const prepared = prepareExtensionInputs(selected.preview.inputs, draft);
-    if (!prepared.valid) return;
-    void withPendingEntry(selected.entry, async () => {
-      try {
-        const { extension } = await installExtension.mutateAsync({
-          ...selected.request,
-          ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
-          ...(selected.preview.gateway_requirement_digest
-            ? { confirm_gateway_digest: selected.preview.gateway_requirement_digest }
-            : {}),
-        });
-        acquisition.preview.trigger.previewDismissed();
-        pending.flashEntry(selected.entry);
-        viewInstalledToast(
-          `${selected.entry.name} installed`,
-          extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false
-        );
-      } catch (error) {
-        acquisition.preview.trigger.previewDismissed();
-        if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
-        reportFailure(
-          error,
-          "The extension changed. Review the current package before installing."
-        );
-        await reopenCurrentInstall(selected.entry);
-        return;
-      }
-    });
+    if (!prepareExtensionInputs(selected.preview.inputs, draft).valid) return;
+    void withPendingEntry(selected.entry, () => submitInstall(selected, draft));
   };
 
   const dialogs = (
@@ -417,6 +461,10 @@ function useMarketplaceActionController(
 
   return {
     dialogs,
+    enableFailureFor: enableRecovery.failureFor,
+    isEntryEnabling: enableRecovery.isEnabling,
+    retryEnable: enableRecovery.retry,
+    turnOn: (entry, target) => void enableRecovery.turnOn(entry, target),
     endEntryFlash: pending.endEntryFlash,
     endItemFlash: pending.endItemFlash,
     flashItem: pending.flashItem,

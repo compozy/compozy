@@ -1,7 +1,9 @@
 import { Check } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
-import { Button, Pill, Spinner } from "@compozy/ui";
+import { Button, Pill, Skeleton, SkeletonRegion, Spinner } from "@compozy/ui";
 
+import type { MarketplaceSetupState } from "../lib/marketplace-setup-state";
 import type { MarketplaceCatalogListing } from "../types";
 import { MarketplaceInstalledServerTrail } from "./marketplace-installed-server-trail";
 import {
@@ -13,15 +15,29 @@ import { formatMarketplaceVersion } from "./marketplace-ui";
 const DEFAULT_INSTALL_BLOCKER =
   "Your install policy blocks unverified extensions. Change it under Settings › Extensions.";
 
+/** Installed-row state a Browse row carries; the detail head reads only `installed`. */
+interface MarketplaceCatalogTrailSetup {
+  state: MarketplaceSetupState;
+  /** Cause of the enable an Add could not finish. */
+  enableCause?: string | null;
+  enabling?: boolean;
+  onTurnOn: () => void;
+  onRetry: () => void;
+  /** The Set up control: it owns its sign-in flow, so the row passes it in. */
+  setUpAction?: ReactNode;
+}
+
 interface MarketplaceCatalogTrailProps {
   entry: MarketplaceCatalogListing;
   pending?: boolean;
   onInstall: (entry: MarketplaceCatalogListing) => void;
   onUpdate: (entry: MarketplaceCatalogListing) => void;
+  setup?: MarketplaceCatalogTrailSetup;
 }
 
 /**
- * Catalog trail, one state at a time (top wins): pending → blocked → update → installed → install.
+ * Catalog trail, one state at a time (top wins): pending → conflict → blocked → update → setup
+ * state (Set up · Ready · Turn on · Couldn't turn on · unknown) → installed → Add.
  * Blocked is a status word, never a disabled button pretending to be an action. The same trail
  * rides the catalog row and the detail window head, where actions stay `secondary` — a window
  * head never carries the inverted primary.
@@ -31,6 +47,7 @@ function MarketplaceCatalogTrail({
   pending = false,
   onInstall,
   onUpdate,
+  setup,
 }: MarketplaceCatalogTrailProps) {
   const version = formatMarketplaceVersion(entry.version);
   const blocked = entry.trust?.decision === "blocked" || entry.installable === false;
@@ -38,7 +55,7 @@ function MarketplaceCatalogTrail({
   if (pending) {
     return (
       <Button
-        aria-label={`${entry.update_available ? "Updating" : "Installing"} ${entry.name}`}
+        aria-label={`${entry.update_available ? "Updating" : "Adding"} ${entry.name}`}
         data-testid={`marketplace-action-${entry.entry_id}`}
         disabled
         size="sm"
@@ -46,7 +63,7 @@ function MarketplaceCatalogTrail({
         variant="secondary"
       >
         <Spinner aria-hidden="true" className="size-3.5" />
-        {entry.update_available ? "Updating…" : "Installing…"}
+        {entry.update_available ? "Updating…" : "Adding…"}
       </Button>
     );
   }
@@ -102,6 +119,11 @@ function MarketplaceCatalogTrail({
     );
   }
 
+  if (entry.installed && setup) {
+    const word = <MarketplaceSetupWord entry={entry} setup={setup} />;
+    if (word) return word;
+  }
+
   if (entry.installed) {
     return (
       <span
@@ -116,16 +138,95 @@ function MarketplaceCatalogTrail({
 
   return (
     <Button
-      aria-label={`Install ${entry.name}`}
+      aria-label={`Add ${entry.name}`}
       data-testid={`marketplace-action-${entry.entry_id}`}
       onClick={() => onInstall(entry)}
       size="sm"
       type="button"
       variant="secondary"
     >
-      Install
+      Add
     </Button>
   );
+}
+
+/** The installed half of US-007: one word or one button, never Ready without inventory truth. */
+function MarketplaceSetupWord({
+  entry,
+  setup,
+}: {
+  entry: MarketplaceCatalogListing;
+  setup: MarketplaceCatalogTrailSetup;
+}): ReactNode {
+  switch (setup.state) {
+    case "unknown":
+      return (
+        <SkeletonRegion
+          data-testid={`marketplace-setup-unknown-${entry.entry_id}`}
+          label={`Checking ${entry.name}`}
+        >
+          <Skeleton className="h-button-sm w-16" />
+        </SkeletonRegion>
+      );
+    case "setup":
+      return setup.setUpAction ?? null;
+    case "ready":
+      return (
+        <span
+          className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-subtle"
+          data-testid={`marketplace-ready-${entry.entry_id}`}
+        >
+          <Check aria-hidden="true" className="size-3" />
+          Ready
+        </span>
+      );
+    case "turn-on":
+      return (
+        <Button
+          aria-label={`Turn on ${entry.name}`}
+          data-testid={`marketplace-turn-on-${entry.entry_id}`}
+          disabled={setup.enabling}
+          onClick={setup.onTurnOn}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {setup.enabling ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
+          Turn on
+        </Button>
+      );
+    case "enable-failed":
+      return (
+        <>
+          <Pill
+            className="cursor-help"
+            data-testid={`marketplace-enable-failed-${entry.entry_id}`}
+            form="plain"
+            title={
+              setup.enableCause ? `Added but couldn't turn on: ${setup.enableCause}` : undefined
+            }
+            tone="destructive"
+          >
+            <Pill.Dot />
+            Couldn't turn on
+          </Pill>
+          <Button
+            aria-label={`Retry turning on ${entry.name}`}
+            data-testid={`marketplace-enable-retry-${entry.entry_id}`}
+            disabled={setup.enabling}
+            onClick={setup.onRetry}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {setup.enabling ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
+            Retry
+          </Button>
+        </>
+      );
+    default:
+      return null;
+  }
 }
 
 /**
@@ -143,4 +244,8 @@ function MarketplaceInstalledTrail(props: MarketplaceInstalledTrailProps) {
 }
 
 export { MarketplaceCatalogTrail, MarketplaceInstalledTrail };
-export type { MarketplaceCatalogTrailProps, MarketplaceInstalledTrailProps };
+export type {
+  MarketplaceCatalogTrailProps,
+  MarketplaceCatalogTrailSetup,
+  MarketplaceInstalledTrailProps,
+};

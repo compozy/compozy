@@ -10,6 +10,7 @@ export type MarketplaceWindowLocation =
   | { kind: "not-found"; search: MarketplaceSearch }
   | { kind: "installed"; search: MarketplaceSearch }
   | { kind: "detail"; entryId: string; search: MarketplaceDetailSearch }
+  | { kind: "category"; category: string; search: MarketplaceSearch }
   | { kind: "browse"; search: MarketplaceSearch };
 
 function decodePathSegment(value: string): string {
@@ -20,11 +21,21 @@ function decodePathSegment(value: string): string {
   }
 }
 
-/** `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail). */
+/**
+ * `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail) ·
+ * `/marketplace/categories/$category` (one category).
+ */
 export function parseMarketplaceWindowLocation(location: OsWindowRoute): MarketplaceWindowLocation {
   const segments = location.pathname.split("/").filter(Boolean);
-  const [, second] = segments;
+  const [, second, third] = segments;
 
+  if (segments[0] === "marketplace" && segments.length === 3 && second === "categories") {
+    return {
+      kind: "category",
+      category: decodePathSegment(third!),
+      search: validateMarketplaceSearch(location.search),
+    };
+  }
   if (segments[0] !== "marketplace" || segments.length > 2) {
     return { kind: "not-found", search: validateMarketplaceSearch(location.search) };
   }

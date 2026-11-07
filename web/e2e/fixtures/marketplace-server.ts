@@ -96,8 +96,32 @@ export async function closeMarketplaceCatalogServer(server: Server | undefined):
   });
 }
 
-/** An isolated real client-layout source used by browser acquisition and digest-race journeys. */
-export async function createPluginMarketplaceFixture() {
+/** A client-layout plugin whose root `.mcp.json` serves one remote server behind OAuth. */
+async function writeOAuthPlugin(plugin: string, authServerURL: string) {
+  await mkdir(path.join(plugin, ".claude-plugin"), { recursive: true });
+  await writeFile(
+    path.join(plugin, ".claude-plugin", "plugin.json"),
+    JSON.stringify({ name: "linear", description: "Linear issues", version: "1.0.0" })
+  );
+  await writeFile(
+    path.join(plugin, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        linear: {
+          type: "http",
+          url: `${authServerURL}/mcp`,
+          auth: { CLIENT_ID: "compozy-e2e-public", scopes: ["read", "write"] },
+        },
+      },
+    })
+  );
+}
+
+/**
+ * An isolated real client-layout source used by browser acquisition and digest-race journeys.
+ * With `oauthServerURL`, the source also lists `linear`, a plugin whose MCP server needs sign-in.
+ */
+export async function createPluginMarketplaceFixture(options: { oauthServerURL?: string } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-marketplace-"));
   const source = path.join(root, "source");
   const plugin = path.join(source, "tool");
@@ -107,19 +131,16 @@ export async function createPluginMarketplaceFixture() {
   try {
     await mkdir(source, { recursive: true });
     await cp(fixture, plugin, { recursive: true });
+    const plugins = [
+      { name: "tool", description: "Loop engineering skills for daily triage", source: "./tool" },
+    ];
+    if (options.oauthServerURL) {
+      await writeOAuthPlugin(path.join(source, "linear"), options.oauthServerURL);
+      plugins.push({ name: "linear", description: "Linear issues", source: "./linear" });
+    }
     await writeFile(
       path.join(source, "marketplace.json"),
-      JSON.stringify({
-        name: "team",
-        owner: { name: "Acme" },
-        plugins: [
-          {
-            name: "tool",
-            description: "Loop engineering skills for daily triage",
-            source: "./tool",
-          },
-        ],
-      })
+      JSON.stringify({ name: "team", owner: { name: "Acme" }, plugins })
     );
     return {
       root,

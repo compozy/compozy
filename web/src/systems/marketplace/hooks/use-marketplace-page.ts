@@ -3,21 +3,23 @@ import { toast } from "@compozy/ui";
 import { installedDisplayName } from "../lib/marketplace-installed-view";
 import { useExtensionInventory } from "@/systems/extensions";
 
-import { useMarketplaceCatalog } from "./use-marketplace";
+import { useMarketplaceCatalog, useMarketplaceSections } from "./use-marketplace";
 import { useRefreshMarketplaceCatalog } from "./use-marketplace-actions";
 
-/** The API owns catalog filtering/paging; the complete installed inventory owns its shelf and updates. */
+/**
+ * Browse reads: with no search, the daemon's sections (Featured, then non-empty categories, with
+ * their full counts); with a search, the flat catalog list. The complete installed inventory owns
+ * the shelf, updates and each row's setup state.
+ */
 export function useMarketplacePage(query = "", liveDataEnabled = true) {
   const inventory = useExtensionInventory(liveDataEnabled);
+  const searching = query.trim() !== "";
+  const scope = { workspaceId: inventory.workspaceId, profileName: inventory.profileName };
   const catalog = useMarketplaceCatalog(
-    {
-      q: query,
-      limit: 100,
-      workspaceId: inventory.workspaceId,
-      profileName: inventory.profileName,
-    },
-    liveDataEnabled
+    { ...scope, q: query, limit: 100 },
+    liveDataEnabled && searching
   );
+  const home = useMarketplaceSections({ ...scope, perSection: 6 }, liveDataEnabled && !searching);
   const refresh = useRefreshMarketplaceCatalog();
   const lastFailureToast = useRef(Number.NEGATIVE_INFINITY);
   const reportRefreshFailure = (error: unknown) => {
@@ -38,38 +40,43 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
         );
       }
     }, reportRefreshFailure);
-  const pages = catalog.data?.pages ?? [];
+  const pages = searching ? (catalog.data?.pages ?? []) : [];
   const first = pages[0];
   const catalogItems = pages.flatMap(page => page.items);
+  const sections = searching ? [] : (home.data?.sections ?? []);
+  const envelope = searching ? first : home.data;
+  const hasItems = searching ? catalogItems.length > 0 : sections.length > 0;
   const unavailable =
-    first?.error_class && catalogItems.length === 0
-      ? new Error(first.error || `Catalog unavailable (${first.error_class})`)
+    envelope?.error_class && !hasItems
+      ? new Error(envelope.error || `Catalog unavailable (${envelope.error_class})`)
       : null;
-  const catalogSections = (first?.sources ?? []).map(source => ({
-    ...source,
-    items: catalogItems.filter(item => item.source === source.name),
-  }));
+  const reader = searching ? catalog : home;
   const updates = inventory.data.filter(item => item.updateAvailable);
   return {
     catalogItems,
-    catalogSections,
+    /** Featured first, then categories in taxonomy order; the daemon omits empty ones. */
+    sections,
+    hasItems,
     installedItems: inventory.data,
     installedCount: inventory.data.length,
     updates,
-    total: first?.total ?? 0,
-    sources: first?.sources ?? [],
-    revision: first?.revision,
-    stale: pages.some(page => page.stale),
-    diagnostic: first?.error,
-    catalogError: catalog.error ?? unavailable,
+    // Every entry has exactly one category, so the category totals are the catalog total.
+    total: searching
+      ? (first?.total ?? 0)
+      : sections.reduce((sum, section) => sum + (section.id === "featured" ? 0 : section.total), 0),
+    sources: envelope?.sources ?? [],
+    revision: envelope?.revision,
+    stale: searching ? pages.some(page => page.stale) : Boolean(home.data?.stale),
+    diagnostic: envelope?.error,
+    catalogError: reader.error ?? unavailable,
     installedError: inventory.error,
     // An edited search keeps the previous results on screen; a placeholder with none is no answer.
     isLoading:
-      catalog.isPending ||
-      (catalog.isPlaceholderData && catalogItems.length === 0) ||
-      Boolean(first?.refreshing && first.total === 0),
+      reader.isPending ||
+      (reader.isPlaceholderData && !hasItems) ||
+      Boolean(envelope?.refreshing && !hasItems),
     isInstalledLoading: inventory.isPending,
-    isRefreshing: refresh.isPending || (catalog.isRefetching && !catalog.isPlaceholderData),
+    isRefreshing: refresh.isPending || (reader.isRefetching && !reader.isPlaceholderData),
     refresh: refreshCatalog,
     profileName: inventory.profileName,
     workspaceId: inventory.workspaceId,

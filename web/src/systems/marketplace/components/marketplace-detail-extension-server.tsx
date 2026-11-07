@@ -348,6 +348,7 @@ function MarketplaceExtensionServerActions({
         >
           {repair ? (
             <Button
+              data-setup-target="authorize"
               data-testid={`marketplace-extension-server-authorize-${server.name}`}
               onClick={() => onAuthorize(entry)}
               size="sm"
@@ -358,6 +359,7 @@ function MarketplaceExtensionServerActions({
             </Button>
           ) : null}
           <Button
+            data-setup-target={missingInputs.length > 0 ? "inputs" : undefined}
             data-testid={`marketplace-extension-server-edit-${server.name}`}
             onClick={() => onEdit(entry)}
             size="sm"

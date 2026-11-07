@@ -1,4 +1,8 @@
-import type { MarketplaceCatalogOptions, MarketplaceCatalogEntryOptions } from "../types";
+import type {
+  MarketplaceCatalogOptions,
+  MarketplaceCatalogEntryOptions,
+  MarketplaceSectionsOptions,
+} from "../types";
 
 function normalizeText(value?: string | null): string | null {
   const normalized = value?.trim();
@@ -27,6 +31,27 @@ export const marketplaceKeys = {
       normalizeText(options.profileName) ?? "default",
       normalizeText(options.q),
       options.limit ?? 100,
+      normalizeText(options.category),
+    ] as const,
+  sections: (options: MarketplaceSectionsOptions = {}) =>
+    [
+      ...marketplaceKeys.all,
+      "sections",
+      ...scopeIdentity(options.workspaceId),
+      normalizeText(options.profileName) ?? "default",
+      normalizeText(options.q),
+      options.perSection ?? 6,
+    ] as const,
+  /** One category page, paged by cursor (`pageParam`); `q` is scoped to the category. */
+  category: (options: MarketplaceCatalogOptions) =>
+    [
+      ...marketplaceKeys.all,
+      "category",
+      normalizeText(options.category),
+      ...scopeIdentity(options.workspaceId),
+      normalizeText(options.profileName) ?? "default",
+      normalizeText(options.q),
+      options.limit ?? 50,
     ] as const,
   catalogEntry: (options: MarketplaceCatalogEntryOptions) =>
     [

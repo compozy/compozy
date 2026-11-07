@@ -29,7 +29,12 @@ import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers, statusFixture } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
 import type { ExtensionEntry, InstalledExtensionView } from "@/systems/extensions";
-import { marketplaceCatalogFixture } from "../../mocks";
+import {
+  marketplaceCatalogDetailFixture,
+  marketplaceCatalogFixture,
+  marketplaceCategoryCounts,
+  marketplaceSectionsFromCatalog,
+} from "../../mocks";
 import type { MarketplaceCatalogResponse } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
@@ -52,6 +57,7 @@ import {
 import { AddMarketplaceDialog } from "../add-marketplace-dialog";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
+import { MarketplaceCategoryPage } from "../marketplace-category-page";
 import { MarketplaceEntryLogo } from "../marketplace-entry-logo";
 import { MarketplaceEntryCard } from "../marketplace-entry-card";
 import { MarketplaceCatalogTrail } from "../marketplace-entry-trail";
@@ -71,6 +77,7 @@ const mocks = vi.hoisted(() => ({
   previewExtensionInstall: vi.fn(),
   toast: vi.fn(),
   readCatalog: vi.fn(),
+  readSections: vi.fn(),
   readExtensions: vi.fn(),
   readMCPServers: vi.fn(),
   putMCPServer: vi.fn(),
@@ -110,6 +117,11 @@ const server = setupServer(
     mocks.readCatalog(new URL(request.url).searchParams);
     return HttpResponse.json(catalog);
   }),
+  // Browse home: the daemon groups the same rows the list returns into category sections.
+  http.get("*/api/marketplace/sections", ({ request }) => {
+    mocks.readSections(new URL(request.url).searchParams);
+    return HttpResponse.json(marketplaceSectionsFromCatalog(catalog));
+  }),
   http.get("*/api/marketplace/entries/:entryId", () =>
     HttpResponse.json(
       { error: { code: "marketplace_entry_not_found", message: "Entry not found" } },
@@ -139,7 +151,11 @@ afterEach(() => {
 });
 beforeEach(() => {
   vi.clearAllMocks();
-  catalog = { ...marketplaceCatalogFixture };
+  // One row per entry on Browse: Featured is exercised by its own case (UT-020).
+  catalog = {
+    ...marketplaceCatalogFixture,
+    items: marketplaceCatalogFixture.items.map(item => ({ ...item, featured: false })),
+  };
   extensions = [];
   mcpServers = [...mcpManagementServerFixtures];
   mocks.installExtension.mockReset().mockResolvedValue({ extension: extensionFixtures[0] });
@@ -185,6 +201,15 @@ function Installed() {
     />
   );
 }
+function Category() {
+  const { category } = useParams({ strict: false });
+  return (
+    <MarketplaceCategoryPage
+      category={category!}
+      search={validateMarketplaceSearch(useSearch({ strict: false, structuralSharing: false }))}
+    />
+  );
+}
 function Detail() {
   const { entryId } = useParams({ strict: false });
   return (
@@ -220,8 +245,14 @@ function setup(node?: ReactNode, path = "/marketplace") {
     path: "/marketplace/$entryId",
     component: node === undefined ? Detail : () => node,
   });
+  const category = createRoute({
+    getParentRoute: () => root,
+    path: "/marketplace/categories/$category",
+    validateSearch: validateMarketplaceSearch,
+    component: Category,
+  });
   const router = createRouter({
-    routeTree: root.addChildren([browse, installed, detail]),
+    routeTree: root.addChildren([browse, installed, detail, category]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
@@ -551,17 +582,20 @@ describe("Marketplace page and cards", () => {
         await inventory;
         return HttpResponse.json({ extensions });
       }),
-      http.get("*/api/marketplace", async () => {
+      http.get("*/api/marketplace/sections", async () => {
         await catalogRead;
-        return HttpResponse.json(catalog);
+        return HttpResponse.json(marketplaceSectionsFromCatalog(catalog));
       })
     );
     setup();
 
-    // Both reads are pending: one busy region per area, in the real grid, with the shelf's line
-    // reserved so the grid does not drop when the installed shelf arrives.
-    const grid = await screen.findByTestId("marketplace-grid-skeleton");
-    expect(grid.closest('[aria-busy="true"]')).toHaveTextContent("Loading marketplace entries");
+    // Both reads are pending: one busy region per area — three placeholder sections of six rows —
+    // with the shelf's line reserved so the sections do not drop when the installed shelf arrives.
+    const grids = await screen.findAllByTestId("marketplace-grid-skeleton");
+    expect(grids).toHaveLength(3);
+    expect(grids[0]!.closest('[aria-busy="true"]')).toHaveTextContent(
+      "Loading marketplace entries"
+    );
     expect(screen.getByTestId("marketplace-installed-shelf-skeleton")).toHaveAttribute(
       "aria-busy",
       "true"
@@ -594,33 +628,94 @@ describe("Marketplace page and cards", () => {
     await userEvent.type(input, "foo/");
     expect(input).toHaveValue("foo/");
   });
-  it("Should keep sources in daemon order and expose source sections only when there are several", async () => {
+  // UT-020 [US-001.AC-1, US-004.AC-1]: sections follow the daemon response, never the sources.
+  it("Should render Featured then category sections in response order with daemon labels [UT-020]", async () => {
     catalog = {
       ...catalog,
       sources: [
-        { name: "compozy-catalog", kind: "feed", state: "ok", count: 1 },
-        { name: "team-z", kind: "plugin", state: "ok", count: 1 },
+        { name: "compozy-catalog", kind: "feed", state: "ok", count: 2 },
         { name: "team-a", kind: "plugin", state: "ok", count: 1 },
       ],
       items: [
-        entry,
-        { ...entry, entry_id: "z", source: "team-z", source_ref: "git:z" },
-        { ...entry, entry_id: "a", source: "team-a", source_ref: "git:a" },
+        { ...entry, featured: true, category: "development", category_label: "Development" },
+        {
+          ...entry,
+          entry_id: "notes",
+          name: "notes",
+          category: "productivity",
+          category_label: "Productivity",
+          source: "team-a",
+          source_ref: "git:a",
+        },
       ],
     };
     setup();
-    await screen.findByTestId("marketplace-section-team-a");
-    expect(
-      screen.getAllByTestId(/^marketplace-section-/).map(section => section.dataset.testid)
-    ).toEqual([
-      "marketplace-section-compozy-catalog",
-      "marketplace-section-team-z",
-      "marketplace-section-team-a",
+    await screen.findByTestId("marketplace-category-productivity");
+    const regions = screen.getAllByRole("region");
+    expect(regions.map(region => region.getAttribute("aria-label"))).toEqual([
+      "Featured",
+      "Productivity",
+      "Development",
     ]);
+    expect(within(regions[0]!).getByRole("heading", { name: "Featured" })).toBeVisible();
+    expect(within(regions[0]!).getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+    expect(within(regions[2]!).getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+    // Compact rows drop the word their category heading already says; Featured mixes categories.
+    expect(
+      within(within(regions[0]!).getByTestId(`marketplace-card-${entry.entry_id}`)).getByText(
+        "Development"
+      )
+    ).toBeVisible();
+    expect(
+      within(within(regions[2]!).getByTestId(`marketplace-card-${entry.entry_id}`)).queryByText(
+        "Development"
+      )
+    ).toBeNull();
+    expect(screen.queryByTestId(/^marketplace-section-/)).toBeNull();
+    expect(screen.queryByText("team-a")).toBeNull();
+    // The topbar counts entries once each, even when Featured repeats one.
+    expect(screen.getByRole("status", { name: "Catalog count" })).toHaveTextContent("2");
   });
-  it("Should preserve degraded source rows and identify their failed refresh", async () => {
+  // UT-021 [US-001.AC-2]: six rows, and View all names the category with the daemon's full count.
+  it("Should cut a section at six rows and link View all with the full count [UT-021]", async () => {
+    const productivity = Array.from({ length: 7 }, (_, index) => ({
+      ...entry,
+      entry_id: `p-${index}`,
+      name: `p-${index}`,
+      category: "productivity",
+      category_label: "Productivity",
+    }));
+    catalog = { ...catalog, items: productivity };
+    server.use(
+      http.get("*/api/marketplace/sections", ({ request }) => {
+        mocks.readSections(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          ...marketplaceSectionsFromCatalog(catalog),
+          sections: [
+            {
+              id: "productivity",
+              label: "Productivity",
+              total: 58,
+              items: productivity.slice(0, 6),
+            },
+          ],
+        });
+      })
+    );
+    const { router } = setup();
+    const section = await screen.findByRole("region", { name: "Productivity" });
+    expect(within(section).getAllByTestId(/^marketplace-card-/)).toHaveLength(6);
+    const viewAll = within(section).getByRole("link", { name: "View all Productivity" });
+    expect(viewAll).toHaveTextContent("58");
+    expect(viewAll).toHaveAttribute("href", "/marketplace/categories/productivity");
+    expect(mocks.readSections.mock.calls.at(-1)?.[0].get("per_section")).toBe("6");
+    expect(mocks.readCatalog).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/marketplace");
+  });
+  it("Should keep a degraded source's cached rows in their category and name its failed refresh", async () => {
     catalog = {
       ...catalog,
+      stale: true,
       sources: [
         { name: "compozy-catalog", kind: "feed", state: "ok", count: 1 },
         {
@@ -634,12 +729,11 @@ describe("Marketplace page and cards", () => {
       items: [entry, { ...entry, entry_id: "cached-team", source: "team", source_ref: "git:team" }],
     };
     setup();
-    const degraded = await screen.findByTestId("marketplace-section-team");
-    expect(degraded).toHaveTextContent(/last read.*could not refresh/);
-    expect(within(degraded).getByTestId("marketplace-card-cached-team")).toBeVisible();
-    expect(screen.getByTestId("marketplace-section-compozy-catalog")).not.toHaveTextContent(
-      "could not refresh"
-    );
+    const stale = await screen.findByTestId("marketplace-stale");
+    expect(stale).toHaveTextContent("Could not refresh team. Showing cached entries from");
+    expect(stale).not.toHaveTextContent("compozy-catalog");
+    const section = screen.getByRole("region", { name: entry.category_label });
+    expect(within(section).getByTestId("marketplace-card-cached-team")).toBeVisible();
   });
   // Invariant: an empty catalog offers working source acquisition, independent of search recovery.
   // Owner: Marketplace page integration; canonical suite: marketplace-components.test.tsx.
@@ -733,7 +827,7 @@ describe("Marketplace page and cards", () => {
   });
   it("Should show unreachable rather than an empty catalog when no projection could be read", async () => {
     server.use(
-      http.get("*/api/marketplace", () =>
+      http.get("*/api/marketplace/sections", () =>
         HttpResponse.json({ error: "feed unavailable" }, { status: 400 })
       )
     );
@@ -806,7 +900,8 @@ describe("Marketplace page and cards", () => {
         />
       </>
     );
-    const install = await screen.findByRole("button", { name: `Install ${entry.name}` });
+    const install = await screen.findByRole("button", { name: `Add ${entry.name}` });
+    expect(install).toHaveTextContent("Add");
     expect(install.closest("a")).toBeNull();
     await userEvent.click(install);
     expect(onInstall).toHaveBeenCalledWith(entry);
@@ -1289,6 +1384,7 @@ describe("Extension source installation", () => {
 
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
+        enable: false,
         allow_unverified: true,
         expected_digest: "a".repeat(64),
         confirm_gateway_digest: "sha256:local-network",
@@ -1412,6 +1508,7 @@ describe("Extension source installation", () => {
     await user.click(screen.getByTestId("extension-install-submit"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
+        enable: false,
         ref: "https://git.example.com/acme/hello.git@v1.2.3",
         source: "git",
       })
@@ -1439,6 +1536,7 @@ describe("Extension source installation", () => {
 
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
     expect(mocks.installExtension).toHaveBeenCalledWith({
+      enable: false,
       ref: "/srv/hello/dist/gen-a1b2c3",
       source: "local_path",
     });
@@ -1446,6 +1544,7 @@ describe("Extension source installation", () => {
     await user.click(screen.getByTestId("extension-trust-confirm"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenLastCalledWith({
+        enable: false,
         allow_unverified: true,
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
@@ -1694,6 +1793,233 @@ describe("Marketplace extension MCP controls", () => {
     expect(
       screen.queryByRole("button", { name: "Authorize github for github" })
     ).not.toBeInTheDocument();
+  });
+});
+
+// Invariant: Browse groups by daemon category, a category page pages the daemon list, and each row
+// shows the one action the installed inventory supports (US-001–US-007, US-013).
+// Owner: Marketplace page integration; canonical suite: marketplace-components.test.tsx.
+describe("Category browse and row actions", () => {
+  const productivity = Array.from({ length: 9 }, (_, index) => ({
+    ...entry,
+    entry_id: `prod-${index}`,
+    name: `prod-${index}`,
+    description: index === 8 ? "Notes that sync" : "Tasks and docs",
+    category: "productivity",
+    category_label: "Productivity",
+    featured: false,
+  }));
+  /** `GET /api/marketplace?category=` the way the daemon pages it, cursor = next offset. */
+  function useCategoryServer(rows = productivity, pageSize = 5) {
+    server.use(
+      http.get("*/api/marketplace", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        mocks.readCatalog(params);
+        const category = params.get("category") ?? "";
+        if (category === "apps") {
+          return HttpResponse.json(
+            { code: "marketplace_category_unknown", error: 'unknown category "apps"' },
+            { status: 400 }
+          );
+        }
+        const q = params.get("q")?.toLowerCase() ?? "";
+        const matches = rows.filter(row =>
+          `${row.name} ${row.description}`.toLowerCase().includes(q)
+        );
+        const scoped = matches.filter(row => !category || row.category === category);
+        const offset = Number(params.get("cursor") ?? "0");
+        const items = scoped.slice(offset, offset + pageSize);
+        const next = offset + pageSize < scoped.length ? String(offset + pageSize) : undefined;
+        return HttpResponse.json({
+          ...catalog,
+          categories: marketplaceCategoryCounts(matches),
+          items,
+          next_cursor: next,
+          total: scoped.length,
+        });
+      })
+    );
+  }
+
+  // UT-022 [US-002.AC-1, AC-2]: daemon label as title, the next page appended without duplicates.
+  it("Should title the category from the response and load the next page at the end [UT-022]", async () => {
+    useCategoryServer();
+    setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+    expect(within(screen.getByRole("banner")).getByText("Productivity")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Catalog count" })).toHaveTextContent("9");
+    expect(mocks.readCatalog.mock.calls.at(-1)?.[0].get("category")).toBe("productivity");
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    expect(mocks.readCatalog.mock.calls.at(-1)?.[0].get("cursor")).toBe("5");
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  // UT-023 [US-002.AC-3, EC-3]: the search stays inside the category and clearing restores it.
+  it("Should scope the category search and restore the full list when cleared [UT-023]", async () => {
+    useCategoryServer();
+    const { router } = setup(undefined, "/marketplace/categories/productivity?q=sync");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(1);
+    const read = mocks.readCatalog.mock.calls.at(-1)?.[0];
+    expect(read.get("q")).toBe("sync");
+    expect(read.get("category")).toBe("productivity");
+    const input = screen.getByRole("searchbox", { name: "Search Productivity" });
+    await userEvent.click(input);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(router.state.location.pathname).toBe("/marketplace/categories/productivity");
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("marketplace-category-grid-productivity")).getAllByTestId(
+          /^marketplace-card-/
+        )
+      ).toHaveLength(5)
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search Productivity" }), "zzz");
+    expect(await screen.findByText('No results for "zzz" in Productivity')).toBeVisible();
+  });
+
+  // UT-024 [US-002.EC-1]: an unknown id is a not-found state with a way back to Browse.
+  it("Should show the not-found state for an unknown category [UT-024]", async () => {
+    useCategoryServer();
+    const { router } = setup(undefined, "/marketplace/categories/apps");
+    expect(await screen.findByText("This category doesn't exist")).toBeVisible();
+    const back = screen.getByRole("link", { name: "Back to Marketplace" });
+    expect(back).toHaveAttribute("href", "/marketplace");
+    await userEvent.click(back);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/marketplace"));
+  });
+
+  // UT-026 [US-003.AC-1]: search replaces sections with flat results that name their category.
+  it("Should show flat search results with each result's category word [UT-026]", async () => {
+    setup(undefined, "/marketplace?q=otel");
+    const results = await screen.findByTestId("marketplace-search-results");
+    const card = within(results).getByTestId(`marketplace-card-${entry.entry_id}`);
+    expect(within(card).getByText(entry.category_label)).toBeVisible();
+    expect(screen.queryByRole("region", { name: entry.category_label })).toBeNull();
+    expect(mocks.readSections).not.toHaveBeenCalled();
+  });
+
+  const signInServer = {
+    name: "github",
+    owner: "extension:github",
+    runtime_name: "github.github",
+    scope: "global",
+    transport: "http",
+    launch: "https://api.githubcopilot.com",
+    status: "needs_authorization",
+    auth: { method: "oauth", registration: "dynamic", scopes: ["repo"] },
+  };
+  function installedRow(extension: Partial<ExtensionEntry>) {
+    catalog = {
+      ...catalog,
+      items: [{ ...entry, featured: false, installed: true, installed_name: "github" }],
+    };
+    extensions = [
+      {
+        ...extensionFixtures[0]!,
+        name: "github",
+        enabled: true,
+        marketplace: null,
+        origin: null,
+        missing_inputs: [],
+        mcp_servers: [],
+        ...extension,
+      },
+    ];
+  }
+
+  // UT-032 [US-006.AC-1]: one server waiting for sign-in starts that sign-in from the row.
+  it("Should start the server sign-in from Set up [UT-032]", async () => {
+    const begins: URL[] = [];
+    installedRow({ mcp_servers: [signInServer] });
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", () =>
+        HttpResponse.json({ server: mcpExtensionServerFixtures[1]! })
+      ),
+      http.post("*/api/settings/mcp-servers/:name/auth/begin", ({ request }) => {
+        begins.push(new URL(request.url));
+        return HttpResponse.json(mcpAuthBeginFixture);
+      })
+    );
+    setup();
+    const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
+    await waitFor(() => expect(setUp).toBeEnabled());
+    await userEvent.click(setUp);
+    await screen.findByRole("dialog", { name: "Authorize github" });
+    await waitFor(() => expect(begins).toHaveLength(1));
+    expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
+  });
+
+  // UT-032 [US-006.AC-2]: a missing input opens the detail asking it to focus setup.
+  it("Should open the detail with setup=1 when an input is missing [UT-032]", async () => {
+    installedRow({ missing_inputs: ["GITHUB_TOKEN"], mcp_servers: [signInServer] });
+    const { router } = setup();
+    await userEvent.click(await screen.findByRole("button", { name: `Set up ${entry.name}` }));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/marketplace/${entry.entry_id}`)
+    );
+    expect(router.state.location.search).toMatchObject({ setup: 1, source: entry.source });
+  });
+
+  // UT-033 [US-007.AC-1, AC-2, EC-1]: one action per row; unknown inventory never reads Ready.
+  it("Should read Ready, Turn on, or a skeleton from the installed inventory [UT-033]", async () => {
+    installedRow({});
+    let releaseInventory!: () => void;
+    const inventory = new Promise<void>(resolve => (releaseInventory = resolve));
+    server.use(
+      http.get("*/api/extensions", async () => {
+        await inventory;
+        return HttpResponse.json({ extensions });
+      })
+    );
+    setup();
+    expect(
+      await screen.findByTestId(`marketplace-setup-unknown-${entry.entry_id}`)
+    ).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText("Ready")).toBeNull();
+    releaseInventory();
+    expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toHaveTextContent(
+      "Ready"
+    );
+    expect(screen.queryByRole("button", { name: `Add ${entry.name}` })).toBeNull();
+  });
+
+  it("Should offer Turn on for an installed extension that is off [UT-033]", async () => {
+    installedRow({ enabled: false });
+    const enabled: unknown[] = [];
+    server.use(
+      http.put("*/api/extensions/:name/enablement", async ({ params, request }) => {
+        enabled.push({ name: params.name, ...((await request.json()) as object) });
+        return HttpResponse.json({ name: "github", enabled: true, profile: "default" });
+      })
+    );
+    setup();
+    const turnOn = await screen.findByRole("button", { name: `Turn on ${entry.name}` });
+    expect(screen.queryByText("Ready")).toBeNull();
+    await userEvent.click(turnOn);
+    await waitFor(() =>
+      expect(enabled).toEqual([expect.objectContaining({ name: "github", enabled: true })])
+    );
+  });
+
+  // UT-034 [US-013.AC-2]: the detail names the source the plugin comes from.
+  it("Should attribute the detail to its source [UT-034]", async () => {
+    const detail = marketplaceCatalogDetailFixture(entry.entry_id)!;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () =>
+        HttpResponse.json({
+          ...detail,
+          entry: { ...detail.entry, source: "claude-plugins-official" },
+        })
+      )
+    );
+    setup(undefined, `/marketplace/${entry.entry_id}?source=claude-plugins-official`);
+    expect(await screen.findByTestId("marketplace-detail-source")).toHaveTextContent(
+      "From Claude plugins"
+    );
   });
 });
 

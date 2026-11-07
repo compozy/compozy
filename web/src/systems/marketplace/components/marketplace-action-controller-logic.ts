@@ -9,6 +9,22 @@ export interface MarketplaceInstallPreview {
   request: ExtensionInstallRequest;
 }
 
+/**
+ * Add opens the install review only when a gate has something to decide: a required input with no
+ * value to prefill, or a gateway requirement to confirm. Trust consent is decided before preview
+ * and name conflicts never reach Add. Otherwise Add finishes inline.
+ */
+export function marketplaceInstallNeedsReview(preview: ExtensionInstallPreview): boolean {
+  if (preview.gateway_requirement_digest) return true;
+  return preview.inputs.some(
+    input =>
+      input.required &&
+      input.type !== "boolean" &&
+      typeof input.default !== "string" &&
+      typeof input.default !== "boolean"
+  );
+}
+
 export const marketplaceInstallPreviewLogic = createStoreLogic({
   context: { selected: null as MarketplaceInstallPreview | null },
   on: {

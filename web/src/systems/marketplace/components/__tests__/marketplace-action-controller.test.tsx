@@ -33,7 +33,8 @@ import { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "../.
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import { marketplaceCatalogEntryOptions } from "../../lib/query-options";
 import type { MarketplaceCatalogListing } from "../../types";
-import { MarketplaceInstalledTrail } from "../marketplace-entry-trail";
+import { MarketplaceCatalogTrail, MarketplaceInstalledTrail } from "../marketplace-entry-trail";
+import { marketplaceSetupState } from "../../lib/marketplace-setup-state";
 import { useMarketplaceActionController } from "../use-marketplace-action-controller";
 
 const io = vi.hoisted(() => ({
@@ -76,13 +77,17 @@ beforeEach(() => {
   io.install.mockResolvedValue({ extension: extensionFixtures[0] });
   io.update.mockResolvedValue(undefined);
   io.toggle.mockResolvedValue({});
+  // A gateway requirement is a gate, so these cases exercise the review dialog; the inline Add
+  // cases (UT-027) answer with a gate-free preview instead.
   io.preview.mockImplementation(async (request: { ref: string }) => ({
     inputs: [],
     declared_profiles: [{ create: false, credentials: [], name: "default" }],
+    gateway_requirement_digest: GATEWAY_DIGEST,
     name: request.ref.split("/").pop(),
     placements: [],
   }));
 });
+const GATEWAY_DIGEST = "sha256:gateway-fixture";
 
 const verified = marketplaceCatalogFixture.items[0]!;
 const unverified = marketplaceCatalogFixture.items[1]!;
@@ -136,6 +141,70 @@ function Harness({
     </>
   );
 }
+/** One catalog row trail driven by the controller, as Browse renders it (no detail link). */
+function RowHarness({
+  entry,
+  item,
+}: {
+  entry: MarketplaceCatalogListing;
+  item?: InstalledExtensionView;
+}) {
+  const actions = useMarketplaceActionController();
+  const failure = actions.enableFailureFor(entry);
+  const pending = actions.isEntryPending(entry);
+  return (
+    <>
+      <MarketplaceCatalogTrail
+        entry={entry}
+        onInstall={actions.install}
+        onUpdate={actions.update}
+        pending={pending}
+        setup={{
+          state: marketplaceSetupState({
+            entry,
+            item: item ?? null,
+            inventoryPending: false,
+            pending,
+            enableFailed: failure !== null,
+          }),
+          enableCause: failure?.cause.error,
+          enabling: actions.isEntryEnabling(entry),
+          onRetry: () => actions.retryEnable(entry),
+          onTurnOn: () => undefined,
+        }}
+      />
+      {actions.dialogs}
+    </>
+  );
+}
+function renderRow(entry: MarketplaceCatalogListing, item?: InstalledExtensionView) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  clients.push(client);
+  server.use(http.get("*/api/extensions", () => HttpResponse.json({ extensions: [] })));
+  const view = render(
+    <QueryClientProvider client={client}>
+      <RowHarness entry={entry} item={item} />
+    </QueryClientProvider>
+  );
+  return {
+    ...view,
+    rerenderRow: (next: MarketplaceCatalogListing, nextItem?: InstalledExtensionView) =>
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <RowHarness entry={next} item={nextItem} />
+        </QueryClientProvider>
+      ),
+  };
+}
+const gateFree = (request: { ref: string }) =>
+  Promise.resolve({
+    inputs: [],
+    declared_profiles: [{ create: false, credentials: [], name: "default" }],
+    name: request.ref.split("/").pop(),
+    placements: [],
+  });
 function setup(
   entries: MarketplaceCatalogListing[],
   item?: InstalledExtensionView,
@@ -215,11 +284,11 @@ describe("useMarketplaceActionController", () => {
     expect(secret).toHaveAttribute("type", "password");
     expect(screen.getByLabelText("Region")).toHaveValue("eu");
     expect(screen.getByRole("switch", { name: "Enabled" })).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
     fireEvent.change(secret, { target: { value: "a".repeat(8193) } });
     expect(await screen.findByText("Too long (max 8 KB)")).toBeVisible();
     expect(secret).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
     fireEvent.change(secret, { target: { value: "literal-secret" } });
     await user.click(secret);
     await user.keyboard("{Enter}");
@@ -238,7 +307,7 @@ describe("useMarketplaceActionController", () => {
     expect(io.preview).toHaveBeenCalledOnce();
     expect(io.error).not.toHaveBeenCalled();
   });
-  it("Should allow every optional field to remain empty [UT-039]", async () => {
+  it("Should finish Add inline when every field is optional and leave them empty [UT-039]", async () => {
     io.preview.mockResolvedValueOnce({
       name: "kit",
       inputs: [
@@ -263,9 +332,9 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    expect(await screen.findByRole("button", { name: "Install" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    // Optional inputs are no gate: nothing to decide, so no review dialog.
     await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(io.install.mock.calls[0]![0]).not.toHaveProperty("inputs");
   });
   it("Should open the shared input step after an update and preserve values on failure [UT-039]", async () => {
@@ -352,7 +421,7 @@ describe("useMarketplaceActionController", () => {
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    await screen.findByRole("heading", { name: "Add scoped-kit" });
     expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
       "This project · marketing"
     );
@@ -367,13 +436,13 @@ describe("useMarketplaceActionController", () => {
     act(() => setProfileView({ kind: "profile", profile: "consulting" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    await screen.findByRole("heading", { name: "Add scoped-kit" });
     expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
       "This project · consulting"
     );
     expect(screen.getByLabelText("Access token")).toHaveValue("");
     await user.type(screen.getByLabelText("Access token"), "current-draft");
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -440,10 +509,10 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.success).toHaveBeenCalledWith(
-        "otel-bridge installed",
+        "otel-bridge added",
         expect.objectContaining({
           description: "Needs authorization before it can run",
         })
@@ -462,12 +531,13 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    expect(await screen.findByRole("heading", { name: "Install otel-bridge" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Add otel-bridge" })).toBeVisible();
     expect(screen.getByText("Creates profile observability")).toBeVisible();
     const request = {
       profile: "default",
       scope: "global",
       allow_unverified: false,
+      enable: true,
       expected_digest: verified.digest_sha256,
       ref: verified.install_slug,
       source: "curated",
@@ -475,7 +545,7 @@ describe("useMarketplaceActionController", () => {
     };
     expect(io.preview).toHaveBeenCalledWith(request);
     expect(io.install).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
         ...request,
@@ -485,7 +555,7 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() =>
       expect(screen.getByRole("status", { name: "Flash 0" })).toHaveTextContent("flashing")
     );
-    const toast = io.success.mock.calls.find(call => call[0] === "otel-bridge installed");
+    const toast = io.success.mock.calls.find(call => call[0] === "otel-bridge added");
     expect(toast).toBeDefined();
     toast![1].action.onClick();
     expect(io.navigate).toHaveBeenCalledWith({ search: {}, to: "/marketplace/installed" });
@@ -521,7 +591,7 @@ describe("useMarketplaceActionController", () => {
       );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() => expect(io.preview).toHaveBeenCalledTimes(2));
     expect(reads).toBe(1);
     expect(io.install).toHaveBeenCalledTimes(1);
@@ -531,8 +601,8 @@ describe("useMarketplaceActionController", () => {
     expect(io.error).toHaveBeenCalledWith("The acquired package changed", {
       description: "extension_source_changed",
     });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Install" })).toBeEnabled());
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(io.install).toHaveBeenCalledTimes(2));
     expect(io.install).toHaveBeenLastCalledWith(
       expect.objectContaining({ expected_digest: digest, version: "2.0.0" })
@@ -556,7 +626,7 @@ describe("useMarketplaceActionController", () => {
     );
     setup([verified]);
     await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
-    expect(await screen.findByRole("button", { name: "Install" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Add" })).toBeVisible();
     expect(reads).toBe(1);
     expect(io.preview).toHaveBeenCalledTimes(2);
     expect(io.preview).toHaveBeenLastCalledWith(
@@ -587,7 +657,7 @@ describe("useMarketplaceActionController", () => {
       setup([verified]);
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Run 0" }));
-      await user.click(await screen.findByRole("button", { name: "Install" }));
+      await user.click(await screen.findByRole("button", { name: "Add" }));
       await waitFor(() =>
         expect(io.error).toHaveBeenLastCalledWith(
           reason === "blocked"
@@ -595,7 +665,7 @@ describe("useMarketplaceActionController", () => {
             : "The catalog entry now belongs to another origin. Review it before installing."
         )
       );
-      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
       expect(io.install).toHaveBeenCalledTimes(1);
       expect(io.preview).toHaveBeenCalledTimes(1);
     }
@@ -615,7 +685,7 @@ describe("useMarketplaceActionController", () => {
       start.click();
       start.click();
     });
-    const confirm = await screen.findByRole("button", { name: "Install" });
+    const confirm = await screen.findByRole("button", { name: "Add" });
     expect(io.preview).toHaveBeenCalledTimes(1);
     act(() => {
       confirm.click();
@@ -624,7 +694,7 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() => expect(io.install).toHaveBeenCalledTimes(1));
     await act(async () => finish({ extension: extensionFixtures[0] }));
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument()
     );
     expect(io.success).toHaveBeenCalledTimes(1);
   });
@@ -636,13 +706,13 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.error).toHaveBeenCalledWith("The source is unreachable", {
         description: "source_unreachable",
       })
     );
-    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Pending 0" })).toHaveTextContent("idle");
     expect(io.install).toHaveBeenCalledTimes(1);
     expect(io.preview).toHaveBeenCalledTimes(1);
@@ -660,7 +730,7 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
     expect(io.install).toHaveBeenCalledTimes(1);
     expect(io.preview).toHaveBeenCalledTimes(1);
@@ -679,15 +749,17 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByTestId("extension-trust-confirm"));
     expect(
       await screen.findByRole("heading", {
-        name: `Install ${unverified.install_slug!.split("/").pop()}`,
+        name: `Add ${unverified.install_slug!.split("/").pop()}`,
       })
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
         profile: "default",
         scope: "global",
         allow_unverified: true,
+        confirm_gateway_digest: GATEWAY_DIGEST,
+        enable: true,
         expected_digest: unverified.digest_sha256,
         ref: unverified.install_slug,
         source: "curated",
@@ -911,14 +983,16 @@ describe("useMarketplaceActionController", () => {
       expect(io.install).not.toHaveBeenCalled();
       await user.click(screen.getByTestId("extension-trust-confirm"));
       await screen.findByRole("heading", {
-        name: `Install ${portable.install_slug!.split("/").pop()}`,
+        name: `Add ${portable.install_slug!.split("/").pop()}`,
       });
-      await user.click(screen.getByRole("button", { name: "Install" }));
+      await user.click(screen.getByRole("button", { name: "Add" }));
       await waitFor(() =>
         expect(io.install).toHaveBeenCalledWith({
           profile: "default",
           scope: "global",
           allow_unverified: true,
+          confirm_gateway_digest: GATEWAY_DIGEST,
+          enable: true,
           expected_digest: portable.digest_sha256,
           ref: portable.install_slug,
           source,
@@ -931,6 +1005,109 @@ describe("useMarketplaceActionController", () => {
 
 // Invariant: input/gateway recovery retries the same scoped update without losing prior fields or consent.
 // Owner: Marketplace update controller; canonical suite: marketplace-action-controller.test.tsx.
+// Invariant: Add installs and enables in one call, opening review only when a gate decides, and an
+// enable failure stays on the row with Retry (US-005, ADR-003).
+// Owner: Marketplace action controller; canonical suite: marketplace-action-controller.test.tsx.
+describe("Add", () => {
+  // UT-027 [US-005.AC-1]: nothing to decide → no dialog, one install with enable:true.
+  it("Should add a verified entry with no gate inline with enable:true [UT-027]", async () => {
+    io.preview.mockImplementation(gateFree);
+    renderRow(verified);
+    await userEvent.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(io.install.mock.calls[0]![0]).toMatchObject({
+      enable: true,
+      expected_digest: verified.digest_sha256,
+      ref: verified.install_slug,
+    });
+    expect(io.install.mock.calls[0]![0]).not.toHaveProperty("confirm_gateway_digest");
+  });
+
+  // UT-028 [US-005.AC-2]: a required input opens review; its confirm still enables.
+  it("Should open review for a required input and confirm with enable:true and the input [UT-028]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "LINEAR_API_KEY",
+          prompt: "Linear API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "LINEAR_API_KEY" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    const field = await screen.findByLabelText("Linear API key");
+    expect(io.install).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "lin_123" } });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install.mock.calls[0]![0]).toMatchObject({
+      enable: true,
+      inputs: { LINEAR_API_KEY: { value: "lin_123" } },
+    });
+  });
+
+  // UT-029 [US-005.EC-1]: installed but not enabled → Couldn't turn on + Retry, Retry enables.
+  it("Should keep an enable failure on the row and retry the enable [UT-029]", async () => {
+    io.preview.mockImplementation(gateFree);
+    io.install.mockResolvedValueOnce({
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled: false },
+      enable_error: { code: "extension_start_failed", error: "binary missing" },
+    });
+    const view = renderRow(verified);
+    await userEvent.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    // The daemon now lists it installed; the inventory reports it off.
+    const added = { ...verified, installed: true, installed_name: "otel-local" };
+    const off: InstalledExtensionView = {
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled: false },
+      listing: added,
+      updateAvailable: false,
+    };
+    view.rerenderRow(added, off);
+    const word = await screen.findByTestId(`marketplace-enable-failed-${verified.entry_id}`);
+    expect(word).toHaveTextContent("Couldn't turn on");
+    expect(word).toHaveAttribute("title", "Added but couldn't turn on: binary missing");
+    expect(io.error).toHaveBeenCalledWith(`Added ${verified.name} but couldn't turn it on`, {
+      description: "binary missing",
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
+    );
+    await waitFor(() =>
+      expect(io.toggle).toHaveBeenCalledWith("otel-local", extensionFixtures[0]!.profile, true)
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId(`marketplace-enable-failed-${verified.entry_id}`)).toBeNull()
+    );
+  });
+
+  // UT-030 [US-005.AC-4, EC-4]: a second press while the first is in flight sends nothing.
+  it("Should send one install for two quick Add presses [UT-030]", async () => {
+    let releasePreview!: () => void;
+    const previewGate = new Promise<void>(resolve => (releasePreview = resolve));
+    io.preview.mockImplementation(async (request: { ref: string }) => {
+      await previewGate;
+      return gateFree(request);
+    });
+    renderRow(verified);
+    const add = screen.getByRole("button", { name: `Add ${verified.name}` });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    expect(await screen.findByRole("button", { name: `Adding ${verified.name}` })).toBeDisabled();
+    releasePreview();
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.preview).toHaveBeenCalledOnce();
+  });
+});
+
 describe("Marketplace update recovery", () => {
   const definitions = [
     {

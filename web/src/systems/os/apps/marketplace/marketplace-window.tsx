@@ -5,6 +5,7 @@ import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-dat
 import { MarketplaceDetailLocation } from "./marketplace-detail-location";
 import { parseMarketplaceWindowLocation } from "./marketplace-window-location";
 import {
+  MarketplaceCategoryPage,
   MarketplaceDetailNotFound,
   MarketplaceInstalledPage,
   MarketplacePage,
@@ -14,7 +15,8 @@ const DEFAULT_MARKETPLACE_ROUTE = { pathname: "/marketplace", search: {} } as co
 
 /**
  * Marketplace app controller driven exclusively by the logical window's WM location:
- * `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail).
+ * `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail) ·
+ * `/marketplace/categories/$category`.
  */
 export function MarketplaceWindow({ windowId }: { windowId: string }) {
   const navigate = useNavigate();
@@ -35,6 +37,14 @@ export function MarketplaceWindow({ windowId }: { windowId: string }) {
       return (
         <MarketplaceDetailLocation
           entryId={parsed.entryId}
+          liveDataEnabled={liveDataEnabled}
+          search={parsed.search}
+        />
+      );
+    case "category":
+      return (
+        <MarketplaceCategoryPage
+          category={parsed.category}
           liveDataEnabled={liveDataEnabled}
           search={parsed.search}
         />

@@ -16,9 +16,22 @@ export type MarketplaceExtensionServer = NonNullable<
 export type MarketplaceCatalogQuery = OperationQuery<"listMarketplace">;
 export type MarketplaceCatalogEntryQuery = OperationQuery<"getMarketplaceCatalogEntry">;
 
+export type MarketplaceSectionsResponse = OperationResponse<"getMarketplaceSections", 200>;
+export type MarketplaceSection = MarketplaceSectionsResponse["sections"][number];
+export type MarketplaceSectionsQuery = OperationQuery<"getMarketplaceSections">;
+export type MarketplaceCategoryCount = MarketplaceCatalogResponse["categories"][number];
+export type ExtensionEnableError = NonNullable<ExtensionInstallResponse["enable_error"]>;
+
 export interface MarketplaceCatalogOptions extends MarketplaceScopeOptions {
   q?: string | null;
+  /** Compozy category id; the daemon scopes paging, search and counts to it. */
+  category?: string | null;
   limit?: number;
+  profileName?: string | null;
+}
+export interface MarketplaceSectionsOptions extends MarketplaceScopeOptions {
+  q?: string | null;
+  perSection?: number;
   profileName?: string | null;
 }
 export interface MarketplaceCatalogPageOptions extends MarketplaceCatalogOptions {

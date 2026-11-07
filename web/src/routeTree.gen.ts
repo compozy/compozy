@@ -70,6 +70,7 @@ import { Route as AppLoopRunsRunIdDiffRouteImport } from './routes/_app/loop-run
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
+import { Route as AppMarketplaceCategoriesCategoryRouteImport } from './routes/_app/marketplace.categories.$category'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
 import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
@@ -381,6 +382,12 @@ const AppLoopsNameRunRoute = AppLoopsNameRunRouteImport.update({
   path: '/run',
   getParentRoute: () => AppLoopsNameRoute,
 } as any)
+const AppMarketplaceCategoriesCategoryRoute =
+  AppMarketplaceCategoriesCategoryRouteImport.update({
+    id: '/categories/$category',
+    path: '/categories/$category',
+    getParentRoute: () => AppMarketplaceRoute,
+  } as any)
 const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -517,6 +525,7 @@ export interface FileRoutesByTo {
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -584,6 +593,7 @@ export interface FileRoutesById {
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/_app/marketplace/categories/$category': typeof AppMarketplaceCategoriesCategoryRoute
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/_app/agents/$name/': typeof AppAgentsNameIndexRoute
   '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/categories/$category'
     | '/tasks/$id/edit'
     | '/agents/$name/'
     | '/agents/$name/sessions/$id'
@@ -711,6 +722,7 @@ export interface FileRouteTypes {
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/categories/$category'
     | '/tasks/$id/edit'
     | '/agents/$name'
     | '/agents/$name/sessions/$id'
@@ -777,6 +789,7 @@ export interface FileRouteTypes {
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
     | '/_app/loops/$name/run'
+    | '/_app/marketplace/categories/$category'
     | '/_app/tasks/$id/edit'
     | '/_app/agents/$name/'
     | '/_app/agents/$name/sessions/$id'
@@ -1217,6 +1230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoopsNameRunRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
+    '/_app/marketplace/categories/$category': {
+      id: '/_app/marketplace/categories/$category'
+      path: '/categories/$category'
+      fullPath: '/marketplace/categories/$category'
+      preLoaderRoute: typeof AppMarketplaceCategoriesCategoryRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
     '/_app/tasks/$id/edit': {
       id: '/_app/tasks/$id/edit'
       path: '/edit'
@@ -1353,12 +1373,14 @@ interface AppMarketplaceRouteChildren {
   AppMarketplaceEntryIdRoute: typeof AppMarketplaceEntryIdRoute
   AppMarketplaceInstalledRoute: typeof AppMarketplaceInstalledRoute
   AppMarketplaceIndexRoute: typeof AppMarketplaceIndexRoute
+  AppMarketplaceCategoriesCategoryRoute: typeof AppMarketplaceCategoriesCategoryRoute
 }
 
 const AppMarketplaceRouteChildren: AppMarketplaceRouteChildren = {
   AppMarketplaceEntryIdRoute: AppMarketplaceEntryIdRoute,
   AppMarketplaceInstalledRoute: AppMarketplaceInstalledRoute,
   AppMarketplaceIndexRoute: AppMarketplaceIndexRoute,
+  AppMarketplaceCategoriesCategoryRoute: AppMarketplaceCategoriesCategoryRoute,
 }
 
 const AppMarketplaceRouteWithChildren = AppMarketplaceRoute._addFileChildren(
