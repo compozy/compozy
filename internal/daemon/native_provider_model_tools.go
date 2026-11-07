@@ -146,7 +146,9 @@ func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.
 		slog.Warn("provider_models.selection_config_unresolved", "workspace_id", workspaceID, "error", err)
 		return n.activeConfig(ctx)
 	}
-	if users, ok := resolver.(workspacepkg.UserRuntimeResolver); ok && profileID != "" {
+	// The default profile keeps the active snapshot so pending global edits stay isolated (B-013).
+	if users, ok := resolver.(workspacepkg.UserRuntimeResolver); ok && profileID != "" &&
+		profileID != store.DefaultProfileID {
 		resolved, err := users.ResolveUser(ctx, profileID)
 		if err == nil {
 			return resolved.Config

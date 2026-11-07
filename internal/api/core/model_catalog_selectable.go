@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +8,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -44,16 +44,21 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 			return compozyconfig.Config{}, fmt.Errorf("api: resolve model catalog workspace %q: %w", workspaceID, err)
 		}
 		return resolved.Config, nil
-	case strings.TrimSpace(selection.Scope.ProfileID) != "":
+	case namedProfile(selection.Scope.ProfileID):
+		// ponytail: a named profile's layers are read from its files, the same source session
+		// admission uses; the default profile keeps the active snapshot so pending global edits
+		// stay isolated (B-013). Any resolution failure keeps the active snapshot too.
 		if users, ok := h.Workspaces.(workspacepkg.UserRuntimeResolver); ok {
-			resolved, err := users.ResolveUser(ctx, selection.Scope.ProfileID)
-			switch {
-			case err == nil:
+			if resolved, err := users.ResolveUser(ctx, selection.Scope.ProfileID); err == nil {
 				return resolved.Config, nil
-			case !errors.Is(err, workspacepkg.ErrUserScopeUnsupported):
-				return compozyconfig.Config{}, fmt.Errorf("api: resolve model catalog profile config: %w", err)
 			}
 		}
 	}
 	return h.activeConfig(ctx)
+}
+
+// namedProfile reports a selected profile other than the default one.
+func namedProfile(profileID string) bool {
+	profileID = strings.TrimSpace(profileID)
+	return profileID != "" && profileID != store.DefaultProfileID
 }

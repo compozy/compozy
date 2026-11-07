@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -80,4 +81,20 @@ func TestNativeProviderModelSelectionConfig(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should keep the active snapshot for the default profile and unresolved profiles", func(t *testing.T) {
+		t.Parallel()
+		pending := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: withGemini(nil),
+			WorkspaceResolver: &selectionConfigResolver{
+				profiles: map[string]compozyconfig.Config{store.DefaultProfileID: withGemini(new(false))},
+			},
+		}}
+		for _, profileID := range []string{store.DefaultProfileID, "profile-missing"} {
+			cfg := pending.selectionConfig(t.Context(), toolspkg.Scope{ProfileID: profileID})
+			if cfg.IsProviderDisabled("gemini") {
+				t.Fatalf("selectionConfig(%s) disabled gemini from a pending desired config", profileID)
+			}
+		}
+	})
 }
