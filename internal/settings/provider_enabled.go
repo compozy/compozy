@@ -55,9 +55,15 @@ func (s *service) SetProviderEnabled(
 		return ProviderItem{}, ApplyResult{}, err
 	}
 	mutation := mutationResultAtPath(mutationResultForProvider(target.Kind(), true), target.Path())
-	if reflect.DeepEqual(currentConfig.Providers[providerID].Enabled, authored) {
+	fileCurrent := reflect.DeepEqual(currentConfig.Providers[providerID].Enabled, authored)
+	activeCurrent := reflect.DeepEqual(state.config.Providers[providerID].Enabled, authored)
+	switch {
+	case fileCurrent && activeCurrent:
 		mutation.Warnings = []string{sectionsNoChangesValue}
-	} else {
+	case fileCurrent:
+		// The file already holds the value but an earlier apply did not reach the active config:
+		// retry the projection instead of reporting a no-op (BR-10).
+	default:
 		if err := writeProviderEnabled(s.homePaths, target, providerID, authored); err != nil {
 			return ProviderItem{}, ApplyResult{}, err
 		}
@@ -198,7 +204,29 @@ func (s *service) recordProviderEnabledApply(
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	return s.recordProjectedMutationApply(ctx, result, &state, desiredHash, nextActiveHash, &nextActiveConfig)
+	apply, err := s.recordProjectedMutationApply(ctx, result, &state, desiredHash, nextActiveHash, &nextActiveConfig)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	reportPendingRestart(&apply, &nextActiveConfig, &desiredConfig, desiredHash != nextActiveHash)
+	return apply, nil
+}
+
+// reportPendingRestart keeps the enabled apply live but reports restart-required edits that the
+// projection left pending, so callers still see the restart next action.
+func reportPendingRestart(
+	apply *ApplyResult,
+	active *compozyconfig.Config,
+	desired *compozyconfig.Config,
+	diverged bool,
+) {
+	if !diverged || apply.NextAction == lifecycle.NextActionRetry ||
+		classifyReloadLifecycle(active, desired) != lifecycle.RestartRequired {
+		return
+	}
+	apply.RestartRequired = true
+	apply.RestartScope = restartScopeForLifecycle(lifecycle.RestartRequired)
+	apply.NextAction = lifecycle.NextActionRestartDaemon
 }
 
 // reloadWithEnabledProjection splits a restart-required reload (B-008): the changed

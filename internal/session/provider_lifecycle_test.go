@@ -762,14 +762,61 @@ func TestDisabledProviderGate(t *testing.T) {
 		setHarnessProviderEnabled(t, h, "claude", false)
 		setHarnessProviderEnabled(t, h, "codex", false)
 		ctx := testutil.Context(t)
-		if _, err := h.manager.preparePromptRuntimePlanForRoute(
-			ctx, session, RuntimeSelection{Provider: "claude"}, "", nil,
-		); err != nil {
+		accepted := session.Info().EffectiveRuntime()
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, accepted, "", nil); err != nil {
 			t.Fatalf("preparePromptRuntimePlanForRoute(accepted route) error = %v, want recovery allowed", err)
 		}
-		_, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, RuntimeSelection{Provider: "codex"}, "", nil)
-		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
-			t.Fatalf("preparePromptRuntimePlanForRoute(other route) error = %v, want ErrProviderDisabled", err)
+		retuned := accepted
+		retuned.ReasoningEffort = "high"
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, retuned, "", nil); err != nil {
+			t.Fatalf("preparePromptRuntimePlanForRoute(retuned accepted route) error = %v, want recovery allowed", err)
+		}
+		otherModel := accepted
+		otherModel.Model = "claude-other-model"
+		for name, selection := range map[string]RuntimeSelection{
+			"another model on the bound provider": otherModel,
+			"another provider":                    {Provider: "codex"},
+		} {
+			_, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, selection, "", nil)
+			if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("preparePromptRuntimePlanForRoute(%s) error = %v, want ErrProviderDisabled", name, err)
+			}
+		}
+	})
+}
+
+func TestRuntimeChangeAdmission(t *testing.T) {
+	t.Parallel()
+
+	bound := acceptedRoute{provider: "claude", model: "sonnet"}
+	for _, tc := range []struct {
+		name     string
+		selected acceptedRoute
+		want     runtimeAdmission
+	}{
+		{name: "Should exempt the same provider and model", selected: bound, want: admissionAcceptedRecovery},
+		{
+			name:     "Should gate another model on the same provider",
+			selected: acceptedRoute{provider: "claude", model: "opus"},
+			want:     admissionRuntimeChange,
+		},
+		{
+			name:     "Should gate another provider",
+			selected: acceptedRoute{provider: "codex", model: "sonnet"},
+			want:     admissionRuntimeChange,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := runtimeChangeAdmission(bound, tc.selected); got != tc.want {
+				t.Fatalf("runtimeChangeAdmission(%+v) = %v, want %v", tc.selected, got, tc.want)
+			}
+		})
+	}
+	t.Run("Should gate when the session has no bound provider", func(t *testing.T) {
+		t.Parallel()
+		if got := runtimeChangeAdmission(acceptedRoute{}, bound); got != admissionRuntimeChange {
+			t.Fatalf("runtimeChangeAdmission(unbound) = %v, want runtime change", got)
 		}
 	})
 }

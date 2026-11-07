@@ -36,10 +36,13 @@ func (a runtimeAdmission) surface() string {
 }
 
 // specAdmission resolves the admission purpose of a start spec for the resolved provider. A
-// runtime plan for a session already bound to that provider recovers its accepted route.
+// runtime plan that keeps the session's bound route (provider and model) recovers its accepted route.
 func specAdmission(spec *sessionStartSpec, resolvedProvider string) runtimeAdmission {
 	if spec.admission == admissionRuntimeChange {
-		return runtimeChangeAdmission(spec.boundProvider, resolvedProvider)
+		return runtimeChangeAdmission(
+			acceptedRoute{provider: spec.boundProvider, model: spec.boundModel},
+			acceptedRoute{provider: resolvedProvider, model: spec.model},
+		)
 	}
 	if spec.admission == admissionNewWork && spec.startAction == sessionStartActionResume {
 		return admissionStoppedResume
@@ -47,13 +50,23 @@ func specAdmission(spec *sessionStartSpec, resolvedProvider string) runtimeAdmis
 	return spec.admission
 }
 
-// runtimeChangeAdmission exempts a route on the provider the session is already bound to.
-func runtimeChangeAdmission(boundProvider string, selectedProvider string) runtimeAdmission {
-	bound := compozyconfig.CanonicalProviderName(strings.TrimSpace(boundProvider))
-	if bound != "" && bound == compozyconfig.CanonicalProviderName(strings.TrimSpace(selectedProvider)) {
-		return admissionAcceptedRecovery
+// acceptedRoute is the provider and model a session is bound to. Reasoning effort, speed and ACP
+// options tune that route; they do not switch it.
+type acceptedRoute struct {
+	provider string
+	model    string
+}
+
+// runtimeChangeAdmission exempts only the route the session is already bound to (BR-5): the same
+// provider and model. Any other provider or model is a runtime change and is gated.
+func runtimeChangeAdmission(bound acceptedRoute, selected acceptedRoute) runtimeAdmission {
+	boundProvider := compozyconfig.CanonicalProviderName(strings.TrimSpace(bound.provider))
+	if boundProvider == "" ||
+		boundProvider != compozyconfig.CanonicalProviderName(strings.TrimSpace(selected.provider)) ||
+		strings.TrimSpace(bound.model) != strings.TrimSpace(selected.model) {
+		return admissionRuntimeChange
 	}
-	return admissionRuntimeChange
+	return admissionAcceptedRecovery
 }
 
 // requireEnabledRuntimeProvider refuses a disabled provider unless the admission recovers the

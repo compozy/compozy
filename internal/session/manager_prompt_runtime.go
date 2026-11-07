@@ -422,7 +422,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
 	// The bound route records whether an unrestricted preference was already present at session start.
 	boundRoute := session.providerRoutingSnapshot()
-	spec.admission, spec.boundProvider = admissionRuntimeChange, meta.Provider
+	spec.admission, spec.boundProvider, spec.boundModel = admissionRuntimeChange, meta.Provider, meta.Model
 	dropInheritedUnrestricted := compozyconfig.HasUnrestrictedACPOption(spec.provider, boundRoute.ACPOptionsValue())
 	runtime, err := m.resolvePromptStartRuntime(ctx, session, &spec, dropInheritedUnrestricted)
 	if err != nil {

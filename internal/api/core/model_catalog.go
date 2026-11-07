@@ -201,26 +201,6 @@ func (h *BaseHandlers) listProviderModels(c *gin.Context, providerParam string) 
 	c.JSON(http.StatusOK, ProviderModelListPayloadFromModels(models))
 }
 
-// selectableModels filters with the request's workspace config when one is named, else the
-// active config.
-func (h *BaseHandlers) selectableModels(c *gin.Context, models []modelcatalog.Model) ([]modelcatalog.Model, error) {
-	if workspaceID := strings.TrimSpace(
-		firstNonEmpty(c.Query("workspace_id"), c.Query("workspace")),
-	); workspaceID != "" &&
-		h.Workspaces != nil {
-		resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceID)
-		if err != nil {
-			return nil, fmt.Errorf("api: resolve model catalog workspace %q: %w", workspaceID, err)
-		}
-		return SelectableProviderModels(&resolved.Config, models), nil
-	}
-	cfg, err := h.activeConfig(c.Request.Context())
-	if err != nil {
-		return nil, err
-	}
-	return SelectableProviderModels(&cfg, models), nil
-}
-
 func (h *BaseHandlers) refreshProviderModels(c *gin.Context, providerParam string) {
 	opts, err := h.modelCatalogRefreshOptions(c, providerParam)
 	if err != nil {

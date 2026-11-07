@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -52,13 +54,47 @@ func (e *OverlayEditor) DeleteKeyPruningEmptyTable(path []string) error {
 // SetValueAtTarget writes value at path in target. Turning a provider back on
 // (providers.<id>.enabled = true) in the global or profile layer deletes the key, and an emptied
 // provider block, instead: an absent key means enabled (BR-1) and the toggle stays lossless
-// (BR-11). Workspace layers keep the plain write so validation still rejects the key there.
-func (e *OverlayEditor) SetValueAtTarget(target WriteTarget, path []string, value any) error {
-	kind := target.Kind()
-	if providerReEnable(path, value) && (kind == WriteTargetGlobalConfig || kind == WriteTargetProfileConfig) {
+// (BR-11). A profile write keeps an explicit true when the global layer disables the provider, so
+// the profile still overrides it (BR-2). Workspace layers keep the plain write so validation still
+// rejects the key there.
+func (e *OverlayEditor) SetValueAtTarget(homePaths HomePaths, target WriteTarget, path []string, value any) error {
+	if !providerReEnable(path, value) {
+		return e.SetValue(path, value)
+	}
+	switch target.Kind() {
+	case WriteTargetGlobalConfig:
 		return e.DeleteKeyPruningEmptyTable(path)
+	case WriteTargetProfileConfig:
+		disabledBelow, err := globalProviderDisabled(homePaths, strings.TrimSpace(path[1]))
+		if err != nil {
+			return err
+		}
+		if !disabledBelow {
+			return e.DeleteKeyPruningEmptyTable(path)
+		}
 	}
 	return e.SetValue(path, value)
+}
+
+// globalProviderDisabled reports whether the global config file sets providers.<id>.enabled = false.
+func globalProviderDisabled(homePaths HomePaths, providerID string) (bool, error) {
+	content, err := os.ReadFile(homePaths.ConfigFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("config: read global config for provider %q: %w", providerID, err)
+	}
+	var decoded struct {
+		Providers map[string]struct {
+			Enabled *bool `toml:"enabled"`
+		} `toml:"providers"`
+	}
+	if _, err := burnttoml.Decode(string(content), &decoded); err != nil {
+		return false, fmt.Errorf("config: decode global config for provider %q: %w", providerID, err)
+	}
+	enabled := decoded.Providers[providerID].Enabled
+	return enabled != nil && !*enabled, nil
 }
 
 // providerEnabledField is the providers.<id> key that turns a provider on or off.

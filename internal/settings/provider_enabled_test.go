@@ -13,6 +13,15 @@ import (
 
 func newProviderEnabledTestService(t *testing.T, config string) (Service, compozyconfig.HomePaths) {
 	t.Helper()
+	return newProviderEnabledTestServiceWithApplier(t, config, nil)
+}
+
+func newProviderEnabledTestServiceWithApplier(
+	t *testing.T,
+	config string,
+	applier ConfigRuntimeApplier,
+) (Service, compozyconfig.HomePaths) {
+	t.Helper()
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, config)
@@ -25,7 +34,10 @@ func newProviderEnabledTestService(t *testing.T, config string) (Service, compoz
 			t.Errorf("Close() error = %v", err)
 		}
 	})
-	service := testService(t, homePaths, Dependencies{ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)})
+	service := testService(t, homePaths, Dependencies{
+		ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		RuntimeApplier: applier,
+	})
 	if _, err := service.ActiveConfig(ctx); err != nil {
 		t.Fatalf("ActiveConfig() error = %v", err)
 	}
@@ -172,8 +184,13 @@ enabled = true
 			t.Fatalf("ActiveConfig() error = %v", err)
 		}
 
-		if _, apply, err := service.SetProviderEnabled(t.Context(), "gemini", false); err != nil || !apply.Applied {
+		_, apply, err := service.SetProviderEnabled(t.Context(), "gemini", false)
+		if err != nil || !apply.Applied {
 			t.Fatalf("SetProviderEnabled(gemini, false) = applied %v, error %v, want live", apply.Applied, err)
+		}
+		if !apply.RestartRequired || apply.NextAction != lifecycle.NextActionRestartDaemon {
+			t.Fatalf("SetProviderEnabled(gemini, false) = restart %v next %q, want the pending command reported",
+				apply.RestartRequired, apply.NextAction)
 		}
 		after, err := service.ActiveConfig(t.Context())
 		if err != nil {
@@ -185,6 +202,31 @@ enabled = true
 		}
 		if pending, err := service.HasPendingConfigRestart(t.Context()); err != nil || !pending {
 			t.Fatalf("HasPendingConfigRestart() = %v, %v, want the command edit still pending", pending, err)
+		}
+	})
+
+	t.Run("Should retry a disable whose earlier runtime apply failed", func(t *testing.T) {
+		t.Parallel()
+		applier := &fakeConfigRuntimeApplier{failures: []ApplyFailure{{Subsystem: "providers"}}}
+		service, _ := newProviderEnabledTestServiceWithApplier(t, enabledBaseConfig()+customizedGemini, applier)
+		if _, failed, err := service.SetProviderEnabled(t.Context(), "gemini", false); err != nil || failed.Applied {
+			t.Fatalf("first SetProviderEnabled() = applied %v, error %v, want a failed apply", failed.Applied, err)
+		}
+		if activeProviderDisabled(t, service, "gemini") {
+			t.Fatal("active config disabled gemini after a failed apply")
+		}
+		applier.failures = nil
+		_, retry, err := service.SetProviderEnabled(t.Context(), "gemini", false)
+		if err != nil || retry.Skipped || !retry.Applied {
+			t.Fatalf(
+				"retry = applied %v skipped %v, error %v, want the projection applied",
+				retry.Applied,
+				retry.Skipped,
+				err,
+			)
+		}
+		if !activeProviderDisabled(t, service, "gemini") {
+			t.Fatal("active config keeps gemini enabled after the retry")
 		}
 	})
 

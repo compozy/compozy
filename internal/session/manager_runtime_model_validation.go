@@ -39,7 +39,10 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	}
 	admission := admissionRuntimeChange
 	if session != nil {
-		admission = runtimeChangeAdmission(meta.Provider, providerID)
+		admission = runtimeChangeAdmission(
+			acceptedRoute{provider: meta.Provider, model: meta.Model},
+			acceptedRoute{provider: providerID, model: selection.Model},
+		)
 	}
 	if err := requireEnabledRuntimeProvider(&workspace.Config, providerID, admission, m.logger); err != nil {
 		return err

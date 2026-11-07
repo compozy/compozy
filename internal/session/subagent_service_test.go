@@ -3211,4 +3211,23 @@ func TestSubagentCapabilitiesOmitDisabledProviders(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should refuse a disabled target with provider_disabled before probing it", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.cfg.Providers["absent"] = compozyconfig.ProviderConfig{
+			Command: "compozy-test-nonexistent-provider", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		setHarnessProviderEnabled(t, h, "absent", false)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		for _, provider := range []string{"codex", "absent"} {
+			_, err := runtime.Resolve(t.Context(), parent, SubagentTarget{Provider: provider})
+			detail, ok := errors.AsType[*SubagentError](err)
+			if !ok || detail.Code != "provider_disabled" || !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("Resolve(%s) error = %v, want a provider_disabled subagent error", provider, err)
+			}
+		}
+	})
 }

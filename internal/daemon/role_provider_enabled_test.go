@@ -93,4 +93,27 @@ func TestRoleDisabledProviderRoutes(t *testing.T) {
 			t.Fatalf("RoleStatus(coordinator).Diagnostics = %#v, want none", status.Diagnostics)
 		}
 	})
+	t.Run("Should report provider_disabled for a primary inherited from the role agent", func(t *testing.T) {
+		t.Parallel()
+		cfg := disabledRoleConfig(t, "codex")
+		cfg.Roles.Coordinator.Provider = ""
+		cfg.Roles.Coordinator.FallbackChain = nil
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Provider: "codex", Prompt: "curate"},
+			},
+		})
+		status, err := resolver.RoleStatus(t.Context(), "", string(compozyconfig.RoleCoordinator))
+		if err != nil {
+			t.Fatalf("RoleStatus(coordinator) error = %v", err)
+		}
+		if len(status.Diagnostics) != 1 || status.Diagnostics[0].Code != contract.CodeProviderDisabled {
+			t.Fatalf("RoleStatus(coordinator).Diagnostics = %#v, want one provider_disabled", status.Diagnostics)
+		}
+		_, err = resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Resolve(coordinator) error = %v, want the same role unavailable at invocation", err)
+		}
+	})
 }

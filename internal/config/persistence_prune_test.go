@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -17,10 +19,10 @@ func TestSetValueAtTargetProviderReEnable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newOverlayEditor() error = %v", err)
 		}
-		if err := editor.SetValueAtTarget(global, enabledPath, false); err != nil {
+		if err := editor.SetValueAtTarget(HomePaths{}, global, enabledPath, false); err != nil {
 			t.Fatalf("SetValueAtTarget(false) error = %v", err)
 		}
-		if err := editor.SetValueAtTarget(global, enabledPath, true); err != nil {
+		if err := editor.SetValueAtTarget(HomePaths{}, global, enabledPath, true); err != nil {
 			t.Fatalf("SetValueAtTarget(true) error = %v", err)
 		}
 		if got, _ := editor.Bytes(); string(got) != original {
@@ -34,7 +36,12 @@ func TestSetValueAtTargetProviderReEnable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newOverlayEditor() error = %v", err)
 		}
-		if err := editor.SetValueAtTarget(global, []string{"providers", "claude", "enabled"}, true); err != nil {
+		if err := editor.SetValueAtTarget(
+			HomePaths{},
+			global,
+			[]string{"providers", "claude", "enabled"},
+			true,
+		); err != nil {
 			t.Fatalf("SetValueAtTarget(true) error = %v", err)
 		}
 		if editor.HasPath([]string{"providers", "claude"}) {
@@ -50,11 +57,51 @@ func TestSetValueAtTargetProviderReEnable(t *testing.T) {
 			t.Fatalf("newOverlayEditor() error = %v", err)
 		}
 		workspace := WriteTarget{kind: WriteTargetWorkspaceConfig, scope: WriteScopeWorkspace}
-		if err := editor.SetValueAtTarget(workspace, enabledPath, true); err != nil {
+		if err := editor.SetValueAtTarget(HomePaths{}, workspace, enabledPath, true); err != nil {
 			t.Fatalf("SetValueAtTarget(workspace) error = %v", err)
 		}
 		if !editor.HasPath(enabledPath) {
 			t.Fatal("workspace overlay lost providers.gemini.enabled, want the key written for validation")
+		}
+	})
+	t.Run("Should keep an explicit profile true over a global disable", func(t *testing.T) {
+		t.Parallel()
+		homePaths := HomePaths{ConfigFile: filepath.Join(t.TempDir(), ConfigName)}
+		if err := os.WriteFile(
+			homePaths.ConfigFile,
+			[]byte("[providers.gemini]\nenabled = false\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write global config: %v", err)
+		}
+		profile := WriteTarget{kind: WriteTargetProfileConfig, scope: WriteScopeProfile}
+		editor, err := newOverlayEditor(ConfigName, []byte(""))
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+		if err := editor.SetValueAtTarget(homePaths, profile, enabledPath, true); err != nil {
+			t.Fatalf("SetValueAtTarget(profile, true) error = %v", err)
+		}
+		if !editor.HasPath(enabledPath) {
+			got, _ := editor.Bytes()
+			t.Fatalf("profile overlay = %q, want an explicit enabled = true overriding the global disable", got)
+		}
+	})
+
+	t.Run("Should remove a profile key when the global layer leaves the provider enabled", func(t *testing.T) {
+		t.Parallel()
+		homePaths := HomePaths{ConfigFile: filepath.Join(t.TempDir(), ConfigName)}
+		profile := WriteTarget{kind: WriteTargetProfileConfig, scope: WriteScopeProfile}
+		editor, err := newOverlayEditor(ConfigName, []byte("[providers.gemini]\nenabled = false\n"))
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+		if err := editor.SetValueAtTarget(homePaths, profile, enabledPath, true); err != nil {
+			t.Fatalf("SetValueAtTarget(profile, true) error = %v", err)
+		}
+		if editor.HasPath([]string{"providers", "gemini"}) {
+			got, _ := editor.Bytes()
+			t.Fatalf("profile overlay = %q, want the key and emptied block removed", got)
 		}
 	})
 }
