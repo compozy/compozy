@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
-import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
+import {
+  clearMarketplaceEnableFailures,
+  reconcileInstalledExtensionCaches,
+} from "@/integrations/tanstack-query/reconcile-installed-extension";
 
 import {
   removeExtension,
@@ -80,8 +83,24 @@ export function useToggleExtension({ reportErrors = true }: ToggleExtensionOptio
       );
       return { previous, listKey };
     },
-    onSuccess: (_data, { enabled, name, profileName: selectedProfile = profileName }) =>
-      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${selectedProfile}`),
+    onSuccess: (
+      _data,
+      {
+        enabled,
+        name,
+        profileName: selectedProfile = profileName,
+        workspaceId: selectedWorkspace = workspaceId,
+      }
+    ) => {
+      if (enabled) {
+        clearMarketplaceEnableFailures(queryClient, {
+          name,
+          profileName: selectedProfile,
+          workspaceId: selectedWorkspace ?? null,
+        });
+      }
+      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${selectedProfile}`);
+    },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(context.listKey, context.previous);
       if (reportErrors) toast.error(error.message);

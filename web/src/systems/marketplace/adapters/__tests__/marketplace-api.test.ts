@@ -59,6 +59,29 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
+  // ADR-003: an install that succeeds while its enable fails answers 201 with both fields.
+  it("Should keep the enable failure beside the installed extension when enabling fails", async () => {
+    const extensionBody: Parameters<typeof installMarketplaceExtension>[0] = {
+      enable: true,
+      ref: "review-pack",
+      source: "curated",
+    };
+    mockJsonResponse(
+      {
+        extension: { name: "review-pack", enabled: false },
+        enable_error: { code: "extension_start_failed", error: "binary missing" },
+      },
+      { status: 201 }
+    );
+    const response = await installMarketplaceExtension(extensionBody);
+    await expectFetchRequest({ body: extensionBody, method: "POST", path: "/api/extensions" });
+    expect(response.extension).toMatchObject({ name: "review-pack", enabled: false });
+    expect(response.enable_error).toEqual({
+      code: "extension_start_failed",
+      error: "binary missing",
+    });
+  });
+
   it.each([
     ["refresh", () => refreshMarketplaceCatalog()],
     [

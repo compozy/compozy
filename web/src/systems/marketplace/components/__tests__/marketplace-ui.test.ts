@@ -57,6 +57,15 @@ describe("marketplace UI helpers", () => {
       status: "needs_authorization",
     } as InstalledExtensionView["extension"]["mcp_servers"][number];
 
+    const unhealthyDiagnostic = {
+      id: "extension.mcp.notion.notion.r1.unhealthy",
+      code: "extension_mcp_server_unhealthy",
+      category: "extension",
+      severity: "error",
+      title: "Extension MCP server is unhealthy",
+      message: 'MCP server "notion" is unavailable: connection refused',
+    } as NonNullable<InstalledExtensionView["extension"]["diagnostics"]>[number];
+
     // UT-031 [US-006, US-011.EC-3]: Set up comes from daemon inventory truth, never the listing.
     it.each<[string, Partial<InstalledExtensionView["extension"]>, string]>([
       ["a missing required input", { missing_inputs: ["LINEAR_API_KEY"] }, "setup"],
@@ -65,6 +74,20 @@ describe("marketplace UI helpers", () => {
         "inputs and sign-in satisfied",
         { mcp_servers: [{ ...authServer, status: "running" }] },
         "ready",
+      ],
+      // A server the daemon has not observed carries no diagnostic, so it is not a failure.
+      [
+        "an unobserved server",
+        { mcp_servers: [{ ...authServer, status: "stopped" }], diagnostics: [] },
+        "ready",
+      ],
+      [
+        "a recorded unhealthy server",
+        {
+          mcp_servers: [{ ...authServer, status: "stopped" }],
+          diagnostics: [unhealthyDiagnostic],
+        },
+        "server-failed",
       ],
     ])("Should map %s to %s [UT-031]", (_case, overrides, expected) => {
       expect(marketplaceSetupState({ entry, item: item(overrides), inventoryPending: false })).toBe(
@@ -99,5 +122,8 @@ describe("marketplace UI helpers", () => {
   it("Should name preset sources plainly and keep custom source names", () => {
     expect(marketplaceSourceLabel("claude-plugins-official")).toBe("Claude plugins");
     expect(marketplaceSourceLabel("team-plugins")).toBe("team-plugins");
+    // A source named after an Object prototype key is still a custom name, never the inherited value.
+    expect(marketplaceSourceLabel("__proto__")).toBe("__proto__");
+    expect(marketplaceSourceLabel(" constructor ")).toBe("constructor");
   });
 });

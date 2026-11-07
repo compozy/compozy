@@ -14,6 +14,7 @@ export type MarketplaceSetupState =
   | "ready"
   | "turn-on"
   | "enable-failed"
+  | "server-failed"
   | "installed"
   | "unknown";
 
@@ -40,6 +41,21 @@ export function installedSetupNeeds(item: InstalledExtensionView): {
   };
 }
 
+/** Daemon diagnostic recorded when an enabled extension's MCP server failed to connect. */
+const MCP_SERVER_UNHEALTHY = "extension_mcp_server_unhealthy";
+
+/**
+ * The recorded MCP server failure of an installed extension, or `null`. A server the daemon has
+ * not observed yet carries no diagnostic, so absence never reads as a failure.
+ */
+export function installedServerFailure(item: InstalledExtensionView): string | null {
+  const diagnostic = item.extension.diagnostics?.find(
+    candidate => candidate.code === MCP_SERVER_UNHEALTHY
+  );
+  if (!diagnostic) return null;
+  return diagnostic.message?.trim() || diagnostic.title?.trim() || "MCP server is unavailable";
+}
+
 /** Pure mapping from a listing and the installed inventory to the row's one action. */
 export function marketplaceSetupState({
   entry,
@@ -55,6 +71,7 @@ export function marketplaceSetupState({
   if (!item.extension.enabled) return enableFailed ? "enable-failed" : "turn-on";
   const needs = installedSetupNeeds(item);
   if (needs.missingInputs.length > 0 || needs.needsAuthorization.length > 0) return "setup";
+  if (installedServerFailure(item) !== null) return "server-failed";
   return "ready";
 }
 

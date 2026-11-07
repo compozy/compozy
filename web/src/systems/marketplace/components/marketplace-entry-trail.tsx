@@ -32,6 +32,8 @@ interface MarketplaceCatalogTrailSetup {
   enabling?: boolean;
   onTurnOn: () => void;
   onRetry: () => void;
+  /** The daemon's recorded MCP server failure, shown on the `server-failed` word. */
+  serverFailure?: string | null;
   /** The Set up control: it owns its sign-in flow, so the row passes it in. */
   setUpAction?: ReactNode;
 }
@@ -46,7 +48,10 @@ interface MarketplaceCatalogTrailProps {
 
 /**
  * Catalog trail, one state at a time (top wins): pending → conflict → blocked → update → setup
- * state (Set up · Ready · Turn on · Couldn't turn on · unknown) → installed → Add.
+ * state (Set up · Ready · Unavailable · Turn on · Couldn't turn on · unknown) → installed → Add.
+ * An installed row that still needs the user (Set up · Turn on · Couldn't turn on) keeps that
+ * action beside a Blocked word or an Update, so catalog status never hides how to finish the
+ * installed copy.
  * Blocked is a status word, never a disabled button pretending to be an action. The same trail
  * rides the catalog row and the detail window head, where actions stay `secondary` — a window
  * head never carries the inverted primary.
@@ -62,9 +67,29 @@ function MarketplaceCatalogTrail({
   if (entry.name_conflict) {
     return <MarketplaceNameConflict entry={entry} origin={entry.name_conflict} />;
   }
-  if (isInstallBlocked(entry)) return <MarketplaceInstallBlocked entry={entry} />;
-  if (entry.update_available) return <MarketplaceUpdateAction entry={entry} onUpdate={onUpdate} />;
-  if (entry.installed && setup) return <MarketplaceSetupWord entry={entry} setup={setup} />;
+  const pendingSetup =
+    entry.installed && setup && SETUP_ACTION_STATES.has(setup.state) ? (
+      <MarketplaceSetupWord entry={entry} setup={setup} />
+    ) : null;
+  if (isInstallBlocked(entry)) {
+    return (
+      <>
+        {pendingSetup}
+        <MarketplaceInstallBlocked entry={entry} />
+      </>
+    );
+  }
+  if (entry.update_available) {
+    return (
+      <>
+        {pendingSetup}
+        <MarketplaceUpdateAction entry={entry} onUpdate={onUpdate} />
+      </>
+    );
+  }
+  if (entry.installed && setup && hasSetupWord(setup)) {
+    return <MarketplaceSetupWord entry={entry} setup={setup} />;
+  }
   if (entry.installed) return <MarketplaceInstalledWord entry={entry} />;
   return (
     <Button
@@ -78,6 +103,32 @@ function MarketplaceCatalogTrail({
       Add
     </Button>
   );
+}
+
+/** Setup states that ask the user to act on the installed copy. */
+const SETUP_ACTION_STATES: ReadonlySet<MarketplaceSetupState> = new Set([
+  "setup",
+  "turn-on",
+  "enable-failed",
+]);
+
+/**
+ * Whether the setup state has its own word; otherwise (`installed`, a Set up with no control, an
+ * Add state) the row falls back to the honest Installed word instead of rendering nothing.
+ */
+function hasSetupWord(setup: MarketplaceCatalogTrailSetup): boolean {
+  switch (setup.state) {
+    case "unknown":
+    case "ready":
+    case "turn-on":
+    case "enable-failed":
+    case "server-failed":
+      return true;
+    case "setup":
+      return setup.setUpAction != null;
+    default:
+      return false;
+  }
 }
 
 function isInstallBlocked(entry: MarketplaceCatalogListing): boolean {
@@ -223,6 +274,19 @@ function MarketplaceSetupWord({
       );
     case "enable-failed":
       return <MarketplaceEnableFailed entry={entry} setup={setup} />;
+    case "server-failed":
+      return (
+        <Pill
+          className="cursor-help"
+          data-testid={`marketplace-server-failed-${entry.entry_id}`}
+          form="plain"
+          title={setup.serverFailure ?? undefined}
+          tone="destructive"
+        >
+          <Pill.Dot />
+          Unavailable
+        </Pill>
+      );
     default:
       return null;
   }

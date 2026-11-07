@@ -93,8 +93,9 @@ function readStatus(
 ) {
   return {
     // An edited search keeps the previous results on screen; a placeholder with none is no answer.
+    // A failed read is an answer: its error and Retry replace an empty refresh's skeleton.
     isLoading:
-      reader.isPending || (reader.isPlaceholderData && !hasItems) || (refreshing && !hasItems),
+      reader.isPending || (!reader.error && !hasItems && (reader.isPlaceholderData || refreshing)),
     isRefetching: reader.isRefetching && !reader.isPlaceholderData,
   };
 }

@@ -1,7 +1,7 @@
 import { extensionFixtures, type ExtensionEntry } from "@/systems/extensions";
-import type { MarketplaceCatalogListing } from "@/systems/marketplace";
+import type { MarketplaceCatalogListing } from "../types";
 
-// Installed-side story rows: the daemon-joined listing and the inventory row it joins to.
+// Installed-side fixtures shared by stories: the daemon-joined listing and the inventory row it joins to.
 
 /** The daemon-joined installed state of a listing: origin match, never a name match. */
 export function installedListing(

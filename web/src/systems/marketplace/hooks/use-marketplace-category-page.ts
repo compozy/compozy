@@ -24,10 +24,12 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
   const first = pages[0];
   const items = pages.flatMap(page => page.items);
   const label = first?.categories.find(count => count.id === category)?.label;
+  // A blank id never reaches the daemon (the read stays disabled), so it is unknown here.
   const unknownCategory =
-    reader.error instanceof MarketplaceApiError &&
-    reader.error.status === 400 &&
-    reader.error.diagnosticCode === "marketplace_category_unknown";
+    category.trim() === "" ||
+    (reader.error instanceof MarketplaceApiError &&
+      reader.error.status === 400 &&
+      reader.error.diagnosticCode === "marketplace_category_unknown");
   const failed = unknownCategory ? null : reader.error;
   // The daemon answered but no source did; one degraded source leaves an empty result empty.
   const unavailable = failed ? null : marketplaceCatalogUnreachable(first, items.length > 0);
@@ -40,10 +42,14 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
     error: failed ?? unavailable,
     /** Only the daemon's own source report is "unreachable"; a failed read is a load failure. */
     unreachable: unavailable !== null,
-    // A placeholder or a refreshing catalog with no rows is not an answer yet.
+    // A placeholder or a refreshing catalog with no rows is not an answer yet; a failed read is,
+    // so its error and Retry replace the skeleton.
     isLoading:
-      reader.isPending ||
-      (items.length === 0 && (reader.isPlaceholderData || pages.some(page => page.refreshing))),
+      !unknownCategory &&
+      (reader.isPending ||
+        (!reader.error &&
+          items.length === 0 &&
+          (reader.isPlaceholderData || pages.some(page => page.refreshing)))),
     hasMore: Boolean(reader.hasNextPage),
     isLoadingMore: reader.isFetchingNextPage,
     loadMore: reader.loadMore,

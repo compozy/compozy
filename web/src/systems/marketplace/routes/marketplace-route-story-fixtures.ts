@@ -2,11 +2,7 @@ import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 import type { ExtensionEntry } from "@/systems/extensions";
 
 import { storyCatalog, storyMarketplacePlugins, storySources } from "./marketplace-story-data";
-import {
-  installedExtension,
-  installedListing,
-  localExtension,
-} from "./marketplace-story-installed";
+import { installedExtension, installedListing, localExtension } from "../mocks/installed";
 import {
   storyContext7Server,
   storyGithubServer,

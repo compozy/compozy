@@ -18,7 +18,7 @@ import {
   kitInventoryItems,
 } from "./marketplace-detail-story-fixtures";
 import { marketplaceStoryHandlers, storyCatalog } from "./marketplace-story-data";
-import { installedExtension, installedListing } from "./marketplace-story-installed";
+import { installedExtension, installedListing } from "../mocks/installed";
 import { storyGithubServer } from "./marketplace-story-servers";
 
 const slackNotifyDetail = marketplaceCatalogDetailFixture("slack-notify")!;

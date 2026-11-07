@@ -14,6 +14,7 @@ import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detai
 import { catalogDetailSearch } from "../lib/marketplace-installed-view";
 import {
   findInstalledItem,
+  installedServerFailure,
   installedSetupNeeds,
   marketplaceSetupState,
 } from "../lib/marketplace-setup-state";
@@ -112,6 +113,7 @@ function MarketplaceCatalogRow({
             enableCause: failure?.cause.error ?? null,
             enabling: actions.isEntryEnabling(entry),
             onRetry: () => actions.retryEnable(entry),
+            serverFailure: item ? installedServerFailure(item) : null,
             onTurnOn: () => {
               if (!item) return;
               actions.turnOn(entry, {

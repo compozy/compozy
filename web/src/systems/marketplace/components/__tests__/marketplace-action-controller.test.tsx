@@ -22,6 +22,7 @@ import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
 import {
   useExtensionInstanceScope,
+  useToggleExtension,
   type InstalledExtensionView,
   type ExtensionInstanceScope,
 } from "@/systems/extensions";
@@ -182,6 +183,19 @@ function RowHarness({
     </>
   );
 }
+function InstalledToggle({ name }: { name: string }) {
+  const toggle = useToggleExtension();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        toggle.mutate({ enabled: true, name, profileName: extensionFixtures[0]!.profile })
+      }
+    >
+      Installed toggle
+    </button>
+  );
+}
 function renderRow(entry: MarketplaceCatalogListing, item?: InstalledExtensionView) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -204,6 +218,13 @@ function renderRow(entry: MarketplaceCatalogListing, item?: InstalledExtensionVi
         </QueryClientProvider>
       );
     },
+    /** The Installed page's own switch, on the same cache as the row. */
+    renderInstalledToggle: (name: string) =>
+      render(
+        <QueryClientProvider client={client}>
+          <InstalledToggle name={name} />
+        </QueryClientProvider>
+      ),
     rerenderRow: (next: MarketplaceCatalogListing, nextItem?: InstalledExtensionView) =>
       view.rerender(
         <QueryClientProvider client={client}>
@@ -1166,6 +1187,76 @@ describe("Add", () => {
     expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(
       `${verified.name} turned on`
     );
+  });
+
+  // Invariant: one enable in flight per row; a second Retry before the first answers is a no-op,
+  // and the row's key clears once the enable settles.
+  it("Should run one enable per row while it is in flight", async () => {
+    io.preview.mockImplementation(gateFree);
+    io.install.mockResolvedValueOnce({
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled: false },
+      enable_error: { code: "extension_start_failed", error: "binary missing" },
+    });
+    const view = renderRow(verified);
+    await userEvent.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    const added = { ...verified, installed: true, installed_name: "otel-local" };
+    view.rerenderRow(added, {
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled: false },
+      listing: added,
+      updateAvailable: false,
+    });
+    let finish!: () => void;
+    io.toggle.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = () => resolve({});
+        })
+    );
+    const retry = await screen.findByRole("button", { name: `Retry turning on ${verified.name}` });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    await waitFor(() => expect(retry).toBeDisabled());
+    expect(io.toggle).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(
+        `${verified.name} turned on`
+      )
+    );
+  });
+
+  // Invariant: a recorded enable failure ends when its instance turns on from any surface, so a
+  // later turn-off shows Turn on again instead of the stale "Couldn't turn on".
+  it("Should clear an enable failure once the Installed toggle turns the instance on", async () => {
+    io.preview.mockImplementation(gateFree);
+    io.install.mockResolvedValueOnce({
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled: false },
+      enable_error: { code: "extension_start_failed", error: "binary missing" },
+    });
+    const view = renderRow(verified);
+    await userEvent.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    const added = { ...verified, installed: true, installed_name: "otel-local" };
+    const withEnabled = (enabled: boolean): InstalledExtensionView => ({
+      extension: { ...extensionFixtures[0]!, name: "otel-local", enabled },
+      listing: added,
+      updateAvailable: false,
+    });
+    view.rerenderRow(added, withEnabled(false));
+    expect(
+      await screen.findByTestId(`marketplace-enable-failed-${verified.entry_id}`)
+    ).toBeVisible();
+    // The Installed page turns the same instance on with its own toggle, not the row's Retry.
+    view.renderInstalledToggle("otel-local");
+    await userEvent.click(screen.getByRole("button", { name: "Installed toggle" }));
+    await waitFor(() =>
+      expect(io.toggle).toHaveBeenCalledWith("otel-local", extensionFixtures[0]!.profile, true)
+    );
+    // Turned off again later: the row offers Turn on, not the old failure.
+    view.rerenderRow(added, withEnabled(false));
+    expect(await screen.findByTestId(`marketplace-turn-on-${verified.entry_id}`)).toBeVisible();
+    expect(screen.queryByTestId(`marketplace-enable-failed-${verified.entry_id}`)).toBeNull();
   });
 
   // Invariant [astra F2]: an enable failure belongs to the destination its Add named; a late

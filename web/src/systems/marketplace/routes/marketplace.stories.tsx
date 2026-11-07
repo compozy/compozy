@@ -9,7 +9,7 @@ import {
 } from "@/storybook/route-story-meta";
 
 import { marketplaceStoryHandlers, storyCatalog, storySources } from "./marketplace-story-data";
-import { installedExtension, installedListing } from "./marketplace-story-installed";
+import { installedExtension, installedListing } from "../mocks/installed";
 import { storyGithubServer, storyPostgresInputs } from "./marketplace-story-servers";
 
 import {

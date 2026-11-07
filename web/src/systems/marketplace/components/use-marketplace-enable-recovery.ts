@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { createStoreLogic } from "@xstate/store";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
 import { useToggleExtension } from "@/systems/extensions";
@@ -16,6 +17,24 @@ import type {
 import { marketplaceErrorCode, marketplaceErrorMessage } from "./marketplace-ui";
 
 const NO_FAILURES: MarketplaceEnableFailures = {};
+
+/** Rows with an enable in flight, keyed by destination + origin; each enable clears its own key. */
+const enablingLogic = createStoreLogic<
+  { keys: ReadonlySet<string> },
+  { enableStarted: { key: string }; enableFinished: { key: string } }
+>({
+  context: { keys: new Set<string>() },
+  on: {
+    enableStarted: (context, event) =>
+      context.keys.has(event.key) ? undefined : { keys: new Set(context.keys).add(event.key) },
+    enableFinished: (context, event) => {
+      if (!context.keys.has(event.key)) return undefined;
+      const keys = new Set(context.keys);
+      keys.delete(event.key);
+      return { keys };
+    },
+  },
+});
 
 /** Identity of one row in one destination: the same origin elsewhere is another row. */
 function scopedOriginKey(scope: MarketplaceDestinationScope, entry: MarketplaceCatalogListing) {
@@ -40,7 +59,8 @@ export function useMarketplaceEnableRecovery(
   // This hook reports a failed enable itself, with the daemon's code, on the row's own toast.
   const toggle = useToggleExtension({ reportErrors: false });
   const failures = useQuery(marketplaceEnableFailuresOptions(destination)).data ?? NO_FAILURES;
-  const [enabling, setEnabling] = useState<ReadonlySet<string>>(() => new Set());
+  const enablingStore = useStore(enablingLogic);
+  const enabling = useSelector(enablingStore, snapshot => snapshot.context.keys);
 
   const record = (
     scope: MarketplaceDestinationScope,
@@ -70,8 +90,9 @@ export function useMarketplaceEnableRecovery(
     // Captured now: the answer belongs to this destination even if the window switches meanwhile.
     const scope = { profileName: destination.profileName, workspaceId: destination.workspaceId };
     const key = scopedOriginKey(scope, entry);
-    if (enabling.has(key)) return;
-    setEnabling(current => new Set(current).add(key));
+    // Read the live snapshot, not the render's: a second click before re-render is still a no-op.
+    if (enablingStore.getSnapshot().context.keys.has(key)) return;
+    enablingStore.trigger.enableStarted({ key });
     try {
       await toggle.mutateAsync({
         enabled: true,
@@ -90,11 +111,7 @@ export function useMarketplaceEnableRecovery(
       toast.error(message, { id: key, ...(code ? { description: code } : {}) });
       announce(message);
     } finally {
-      setEnabling(current => {
-        const next = new Set(current);
-        next.delete(key);
-        return next;
-      });
+      enablingStore.trigger.enableFinished({ key });
     }
   };
 

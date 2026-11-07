@@ -17,7 +17,7 @@ const SOURCE_LABELS: Readonly<Record<string, string>> = {
 /** "Claude plugins" for `claude-plugins-official`; a custom source keeps its registered name. */
 export function marketplaceSourceLabel(source: string): string {
   const name = source.trim();
-  return SOURCE_LABELS[name] ?? name;
+  return Object.hasOwn(SOURCE_LABELS, name) ? SOURCE_LABELS[name]! : name;
 }
 
 /** Stable origin key for a catalog row: `source_ref` when the daemon reports it, else the source name. */
