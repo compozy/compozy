@@ -226,6 +226,27 @@ describe("MessageMarkdown file paths", () => {
     vi.restoreAllMocks();
   });
 
+  it("Should Cmd-click directly into the last-used target without opening the viewer", async () => {
+    stubShell("darwin");
+    const openWith = vi.fn(async () => ({ status: "opened" as const }));
+    window.compozyShell!.files!.openWith = openWith;
+    localStorage.setItem("compozy.open-target", "cursor");
+    renderTranscript(<MessageMarkdown openPaths content="See `src/a.ts:12:3`." />);
+    const previous = viewerTarget();
+    fireEvent.click(screen.getByText("src/a.ts:12:3"), { metaKey: true });
+    await waitFor(() =>
+      expect(openWith).toHaveBeenCalledWith({
+        target: "cursor",
+        path: "/repo/src/a.ts",
+        line: 12,
+        column: 3,
+        roots: ["/repo"],
+      })
+    );
+    expect(viewerTarget()).toEqual(previous);
+    localStorage.removeItem("compozy.open-target");
+  });
+
   it("Should open an inline path on Cmd+click with the resolved path and roots (UT-040)", async () => {
     const openInEditor = stubShell("darwin");
     renderTranscript(<MessageMarkdown openPaths content="Changed `internal/a.go:42` here." />);
@@ -288,6 +309,12 @@ describe("MessageMarkdown file paths", () => {
     await waitFor(() =>
       expect(viewerTarget()).toMatchObject({ kind: "outside", path: "/tmp/report.md" })
     );
+    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
+      const previous = viewerTarget()?.nonce;
+      fireEvent.click(screen.getByRole("button", { name: "Open report.md in viewer" }), modifier);
+      await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(previous));
+      expect(viewerTarget()).toMatchObject({ kind: "outside", path: "/tmp/report.md" });
+    }
   });
 
   it("Should reach the path link by keyboard and open on Enter and Space (UT-043)", async () => {

@@ -8,6 +8,7 @@ function rootKey(root: FilesRootRef): readonly string[] {
 
 export const filesKeys = {
   all: ["files"] as const,
+  openTargets: () => [...filesKeys.all, "desktop-open-targets"] as const,
   root: (root: FilesRootRef) => [...filesKeys.all, ...rootKey(root)] as const,
   entriesRoot: (root: FilesRootRef) => [...filesKeys.root(root), "entries"] as const,
   entries: (root: FilesRootRef, path: string, showIgnored: boolean) =>

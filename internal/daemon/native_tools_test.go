@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -16949,6 +16950,127 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 		got, ok := errors.AsType[*toolspkg.ToolError](err)
 		if !ok || string(got.Code) != "session_move_to_profile_worktree_dirty" {
 			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
+		}
+	})
+}
+
+func TestNativeSessionChanges(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return real changes and gate sensitive patches", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+			cmd := exec.CommandContext(t.Context(), "git", args...)
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git: %v %s", err, out)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(root, "c.go"), []byte("package changed\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=private\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws-1"),
+				Workspaces: nativeTestWorkspaceServiceWithRoot(t, root),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["c.go",".env"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			contract.SessionChangesResponse
+			Patches []contract.ChangePatchPayload `json:"patches"`
+		}
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Revision == "" || len(response.Patches) != 2 ||
+			!strings.Contains(response.Patches[0].Patch, "package changed") ||
+			!response.Patches[1].Sensitive ||
+			bytes.Contains(result.Structured, []byte("SECRET")) ||
+			bytes.Contains(result.Structured, []byte(root)) {
+			t.Fatalf("response: %s", result.Structured)
+		}
+		if err := os.Symlink(filepath.Join(root, ".git", "config"), filepath.Join(root, "protected.txt")); err != nil {
+			t.Fatal(err)
+		}
+		protected, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["protected.txt"]}`,
+				),
+			},
+		)
+		if err != nil || !bytes.Contains(protected.Structured, []byte("path_denied")) ||
+			bytes.Contains(protected.Structured, []byte(root)) {
+			t.Fatalf("protected result %s error %v", protected.Structured, err)
+		}
+	})
+	t.Run("Should classify unknown and user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "missing" {
+							return nil, session.ErrSessionNotFound
+						}
+						return &session.Info{ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, nil
+					},
+				},
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"session_id":"missing"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("session_not_found")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+	t.Run("Should return root unavailable for user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		service := nativeTestWorkspaceService(t)
+		service.ResolveUserFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser}, nil
+		}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(""), Workspaces: service},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"workspace":"@user","session_id":"sess-user"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("root_unavailable")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
 		}
 	})
 }

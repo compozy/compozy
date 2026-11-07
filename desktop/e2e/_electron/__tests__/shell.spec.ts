@@ -1065,6 +1065,77 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
   expect(await desktop.app.evaluate(() => Reflect.get(globalThis, "__openPathDialogs"))).toBe(0);
 });
 
+test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async ({
+  launchDesktop,
+}) => {
+  test.skip(process.platform === "win32", "The recording fixture uses a POSIX executable");
+  const desktop = await launchDesktop({
+    prepare: async context => {
+      await prepareOpenPathsDesktop(context);
+      const cursor = join(context.environment.COMPOZY_DESKTOP_TEST_LOGIN_BIN!, "cursor");
+      await writeFile(
+        cursor,
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$COMPOZY_HOME/fixtures/cursor-argv.txt"\n',
+        { mode: 0o700 }
+      );
+    },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const project = await realpath(join(desktop.home, "project"));
+  const id = await product.evaluate(
+    async ({ project, agent, prompt }) => {
+      const created = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspace_path: project, agent_name: agent }),
+      });
+      if (!created.ok) throw new Error(await created.text());
+      const body = (await created.json()) as { session: { id: string; workspace_id: string } };
+      const session = body.session;
+      const response = await fetch(
+        `/api/workspaces/${session.workspace_id}/sessions/${session.id}/prompt`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            message: prompt,
+            message_id: "e2e-open-target",
+            idempotency_key: "e2e-open-target",
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(await response.text());
+      await response.text();
+      return session.id;
+    },
+    { project, agent: loginPathAgent, prompt: openPathsPrompt }
+  );
+  await product.goto(new URL(`/session/${id}`, product.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const link = product.getByRole("button", { name: "Open fixture.txt in viewer" }).first();
+  await link.click();
+  await product.getByRole("button", { name: "Choose application" }).first().click();
+  await expect(product.getByRole("menuitem", { name: "Finder" })).toBeVisible();
+  await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
+  const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
+  await expect
+    .poll(async () => readFile(recorded, "utf8").catch(() => ""))
+    .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
+  await expect(
+    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
+  ).toBeVisible();
+  await writeFile(recorded, "");
+  await link.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
+  await expect
+    .poll(async () => readFile(recorded, "utf8").catch(() => ""))
+    .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
+  await expect(
+    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
+  ).toBeVisible();
+});
+
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({
   launchDesktop,
 }) => {

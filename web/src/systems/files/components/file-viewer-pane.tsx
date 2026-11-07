@@ -78,7 +78,7 @@ function OpenFileView({
       onCopyPath={() => copyFilePath(path)}
       onRevealInTree={onRevealInTree ? () => onRevealInTree(path) : undefined}
       onRefresh={() => void active.refetch()}
-      openIn={<OpenInButton />}
+      openIn={<OpenInButton root={root} path={path} line={line} />}
     />
   );
 
@@ -104,6 +104,8 @@ function OpenFileView({
       {header}
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {stateBody(state, {
+          root,
+          line,
           path,
           revealing: revealed && reveal.isPending,
           onReveal: () => setRevealed(true),
@@ -118,6 +120,8 @@ function OpenFileView({
 function stateBody(
   state: FileViewerState,
   props: {
+    root: FilesRootRef;
+    line?: number;
     path: string;
     revealing: boolean;
     onReveal: () => void;
@@ -131,7 +135,12 @@ function stateBody(
     case "not_found":
       return <FileViewerNotFoundState path={props.path} onRefreshTree={props.onRefreshTree} />;
     case "outside":
-      return <FileViewerOutsideState path={props.path} openIn={<OpenInButton />} />;
+      return (
+        <FileViewerOutsideState
+          path={props.path}
+          openIn={<OpenInButton root={props.root} path={props.path} line={props.line} />}
+        />
+      );
     case "denied":
       return (
         <FileViewerMessageState
@@ -187,7 +196,12 @@ export function FileViewerPane({
 }: FileViewerPaneProps) {
   if (!target) return <FileViewerSelectState />;
   if (target.kind === "outside") {
-    return <FileViewerOutsideState path={target.path} openIn={<OpenInButton />} />;
+    return (
+      <FileViewerOutsideState
+        path={target.path}
+        openIn={<OpenInButton root={root} path={target.path} />}
+      />
+    );
   }
   return (
     <OpenFileView

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { notifyUser } from "@/lib/user-feedback";
 import {
   desktopShellBridge,
+  lastOpenTarget,
   EDITOR_SETTINGS_PATH,
   reportOpenInEditorResult,
   type OpenInEditorResult,
@@ -53,12 +54,15 @@ export function useOpenInEditor(): OpenInEditor | null {
       }
       let result: OpenInEditorResult;
       try {
-        result = await files.openInEditor({
+        const params = {
           path,
           ...(token.line !== undefined ? { line: token.line } : {}),
           ...(token.column !== undefined ? { column: token.column } : {}),
           roots,
-        });
+        };
+        result = files.openWith
+          ? await files.openWith({ ...params, target: lastOpenTarget() })
+          : await files.openInEditor(params);
       } catch {
         result = {
           status: "error",

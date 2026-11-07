@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { realpath, stat } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 
-import { dialog } from "electron";
+import { dialog, shell } from "electron";
 
 import { ElectronFileOpener, type FileOpener } from "./file-opener";
 import { isExecutableFile, resolveLoginShellPath, runBoundedCommand } from "./login-shell-path";
@@ -21,6 +21,7 @@ export function createElectronFileOpener(options: {
   log: (message: string, fields: Record<string, unknown>) => void;
 }): FileOpener {
   return new ElectronFileOpener({
+    showItemInFolder: path => shell.showItemInFolder(path),
     platform: process.platform,
     homedir,
     env: process.env,

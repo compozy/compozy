@@ -1,0 +1,47 @@
+---
+title: "compozy session changes"
+description: "Read session branch or uncommitted changes"
+---
+
+## compozy session changes
+
+Read session branch or uncommitted changes
+
+```
+compozy session changes <session-id> [flags]
+```
+
+### Options
+
+```
+      --base string         Comparison base ref
+  -h, --help                help for changes
+      --json                Print structured output
+      --patch stringArray   Include a patch for a root-relative path (repeatable, at most 20)
+      --reveal              Include sensitive patches
+      --scope string        Changes scope: branch or uncommitted (default "branch")
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session changes <session-id> -o json
+```

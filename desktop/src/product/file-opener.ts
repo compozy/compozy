@@ -1,3 +1,4 @@
+import { win32 } from "node:path";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 
 import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from "electron";
@@ -9,6 +10,8 @@ import {
   isWindowsBatchExecutable,
   parseEditorCommand,
 } from "./editor-command";
+import { OPEN_TARGETS, targetTemplate } from "./open-targets";
+import type { OpenTarget, OpenWithParams } from "./open-in-editor-contract";
 import { FileOpenPolicy } from "./file-open-policy";
 import { lookPath, type CommandRunner } from "./login-shell-path";
 import {
@@ -27,6 +30,8 @@ const XDG_MIME_MAX_BYTES = 4 * 1024;
 export const LAUNCHER_EXIT_TIMEOUT_MS = 5_000;
 
 export interface FileOpener {
+  listOpenTargets(): Promise<OpenTarget[]>;
+  openWith(params: OpenWithParams, window: BrowserWindow | null): Promise<OpenInEditorResult>;
   open(params: OpenInEditorParams, window: BrowserWindow | null): Promise<OpenInEditorResult>;
 }
 
@@ -35,12 +40,13 @@ type Spawner = (command: string, args: string[], options: SpawnOptions) => Child
 
 /** Every boundary the opener touches, injected so the decision logic is testable. */
 export interface FileOpenerDeps {
+  showItemInFolder?: (path: string) => void;
   platform: NodeJS.Platform;
   homedir: () => string;
   env: NodeJS.ProcessEnv;
   fs: {
     realpath(path: string): Promise<string>;
-    stat(path: string): Promise<{ isFile(): boolean }>;
+    stat(path: string): Promise<{ isFile(): boolean; isDirectory?(): boolean }>;
   };
   showMessageBox(
     window: BrowserWindow | null,
@@ -68,6 +74,8 @@ interface PreparedLaunch {
 }
 
 const ERROR_MESSAGES: Record<Exclude<OpenInEditorErrorCode, "not_found" | "not_a_file">, string> = {
+  target_unknown: "Unknown application target.",
+  target_unavailable: "This application is no longer available.",
   editor_invalid: "The editor command is invalid.",
   editor_unavailable: "Couldn't read the editor command. Try again.",
   editor_not_configured: "No text editor found. Set an editor command in Settings.",
@@ -103,6 +111,77 @@ export class ElectronFileOpener implements FileOpener {
   constructor(deps: FileOpenerDeps) {
     this.#deps = deps;
     this.#policy = new FileOpenPolicy(deps.platform);
+  }
+
+  async listOpenTargets(): Promise<OpenTarget[]> {
+    const targets: OpenTarget[] = [
+      { id: "configured", label: "Configured editor", kind: "editor", supportsLine: true },
+    ];
+    const env = await this.#targetEnv();
+    for (const target of OPEN_TARGETS) {
+      if (await this.#resolveTarget(target, env)) {
+        targets.push({ id: target.id, label: target.label, kind: "editor", supportsLine: true });
+      }
+    }
+    targets.push({
+      id: "reveal",
+      label: this.#deps.platform === "darwin" ? "Finder" : "File manager",
+      kind: "reveal",
+      supportsLine: false,
+    });
+    return targets;
+  }
+
+  async openWith(
+    params: OpenWithParams,
+    window: BrowserWindow | null
+  ): Promise<OpenInEditorResult> {
+    if (params.target === "configured") {
+      const { target: _target, ...request } = params;
+      return this.open(request, window);
+    }
+    if (params.target !== "reveal" && !OPEN_TARGETS.some(target => target.id === params.target)) {
+      return { status: "error", code: "target_unknown", message: ERROR_MESSAGES.target_unknown };
+    }
+    return this.open(params, window);
+  }
+
+  async #resolveTarget(
+    target: (typeof OPEN_TARGETS)[number],
+    env: NodeJS.ProcessEnv
+  ): Promise<string[] | null> {
+    if (this.#deps.platform === "win32") {
+      for (const directory of (env.PATH ?? "").split(";")) {
+        if (!win32.isAbsolute(directory)) continue;
+        const names = [win32.join(directory, `${target.binary}.exe`)];
+        if (target.id === "vscode" || target.id === "cursor")
+          names.push(
+            win32.join(directory, "..", target.id === "vscode" ? "Code.exe" : "Cursor.exe")
+          );
+        for (const executable of names)
+          if (await this.#deps.isExecutable(executable)) return [executable];
+      }
+      return null;
+    }
+    const binary = await lookPath(target.binary, env.PATH ?? "", this.#deps.isExecutable);
+    if (binary) return [binary];
+    if (this.#deps.platform !== "darwin") return null;
+    try {
+      const apps = await this.#deps.run(
+        "/usr/bin/mdfind",
+        ["kMDItemCFBundleIdentifier == '" + target.bundle + "'"],
+        { env, timeoutMs: 2_000, maxBytes: 4096 }
+      );
+      const app = apps.split("\n").find(path => path.startsWith("/") && path.endsWith(".app"));
+      return app ? ["/usr/bin/open", "-a", app, "--args"] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async #targetEnv(): Promise<NodeJS.ProcessEnv> {
+    this.#loginPath ??= this.#deps.loginShellPath().catch(() => null);
+    return { ...this.#deps.env, PATH: (await this.#loginPath) ?? this.#deps.env.PATH ?? "" };
   }
 
   async open(
@@ -161,7 +240,7 @@ export class ElectronFileOpener implements FileOpener {
       confirmed = lexical;
     }
 
-    const real = await this.#realTarget(lexical);
+    const real = await this.#realTarget(lexical, "target" in params);
     const realHome = await this.#realpathOrNull(home);
     const homes = realHome && !policy.same(realHome, home) ? [home, realHome] : [home];
     const realRoots = (await Promise.all(keptRoots.map(root => this.#realpathOrNull(root)))).filter(
@@ -178,9 +257,29 @@ export class ElectronFileOpener implements FileOpener {
 
     // Everything fallible (settings, xdg-mime, login-shell PATH) runs before the last check,
     // so nothing awaits between re-validating the target and handing it to the editor.
-    const launch = await this.#prepareLaunch(outcome);
+    const target = "target" in params ? String(params.target) : "configured";
+    let launch: PreparedLaunch | null = null;
+    if (target !== "reveal") {
+      if (target === "configured") launch = await this.#prepareLaunch(outcome);
+      else {
+        const entry = OPEN_TARGETS.find(item => item.id === target);
+        const env = await this.#targetEnv();
+        const resolved = entry && (await this.#resolveTarget(entry, env));
+        if (!entry || !resolved) throw failure("target_unavailable");
+        launch = {
+          template: [...resolved, ...targetTemplate(entry.id, params.line !== undefined)],
+          env,
+          awaitExit: false,
+        };
+      }
+    }
     if ((await this.#realpathOrNull(lexical)) !== real) {
       throw new OpenFailure("not_found", `The file changed while opening: ${lexical}`);
+    }
+    if (!launch) {
+      if (!this.#deps.showItemInFolder) throw failure("target_unavailable");
+      this.#deps.showItemInFolder(real);
+      return { status: "opened" };
     }
     const [executable = "", ...template] = launch.template;
     const args = expandEditorArgv(template, {
@@ -213,7 +312,7 @@ export class ElectronFileOpener implements FileOpener {
     return response === 0;
   }
 
-  async #realTarget(lexical: string): Promise<string> {
+  async #realTarget(lexical: string, allowDirectory: boolean): Promise<string> {
     let real: string;
     try {
       real = await this.#deps.fs.realpath(lexical);
@@ -226,7 +325,8 @@ export class ElectronFileOpener implements FileOpener {
     }
     let file = false;
     try {
-      file = (await this.#deps.fs.stat(real)).isFile();
+      const entry = await this.#deps.fs.stat(real);
+      file = entry.isFile() || (allowDirectory && entry.isDirectory?.() === true);
     } catch {
       throw new OpenFailure("not_found", `File not found: ${lexical}`);
     }

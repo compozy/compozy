@@ -57,42 +57,7 @@ func (h *BaseHandlers) GetSessionChanges(c *gin.Context) {
 		h.changeError(c, err)
 		return
 	}
-	files := make([]contract.FileChangePayload, 0, len(s.Files))
-	for _, f := range s.Files {
-		files = append(
-			files,
-			contract.FileChangePayload{
-				Path:        f.Path,
-				OldPath:     f.OldPath,
-				Status:      string(f.Status),
-				Additions:   f.Additions,
-				Deletions:   f.Deletions,
-				Binary:      f.Binary,
-				Generated:   f.Generated,
-				Sensitive:   f.Sensitive,
-				Fingerprint: f.Fingerprint,
-			},
-		)
-	}
-	response := contract.SessionChangesResponse{
-		Scope: string(s.Scope),
-		Root:  fileRootPayload(root),
-		Head:  contract.ChangeHeadPayload{Branch: s.HeadBranch, SHA: s.HeadSHA},
-		Base: contract.ChangeBasePayload{
-			Ref:          s.BaseRef,
-			Source:       string(s.BaseSource),
-			MergeBaseSHA: s.MergeBaseSHA,
-		},
-		Totals: contract.ChangeTotalsPayload{
-			Files:     s.Totals.Files,
-			Additions: s.Totals.Additions,
-			Deletions: s.Totals.Deletions,
-			Partial:   s.Totals.Partial,
-		},
-		Files:     files,
-		Truncated: s.Truncated,
-		Revision:  s.Revision,
-	}
+	response := SessionChangesPayload(root, s)
 	if projection, ok := h.Sessions.(interface {
 		SessionPullRequests(context.Context, []*session.Info) (map[string]session.PullRequestProjection, error)
 	}); ok {
@@ -132,18 +97,7 @@ func (h *BaseHandlers) GetSessionChangePatches(c *gin.Context) {
 		return
 	}
 	result := contract.SessionChangePatchesResponse{Revision: req.Revision, Patches: []contract.ChangePatchPayload{}}
-	for _, p := range patches {
-		result.Patches = append(
-			result.Patches,
-			contract.ChangePatchPayload{
-				Path:        p.Path,
-				Patch:       p.Patch,
-				TooLarge:    p.TooLarge,
-				Sensitive:   p.Sensitive,
-				Fingerprint: p.Fingerprint,
-			},
-		)
-	}
+	result.Patches = ChangePatchPayloads(patches)
 	c.JSON(200, result)
 }
 func (h *BaseHandlers) GetSessionChangeContents(c *gin.Context) {
@@ -245,4 +199,66 @@ func (h *BaseHandlers) changeError(c *gin.Context, err error) {
 		}
 	}
 	h.respondSessionFilesError(c, status, code, errors.New(message))
+}
+
+func SessionChangesPayload(root projectfiles.Root, s changes.Summary) contract.SessionChangesResponse {
+	files := make([]contract.FileChangePayload, 0, len(s.Files))
+	for _, f := range s.Files {
+		files = append(
+			files,
+			contract.FileChangePayload{
+				Path:        f.Path,
+				OldPath:     f.OldPath,
+				Status:      string(f.Status),
+				Additions:   f.Additions,
+				Deletions:   f.Deletions,
+				Binary:      f.Binary,
+				Generated:   f.Generated,
+				Sensitive:   f.Sensitive,
+				Fingerprint: f.Fingerprint,
+			},
+		)
+	}
+	return contract.SessionChangesResponse{
+		Scope: string(s.Scope),
+		Root:  fileRootPayload(root),
+		Head:  contract.ChangeHeadPayload{Branch: s.HeadBranch, SHA: s.HeadSHA},
+		Base: contract.ChangeBasePayload{
+			Ref:          s.BaseRef,
+			Source:       string(s.BaseSource),
+			MergeBaseSHA: s.MergeBaseSHA,
+		},
+		Totals: contract.ChangeTotalsPayload{
+			Files:     s.Totals.Files,
+			Additions: s.Totals.Additions,
+			Deletions: s.Totals.Deletions,
+			Partial:   s.Totals.Partial,
+		},
+		Files:     files,
+		Truncated: s.Truncated,
+		Revision:  s.Revision,
+	}
+}
+
+func SessionChangesPullRequestPayload(
+	view session.PullRequestView,
+) (*contract.SessionPullRequestPayload, *contract.SessionPullRequestLookupPayload) {
+	return pullRequestPayload(view)
+}
+
+func ChangePatchPayloads(patches []changes.Patch) []contract.ChangePatchPayload {
+	result := make([]contract.ChangePatchPayload, 0, len(patches))
+	for _, p := range patches {
+		result = append(
+			result,
+			contract.ChangePatchPayload{
+				Path:        p.Path,
+				Patch:       p.Patch,
+				TooLarge:    p.TooLarge,
+				Sensitive:   p.Sensitive,
+				Fingerprint: p.Fingerprint,
+			},
+		)
+	}
+	return result
 }

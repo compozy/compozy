@@ -5674,3 +5674,64 @@ func TestSessionPendingDescendants(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionChanges(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render summary and forward patch options", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, id string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if id != "sess-1" || options.Scope != "uncommitted" || len(options.Paths) != 1 ||
+						options.Paths[0] != "c.go" ||
+						!options.Reveal {
+						t.Fatalf("request: %s %+v", id, options)
+					}
+					return sessionChangesRecord{
+						Scope:  "uncommitted",
+						Files:  []contract.FileChangePayload{{Path: "c.go", Status: "M", Additions: 3}},
+						Totals: contract.ChangeTotalsPayload{Files: 1, Additions: 3},
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"changes",
+			"sess-1",
+			"--scope",
+			"uncommitted",
+			"--patch",
+			" c.go ",
+			"--reveal",
+		)
+		if err != nil || !strings.Contains(stdout, "c.go") || !strings.Contains(stdout, "1 files changed, +3") {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+	})
+	t.Run("Should preserve structured output and errors", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				sessionChangesFn: func(_ context.Context, _ string, options sessionChangesOptions) (sessionChangesRecord, error) {
+					if options.Base != "" {
+						return sessionChangesRecord{}, errors.New("base ref not found (base_not_found)")
+					}
+					return sessionChangesRecord{Revision: "sha256:test"}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "changes", "sess-1", "--json")
+		if err != nil || !strings.Contains(stdout, `"revision": "sha256:test"`) {
+			t.Fatalf("output %s error %v", stdout, err)
+		}
+		_, _, err = executeRootCommand(t, deps, "session", "changes", "sess-1", "--base", "missing")
+		if err == nil || !strings.Contains(err.Error(), "base_not_found") {
+			t.Fatalf("error %v", err)
+		}
+	})
+}

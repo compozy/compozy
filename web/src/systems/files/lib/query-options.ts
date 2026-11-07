@@ -1,3 +1,4 @@
+import { desktopShellBridge } from "@/systems/os";
 import { queryOptions } from "@tanstack/react-query";
 
 import { listFileEntries, readFileContent, type FilesRootRef } from "../adapters/files-api";
@@ -26,5 +27,13 @@ export function fileContentOptions(root: FilesRootRef, path: string, reveal: boo
     staleTime: reveal ? 0 : ENTRIES_STALE_MS,
     gcTime: reveal ? 0 : undefined,
     retry: false,
+  });
+}
+
+export function openTargetsOptions() {
+  return queryOptions({
+    queryKey: filesKeys.openTargets(),
+    queryFn: async () => (await desktopShellBridge()?.files?.listOpenTargets?.()) ?? [],
+    staleTime: 30_000,
   });
 }

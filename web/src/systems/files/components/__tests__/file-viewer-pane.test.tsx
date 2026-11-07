@@ -5,12 +5,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
+import { workspaceDetailOptions } from "@/systems/workspace";
 import type { CompozyShellBridge } from "@/systems/os/lib/desktop-shell-bridge";
 
 import type { FilesRootRef } from "../../adapters/files-api";
 import { fileViewerTarget, outsideViewerTarget } from "../../lib/file-viewer-target";
 import { FileViewerPane } from "../file-viewer-pane";
 import { OpenInButton } from "../open-in-button";
+
+vi.mock("@tanstack/react-router", async importOriginal => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => vi.fn(),
+}));
 
 // Suite: file viewer states (file-explorer US-003, US-004; UT-055).
 // Invariant: every file kind the daemon reports renders an explicit state — never garbage or a
@@ -150,5 +156,52 @@ describe("FileViewerPane", () => {
     } as unknown as CompozyShellBridge;
     renderPane(control);
     expect(screen.getByText("Open in")).toBeInTheDocument();
+  });
+  it("Should select an application and remember it on the primary Open in button", async () => {
+    localStorage.removeItem("compozy.open-target");
+    const openWith = vi.fn(async () => ({ status: "opened" as const }));
+    window.compozyShell = {
+      platform: "darwin",
+      files: {
+        openInEditor: vi.fn(),
+        openWith,
+        listOpenTargets: async () => [
+          { id: "configured", label: "Configured editor", kind: "editor", supportsLine: true },
+          { id: "cursor", label: "Cursor", kind: "editor", supportsLine: true },
+        ],
+      },
+    } as unknown as CompozyShellBridge;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(workspaceDetailOptions("ws_1").queryKey, {
+      workspace: {
+        id: "ws_1",
+        root_dir: "/repo",
+        name: "Project",
+        add_dirs: [],
+        created_at: "2026-11-07T00:00:00Z",
+        updated_at: "2026-11-07T00:00:00Z",
+      },
+    });
+    render(
+      frame(
+        client,
+        <OpenInButton root={{ kind: "workspace", workspaceId: "ws_1" }} path="a.ts" line={12} />
+      )
+    );
+    await screen.findByRole("button", { name: "Choose application" });
+    fireEvent.click(screen.getByRole("button", { name: "Choose application" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Cursor" }));
+    await waitFor(() =>
+      expect(openWith).toHaveBeenCalledWith({
+        target: "cursor",
+        path: "/repo/a.ts",
+        line: 12,
+        column: 1,
+        roots: ["/repo", "/repo"],
+      })
+    );
+    expect(await screen.findByRole("button", { name: "Open in Cursor" })).toBeInTheDocument();
+    expect(localStorage.getItem("compozy.open-target")).toBe("cursor");
+    localStorage.removeItem("compozy.open-target");
   });
 });

@@ -205,3 +205,6 @@ export {
   windowManagerApplyMessage,
   type WindowManagerSettingsApply,
 } from "./lib/window-manager-settings-result";
+
+export { lastOpenTarget, rememberOpenTarget } from "./lib/open-target-preference";
+export type { OpenTarget } from "./lib/desktop-shell-bridge";

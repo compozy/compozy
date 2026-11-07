@@ -6,7 +6,7 @@ import type { BrowserWindow, MessageBoxOptions } from "electron";
 
 import { EditorTemplateError, expandEditorArgv, parseEditorCommand } from "../editor-command";
 import { ElectronFileOpener, LAUNCHER_EXIT_TIMEOUT_MS, SETTINGS_TIMEOUT_MS } from "../file-opener";
-import type { OpenInEditorParams } from "../open-in-editor-contract";
+import type { OpenInEditorParams, OpenWithParams } from "../open-in-editor-contract";
 import settingsGeneral from "./fixtures/settings-general.json" with { type: "json" };
 
 type Entry = "file" | "dir" | "fifo";
@@ -44,6 +44,7 @@ function harness(
     xdgMime?: string | Error;
     loginPath?: string | null | Error;
     executables?: string[];
+    bundles?: Record<string, string>;
     spawnEvent?: "spawn" | "error";
     /** The child's exit code after `spawn`; `"never"` keeps it running. */
     exitCode?: number | "never";
@@ -66,7 +67,9 @@ function harness(
   });
   const enoent = (path: string) =>
     Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" as const });
+  const showItemInFolder = vi.fn();
   const opener = new ElectronFileOpener({
+    showItemInFolder,
     platform: options.platform ?? "darwin",
     homedir: () => home,
     env: { PATH: "/usr/bin:/bin", HOME: home, ...options.env },
@@ -121,6 +124,7 @@ function harness(
       return child as unknown as ChildProcess;
     },
     async run(file, args) {
+      if (file === "/usr/bin/mdfind") return options.bundles?.[args[0] ?? ""] ?? "";
       expect([file, ...args]).toEqual(["xdg-mime", "query", "default", "text/plain"]);
       if (options.xdgMime instanceof Error) throw options.xdgMime;
       return options.xdgMime ?? "";
@@ -132,7 +136,17 @@ function harness(
   });
   const open = async (params: Partial<OpenInEditorParams> & { path: string }) =>
     await opener.open({ roots: ["/repo"], ...params }, WINDOW);
-  return { open, fsCalls, dialogs, spawned, fetches, logs, loginShellPath };
+  return {
+    open,
+    opener,
+    showItemInFolder,
+    fsCalls,
+    dialogs,
+    spawned,
+    fetches,
+    logs,
+    loginShellPath,
+  };
 }
 
 const REPO = { "/repo": "dir", "/repo/a.ts": "file" } as const;
@@ -639,5 +653,131 @@ describe("file opener", () => {
         `${path}\n\nAn agent mentioned this file. It may contain credentials.`
       );
     }
+  });
+});
+
+describe("Open in targets", () => {
+  it("Should detect login PATH targets and omit absent binaries", async () => {
+    const h = harness({ loginPath: "/opt/bin", executables: ["/opt/bin/cursor"] });
+    const targets = await h.opener.listOpenTargets();
+    expect(targets).toContainEqual({
+      id: "cursor",
+      label: "Cursor",
+      kind: "editor",
+      supportsLine: true,
+    });
+    expect(targets.some(target => target.id === "sublime")).toBe(false);
+    expect(h.loginShellPath).toHaveBeenCalledOnce();
+  });
+
+  it("Should detect and launch a macOS application bundle when its CLI is absent", async () => {
+    const h = harness({
+      entries: REPO,
+      executables: [],
+      bundles: { "kMDItemCFBundleIdentifier == 'dev.zed.Zed'": "/Applications/Zed.app\n" },
+    });
+    expect((await h.opener.listOpenTargets()).some(target => target.id === "zed")).toBe(true);
+    expect(
+      await h.opener.openWith({ target: "zed", path: "/repo/a.ts", roots: ["/repo"] }, WINDOW)
+    ).toEqual({ status: "opened" });
+    expect(h.spawned[0]).toMatchObject({
+      command: "/usr/bin/open",
+      args: ["-a", "/Applications/Zed.app", "--args", "/repo/a.ts"],
+      options: { shell: false },
+    });
+  });
+  it("Should detect a native Windows executable instead of launching a batch shim", async () => {
+    const h = harness({
+      platform: "win32",
+      env: { PATH: "C:\\apps" },
+      executables: ["C:\\apps\\cursor.exe"],
+      entries: { "C:\\repo": "dir", "C:\\repo\\a.ts": "file" },
+    });
+    expect((await h.opener.listOpenTargets()).some(target => target.id === "cursor")).toBe(true);
+    expect(
+      await h.opener.openWith(
+        { target: "cursor", path: "C:\\repo\\a.ts", roots: ["C:\\repo"] },
+        WINDOW
+      )
+    ).toEqual({ status: "opened" });
+    expect(h.spawned[0]).toMatchObject({
+      command: "C:\\apps\\cursor.exe",
+      options: { shell: false },
+    });
+  });
+  it.each([
+    ["vscode", "code", ["-g", "/repo/a.ts:12:3"]],
+    ["zed", "zed", ["/repo/a.ts:12:3"]],
+    ["idea", "idea", ["--line", "12", "/repo/a.ts"]],
+  ])("Should launch %s with fixed argv and no shell", async (target, binary, args) => {
+    const h = harness({ entries: REPO, executables: ["/usr/bin/" + binary] });
+    expect(
+      await h.opener.openWith(
+        { target, path: "/repo/a.ts", line: 12, column: 3, roots: ["/repo"] },
+        WINDOW
+      )
+    ).toEqual({ status: "opened" });
+    expect(h.spawned[0]).toMatchObject({
+      command: "/usr/bin/" + binary,
+      args,
+      options: { shell: false },
+    });
+  });
+  it("Should reveal through the file manager without spawning", async () => {
+    const h = harness({ entries: REPO });
+    expect(
+      await h.opener.openWith({ target: "reveal", path: "/repo/a.ts", roots: ["/repo"] }, WINDOW)
+    ).toEqual({ status: "opened" });
+    expect(h.showItemInFolder).toHaveBeenCalledWith("/repo/a.ts");
+    expect(h.spawned).toEqual([]);
+  });
+  it("Should reject unknown and vanished targets", async () => {
+    const h = harness({ entries: REPO, executables: [] });
+    const request = { path: "/repo/a.ts", roots: ["/repo"] };
+    expect(await h.opener.openWith({ ...request, target: "arbitrary" }, WINDOW)).toMatchObject({
+      code: "target_unknown",
+    });
+    expect(await h.opener.openWith({ ...request, target: "cursor" }, WINDOW)).toMatchObject({
+      code: "target_unavailable",
+    });
+    expect(h.spawned).toEqual([]);
+  });
+  it.each([
+    "/outside/a.ts",
+    "/repo/.env",
+    "/repo/.npmrc",
+    "/repo/credentials.json",
+    "/repo/id_rsa",
+    "/repo/service-account-dev.json",
+    "/repo/vault.keystore",
+  ])("Should confirm and cancel %s before launching", async path => {
+    const h = harness({ entries: { ...REPO, [path]: "file" } });
+    expect(await h.opener.openWith({ target: "vscode", path, roots: ["/repo"] }, WINDOW)).toEqual({
+      status: "cancelled",
+    });
+    expect(h.dialogs).toHaveLength(1);
+    expect(h.spawned).toEqual([]);
+  });
+  it.each([".env.example", ".env.sample", ".env.template"])(
+    "Should open the %s sample without a credential confirmation",
+    async name => {
+      const path = `/repo/${name}`;
+      const h = harness({ entries: { ...REPO, [path]: "file" } });
+      expect(await h.opener.openWith({ target: "vscode", path, roots: ["/repo"] }, WINDOW)).toEqual(
+        { status: "opened" }
+      );
+      expect(h.dialogs).toEqual([]);
+    }
+  );
+  it("Should delegate configured target to the existing editor command", async () => {
+    const h = harness({ entries: REPO });
+    const params: OpenWithParams = {
+      target: "configured",
+      path: "/repo/a.ts",
+      line: 9,
+      roots: ["/repo"],
+    };
+    expect(await h.opener.openWith(params, WINDOW)).toEqual({ status: "opened" });
+    expect(h.spawned[0]).toMatchObject({ command: "/usr/bin/code", args: ["-g", "/repo/a.ts:9"] });
   });
 });

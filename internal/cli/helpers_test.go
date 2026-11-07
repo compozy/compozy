@@ -135,6 +135,7 @@ type stubClient struct {
 	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	listSessionPageFn         func(context.Context, SessionListQuery) (SessionListPage, error)
 	mutateSessionGoalFn       func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
+	sessionChangesFn          func(context.Context, string, sessionChangesOptions) (sessionChangesRecord, error)
 	listSessionCommandsFn     func(context.Context, string) (SessionCommandsRecord, error)
 	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn              func(context.Context, string) (SessionRecord, error)
@@ -3810,4 +3811,12 @@ func (s *stubClient) PermissionRollup(
 		return s.permissionRollupFn(ctx, q)
 	}
 	return contract.PermissionRollupResponse{}, nil
+}
+
+func (s *stubClient) SessionChanges(
+	ctx context.Context,
+	id string,
+	options sessionChangesOptions,
+) (sessionChangesRecord, error) {
+	return s.sessionChangesFn(ctx, id, options)
 }

@@ -67,9 +67,15 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 	); err != nil {
 		t.Fatalf("write worktree file: %v", err)
 	}
+	parent, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+		AgentName: "local-default", Name: "mention-files-parent", Workspace: harness.WorkspaceID,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession(parent) error = %v", err)
+	}
 	bound, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName: "local-default", Name: "mention-files",
-		Workspace: harness.WorkspaceID, Worktree: created.ID,
+		Workspace: harness.WorkspaceID, Worktree: created.ID, ParentSessionID: parent.ID,
 	})
 	if err != nil {
 		t.Fatalf("CreateSession(bound worktree) error = %v", err)
@@ -163,7 +169,8 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertWorktreeE2EJSONParity(t, "search", x, y)
-			if x.Engine != "git_grep" || x.Totals.Matches != 1 || len(x.Files) != 1 || x.Files[0].Path != "cmd/main.go" {
+			if x.Engine != "git_grep" || x.Totals.Matches != 1 || len(x.Files) != 1 ||
+				x.Files[0].Path != "cmd/main.go" {
 				t.Fatalf("search=%+v", x)
 			}
 			if strings.Contains(string(mustSearchJSON(t, x)), root) {
@@ -262,6 +269,65 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertWorktreeE2EJSONParity(t, "changes summary", a, b)
+		if _, err := harness.PromptSessionHTTP(ctx, bound.ID, "noop"); err != nil {
+			t.Fatal(err)
+		}
+		client := attentionHostedMCPClient(t, ctx, harness, "local-default", bound.ID)
+		defer closeAttentionMCPClient(t, client)
+		var native compozycontract.SessionChangesResponse
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			"compozy__session_changes",
+			map[string]any{"session_id": bound.ID, "scope": "uncommitted"},
+			&native,
+		)
+		assertWorktreeE2EJSONParity(t, "native changes summary", a, native)
+		stdout, stderr, cliErr := harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"changes",
+			bound.ID,
+			"--scope",
+			"uncommitted",
+			"--json",
+		)
+		if cliErr != nil {
+			t.Fatalf("CLI: %v %s", cliErr, stderr)
+		}
+		var cli compozycontract.SessionChangesResponse
+		if err := json.Unmarshal([]byte(stdout), &cli); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "CLI changes summary", a, cli)
+		stdout, stderr, cliErr = harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"changes",
+			bound.ID,
+			"--scope",
+			"uncommitted",
+		)
+		if cliErr != nil || !strings.Contains(stdout, "STATUS") || !strings.Contains(stdout, "files changed") {
+			t.Fatalf("CLI table: %v %s %s", cliErr, stdout, stderr)
+		}
+		_, stderr, cliErr = harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"changes",
+			bound.ID,
+			"--base",
+			"missing-s7-base",
+		)
+		assertAttentionCLIExitCode(t, cliErr, 1, stderr)
+		if !strings.Contains(stderr, "base_not_found") {
+			t.Fatalf("CLI error: %s", stderr)
+		}
+
 		if a.Root.WorktreeID != created.ID || a.Revision == "" || len(a.Files) == 0 {
 			t.Fatalf("summary: %+v", a)
 		}
@@ -277,6 +343,43 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 		if len(pa.Patches) != 1 || !strings.Contains(pa.Patches[0].Patch, "package wt") {
 			t.Fatalf("patches: %+v", pa)
 		}
+
+		var nativeDetails struct {
+			compozycontract.SessionChangesResponse
+			Patches []compozycontract.ChangePatchPayload `json:"patches"`
+		}
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			"compozy__session_changes",
+			map[string]any{"session_id": bound.ID, "scope": "uncommitted", "patch_paths": []string{"worktree_only.go"}},
+			&nativeDetails,
+		)
+		assertWorktreeE2EJSONParity(t, "native patches", pa.Patches, nativeDetails.Patches)
+		stdout, stderr, cliErr = harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"changes",
+			bound.ID,
+			"--scope",
+			"uncommitted",
+			"--patch",
+			"worktree_only.go",
+			"--json",
+		)
+		if cliErr != nil {
+			t.Fatalf("CLI patches: %v %s", cliErr, stderr)
+		}
+		var cliDetails struct {
+			compozycontract.SessionChangesResponse
+			Patches []compozycontract.ChangePatchPayload `json:"patches"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &cliDetails); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "CLI patches", pa.Patches, cliDetails.Patches)
 		var ca, cb compozycontract.SessionChangeContentsResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/contents"+query, nil, &ca); err != nil {
 			t.Fatal(err)

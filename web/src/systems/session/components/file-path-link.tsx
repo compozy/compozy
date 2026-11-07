@@ -89,7 +89,8 @@ function FilePathAffordance({
         {editor ? (
           <>
             {" · "}
-            <Kbd>{editor.modifier === "meta" ? "⌘-click" : "Ctrl-click"}</Kbd> opens in editor
+            <Kbd>{editor.modifier === "meta" ? "⌘-click" : "Ctrl-click"}</Kbd> opens in last-used
+            app
           </>
         ) : null}
       </TooltipContent>
