@@ -1045,6 +1045,83 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: failed decision persistence never skips recovered-process termination;
+	// its durable stop receipt retries settlement with the original cancellation reason.
+	// Owner/canonical suite: Manager shared session stop operations, using the attention I/O boundary.
+	for _, boot := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should terminate a recovered process before retrying failed decisions with boot %t", boot),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				catalog := openManagerInputQueueStore(t)
+				registerManagerInputQueueWorkspace(t, catalog, h)
+				h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+				cleanupTestManager(t, h.manager)
+				active := seedRecoveredLocalStop(t, h)
+				meta := readMeta(t, active.MetaPath())
+				if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+					InteractionID: "lost-decision", SessionID: active.ID, Kind: store.PendingInteractionKindPermission,
+					ProviderRequestID: "lost-decision", TurnID: "lost-turn", CreatedAt: h.manager.now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+				writeErr := errors.New("decision storage unavailable")
+				fault := &recoveredStopAttentionFault{SessionAttentionStore: catalog, writeErr: writeErr}
+				fault.fail.Store(true)
+				t.Cleanup(func() { fault.fail.Store(false) })
+				h.manager.attentionStore = fault
+				var err error
+				if boot {
+					err = h.manager.RecoverPendingStops(t.Context())
+				} else {
+					err = h.manager.StopWithCause(t.Context(), active.ID, CauseUserRequested, "")
+				}
+				exited, exitErr := procutil.VerifyProcessExit(
+					meta.Liveness.SubprocessPID,
+					*meta.Liveness.SubprocessStartedAt,
+				)
+				if exitErr != nil || !exited {
+					t.Fatalf(
+						"decision persistence prevented orphan termination: exited=%t, %v; recovery=%v",
+						exited,
+						exitErr,
+						err,
+					)
+				}
+				if !errors.Is(err, writeErr) || !errors.Is(err, ErrRecoveryPersistence) {
+					t.Fatalf("decision settlement failure = %v", err)
+				}
+				if _, err := os.Stat(h.manager.recoveredStopReceiptPath(active.ID)); err != nil {
+					t.Fatalf("failed decision settlement lost its retry receipt: %v", err)
+				}
+				fault.fail.Store(false)
+				restarted := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+				cleanupTestManager(t, restarted)
+				if err := restarted.RecoverPendingStops(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := catalog.ListPendingInteractions(
+					t.Context(),
+					active.ID,
+					[]string{store.PendingInteractionStatusCanceled},
+				)
+				wantResolution := "session-stopped"
+				if boot {
+					wantResolution = "failed-by-restart"
+				}
+				if err != nil || len(rows) != 1 || rows[0].Resolution != wantResolution {
+					t.Fatalf("retried decision = %#v, %v; want %s", rows, err, wantResolution)
+				}
+				if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 2 {
+					t.Fatal("decision retry duplicated or omitted the recovered stop event")
+				}
+				if _, err := os.Stat(restarted.recoveredStopReceiptPath(active.ID)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("settled decision retained its retry receipt: %v", err)
+				}
+			},
+		)
+	}
 	// Invariant: Stop's durable Goal pause precedes settlement of a prompt setup it interrupts.
 	// Owner/canonical suite: Manager stop lifecycle, with the Goal persistence I/O boundary held.
 	t.Run("Should settle managed setup ambiguity only after the Goal pause is persisted", func(t *testing.T) {
@@ -2877,6 +2954,22 @@ func seedRecoveredStoppingProcess(t *testing.T, h *harness, active *Session) {
 type stopGoalHandler struct {
 	GoalCommandHandler
 	stop func(context.Context, *Info) error
+}
+
+// recoveredStopAttentionFault injects failure only at the decision-persistence I/O boundary.
+type recoveredStopAttentionFault struct {
+	store.SessionAttentionStore
+	fail     atomic.Bool
+	writeErr error
+}
+
+func (s *recoveredStopAttentionFault) TransitionPendingInteraction(
+	ctx context.Context, transition store.PendingInteractionTransition,
+) (store.SessionAttentionCommit, error) {
+	if s.fail.Load() {
+		return store.SessionAttentionCommit{}, s.writeErr
+	}
+	return s.SessionAttentionStore.TransitionPendingInteraction(ctx, transition)
 }
 
 func (h *stopGoalHandler) StopSessionGoals(ctx context.Context, info *Info) error {

@@ -24,12 +24,6 @@ func (m *Manager) RecoverPendingStops(ctx context.Context) error {
 		if _, active := m.Get(info.ID); active {
 			continue
 		}
-		// Preserve restart attribution before generic stop settlement cancels lost-turn decisions.
-		if info.StopReason == store.StopAgentCrashed || info.StopReason == store.StopShutdown {
-			if _, err := m.ExpireRestartInteractions(ctx, info.ID); err != nil {
-				return fmt.Errorf("session: recover restart interactions for %s: %w", info.ID, err)
-			}
-		}
 		cause := CauseProcessExited
 		if info.StopReason == store.StopShutdown {
 			cause = CauseShutdown

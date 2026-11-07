@@ -5,7 +5,23 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
+
+// settleRecoveredStopInteractions runs only after process exit is verified.
+// Retain restart attribution before the generic stop cancellation can settle decisions.
+func (m *Manager) settleRecoveredStopInteractions(ctx context.Context, meta *store.SessionMeta) error {
+	var err error
+	if reason := sessionMetaStopReason(meta); reason == store.StopAgentCrashed || reason == store.StopShutdown {
+		_, err = m.ExpireRestartInteractions(ctx, meta.ID)
+	} else {
+		err = m.cancelSessionInteractions(ctx, meta.ID, "session-stopped")
+	}
+	if err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
+	return nil
+}
 
 func (m *Manager) finishRecoveredStop(ctx context.Context, id string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
@@ -58,8 +74,8 @@ func (m *Manager) settleRecoveredStop(
 	if err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
-	if err := m.cancelSessionInteractions(settleCtx, run.recoveredID, "session-stopped"); err != nil {
-		return errors.Join(ErrRecoveryPersistence, err)
+	if err := m.settleRecoveredStopInteractions(settleCtx, &meta); err != nil {
+		return err
 	}
 	info := m.sessionInfoFromMeta(settleCtx, &meta)
 	info.StopCause = outcome.Cause
