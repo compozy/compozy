@@ -157,11 +157,14 @@ describe("AgentTeamPage", () => {
         { ...base, key: "empty", scopes: [] },
       ],
     });
-    let more = screen.queryByRole("button", { name: "Load more agents" });
-    while (more) {
-      await userEvent.click(more);
-      more = screen.queryByRole("button", { name: "Load more agents" });
+    // 103 always-on agents page in by 30: 30, 60, 90, then all of them.
+    const shown = () => screen.getAllByTestId(/^agent-card-/).length;
+    expect(shown()).toBe(30);
+    for (const expected of [60, 90, 103]) {
+      await userEvent.click(screen.getByRole("button", { name: "Load more agents" }));
+      expect(shown()).toBe(expected);
     }
+    expect(screen.queryByRole("button", { name: "Load more agents" })).toBeNull();
     await waitFor(() =>
       expect(requests.flatMap(request => request.items).some(item => item.name === "wide")).toBe(
         true
