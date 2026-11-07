@@ -1118,7 +1118,11 @@ describe("Add", () => {
         screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
       ).toHaveAccessibleDescription(`Added but couldn't turn on: ${invalid}`)
     );
-    expect(io.error).toHaveBeenCalledWith(invalid, { description: "extension_invalid" });
+    // One Retry, one toast: the row's own, keyed so a later Retry replaces it.
+    const retryToasts = io.error.mock.calls.filter(call => call[0] === invalid);
+    expect(retryToasts).toEqual([
+      [invalid, { description: "extension_invalid", id: expect.any(String) }],
+    ]);
     expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(invalid);
     await userEvent.click(
       screen.getByRole("button", { name: `Retry turning on ${verified.name}` })

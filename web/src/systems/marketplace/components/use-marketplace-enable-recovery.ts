@@ -37,7 +37,8 @@ export function useMarketplaceEnableRecovery(
   announce: (message: string) => void
 ) {
   const queryClient = useQueryClient();
-  const toggle = useToggleExtension();
+  // This hook reports a failed enable itself, with the daemon's code, on the row's own toast.
+  const toggle = useToggleExtension({ reportErrors: false });
   const failures = useQuery(marketplaceEnableFailuresOptions(destination)).data ?? NO_FAILURES;
   const [enabling, setEnabling] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -85,8 +86,8 @@ export function useMarketplaceEnableRecovery(
       const code = marketplaceErrorCode(error);
       // A failed Retry replaces the cause the row describes: the daemon's newest answer wins.
       updateCause(scope, entry, { error: message, code: code ?? "extension_enable_failed" });
-      if (code) toast.error(message, { description: code });
-      else toast.error(message);
+      // One toast per row: a later Retry replaces it instead of stacking a copy.
+      toast.error(message, { id: key, ...(code ? { description: code } : {}) });
       announce(message);
     } finally {
       setEnabling(current => {

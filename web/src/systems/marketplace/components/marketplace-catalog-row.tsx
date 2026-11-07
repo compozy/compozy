@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { CircleAlert } from "@compozy/ui/icons";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import type { InstalledExtensionView } from "@/systems/extensions";
 import {
@@ -152,9 +152,10 @@ function MarketplaceSetUpAction({
     needs.missingInputs.length === 0 && needs.needsAuthorization.length === 1
       ? needs.needsAuthorization[0]
       : undefined;
+  // Read in the background, never awaited: Set up is usable from the inventory right away, and a
+  // press before the live server answers opens the detail's setup instead of waiting on it.
   const live = useMarketplaceExtensionMCPServer(target, target !== undefined);
   const authorization = useMCPDefinitionAuthorization();
-  const signInLoading = target !== undefined && !live.server && live.query.isPending;
   const setUp = () => {
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
@@ -173,17 +174,12 @@ function MarketplaceSetUpAction({
       <Button
         aria-label={`Set up ${entry.name}`}
         data-testid={`marketplace-setup-${entry.entry_id}`}
-        disabled={signInLoading}
         onClick={setUp}
         size="sm"
         type="button"
         variant="secondary"
       >
-        {signInLoading ? (
-          <Spinner aria-hidden="true" className="size-3.5" />
-        ) : (
-          <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
-        )}
+        <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
         Set up
       </Button>
       {target ? (

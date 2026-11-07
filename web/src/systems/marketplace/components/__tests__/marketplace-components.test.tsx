@@ -1021,7 +1021,7 @@ describe("Marketplace page and cards", () => {
   it("Should fall through a failed feed image to a brand mark", async () => {
     const view = setup(
       <MarketplaceEntryLogo
-        entry={{ entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" }}
+        entry={{ entry_id: "slack", name: "Slack", icon: "data:image/png;base64,AAAA" }}
       />
     );
     await waitFor(() => expect(view.container.querySelector("img")).not.toBeNull());
@@ -1045,8 +1045,22 @@ describe("Marketplace page and cards", () => {
     expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
     expect(view.container.querySelector('[data-rung="marble"]')).toBeNull();
   });
+  // Invariant: a monochrome brand's feed image has a fixed ink that vanishes on one theme, so its
+  // theme-following mark (currentColor) wins over the image in both themes.
+  it.each(["github", "linear"])(
+    "Should draw the theme-following %s mark instead of its fixed-ink feed image",
+    entryId => {
+      const view = render(
+        <MarketplaceEntryLogo
+          entry={{ entry_id: entryId, name: entryId, icon: "data:image/svg+xml;base64,AAAA" }}
+        />
+      );
+      expect(view.container.querySelector("img")).toBeNull();
+      expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
+    }
+  );
   it("Should retry a new icon URL after the previous image failed", () => {
-    const item = { entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" };
+    const item = { entry_id: "slack", name: "Slack", icon: "data:image/png;base64,AAAA" };
     const view = render(<MarketplaceEntryLogo entry={item} />);
     fireEvent.error(view.container.querySelector("img")!);
     expect(view.container.querySelector("img")).toBeNull();
@@ -2110,11 +2124,34 @@ describe("Category browse and row actions", () => {
     );
     setup();
     const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
-    await waitFor(() => expect(setUp).toBeEnabled());
+    // The live server read has answered, so the press starts that server's sign-in in place.
+    await waitFor(() => expect(clients.at(-1)!.isFetching()).toBe(0));
     await userEvent.click(setUp);
     await screen.findByRole("dialog", { name: "Authorize github" });
     await waitFor(() => expect(begins).toHaveLength(1));
     expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
+  });
+
+  // Invariant: Set up is usable from the inventory alone; a slow live server read never disables
+  // it, and a press before that read answers opens the detail's setup instead of waiting.
+  it("Should keep Set up usable while the live server read is pending [UT-032]", async () => {
+    installedRow({ mcp_servers: [signInServer] });
+    let reads = 0;
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", () => {
+        reads += 1;
+        return new Promise<never>(() => {});
+      })
+    );
+    const { router } = setup();
+    const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
+    await waitFor(() => expect(reads).toBe(1));
+    expect(setUp).toBeEnabled();
+    await userEvent.click(setUp);
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/marketplace/${entry.entry_id}`)
+    );
+    expect(router.state.location.search).toMatchObject({ setup: 1, source: entry.source });
   });
 
   // UT-032 [US-006.AC-2]: a missing input opens the detail asking it to focus setup.
