@@ -9,6 +9,8 @@ export interface SettingsRestartViewState {
   failureReason?: string;
   activeSessionCount: number;
   isTriggerPending: boolean;
+  /** The restarting daemon has been unreachable for longer than a normal restart takes. */
+  isOutageProlonged?: boolean;
   trigger: () => void;
   dismiss: () => void;
 }
@@ -76,7 +78,9 @@ export function settingsRestartPresentation(
       phase: "polling",
       tone: "info",
       title: "Restarting…",
-      body: "CompozyOS comes back in a few seconds. Sessions reconnect on their own.",
+      body: state.isOutageProlonged
+        ? "CompozyOS is taking longer than usual. If it doesn't come back, run compozy daemon start and check its logs."
+        : "CompozyOS comes back in a few seconds. Sessions reconnect on their own.",
       role: "status",
       sessionLabel: null,
       dismissLabel: null,

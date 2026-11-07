@@ -5,11 +5,17 @@ import { statusOptions, type StatusPayload } from "@/systems/status";
 
 import { triggerSettingsRestart } from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
-import { settingsApplyRecordsOptions, settingsRestartStatusOptions } from "../lib/query-options";
+import {
+  isRestartStatusUnreachable,
+  settingsApplyRecordsOptions,
+  settingsRestartStatusOptions,
+} from "../lib/query-options";
 import { isTerminalRestartStatus } from "../lib/restart-status";
 import { useSettingsRestartState } from "../stores/use-settings-restart-store";
 import { settingsRestartStore } from "../stores/settings-restart-store";
 import { invalidateSettingsApplyRecords } from "./settings-mutation-helpers";
+
+const RESTART_OUTAGE_GUIDANCE_MS = 30_000;
 
 function selectRestartReadiness(status: StatusPayload) {
   return {
@@ -21,6 +27,7 @@ function selectRestartReadiness(status: StatusPayload) {
 export function useSettingsRestart() {
   const queryClient = useQueryClient();
   const operationId = useSettingsRestartState(state => state.operationId);
+  const operationStartedAt = useSettingsRestartState(state => state.operationStartedAt);
   const lastMutation = useSettingsRestartState(state => state.lastMutation);
   const mutationGeneration = useSettingsRestartState(state => state.mutationGeneration);
   const snoozedMutationGeneration = useSettingsRestartState(
@@ -32,6 +39,7 @@ export function useSettingsRestart() {
     onSuccess: response => {
       settingsRestartStore.trigger.restartOperationStarted({
         operationId: response.operation_id,
+        startedAt: Date.now(),
       });
       void queryClient.invalidateQueries({
         queryKey: settingsKeys.restartStatus(response.operation_id),
@@ -42,7 +50,18 @@ export function useSettingsRestart() {
   const statusQuery = useQuery(settingsRestartStatusOptions(operationId));
   const daemonStatusQuery = useQuery({ ...statusOptions(), select: selectRestartReadiness });
   const applyRecordsQuery = useQuery(settingsApplyRecordsOptions({ limit: 1 }));
-  const resolvedOperationId = statusQuery.isError ? null : operationId;
+  // The daemon is unreachable while it restarts: transport failures keep polling on "Restarting…".
+  // An HTTP error ends the operation and falls back to "Restart needed" and its Restart action.
+  const isStatusUnreachable = isRestartStatusUnreachable(statusQuery.error);
+  const resolvedOperationId = statusQuery.isError && !isStatusUnreachable ? null : operationId;
+  // Polling continues through a slow restart; past a normal restart's length the notice adds
+  // guidance. The outage counts from the restart's start, which survives a page refresh, or else
+  // from the last successful read for an operation this tab did not start.
+  const outageSince = operationStartedAt ?? statusQuery.dataUpdatedAt;
+  const isOutageProlonged =
+    isStatusUnreachable &&
+    outageSince > 0 &&
+    statusQuery.errorUpdatedAt - outageSince >= RESTART_OUTAGE_GUIDANCE_MS;
   const triggerStatus =
     triggerMutation.data?.operation_id === operationId ? triggerMutation.data : null;
   const status = statusQuery.data?.status ?? triggerStatus?.status ?? null;
@@ -77,6 +96,7 @@ export function useSettingsRestart() {
     trigger: triggerMutation.mutate,
     triggerAsync: triggerMutation.mutateAsync,
     isTriggerPending: triggerMutation.isPending,
+    isOutageProlonged,
     triggerError: triggerMutation.error,
     isRestartRequired,
     isNoticeSnoozed,

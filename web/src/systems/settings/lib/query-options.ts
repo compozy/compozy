@@ -294,9 +294,16 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
         ? false
         : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
+    // The daemon is local: browser connectivity must not pause polling a restart.
+    networkMode: "always",
     retry: (failureCount, error) =>
       getErrorStatus(error) === 404 ? false : shouldRetrySettingsQuery(failureCount, error),
   });
+}
+
+/** A status poll that never reached the daemon, as while it restarts; polling continues. */
+export function isRestartStatusUnreachable(error: Error | null): boolean {
+  return error !== null && getErrorStatus(error) === null;
 }
 
 function isTerminalRestartError(error: Error | null): boolean {
