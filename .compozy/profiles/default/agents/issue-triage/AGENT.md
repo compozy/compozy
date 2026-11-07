@@ -6,6 +6,9 @@ name: issue-triage
 provider: codex
 model: gpt-6.1-terra
 reasoning_effort: high
+acp_options:
+  - id: mode
+    value_id: agent-full-access
 permissions: approve-all
 category_path:
   - CompozyOS
