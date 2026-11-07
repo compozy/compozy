@@ -346,6 +346,46 @@ describe("useSettingsRestart", () => {
     expect(result.current.status).toBeNull();
   });
 
+  // Invariant: the daemon is unreachable while it restarts; that outage keeps the operation
+  // polling as "Restarting…" until the replacement reports a terminal status.
+  it("Should keep the restart operation while the restarting daemon is unreachable", async () => {
+    settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_outage" });
+    const stopping = {
+      operation_id: "op_outage",
+      status: "stopping" as const,
+      old_pid: 1000,
+      old_socket_path: "/tmp/compozy.sock",
+      old_started_at: "2026-04-17T10:00:00Z",
+      active_session_count: 0,
+      started_at: "2026-04-17T10:05:00Z",
+      updated_at: "2026-04-17T10:05:01Z",
+    };
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue(stopping);
+    const { wrapper, queryClient } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe("stopping"));
+
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: settingsKeys.restartStatus("op_outage") });
+    });
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy());
+    expect(result.current.operationId).toBe("op_outage");
+    expect(result.current.status).toBe("stopping");
+
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue({
+      ...stopping,
+      status: "ready",
+      new_pid: 2000,
+      updated_at: "2026-04-17T10:05:09Z",
+    });
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: settingsKeys.restartStatus("op_outage") });
+    });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.operationId).toBe("op_outage");
+  });
+
   it("Should reset the restart singleton to its exact initial snapshot", () => {
     settingsRestartStore.trigger.settingsMutationRecorded({
       mutation: {

@@ -299,7 +299,8 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
   });
 }
 
-function isTerminalRestartError(error: Error | null): boolean {
+/** A restart status poll that can never succeed: the operation is unknown or not readable. */
+export function isTerminalRestartError(error: Error | null): boolean {
   const status = getErrorStatus(error);
   return status === 403 || status === 404;
 }

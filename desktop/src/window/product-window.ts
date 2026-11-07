@@ -180,6 +180,13 @@ export class ProductWindow {
     window.webContents.openDevTools({ mode: "detach" });
   }
 
+  /** Reloads the current route from the runtime, bypassing the HTTP cache like every shell load. */
+  async reload(): Promise<void> {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return;
+    await window.loadURL(window.webContents.getURL() || this.#origin, SHELL_LOAD_OPTIONS);
+  }
+
   async flushState(): Promise<void> {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;

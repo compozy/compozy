@@ -7,16 +7,18 @@ import type { WindowTheme } from "./window-theme";
 export class BootWindow {
   readonly #window: BrowserWindow;
   readonly #presentation: WindowPresentation;
-  #lastSnapshot: ShellSnapshot = { state: "resolving" };
+  #lastSnapshot: ShellSnapshot;
 
   constructor(options: {
     pagePath: string;
+    snapshot?: ShellSnapshot;
     preloadPath: string;
     presentation: WindowPresentation;
     theme: Pick<WindowTheme, "backgroundColor" | "track">;
     onError: (error: Error) => void;
   }) {
     this.#presentation = options.presentation;
+    this.#lastSnapshot = options.snapshot ?? { state: "resolving" };
     this.#window = new BrowserWindow({
       width: 420,
       height: 460,
@@ -54,6 +56,11 @@ export class BootWindow {
     if (!this.#window.isDestroyed()) {
       presentWindow(this.#window, this.#presentation);
     }
+  }
+
+  /** Whether the window was closed; a closed boot window cannot be shown again. */
+  isDestroyed(): boolean {
+    return this.#window.isDestroyed();
   }
 
   close(): void {

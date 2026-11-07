@@ -5,7 +5,11 @@ import { statusOptions, type StatusPayload } from "@/systems/status";
 
 import { triggerSettingsRestart } from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
-import { settingsApplyRecordsOptions, settingsRestartStatusOptions } from "../lib/query-options";
+import {
+  isTerminalRestartError,
+  settingsApplyRecordsOptions,
+  settingsRestartStatusOptions,
+} from "../lib/query-options";
 import { isTerminalRestartStatus } from "../lib/restart-status";
 import { useSettingsRestartState } from "../stores/use-settings-restart-store";
 import { settingsRestartStore } from "../stores/settings-restart-store";
@@ -42,7 +46,9 @@ export function useSettingsRestart() {
   const statusQuery = useQuery(settingsRestartStatusOptions(operationId));
   const daemonStatusQuery = useQuery({ ...statusOptions(), select: selectRestartReadiness });
   const applyRecordsQuery = useQuery(settingsApplyRecordsOptions({ limit: 1 }));
-  const resolvedOperationId = statusQuery.isError ? null : operationId;
+  // The daemon is unreachable while it restarts, so only a terminal status error ends the
+  // operation; transport failures keep polling and keep the notice on "Restarting…".
+  const resolvedOperationId = isTerminalRestartError(statusQuery.error) ? null : operationId;
   const triggerStatus =
     triggerMutation.data?.operation_id === operationId ? triggerMutation.data : null;
   const status = statusQuery.data?.status ?? triggerStatus?.status ?? null;
