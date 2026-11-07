@@ -120,7 +120,10 @@ func (d *TriageDispatcher) Dispatch(
 }
 
 func (d *TriageDispatcher) cleanup(ctx context.Context, id, workspaceID string, quiet bool) error {
-	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), d.StopTimeout)
+	// The manager bounds its own termination ladder. A shorter wait would abandon a stop
+	// that is still escalating and skip the archive or delete that should follow it.
+	budget := max(d.StopTimeout, TerminationBudget(d.Manager.stopConfig))
+	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer stopCancel()
 	if err := d.Manager.Stop(stopCtx, id); err != nil {
 		return err
