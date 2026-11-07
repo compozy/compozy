@@ -16,7 +16,7 @@ Done means an open, ready PR on its final head, the merge-gate review criterion 
 | Backend | `codex` | `gpt-6-astra` | `medium` |
 | Frontend | `claude` | `claude-opus-5-5` | `medium` |
 | Issue fix | `claude` | `claude-opus-5-5` | `medium` |
-| Final review | `codex` and `claude` | `gpt-6-astra`, `claude-opus-5-5` | `xhigh`, `high` |
+| Final review | `codex` and `claude` | `gpt-6-astra`, `claude-opus-5-5` | `xhigh`, `medium` |
 
 Operator overrides win. Never substitute a model silently.
 
