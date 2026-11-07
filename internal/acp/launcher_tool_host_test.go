@@ -22,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -181,7 +182,11 @@ func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
 	t.Run("Should keep internal daemon handoff variables out of the agent launch", func(t *testing.T) {
 		t.Parallel()
 
-		keys := []string{"COMPOZY_INTERNAL_RESTART_OPERATION_ID", "COMPOZY_INTERNAL_LOG_MIRROR_STDERR"}
+		keys := []string{
+			"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
+			"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
+			procutil.InternalHandoffEnvPrefix + "TEST_HANDOFF",
+		}
 		command := "sh -c true"
 		env := []string{"PATH=" + os.Getenv("PATH")}
 		for _, key := range keys {

@@ -230,6 +230,23 @@ func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 	}
 }
 
+// Invariant: an unspecified launch env inherits the parent without internal handoff variables.
+// not parallel: mutates process environment with t.Setenv.
+func TestEffectiveEnvironmentFallbackDropsInternalHandoff(t *testing.T) {
+	t.Setenv("COMPOZY_INTERNAL_RESTART_OPERATION_ID", "restart-1")
+	t.Setenv("SUBPROCESS_FALLBACK_MARKER", "kept")
+
+	t.Run("Should inherit the parent environment without internal handoff variables", func(t *testing.T) {
+		env := effectiveEnvironment(nil)
+		if _, ok := lookupEnvForPlatform(env, "COMPOZY_INTERNAL_RESTART_OPERATION_ID", false); ok {
+			t.Fatalf("effectiveEnvironment(nil) kept the internal handoff in %#v", env)
+		}
+		if got, ok := lookupEnvForPlatform(env, "SUBPROCESS_FALLBACK_MARKER", false); !ok || got != "kept" {
+			t.Fatalf("effectiveEnvironment(nil) marker = %q, %t; want kept, true", got, ok)
+		}
+	})
+}
+
 func TestResolveExecutableRejectsImplicitRelativePath(t *testing.T) {
 	t.Parallel()
 

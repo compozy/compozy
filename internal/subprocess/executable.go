@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 const defaultWindowsPathExt = ".COM;.EXE;.BAT;.CMD"
@@ -96,9 +98,11 @@ func executableSearchBase(dir string) (string, error) {
 	return filepath.Clean(base), nil
 }
 
+// effectiveEnvironment inherits the parent environment for an unspecified env, without the
+// parent's internal handoff variables, which never reach a launched subprocess.
 func effectiveEnvironment(env []string) []string {
 	if len(env) == 0 {
-		return os.Environ()
+		return procutil.WithoutInternalHandoffEnv(os.Environ())
 	}
 	return append([]string(nil), env...)
 }
