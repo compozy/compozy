@@ -460,6 +460,14 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		if got, want := foreignKeys, 1; got != want {
 			t.Fatalf("PRAGMA foreign_keys = %d, want %d", got, want)
 		}
+
+		var tempStore int
+		if err := conn.QueryRowContext(testutil.Context(t), "PRAGMA temp_store").Scan(&tempStore); err != nil {
+			t.Fatalf("QueryRowContext(PRAGMA temp_store) error = %v", err)
+		}
+		if got, want := tempStore, 2; got != want {
+			t.Fatalf("PRAGMA temp_store = %d, want %d (MEMORY keeps statement journals off disk)", got, want)
+		}
 	}
 
 	firstConn, err := db.Conn(testutil.Context(t))

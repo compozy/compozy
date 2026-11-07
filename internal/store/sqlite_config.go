@@ -88,6 +88,10 @@ func sqliteDSNWithPragmas(path string, runtimePragmas bool, extraPragmas ...stri
 	if runtimePragmas {
 		query.Add("_pragma", "journal_mode(WAL)")
 		query.Add("_pragma", "synchronous(NORMAL)")
+		// Statement journals stay in memory. Otherwise a multi-index UPDATE spills
+		// its journal to a temp file inside the write transaction, and that
+		// file create/write waits on filesystem journal commits (#1344).
+		query.Add("_pragma", "temp_store(MEMORY)")
 	}
 	for _, pragma := range extraPragmas {
 		if trimmed := strings.TrimSpace(pragma); trimmed != "" {
