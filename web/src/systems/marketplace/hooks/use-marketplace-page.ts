@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { toast } from "@compozy/ui";
+import { marketplaceCatalogUnreachable } from "../lib/catalog-unreachable";
 import { installedDisplayName } from "../lib/marketplace-installed-view";
 import { useExtensionInventory } from "@/systems/extensions";
 
@@ -46,10 +47,7 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
   const sections = searching ? [] : (home.data?.sections ?? []);
   const envelope = searching ? first : home.data;
   const hasItems = searching ? catalogItems.length > 0 : sections.length > 0;
-  const unavailable =
-    envelope?.error_class && !hasItems
-      ? new Error(envelope.error || `Catalog unavailable (${envelope.error_class})`)
-      : null;
+  const unavailable = marketplaceCatalogUnreachable(envelope, hasItems);
   const reader = searching ? catalog : home;
   const updates = inventory.data.filter(item => item.updateAvailable);
   return {

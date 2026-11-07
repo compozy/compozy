@@ -853,6 +853,8 @@ describe("Marketplace page and cards", () => {
       stale: true,
       error_class: "network",
       error: "feed unavailable",
+      // No enabled source answered or holds cached rows: the catalog is unreachable as a whole.
+      sources: catalog.sources.map(source => ({ ...source, state: "degraded", count: 0 })),
     };
     setup();
     expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
@@ -2003,6 +2005,7 @@ describe("Category browse and row actions", () => {
               total: 0,
               error_class: "source_unreachable",
               error: "feed unavailable",
+              sources: catalog.sources.map(source => ({ ...source, state: "degraded", count: 0 })),
             })
       )
     );
@@ -2015,6 +2018,31 @@ describe("Category browse and row actions", () => {
     await userEvent.click(within(failure).getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
     expect(screen.queryByText("Couldn't load the marketplace")).not.toBeInTheDocument();
+  });
+
+  // Invariant: one degraded source beside a healthy one is a partial failure; a category search
+  // with no matches is "No results", never "The marketplace is unreachable".
+  it("Should show no results, not unreachable, when only one source is degraded", async () => {
+    server.use(
+      http.get("*/api/marketplace", () =>
+        HttpResponse.json({
+          ...catalog,
+          items: [],
+          total: 0,
+          stale: true,
+          error_class: "rate_limited",
+          error: "GitHub rate limit",
+          sources: [
+            { ...catalog.sources[0]!, state: "ok" },
+            { ...catalog.sources[0]!, name: "team-plugins", state: "degraded", count: 0 },
+          ],
+        })
+      )
+    );
+    setup(undefined, "/marketplace/categories/productivity?q=zzz");
+    expect(await screen.findByText('No results for "zzz" in Productivity')).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-category-error")).toBeNull();
   });
 
   // UT-024 [US-002.EC-1]: an unknown id is a not-found state with a way back to Browse.

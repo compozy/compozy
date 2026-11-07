@@ -1,6 +1,7 @@
 import { useExtensionInventory } from "@/systems/extensions";
 
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
+import { marketplaceCatalogUnreachable } from "../lib/catalog-unreachable";
 import { useMarketplaceCategory } from "./use-marketplace";
 
 /**
@@ -28,11 +29,8 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
     reader.error.status === 400 &&
     reader.error.diagnosticCode === "marketplace_category_unknown";
   const failed = unknownCategory ? null : reader.error;
-  // The daemon answered but reported its sources unreachable, with no rows to show.
-  const unavailable =
-    !failed && first?.error_class && items.length === 0
-      ? new Error(first.error || `Catalog unavailable (${first.error_class})`)
-      : null;
+  // The daemon answered but no source did; one degraded source leaves an empty result empty.
+  const unavailable = failed ? null : marketplaceCatalogUnreachable(first, items.length > 0);
   return {
     items,
     label,
