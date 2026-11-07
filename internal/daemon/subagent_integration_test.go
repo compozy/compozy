@@ -4972,8 +4972,7 @@ func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashChec
 			}
 			wantErr = session.ErrPendingPermissionExpired
 		case "b4-pending":
-			// Verified recovered-stop finalization precedes the boot interaction sweep.
-			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "session-stopped" ||
+			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "failed-by-restart" ||
 				row.ResolvedBy != "system" || row.ResolvedAt == nil {
 				t.Fatalf("restart = %#v", row)
 			}
