@@ -11,7 +11,7 @@ bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /tmp/mpc-shots/s8/web-search-flat-payments.png
+evidence: /tmp/mpc-shots/final/search-results.png
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-landing-browse
 ---
@@ -71,3 +71,10 @@ Isolated lab (own home, ports 49760/49761, worktree web dev server), default sou
 PASS — `/marketplace?q=payments` replaces the sections with five flat results across sources, each
 showing its category word (Finance & Payments, Cloud & Infrastructure, More); matches come from name
 and description.
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+PASS — `/marketplace?q=design` returns 25 flat results with category words; rows that cannot load
+read Blocked (BUG-20261107-plugin-archive-symlink-unsupported).

@@ -6,12 +6,12 @@ persona: Ada
 journey: J-agent-marketplace-parity
 expected: `compozy marketplace search` returns the canonical catalog envelope with truthful installed state, revision and pagination; items carry category, category_label and featured. `--category <id>` lists one category and binds its cursor; an unknown id exits 2 with marketplace_category_unknown and the valid ids. `compozy marketplace categories` lists the taxonomy with counts. JSON matches the daemon response; JSONL, human and TOON retain page metadata. Retired --kind flags and two-argument info fail before transport.
 entry_points: compozy marketplace search [query] [--category <id>] [--cursor <opaque>] -o json|jsonl|toon; compozy marketplace categories [query] -o json; compozy marketplace info <entry_id> [--source <name>]; compozy marketplace refresh
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-json-parity; BUG-20260729-marketplace-file-cursor-fence; BUG-20261107-marketplace-empty-version-500
-fix_status: open
-retest_status: pending
+fix_status: fixed
+retest_status: pass
 fix_commits: 8eeb8a38;351f3535
-evidence: /tmp/mpc-shots/s8 (cli-marketplace-categories.txt, cli-search-category.txt, native-marketplace-*.json)
+evidence: /tmp/mpc-shots/final/cli-marketplace-categories.txt
 last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-007; ET-016
 ---
@@ -77,3 +77,11 @@ Isolated lab (own home, ports 49760/49761, worktree web dev server), default sou
   `compozy tool invoke` match the CLI.
 - **FAIL** — with the real catalog, `search --category more --limit 100` errors with
   `curated marketplace version is required for "data-engineering"` (BUG-20261107-marketplace-empty-version-500).
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+- PASS — `compozy marketplace search --category more --limit 100` returns 5 items (4 compozy-plugins,
+  1 claude-plugins-official).
+- PASS — `compozy marketplace categories`: Featured 8 and the twelve categories; JSON keeps every id.

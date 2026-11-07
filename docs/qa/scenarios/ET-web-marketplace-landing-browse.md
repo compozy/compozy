@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The sidebar and /marketplace open one catalog grouped by category: installed shelf, Featured when a curated source features entries, then each non-empty category in daemon order with up to six rows and View all · N (the daemon's full count). No source sections. View all opens /marketplace/categories/<id> with the full paged list, a category-scoped search and Load more; an unknown id shows "This category doesn't exist" with Back to Marketplace. Loading, stale, empty and narrow-window states remain truthful and keyboard operable.
 entry_points: /marketplace; /marketplace/categories/<id>; Marketplace sidebar item; View all link
-qa_status: fail
+qa_status: pass
 bug_ids: [BUG-20260714-keyboard-focus-invisible, BUG-20260913-marketplace-search-loading-visuals, BUG-20260913-marketplace-background-refresh, BUG-20261107-marketplace-empty-version-500, BUG-20261107-catalog-entries-uncategorized-duplicated]
-fix_status: open
-retest_status: pending
+fix_status: fixed
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /tmp/mpc-shots/s8 (web-browse-home-*-DEFECT-500.png, web-category-page-finance.png, web-category-not-found.png, web-add-ready-page.png)
+evidence: /tmp/mpc-shots/final (browse-home-light.png, browse-home-dark.png, category-page.png, category-not-found.png)
 last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
@@ -114,3 +114,17 @@ Isolated lab (own home, ports 49760/49761, worktree web dev server), default sou
 - Degraded — all 18 compozy-catalog entries resolve to More and duplicate compozy-plugins apps
   (BUG-20261107-catalog-entries-uncategorized-duplicated).
 - Not captured: Browse home light/dark with the full catalog (blocked by the 500).
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+- PASS — Browse home in light and dark: Featured (8: asana, figma, Linear, Context7, GitHub, Notion…)
+  then twelve categories in daemon order, each with View all · N (360 rows total), no source sections.
+- PASS — category pages after the refresh: every `?category=` read returns 200; View all Productivity
+  opens `/marketplace/categories/productivity` (31).
+- PASS — not-found for `/marketplace/categories/apps`.
+- PASS — Linear, Notion, GitHub and Stripe appear once, categorized and featured.
+- Open, not blocking: BUG-20261107-catalog-compatibility-digest-stale (the committed feed must be
+  regenerated before publishing), BUG-20261107-plugin-archive-symlink-unsupported (39 official plugins
+  list as Blocked). Cosmetic: the GitHub and Linear logos are nearly invisible in light mode.

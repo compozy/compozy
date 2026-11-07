@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-extension-distribution
 expected: The same schema-1.0.0 package installs from a local directory and a git ref without a format flag, reports `format: agent-plugin` plus its ingested and skipped components, and returns the installed identity through the canonical status read after normal unverified-source consent.
 entry_points: compozy extension install <local-path>|git:<url>@<ref> --allow-unverified --yes; POST /api/extensions over HTTP and UDS; compozy__extensions_install; https://compozy.com/docs/extensions/install
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261107-derived-secret-env-enable-fails
-fix_status: open
-retest_status: pending
+fix_status: fixed
+retest_status: pass
 fix_commits: 35100d40b55c
-evidence: /tmp/mpc-shots/s8 (cli-validate-demo-api.*, cli-install-demo-api-*)
+evidence: /tmp/mpc-shots/final/cli-client-plugin-enable.txt
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md
 overlaps: ET-extension-published-source-installs; ET-web-extension-union-install
 ---
@@ -59,3 +59,10 @@ Isolated lab (own home, ports 49760/49761, worktree web dev server), default sou
   active and healthy.
 - PASS — a third-party source's `x-compozy` (featured, category security) is ignored: `promo` lists
   under Design, not featured.
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+PASS — the `.mcp.json` fixture with a derived secret in `env` installs with `--enable` and values:
+Enabled true, State active, Health healthy; the secret value is not in status output or the daemon log.

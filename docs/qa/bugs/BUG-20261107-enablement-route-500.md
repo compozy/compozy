@@ -1,6 +1,6 @@
 # BUG-20261107-enablement-route-500: Retry turning on shows Internal Server Error instead of the enable failure
 
-- Status: fixed
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Fixed in: `68d106e25`
 - Impact (user-side): Misleading error
 - Severity: Medium; Priority: P2
@@ -18,3 +18,11 @@ BUG-20261107-derived-secret-env-enable-fails), press **Retry** in Marketplace. T
 (`compozy extension enable demo-api`) shows the real validation message.
 
 Expected: a 4xx with the validation code/message, so the row and toast say why it couldn't turn on.
+
+## Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Reproduced the enable failure with a remote server whose typed host renders an invalid URL
+(`https://${DEMO_HOST}/mcp`, value `bad host`). Add shows "Added remote-probe but couldn't turn it on"
+with the daemon cause, and Retry shows the same cause plus `extension_enable_failed` instead of
+"Internal Server Error". Follow-up polish, not blocking: one Retry press shows two toasts with the same
+message, and install accepts a value that only fails when the URL is rendered at enable.

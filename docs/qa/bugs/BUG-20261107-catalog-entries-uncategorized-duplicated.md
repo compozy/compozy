@@ -1,6 +1,6 @@
 # BUG-20261107-catalog-entries-uncategorized-duplicated: Curated catalog entries all land in More and duplicate compozy-plugins apps
 
-- Status: fixed
+- Status: verified (fixed on feat/marketplace-plugin-catalog; feed needs regeneration, see BUG-20261107-catalog-compatibility-digest-stale)
 - Fixed in: `68d106e25`
 - Impact (user-side): Degraded browse
 - Severity: Medium; Priority: P2
@@ -19,3 +19,9 @@ Notion, Linear, GitHub, Stripe and the others all resolve to **More**. With `com
 sources").
 
 Expected: curated feed entries carry Compozy categories, and each app is listed once.
+
+## Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+With the feed regenerated into a temp directory, Notion, Linear, GitHub and Stripe each list once
+from compozy-catalog with categories (Productivity, Productivity, Development, Finance) and featured. More
+holds 5 entries. The committed feed does not load as is: see BUG-20261107-catalog-compatibility-digest-stale.

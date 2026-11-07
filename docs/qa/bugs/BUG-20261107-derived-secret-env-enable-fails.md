@@ -1,6 +1,6 @@
 # BUG-20261107-derived-secret-env-enable-fails: A derived secret input in a client server's env makes enable fail
 
-- Status: fixed
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Fixed in: `68d106e25`
 - Impact (user-side): Blocking for the affected plugins
 - Severity: High; Priority: P1
@@ -28,3 +28,9 @@ healthy. This is the `_dx.md` golden example pattern (`"NOTION_TOKEN": "${NOTION
 
 Expected: a derived secret referenced from `env` is mapped to `secret_env` (vault ref) so the
 server starts.
+
+## Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+The same `.mcp.json` fixture (`env: {"DEMO_API_KEY": "${DEMO_API_KEY}"}`) installed with
+`--enable --input DEMO_API_KEY=… --input DEMO_HOST=…` reports Enabled true, State active, Health healthy.
+The secret value does not appear in status output or the daemon log.

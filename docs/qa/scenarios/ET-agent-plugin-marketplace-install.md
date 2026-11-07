@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: A catalog entry marked `format: agent-plugin` shows a neutral Agent Plugin badge on the card and detail view, follows the normal trust and install flow, lands on extension management with format and skipped diagnostics visible, and still relies on acquired-package detection when catalog metadata is absent or stale.
 entry_points: Web /marketplace and entry detail; Web extension trust/install dialog and /settings/extensions; compozy marketplace search; GET /api/marketplace over HTTP and UDS; POST /api/extensions; curated catalog feed
-qa_status: fail
-bug_ids: BUG-20261107-derived-secret-env-enable-fails; BUG-20261107-enablement-route-500
-fix_status: open
-retest_status: pending
+qa_status: pass
+bug_ids: BUG-20261107-derived-secret-env-enable-fails; BUG-20261107-enablement-route-500; BUG-20261107-set-up-waits-on-slow-mcp-read
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /tmp/mpc-shots/s8 (web-add-*.png, web-set-up-category-page.png, web-turn-on-row.png, web-enable-failed-retry-*.png)
+evidence: /tmp/mpc-shots/final (add-ready.png, set-up.png, turn-on.png, enable-failed-retry.png)
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-catalog-navigation; ET-web-marketplace-detail-redesign; ET-web-marketplace-installed-management
 ---
@@ -113,3 +113,17 @@ Isolated lab (own home, ports 49760/49761, worktree web dev server), default sou
   shows "Internal Server Error" (BUG-20261107-enablement-route-500). The "Added {name} but couldn't
   turn it on" toast was not captured within the 6 s wait.
 - Note: the unverified trust dialog's primary button reads "Install anyway", not "Add".
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+- PASS — Add → Ready: notes-helper, one "Install anyway" consent, toast "notes-helper added".
+- PASS — inline Add → Set up: Linear with toast "Linear added · Needs authorization before it can run".
+  The button is disabled with a spinner for 10–20 s until the live server read returns
+  (BUG-20261107-set-up-waits-on-slow-mcp-read).
+- PASS — Turn on returns to Ready.
+- PASS — enable failure (remote-probe with host `bad host`): the row reads Couldn't turn on with
+  Retry, the toast reads "Added remote-probe but couldn't turn it on" plus the daemon cause, and Retry
+  shows the cause and `extension_enable_failed` (no Internal Server Error). Polish: one Retry press shows
+  two toasts with the same message.

@@ -1,6 +1,6 @@
 # BUG-20261107-marketplace-empty-version-500: Marketplace list and sections return 500 when any listed plugin has no version
 
-- Status: fixed
+- Status: verified (fixed on feat/marketplace-plugin-catalog)
 - Fixed in: `68d106e25`
 - Impact (user-side): Blocking
 - Severity: Critical; Priority: P0
@@ -36,3 +36,13 @@ Expected: every plugin row has a version (the pinned `sha`/`ref` or resolved com
 manifest has none), and one bad row never fails a page; it should list with an install blocker.
 
 Evidence: /tmp/mpc-shots/s8/web-browse-home-dark-DEFECT-500.png, web-category-page-productivity-DEFECT-500.png (lab-local, not committed).
+
+## Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+After a cold refresh (compozy-catalog 18, claude-plugins-official 316, compozy-plugins 333), the
+unfiltered list, `sections`, and every `?category=` read return 200. Browse home renders Featured (8)
+and all twelve categories (360 rows). `compozy marketplace search --category more --limit 100` returns
+5 items. The 47 rows that cannot load now list with `installable: false` and an install blocker instead
+of failing the page. Remaining limit, filed separately: 39 claude-plugins-official packages fail
+archive extraction on symlinks (BUG-20261107-plugin-archive-symlink-unsupported). The API reports
+these rows as `trust_evidence_invalid`, while the stored blocker is `load_failed`.
