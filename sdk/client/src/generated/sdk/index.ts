@@ -942,6 +942,7 @@ export type {
   ExtensionCommandsResponse,
   ExtensionContentsPayload,
   ExtensionDeclaredProfilePayload,
+  ExtensionEnableError,
   ExtensionEnablementPayload,
   ExtensionEnablePreviewPayload,
   ExtensionInputStatePayload,

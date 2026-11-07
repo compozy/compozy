@@ -1978,3 +1978,49 @@ func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallExtensionEnableOutcome(t *testing.T) {
+	t.Parallel()
+	for _, failEnable := range []bool{false, true} {
+		name := "Should return enabled extension with created status"
+		if failEnable {
+			name = "Should return enable error with created status"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(_ context.Context, request contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					if !request.Enable {
+						t.Fatal("enable was not forwarded")
+					}
+					item := contract.ExtensionPayload{Name: "added", Enabled: !failEnable}
+					if failEnable {
+						item.InstallEnableError = &contract.ExtensionEnableError{
+							Error: "couldn't turn on added",
+							Code:  "extension_enable_failed",
+						}
+					}
+					return item, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"local_path","ref":"/tmp/added","enable":true}`),
+			)
+			var payload contract.ExtensionResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusCreated || payload.Extension.Enabled == failEnable ||
+				(payload.EnableError != nil) != failEnable {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+}

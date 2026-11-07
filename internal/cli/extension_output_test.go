@@ -720,3 +720,39 @@ func renderExtensionOutput(t *testing.T, bundle outputBundle, format OutputForma
 	err := writeCommandOutput(command, bundle)
 	return output.String(), err
 }
+
+func TestExtensionInstallEnableFailureOutput(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain successful install and provide enable retry", func(t *testing.T) {
+		t.Parallel()
+		item := ExtensionRecord{
+			Name:    "broken",
+			Version: "1.0.0",
+			InstallEnableError: &contract.ExtensionEnableError{
+				Error: "couldn't turn on broken",
+				Code:  "manifest_permission_denied",
+			},
+		}
+		bundle := extensionInstallSuccessBundle(&item, nil)
+		human, err := bundle.human()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(human, "manifest_permission_denied") ||
+			!strings.Contains(human, "Retry: compozy extension enable broken") {
+			t.Fatalf("human output = %q", human)
+		}
+		data, err := json.Marshal(bundle.jsonValue)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.ExtensionResponse
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Extension.Enabled || payload.EnableError == nil ||
+			payload.EnableError.Code != "manifest_permission_denied" {
+			t.Fatalf("json = %s", data)
+		}
+	})
+}

@@ -9919,6 +9919,10 @@ export interface components {
       name: string;
       needs_setup: boolean;
     };
+    ExtensionEnableError: {
+      code: string;
+      error: string;
+    };
     ExtensionEnablePreviewPayload: {
       agent_conflicts: string[];
       automation_starting: string[];
@@ -10096,6 +10100,7 @@ export interface components {
       extension: components["schemas"]["ManagedExtensionRemovePayload"];
     };
     ExtensionResponse: {
+      enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
     ExtensionSecretBindingInput: {
@@ -11573,6 +11578,11 @@ export interface components {
       allow_unverified?: boolean;
       asset?: string;
       confirm_gateway_digest?: string;
+      /**
+       * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+       * @default false
+       */
+      enable: boolean;
       expected_digest?: string;
       inputs?: {
         [key: string]: components["schemas"]["Value"];

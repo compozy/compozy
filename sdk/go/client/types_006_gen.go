@@ -200,6 +200,12 @@ type ExtensionDeclaredProfilePayload struct {
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
+// ExtensionEnableError is a daemon API value.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
 	MissingInputs               []string                    `json:"missing_inputs"`
@@ -382,7 +388,8 @@ type ExtensionRemoveResponse struct {
 
 // ExtensionResponse is a daemon API value.
 type ExtensionResponse struct {
-	Extension ExtensionPayload `json:"extension"`
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
 }
 
 // ExtensionSecretBindingInput is a daemon API value.
@@ -440,11 +447,4 @@ type FSBrowseResponse struct {
 	Home    string           `json:"home,omitempty"`
 	Roots   []string         `json:"roots"`
 	Entries []FSEntryPayload `json:"entries"`
-}
-
-// FSEntryPayload is a daemon API value.
-type FSEntryPayload struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	IsDir bool   `json:"is_dir"`
 }

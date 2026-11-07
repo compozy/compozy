@@ -8093,6 +8093,21 @@
         ],
         "type": "object"
       },
+      "ExtensionEnableError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error"
+        ],
+        "type": "object"
+      },
       "ExtensionEnablePreviewPayload": {
         "properties": {
           "agent_conflicts": {
@@ -8872,6 +8887,19 @@
       },
       "ExtensionResponse": {
         "properties": {
+          "enable_error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExtensionEnableError"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "extension": {
             "$ref": "#/components/schemas/ExtensionPayload"
           }
@@ -13379,6 +13407,11 @@
           },
           "confirm_gateway_digest": {
             "type": "string"
+          },
+          "enable": {
+            "default": false,
+            "description": "Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.",
+            "type": "boolean"
           },
           "expected_digest": {
             "pattern": "^[a-fA-F0-9]{64}$",

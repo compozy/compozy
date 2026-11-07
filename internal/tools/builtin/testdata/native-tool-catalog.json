@@ -955,7 +955,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "0a71c83dfd9ee5b5ced55b1d2289032ec0346b399bc20e96197e596aa5ecbb32",
-    "output_schema_digest": "f31c8a0de631db941c1510324714a7669d08e10e7bb6f6e81c9ef16242f074d3"
+    "output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
   },
   {
     "tool_id": "compozy__extensions_init",
@@ -980,8 +980,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3b22347d9de1e975416b705645bd12ffc5dc8bbe12bbe9ac912d3fc4d33521b8",
-    "output_schema_digest": "f31c8a0de631db941c1510324714a7669d08e10e7bb6f6e81c9ef16242f074d3"
+    "input_schema_digest": "e6778623210a8e8dd5334433b95f8357ff69b3b41ea5befd9f9d7481b259e621",
+    "output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
   },
   {
     "tool_id": "compozy__extensions_inventory",

@@ -309,9 +309,16 @@ type ExtensionsResponse struct {
 	Extensions []ExtensionPayload `json:"extensions"`
 }
 
+// ExtensionEnableError reports an activation failure after a successful install.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 // ExtensionResponse wraps one extension payload.
 type ExtensionResponse struct {
-	Extension ExtensionPayload `json:"extension"`
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
 }
 
 // ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.

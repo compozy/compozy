@@ -122,6 +122,7 @@ type InputType string
 
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
+	Enable               bool                   `json:"enable,omitzero"`
 	Scope                string                 `json:"scope,omitempty"`
 	WorkspaceID          string                 `json:"workspace_id,omitempty"`
 	Profile              string                 `json:"profile,omitempty"`

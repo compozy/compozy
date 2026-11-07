@@ -30,6 +30,8 @@ type LifecycleEventSink interface {
 
 // LifecycleEvent carries only the correlation values allowed by the public event matrix.
 type LifecycleEvent struct {
+	Enabled             bool
+	EnableErrorClass    string
 	Type                string
 	ExtensionName       string
 	SourceKind          string
@@ -60,6 +62,8 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 			return nil, err
 		}
 		fields[lifecycleEventDigestMatchedKey] = e.DigestMatched
+		fields["enabled"] = e.Enabled
+		fields["enable_error_class"] = e.EnableErrorClass
 	case eventspkg.ExtensionUpdateCompleted, eventspkg.ExtensionUpdateFailed:
 		if err := requireLifecycleStringField(
 			fields, lifecycleEventSourceKindKey, e.SourceKind,

@@ -23,6 +23,9 @@ func installExtension(
 	if running {
 		return client.InstallExtension(ctx, request)
 	}
+	if request.Enable {
+		return ExtensionRecord{}, errors.New("cli: extension install --enable requires a running daemon")
+	}
 	if request.Profile != "" || request.WorkspaceID != "" || request.Scope == workspaceFlagName {
 		return ExtensionRecord{}, errors.New("cli: scoped extension installation requires a running daemon")
 	}

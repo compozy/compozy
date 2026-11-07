@@ -1205,8 +1205,13 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 		wantScope     string
 		wantWorkspace string
 		wantProfile   string
+		wantEnable    bool
+		failEnable    bool
+		jsonOutput    bool
 	}{
 		{name: "Should preserve omitted selectors"},
+		{name: "Should forward enable for install and preview", flags: []string{"--enable", "-o", "json"}, wantEnable: true, jsonOutput: true},
+		{name: "Should keep successful exit and show retry when enable fails", flags: []string{"--enable"}, wantEnable: true, failEnable: true},
 		{name: "Should forward an explicit global profile", flags: []string{"--scope", "global", "--profile", "marketing"}, wantScope: "global", wantProfile: "marketing"},
 		{name: "Should resolve workspace and profile for both requests", flags: []string{"--workspace", "alpha", "--profile", "marketing"}, wantScope: "workspace", wantWorkspace: "ws-alpha", wantProfile: "marketing"},
 		{name: "Should honor explicit environment profile", envProfile: "marketing", wantProfile: "marketing"},
@@ -1234,7 +1239,14 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 				},
 				installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
 					installed = &request
-					return ExtensionRecord{Name: "scope-install-ext"}, nil
+					item := ExtensionRecord{Name: "scope-install-ext", Enabled: request.Enable && !scenario.failEnable}
+					if scenario.failEnable {
+						item.InstallEnableError = &contract.ExtensionEnableError{
+							Error: "couldn't turn on scope-install-ext",
+							Code:  "manifest_permission_denied",
+						}
+					}
+					return item, nil
 				},
 			})
 			deps.getenv = func(key string) string {
@@ -1248,13 +1260,30 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			}
 			deps.processAlive = func(int) bool { return true }
 			args := append([]string{"extension", "install", dir, "--allow-unverified", "--yes"}, scenario.flags...)
-			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
 				t.Fatal(err)
 			}
-			for _, request := range []*InstallExtensionRequest{previewed, installed} {
+			if scenario.failEnable && !strings.Contains(stdout, "Retry: compozy extension enable scope-install-ext") {
+				t.Fatalf("failure output = %s", stdout)
+			}
+			if scenario.jsonOutput {
+				var response contract.ExtensionResponse
+				if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+					t.Fatal(err)
+				}
+				if !response.Extension.Enabled || response.EnableError != nil {
+					t.Fatalf("install output = %s", stdout)
+				}
+			}
+			requests := []*InstallExtensionRequest{installed}
+			if !scenario.jsonOutput {
+				requests = append(requests, previewed)
+			}
+			for _, request := range requests {
 				if request == nil || request.Scope != scenario.wantScope ||
 					request.WorkspaceID != scenario.wantWorkspace ||
-					request.Profile != scenario.wantProfile {
+					request.Profile != scenario.wantProfile || request.Enable != scenario.wantEnable {
 					t.Fatalf("forwarded request = %#v", request)
 				}
 			}

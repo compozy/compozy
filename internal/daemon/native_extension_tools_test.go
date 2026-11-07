@@ -483,6 +483,27 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should install and enable through the native contract", func(t *testing.T) {
+		t.Parallel()
+		deps, extensions, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		fixture := writeNativeLocalExtensionFixture(t, "native-add", "1.0.0")
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(
+				fmt.Sprintf(`{"source":"local_path","ref":%q,"enable":true,"allow_unverified":true}`, fixture),
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"enabled":true`))
+		persisted, err := extensions.Get("native-add")
+		if err != nil || !persisted.Enabled {
+			t.Fatalf("persisted=%#v err=%v", persisted, err)
+		}
+	})
+
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
 		t.Parallel()
 

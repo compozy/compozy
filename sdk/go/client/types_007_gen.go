@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// FSEntryPayload is a daemon API value.
+type FSEntryPayload struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
 // FailTaskRunRequest is a daemon API value.
 type FailTaskRunRequest struct {
 	Error    string          `json:"error"`

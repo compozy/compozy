@@ -2907,3 +2907,98 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 		})
 	}
 }
+
+func TestDaemonExtensionInstallEnable(t *testing.T) {
+	t.Parallel()
+	for _, failEnable := range []bool{false, true} {
+		name := "Should install and enable in one operation"
+		if failEnable {
+			name = "Should retain installation when enable fails"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			deps, registry, _, _ := newNativeExtensionToolDeps(t)
+			runtime := newLifecycleStateRuntime(registry)
+			service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+				Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+				Profiles: deps.ProfileManager, Logger: discardLogger(),
+			}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+			fixture := writeNativeLocalExtensionFixture(t, "add-fixture", "1.0.0")
+			if failEnable {
+				_, err := registry.DB().
+					ExecContext(t.Context(), `CREATE TRIGGER reject_add_enable BEFORE DELETE ON extension_profile_enablement BEGIN SELECT RAISE(ABORT, 'enable refused'); END`)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "install and enable")
+			if err != nil {
+				t.Fatal(err)
+			}
+			item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: fixture, Enable: true, AllowUnverified: true,
+			}, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if item.Enabled == failEnable || (item.InstallEnableError != nil) != failEnable {
+				t.Fatalf("install = %#v", item)
+			}
+			persisted, err := registry.Get(item.Name)
+			if err != nil || persisted.Enabled == failEnable {
+				t.Fatalf("persisted = %#v, error = %v", persisted, err)
+			}
+			if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, item.Name)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestDaemonConcurrentAdd(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serialize duplicate Add through installation and enable", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+			Profiles: deps.ProfileManager, Logger: discardLogger(),
+		}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "concurrent Add")
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceLocalPath,
+			Ref: writeNativeLocalExtensionFixture(t, "concurrent-add", "1.0.0"), Enable: true, AllowUnverified: true}
+		results := make(chan error, 2)
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Go(func() {
+				item, err := service.Install(t.Context(), request, actor)
+				if err == nil && (!item.Enabled || item.InstallEnableError != nil) {
+					err = fmt.Errorf("Add did not enable: %#v", item)
+				}
+				results <- err
+			})
+		}
+		workers.Wait()
+		close(results)
+		successes, conflicts := 0, 0
+		for err := range results {
+			switch {
+			case err == nil:
+				successes++
+			case apicore.ExtensionStatusCode(err) == 409:
+				conflicts++
+			default:
+				t.Fatal(err)
+			}
+		}
+		installed, err := registry.Get("concurrent-add")
+		if err != nil || !installed.Enabled || successes != 1 || conflicts != 1 {
+			t.Fatalf("successes=%d conflicts=%d persisted=%#v err=%v", successes, conflicts, installed, err)
+		}
+	})
+}

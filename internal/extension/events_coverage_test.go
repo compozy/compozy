@@ -31,13 +31,25 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 			name: "Should emit install completed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionInstallCompleted, ExtensionName: "alpha",
 				SourceKind: "github", DigestMatched: true, WorkspaceID: secret, ExtensionGeneration: secret},
-			want: map[string]any{"extension_name": "alpha", "source_kind": "github", "digest_matched": true},
+			want: map[string]any{
+				"extension_name":     "alpha",
+				"source_kind":        "github",
+				"digest_matched":     true,
+				"enabled":            false,
+				"enable_error_class": "",
+			},
 		},
 		{
 			name: "Should emit install failed keys",
 			event: LifecycleEvent{Type: eventspkg.ExtensionInstallFailed, ExtensionName: "alpha",
 				SourceKind: "local_path", WorkspaceID: secret, ExtensionGeneration: secret},
-			want: map[string]any{"extension_name": "alpha", "source_kind": "local_path", "digest_matched": false},
+			want: map[string]any{
+				"extension_name":     "alpha",
+				"source_kind":        "local_path",
+				"digest_matched":     false,
+				"enabled":            false,
+				"enable_error_class": "",
+			},
 		},
 		{
 			name: "Should emit update completed keys",

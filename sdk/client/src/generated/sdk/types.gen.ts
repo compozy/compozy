@@ -2189,6 +2189,11 @@ export type ExtensionDeclaredProfilePayload = {
   needs_setup: boolean;
 };
 
+export type ExtensionEnableError = {
+  code: string;
+  error: string;
+};
+
 export type ExtensionEnablePreviewPayload = {
   agent_conflicts: Array<string>;
   automation_starting: Array<string>;
@@ -2369,6 +2374,7 @@ export type ExtensionRemoveResponse = {
 };
 
 export type ExtensionResponse = {
+  enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
 
@@ -3827,6 +3833,10 @@ export type InstallExtensionRequest = {
   allow_unverified?: boolean;
   asset?: string;
   confirm_gateway_digest?: string;
+  /**
+   * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+   */
+  enable?: boolean;
   expected_digest?: string;
   inputs?: {
     [key: string]: Value;
@@ -13131,6 +13141,10 @@ export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
   confirm_gateway_digest?: string;
+  /**
+   * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+   */
+  enable?: boolean;
   expected_digest?: string;
   inputs?: {
     [key: string]: ValueWritable;
