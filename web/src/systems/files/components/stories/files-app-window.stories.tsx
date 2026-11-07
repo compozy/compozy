@@ -39,7 +39,7 @@ function FilesWindowFrame({ width }: { width: number }) {
  * window title, which is the open file's name, else the project's name.
  */
 const meta = {
-  title: "systems/files/FilesAppWindow",
+  title: "systems/files/components/FilesAppWindow",
   component: FilesWindowFrame,
   parameters: { layout: "centered" },
   args: { width: 960 },

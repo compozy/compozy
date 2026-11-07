@@ -40,7 +40,7 @@ function Explorer({ initial }: { initial: FileViewerTarget | null }) {
  * every truthful state. Session Review panel's Files tab and the Files app compose it.
  */
 const meta = {
-  title: "systems/files/FilesExplorer",
+  title: "systems/files/components/FilesExplorer",
   component: Explorer,
   parameters: { layout: "fullscreen", ...storybookMswParameters({ files: sessionFilesHandlers }) },
   args: { initial: null },
