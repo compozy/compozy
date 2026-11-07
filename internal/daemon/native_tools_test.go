@@ -11011,6 +11011,56 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: resource-backed grant names refresh independently of allocated runtime tool names.
+	// Owner: daemon policy inputs; canonical suite: native runtime policy resolver.
+	t.Run("Should refresh logical MCP grant names from the current catalog", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		state := &bootState{cfg: cfg, mcpServerCatalog: catalog}
+		resolver, err := newNativeToolPolicyResolverForBoot(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := toolspkg.ToolID("mcp__github_github__search")
+		descriptor := toolspkg.Descriptor{
+			ID: id, Description: "Search",
+			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendMCP, MCPServer: "github.github", MCPTool: "search"},
+			Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "github_github", ResourceID: "extension",
+				RawServerName: "github.github", RawToolName: "search"},
+			InputSchema: json.RawMessage(`{"type":"object"}`), Visibility: toolspkg.VisibilityModel,
+			Risk: toolspkg.RiskRead, ReadOnly: true,
+		}
+		for index, name := range []string{"github", "renamed"} {
+			catalog.Replace(int64(index+1), []resources.Record[compozyconfig.MCPServer]{{
+				ID: "extension", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: compozyconfig.MCPServer{Name: name, RuntimeName: "github.github", Command: "test-mcp"},
+			}})
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{Operator: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs.Session = toolspkg.SessionToolPolicy{
+				Enforced:   true,
+				Tools:      []toolspkg.ToolID{id},
+				MCPServers: []string{"github"},
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+				inputs,
+				toolspkg.ToolsetCatalog{},
+				[]toolspkg.ToolID{id},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+			if err != nil || decision.Callable != (name == "github") {
+				t.Fatalf("logical name %s: %+v, %v", name, decision, err)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name        string
 		profileID   string

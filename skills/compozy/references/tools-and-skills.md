@@ -50,6 +50,7 @@ remain intact. A failed native load uses the existing transcript replay fallback
 sidecars reload on launch configuration changes at the next turn as well; remote HTTP/OAuth require
 hosted MCP. Providers with session MCP disabled receive no tools.
 Workspace/profile isolation, source policy and delegated `mcp_servers` allowlists still apply.
+Server allowlists use logical declaration names; allocated runtime names remain tool/routing identities.
 An explicit tool override is exhaustive: naming a server alone cannot widen that tool list.
 Ready never overrides a denial. Generated root delegation budgets follow current server names;
 authored and legacy unmarked ceilings, child grants and instance grants retain their recorded limits.

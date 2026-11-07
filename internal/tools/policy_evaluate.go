@@ -157,7 +157,8 @@ func isInstanceSelfServiceCall(d Descriptor, input json.RawMessage) bool {
 }
 
 func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
-	if !slices.Contains(e.inputs.Session.MCPServers, mcpSourceServerName(d.Source)) {
+	name := firstNonEmpty(e.inputs.MCPResourceNames[d.Source.ResourceID], mcpSourceServerName(d.Source))
+	if !slices.Contains(e.inputs.Session.MCPServers, name) {
 		return false
 	}
 	if _, allowed := e.sessionAllowed[d.ID]; allowed {

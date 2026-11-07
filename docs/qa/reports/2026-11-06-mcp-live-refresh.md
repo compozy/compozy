@@ -103,3 +103,25 @@ again (43.114 seconds). The CI Settings failure was an old restart-required expe
 repair/add: the owning canonical test now requires the approved live lifecycle, successful apply
 and no restart while retaining its auth-failure and persisted-definition assertions. That focused
 Settings race selection passed (4.108 seconds).
+
+A later CodeRabbit round identified two additional boundaries. Cold Settings services now
+initialize the active snapshot before section/collection writes, so the first failed live mutation
+retains the pre-write config. Canonical Settings regressions reproduce section, upsert and delete
+failures without warming ActiveConfig first. Extension MCP grants now compare the logical config
+name while retaining the allocated runtime name for tool IDs and routing; credential ownership is unchanged. The policy context
+resolves that logical identity by the descriptor's exact resource ID from the current catalog;
+the owning policy regression rejects runtime aliases and unrelated logical grants. Both failures
+were reproduced before their production fixes. The focused Settings/tools/daemon race selection
+passed after repair (10.478, 1.931 and 20.091 seconds respectively).
+
+The final policy implementation resolves logical names in the per-request policy context by exact
+resource ID, preserving the public source/descriptor shape. Its daemon policy regression replaces
+the catalog name while holding the runtime allocation stable and verifies that the old logical
+grant stops authorizing it. Focused race tests passed Settings/tools/daemon (11.170, 1.587 and
+10.089 seconds); focused lint returned zero issues. Codegen-check passed without drift, and the
+preceding real-daemon OAuth walk passed in 46.148 seconds.
+
+The real-daemon OAuth integration passed again on the final resource-name policy implementation
+(39.948 seconds). The separate triage-cleanup CI assertion did not reproduce in three focused
+race runs; its production and test files match main and were left unchanged while CI evidence
+was investigated. This is not reported as a passed CI check.

@@ -30,6 +30,9 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 
+	if _, err := s.ensureActiveConfigState(ctx); err != nil {
+		return ApplyResult{}, err
+	}
 	configLifecycle := s.classifySectionApplyRequest(ctx, req)
 	result, err := s.UpdateSection(ctx, req)
 	if err != nil {
@@ -58,6 +61,9 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 
+	if _, err := s.ensureActiveConfigState(ctx); err != nil {
+		return ApplyResult{}, err
+	}
 	before, err := s.collectionItemExistsBeforeMutation(ctx, req.CollectionRequest, req.Name)
 	if err != nil {
 		return ApplyResult{}, err
@@ -94,6 +100,9 @@ func (s *service) ApplyCollectionDelete(
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 
+	if _, err := s.ensureActiveConfigState(ctx); err != nil {
+		return ApplyResult{}, err
+	}
 	expected := applyCollectionLifecycle(MutationResult{}, req.Collection, collectionMutationDelete, true)
 	result, err := s.DeleteCollectionItem(ctx, req)
 	if err != nil {

@@ -108,6 +108,8 @@ type SessionToolPolicy struct {
 
 // PolicyInputs contains the config-neutral inputs for effective policy.
 type PolicyInputs struct {
+	// MCPResourceNames maps daemon resource IDs to logical config allowlist names.
+	MCPResourceNames     map[string]string
 	AlwaysOnLineage      bool
 	TriageReadOnly       bool
 	ToolsDisabled        bool

@@ -245,6 +245,43 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonApprovalRequired)
 	})
 
+	// Invariant: extension runtime names do not replace logical names in session server grants.
+	// Owner: effective tool policy; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should match logical MCP grants while retaining runtime tool identity", func(t *testing.T) {
+		t.Parallel()
+		descriptor, err := mcpRegistryDescriptor(
+			SourceRef{
+				Kind:          SourceMCP,
+				Owner:         "github.github",
+				RawServerName: "github.github",
+				ResourceID:    "extension-github",
+			},
+			MCPToolDescriptor{RawName: "search", ReadOnly: true, InputSchema: []byte(`{"type":"object"}`)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, grant := range []string{"github", "github.github", "other"} {
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				MCPResourceNames:     map[string]string{"extension-github": "github"},
+				Session: SessionToolPolicy{
+					Enforced:   true,
+					Tools:      []ToolID{descriptor.ID},
+					MCPServers: []string{grant},
+				},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil || decision.Callable != (grant == "github") {
+				t.Fatalf("grant %s for %s: %+v, %v", grant, descriptor.ID, decision, err)
+			}
+		}
+	})
+
 	t.Run("Should retain concrete MCP tool narrowing inside an allowed server", func(t *testing.T) {
 		t.Parallel()
 		for _, tool := range []string{"lookup", "delete"} {

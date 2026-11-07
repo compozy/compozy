@@ -65,3 +65,17 @@ func logMCPSourceGrantSkipped(ctx context.Context, state *bootState, source tool
 	}
 	logger.DebugContext(ctx, "daemon.mcp.source_grant_skipped", "server", source.RawServerName, "error", err)
 }
+
+// mcpResourceLogicalNames keeps config grant names separate from allocated runtime tool names.
+func mcpResourceLogicalNames(state *bootState) map[string]string {
+	if state == nil || state.mcpServerCatalog == nil {
+		return nil
+	}
+	names := make(map[string]string)
+	records := state.mcpServerCatalog.Snapshot()
+	for i := range records {
+		record := &records[i]
+		names[record.ID] = strings.TrimSpace(record.Spec.Name)
+	}
+	return names
+}

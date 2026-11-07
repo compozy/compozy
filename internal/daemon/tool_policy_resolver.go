@@ -26,6 +26,7 @@ type nativeToolPolicyResolverDeps struct {
 	ExtensionRegistry *extensionpkg.Registry
 	ApprovalAvailable bool
 	MCPSourceGrants   nativeToolPolicyMCPSourceGrants
+	MCPResourceNames  func() map[string]string
 }
 
 // nativeToolPolicyMCPSourceGrants lists MCP sources the operator authorized for one resolved scope.
@@ -53,6 +54,7 @@ type nativeToolPolicyResolver struct {
 	extensionRegistry *extensionpkg.Registry
 	approvalAvailable bool
 	mcpSourceGrants   nativeToolPolicyMCPSourceGrants
+	mcpResourceNames  func() map[string]string
 }
 
 var _ toolspkg.PolicyInputResolver = (*nativeToolPolicyResolver)(nil)
@@ -70,6 +72,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		extensionRegistry: deps.ExtensionRegistry,
 		approvalAvailable: deps.ApprovalAvailable,
 		mcpSourceGrants:   deps.MCPSourceGrants,
+		mcpResourceNames:  deps.MCPResourceNames,
 	}, nil
 }
 
@@ -88,6 +91,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		MCPSourceGrants: func(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
 			return operatorAuthorizedMCPSourceGrants(ctx, state, scope)
 		},
+		MCPResourceNames: func() map[string]string { return mcpResourceLogicalNames(state) },
 	})
 	if err != nil {
 		return nil, err
@@ -119,6 +123,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		return toolspkg.PolicyInputs{}, err
 	}
 	inputs.ApprovalAvailable = r.approvalAvailable
+	if r.mcpResourceNames != nil {
+		inputs.MCPResourceNames = r.mcpResourceNames()
+	}
 	if err := r.applyBundledExtensionTrust(&inputs); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -442,36 +449,6 @@ func applyConcreteSessionToolPolicy(
 		MCPByServer: policy.MaterializedTools,
 	}
 	return nil
-}
-
-func normalizeToolPolicyScope(scope toolspkg.Scope) toolspkg.Scope {
-	return toolspkg.Scope{
-		ProfileID:   strings.TrimSpace(scope.ProfileID),
-		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
-		SessionID:   strings.TrimSpace(scope.SessionID),
-		AgentName:   strings.TrimSpace(scope.AgentName),
-		ActorKind:   strings.TrimSpace(scope.ActorKind),
-		Operator:    scope.Operator,
-	}
-}
-
-func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) toolspkg.Scope {
-	if info == nil {
-		return scope
-	}
-	if strings.TrimSpace(scope.SessionID) == "" {
-		scope.SessionID = strings.TrimSpace(info.ID)
-	}
-	if strings.TrimSpace(scope.ProfileID) == "" {
-		scope.ProfileID = strings.TrimSpace(info.ProfileID)
-	}
-	if strings.TrimSpace(scope.WorkspaceID) == "" {
-		scope.WorkspaceID = strings.TrimSpace(info.WorkspaceID)
-	}
-	if strings.TrimSpace(scope.AgentName) == "" {
-		scope.AgentName = strings.TrimSpace(info.AgentName)
-	}
-	return scope
 }
 
 func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
