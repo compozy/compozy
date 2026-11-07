@@ -11,10 +11,15 @@ import (
 )
 
 // SetProcessGroupNiceness lowers the CPU scheduling priority of every process
-// in the process group to at least niceness. Descendants forked afterward
-// inherit the value. Unprivileged callers can only raise niceness, so a group
-// already at or above niceness (for example under a niced daemon) is left
-// unchanged instead of failing with a permission error.
+// in the process group to at least niceness. Descendants forked after the call
+// returns inherit the value. A child whose fork is still in flight during the
+// call can keep its parent's previous niceness: the kernel copies the value
+// before the child joins the group, and setpriority(PRIO_PGRP) only reaches
+// joined members. No userspace re-check can observe that child, so callers
+// that need complete coverage must apply niceness before the group can fork.
+// Unprivileged callers can only raise niceness, so a group already at or above
+// niceness (for example under a niced daemon) is left unchanged instead of
+// failing with a permission error.
 func SetProcessGroupNiceness(pgid int, niceness int) error {
 	if pgid <= 0 {
 		return errors.New("set process group niceness: process group id must be positive")

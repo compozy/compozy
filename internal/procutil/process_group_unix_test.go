@@ -3,9 +3,11 @@
 package procutil
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -124,15 +126,23 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
 
-		pgid := startNicenessProcessGroup(t, "sleep 30 & sleep 0.2; sleep 30")
+		// The script reports each fork only after it returns, which means the child has
+		// joined the group. The later fork waits for stdin, so no fork is in flight during
+		// the call: setpriority(PRIO_PGRP) cannot reach a child that has not joined yet.
+		group := startNicenessProcessGroup(
+			t,
+			"sleep 30 & echo started; read go; sleep 30 & echo forked; wait",
+		)
+		group.waitLine(t, "started")
 		want := max(7, testCurrentNiceness(t))
-		if err := SetProcessGroupNiceness(pgid, 7); err != nil {
+		if err := SetProcessGroupNiceness(group.pgid, 7); err != nil {
 			t.Fatalf("SetProcessGroupNiceness() error = %v", err)
 		}
+		group.release(t)
+		group.waitLine(t, "forked")
 		// The group's reported priority is its least-niced member, so the target means
-		// the shell, its background child, and the later-forked sleep all inherited it.
-		time.Sleep(400 * time.Millisecond)
-		if got := testProcessGroupNiceness(t, pgid); got != want {
+		// the shell, its earlier background child, and the later-forked sleep all have it.
+		if got := testProcessGroupNiceness(t, group.pgid); got != want {
 			t.Fatalf("process group niceness = %d, want %d", got, want)
 		}
 	})
@@ -140,7 +150,7 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should leave a group already niced above the target unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		pgid := startNicenessProcessGroup(t, "sleep 30")
+		pgid := startNicenessProcessGroup(t, "sleep 30").pgid
 		higher := max(9, testCurrentNiceness(t)+2)
 		if err := SetProcessGroupNiceness(pgid, higher); err != nil {
 			t.Fatalf("SetProcessGroupNiceness(%d) error = %v", higher, err)
@@ -171,12 +181,26 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	})
 }
 
-func startNicenessProcessGroup(t *testing.T, script string) int {
+type nicenessProcessGroup struct {
+	pgid   int
+	stdin  io.WriteCloser
+	stdout *bufio.Reader
+}
+
+func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup {
 	t.Helper()
 	// This helper owns child cleanup. t.Context is canceled before Cleanup runs;
 	// racing that implicit kill with the group signal can return EPERM during exec on Darwin.
 	command := exec.CommandContext(context.WithoutCancel(t.Context()), "sh", "-c", script)
 	ConfigureCommandProcessGroup(command)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		t.Fatalf("StdinPipe() error = %v", err)
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		t.Fatalf("StdoutPipe() error = %v", err)
+	}
 	if err := command.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -192,7 +216,25 @@ func startNicenessProcessGroup(t *testing.T, script string) int {
 			t.Errorf("cleanup Wait() error = %v", err)
 		}
 	})
-	return pgid
+	return nicenessProcessGroup{pgid: pgid, stdin: stdin, stdout: bufio.NewReader(stdout)}
+}
+
+func (g nicenessProcessGroup) waitLine(t *testing.T, want string) {
+	t.Helper()
+	line, err := g.stdout.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read process group output: %v", err)
+	}
+	if got := strings.TrimSpace(line); got != want {
+		t.Fatalf("process group output = %q, want %q", got, want)
+	}
+}
+
+func (g nicenessProcessGroup) release(t *testing.T) {
+	t.Helper()
+	if _, err := io.WriteString(g.stdin, "go\n"); err != nil {
+		t.Fatalf("release process group: %v", err)
+	}
 }
 
 func testProcessGroupNiceness(t *testing.T, pgid int) int {
