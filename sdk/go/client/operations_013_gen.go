@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// GetSessionHealth Read metadata-only session health and wake eligibility
+func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHealthResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionHistoryParams carries the path, query, and header parameters.
+type GetSessionHistoryParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetSessionHistory List grouped session turn history
 func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
@@ -399,51 +436,4 @@ type GetSettingsMCPServerParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	Owner       *string `url:"owner"`
-}
-
-// GetSettingsMCPServer Get one owner-qualified MCP server
-func (c *Client) GetSettingsMCPServer(ctx context.Context, params GetSettingsMCPServerParams) (*SettingsMCPServerResponse, error) {
-	path := "/api/settings/mcp-servers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPServerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsMarketplace Read global marketplace catalog settings
-func (c *Client) GetSettingsMarketplace(ctx context.Context) (*SettingsMarketplaceResponse, error) {
-	path := "/api/settings/marketplace"
-	var out SettingsMarketplaceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsObservability Read the observability settings section
-func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
-	path := "/api/settings/observability"
-	var out SettingsObservabilityResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

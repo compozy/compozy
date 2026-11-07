@@ -2,6 +2,7 @@ package projectfiles
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspacefiles"
 
 	"reflect"
 	"slices"
@@ -463,5 +466,311 @@ func gitReader(t *testing.T, root Root, args ...string) {
 	data, err := cmd.CombinedOutput()
 	if err := err; err != nil {
 		t.Fatalf("git error: %v: %s", err, data)
+	}
+}
+
+func TestFileSearch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should rank fuzzy paths and refresh an isolated index", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		searchGit(t, root, "init")
+		path := "web/src/systems/session/components/session-review-panel.tsx"
+		writeReaderFile(t, root, path, "useSessionChanges\n")
+		for i := range 500 {
+			writeReaderFile(t, root, fmt.Sprintf("decoy%03d.go", i), "")
+		}
+		writeReaderFile(t, root, ".gitignore", "node_modules/\n")
+		writeReaderFile(t, root, "node_modules/hidden", "hidden")
+		writeReaderFile(t, root, ".env", "SECRET")
+		if err := os.Symlink(".env", filepath.Join(root.AbsPath, "notes.txt")); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Unix(100, 0)
+		search := NewSearch(nil, workspacefiles.WithClock(func() time.Time { return now }))
+		got, err := search.Find(t.Context(), root, "sesrevpan", 50)
+		if err != nil || len(got.Results) == 0 || got.Results[0].Path != path ||
+			!reflect.DeepEqual(got.Results[0].MatchRanges, [][2]int{{35, 38}, {43, 46}, {50, 53}}) {
+			t.Fatalf("find=%+v err=%v", got, err)
+		}
+		for _, limit := range []int{0, 100} {
+			matches, err := search.Find(t.Context(), root, "decoy", limit)
+			if err != nil || len(matches.Results) != 50 {
+				t.Fatalf("limit %d results %d err %v", limit, len(matches.Results), err)
+			}
+		}
+		got, err = search.Find(t.Context(), root, "notes", 0)
+		if err != nil || len(got.Results) == 0 || got.Results[0].Path != "notes.txt" || !got.Results[0].Sensitive {
+			t.Fatalf("sensitive=%+v err=%v", got, err)
+		}
+		got, err = search.Find(t.Context(), root, "hidden", 100)
+		if err != nil || len(got.Results) != 0 {
+			t.Fatalf("ignored=%+v err=%v", got, err)
+		}
+		writeReaderFile(t, root, "added.go", "")
+		now = now.Add(16 * time.Second)
+		got, err = search.Find(t.Context(), root, "added", 50)
+		if err != nil || len(got.Results) != 1 {
+			t.Fatalf("refresh=%+v err=%v", got, err)
+		}
+		if _, err = search.Find(t.Context(), root, "", 50); !errors.Is(err, ErrInvalidQuery) {
+			t.Fatalf("empty: %v", err)
+		}
+	})
+	t.Run("Should search confined content with engine parity and safe Git configuration", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		searchGit(t, root, "init")
+		writeReaderFile(t, root, "top.txt", "useSessionChanges\n")
+		sub := root
+		sub.AbsPath = filepath.Join(root.AbsPath, "project")
+		writeReaderFile(t, sub, "web/a.ts", "first useSessionChanges\nuseOtherChanges\n")
+		writeReaderFile(t, sub, "web/a.test.ts", "useSessionChanges\n")
+		writeReaderFile(t, sub, "outside.ts", "useSessionChanges\n")
+		writeReaderFile(t, sub, ".env", "useSessionChanges\n")
+		writeReaderFile(t, sub, ".env.example", "useSessionChanges\n")
+		writeReaderFile(t, sub, "binary", "useSessionChanges\x00")
+		writeReaderFile(t, sub, "large", strings.Repeat("useSessionChanges", 130000))
+		if err := os.Symlink(".env", filepath.Join(sub.AbsPath, "notes.txt")); err != nil {
+			t.Fatal(err)
+		}
+		postPattern, err := compileSearch(SearchQuery{Pattern: "useSessionChanges"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		post := searchState{root: sub, search: NewSearch(nil), pattern: postPattern, seen: map[string]bool{}}
+		for _, path := range []string{".env", "notes.txt", "binary", "large"} {
+			post.addFile(t.Context(), path)
+		}
+		if post.result.TotalMatches != 0 {
+			t.Fatal("post-filter exposed protected content")
+		}
+		marker := testutil.ConfigureGitReadMarkers(t, root.AbsPath)
+		q := SearchQuery{
+			Pattern:       "use[A-Z][a-z]+Changes",
+			Regex:         true,
+			CaseSensitive: true,
+			WholeWord:     true,
+			Include:       []string{"web/**"},
+			Exclude:       []string{"**/*.test.ts"},
+		}
+		got, err := NewSearch(nil).Search(t.Context(), sub, q)
+		if err != nil || got.Engine != "git_grep" || got.TotalMatches != 2 || got.TotalFiles != 1 ||
+			got.Files[0].Path != "web/a.ts" {
+			t.Fatalf("git=%+v err=%v", got, err)
+		}
+		plain := readerRoot(t)
+		writeReaderFile(t, plain, "web/a.ts", "first useSessionChanges\nuseOtherChanges\n")
+		walk, err := NewSearch(nil).Search(t.Context(), plain, q)
+		if err != nil || walk.Engine != "walk" || !reflect.DeepEqual(walk.Files, got.Files) {
+			t.Fatalf("walk=%+v git=%+v err=%v", walk, got, err)
+		}
+		all, err := NewSearch(nil).Search(t.Context(), sub, SearchQuery{Pattern: "useSessionChanges"})
+		if err != nil || all.TotalFiles != 4 || all.SensitiveExcluded != 2 {
+			t.Fatalf("filtered=%+v err=%v", all, err)
+		}
+		if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Git ran configured program: %v", err)
+		}
+	})
+	t.Run("Should enforce total per-file and excerpt caps", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		for i := range 25 {
+			writeReaderFile(t, root, fmt.Sprintf("file%02d", i), strings.Repeat("needle\n", 150))
+		}
+		got, err := NewSearch(nil).Search(t.Context(), root, SearchQuery{Pattern: "needle"})
+		if err != nil || got.TotalMatches != 2000 || !got.Truncated {
+			t.Fatalf("caps=%+v err=%v", got, err)
+		}
+		for _, file := range got.Files {
+			if len(file.Matches) > 100 {
+				t.Fatal("per file cap")
+			}
+		}
+		long := readerRoot(t)
+		writeReaderFile(t, long, "line", strings.Repeat("x", 4000)+"needle"+strings.Repeat("x", 1000))
+		got, err = NewSearch(nil).Search(t.Context(), long, SearchQuery{Pattern: "needle"})
+		if err != nil || got.TotalMatches != 1 {
+			t.Fatalf("excerpt=%+v err=%v", got, err)
+		}
+		match := got.Files[0].Matches[0]
+		if len([]rune(match.Text)) > 300 || match.Column != 4001 || match.TextOffset == 0 ||
+			match.Text[match.Ranges[0][0]:match.Ranges[0][1]] != "needle" {
+			t.Fatalf("excerpt=%+v", match)
+		}
+	})
+	t.Run("Should reject invalid queries before invoking Git", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		queries := []SearchQuery{
+			{Pattern: "a"},
+			{Pattern: strings.Repeat("a", 513)},
+			{Pattern: "foo(", Regex: true},
+			{Pattern: "good", Include: make([]string, 11)},
+		}
+		for _, glob := range []string{"../go.mod", "/etc/x", ":(top)x", "a\\b", "[", "a["} {
+			queries = append(queries, SearchQuery{Pattern: "good", Include: []string{glob}})
+		}
+		for _, q := range queries {
+			if _, err := NewSearch(nil).Search(t.Context(), root, q); !errors.Is(err, ErrInvalidQuery) {
+				t.Fatalf("q=%+v err=%v", q, err)
+			}
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := NewSearch(nil).Search(ctx, root, SearchQuery{Pattern: "good"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancel=%v", err)
+		}
+	})
+}
+func searchGit(t *testing.T, root Root, args ...string) {
+	t.Helper()
+	command := exec.CommandContext(t.Context(), "git", args...)
+	command.Dir = root.AbsPath
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %s %v", args, output, err)
+	}
+}
+
+func TestFileSearchCancellation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should join the streamed Git call on request cancellation", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		searchGit(t, root, "init")
+		writeReaderFile(t, root, "a.go", "needle")
+		search := NewSearch(nil)
+		if _, err := search.Find(t.Context(), root, "a.go", 50); err != nil {
+			t.Fatal(err)
+		}
+		runner := &blockingSearchGit{delegate: search.runner, started: make(chan struct{}), joined: make(chan struct{})}
+		search.runner = runner
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		result := make(chan error, 1)
+		go func() { _, err := search.Search(ctx, root, SearchQuery{Pattern: "needle"}); result <- err }()
+		select {
+		case <-runner.started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("grep did not start")
+		}
+		cancel()
+		select {
+		case err := <-result:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancel=%v", err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("cancellation exceeded 200ms")
+		}
+		select {
+		case <-runner.joined:
+		default:
+			t.Fatal("runner has not joined")
+		}
+	})
+}
+
+type blockingSearchGit struct {
+	delegate        worktree.StreamingGitRunner
+	started, joined chan struct{}
+	emit            bool
+}
+
+var _ worktree.StreamingGitRunner = (*blockingSearchGit)(nil)
+
+func (r *blockingSearchGit) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	if slices.Contains(args, "grep") {
+		close(r.started)
+		if r.emit {
+			visit(worktree.GitOutput{Stream: worktree.GitOutputStdout, Chunk: []byte("a.go\x001\x001\x00needle\n")})
+		}
+		<-ctx.Done()
+		close(r.joined)
+		return nil, nil, ctx.Err()
+	}
+	return r.delegate.RunStreaming(ctx, root, visit, args...)
+}
+
+func TestFileSearchTimeout(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return partial results at the fixed search deadline", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		searchGit(t, root, "init")
+		writeReaderFile(t, root, "a.go", "needle")
+		search := NewSearch(nil)
+		if _, err := search.Find(t.Context(), root, "a.go", 50); err != nil {
+			t.Fatal(err)
+		}
+		runner := &blockingSearchGit{
+			delegate: search.runner,
+			started:  make(chan struct{}),
+			joined:   make(chan struct{}),
+			emit:     true,
+		}
+		search.runner = runner
+		result, err := search.Search(t.Context(), root, SearchQuery{Pattern: "needle"})
+		if err != nil || !result.TimedOut || result.TotalMatches != 1 {
+			t.Fatalf("timeout=%+v err=%v", result, err)
+		}
+	})
+}
+
+func TestFileSearchIndexCap(t *testing.T) {
+	t.Parallel()
+	t.Run("Should index at most two hundred thousand files", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		for i := range FindIndexLimit + 1 {
+			writeReaderFile(t, root, fmt.Sprintf("f%06d.go", i), "")
+		}
+		result, err := NewSearch(nil).Find(t.Context(), root, "no-match", 50)
+		if err != nil || !result.IndexTruncated || result.IndexedFiles != 200000 || len(result.Results) != 0 {
+			t.Fatalf(
+				"cap files=%d truncated=%v results=%d err=%v",
+				result.IndexedFiles,
+				result.IndexTruncated,
+				len(result.Results),
+				err,
+			)
+		}
+	})
+}
+
+type searchPathsFixture struct{ entries []workspacefiles.Entry }
+
+var _ workspacefiles.Index = searchPathsFixture{}
+
+func (f searchPathsFixture) Paths(context.Context, string) ([]workspacefiles.Entry, bool, error) {
+	return f.entries, false, nil
+}
+func (f searchPathsFixture) Search(context.Context, string, string, int) (workspacefiles.Result, error) {
+	return workspacefiles.Result{}, nil
+}
+func BenchmarkFileFinder100k(b *testing.B) {
+	root := Root{AbsPath: b.TempDir()}
+	target := "session-review-panel.tsx"
+	if err := os.WriteFile(filepath.Join(root.AbsPath, target), nil, 0600); err != nil {
+		b.Fatal(err)
+	}
+	entries := make([]workspacefiles.Entry, 100000)
+	for i := range entries {
+		entries[i] = workspacefiles.Entry{Path: fmt.Sprintf("src/module%06d/item.go", i), Kind: workspacefiles.KindFile}
+	}
+	entries[0].Path = target
+	search := NewSearch(nil)
+	search.index = searchPathsFixture{entries: entries}
+	for b.Loop() {
+		result, err := search.Find(b.Context(), root, "sesrevpan", 50)
+		if err != nil || len(result.Results) != 1 {
+			b.Fatalf("find results=%d err=%v", len(result.Results), err)
+		}
 	}
 }

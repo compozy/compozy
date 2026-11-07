@@ -5332,6 +5332,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/files/find": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Find project files */
+    get: operations["findFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/files/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search project file contents */
+    get: operations["searchFileContents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/hooks/runs": {
     parameters: {
       query?: never;
@@ -6288,6 +6322,40 @@ export interface paths {
     };
     /** List project file entries */
     get: operations["listSessionFileEntries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Find project files */
+    get: operations["findSessionFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search project file contents */
+    get: operations["searchSessionFileContents"];
     put?: never;
     post?: never;
     delete?: never;
@@ -10268,12 +10336,60 @@ export interface components {
       size?: number;
       symlink?: boolean;
     };
+    FileFindMatch: {
+      kind: string;
+      match_ranges: number[][];
+      path: string;
+      score: number;
+      sensitive?: boolean;
+    };
+    FileFindResponse: {
+      index_truncated: boolean;
+      indexed_files: number;
+      query: string;
+      results: components["schemas"]["FileFindMatch"][];
+      root: components["schemas"]["FileRootPayload"];
+    };
     FileRootPayload: {
       branch?: string;
       kind: string;
       name: string;
       workspace_id: string;
       worktree_id?: string;
+    };
+    FileSearchFile: {
+      matches: components["schemas"]["FileSearchMatch"][];
+      path: string;
+      truncated_matches?: boolean;
+    };
+    FileSearchMatch: {
+      column: number;
+      line: number;
+      ranges: number[][];
+      text: string;
+      text_offset: number;
+    };
+    FileSearchQuery: {
+      case_sensitive: boolean;
+      exclude: string[];
+      include: string[];
+      pattern: string;
+      regex: boolean;
+      whole_word: boolean;
+    };
+    FileSearchResponse: {
+      engine: string;
+      files: components["schemas"]["FileSearchFile"][];
+      query: components["schemas"]["FileSearchQuery"];
+      root: components["schemas"]["FileRootPayload"];
+      sensitive_excluded: number;
+      timed_out: boolean;
+      totals: components["schemas"]["FileSearchTotals"];
+      truncated: boolean;
+    };
+    FileSearchTotals: {
+      files: number;
+      matches: number;
     };
     FireLimitConfig: {
       max: number;
@@ -48648,6 +48764,172 @@ export interface operations {
       };
     };
   };
+  findFiles: {
+    parameters: {
+      query: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Search query */
+        q: string;
+        /** @description Result limit; defaults and clamps to 50 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileFindResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchFileContents: {
+    parameters: {
+      query: {
+        /** @description Optional worktree id */
+        worktree_id?: string;
+        /** @description Search query */
+        q: string;
+        /** @description Use POSIX ERE */
+        regex?: boolean;
+        /** @description Match case */
+        case_sensitive?: boolean;
+        /** @description Match whole words */
+        whole_word?: boolean;
+        /** @description Root-relative globs; repeat at most ten times */
+        include?: string[];
+        /** @description Root-relative globs; repeat at most ten times */
+        exclude?: string[];
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileSearchResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getHookRuns: {
     parameters: {
       query: {
@@ -54016,6 +54298,172 @@ export interface operations {
         };
       };
       /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  findSessionFiles: {
+    parameters: {
+      query: {
+        /** @description Search query */
+        q: string;
+        /** @description Result limit; defaults and clamps to 50 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileFindResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchSessionFileContents: {
+    parameters: {
+      query: {
+        /** @description Search query */
+        q: string;
+        /** @description Use POSIX ERE */
+        regex?: boolean;
+        /** @description Match case */
+        case_sensitive?: boolean;
+        /** @description Match whole words */
+        whole_word?: boolean;
+        /** @description Root-relative globs; repeat at most ten times */
+        include?: string[];
+        /** @description Root-relative globs; repeat at most ten times */
+        exclude?: string[];
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileSearchResponse"];
+        };
+      };
+      /** @description Search failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Search failed */
       500: {
         headers: {
           [name: string]: unknown;

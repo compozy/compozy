@@ -403,6 +403,12 @@ import type {
   FanOutTaskRunsData,
   FanOutTaskRunsErrors,
   FanOutTaskRunsResponses,
+  FindFilesData,
+  FindFilesErrors,
+  FindFilesResponses,
+  FindSessionFilesData,
+  FindSessionFilesErrors,
+  FindSessionFilesResponses,
   ForceFailTaskRunData,
   ForceFailTaskRunErrors,
   ForceFailTaskRunResponses,
@@ -1416,9 +1422,15 @@ import type {
   SearchAgentMemoryData,
   SearchAgentMemoryErrors,
   SearchAgentMemoryResponses,
+  SearchFileContentsData,
+  SearchFileContentsErrors,
+  SearchFileContentsResponses,
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
+  SearchSessionFileContentsData,
+  SearchSessionFileContentsErrors,
+  SearchSessionFileContentsResponses,
   SearchSessionFilesData,
   SearchSessionFilesErrors,
   SearchSessionFilesResponses,
@@ -12062,6 +12074,42 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
+   * Find project files
+   */
+  public findFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindFilesData, ThrowOnError>
+  ): RequestResult<FindFilesResponses, FindFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindFilesResponses,
+      FindFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchFileContentsData, ThrowOnError>
+  ): RequestResult<SearchFileContentsResponses, SearchFileContentsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      SearchFileContentsResponses,
+      SearchFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
    * Read project file content
    */
   public readSessionFileContent<ThrowOnError extends boolean = true>(
@@ -12103,6 +12151,47 @@ export class workspaces extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Find project files
+   */
+  public findSessionFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindSessionFilesData, ThrowOnError>
+  ): RequestResult<FindSessionFilesResponses, FindSessionFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindSessionFilesResponses,
+      FindSessionFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchSessionFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionFileContentsData, ThrowOnError>
+  ): RequestResult<
+    SearchSessionFileContentsResponses,
+    SearchSessionFileContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchSessionFileContentsResponses,
+      SearchSessionFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search",
       ...options,
     });
   }

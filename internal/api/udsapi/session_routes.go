@@ -121,6 +121,8 @@ func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
 func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/files", handlers.SearchSessionFiles)
 	workspaceSessions.GET("/:session_id/files/entries", handlers.ListSessionFileEntries)
+	workspaceSessions.GET("/:session_id/files/find", handlers.FindSessionFiles)
+	workspaceSessions.GET("/:session_id/files/search", handlers.SearchSessionFileContents)
 	workspaceSessions.GET("/:session_id/files/content", handlers.ReadSessionFileContent)
 	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
 	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)

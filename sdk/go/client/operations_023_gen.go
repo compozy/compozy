@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// ListSettingsApplyRecordsParams carries the path, query, and header parameters.
+type ListSettingsApplyRecordsParams struct {
+	Status *string `url:"status"`
+	Actor  *string `url:"actor"`
+	Limit  *int    `url:"limit"`
+}
+
+// ListSettingsApplyRecords List config apply records for desired and active generation reconciliation
+func (c *Client) ListSettingsApplyRecords(ctx context.Context, params ListSettingsApplyRecordsParams) (*ConfigApplyRecordsResponse, error) {
+	path := "/api/settings/apply"
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ConfigApplyRecordsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSettingsHooksParams carries the path, query, and header parameters.
+type ListSettingsHooksParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ListSettingsHooks List settings-backed hook declarations
 func (c *Client) ListSettingsHooks(ctx context.Context, params ListSettingsHooksParams) (*SettingsHooksResponse, error) {
 	path := "/api/settings/hooks"
@@ -391,33 +428,4 @@ type ListTerminalsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListTerminals List workspace terminals
-func (c *Client) ListTerminals(ctx context.Context, params ListTerminalsParams) (*TerminalListResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTerminalsAggregateParams carries the path, query, and header parameters.
-type ListTerminalsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

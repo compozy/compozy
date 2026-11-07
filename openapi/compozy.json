@@ -9366,6 +9366,68 @@
         ],
         "type": "object"
       },
+      "FileFindMatch": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "match_ranges": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "sensitive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "match_ranges",
+          "path",
+          "score"
+        ],
+        "type": "object"
+      },
+      "FileFindResponse": {
+        "properties": {
+          "index_truncated": {
+            "type": "boolean"
+          },
+          "indexed_files": {
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/FileFindMatch"
+            },
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          }
+        },
+        "required": [
+          "index_truncated",
+          "indexed_files",
+          "query",
+          "results",
+          "root"
+        ],
+        "type": "object"
+      },
       "FileRootPayload": {
         "properties": {
           "branch": {
@@ -9388,6 +9450,154 @@
           "kind",
           "name",
           "workspace_id"
+        ],
+        "type": "object"
+      },
+      "FileSearchFile": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/FileSearchMatch"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated_matches": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "matches",
+          "path"
+        ],
+        "type": "object"
+      },
+      "FileSearchMatch": {
+        "properties": {
+          "column": {
+            "type": "integer"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "ranges": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          },
+          "text_offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "column",
+          "line",
+          "ranges",
+          "text",
+          "text_offset"
+        ],
+        "type": "object"
+      },
+      "FileSearchQuery": {
+        "properties": {
+          "case_sensitive": {
+            "type": "boolean"
+          },
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "regex": {
+            "type": "boolean"
+          },
+          "whole_word": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "case_sensitive",
+          "exclude",
+          "include",
+          "pattern",
+          "regex",
+          "whole_word"
+        ],
+        "type": "object"
+      },
+      "FileSearchResponse": {
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileSearchFile"
+            },
+            "type": "array"
+          },
+          "query": {
+            "$ref": "#/components/schemas/FileSearchQuery"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "sensitive_excluded": {
+            "type": "integer"
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/FileSearchTotals"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "engine",
+          "files",
+          "query",
+          "root",
+          "sensitive_excluded",
+          "timed_out",
+          "totals",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FileSearchTotals": {
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "matches": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "files",
+          "matches"
         ],
         "type": "object"
       },
@@ -52680,6 +52890,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -52687,7 +52898,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Group identical scoped definitions",
@@ -57172,6 +57384,7 @@
           },
           {
             "description": "Project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -57179,7 +57392,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by job source",
@@ -57929,6 +58143,7 @@
           },
           {
             "description": "Source project IDs or @user; excludes unknown attribution",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -57936,7 +58151,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Opaque source-filter-bound cursor",
@@ -58172,6 +58388,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -58179,7 +58396,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by suggestion status",
@@ -58294,6 +58512,7 @@
           },
           {
             "description": "Project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -58301,7 +58520,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by trigger source",
@@ -64052,6 +64272,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -64059,7 +64280,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by Loop run id",
@@ -64178,6 +64400,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -64185,7 +64408,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by Loop name",
@@ -64339,6 +64563,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -64346,7 +64571,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Search Loop name or contract goal",
@@ -66501,6 +66727,7 @@
           },
           {
             "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -66508,7 +66735,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by task scope",
@@ -66718,6 +66946,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -66725,7 +66954,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by active run worktree ID",
@@ -71509,6 +71739,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -71516,7 +71747,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Include metadata-only health for returned sessions",
@@ -71672,6 +71904,7 @@
           },
           {
             "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
+            "explode": true,
             "in": "query",
             "name": "board_column",
             "schema": {
@@ -71679,7 +71912,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by comma-separated exact session badges",
@@ -72140,6 +72374,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -72147,7 +72382,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by bound worktree id",
@@ -79758,6 +79994,7 @@
           },
           {
             "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -79765,7 +80002,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by catalog visibility",
@@ -83447,6 +83685,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -83454,7 +83693,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Read one profile's rows by name",
@@ -83580,6 +83820,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -83587,7 +83828,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Resume after the last terminal catalog event",
@@ -87632,6 +87874,305 @@
           }
         },
         "summary": "List project file entries",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/find": {
+      "get": {
+        "operationId": "findFiles",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result limit; defaults and clamps to 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFindResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Find project files",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/search": {
+      "get": {
+        "operationId": "searchFileContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional worktree id",
+            "in": "query",
+            "name": "worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use POSIX ERE",
+            "in": "query",
+            "name": "regex",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match case",
+            "in": "query",
+            "name": "case_sensitive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match whole words",
+            "in": "query",
+            "name": "whole_word",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "exclude",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSearchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Search project file contents",
         "tags": [
           "workspaces"
         ],
@@ -93392,6 +93933,7 @@
           },
           {
             "description": "Project IDs or @user; repeatable, requires all_workspaces",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -93399,7 +93941,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Include metadata-only health for returned sessions",
@@ -93555,6 +94098,7 @@
           },
           {
             "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
+            "explode": true,
             "in": "query",
             "name": "board_column",
             "schema": {
@@ -93562,7 +94106,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           },
           {
             "description": "Filter by comma-separated exact session badges",
@@ -96085,6 +96630,307 @@
           }
         },
         "summary": "List project file entries",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find": {
+      "get": {
+        "operationId": "findSessionFiles",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result limit; defaults and clamps to 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFindResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Find project files",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search": {
+      "get": {
+        "operationId": "searchSessionFileContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use POSIX ERE",
+            "in": "query",
+            "name": "regex",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match case",
+            "in": "query",
+            "name": "case_sensitive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Match whole words",
+            "in": "query",
+            "name": "whole_word",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Root-relative globs; repeat at most ten times",
+            "explode": true,
+            "in": "query",
+            "name": "exclude",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSearchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Search failed"
+          }
+        },
+        "summary": "Search project file contents",
         "tags": [
           "workspaces"
         ],
@@ -107566,6 +108412,7 @@
           },
           {
             "description": "Exact worktree-relative reviewed file paths; scoped plans return a complete include set and fingerprint.",
+            "explode": true,
             "in": "query",
             "name": "include",
             "schema": {
@@ -107573,7 +108420,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -108192,6 +109040,7 @@
           },
           {
             "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "explode": true,
             "in": "query",
             "name": "workspace_ids",
             "schema": {
@@ -108199,7 +109048,8 @@
                 "type": "string"
               },
               "type": "array"
-            }
+            },
+            "style": "form"
           }
         ],
         "responses": {

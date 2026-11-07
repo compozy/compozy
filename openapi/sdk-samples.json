@@ -918,6 +918,20 @@
             "resource": "tasks",
             "app_access": "allowed"
         },
+        "findFiles": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.findFiles({ path: { \"workspace_id\": \"workspace_id\" }, query: { \"q\": \"q\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.FindFiles(ctx, client.FindFilesParams{WorkspaceID: \"workspace_id\", Q: \"q\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "allowed"
+        },
+        "findSessionFiles": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.findSessionFiles({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, query: { \"q\": \"q\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.FindSessionFiles(ctx, client.FindSessionFilesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\", Q: \"q\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "allowed"
+        },
         "forceFailTaskRun": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.forceFailTaskRun({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ForceFailTaskRun(ctx, client.ForceFailTaskRunParams{ID: \"id\"}, client.ForceFailTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3284,11 +3298,25 @@
             "resource": "agents",
             "app_access": "denied"
         },
+        "searchFileContents": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.searchFileContents({ path: { \"workspace_id\": \"workspace_id\" }, query: { \"q\": \"q\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchFileContents(ctx, client.SearchFileContentsParams{WorkspaceID: \"workspace_id\", Q: \"q\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "allowed"
+        },
         "searchGlobalSessionTranscript": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.searchGlobalSessionTranscript({ path: { \"session_id\": \"session_id\" }, query: { \"q\": \"q\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchGlobalSessionTranscript(ctx, client.SearchGlobalSessionTranscriptParams{SessionID: \"session_id\", Q: \"q\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
+            "app_access": "allowed"
+        },
+        "searchSessionFileContents": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.searchSessionFileContents({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, query: { \"q\": \"q\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchSessionFileContents(ctx, client.SearchSessionFileContentsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\", Q: \"q\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
             "app_access": "allowed"
         },
         "searchSessionFiles": {

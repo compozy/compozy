@@ -51,6 +51,8 @@ type BaseHandlerConfig struct {
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
 	FileTree                     FileTreeReader
+	FileFinder                   projectfiles.Finder
+	FileSearcher                 projectfiles.Searcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -145,6 +147,8 @@ type BaseHandlers struct {
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
 	FileTree                     FileTreeReader
+	FileFinder                   projectfiles.Finder
+	FileSearcher                 projectfiles.Searcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -239,6 +243,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	if cfg.Terminal != nil {
 		handlers.terminalCatalog = newTerminalCatalog(cfg.Terminal)
 	}
+	handlers.FileFinder, handlers.FileSearcher = cfg.FileFinder, cfg.FileSearcher
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
 }
@@ -375,6 +380,15 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
+	}
+	if cfg.FileFinder == nil || cfg.FileSearcher == nil {
+		search := projectfiles.NewSearch(nil)
+		if cfg.FileFinder == nil {
+			cfg.FileFinder = search
+		}
+		if cfg.FileSearcher == nil {
+			cfg.FileSearcher = search
+		}
 	}
 	if cfg.FileTree == nil {
 		cfg.FileTree = projectfiles.NewReader()

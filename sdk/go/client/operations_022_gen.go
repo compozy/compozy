@@ -9,6 +9,60 @@ import (
 	"strings"
 )
 
+// ListSessionFoldersParams carries the path, query, and header parameters.
+type ListSessionFoldersParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListSessionFolders List session folders in manual order
+func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionInputsParams carries the path, query, and header parameters.
+type ListSessionInputsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionInputs List pending session input
+func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInputListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionInteractionsParams carries the path, query, and header parameters.
 type ListSessionInteractionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -391,41 +445,4 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSettingsApplyRecordsParams carries the path, query, and header parameters.
-type ListSettingsApplyRecordsParams struct {
-	Status *string `url:"status"`
-	Actor  *string `url:"actor"`
-	Limit  *int    `url:"limit"`
-}
-
-// ListSettingsApplyRecords List config apply records for desired and active generation reconciliation
-func (c *Client) ListSettingsApplyRecords(ctx context.Context, params ListSettingsApplyRecordsParams) (*ConfigApplyRecordsResponse, error) {
-	path := "/api/settings/apply"
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Actor != nil {
-		query.Set("actor", *params.Actor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ConfigApplyRecordsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsHooksParams carries the path, query, and header parameters.
-type ListSettingsHooksParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

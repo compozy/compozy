@@ -10,6 +10,46 @@ import (
 	"strings"
 )
 
+// ReadToolArtifactParams carries the path, query, and header parameters.
+type ReadToolArtifactParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ArtifactID  string  `url:"artifact_id"`
+	Offset      *int64  `url:"offset"`
+	Limit       *int64  `url:"limit"`
+	Profile     *string `url:"profile"`
+}
+
+// ReadToolArtifact Read one retained oversized tool-result page
+func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactParams) (*ToolArtifactPageResponse, error) {
+	path := "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{artifact_id}", url.PathEscape(params.ArtifactID))
+	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.FormatInt(*params.Offset, 10))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.FormatInt(*params.Limit, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolArtifactPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RecordCmdPaletteUsageParams carries the path, query, and header parameters.
+type RecordCmdPaletteUsageParams struct {
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // RecordCmdPaletteUsage Record command palette usage
 func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
 	path := "/api/cmd-palette/usage"
@@ -407,31 +447,4 @@ func (c *Client) RemoveAgentMemory(ctx context.Context, params RemoveAgentMemory
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RemoveDiscoveredWorktreeParams carries the path, query, and header parameters.
-type RemoveDiscoveredWorktreeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RemoveDiscoveredWorktree Remove a discovered worktree
-func (c *Client) RemoveDiscoveredWorktree(ctx context.Context, params RemoveDiscoveredWorktreeParams, body RemoveDiscoveredWorktreeRequest) error {
-	path := "/api/workspaces/{workspace_id}/worktrees/discovered/remove"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// RemoveExtensionParams carries the path, query, and header parameters.
-type RemoveExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

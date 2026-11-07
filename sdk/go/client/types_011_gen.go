@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// LoopNodeAmendmentPayload is a daemon API value.
+type LoopNodeAmendmentPayload struct {
+	LoopRunID       string                     `json:"loop_run_id"`
+	Generation      int                        `json:"generation"`
+	NodeID          string                     `json:"node_id"`
+	ItemIndex       int                        `json:"item_index"`
+	Sequence        int                        `json:"amendment_seq"`
+	Original        json.RawMessage            `json:"original,omitempty"`
+	Amended         json.RawMessage            `json:"amended,omitempty"`
+	OriginalSummary *LoopAmendmentValueSummary `json:"original_summary,omitzero"`
+	AmendedSummary  *LoopAmendmentValueSummary `json:"amended_summary,omitzero"`
+	ActorKind       string                     `json:"actor_kind"`
+	ActorID         string                     `json:"actor_id"`
+	Reason          string                     `json:"reason,omitempty"`
+	CreatedAt       time.Time                  `json:"created_at"`
+}
+
+// LoopNodeClass is a daemon API value.
+type LoopNodeClass string
+
+// LoopNodeControlPayload is a daemon API value.
+type LoopNodeControlPayload struct {
+	LoopRunID               string                        `json:"loop_run_id"`
+	NodeID                  string                        `json:"node_id"`
+	Paused                  bool                          `json:"paused"`
+	PauseProvenance         *LoopControlProvenancePayload `json:"pause_provenance,omitzero"`
+	Quarantined             bool                          `json:"quarantined"`
+	QuarantineEntry         json.RawMessage               `json:"quarantine_entry,omitempty"`
+	QuarantinedAt           *time.Time                    `json:"quarantined_at,omitempty"`
+	AttentionFlag           string                        `json:"attention_flag,omitempty"`
+	AttentionReason         string                        `json:"attention_reason,omitempty"`
+	AttentionProducerNodeID string                        `json:"attention_producer_node_id,omitempty"`
+	CancelState             string                        `json:"cancel_state,omitempty"`
+	CancelProvenance        *LoopControlProvenancePayload `json:"cancel_provenance,omitzero"`
+	LastEvidenceAt          *time.Time                    `json:"last_evidence_at,omitempty"`
+	DeathResumeStreak       int                           `json:"death_resume_streak"`
+	Revision                int64                         `json:"revision"`
+	UpdatedAt               time.Time                     `json:"updated_at"`
+}
+
 // LoopNodeInventoryItem is a daemon API value.
 type LoopNodeInventoryItem struct {
 	WorkspaceID string                  `json:"workspace_id,omitempty"`
@@ -399,50 +439,4 @@ type MCPAuthSummary struct {
 	Registration string   `json:"registration,omitempty"`
 	IssuerURL    string   `json:"issuer_url,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`
-}
-
-// MCPServerStatusPayload is a daemon API value.
-type MCPServerStatusPayload struct {
-	Name          string `json:"name"`
-	Scope         string `json:"scope"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	AuthStatus    string `json:"auth_status,omitempty"`
-	Configured    bool   `json:"configured"`
-	Initialized   bool   `json:"initialized"`
-	State         string `json:"state"`
-	Probe         string `json:"probe,omitempty"`
-	ToolCount     int    `json:"tool_count,omitzero"`
-	Reason        string `json:"reason,omitempty"`
-	Diagnostic    string `json:"diagnostic,omitempty"`
-	Transport     string `json:"transport,omitempty"`
-	RuntimeStatus string `json:"runtime_status"`
-}
-
-// ManagedExtensionRemovePayload is a daemon API value.
-type ManagedExtensionRemovePayload struct {
-	Name           string           `json:"name"`
-	Path           string           `json:"path"`
-	DataPath       string           `json:"data_path,omitempty"`
-	QuarantinePath string           `json:"quarantine_path,omitempty"`
-	Status         string           `json:"status"`
-	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
-}
-
-// ManagedExtensionUpdatePayload is a daemon API value.
-type ManagedExtensionUpdatePayload struct {
-	Name           string           `json:"name"`
-	Slug           string           `json:"slug"`
-	Registry       string           `json:"registry"`
-	CurrentVersion string           `json:"current_version,omitempty"`
-	LatestVersion  string           `json:"latest_version,omitempty"`
-	Path           string           `json:"path"`
-	Status         string           `json:"status"`
-	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
-	Error          *DiagnosticItem  `json:"error,omitzero"`
-}
-
-// MarketplaceEntryResponse is a daemon API value.
-type MarketplaceEntryResponse struct {
-	Entry     MarketplaceListingPayload          `json:"entry"`
-	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitzero"`
 }

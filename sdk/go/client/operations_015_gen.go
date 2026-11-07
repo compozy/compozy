@@ -9,6 +9,80 @@ import (
 	"strings"
 )
 
+// GetTaskDashboard Get the observer-backed task dashboard
+func (c *Client) GetTaskDashboard(ctx context.Context, params GetTaskDashboardParams) (*TaskDashboardResponse, error) {
+	path := "/api/observe/tasks/dashboard"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerRef != nil {
+		query.Set("owner_ref", *params.OwnerRef)
+	}
+	if params.OriginKind != nil {
+		query.Set("origin_kind", *params.OriginKind)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskDashboardResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskExecutionProfileParams carries the path, query, and header parameters.
+type GetTaskExecutionProfileParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskExecutionProfile Get one task execution profile
+func (c *Client) GetTaskExecutionProfile(ctx context.Context, params GetTaskExecutionProfileParams) (*TaskExecutionProfileResponse, error) {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionProfileResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTaskInboxParams carries the path, query, and header parameters.
 type GetTaskInboxParams struct {
 	Scope         *string   `url:"scope"`
@@ -370,73 +444,4 @@ func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowM
 // GetWorkspaceParams carries the path, query, and header parameters.
 type GetWorkspaceParams struct {
 	ID string `url:"id"`
-}
-
-// GetWorkspace Get one resolved workspace with related data
-func (c *Client) GetWorkspace(ctx context.Context, params GetWorkspaceParams) (*WorkspaceDetailPayload, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceDetailPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorkspaceLayoutParams carries the path, query, and header parameters.
-type GetWorkspaceLayoutParams struct {
-	Profile *string `url:"profile"`
-}
-
-// GetWorkspaceLayout Read the profile's workspace folders and manual workspace order
-func (c *Client) GetWorkspaceLayout(ctx context.Context, params GetWorkspaceLayoutParams) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-folders"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorktreeExitPlanParams carries the path, query, and header parameters.
-type GetWorktreeExitPlanParams struct {
-	WorkspaceID string    `url:"workspace_id"`
-	WorktreeID  string    `url:"worktree_id"`
-	Include     *[]string `url:"include"`
-}
-
-// GetWorktreeExitPlan Read the worktree exit plan
-func (c *Client) GetWorktreeExitPlan(ctx context.Context, params GetWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Include != nil {
-		for _, value := range *params.Include {
-			query.Add("include", value)
-		}
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeExitPlanResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorktreeStatusParams carries the path, query, and header parameters.
-type GetWorktreeStatusParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
-	Refresh     *bool  `url:"refresh"`
-	Forge       *bool  `url:"forge"`
 }

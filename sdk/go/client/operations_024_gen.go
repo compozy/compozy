@@ -9,6 +9,35 @@ import (
 	"strings"
 )
 
+// ListTerminals List workspace terminals
+func (c *Client) ListTerminals(ctx context.Context, params ListTerminalsParams) (*TerminalListResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTerminalsAggregateParams carries the path, query, and header parameters.
+type ListTerminalsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListTerminalsAggregate List workspace terminals
 func (c *Client) ListTerminalsAggregate(ctx context.Context, params ListTerminalsAggregateParams) (*TerminalListResponse, error) {
 	path := "/api/terminals"
@@ -409,40 +438,6 @@ func (c *Client) ListWorktreesAggregate(ctx context.Context, params ListWorktree
 	}
 	var out WorktreesResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// LogoutSettingsMCPAuthParams carries the path, query, and header parameters.
-type LogoutSettingsMCPAuthParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// LogoutSettingsMCPAuth Log out one scoped MCP server
-func (c *Client) LogoutSettingsMCPAuth(ctx context.Context, params LogoutSettingsMCPAuthParams) (*SettingsMCPAuthStatusPayload, error) {
-	path := "/api/settings/mcp-servers/{name}/auth/logout"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPAuthStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

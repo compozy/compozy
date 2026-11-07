@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// ListProviderModelsByProviderParams carries the path, query, and header parameters.
+type ListProviderModelsByProviderParams struct {
+	ProviderID   string  `url:"provider_id"`
+	View         *string `url:"view"`
+	SourceID     *string `url:"source_id"`
+	Refresh      *bool   `url:"refresh"`
+	IncludeStale *bool   `url:"include_stale"`
+}
+
+// ListProviderModelsByProvider List provider model catalog entries for one provider
+func (c *Client) ListProviderModelsByProvider(ctx context.Context, params ListProviderModelsByProviderParams) (*ProviderModelListResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeStale != nil {
+		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderUsageParams carries the path, query, and header parameters.
+type ListProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListProviders List providers and declared auth status
 func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, error) {
 	path := "/api/providers"
@@ -381,60 +439,6 @@ func (c *Client) ListSessionFileEntries(ctx context.Context, params ListSessionF
 		path += "?" + query.Encode()
 	}
 	var out FileEntriesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionFoldersParams carries the path, query, and header parameters.
-type ListSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSessionFolders List session folders in manual order
-func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInputsParams carries the path, query, and header parameters.
-type ListSessionInputsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionInputs List pending session input
-func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInputListResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

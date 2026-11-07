@@ -145,6 +145,10 @@ func buildParameter(spec ParameterSpec) *openapi3.Parameter {
 		param.WithDescription(spec.Description)
 	}
 	param.Schema = schemaRefForParameter(spec)
+	if spec.Kind == specArrayKind && spec.In == specParameterInQuery {
+		param.Style = "form"
+		param.Explode = new(true)
+	}
 	return param
 }
 

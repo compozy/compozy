@@ -72,6 +72,80 @@ func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams
 	return &out, nil
 }
 
+// FindFilesParams carries the path, query, and header parameters.
+type FindFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	WorktreeID  *string `url:"worktree_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// FindFiles Find project files
+func (c *Client) FindFiles(ctx context.Context, params FindFilesParams) (*FileFindResponse, error) {
+	path := "/api/workspaces/{workspace_id}/files/find"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.WorktreeID != nil {
+		query.Set("worktree_id", *params.WorktreeID)
+	}
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileFindResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FindSessionFilesParams carries the path, query, and header parameters.
+type FindSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// FindSessionFiles Find project files
+func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesParams) (*FileFindResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileFindResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ForceFailTaskRunParams carries the path, query, and header parameters.
 type ForceFailTaskRunParams struct {
 	ID      string  `url:"id"`
@@ -361,72 +435,4 @@ type GetAgentHeartbeatSourcesParams struct {
 	Name        string  `url:"name"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// GetAgentHeartbeatSources List check-in source kinds, scripts and effective limits
-func (c *Client) GetAgentHeartbeatSources(ctx context.Context, params GetAgentHeartbeatSourcesParams) (*HeartbeatSourceCatalogPayload, error) {
-	path := "/api/agents/{name}/heartbeat/sources"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatSourceCatalogPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentHeartbeatStatusParams carries the path, query, and header parameters.
-type GetAgentHeartbeatStatusParams struct {
-	Name                    string  `url:"name"`
-	WorkspaceID             *string `url:"workspace_id"`
-	SessionID               *string `url:"session_id"`
-	IncludeSessionHealth    *bool   `url:"include_session_health"`
-	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
-	Profile                 *string `url:"profile"`
-}
-
-// GetAgentHeartbeatStatus Read Heartbeat policy status, wake state, and optional session health
-func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHeartbeatStatusParams) (*HeartbeatStatusResponse, error) {
-	path := "/api/agents/{name}/heartbeat/status"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.IncludeSessionHealth != nil {
-		query.Set("include_session_health", strconv.FormatBool(*params.IncludeSessionHealth))
-	}
-	if params.IncludeRecentWakeEvents != nil {
-		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceParams carries the path, query, and header parameters.
-type GetAgentInstanceParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// SettingsRoleFallbackPayload is a daemon API value.
+type SettingsRoleFallbackPayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort string                              `json:"reasoning_effort"`
+	Speed           *Speed                              `json:"speed,omitzero"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options"`
+	Command         string                              `json:"command"`
+}
+
+// SettingsRolesConfigPayload is a daemon API value.
+type SettingsRolesConfigPayload struct {
+	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
+	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
+}
+
+// SettingsRolesResponse is a daemon API value.
+type SettingsRolesResponse struct {
+	Section         SettingsSectionName          `json:"section"`
+	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
+	WorkspaceID     string                       `json:"workspace_id,omitempty"`
+	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
+	Config          SettingsRolesConfigPayload   `json:"config"`
+}
+
+// SettingsScopeKind is a daemon API value.
+type SettingsScopeKind string
+
+// SettingsSectionName is a daemon API value.
+type SettingsSectionName string
+
+// SettingsShellAppearancePayload is a daemon API value.
+type SettingsShellAppearancePayload struct {
+	UIFont   *string `json:"ui_font,omitempty"`
+	MonoFont *string `json:"mono_font,omitempty"`
+}
+
+// SettingsShellLegacyScopePayload is a daemon API value.
+type SettingsShellLegacyScopePayload struct {
+	Value    SettingsShellSessionScope `json:"value"`
+	Explicit bool                      `json:"explicit"`
+	Revision uint64                    `json:"revision"`
+}
+
 // SettingsShellMutationResponse is a daemon API value.
 type SettingsShellMutationResponse struct {
 	Section          SettingsApplyTargetName         `json:"section,omitempty"`
@@ -403,47 +448,3 @@ type SettingsWindowManagerGapsPayload struct {
 	Bottom int `json:"bottom"`
 	Left   int `json:"left"`
 }
-
-// SettingsWindowManagerMutationResponse is a daemon API value.
-type SettingsWindowManagerMutationResponse struct {
-	Section            SettingsSectionName                      `json:"section"`
-	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
-	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
-	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
-	Config             SettingsWindowManagerConfigPayload       `json:"config"`
-	Defaults           map[string][]string                      `json:"defaults"`
-	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
-	Aliases            map[string]string                        `json:"aliases"`
-	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
-	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
-	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
-	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
-	Apply              SettingsApplyResponse                    `json:"apply"`
-}
-
-// SettingsWindowManagerResponse is a daemon API value.
-type SettingsWindowManagerResponse struct {
-	Section            SettingsSectionName                      `json:"section"`
-	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
-	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
-	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
-	Config             SettingsWindowManagerConfigPayload       `json:"config"`
-	Defaults           map[string][]string                      `json:"defaults"`
-	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
-	Aliases            map[string]string                        `json:"aliases"`
-	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
-	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
-	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
-	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
-}
-
-// SettingsWindowManagerSnapPayload is a daemon API value.
-type SettingsWindowManagerSnapPayload struct {
-	EdgeBand     int       `json:"edge_band"`
-	CornerReach  int       `json:"corner_reach"`
-	ExitSlack    int       `json:"exit_slack"`
-	RepeatRatios []float64 `json:"repeat_ratios"`
-}
-
-// SettingsWindowNewPolicy is a daemon API value.
-type SettingsWindowNewPolicy string

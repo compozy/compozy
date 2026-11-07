@@ -78,6 +78,24 @@ type FileEntryPayload struct {
 	ContainsChanges bool   `json:"contains_changes,omitzero"`
 }
 
+// FileFindMatch is a daemon API value.
+type FileFindMatch struct {
+	Path        string  `json:"path"`
+	Kind        string  `json:"kind"`
+	Sensitive   bool    `json:"sensitive,omitzero"`
+	Score       int     `json:"score"`
+	MatchRanges [][]int `json:"match_ranges"`
+}
+
+// FileFindResponse is a daemon API value.
+type FileFindResponse struct {
+	Root           FileRootPayload `json:"root"`
+	Query          string          `json:"query"`
+	Results        []FileFindMatch `json:"results"`
+	IndexedFiles   int             `json:"indexed_files"`
+	IndexTruncated bool            `json:"index_truncated"`
+}
+
 // FileParseKind is a daemon API value.
 type FileParseKind string
 
@@ -88,6 +106,50 @@ type FileRootPayload struct {
 	WorktreeID  string `json:"worktree_id,omitempty"`
 	Name        string `json:"name"`
 	Branch      string `json:"branch,omitempty"`
+}
+
+// FileSearchFile is a daemon API value.
+type FileSearchFile struct {
+	Path             string            `json:"path"`
+	Matches          []FileSearchMatch `json:"matches"`
+	TruncatedMatches bool              `json:"truncated_matches,omitzero"`
+}
+
+// FileSearchMatch is a daemon API value.
+type FileSearchMatch struct {
+	Line       int     `json:"line"`
+	Column     int     `json:"column"`
+	Text       string  `json:"text"`
+	Ranges     [][]int `json:"ranges"`
+	TextOffset int     `json:"text_offset"`
+}
+
+// FileSearchQuery is a daemon API value.
+type FileSearchQuery struct {
+	Pattern       string   `json:"pattern"`
+	Regex         bool     `json:"regex"`
+	CaseSensitive bool     `json:"case_sensitive"`
+	WholeWord     bool     `json:"whole_word"`
+	Include       []string `json:"include"`
+	Exclude       []string `json:"exclude"`
+}
+
+// FileSearchResponse is a daemon API value.
+type FileSearchResponse struct {
+	Root              FileRootPayload  `json:"root"`
+	Query             FileSearchQuery  `json:"query"`
+	Engine            string           `json:"engine"`
+	Files             []FileSearchFile `json:"files"`
+	Totals            FileSearchTotals `json:"totals"`
+	Truncated         bool             `json:"truncated"`
+	TimedOut          bool             `json:"timed_out"`
+	SensitiveExcluded int              `json:"sensitive_excluded"`
+}
+
+// FileSearchTotals is a daemon API value.
+type FileSearchTotals struct {
+	Files   int `json:"files"`
+	Matches int `json:"matches"`
 }
 
 // FireLimitConfig is a daemon API value.
@@ -381,65 +443,3 @@ type GatewaySurfaceRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 	Consent            bool   `json:"consent"`
 }
-
-// GatewayTierPayload is a daemon API value.
-type GatewayTierPayload struct {
-	Tier            string `json:"tier"`
-	Desired         string `json:"desired"`
-	Observed        string `json:"observed"`
-	ListenerAddress string `json:"listener_address,omitempty"`
-	Advertised      bool   `json:"advertised"`
-}
-
-// GlobalShortcut is a daemon API value.
-type GlobalShortcut struct {
-	IntendedChord string `json:"intended_chord"`
-	ActiveChord   string `json:"active_chord,omitempty"`
-	Status        string `json:"status,omitempty"`
-	Reason        string `json:"reason,omitempty"`
-	SettingsURL   string `json:"settings_url,omitempty"`
-}
-
-// GlobalShortcutRegistration is a daemon API value.
-type GlobalShortcutRegistration struct {
-	CommandID     string               `json:"command_id"`
-	IntendedChord string               `json:"intended_chord"`
-	ActiveChord   string               `json:"active_chord,omitempty"`
-	Status        GlobalShortcutStatus `json:"status"`
-	Reason        string               `json:"reason,omitempty"`
-	SettingsURL   string               `json:"settings_url,omitempty"`
-}
-
-// GlobalShortcutStatus is a daemon API value.
-type GlobalShortcutStatus string
-
-// GoalBlockingIssue is a daemon API value.
-type GoalBlockingIssue struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
-}
-
-// GoalCommandOutcome is a daemon API value.
-type GoalCommandOutcome string
-
-// GoalCommandResult is a daemon API value.
-type GoalCommandResult struct {
-	Outcome       GoalCommandOutcome `json:"outcome"`
-	ReasonCode    *GoalReasonCode    `json:"reason_code"`
-	Snapshot      *GoalSnapshot      `json:"snapshot"`
-	ReplacedRunID *string            `json:"replaced_run_id"`
-}
-
-// GoalContextSnapshot is a daemon API value.
-type GoalContextSnapshot struct {
-	State      GoalContextState `json:"state"`
-	Diagnostic string           `json:"diagnostic,omitempty"`
-	Used       *int64           `json:"used"`
-	Size       *int64           `json:"size"`
-	Ratio      *float64         `json:"ratio"`
-	NudgeRatio float64          `json:"nudge_ratio"`
-	ReportedAt *time.Time       `json:"reported_at"`
-}
-
-// GoalContextState is a daemon API value.
-type GoalContextState string

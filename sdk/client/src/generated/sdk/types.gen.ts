@@ -2491,12 +2491,67 @@ export type FileEntryPayload = {
   symlink?: boolean;
 };
 
+export type FileFindMatch = {
+  kind: string;
+  match_ranges: Array<Array<number>>;
+  path: string;
+  score: number;
+  sensitive?: boolean;
+};
+
+export type FileFindResponse = {
+  index_truncated: boolean;
+  indexed_files: number;
+  query: string;
+  results: Array<FileFindMatch>;
+  root: FileRootPayload;
+};
+
 export type FileRootPayload = {
   branch?: string;
   kind: string;
   name: string;
   workspace_id: string;
   worktree_id?: string;
+};
+
+export type FileSearchFile = {
+  matches: Array<FileSearchMatch>;
+  path: string;
+  truncated_matches?: boolean;
+};
+
+export type FileSearchMatch = {
+  column: number;
+  line: number;
+  ranges: Array<Array<number>>;
+  text: string;
+  text_offset: number;
+};
+
+export type FileSearchQuery = {
+  case_sensitive: boolean;
+  exclude: Array<string>;
+  include: Array<string>;
+  pattern: string;
+  regex: boolean;
+  whole_word: boolean;
+};
+
+export type FileSearchResponse = {
+  engine: string;
+  files: Array<FileSearchFile>;
+  query: FileSearchQuery;
+  root: FileRootPayload;
+  sensitive_excluded: number;
+  timed_out: boolean;
+  totals: FileSearchTotals;
+  truncated: boolean;
+};
+
+export type FileSearchTotals = {
+  files: number;
+  matches: number;
 };
 
 export type FireLimitConfig = {
@@ -33490,6 +33545,157 @@ export type ListFileEntriesResponses = {
 
 export type ListFileEntriesResponse = ListFileEntriesResponses[keyof ListFileEntriesResponses];
 
+export type FindFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/find";
+};
+
+export type FindFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindFilesError = FindFilesErrors[keyof FindFilesErrors];
+
+export type FindFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindFilesResponse = FindFilesResponses[keyof FindFilesResponses];
+
+export type SearchFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/search";
+};
+
+export type SearchFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchFileContentsError = SearchFileContentsErrors[keyof SearchFileContentsErrors];
+
+export type SearchFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchFileContentsResponse =
+  SearchFileContentsResponses[keyof SearchFileContentsResponses];
+
 export type GetHookRunsData = {
   body?: never;
   path: {
@@ -37851,6 +38057,158 @@ export type ListSessionFileEntriesResponses = {
 
 export type ListSessionFileEntriesResponse =
   ListSessionFileEntriesResponses[keyof ListSessionFileEntriesResponses];
+
+export type FindSessionFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find";
+};
+
+export type FindSessionFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindSessionFilesError = FindSessionFilesErrors[keyof FindSessionFilesErrors];
+
+export type FindSessionFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindSessionFilesResponse = FindSessionFilesResponses[keyof FindSessionFilesResponses];
+
+export type SearchSessionFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search";
+};
+
+export type SearchSessionFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchSessionFileContentsError =
+  SearchSessionFileContentsErrors[keyof SearchSessionFileContentsErrors];
+
+export type SearchSessionFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchSessionFileContentsResponse =
+  SearchSessionFileContentsResponses[keyof SearchSessionFileContentsResponses];
 
 export type ForkSessionData = {
   /**

@@ -134,6 +134,52 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 		}
 	})
 
+	t.Run("Should find and search the bound root with HTTP UDS parity", func(t *testing.T) {
+		base := "/api/workspaces/" + harness.WorkspaceID
+		for _, prefix := range []string{base + "/files", base + "/sessions/" + bound.ID + "/files"} {
+			var a, b compozycontract.FileFindResponse
+			path := prefix + "/find?q=only"
+			if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &a); err != nil {
+				t.Fatal(err)
+			}
+			if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &b); err != nil {
+				t.Fatal(err)
+			}
+			assertWorktreeE2EJSONParity(t, "find", a, b)
+			want := "root_only.go"
+			if strings.Contains(prefix, "/sessions/") {
+				want = "worktree_only.go"
+			}
+			if len(a.Results) != 1 || a.Results[0].Path != want {
+				t.Fatalf("find=%+v", a)
+			}
+			var x, y compozycontract.FileSearchResponse
+			path = prefix + "/search?q=package&include=cmd/**&exclude=**/*.test.go"
+			if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &x); err != nil {
+				t.Fatal(err)
+			}
+			if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &y); err != nil {
+				t.Fatal(err)
+			}
+			assertWorktreeE2EJSONParity(t, "search", x, y)
+			if x.Engine != "git_grep" || x.Totals.Matches != 1 || len(x.Files) != 1 || x.Files[0].Path != "cmd/main.go" {
+				t.Fatalf("search=%+v", x)
+			}
+			if strings.Contains(string(mustSearchJSON(t, x)), root) {
+				t.Fatal("host path leaked")
+			}
+			response, err := http.Get(harness.HTTPURL(prefix + "/search?q=foo%28&regex=true"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := io.ReadAll(response.Body)
+			response.Body.Close()
+			if err != nil || response.StatusCode != 400 || !bytes.Contains(data, []byte("invalid_query")) {
+				t.Fatalf("invalid query status=%d body=%s err=%v", response.StatusCode, data, err)
+			}
+		}
+	})
+
 	t.Run("Should fence sensitive content for app tokens on both root forms", func(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(ready.Worktree.Path, ".env"), []byte("secret"), 0600); err != nil {
 			t.Fatal(err)
@@ -294,4 +340,13 @@ func TestDaemonSearchSessionFilesCreationProfileCWDIT010(t *testing.T) {
 			t.Fatalf("delivered links = %v, want only pkg's main.go", links)
 		}
 	})
+}
+
+func mustSearchJSON(t *testing.T, value compozycontract.FileSearchResponse) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }

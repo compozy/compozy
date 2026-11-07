@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// LoopCatalogSourcePayload is a daemon API value.
+type LoopCatalogSourcePayload struct {
+	Kind  LoopSource `json:"kind"`
+	Layer string     `json:"layer"`
+}
+
+// LoopCatalogWorkspaceError is a daemon API value.
+type LoopCatalogWorkspaceError struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+}
+
+// LoopCompletionState is a daemon API value.
+type LoopCompletionState string
+
+// LoopConfig is a daemon API value.
+type LoopConfig struct {
+	HumanGateEnabled  *bool                  `json:"human_gate_enabled,omitzero"`
+	ReattemptStrategy *LoopReattemptStrategy `json:"reattempt_strategy,omitzero"`
+	EnabledChecks     json.RawMessage        `json:"enabled_checks_json,omitempty"`
+	IterationCap      *int                   `json:"iteration_cap,omitzero"`
+	BudgetTokens      *int                   `json:"budget_tokens,omitzero"`
+	BudgetWallSec     *int                   `json:"budget_wall_sec,omitzero"`
+	BudgetOnExceeded  *LoopBudgetExceeded    `json:"budget_on_exceeded,omitzero"`
+	NoProgressWindow  *int                   `json:"no_progress_window,omitzero"`
+	FanOutWidth       *int                   `json:"fan_out_width,omitzero"`
+	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitzero"`
+	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitzero"`
+	RuntimeRules      []LoopRuntimeRule      `json:"runtime_rules,omitempty"`
+	Environment       *LoopEnvironment       `json:"environment,omitzero"`
+}
+
+// LoopConfigResponse is a daemon API value.
+type LoopConfigResponse struct {
+	Config          *LoopConfig         `json:"config"`
+	EffectiveConfig LoopEffectiveConfig `json:"effective_config"`
+}
+
 // LoopContract is a daemon API value.
 type LoopContract struct {
 	Goal             string               `json:"goal"`
@@ -397,44 +436,4 @@ type LoopNodeAmendRequest struct {
 type LoopNodeAmendResponse struct {
 	OK        bool                     `json:"ok"`
 	Amendment LoopNodeAmendmentPayload `json:"amendment"`
-}
-
-// LoopNodeAmendmentPayload is a daemon API value.
-type LoopNodeAmendmentPayload struct {
-	LoopRunID       string                     `json:"loop_run_id"`
-	Generation      int                        `json:"generation"`
-	NodeID          string                     `json:"node_id"`
-	ItemIndex       int                        `json:"item_index"`
-	Sequence        int                        `json:"amendment_seq"`
-	Original        json.RawMessage            `json:"original,omitempty"`
-	Amended         json.RawMessage            `json:"amended,omitempty"`
-	OriginalSummary *LoopAmendmentValueSummary `json:"original_summary,omitzero"`
-	AmendedSummary  *LoopAmendmentValueSummary `json:"amended_summary,omitzero"`
-	ActorKind       string                     `json:"actor_kind"`
-	ActorID         string                     `json:"actor_id"`
-	Reason          string                     `json:"reason,omitempty"`
-	CreatedAt       time.Time                  `json:"created_at"`
-}
-
-// LoopNodeClass is a daemon API value.
-type LoopNodeClass string
-
-// LoopNodeControlPayload is a daemon API value.
-type LoopNodeControlPayload struct {
-	LoopRunID               string                        `json:"loop_run_id"`
-	NodeID                  string                        `json:"node_id"`
-	Paused                  bool                          `json:"paused"`
-	PauseProvenance         *LoopControlProvenancePayload `json:"pause_provenance,omitzero"`
-	Quarantined             bool                          `json:"quarantined"`
-	QuarantineEntry         json.RawMessage               `json:"quarantine_entry,omitempty"`
-	QuarantinedAt           *time.Time                    `json:"quarantined_at,omitempty"`
-	AttentionFlag           string                        `json:"attention_flag,omitempty"`
-	AttentionReason         string                        `json:"attention_reason,omitempty"`
-	AttentionProducerNodeID string                        `json:"attention_producer_node_id,omitempty"`
-	CancelState             string                        `json:"cancel_state,omitempty"`
-	CancelProvenance        *LoopControlProvenancePayload `json:"cancel_provenance,omitzero"`
-	LastEvidenceAt          *time.Time                    `json:"last_evidence_at,omitempty"`
-	DeathResumeStreak       int                           `json:"death_resume_streak"`
-	Revision                int64                         `json:"revision"`
-	UpdatedAt               time.Time                     `json:"updated_at"`
 }
