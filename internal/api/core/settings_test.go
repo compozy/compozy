@@ -54,6 +54,7 @@ type stubSettingsService struct {
 	DeleteItemFn         func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyDeleteFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn             func(context.Context) (settingspkg.ApplyResult, error)
+	SetProviderEnabledFn func(context.Context, string, bool) (settingspkg.ProviderItem, settingspkg.ApplyResult, error)
 	ListApplyRecordsFn   func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 	PendingRestartFn     func(context.Context) (bool, error)
 
@@ -284,6 +285,17 @@ func (s *stubSettingsService) ApplyCollectionDelete(
 		return applyResultFromMutation(result), nil
 	}
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
+}
+
+func (s *stubSettingsService) SetProviderEnabled(
+	ctx context.Context,
+	name string,
+	enabled bool,
+) (settingspkg.ProviderItem, settingspkg.ApplyResult, error) {
+	if s.SetProviderEnabledFn == nil {
+		return settingspkg.ProviderItem{Name: name, Enabled: enabled}, defaultApplyResult(""), nil
+	}
+	return s.SetProviderEnabledFn(ctx, name, enabled)
 }
 
 func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
@@ -551,6 +563,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", handlers.SetSettingsProviderEnabled)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)

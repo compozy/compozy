@@ -34,7 +34,9 @@ func (s *service) classifyProviderWrite(
 	nextConfig := currentConfig
 	nextConfig.Providers = make(map[string]compozyconfig.ProviderConfig, len(currentConfig.Providers)+1)
 	maps.Copy(nextConfig.Providers, currentConfig.Providers)
-	nextConfig.Providers[name] = providerConfigFromSettings(settings)
+	nextProviderConfig := providerConfigFromSettings(settings)
+	nextProviderConfig.Enabled = cloneEnabled(currentConfig.Providers[name].Enabled)
+	nextConfig.Providers[name] = nextProviderConfig
 	if windowOnly {
 		provider := currentConfig.Providers[name]
 		provider.AutoCompactWindow = settings.AutoCompactWindow

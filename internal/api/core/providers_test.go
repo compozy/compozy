@@ -731,3 +731,45 @@ type activeProviderSettings struct {
 func (s *activeProviderSettings) ActiveConfig(context.Context) (compozyconfig.Config, error) {
 	return compozyconfig.CloneConfig(&s.config), s.err
 }
+
+func TestProviderInventoryEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list a disabled provider with enabled false next to enabled ones", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		settings := &activeProviderSettings{config: providerAuthTestConfig(t)}
+		native := settings.config.Providers["native"]
+		native.Enabled = new(false)
+		settings.config.Providers["native"] = native
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config:    compozyconfig.CloneConfig(&settings.config),
+			Settings:  settings,
+			HomePaths: homePaths,
+		})
+		router := gin.New()
+		router.GET("/providers", handlers.ListProviders)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/providers", http.NoBody),
+		)
+		var inventory contract.ProviderListResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &inventory); err != nil {
+			t.Fatalf("decode inventory: %v; body=%s", err, response.Body.String())
+		}
+		enabled := map[string]bool{}
+		for _, provider := range inventory.Providers {
+			enabled[provider.Name] = provider.Enabled
+		}
+		if got, listed := enabled["native"]; !listed || got {
+			t.Fatalf("native enabled = %v listed = %v, want listed and disabled", got, listed)
+		}
+		if !enabled["public"] {
+			t.Fatalf("public enabled = false, want true; inventory=%v", enabled)
+		}
+	})
+}

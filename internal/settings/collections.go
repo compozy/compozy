@@ -200,6 +200,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 			Name:             name,
 			Settings:         settings,
 			Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
+			Enabled:          !cfg.IsProviderDisabled(name),
 			CommandAvailable: s.providerLaunchAvailable(name, resolved),
 			Credentials:      credentials,
 			AuthStatus:       authStatus,

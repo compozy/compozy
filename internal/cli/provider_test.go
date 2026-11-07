@@ -511,6 +511,44 @@ func TestProviderDaemonCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should show each provider's enabled state in the list", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProvidersFn: func(_ context.Context) (contract.ProviderListResponse, error) {
+				return contract.ProviderListResponse{
+					Providers: []contract.ProviderSummaryPayload{
+						{Name: "codex", Default: true, Enabled: true},
+						{Name: "gemini", Enabled: false},
+					},
+				}, nil
+			},
+		}
+		deps := newTestDeps(t, client)
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider list -o json error = %v", err)
+		}
+		var record struct {
+			Providers []map[string]any `json:"providers"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider list) error = %v", err)
+		}
+		if got, ok := record.Providers[1]["enabled"]; !ok || got != false {
+			t.Fatalf("gemini enabled = %v present=%v, want explicit false", got, ok)
+		}
+
+		human, _, err := executeRootCommand(t, deps, "provider", "list", "-o", "human")
+		if err != nil {
+			t.Fatalf("provider list -o human error = %v", err)
+		}
+		if !strings.Contains(strings.ToUpper(human), "ENABLED") || !strings.Contains(human, "false") {
+			t.Fatalf("provider list human output = %q, want an ENABLED column with false for gemini", human)
+		}
+	})
+
 	t.Run("Should run remote auth status through daemon client", func(t *testing.T) {
 		t.Parallel()
 

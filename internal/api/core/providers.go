@@ -44,7 +44,7 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
-	payload, err := h.providerSummaryPayload(c.Request.Context(), providerName, provider, cfg.Defaults.Provider)
+	payload, err := h.providerSummaryPayload(c.Request.Context(), &cfg, providerName, provider)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
@@ -262,7 +262,7 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 		if err != nil {
 			return contract.ProviderListResponse{}, fmt.Errorf("resolve provider %q: %w", providerName, err)
 		}
-		payload, err := h.providerSummaryPayload(ctx, providerName, provider, cfg.Defaults.Provider)
+		payload, err := h.providerSummaryPayload(ctx, &cfg, providerName, provider)
 		if err != nil {
 			return contract.ProviderListResponse{}, err
 		}
@@ -273,9 +273,9 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 
 func (h *BaseHandlers) providerSummaryPayload(
 	ctx context.Context,
+	cfg *compozyconfig.Config,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
-	defaultProvider string,
 ) (contract.ProviderSummaryPayload, error) {
 	env, err := h.providerProbeEnv(providerName, provider)
 	if err != nil {
@@ -301,7 +301,8 @@ func (h *BaseHandlers) providerSummaryPayload(
 		Name:             providerName,
 		DisplayName:      strings.TrimSpace(provider.DisplayName),
 		RuntimeStrategy:  providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
-		Default:          compozyconfig.CanonicalProviderName(defaultProvider) == providerName,
+		Default:          compozyconfig.CanonicalProviderName(cfg.Defaults.Provider) == providerName,
+		Enabled:          !cfg.IsProviderDisabled(providerName),
 		AuthStatus:       authStatus,
 	}, nil
 }

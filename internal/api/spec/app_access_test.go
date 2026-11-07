@@ -538,6 +538,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"setExtensionEnablement",
 			"setExtensionSecrets",
 			"setGatewaySurface",
+			"setSettingsProviderEnabled",
 			"setTaskWorktreePolicy",
 			"setToolApprovalGrant",
 			"signalTerminal",

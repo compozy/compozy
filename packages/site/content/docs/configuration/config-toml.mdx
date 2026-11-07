@@ -1865,6 +1865,7 @@ here with their own `command` to keep using them. See
 | `auth_login_command`    | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Write-only login command executed locally by `compozy provider auth login <provider>`. Reads return only its safe login descriptor.                                                                                                                                 |
 | `session_mcp`           | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables CompozyOS session MCP injection for providers that support it.                                                                                                                                                                                              |
 | `session_mcp_transport` | string                      | empty (`stdio`); `http` for `copilot`.                                            | `stdio`, `http`.                                           | How per-session stdio MCP servers reach an ACP provider. `http` serves each on a loopback endpoint with a per-session bearer token; agents on MCP protocol versions before 2026-07-28 get no tool-list change notifications through it. Requires `harness = "acp"`. |
+| `enabled`               | boolean                     | `true`.                                                                           | `true`, `false`.   | Set `false` to turn the provider off. Global and profile config only; workspace layers are rejected. Applies live. See [Turn off a provider](#turn-off-a-provider). |
 | `credential_slots`      | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                                                                                                                                                                |
 | `mcp_servers`           | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                                                                                                                                                           |
 
@@ -1876,6 +1877,30 @@ and UDS likewise never expose the command, its arguments, or its resolved path.
 Instead, they expose a safe `login` descriptor: `configured`, `source = "auth_login_command"`, an
 executable basename, `presence` (`present`, `missing`, or `unknown`), and a `recommended_action` when
 recovery is needed (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, or `no_retry`).
+
+### Turn off a provider
+
+Set `enabled = false` on a provider you don't use. CompozyOS keeps it in inventories (`compozy provider
+list`, `GET /api/providers`, Settings → Providers) with `enabled: false`, and removes it from every
+selection surface: chat and runtime pickers, the model catalog, subagent capabilities and usage views.
+
+```toml
+[providers.gemini]
+enabled = false
+```
+
+- New starts, resumes of stopped sessions, runtime changes and loop or goal runs on a turned-off
+  provider fail with `provider_disabled` (HTTP 409). Sessions already running keep running.
+- Agent fallback chains and role fallbacks skip turned-off routes. A role whose provider is off uses
+  its first enabled fallback; with none left it reports `provider_disabled`.
+- The key belongs to the global and profile layers only. A workspace or workspace-profile overlay
+  that sets it is rejected.
+- The default provider (`defaults.provider`) can't be turned off
+  (`provider_default_disable_rejected`). Change `defaults.provider` first.
+- Turning a provider back on removes the key, and removes the `[providers.<id>]` block when
+  `enabled` was its only key. `provider_usage.providers.<id>.enabled` is never changed.
+- The change applies live: `compozy config set providers.gemini.enabled false`, the
+  `compozy__config_set` native tool, or `PATCH /api/settings/providers/{name}/enabled`.
 
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected with a deterministic hard-cut error citing the

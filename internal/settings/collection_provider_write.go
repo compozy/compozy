@@ -91,6 +91,11 @@ func (s *service) putProvider(
 	if len(values) == 0 && len(secrets) == 0 {
 		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
 	}
+	if len(values) != 0 {
+		if err := s.preserveAuthoredProviderEnabled(ctx, name, values); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	secretWrites, err := s.prepareProviderSecretWrites(name, secrets)
 	if err != nil {
 		return MutationResult{}, err

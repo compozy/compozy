@@ -21747,6 +21747,9 @@
           "display_name": {
             "type": "string"
           },
+          "enabled": {
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
@@ -21771,6 +21774,7 @@
         "required": [
           "auth_status",
           "default",
+          "enabled",
           "name",
           "reviewer_mode"
         ],
@@ -30261,6 +30265,17 @@
         ],
         "type": "object"
       },
+      "SetSettingsProviderEnabledRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
       "SettingsActionMetadataPayload": {
         "properties": {
           "available": {
@@ -32644,6 +32659,21 @@
         ],
         "type": "object"
       },
+      "SettingsProviderEnabledResponse": {
+        "properties": {
+          "apply": {
+            "$ref": "#/components/schemas/SettingsApplyResponse"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/SettingsProviderItemPayload"
+          }
+        },
+        "required": [
+          "apply",
+          "provider"
+        ],
+        "type": "object"
+      },
       "SettingsProviderFallbackPayload": {
         "properties": {
           "settings": {
@@ -32959,6 +32989,9 @@
           "display_name": {
             "type": "string"
           },
+          "enabled": {
+            "type": "boolean"
+          },
           "env_policy": {
             "type": "string"
           },
@@ -33002,6 +33035,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "enabled"
+        ],
         "type": "object"
       },
       "SettingsProviderUsagePayload": {
@@ -78218,6 +78254,104 @@
           }
         },
         "summary": "Create or replace one settings-backed provider overlay",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/providers/{name}/enabled": {
+      "patch": {
+        "operationId": "setSettingsProviderEnabled",
+        "parameters": [
+          {
+            "description": "Provider name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSettingsProviderEnabledRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsProviderEnabledResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid enabled payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Provider not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Disabling the default provider is rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Enable or disable one provider",
         "tags": [
           "settings"
         ],

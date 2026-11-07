@@ -93,11 +93,14 @@ func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.Setti
 		AuthStatus:       settingsProviderAuthStatusPayload(value.AuthStatus),
 		SourceMetadata:   settingsSourceMetadataPayload(value.SourceMetadata),
 	}
+	payload.Settings.Enabled = value.Enabled
 	if value.Fallback != nil {
 		payload.Fallback = &contract.SettingsProviderFallbackPayload{
 			Source:   settingsSourceRefPayload(value.Fallback.Source),
 			Settings: settingsProviderSettingsPayload(value.Fallback.Settings),
 		}
+		// Removing the overlay reveals the builtin, which is enabled by default (BR-1).
+		payload.Fallback.Settings.Enabled = true
 	}
 	return payload
 }

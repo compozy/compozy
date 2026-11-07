@@ -80,6 +80,8 @@ type ProviderItem struct {
 	Name             string
 	Settings         ProviderSettings
 	Default          bool
+	// Enabled is the effective providers.<name>.enabled value (read only on full edits).
+	Enabled          bool
 	CommandAvailable bool
 	Credentials      []ProviderCredentialStatus
 	AuthStatus       ProviderAuthStatus

@@ -50,6 +50,9 @@ func configValueBundle(record configValueRecord) outputBundle {
 	}
 }
 
+// configWarningsKey names the additive config set warnings column.
+const configWarningsKey = "warnings"
+
 func configSetBundle(record configSetRecord) outputBundle {
 	rows := []keyValue{
 		{Label: configPathValue, Value: stringOrDash(record.Path)},
@@ -66,6 +69,9 @@ func configSetBundle(record configSetRecord) outputBundle {
 		{Label: "Restart Scope", Value: stringOrDash(record.RestartScope)},
 		{Label: configStatusValue, Value: stringOrDash(record.Status)},
 		{Label: "Winning Layer", Value: stringOrDash(record.WinningLayer)},
+	}
+	if len(record.Warnings) > 0 {
+		rows = append(rows, keyValue{Label: "Warnings", Value: strings.Join(record.Warnings, "; ")})
 	}
 	return outputBundle{
 		jsonValue: record,
@@ -88,6 +94,7 @@ func configSetBundle(record configSetRecord) outputBundle {
 				"restart_scope",
 				configStatusKey,
 				"winning_layer",
+				configWarningsKey,
 			}, []string{
 				record.Path,
 				formatConfigValue(record.Value),
@@ -103,6 +110,7 @@ func configSetBundle(record configSetRecord) outputBundle {
 				record.RestartScope,
 				record.Status,
 				record.WinningLayer,
+				strings.Join(record.Warnings, "; "),
 			}), nil
 		},
 	}
