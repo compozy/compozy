@@ -118,3 +118,15 @@ Request 20 changed files together. The batch uses one rendered Git diff, bounded
 buffers and matching before/after fingerprints. Untracked additions are formatted with go-gitdiff
 from confined reads; sensitive items remain gated. Concurrent identical summaries share only the
 in-flight work; a later request still computes a fresh pair of snapshots.
+
+Replace a tracked directory with a regular file and request its patch alongside another modified
+file. Both additions must remain available. Repeat with a tracked file replaced by a directory and
+with a gitlink whose commit is absent from the parent object database. Unsupported current kinds
+return an empty per-item patch/fingerprint; the unrelated file must still return its patch.
+
+For concurrent summaries, cancel the first request while Git is active. Another active request
+must complete by retrying canceled shared work. Cancel all requests and verify Git work stops.
+
+Through both CLI and the native tool, request one valid patch and one current directory. The
+report must retain both items and the valid patch instead of reporting changes_stale. Items with
+content still require summary fingerprint equality; unavailable items have no content to fence.

@@ -3,6 +3,7 @@ package changes
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -21,22 +22,43 @@ const (
 	metadataLimit = 64 << 20
 )
 
+var errSummaryLeaderCanceled = errors.New("shared request leader canceled")
+
 func (e *GitEngine) Summary(ctx context.Context, root projectfiles.Root, req Request) (Summary, error) {
 	key := fmt.Sprintf("%#v:%#v", root, req)
-	result := e.summaries.DoChan(key, func() (any, error) { return e.summary(ctx, root, req) })
-	select {
-	case <-ctx.Done():
-		return Summary{}, ctx.Err()
-	case item := <-result:
-		if item.Err != nil {
-			return Summary{}, item.Err
+	for {
+		if err := ctx.Err(); err != nil {
+			return Summary{}, err
 		}
-		value, ok := item.Val.(Summary)
-		if !ok {
-			return Summary{}, ErrUnavailable
+		result := e.summaries.DoChan(key, func() (any, error) {
+			value, err := e.summary(ctx, root, req)
+			if ctx.Err() != nil {
+				return nil, errSummaryLeaderCanceled
+			}
+			return value, err
+		})
+		select {
+		case <-ctx.Done():
+			return Summary{}, ctx.Err()
+		case item := <-result:
+			if err := ctx.Err(); err != nil {
+				return Summary{}, err
+			}
+			// A canceled leader releases its Git work. Active waiters elect a new
+			// leader with their own bounded runner context instead of inheriting cancellation.
+			if errors.Is(item.Err, errSummaryLeaderCanceled) {
+				continue
+			}
+			if item.Err != nil {
+				return Summary{}, item.Err
+			}
+			value, ok := item.Val.(Summary)
+			if !ok {
+				return Summary{}, ErrUnavailable
+			}
+			value.Files = slices.Clone(value.Files)
+			return value, nil
 		}
-		value.Files = slices.Clone(value.Files)
-		return value, nil
 	}
 }
 func (e *GitEngine) summary(ctx context.Context, root projectfiles.Root, req Request) (Summary, error) {

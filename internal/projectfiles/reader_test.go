@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,6 +27,66 @@ import (
 // The reader suite owns confinement, classification, caps, ordering and read-only Git policy.
 
 func TestReader(t *testing.T) {
+	for _, everyone := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retain active status waiters everyone=%v", everyone), func(t *testing.T) {
+			t.Parallel()
+			root := readerRoot(t)
+			gitReader(t, root, "init")
+			r := NewReader()
+			runner := &statusBlockingRunner{
+				StreamingGitRunner: r.gitRunner,
+				started:            make(chan struct{}),
+				release:            make(chan struct{}),
+				stopped:            make(chan struct{}),
+			}
+			r.gitRunner = runner
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			first := make(chan error, 1)
+			go func() { _, _, _, _, err := r.cachedStatus(ctx, root, false); first <- err }()
+			select {
+			case <-runner.started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("not started")
+			}
+			secondCtx, secondCancel := context.WithCancel(t.Context())
+			defer secondCancel()
+			observed := &statusWaitContext{Context: secondCtx, observed: make(chan struct{})}
+			second := make(chan error, 1)
+			go func() { _, _, _, _, err := r.cachedStatus(observed, root, false); second <- err }()
+			select {
+			case <-observed.observed:
+			case <-time.After(5 * time.Second):
+				t.Fatal("waiter not joined")
+			}
+			if everyone {
+				secondCancel()
+			}
+			cancel()
+			select {
+			case <-runner.stopped:
+			case <-time.After(5 * time.Second):
+				t.Fatal("abandoned work did not stop")
+			}
+			if err := <-first; !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			close(runner.release)
+			select {
+			case err := <-second:
+				if everyone {
+					if !errors.Is(err, context.Canceled) {
+						t.Fatal(err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("waiter stuck")
+			}
+		})
+	}
+
 	t.Run("Should reuse status until expiry and invalidate on refresh", func(t *testing.T) {
 		t.Parallel()
 		root := readerRoot(t)
@@ -915,6 +976,41 @@ func (r *statusCountingRunner) RunStreaming(
 ) ([]byte, []byte, error) {
 	if slices.Contains(args, "status") {
 		r.calls.Add(1)
+	}
+	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
+}
+
+type statusWaitContext struct {
+	context.Context
+	observed chan struct{}
+	once     sync.Once
+}
+
+func (c *statusWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.observed) })
+	return c.Context.Done()
+}
+
+type statusBlockingRunner struct {
+	worktree.StreamingGitRunner
+	started, release, stopped chan struct{}
+	once                      sync.Once
+}
+
+func (r *statusBlockingRunner) RunStreaming(
+	ctx context.Context,
+	root string,
+	visit worktree.GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	if slices.Contains(args, "status") {
+		r.once.Do(func() { close(r.started) })
+		select {
+		case <-ctx.Done():
+			close(r.stopped)
+			return nil, nil, ctx.Err()
+		case <-r.release:
+		}
 	}
 	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
 }

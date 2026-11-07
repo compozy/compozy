@@ -203,6 +203,11 @@ func readSessionChanges(
 		}
 		valid := len(patches) == len(paths)
 		for _, patch := range patches {
+			// Unavailable items carry no content to fence. Keep them in the report
+			// without rejecting patches for other files.
+			if patch.Fingerprint == "" && patch.Patch == "" && !patch.TooLarge && !patch.Sensitive {
+				continue
+			}
 			// Off-page patches retain the engine revision and before/after fingerprint checks.
 			found := summary.Truncated && patch.Fingerprint != ""
 			for _, file := range summary.Files {

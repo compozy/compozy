@@ -67,7 +67,11 @@ func (e *GitEngine) batchFingerprints(
 		}
 		value, err := e.fingerprintWithOID(ctx, root, t, f.oldOID, f.Status)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, ErrStale) || ctx.Err() != nil {
+				return nil, err
+			}
+			// An empty fingerprint marks an unavailable target, not a failed batch.
+			value = ""
 		}
 		result[t.Path] = value
 	}
@@ -93,8 +97,12 @@ func (e *GitEngine) baseObjects(
 		if !ok || len(fields) != 3 {
 			continue
 		}
-		found[path] = true
-		input.WriteString(fields[2] + "\n")
+		// A former tree has no blob at this exact path. If Git only emits
+		// deleted children, render the replacement file as an untracked addition.
+		found[path] = fields[1] != "tree"
+		if fields[1] == "blob" {
+			input.WriteString(fields[2] + "\n")
+		}
 	}
 	if runner, ok := e.runner.(worktree.GitInputRunner); ok && input.Len() > 0 {
 		argv, err := projectfiles.GitReadArgs(ctx, e.runner, root.AbsPath, "cat-file", "--batch-check")
@@ -113,9 +121,6 @@ func (e *GitEngine) baseObjects(
 			fields := strings.Fields(line)
 			if len(fields) != 3 {
 				return nil, ErrUnavailable
-			}
-			if fields[1] != "blob" {
-				return nil, projectfiles.ErrNotAFile
 			}
 		}
 	}
@@ -161,7 +166,7 @@ func (e *GitEngine) patchBatch(
 		}
 	}
 	for i, t := range targets {
-		if result[i].Sensitive {
+		if result[i].Sensitive || result[i].Fingerprint == "" {
 			continue
 		}
 		if p, ok := rendered[t.Path]; ok {
@@ -175,7 +180,11 @@ func (e *GitEngine) patchBatch(
 				continue
 			}
 			if err != nil {
-				return nil, err
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				result[i].Fingerprint = ""
+				continue
 			}
 			result[i].Patch = p.Patch
 			result[i].TooLarge = p.TooLarge
@@ -204,12 +213,24 @@ func (e *GitEngine) preparePatches(
 	allowed := make([]PatchTarget, 0, len(targets))
 	for i, t := range targets {
 		result[i] = Patch{Path: t.Path, Fingerprint: before[t.Path]}
+		if before[t.Path] == "" {
+			continue
+		}
+		unavailable := false
 		for _, path := range []string{t.Path, t.OldPath} {
 			sensitive, err := e.sensitive(ctx, root, path)
 			if err != nil {
-				return nil, nil, err
+				if ctx.Err() != nil {
+					return nil, nil, ctx.Err()
+				}
+				unavailable = true
+				break
 			}
 			result[i].Sensitive = result[i].Sensitive || sensitive
+		}
+		if unavailable {
+			result[i].Fingerprint = ""
+			continue
 		}
 		if result[i].Sensitive && !req.Reveal {
 			continue

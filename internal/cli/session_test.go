@@ -5749,6 +5749,36 @@ func TestSessionChanges(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain unavailable items alongside fenced patches", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+		client.httpClient = &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"id":"sess-1","workspace_id":"ws-1"}`
+			if strings.HasSuffix(req.URL.Path, "/changes") {
+				calls++
+				body = `{"revision":"same","files":[{"path":"a.go","fingerprint":"visible"}]}`
+			}
+			if strings.HasSuffix(req.URL.Path, "/patches") {
+				body = `{"revision":"same","patches":[{"path":"a.go","fingerprint":"visible","patch":"diff"},{"path":"foo","fingerprint":"","patch":""}]}`
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		})}
+		result, err := client.SessionChanges(
+			t.Context(),
+			"sess-1",
+			sessionChangesOptions{Scope: "uncommitted", Paths: []string{"a.go", "foo"}},
+		)
+		if err != nil || calls != 1 || len(result.Patches) != 2 || result.Patches[0].Path != "a.go" ||
+			result.Patches[1].Path != "foo" {
+			t.Fatalf("result=%+v calls=%d err=%v", result, calls, err)
+		}
+	})
+
 	for _, continuous := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should retry mixed fingerprints continuous=%v", continuous), func(t *testing.T) {
 			t.Parallel()

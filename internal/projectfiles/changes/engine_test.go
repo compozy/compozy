@@ -67,6 +67,104 @@ func summary(t *testing.T, e Engine, root projectfiles.Root, req Request) Summar
 }
 
 func TestEngine(t *testing.T) {
+	for _, kind := range []string{"tree", "directory", "gitlink", "gitlink-directory"} {
+		t.Run("Should isolate patch targets across type changes "+kind, func(t *testing.T) {
+			t.Parallel()
+			root, e := repo(t)
+			if kind == "tree" {
+				write(t, root, "foo/child", "old\n")
+			} else {
+				write(t, root, "foo", "old\n")
+			}
+			git(t, root, "add", ".")
+			if strings.HasPrefix(kind, "gitlink") {
+				git(t, root, "update-index", "--cacheinfo", "160000,1111111111111111111111111111111111111111,foo")
+			}
+			git(t, root, "commit", "-m", "type base")
+			if err := os.RemoveAll(filepath.Join(root.AbsPath, "foo")); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(kind, "directory") {
+				write(t, root, "foo/child", "new\n")
+			} else {
+				write(t, root, "foo", "new\n")
+			}
+			write(t, root, "c.go", "other\n")
+			patches, err := e.Patches(
+				t.Context(),
+				root,
+				Request{Scope: Uncommitted},
+				[]PatchTarget{{Path: "foo"}, {Path: "c.go"}},
+			)
+			if err != nil || len(patches) != 2 {
+				t.Fatalf("patches=%+v error=%v", patches, err)
+			}
+			if !strings.Contains(patches[1].Patch, "+other") {
+				t.Fatalf("unrelated patch lost: %+v", patches)
+			}
+			if !strings.Contains(kind, "directory") && !strings.Contains(patches[0].Patch, "+new") {
+				t.Fatalf("type change patch lost: %+v", patches[0])
+			}
+		})
+	}
+	for _, everyone := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should survive leader cancellation everyone=%v", everyone), func(t *testing.T) {
+			t.Parallel()
+			root, e := repo(t)
+			runner := &summaryBlockingRunner{
+				StreamingGitRunner: e.runner,
+				started:            make(chan struct{}),
+				release:            make(chan struct{}),
+				canceled:           make(chan struct{}),
+			}
+			e.runner = runner
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			first := make(chan error, 1)
+			go func() { _, err := e.Summary(ctx, root, Request{Scope: Uncommitted}); first <- err }()
+			select {
+			case <-runner.started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("not started")
+			}
+			secondCtx, secondCancel := context.WithCancel(t.Context())
+			defer secondCancel()
+			observed := &summaryWaitContext{Context: secondCtx, observed: make(chan struct{})}
+			second := make(chan error, 1)
+			go func() { _, err := e.Summary(observed, root, Request{Scope: Uncommitted}); second <- err }()
+			select {
+			case <-observed.observed:
+			case <-time.After(5 * time.Second):
+				t.Fatal("waiter not joined")
+			}
+			if everyone {
+				secondCancel()
+			}
+			cancel()
+			select {
+			case <-runner.canceled:
+			case <-time.After(5 * time.Second):
+				t.Fatal("abandoned work did not stop")
+			}
+			if err := <-first; !errors.Is(err, context.Canceled) {
+				t.Fatalf("first=%v", err)
+			}
+			close(runner.release)
+			select {
+			case err := <-second:
+				if everyone {
+					if !errors.Is(err, context.Canceled) {
+						t.Fatal(err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("waiter stuck")
+			}
+		})
+	}
+
 	t.Run("Should use a bounded number of Git calls for twenty patches", func(t *testing.T) {
 		t.Parallel()
 		root, e := repo(t)
@@ -778,6 +876,8 @@ func (r *batchCountingRunner) RunWithInput(
 type summaryBlockingRunner struct {
 	worktree.StreamingGitRunner
 	started, release chan struct{}
+	canceled         chan struct{}
+	canceledOnce     sync.Once
 	calls            atomic.Int64
 }
 
@@ -794,8 +894,22 @@ func (r *summaryBlockingRunner) RunStreaming(
 		select {
 		case <-r.release:
 		case <-ctx.Done():
+			if r.canceled != nil {
+				r.canceledOnce.Do(func() { close(r.canceled) })
+			}
 			return nil, nil, ctx.Err()
 		}
 	}
 	return r.StreamingGitRunner.RunStreaming(ctx, root, visit, args...)
+}
+
+type summaryWaitContext struct {
+	context.Context
+	observed chan struct{}
+	once     sync.Once
+}
+
+func (c *summaryWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.observed) })
+	return c.Context.Done()
 }

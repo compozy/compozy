@@ -87,23 +87,34 @@ func (c *daemonClient) sessionChangesOnce(
 			return result, err
 		}
 		valid := patches.Revision == result.Revision && len(patches.Patches) == len(options.Paths)
-		for _, patch := range patches.Patches {
-			// Off-page patches retain the engine revision and before/after fingerprint checks.
-			found := result.Truncated && patch.Fingerprint != ""
-			for _, file := range result.Files {
-				if file.Path == patch.Path {
-					found = file.Fingerprint == patch.Fingerprint
-					break
-				}
-			}
-			valid = valid && found
-		}
+		valid = valid && sessionChangePatchesMatch(result.SessionChangesResponse, patches.Patches)
 		if !valid {
 			return sessionChangesRecord{}, changes.ErrStale
 		}
 		result.Patches = patches.Patches
 	}
 	return result, nil
+}
+
+func sessionChangePatchesMatch(result contract.SessionChangesResponse, patches []contract.ChangePatchPayload) bool {
+	valid := true
+	for _, patch := range patches {
+		// Unavailable items carry no content to fence. Keep them in the report
+		// without rejecting patches for other files.
+		if patch.Fingerprint == "" && patch.Patch == "" && !patch.TooLarge && !patch.Sensitive {
+			continue
+		}
+		// Off-page patches retain the engine revision and before/after fingerprint checks.
+		found := result.Truncated && patch.Fingerprint != ""
+		for _, file := range result.Files {
+			if file.Path == patch.Path {
+				found = file.Fingerprint == patch.Fingerprint
+				break
+			}
+		}
+		valid = valid && found
+	}
+	return valid
 }
 
 func newSessionChangesCommand(deps commandDeps) *cobra.Command {

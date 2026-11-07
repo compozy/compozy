@@ -380,6 +380,23 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertWorktreeE2EJSONParity(t, "CLI patches", pa.Patches, cliDetails.Patches)
+		// Unavailable targets must not make the report's other fenced patches stale.
+		if err := os.Mkdir(filepath.Join(ready.Worktree.Path, "unavailable-patch-dir"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		callHostedMCPToolJSON(t, ctx, client, "compozy__session_changes", map[string]any{"session_id": bound.ID, "scope": "uncommitted", "patch_paths": []string{"worktree_only.go", "unavailable-patch-dir"}}, &nativeDetails)
+		if len(nativeDetails.Patches) != 2 || nativeDetails.Patches[0].Patch == "" || nativeDetails.Patches[1].Fingerprint != "" {
+			t.Fatalf("mixed native patches: %+v", nativeDetails.Patches)
+		}
+		stdout, stderr, cliErr = harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "session", "changes", bound.ID, "--scope", "uncommitted", "--patch", "worktree_only.go", "--patch", "unavailable-patch-dir", "--json")
+		if cliErr != nil {
+			t.Fatalf("mixed CLI patches: %v %s", cliErr, stderr)
+		}
+		if err := json.Unmarshal([]byte(stdout), &cliDetails); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "unavailable patch reports", nativeDetails.Patches, cliDetails.Patches)
+
 		var ca, cb compozycontract.SessionChangeContentsResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/contents"+query, nil, &ca); err != nil {
 			t.Fatal(err)

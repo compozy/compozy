@@ -104,3 +104,7 @@ Sibling expansions share one root-scoped status snapshot for one second. Explici
 Retry and change-event refreshes send `Cache-Control: no-cache`, bypassing that snapshot through
 the shared HTTP/UDS handler. Verify a new working-tree change appears after that request.
 Directory ordering and ignored-file filtering still precede the 5,000-entry response cap.
+
+For overlapping status requests, disconnect the first client while Git is active. A remaining
+client must obtain status through a new shared attempt, rather than inherit the disconnected
+client's error. Canceling all clients must stop Git work.
