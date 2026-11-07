@@ -163,52 +163,54 @@ func (c *Client) fetchAbbreviatedCommit(
 	checkout *Checkout,
 	ref string,
 ) error {
-	advertised, err := c.output(
+	repositoryDir := filepath.Join(checkout.tempRoot, "repository")
+	if err := c.run(
 		ctx,
 		checkout.executable,
-		append(repositoryArgs(repository, addresses), "ls-remote", "--", repository.raw)...)
+		append(
+			repositoryArgs(repository, addresses),
+			"clone",
+			"--bare",
+			"--",
+			repository.raw,
+			repositoryDir,
+		)...); err != nil {
+		return err
+	}
+	revision := ref
+	namedRefs, err := c.output(
+		ctx,
+		checkout.executable,
+		"-C",
+		repositoryDir,
+		"for-each-ref",
+		"--format=%(refname)",
+		"refs/heads/"+ref,
+		"refs/tags/"+ref,
+	)
 	if err != nil {
 		return err
 	}
-	for line := range strings.SplitSeq(advertised, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && (fields[1] == "refs/heads/"+ref || fields[1] == "refs/tags/"+ref) {
-			return c.run(ctx, checkout.executable, cloneArgs(repository, addresses, ref, checkout.Path)...)
+	for name := range strings.SplitSeq(namedRefs, "\n") {
+		if name == "refs/heads/"+ref || name == "refs/tags/"+ref {
+			revision = name
+			break
 		}
 	}
-	advertisedCommits := make(map[string]bool)
-	for line := range strings.SplitSeq(advertised, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && gitCommitPattern.MatchString(fields[0]) && strings.HasPrefix(fields[0], ref) {
-			advertisedCommits[fields[0]] = true
-		}
-	}
-	if len(advertisedCommits) == 1 {
-		for commit := range advertisedCommits {
-			return c.fetchCommit(ctx, repository, addresses, checkout, commit)
-		}
-	}
-	repositoryDir := filepath.Join(checkout.tempRoot, "repository")
-	for _, command := range [][]string{
-		{"init", "--bare", "--", repositoryDir},
-		{
-			"-C", repositoryDir, "fetch", "--no-tags", "--", repository.raw,
-			"+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*",
-		},
-	} {
-		if err := c.run(
-			ctx,
-			checkout.executable,
-			append(repositoryArgs(repository, addresses), command...)...); err != nil {
-			return err
-		}
-	}
-	output, err := c.output(ctx, checkout.executable, "-C", repositoryDir, "rev-parse", "--verify", ref+"^{commit}")
+	output, err := c.output(
+		ctx,
+		checkout.executable,
+		"-C",
+		repositoryDir,
+		"rev-parse",
+		"--verify",
+		revision+"^{commit}",
+	)
 	if err != nil {
 		return err
 	}
 	commit := strings.TrimSpace(output)
-	if !gitCommitPattern.MatchString(commit) || !strings.HasPrefix(commit, ref) {
+	if !gitCommitPattern.MatchString(commit) || (revision == ref && !strings.HasPrefix(commit, ref)) {
 		return errors.New("gitsrc: abbreviated revision is not a unique commit")
 	}
 	return c.run(
