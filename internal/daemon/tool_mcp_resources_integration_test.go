@@ -548,6 +548,17 @@ binding = { type = "url_query", name = "workspace" }
 		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
 			t.Fatalf("syncer.SyncConfig(rollback) error = %v", err)
 		}
+		servers, err = mcpStore.List(
+			testutil.Context(t),
+			toolMCPSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
+		if err != nil {
+			t.Fatalf("mcpStore.List(rollback) error = %v", err)
+		}
+		if got, want := mcpServerNames(servers), []string{"git", "kubectl", "remote"}; !slices.Equal(got, want) {
+			t.Fatalf("rollback MCP servers = %#v, want %#v", got, want)
+		}
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync(published config) error = %v", err)
 		}
