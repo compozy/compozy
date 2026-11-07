@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/projectfiles"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -49,6 +50,7 @@ type BaseHandlerConfig struct {
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
+	FileTree                     FileTreeReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -142,6 +144,7 @@ type BaseHandlers struct {
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
 	SessionFiles                 SessionFileSearcher
+	FileTree                     FileTreeReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -261,6 +264,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		ToolArtifacts:                cfg.ToolArtifacts,
 		SessionAttachments:           cfg.SessionAttachments,
 		SessionFiles:                 cfg.SessionFiles,
+		FileTree:                     cfg.FileTree,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
 		ApprovalCoordinator:          cfg.ApprovalCoordinator,
@@ -371,6 +375,9 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
+	}
+	if cfg.FileTree == nil {
+		cfg.FileTree = projectfiles.NewReader()
 	}
 	if cfg.SessionFiles == nil {
 		// Without an injected runner the index serves the bounded directory walk only.

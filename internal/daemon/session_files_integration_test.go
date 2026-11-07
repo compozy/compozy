@@ -3,12 +3,15 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,6 +108,129 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 			t.Fatalf("entries = %#v, want committed cmd/main.go from the worktree first", payload.Entries)
 		}
 	})
+	t.Run("Should serve project files with worktree roots and HTTP UDS parity", func(t *testing.T) {
+		base := "/api/workspaces/" + url.PathEscape(
+			harness.WorkspaceID,
+		) + "/sessions/" + url.PathEscape(
+			bound.ID,
+		) + "/files"
+		var listing compozycontract.FileEntriesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/entries", nil, &listing); err != nil {
+			t.Fatal(err)
+		}
+		if listing.Root.Kind != "worktree" || listing.Root.WorktreeID != created.ID {
+			t.Fatalf("root = %#v", listing.Root)
+		}
+		var a, b compozycontract.FileContentResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/content?path=cmd/main.go", nil, &a); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, base+"/content?path=cmd/main.go", nil, &b); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "file content", a, b)
+		if a.Kind != "text" || a.Text == nil || *a.Text != "package main\n" {
+			t.Fatalf("content = %#v", a)
+		}
+	})
+
+	t.Run("Should fence sensitive content for app tokens on both root forms", func(t *testing.T) {
+		if err := os.WriteFile(filepath.Join(ready.Worktree.Path, ".env"), []byte("secret"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		var issued compozycontract.AppTokenIssuedResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			"/api/app-tokens",
+			compozycontract.CreateAppTokenRequest{Name: "File reader"},
+			&issued,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, prefix := range []string{"/api/workspaces/" + harness.WorkspaceID + "/files", "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + bound.ID + "/files"} {
+			query := ""
+			if !strings.Contains(prefix, "/sessions/") {
+				query = "&worktree_id=" + created.ID
+			}
+			for _, tc := range []struct {
+				path     string
+				status   int
+				contains string
+				token    bool
+			}{
+				{"/content?path=cmd/main.go", 200, `"kind":"text"`, true}, {"/content?path=.env", 200, `"kind":"sensitive"`, true}, {"/content?path=.env&reveal=true", 403, `"code":"reveal_forbidden"`, true}, {"/content?path=.env&reveal=true", 200, `"text":"secret"`, false}, {"/entries?path=missing", 404, `"code":"file_not_found"`, false},
+			} {
+				var bodies [][]byte
+				for transportIndex, transport := range []struct {
+					client *http.Client
+					base   string
+				}{{harness.HTTPClient, harness.HTTPBaseURL}, {harness.UDSClient, "http://unix"}} {
+					if tc.token && transportIndex == 1 {
+						continue
+					}
+					req, err := http.NewRequestWithContext(
+						ctx,
+						http.MethodGet,
+						transport.base+prefix+tc.path+query,
+						http.NoBody,
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if tc.token {
+						req.Header.Set("Authorization", "Bearer "+issued.Token)
+					}
+					response, err := transport.client.Do(req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					body, err := io.ReadAll(response.Body)
+					closeErr := response.Body.Close()
+					if err != nil || closeErr != nil {
+						t.Fatalf("read: %v, close: %v", err, closeErr)
+					}
+					if response.StatusCode != tc.status || !bytes.Contains(body, []byte(tc.contains)) {
+						t.Fatalf("status %d: %s", response.StatusCode, body)
+					}
+					if bytes.Contains(body, []byte(root)) || bytes.Contains(body, []byte(ready.Worktree.Path)) {
+						t.Fatal("absolute root leaked")
+					}
+					bodies = append(bodies, body)
+				}
+				if len(bodies) == 2 && !bytes.Equal(bodies[0], bodies[1]) {
+					t.Fatalf("HTTP/UDS differ: %s / %s", bodies[0], bodies[1])
+				}
+			}
+		}
+	})
+	t.Run("Should report a removed worktree as root unavailable", func(t *testing.T) {
+		if err := os.RemoveAll(ready.Worktree.Path); err != nil {
+			t.Fatal(err)
+		}
+		req, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			harness.HTTPURL("/api/workspaces/"+harness.WorkspaceID+"/sessions/"+bound.ID+"/files/entries"),
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := harness.HTTPClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		var payload compozycontract.ErrorPayload
+		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != 409 || payload.Code != "root_unavailable" {
+			t.Fatalf("status %d: %#v", response.StatusCode, payload)
+		}
+	})
+
 }
 
 // IT-010: a session whose creation profile pins CWD to pkg/ (the loop-created shape; the public

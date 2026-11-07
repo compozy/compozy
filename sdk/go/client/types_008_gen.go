@@ -2,7 +2,51 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// GoalCriterionResult is a daemon API value.
+type GoalCriterionResult struct {
+	ID             string                  `json:"id"`
+	Type           string                  `json:"type"`
+	Outcome        GoalVerdictOutcome      `json:"outcome"`
+	Passed         bool                    `json:"passed"`
+	Broken         bool                    `json:"broken,omitzero"`
+	ExitCode       *int                    `json:"exit_code,omitzero"`
+	Stdout         string                  `json:"stdout,omitempty"`
+	Stderr         string                  `json:"stderr,omitempty"`
+	Score          *float64                `json:"score,omitzero"`
+	Evidence       json.RawMessage         `json:"evidence,omitempty"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
+	Payload        json.RawMessage         `json:"payload,omitempty"`
+}
+
+// GoalDiagnosticWarning is a daemon API value.
+type GoalDiagnosticWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// GoalPromptKind is a daemon API value.
+type GoalPromptKind string
+
+// GoalPromptMeta is a daemon API value.
+type GoalPromptMeta struct {
+	Kind          GoalPromptKind `json:"kind"`
+	RunID         string         `json:"run_id"`
+	NodeID        string         `json:"node_id"`
+	Generation    int64          `json:"generation"`
+	ItemIndex     int            `json:"item_index"`
+	Turn          *int           `json:"turn"`
+	PromptAttempt int            `json:"prompt_attempt"`
+	PromptID      string         `json:"prompt_id"`
+}
+
+// GoalReasonCode is a daemon API value.
+type GoalReasonCode string
 
 // GoalSnapshot is a daemon API value.
 type GoalSnapshot struct {
@@ -394,48 +438,4 @@ type HeartbeatWakeDecisionPayload struct {
 	ConfigDigest      string                             `json:"config_digest,omitempty"`
 	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
 	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// HeartbeatWakeEventPayload is a daemon API value.
-type HeartbeatWakeEventPayload struct {
-	ID                string              `json:"id"`
-	WorkspaceID       string              `json:"workspace_id,omitempty"`
-	AgentName         string              `json:"agent_name,omitempty"`
-	SessionID         string              `json:"session_id,omitempty"`
-	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
-	Source            HeartbeatWakeSource `json:"source"`
-	Result            HeartbeatWakeResult `json:"result"`
-	Reason            HeartbeatWakeReason `json:"reason"`
-	Detail            string              `json:"detail,omitempty"`
-	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
-	CreatedAt         time.Time           `json:"created_at"`
-	ExpiresAt         time.Time           `json:"expires_at"`
-}
-
-// HeartbeatWakeReason is a daemon API value.
-type HeartbeatWakeReason string
-
-// HeartbeatWakeResponse is a daemon API value.
-type HeartbeatWakeResponse struct {
-	Decision HeartbeatWakeDecisionPayload `json:"decision"`
-}
-
-// HeartbeatWakeResult is a daemon API value.
-type HeartbeatWakeResult string
-
-// HeartbeatWakeSource is a daemon API value.
-type HeartbeatWakeSource string
-
-// HeartbeatWakeStatePayload is a daemon API value.
-type HeartbeatWakeStatePayload struct {
-	WorkspaceID      string              `json:"workspace_id,omitempty"`
-	AgentName        string              `json:"agent_name,omitempty"`
-	SessionID        string              `json:"session_id"`
-	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
-	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
-	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
-	CoalescedCount   int                 `json:"coalesced_count"`
-	LastResult       HeartbeatWakeResult `json:"last_result"`
-	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
-	UpdatedAt        time.Time           `json:"updated_at"`
 }

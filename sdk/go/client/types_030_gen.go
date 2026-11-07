@@ -4,6 +4,46 @@ package client
 
 import "time"
 
+// WorktreeBindingsPayload is a daemon API value.
+type WorktreeBindingsPayload struct {
+	AgentActivity string `json:"agent_activity"`
+}
+
+// WorktreeBranchOutcomePayload is a daemon API value.
+type WorktreeBranchOutcomePayload struct {
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+	Reason  string `json:"reason,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// WorktreeCatalogEventPayload is a daemon API value.
+type WorktreeCatalogEventPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+	Error       string `json:"error,omitempty"`
+}
+
+// WorktreeCleanupResponse is a daemon API value.
+type WorktreeCleanupResponse struct {
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
+// WorktreeExitAction is a daemon API value.
+type WorktreeExitAction string
+
+// WorktreeExitActionPlan is a daemon API value.
+type WorktreeExitActionPlan struct {
+	Action        WorktreeExitAction `json:"action"`
+	Label         string             `json:"label"`
+	Enabled       bool               `json:"enabled"`
+	BlockedReason string             `json:"blocked_reason,omitempty"`
+	Publish       bool               `json:"publish,omitzero"`
+	URL           string             `json:"url,omitempty"`
+	PRNumber      int                `json:"pr_number,omitzero"`
+}
+
 // WorktreeExitCleanupEvidence is a daemon API value.
 type WorktreeExitCleanupEvidence struct {
 	ForgeState string `json:"forge_state,omitempty"`

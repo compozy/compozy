@@ -25,6 +25,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		toolArtifacts:         s.toolArtifacts,
 		sessionAttachments:    s.sessionAttachments,
 		sessionFiles:          s.sessionFiles,
+		fileTree:              s.fileTree,
 		toolsets:              s.toolsets,
 		toolApprovals:         s.toolApprovals,
 		approvalGrants:        s.approvalGrants,
@@ -77,7 +78,6 @@ func (s *Server) handlerConfig() *handlerConfig {
 		extensions:            s.extensions,
 		hostedMCP:             s.hostedMCP,
 		mcpHostAPI:            s.mcpHostAPI,
-
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
 		providerAuthVerdicts:  s.providerAuthVerdicts,
 	}

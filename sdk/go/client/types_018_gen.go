@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// SessionDerivedPayload is a daemon API value.
+type SessionDerivedPayload struct {
+	Kind                 string `json:"kind"`
+	SourceSessionID      string `json:"source_session_id"`
+	OriginAgentName      string `json:"origin_agent_name"`
+	OriginMessageID      string `json:"origin_message_id,omitempty"`
+	ThroughTurnID        string `json:"through_turn_id"`
+	Seed                 string `json:"seed"`
+	NativeState          string `json:"native_state,omitempty"`
+	ACPSessionID         string `json:"acp_session_id,omitempty"`
+	NativeForkError      string `json:"native_fork_error,omitempty"`
+	ReplayMessageCount   *int   `json:"replay_message_count,omitzero"`
+	ReplayBytes          *int   `json:"replay_bytes,omitzero"`
+	Truncated            bool   `json:"truncated"`
+	OmittedCount         int    `json:"omitted_count"`
+	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
+	FirstPrompt          string `json:"first_prompt"`
+	Replayed             bool   `json:"replayed"`
+	ChildDeleted         bool   `json:"child_deleted,omitzero"`
+	ChildSessionID       string `json:"child_session_id"`
+}
+
+// SessionEnvBindingPayload is a daemon API value.
+type SessionEnvBindingPayload struct {
+	Ref      string `json:"ref"`
+	Required bool   `json:"required"`
+}
+
 // SessionEventPayload is a daemon API value.
 type SessionEventPayload struct {
 	Origin               *PromptOriginMeta        `json:"origin,omitzero"`
@@ -420,28 +448,3 @@ type SessionPresenceRequest struct {
 	Visible bool   `json:"visible"`
 	LeaseID string `json:"lease_id,omitempty"`
 }
-
-// SessionPresenceResponse is a daemon API value.
-type SessionPresenceResponse struct {
-	LeaseID string `json:"lease_id"`
-}
-
-// SessionProcessAttribution is a daemon API value.
-type SessionProcessAttribution string
-
-// SessionProcessGroupPayload is a daemon API value.
-type SessionProcessGroupPayload struct {
-	SessionID   string                      `json:"session_id"`
-	WorkspaceID string                      `json:"workspace_id"`
-	Profile     string                      `json:"profile"`
-	SessionName string                      `json:"session_name"`
-	Orphaned    bool                        `json:"orphaned"`
-	Items       []SessionProcessPayload     `json:"items"`
-	Trees       []SessionProcessTreePayload `json:"trees,omitempty"`
-}
-
-// SessionProcessKind is a daemon API value.
-type SessionProcessKind string
-
-// SessionProcessOutcome is a daemon API value.
-type SessionProcessOutcome string

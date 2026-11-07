@@ -417,26 +417,12 @@ func (c *Client) ListExtensions(ctx context.Context, params ListExtensionsParams
 	return &out, nil
 }
 
-// ListGatewayDevices List the operator-global paired device inventory
-func (c *Client) ListGatewayDevices(ctx context.Context) (*GatewayDevicesResponse, error) {
-	path := "/api/gateway/devices"
-	var out GatewayDevicesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListGlobalSessionEventsParams carries the path, query, and header parameters.
-type ListGlobalSessionEventsParams struct {
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+// ListFileEntriesParams carries the path, query, and header parameters.
+type ListFileEntriesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	WorktreeID  *string `url:"worktree_id"`
+	Path        *string `url:"path"`
+	ShowIgnored *bool   `url:"show_ignored"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

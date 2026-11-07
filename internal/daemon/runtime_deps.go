@@ -43,6 +43,7 @@ type RuntimeDeps struct {
 	ToolArtifacts       toolspkg.ToolArtifactStore
 	SessionAttachments  attachmentspkg.Store
 	SessionFiles        core.SessionFileSearcher
+	FileTree            core.FileTreeReader
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
 	ApprovalCoordinator toolspkg.ApprovalCoordinator
 	CmdPalette          cmdpalette.Registry

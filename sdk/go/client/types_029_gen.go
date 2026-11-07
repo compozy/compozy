@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// Weights is a daemon API value.
+type Weights struct {
+	Version                    int      `json:"version"`
+	FrecencyHalfLifeDays       int      `json:"frecency_half_life_days"`
+	QueryHalfLifeDays          int      `json:"query_half_life_days"`
+	Deadband                   float64  `json:"deadband"`
+	FallbackWeakMatchThreshold float64  `json:"fallback_weak_match_threshold"`
+	MatchAliasExact            float64  `json:"match_alias_exact"`
+	MatchExact                 float64  `json:"match_exact"`
+	MatchPrefix                float64  `json:"match_prefix"`
+	MatchTokenPrefix           float64  `json:"match_token_prefix"`
+	MatchCompactPrefix         float64  `json:"match_compact_prefix"`
+	MatchWordBoundaryMin       float64  `json:"match_word_boundary_min"`
+	MatchWordBoundaryMax       float64  `json:"match_word_boundary_max"`
+	MatchContains              float64  `json:"match_contains"`
+	MatchSubsequenceMin        float64  `json:"match_subsequence_min"`
+	MatchSubsequenceMax        float64  `json:"match_subsequence_max"`
+	SecondaryFieldMultiplier   float64  `json:"secondary_field_multiplier"`
+	SecondaryFieldCap          float64  `json:"secondary_field_cap"`
+	FrecencyScale              float64  `json:"frecency_scale"`
+	FrecencyCap                float64  `json:"frecency_cap"`
+	QueryLearningCap           float64  `json:"query_learning_cap"`
+	ContextBoost               float64  `json:"context_boost"`
+	PromotionCommandFloor      float64  `json:"promotion_command_floor"`
+	PromotionPathFloor         float64  `json:"promotion_path_floor"`
+	PromotionDefaultFloor      float64  `json:"promotion_default_floor"`
+	PromotionTabFloor          float64  `json:"promotion_tab_floor"`
+	GhostMinScore              float64  `json:"ghost_min_score"`
+	MinEntityQueryLength       int      `json:"min_entity_query_length"`
+	MaxQueryLength             int      `json:"max_query_length"`
+	PruneAfterDays             int      `json:"prune_after_days"`
+	PruneThreshold             float64  `json:"prune_threshold"`
+	EntitySectionVisibleCap    int      `json:"entity_section_visible_cap"`
+	DomainViewMountCap         int      `json:"domain_view_mount_cap"`
+	GroupOrder                 []string `json:"group_order"`
+}
+
+// WindowID is a daemon API value.
+type WindowID string
+
 // WindowManagerActor is a daemon API value.
 type WindowManagerActor struct {
 	Kind string `json:"kind,omitempty"`
@@ -405,44 +445,4 @@ type WorkspacesResponse struct {
 type WorktreeBindingAvailability struct {
 	Available         bool   `json:"available"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
-}
-
-// WorktreeBindingsPayload is a daemon API value.
-type WorktreeBindingsPayload struct {
-	AgentActivity string `json:"agent_activity"`
-}
-
-// WorktreeBranchOutcomePayload is a daemon API value.
-type WorktreeBranchOutcomePayload struct {
-	Name    string `json:"name"`
-	Deleted bool   `json:"deleted"`
-	Reason  string `json:"reason,omitempty"`
-	Detail  string `json:"detail,omitempty"`
-}
-
-// WorktreeCatalogEventPayload is a daemon API value.
-type WorktreeCatalogEventPayload struct {
-	Kind        string `json:"kind"`
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
-	Error       string `json:"error,omitempty"`
-}
-
-// WorktreeCleanupResponse is a daemon API value.
-type WorktreeCleanupResponse struct {
-	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
-}
-
-// WorktreeExitAction is a daemon API value.
-type WorktreeExitAction string
-
-// WorktreeExitActionPlan is a daemon API value.
-type WorktreeExitActionPlan struct {
-	Action        WorktreeExitAction `json:"action"`
-	Label         string             `json:"label"`
-	Enabled       bool               `json:"enabled"`
-	BlockedReason string             `json:"blocked_reason,omitempty"`
-	Publish       bool               `json:"publish,omitzero"`
-	URL           string             `json:"url,omitempty"`
-	PRNumber      int                `json:"pr_number,omitzero"`
 }

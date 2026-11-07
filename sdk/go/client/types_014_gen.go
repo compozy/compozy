@@ -7,6 +7,57 @@ import (
 	"time"
 )
 
+// PromptAttachmentRef is a daemon API value.
+type PromptAttachmentRef struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Bytes    int64  `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+}
+
+// PromptDelivery is a daemon API value.
+type PromptDelivery string
+
+// PromptMode is a daemon API value.
+type PromptMode string
+
+// PromptOriginMeta is a daemon API value.
+type PromptOriginMeta struct {
+	Kind             string `json:"kind"`
+	SessionID        string `json:"session_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	AgentName        string `json:"agent_name,omitempty"`
+	TitleAtSend      string `json:"title_at_send,omitempty"`
+	Hop              int    `json:"hop"`
+	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
+	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
+	InReplyTo        string `json:"in_reply_to,omitempty"`
+}
+
+// PromptRuntimeSelectionPayload is a daemon API value.
+type PromptRuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+}
+
+// ProvenancePayload is a daemon API value.
+type ProvenancePayload struct {
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
+}
+
 // ProviderAuthProbeResponse is a daemon API value.
 type ProviderAuthProbeResponse struct {
 	Provider   string                    `json:"provider"`
@@ -395,51 +446,4 @@ type RecapSnapshotPayload struct {
 	TranscriptCursor int64     `json:"transcript_cursor"`
 	QueueGeneration  int64     `json:"queue_generation"`
 	Consistency      string    `json:"consistency"`
-}
-
-// RecoverTaskRequest is a daemon API value.
-type RecoverTaskRequest struct {
-	Note string `json:"note,omitempty"`
-}
-
-// RecoverTaskRunRequest is a daemon API value.
-type RecoverTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// Redaction is a daemon API value.
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
-}
-
-// Ref is a daemon API value.
-type Ref struct {
-	ID     string          `json:"id"`
-	Kind   string          `json:"kind,omitempty"`
-	Script string          `json:"script,omitempty"`
-	With   json.RawMessage `json:"with,omitempty"`
-}
-
-// Reference is a daemon API value.
-type Reference struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitzero"`
-	EffectivePaused bool       `json:"effective_paused,omitzero"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// RejectPolicy is a daemon API value.
-type RejectPolicy struct {
-	Route NodeID `json:"route"`
 }

@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// OpenAIModelCompozyPayload is a daemon API value.
+type OpenAIModelCompozyPayload struct {
+	ProviderID             string                   `json:"provider_id"`
+	ModelID                string                   `json:"model_id"`
+	DisplayName            string                   `json:"display_name,omitempty"`
+	Sources                []string                 `json:"sources"`
+	Available              *bool                    `json:"available"`
+	AvailabilityState      string                   `json:"availability_state"`
+	Stale                  bool                     `json:"stale"`
+	RefreshedAt            string                   `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                   `json:"context_window,omitzero"`
+	MaxInputTokens         *int64                   `json:"max_input_tokens,omitzero"`
+	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitzero"`
+	SupportsTools          *bool                    `json:"supports_tools,omitzero"`
+	SupportsReasoning      *bool                    `json:"supports_reasoning,omitzero"`
+	ReasoningEfforts       []Effort                 `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                  `json:"default_reasoning_effort,omitzero"`
+	Cost                   *ModelCatalogCostPayload `json:"cost,omitzero"`
+	LastError              string                   `json:"last_error,omitempty"`
+}
+
+// OpenAIModelListResponse is a daemon API value.
+type OpenAIModelListResponse struct {
+	Object string               `json:"object"`
+	Data   []OpenAIModelPayload `json:"data"`
+}
+
+// OpenAIModelPayload is a daemon API value.
+type OpenAIModelPayload struct {
+	ID      string                    `json:"id"`
+	Object  string                    `json:"object"`
+	Created int64                     `json:"created"`
+	OwnedBy string                    `json:"owned_by"`
+	Compozy OpenAIModelCompozyPayload `json:"compozy"`
+}
+
+// OpenAppEffect is a daemon API value.
+type OpenAppEffect struct {
+	App string `json:"app"`
+}
+
+// OpenURLEffect is a daemon API value.
+type OpenURLEffect struct {
+	URL string `json:"url"`
+}
+
 // OperatorNotificationEventPayload is a daemon API value.
 type OperatorNotificationEventPayload struct {
 	Kind           string    `json:"kind,omitempty"`
@@ -390,55 +436,4 @@ type PromoteSessionInputRequest struct {
 	MessageID      string `json:"message_id"`
 	IdempotencyKey string `json:"idempotency_key"`
 	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
-}
-
-// PromptAttachmentRef is a daemon API value.
-type PromptAttachmentRef struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	MIMEType string `json:"mime_type"`
-	Bytes    int64  `json:"bytes"`
-	SHA256   string `json:"sha256"`
-	Kind     string `json:"kind"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-}
-
-// PromptDelivery is a daemon API value.
-type PromptDelivery string
-
-// PromptMode is a daemon API value.
-type PromptMode string
-
-// PromptOriginMeta is a daemon API value.
-type PromptOriginMeta struct {
-	Kind             string `json:"kind"`
-	SessionID        string `json:"session_id"`
-	WorkspaceID      string `json:"workspace_id"`
-	AgentName        string `json:"agent_name,omitempty"`
-	TitleAtSend      string `json:"title_at_send,omitempty"`
-	Hop              int    `json:"hop"`
-	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
-	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
-	InReplyTo        string `json:"in_reply_to,omitempty"`
-}
-
-// PromptRuntimeSelectionPayload is a daemon API value.
-type PromptRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-}
-
-// ProvenancePayload is a daemon API value.
-type ProvenancePayload struct {
-	Slug                   string                    `json:"slug,omitempty"`
-	Registry               string                    `json:"registry,omitempty"`
-	Version                string                    `json:"version,omitempty"`
-	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
-	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
-	PrecedenceTier         string                    `json:"precedence_tier"`
-	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
 }

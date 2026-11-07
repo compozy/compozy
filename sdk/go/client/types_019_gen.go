@@ -4,6 +4,31 @@ package client
 
 import "time"
 
+// SessionPresenceResponse is a daemon API value.
+type SessionPresenceResponse struct {
+	LeaseID string `json:"lease_id"`
+}
+
+// SessionProcessAttribution is a daemon API value.
+type SessionProcessAttribution string
+
+// SessionProcessGroupPayload is a daemon API value.
+type SessionProcessGroupPayload struct {
+	SessionID   string                      `json:"session_id"`
+	WorkspaceID string                      `json:"workspace_id"`
+	Profile     string                      `json:"profile"`
+	SessionName string                      `json:"session_name"`
+	Orphaned    bool                        `json:"orphaned"`
+	Items       []SessionProcessPayload     `json:"items"`
+	Trees       []SessionProcessTreePayload `json:"trees,omitempty"`
+}
+
+// SessionProcessKind is a daemon API value.
+type SessionProcessKind string
+
+// SessionProcessOutcome is a daemon API value.
+type SessionProcessOutcome string
+
 // SessionProcessPayload is a daemon API value.
 type SessionProcessPayload struct {
 	Attribution SessionProcessAttribution `json:"attribution"`
@@ -420,22 +445,3 @@ type SetSessionRuntimeRequest struct {
 	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
 	ExpectedRevision *int64                        `json:"expected_revision"`
 }
-
-// SettingsActionMetadataPayload is a daemon API value.
-type SettingsActionMetadataPayload struct {
-	Name      string                   `json:"name"`
-	Available bool                     `json:"available"`
-	Behavior  SettingsMutationBehavior `json:"behavior"`
-}
-
-// SettingsApplyFailurePayload is a daemon API value.
-type SettingsApplyFailurePayload struct {
-	Subsystem  string         `json:"subsystem"`
-	Diagnostic DiagnosticItem `json:"diagnostic"`
-}
-
-// SettingsApplyLifecycle is a daemon API value.
-type SettingsApplyLifecycle string
-
-// SettingsApplyNextAction is a daemon API value.
-type SettingsApplyNextAction string

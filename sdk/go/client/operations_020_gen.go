@@ -9,6 +9,58 @@ import (
 	"strings"
 )
 
+// ListLoopRunsAggregate List Loop runs
+func (c *Client) ListLoopRunsAggregate(ctx context.Context, params ListLoopRunsAggregateParams) (*LoopRunsResponse, error) {
+	path := "/api/loop-runs"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.OriginSession != nil {
+		query.Set("origin_session", *params.OriginSession)
+	}
+	if params.Live != nil {
+		query.Set("live", strconv.FormatBool(*params.Live))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if params.Order != nil {
+		query.Set("order", *params.Order)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListLoopsParams carries the path, query, and header parameters.
 type ListLoopsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -393,26 +445,4 @@ func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsage
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListProviders List providers and declared auth status
-func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, error) {
-	path := "/api/providers"
-	var out ProviderListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListResourcesParams carries the path, query, and header parameters.
-type ListResourcesParams struct {
-	Kind       *string `url:"kind"`
-	ScopeKind  *string `url:"scope_kind"`
-	ScopeID    *string `url:"scope_id"`
-	OwnerKind  *string `url:"owner_kind"`
-	OwnerID    *string `url:"owner_id"`
-	SourceKind *string `url:"source_kind"`
-	SourceID   *string `url:"source_id"`
-	Limit      *int    `url:"limit"`
 }

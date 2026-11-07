@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listFileEntries", "readFileContent", "listSessionFileEntries", "readSessionFileContent",
 			"getAgentHeartbeatSources",
 			"listSessionLinkedWork",
 			"listSessionPendingInteractions",

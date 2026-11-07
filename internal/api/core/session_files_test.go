@@ -9,6 +9,7 @@ package core_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -22,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspacefiles"
@@ -281,7 +283,7 @@ func newSessionFilesHandlerEngine(
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				ID: "registry-workspace", Name: "workspace", WorkspaceID: "stable-workspace",
+				ID: "registry-workspace", Name: "workspace", WorkspaceID: "stable-workspace", RootDir: root,
 			}, nil
 		},
 	}
@@ -293,6 +295,11 @@ func newSessionFilesHandlerEngine(
 	})
 	engine := gin.New()
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files", handlers.SearchSessionFiles)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/entries", handlers.ListSessionFileEntries)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/content", handlers.ReadSessionFileContent)
+	engine.GET("/api/workspaces/:workspace_id/files/entries", handlers.ListFileEntries)
+	engine.GET("/api/workspaces/:workspace_id/files/content", handlers.ReadFileContent)
+
 	return engine, log
 }
 
@@ -301,4 +308,61 @@ func serveSessionFilesRequest(t *testing.T, engine http.Handler, path string) *h
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
 	return recorder
+}
+
+// File content handlers own the app-token reveal boundary and response path redaction.
+func TestProjectFileContentReveal(t *testing.T) {
+	t.Parallel()
+	t.Run("Should gate app reveals and redact host paths for workspace and session forms", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for name, body := range map[string]string{"README.md": "public", ".env": "secret"} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		engine, _ := newSessionFilesHandlerEngine(t, root, workspacefiles.New(nil))
+		for _, prefix := range []string{"/api/workspaces/workspace/files", "/api/workspaces/workspace/sessions/sess-ok/files"} {
+			for _, tc := range []struct {
+				query  string
+				app    bool
+				status int
+				kind   string
+			}{
+				{"path=README.md", true, 200, "text"}, {"path=.env", true, 200, "sensitive"}, {"path=.env&reveal=true", true, 403, ""}, {"path=.env&reveal=true", false, 200, "text"}, {"path=missing", false, 404, ""}, {"path=%2Fetc%2Fpasswd", false, 400, ""},
+			} {
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					prefix+"/content?"+tc.query,
+					http.NoBody,
+				)
+				if tc.app {
+					request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+				}
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, request)
+				if response.Code != tc.status {
+					t.Fatalf("%s status %d: %s", tc.query, response.Code, response.Body.String())
+				}
+				if strings.Contains(response.Body.String(), root) {
+					t.Fatal("response leaked host root")
+				}
+				if tc.kind != "" {
+					var got contract.FileContentResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+						t.Fatal(err)
+					}
+					if got.Kind != tc.kind {
+						t.Fatalf("kind=%s want %s", got.Kind, tc.kind)
+					}
+					if got.Kind == "sensitive" && got.Text != nil {
+						t.Fatal("sensitive bytes leaked")
+					}
+				} else if !strings.Contains(response.Body.String(), "code") {
+					t.Fatal("missing structured error")
+				}
+			}
+		}
+	})
 }

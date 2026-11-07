@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
 
@@ -108,6 +109,10 @@ func TestWorkspaceSessionProfileFenceHTTPUDSTransportParity(t *testing.T) {
 		name, method, path, body string
 		wantStatus               int
 	}{
+		{"workspace file entries foreign read", http.MethodGet, "/api/workspaces/ws-public/files/entries?profile=default&worktree_id=foreign", "", http.StatusNotFound},
+		{"workspace file content foreign read", http.MethodGet, "/api/workspaces/ws-public/files/content?profile=default&worktree_id=foreign&path=a", "", http.StatusNotFound},
+		{"file entries foreign read", http.MethodGet, route + "/files/entries?profile=default", "", http.StatusNotFound},
+		{"file content foreign read", http.MethodGet, route + "/files/content?path=a&profile=default", "", http.StatusNotFound},
 		{"scoped foreign read", http.MethodGet, route + "/events?profile=default", "", http.StatusNotFound},
 		{"scoped foreign write", http.MethodPost, route + "/prompt?profile=default", prompt, http.StatusNotFound},
 		{"aggregate write", http.MethodPost, route + "/prompt?all_profiles=true", prompt, http.StatusBadRequest},
@@ -163,6 +168,7 @@ func newProfileReadParityHTTPRouter(
 		httpapi.WithTaskService(tasks), httpapi.WithProfileService(profiles),
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(parityWorkspaceService()),
+		httpapi.WithWorktreeService(foreignFileWorktreeService()),
 	); err != nil {
 		t.Fatalf("httpapi.New(profile read parity) error = %v", err)
 	}
@@ -188,6 +194,7 @@ func newProfileReadParityUDSRouter(
 		udsapi.WithTaskService(tasks), udsapi.WithProfileService(profiles),
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(parityWorkspaceService()),
+		udsapi.WithWorktreeService(foreignFileWorktreeService()),
 	); err != nil {
 		t.Fatalf("udsapi.New(profile read parity) error = %v", err)
 	}
@@ -205,3 +212,10 @@ func (s parityProfileService) ListIdentities(ctx context.Context) ([]profilepkg.
 	}
 	return profiles, nil
 }
+
+type foreignProfileFileWorktrees struct{ core.WorktreeService }
+
+func (foreignProfileFileWorktrees) Resolve(context.Context, string, string) (*worktree.Worktree, error) {
+	return &worktree.Worktree{ID: "foreign", WorkspaceID: "ws-registry", ProfileID: aggregateReadProfileID}, nil
+}
+func foreignFileWorktreeService() core.WorktreeService { return foreignProfileFileWorktrees{} }

@@ -7,6 +7,49 @@ import (
 	"time"
 )
 
+// SubagentSummaryPayload is a daemon API value.
+type SubagentSummaryPayload struct {
+	Live       int    `json:"live"`
+	Total      int    `json:"total"`
+	Failed     int    `json:"failed"`
+	Attention  int    `json:"attention"`
+	MostUrgent string `json:"most_urgent"`
+}
+
+// SubagentUpdatedEvent is a daemon API value.
+type SubagentUpdatedEvent struct {
+	SessionID string          `json:"session_id"`
+	Subagent  SubagentPayload `json:"subagent"`
+}
+
+// SubagentUsagePayload is a daemon API value.
+type SubagentUsagePayload struct {
+	TotalTokens int64 `json:"total_tokens"`
+	ToolUses    int64 `json:"tool_uses"`
+}
+
+// SubagentWorktreePayload is a daemon API value.
+type SubagentWorktreePayload struct {
+	ID                string                      `json:"id"`
+	Name              string                      `json:"name"`
+	Branch            string                      `json:"branch"`
+	BaseRef           string                      `json:"base_ref"`
+	BaseSHA           string                      `json:"base_sha,omitempty"`
+	Path              string                      `json:"path"`
+	HeadSHA           string                      `json:"head_sha,omitempty"`
+	CommitsAhead      *int                        `json:"commits_ahead,omitempty"`
+	DirtyFiles        *int                        `json:"dirty_files,omitempty"`
+	ObservedAt        *time.Time                  `json:"observed_at,omitempty"`
+	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
+	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
+}
+
+// SubagentsSnapshotEvent is a daemon API value.
+type SubagentsSnapshotEvent struct {
+	SessionID string            `json:"session_id"`
+	Subagents []SubagentPayload `json:"subagents"`
+}
+
 // SubmitTaskRunReviewVerdictRequest is a daemon API value.
 type SubmitTaskRunReviewVerdictRequest struct {
 	RunID   string           `json:"run_id"`
@@ -396,40 +439,4 @@ type TaskDetailPayload struct {
 // TaskDetailResponse is a daemon API value.
 type TaskDetailResponse struct {
 	Task TaskDetailPayload `json:"task"`
-}
-
-// TaskEventPayload is a daemon API value.
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
-}
-
-// TaskExecutionProfileResponse is a daemon API value.
-type TaskExecutionProfileResponse struct {
-	Profile ExecutionProfile `json:"profile"`
-}
-
-// TaskExecutionRequest is a daemon API value.
-type TaskExecutionRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-}
-
-// TaskExecutionResponse is a daemon API value.
-type TaskExecutionResponse struct {
-	Task TaskPayload    `json:"task"`
-	Run  TaskRunPayload `json:"run"`
-}
-
-// TaskFanOutRunDesignationRequest is a daemon API value.
-type TaskFanOutRunDesignationRequest struct {
-	Brief          string          `json:"brief"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
 }

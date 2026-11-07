@@ -867,6 +867,9 @@ import type {
   ListExtensionSecretsResponses,
   ListExtensionsErrors,
   ListExtensionsResponses,
+  ListFileEntriesData,
+  ListFileEntriesErrors,
+  ListFileEntriesResponses,
   ListGatewayDevicesData,
   ListGatewayDevicesErrors,
   ListGatewayDevicesResponses,
@@ -954,6 +957,9 @@ import type {
   ListSessionFacetsData,
   ListSessionFacetsErrors,
   ListSessionFacetsResponses,
+  ListSessionFileEntriesData,
+  ListSessionFileEntriesErrors,
+  ListSessionFileEntriesResponses,
   ListSessionFoldersData,
   ListSessionFoldersErrors,
   ListSessionFoldersResponses,
@@ -1194,9 +1200,15 @@ import type {
   QueryTerminalJournalData,
   QueryTerminalJournalErrors,
   QueryTerminalJournalResponses,
+  ReadFileContentData,
+  ReadFileContentErrors,
+  ReadFileContentResponses,
   ReadSessionAttachmentBytesData,
   ReadSessionAttachmentBytesErrors,
   ReadSessionAttachmentBytesResponses,
+  ReadSessionFileContentData,
+  ReadSessionFileContentErrors,
+  ReadSessionFileContentResponses,
   ReadTaskRunResultData,
   ReadTaskRunResultErrors,
   ReadTaskRunResultResponses,
@@ -12009,6 +12021,88 @@ export class workspaces extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{id}/unarchive",
+      ...options,
+    });
+  }
+
+  /**
+   * Read project file content
+   */
+  public readFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadFileContentData, ThrowOnError>
+  ): RequestResult<ReadFileContentResponses, ReadFileContentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadFileContentResponses,
+      ReadFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListFileEntriesData, ThrowOnError>
+  ): RequestResult<ListFileEntriesResponses, ListFileEntriesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListFileEntriesResponses,
+      ListFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Read project file content
+   */
+  public readSessionFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionFileContentData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionFileContentResponses,
+    ReadSessionFileContentErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionFileContentResponses,
+      ReadSessionFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listSessionFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionFileEntriesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionFileEntriesResponses,
+    ListSessionFileEntriesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionFileEntriesResponses,
+      ListSessionFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries",
       ...options,
     });
   }

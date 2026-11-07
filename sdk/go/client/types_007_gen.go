@@ -41,8 +41,54 @@ type FanoutRollup struct {
 	Failed     int    `json:"failed"`
 }
 
+// FileContentResponse is a daemon API value.
+type FileContentResponse struct {
+	Root        FileRootPayload `json:"root"`
+	Path        string          `json:"path"`
+	Kind        string          `json:"kind"`
+	Size        int64           `json:"size"`
+	Language    string          `json:"language,omitempty"`
+	Text        *string         `json:"text,omitempty"`
+	ImageMIME   string          `json:"image_mime,omitempty"`
+	ImageBase64 string          `json:"image_base64,omitempty"`
+	Sensitive   bool            `json:"sensitive,omitzero"`
+	Truncated   bool            `json:"truncated"`
+	Revision    string          `json:"revision,omitempty"`
+}
+
+// FileEntriesResponse is a daemon API value.
+type FileEntriesResponse struct {
+	Root              FileRootPayload    `json:"root"`
+	Path              string             `json:"path"`
+	Entries           []FileEntryPayload `json:"entries"`
+	Truncated         bool               `json:"truncated"`
+	StatusUnavailable bool               `json:"status_unavailable,omitzero"`
+}
+
+// FileEntryPayload is a daemon API value.
+type FileEntryPayload struct {
+	Name            string `json:"name"`
+	Path            string `json:"path"`
+	Kind            string `json:"kind"`
+	Size            int64  `json:"size,omitzero"`
+	Symlink         bool   `json:"symlink,omitzero"`
+	Ignored         bool   `json:"ignored,omitzero"`
+	Sensitive       bool   `json:"sensitive,omitzero"`
+	GitStatus       string `json:"git_status,omitempty"`
+	ContainsChanges bool   `json:"contains_changes,omitzero"`
+}
+
 // FileParseKind is a daemon API value.
 type FileParseKind string
+
+// FileRootPayload is a daemon API value.
+type FileRootPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id,omitempty"`
+	Name        string `json:"name"`
+	Branch      string `json:"branch,omitempty"`
+}
 
 // FireLimitConfig is a daemon API value.
 type FireLimitConfig struct {
@@ -397,44 +443,3 @@ type GoalContextSnapshot struct {
 
 // GoalContextState is a daemon API value.
 type GoalContextState string
-
-// GoalCriterionResult is a daemon API value.
-type GoalCriterionResult struct {
-	ID             string                  `json:"id"`
-	Type           string                  `json:"type"`
-	Outcome        GoalVerdictOutcome      `json:"outcome"`
-	Passed         bool                    `json:"passed"`
-	Broken         bool                    `json:"broken,omitzero"`
-	ExitCode       *int                    `json:"exit_code,omitzero"`
-	Stdout         string                  `json:"stdout,omitempty"`
-	Stderr         string                  `json:"stderr,omitempty"`
-	Score          *float64                `json:"score,omitzero"`
-	Evidence       json.RawMessage         `json:"evidence,omitempty"`
-	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
-	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
-	Payload        json.RawMessage         `json:"payload,omitempty"`
-}
-
-// GoalDiagnosticWarning is a daemon API value.
-type GoalDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// GoalPromptKind is a daemon API value.
-type GoalPromptKind string
-
-// GoalPromptMeta is a daemon API value.
-type GoalPromptMeta struct {
-	Kind          GoalPromptKind `json:"kind"`
-	RunID         string         `json:"run_id"`
-	NodeID        string         `json:"node_id"`
-	Generation    int64          `json:"generation"`
-	ItemIndex     int            `json:"item_index"`
-	Turn          *int           `json:"turn"`
-	PromptAttempt int            `json:"prompt_attempt"`
-	PromptID      string         `json:"prompt_id"`
-}
-
-// GoalReasonCode is a daemon API value.
-type GoalReasonCode string

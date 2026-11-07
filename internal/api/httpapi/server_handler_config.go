@@ -34,6 +34,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		toolArtifacts:         s.toolArtifacts,
 		sessionAttachments:    s.sessionAttachments,
 		sessionFiles:          s.sessionFiles,
+		fileTree:              s.fileTree,
 		toolsets:              s.toolsets,
 		toolApprovals:         s.toolApprovals,
 		approvalGrants:        s.approvalGrants,

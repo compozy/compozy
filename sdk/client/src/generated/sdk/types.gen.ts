@@ -2457,6 +2457,48 @@ export type FanoutRollup = {
   total: number;
 };
 
+export type FileContentResponse = {
+  image_base64?: string;
+  image_mime?: string;
+  kind: string;
+  language?: string;
+  path: string;
+  revision?: string;
+  root: FileRootPayload;
+  sensitive?: boolean;
+  size: number;
+  text?: string | null;
+  truncated: boolean;
+};
+
+export type FileEntriesResponse = {
+  entries: Array<FileEntryPayload>;
+  path: string;
+  root: FileRootPayload;
+  status_unavailable?: boolean;
+  truncated: boolean;
+};
+
+export type FileEntryPayload = {
+  contains_changes?: boolean;
+  git_status?: string;
+  ignored?: boolean;
+  kind: string;
+  name: string;
+  path: string;
+  sensitive?: boolean;
+  size?: number;
+  symlink?: boolean;
+};
+
+export type FileRootPayload = {
+  branch?: string;
+  kind: string;
+  name: string;
+  workspace_id: string;
+  worktree_id?: string;
+};
+
 export type FireLimitConfig = {
   max: number;
   window: string;
@@ -33306,6 +33348,148 @@ export type DismissAutomationSuggestionResponses = {
 export type DismissAutomationSuggestionResponse =
   DismissAutomationSuggestionResponses[keyof DismissAutomationSuggestionResponses];
 
+export type ReadFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/content";
+};
+
+export type ReadFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadFileContentError = ReadFileContentErrors[keyof ReadFileContentErrors];
+
+export type ReadFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadFileContentResponse = ReadFileContentResponses[keyof ReadFileContentResponses];
+
+export type ListFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/entries";
+};
+
+export type ListFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListFileEntriesError = ListFileEntriesErrors[keyof ListFileEntriesErrors];
+
+export type ListFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListFileEntriesResponse = ListFileEntriesResponses[keyof ListFileEntriesResponses];
+
 export type GetHookRunsData = {
   body?: never;
   path: {
@@ -37521,6 +37705,152 @@ export type SearchSessionFilesResponses = {
 
 export type SearchSessionFilesResponse =
   SearchSessionFilesResponses[keyof SearchSessionFilesResponses];
+
+export type ReadSessionFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content";
+};
+
+export type ReadSessionFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadSessionFileContentError =
+  ReadSessionFileContentErrors[keyof ReadSessionFileContentErrors];
+
+export type ReadSessionFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadSessionFileContentResponse =
+  ReadSessionFileContentResponses[keyof ReadSessionFileContentResponses];
+
+export type ListSessionFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries";
+};
+
+export type ListSessionFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionFileEntriesError =
+  ListSessionFileEntriesErrors[keyof ListSessionFileEntriesErrors];
+
+export type ListSessionFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListSessionFileEntriesResponse =
+  ListSessionFileEntriesResponses[keyof ListSessionFileEntriesResponses];
 
 export type ForkSessionData = {
   /**

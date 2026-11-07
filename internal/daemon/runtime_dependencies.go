@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/projectfiles"
 )
 
 func (d *Daemon) runtimeDeps(
@@ -38,6 +39,7 @@ func (d *Daemon) runtimeDeps(
 		SessionAttachments: state.sessionAttachments,
 		ToolArtifacts:      state.toolArtifacts,
 		SessionFiles:       newSessionFileIndex(state.logger),
+		FileTree:           projectfiles.NewReader(),
 		DrainController:    d,
 
 		Registry:              state.registry,
