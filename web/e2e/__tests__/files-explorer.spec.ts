@@ -4,10 +4,17 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import type { BrowserRuntime } from "../fixtures/runtime";
+import {
+  appWindow,
+  openAppWindow,
+  sessionWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { createWorktreeRepo } from "../fixtures/worktree-repo";
 
 const fixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -138,4 +145,71 @@ test("E2E-003: the browser viewer gates sensitive files, previews images, and tr
   );
 
   await expect(panel.getByRole("button", { name: /^Open in/ })).toHaveCount(0);
+});
+
+/** Seeds a ready worktree through the API so the spec starts at the Files app step. */
+async function seedReadyWorktree(runtime: BrowserRuntime, workspaceId: string, name: string) {
+  await runtime.requestJSON(`/api/workspaces/${workspaceId}/worktrees`, {
+    body: JSON.stringify({ name }),
+    method: "POST",
+  });
+  const ready = async () => {
+    const listing = await runtime.requestJSON<{
+      worktrees: Array<{ id: string; name: string; branch: string; state: string }>;
+    }>(`/api/workspaces/${workspaceId}/worktrees`);
+    return listing.worktrees.find(worktree => worktree.name === name && worktree.state === "ready");
+  };
+  await expect.poll(async () => (await ready())?.state, { timeout: 30_000 }).toBe("ready");
+  const worktree = await ready();
+  if (!worktree) throw new Error(`seeded worktree ${name} is missing from the listing`);
+  return worktree;
+}
+
+// Invariant: the dock's Files icon (right after Agents) opens one Files window per project on
+// the active project; its root picker re-roots the tree on a worktree, and a second dock click
+// focuses that same window. Owner: Files OS app + dock; canonical suite: this file.
+test("E2E-002: the Files dock app browses the active project and switches to a worktree root", async ({
+  appPage,
+  runtime,
+}) => {
+  const repo = await createWorktreeRepo();
+  try {
+    await mkdir(path.join(repo.rootDir, "web"), { recursive: true });
+    await writeFile(path.join(repo.rootDir, "web/README.md"), "# web\n\nFiles app fixture.\n");
+    await completeOnboardingIfPrompted(appPage);
+    const workspace = await runtime.resolveWorkspace(repo.rootDir);
+    const worktree = await seedReadyWorktree(runtime, workspace.id, "files-app-root");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+
+    const dock = appPage.locator('[data-slot="os-dock"]:visible');
+    const launchers = dock.getByRole("button");
+    const names = await launchers.evaluateAll(buttons =>
+      buttons.map(button => button.getAttribute("aria-label") ?? button.textContent ?? "")
+    );
+    const agentsIndex = names.findIndex(name => name.startsWith("Agents"));
+    expect(names[agentsIndex + 1]).toMatch(/^Files/);
+
+    const files = await openAppWindow(appPage, "Files", "files");
+    await expect(files.getByTestId("files-root-name")).toContainText(workspace.name);
+
+    await files.locator('[data-type="item"][data-item-path="web/"]').click();
+    await files.locator('[data-type="item"][data-item-path="web/README.md"]').click();
+    await expect(files.getByTestId("file-viewer-header")).toContainText("web/README.md");
+    await expect(files.locator("[data-slot='code-viewer']")).toContainText("Files app fixture.");
+
+    await appPage.getByTestId("files-root-picker").click();
+    await appPage.getByTestId(`files-root-option-${worktree.id}`).click();
+    await expect(files.getByTestId("files-root-name")).toContainText(worktree.branch);
+
+    await dock.getByRole("button", { name: "Files" }).click();
+    await expect(appPage.locator('[data-slot="os-window-surface"][data-app="files"]')).toHaveCount(
+      1
+    );
+    await expect(appWindow(appPage, "files").getByTestId("files-root-name")).toContainText(
+      worktree.branch
+    );
+  } finally {
+    await repo.cleanup();
+  }
 });

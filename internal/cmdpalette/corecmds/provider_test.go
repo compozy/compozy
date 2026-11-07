@@ -66,6 +66,25 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should register Files as the navigable Open project files app", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool {
+			return command.ID == "app.open.files"
+		})
+		if index < 0 {
+			t.Fatal("app.open.files is missing")
+		}
+		files := commands[index]
+		if files.Title != "Open project files" || files.Action.Kind != cmdpalette.ActionKindNavigate ||
+			files.Action.App != "files" {
+			t.Fatalf("app.open.files = %#v, want Open project files navigating the files app", files)
+		}
+		if !RegisteredApp("files") {
+			t.Fatal("RegisteredApp(files) = false, want the daemon to keep Files windows")
+		}
+	})
+
 	t.Run("Should open the Automations editor with each start preselected [UT-112]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)

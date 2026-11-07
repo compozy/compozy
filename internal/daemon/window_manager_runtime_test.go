@@ -905,6 +905,90 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 			}
 		})
 	}
+	t.Run(
+		"Should keep a persisted Files window and remove it with its unregistered project [IT-012]",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			ctx := t.Context()
+			partition := windowmanager.WorkspaceID(fixture.workspace.ID)
+			manager, err := fixture.registry.For(testWindowManagerProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			filesRoute := "/files/" + fixture.workspace.ID
+			for _, id := range []windowmanager.WindowID{"files", "agents"} {
+				spec := windowmanager.WindowSpec{
+					ID:        id,
+					App:       string(id),
+					DesktopID: "desktop-default",
+					Route: windowmanager.RouteIntent{
+						Pathname: "/" + string(id),
+						Search:   windowmanager.RouteSearch{},
+					},
+				}
+				if id == "files" {
+					spec.InstanceKey = new(fixture.workspace.ID)
+					spec.Route.Pathname = filesRoute
+				}
+				current, err := manager.Snapshot(ctx, partition)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.Execute(ctx, windowmanager.CommandRequest{
+					WorkspaceID:      partition,
+					ExpectedRevision: current.Revision,
+					Payload:          windowmanager.OpenWindowCommand{Window: spec},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reloaded, err := newWindowManagerRegistry(
+				fixture.engine,
+				windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver},
+				nil,
+				fixture.resolver,
+				windowmanager.DefaultConfig(),
+				discardLogger(),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reloaded.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			reloadedManager, err := reloaded.For(testWindowManagerProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored, err := reloadedManager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if window, kept := restored.Windows["files"]; !kept || window.Route.Pathname != filesRoute {
+				t.Fatalf(
+					"reconciled Files window = %#v, want the registered app kept on %s",
+					restored.Windows,
+					filesRoute,
+				)
+			}
+			if err := reloaded.ReconcileUnregisteredWorkspace(ctx, fixture.workspace.ID); err != nil {
+				t.Fatal(err)
+			}
+			retired, err := reloadedManager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, kept := retired.Windows["files"]; kept {
+				t.Fatalf("Files window survived its unregistered project: %#v", retired.Windows["files"])
+			}
+			if _, kept := retired.Windows["agents"]; !kept {
+				t.Fatalf("unrelated window removed: %#v", retired.Windows)
+			}
+		},
+	)
 }
 
 func TestUserScopeLayoutMigration(t *testing.T) {

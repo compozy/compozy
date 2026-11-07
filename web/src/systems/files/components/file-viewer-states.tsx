@@ -141,13 +141,14 @@ export function FileViewerSensitiveState({
   );
 }
 
-export function FileTreeUnavailableState() {
+export function FileTreeUnavailableState({ action }: { action?: ReactNode }) {
   return (
     <Empty
       size="compact"
       icon={FolderX}
       title="This worktree is no longer on disk"
       description="Its directory was removed, so there are no files to show."
+      action={action}
       data-testid="files-root-unavailable"
     />
   );

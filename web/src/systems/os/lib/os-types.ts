@@ -28,6 +28,7 @@ export type OsAppId =
   | "terminal"
   | "tasks"
   | "agents"
+  | "files"
   | "loops"
   | "automations"
   | "marketplace"

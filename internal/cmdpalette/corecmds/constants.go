@@ -3,6 +3,7 @@ package corecmds
 const (
 	coreAppAgents         = "agents"
 	coreAppExtensions     = "extensions"
+	coreAppFiles          = "files"
 	coreAppAutomations    = "automations"
 	coreAppLoops          = "loops"
 	coreAppMarketplace    = "marketplace"

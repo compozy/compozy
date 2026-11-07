@@ -22,3 +22,20 @@ export { FileViewerPane, type FileViewerPaneProps } from "./components/file-view
 export { OpenInButton } from "./components/open-in-button";
 export { canListOpenTargets } from "./lib/open-in-targets";
 export { copyFilePath } from "./lib/copy-file-path";
+export {
+  FilesAppNoProjects,
+  FilesAppWindow,
+  type FilesAppWindowProps,
+} from "./components/files-app-window";
+export {
+  filesAppPlace,
+  filesAppPlaceStorageKey,
+  useFilesAppPlace,
+  type FilesAppPlace,
+} from "./hooks/use-files-app-place";
+export {
+  filesAppProjectStatus,
+  filesAppRootOptions,
+  filesSwitcherProjects,
+  type FilesAppRootOption,
+} from "./lib/files-app-roots";

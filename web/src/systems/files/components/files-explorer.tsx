@@ -29,6 +29,8 @@ export interface FilesExplorerProps {
   onOpenFile: (path: string) => void;
   /** Accessible name of the tree. */
   treeLabel?: string;
+  /** The way out of a root that is gone (the Files app's "Switch to project root"). */
+  unavailableAction?: React.ReactNode;
 }
 
 function TreeIconAction({
@@ -187,12 +189,15 @@ export function FilesExplorer({
   target,
   onOpenFile,
   treeLabel = "Project files",
+  unavailableAction,
 }: FilesExplorerProps) {
   const [filter, setFilter] = useState("");
   const [showIgnored, setShowIgnored] = useState(true);
   const selectedPath = target?.kind === "file" ? target.path : null;
   const bridge = useFileTreeBridge(root, { showIgnored, revealPath: selectedPath });
-  if (bridge.root.status === "unavailable") return <FileTreeUnavailableState />;
+  if (bridge.root.status === "unavailable") {
+    return <FileTreeUnavailableState action={unavailableAction} />;
+  }
   return (
     <ResizablePanelGroup
       orientation="horizontal"
