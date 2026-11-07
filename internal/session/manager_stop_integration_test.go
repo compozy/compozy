@@ -263,6 +263,13 @@ func TestManagerIntegrationPermissionLifetime(t *testing.T) {
 					statuses = append(statuses, store.PendingInteractionStatusTimedOut)
 				}
 				waitForCondition(t, "permission settlement", func() bool {
+					if mode != "expiry" {
+						select {
+						case err := <-result:
+							t.Fatalf("request ended before pending: %v", err)
+						default:
+						}
+					}
 					rows, err := catalog.ListPendingInteractions(ctx, target.ID, statuses)
 					if err != nil {
 						t.Fatal(err)
