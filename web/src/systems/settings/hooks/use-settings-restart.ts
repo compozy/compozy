@@ -27,6 +27,7 @@ function selectRestartReadiness(status: StatusPayload) {
 export function useSettingsRestart() {
   const queryClient = useQueryClient();
   const operationId = useSettingsRestartState(state => state.operationId);
+  const operationStartedAt = useSettingsRestartState(state => state.operationStartedAt ?? null);
   const lastMutation = useSettingsRestartState(state => state.lastMutation);
   const mutationGeneration = useSettingsRestartState(state => state.mutationGeneration);
   const snoozedMutationGeneration = useSettingsRestartState(
@@ -38,6 +39,7 @@ export function useSettingsRestart() {
     onSuccess: response => {
       settingsRestartStore.trigger.restartOperationStarted({
         operationId: response.operation_id,
+        startedAt: Date.now(),
       });
       void queryClient.invalidateQueries({
         queryKey: settingsKeys.restartStatus(response.operation_id),
@@ -52,11 +54,14 @@ export function useSettingsRestart() {
   // An HTTP error ends the operation and falls back to "Restart needed" and its Restart action.
   const isStatusUnreachable = isRestartStatusUnreachable(statusQuery.error);
   const resolvedOperationId = statusQuery.isError && !isStatusUnreachable ? null : operationId;
-  // Polling continues through a slow restart; past a normal restart's length the notice adds guidance.
+  // Polling continues through a slow restart; past a normal restart's length the notice adds
+  // guidance. The outage counts from the restart's start, which survives a page refresh, or else
+  // from the last successful read.
+  const outageSince = operationStartedAt ?? statusQuery.dataUpdatedAt;
   const isOutageProlonged =
     isStatusUnreachable &&
-    statusQuery.dataUpdatedAt > 0 &&
-    statusQuery.errorUpdatedAt - statusQuery.dataUpdatedAt >= RESTART_OUTAGE_GUIDANCE_MS;
+    outageSince > 0 &&
+    statusQuery.errorUpdatedAt - outageSince >= RESTART_OUTAGE_GUIDANCE_MS;
   const triggerStatus =
     triggerMutation.data?.operation_id === operationId ? triggerMutation.data : null;
   const status = statusQuery.data?.status ?? triggerStatus?.status ?? null;

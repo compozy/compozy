@@ -294,6 +294,8 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
         ? false
         : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
+    // The daemon is local: browser connectivity must not pause polling a restart.
+    networkMode: "always",
     retry: (failureCount, error) =>
       getErrorStatus(error) === 404 ? false : shouldRetrySettingsQuery(failureCount, error),
   });

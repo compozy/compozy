@@ -386,6 +386,22 @@ describe("useSettingsRestart", () => {
     expect(result.current.operationId).toBe("op_outage");
   });
 
+  // Invariant: guidance for a prolonged outage counts from the restart's start, so a page
+  // refreshed mid-outage (no successful status read yet) still shows it.
+  it("Should show prolonged-outage guidance after a refresh during a long restart", async () => {
+    settingsRestartStore.trigger.restartOperationStarted({
+      operationId: "op_long",
+      startedAt: Date.now() - 60_000,
+    });
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.statusQueryError).toBeTruthy(), { timeout: 5_000 });
+    expect(result.current.operationId).toBe("op_long");
+    expect(result.current.isOutageProlonged).toBe(true);
+  });
+
   it("Should fall back to the restart action when the status endpoint returns an HTTP error", async () => {
     settingsRestartStore.trigger.settingsMutationRecorded({
       mutation: {
@@ -434,6 +450,7 @@ describe("useSettingsRestart", () => {
 
     expect(settingsRestartStore.getSnapshot().context).toEqual({
       operationId: null,
+      operationStartedAt: null,
       lastMutation: null,
       mutationGeneration: 0,
       snoozedMutationGeneration: null,
