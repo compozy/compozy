@@ -18,31 +18,26 @@ export function FilesWindow({ windowId }: { windowId: string }) {
   const route = useDesktop(state => state.windows[windowId]?.route ?? BARE_FILES_ROUTE);
   const { coordinator } = useOsShell();
   const workspaceId = matchFilesInstance(route.pathname);
+  const { pending, rememberedWorkspace, workspaces } = useActiveWorkspace({
+    enabled: workspaceId === null,
+  });
   const rebind = (next: string) =>
     void coordinator.userRetarget(windowId, {
       app: "files",
       instanceKey: next,
       route: filesAppRoute(next),
     });
+  // A Files window opened without a project (an agent `window_open`, or no projects yet) binds
+  // to the active project. The window manager owns the binding, so this effect syncs it there.
+  const fallback =
+    workspaceId === null ? (rememberedWorkspace?.id ?? workspaces[0]?.id ?? null) : null;
+  const bindFallback = useEffectEvent((next: string) => rebind(next));
+  useEffect(() => {
+    if (fallback !== null) bindFallback(fallback);
+  }, [fallback]);
   if (workspaceId !== null) {
     return <FilesAppWindow key={workspaceId} workspaceId={workspaceId} onSwitchProject={rebind} />;
   }
-  return <FilesUnboundLocation onBind={rebind} />;
-}
-
-/**
- * A Files window opened without a project (an agent `window_open`, or no projects yet): it binds
- * to the active project, or offers Add project when none is registered (US-002.EC-1).
- */
-function FilesUnboundLocation({ onBind }: { onBind: (workspaceId: string) => void }) {
-  const { pending, rememberedWorkspace, workspaces } = useActiveWorkspace();
-  const [setupOpen, setSetupOpen] = useState(false);
-  const setupDefaults = useWorkspaceSetupDefaults(setupOpen);
-  const fallback = rememberedWorkspace?.id ?? workspaces[0]?.id ?? null;
-  const bind = useEffectEvent((workspaceId: string) => onBind(workspaceId));
-  useEffect(() => {
-    if (fallback !== null) bind(fallback);
-  }, [fallback]);
   if (pending || fallback !== null) {
     return (
       <SkeletonRegion label="Loading files" className="p-3" data-testid="files-app-binding">
@@ -50,6 +45,17 @@ function FilesUnboundLocation({ onBind }: { onBind: (workspaceId: string) => voi
       </SkeletonRegion>
     );
   }
+  return <FilesNoProjectsLocation onProjectAdded={rebind} />;
+}
+
+/** No project is registered: offer Add project, and bind the window to the one created (US-002.EC-1). */
+function FilesNoProjectsLocation({
+  onProjectAdded,
+}: {
+  onProjectAdded: (workspaceId: string) => void;
+}) {
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupDefaults = useWorkspaceSetupDefaults(setupOpen);
   return (
     <>
       <FilesAppNoProjects onAddProject={() => setSetupOpen(true)} />
@@ -57,7 +63,7 @@ function FilesUnboundLocation({ onBind }: { onBind: (workspaceId: string) => voi
         defaults={setupDefaults}
         open={setupOpen}
         onOpenChange={setSetupOpen}
-        onWorkspaceResolved={onBind}
+        onWorkspaceResolved={onProjectAdded}
       />
     </>
   );

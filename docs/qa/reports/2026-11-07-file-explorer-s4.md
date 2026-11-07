@@ -79,7 +79,7 @@ cd web && env -u COMPOZY_INTERNAL_RESTART_OPERATION_ID -u COMPOZY_INTERNAL_LOG_M
   bunx playwright test e2e/__tests__/files-explorer.spec.ts --reporter=line
 ```
 
-- The `env -u` is needed only when the run starts inside a managed Compozy session.
+- The `env -u` is needed only when the run starts inside a managed CompozyOS session.
   `COMPOZY_INTERNAL_RESTART_OPERATION_ID` leaks from the parent daemon into the session shell,
   and the harness passes it to the test daemon. That daemon then exits before readiness with
   `load restart operation …: restart operation not found`. CI is unaffected. The leak is a

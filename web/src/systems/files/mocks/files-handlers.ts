@@ -85,7 +85,7 @@ export function fileContentFixture(path: string, reveal: boolean): FileContentRe
     case "README.md":
       return content(path, {
         size: 14.2 * 1024 * 1024,
-        text: "# Compozy\n\nThe first megabyte of a larger file.\n",
+        text: "# CompozyOS\n\nThe first megabyte of a larger file.\n",
         truncated: true,
       });
     case ".env":

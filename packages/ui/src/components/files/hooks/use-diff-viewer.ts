@@ -50,11 +50,12 @@ function usePatchEntries(
   const [entries, setEntries] = React.useState<ReadonlyMap<string, DiffViewerPatchEntry>>(
     () => new Map()
   );
-  const itemsRef = React.useRef(items);
+  // Items by id, rebuilt once per render so `load` and its settles look items up in O(1).
+  const itemsByIdRef = React.useRef<ReadonlyMap<string, DiffViewerItem>>(new Map());
   const loadPatchRef = React.useRef(loadPatch);
   const inflightRef = React.useRef(new Map<string, string>());
   React.useLayoutEffect(() => {
-    itemsRef.current = items;
+    itemsByIdRef.current = new Map(items.map(item => [item.id, item]));
     loadPatchRef.current = loadPatch;
   });
 
@@ -65,7 +66,7 @@ function usePatchEntries(
   const load = React.useCallback(
     (ids: readonly string[], current: ReadonlyMap<string, DiffViewerPatchEntry>) => {
       for (const id of ids) {
-        const item = itemsRef.current.find(candidate => candidate.id === id);
+        const item = itemsByIdRef.current.get(id);
         if (!item || item.loadable === false) continue;
         const version = versionKey(item);
         const entry = current.get(id);
@@ -74,7 +75,7 @@ function usePatchEntries(
         inflightRef.current.set(id, version);
         const settle = (next: DiffViewerPatchEntry) => {
           if (inflightRef.current.get(id) === version) inflightRef.current.delete(id);
-          const latest = itemsRef.current.find(candidate => candidate.id === id);
+          const latest = itemsByIdRef.current.get(id);
           // A newer revision superseded this request; its own load wins.
           if (!latest || versionKey(latest) !== version) return;
           setEntry(id, next);

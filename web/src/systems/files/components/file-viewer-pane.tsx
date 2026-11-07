@@ -110,8 +110,12 @@ function OpenFileView({
       <TruncationNotice size={state.content.size} />
     ) : null;
     return (
+      // The viewer is a labelled region that takes focus programmatically and owns its
+      // shortcuts (Cmd/Ctrl+F, Escape); it is not itself a control.
       <div
         ref={viewerRef}
+        role="region"
+        aria-label={`Contents of ${path}`}
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className="flex h-full min-h-0 flex-col outline-none"

@@ -102,5 +102,5 @@ were kept outside the repo; no PR evidence is part of S5.
 - The narrow threshold measures the session window split (900 px), not the Review panel.
 - The Review panel still opens on Files by default (S4's default); Changes opens from its tab,
   the PR chip, or a changed-file row.
-- E2E runs from a Compozy-managed session must drop inherited `COMPOZY_*` variables
+- E2E runs from a CompozyOS-managed session must drop inherited `COMPOZY_*` variables
   (`COMPOZY_INTERNAL_RESTART_OPERATION_ID` makes the harness daemon exit before readiness).
