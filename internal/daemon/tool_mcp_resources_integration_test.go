@@ -566,8 +566,19 @@ binding = { type = "url_query", name = "workspace" }
 		if got, want := mcpServerNames(rebuiltServers), []string{"git", "kubectl", "remote"}; !slices.Equal(got, want) {
 			t.Fatalf("rebuilt MCP servers = %#v, want %#v", got, want)
 		}
+		rebuiltExtension := requireMCPServerRecord(t, rebuiltServers, "kubectl")
+		canonicalExtensionDir, err := filepath.EvalSymlinks(extensionDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rebuiltExtension.Spec.Command != filepath.Join(canonicalExtensionDir, "bin", "mcp-kubectl") ||
+			!slices.Equal(rebuiltExtension.Spec.Args, []string{"--cluster", "prod"}) {
+			t.Fatalf("rebuilt extension server lost its command or arguments: %#v", rebuiltExtension.Spec)
+		}
 		rebuiltConfig := requireMCPServerRecord(t, rebuiltServers, "git")
 		if rebuiltConfig.ID != configServer.ID || rebuiltConfig.Scope != configServer.Scope ||
+			rebuiltConfig.Owner.Normalize() != configServer.Owner.Normalize() ||
+			rebuiltConfig.Source.Normalize() != configServer.Source.Normalize() ||
 			rebuiltConfig.Spec.Command != configServer.Spec.Command ||
 			!slices.Equal(rebuiltConfig.Spec.Args, configServer.Spec.Args) {
 			t.Fatalf("rebuilt config server = %#v, want %#v", rebuiltConfig, configServer)
