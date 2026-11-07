@@ -62,3 +62,21 @@ race detector, including skipped/repeated markers and malformed UTF-8. The
 the before/after allocation and parser measurements. This evidence does not
 replace the browser/provider walk or current-head CI; both remain pending for
 this audit and historical verdicts above are unchanged.
+
+QA impact 2026-11-06 (oversized invoked skills): an invoked skill whose body exceeds
+24,000 bytes, or no longer fits the 64,000-byte turn budget, no longer fails prompt dispatch
+with `invoked skill context too large` / "session prompt dispatch is indeterminate". Its
+`<skill>` entry keeps the source-qualified identity and carries a `<deferred-instructions>`
+element directing the agent to read the full body through `compozy__skill_view` with the same
+`command_id`. Re-walk invoking a skill whose `SKILL.md` body is above 24 KB (for example a
+30 KB skill from an additional workspace root): the prompt must dispatch, and the agent's first
+tool call must be `compozy__skill_view` with that exact `command_id` and no `file`.
+
+Focused evidence: the canonical `TestBuildInvokedSkillsBlock` suite passes with the race
+detector, covering per-skill deferral and first-fit inlining against the combined budget.
+
+QA verdict 2026-11-06: passed. The operator ran the branch's daemon build against their
+CompozyOS 0.5.3 home on macOS and invoked a 30,628-byte `plain-ui` skill loaded from an
+additional workspace root, which previously failed with `invoked skill context too large`. The
+prompt dispatched and the agent read the deferred body through `compozy__skill_view`. Current-head
+CI remains owned by the pull request.
