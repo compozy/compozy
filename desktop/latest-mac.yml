@@ -1,9 +1,9 @@
-version: 0.5.3
-releaseDate: 2026-11-06T01:44:46.566Z
+version: 0.5.4
+releaseDate: 2026-11-07T19:59:48.086Z
 files:
-  - url: https://github.com/compozy/compozy/releases/download/v0.5.3/CompozyOS-0.5.3-mac-arm64.zip
-    sha512: qMLgl1FjnwVJK8imubcbpcn4a7e/Mp+lLnm0gBsYq6inj8RMc3bDEU8X4hI7ZeZ2Np2WLgmlsGVErCUkuv3zCA==
-    size: 213124272
-  - url: https://github.com/compozy/compozy/releases/download/v0.5.3/CompozyOS-0.5.3-mac-x64.zip
-    sha512: 11hAUbwhnTpCjf1T15VdHlJsgi4XfFH1iwL9LJHCLt6xT053JjZcDeqFkxatrKZ+rdTW0XuUcYemeKLi6LLA4Q==
-    size: 226002589
+  - url: https://github.com/compozy/compozy/releases/download/v0.5.4/CompozyOS-0.5.4-mac-arm64.zip
+    sha512: Bj1NtFTol62aGypJMDLY7KoFMfO0EOyozpxcGXxKdwsoueJKZ8T1+EE2xIZ8HapGtZiYNVGZ9VPR0x/zfYx1KQ==
+    size: 217767992
+  - url: https://github.com/compozy/compozy/releases/download/v0.5.4/CompozyOS-0.5.4-mac-x64.zip
+    sha512: 0pCTOh9IwQfVpen0ZldB+XLUZDPnHpwoN2lKOF7/DoxaRN0SxtMTgyCWKKL9ZjWS/mdLGsARHJVtDf3/f/pSNQ==
+    size: 230702242
