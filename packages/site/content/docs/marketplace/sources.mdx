@@ -4,9 +4,27 @@ description: Configure plugin marketplaces and install the exact packages you re
 ---
 
 Plugin sources add extensions from GitHub, an HTTPS Git repository, or a local folder to the daemon's
-Marketplace. The folder or repository must contain `marketplace.json` at its root or under
-`.claude-plugin/`. Each listed plugin is loaded with the same manifest loader used during installation.
-The listing reports `installable`, `install_blocker`, layout, and the digest of its captured package.
+Marketplace. The folder or repository must contain `marketplace.json` at its root, under
+`.claude-plugin/`, or at the Codex path `.agents/plugins/marketplace.json`, checked in that order.
+Each listed plugin is loaded with the same manifest loader used during installation. The listing
+reports `installable`, `install_blocker`, layout, category, and the digest of its captured package.
+
+## Default sources
+
+CompozyOS ships with preset sources. `compozy-plugins` is the Compozy-curated plugin catalog,
+published at [github.com/compozy/plugins](https://github.com/compozy/plugins) and on by default. It
+is generated from Anthropic's Apache-2.0 plugin catalogs plus verified MCP Registry apps, with pinned
+refs, Compozy categories, and Featured picks. When a curated entry replaces the same app from another
+default source, Browse shows it once (see `supersedes` below).
+
+Turn it off like any preset, from Settings → Marketplace or the CLI:
+
+```bash
+compozy config set marketplace.plugin_sources.compozy-plugins.enabled false --scope user
+```
+
+Turning it off keeps plugins you already installed from it, and the rows it replaced appear again on
+the next read. If you turned it off, upgrades keep it off.
 
 ## Manage sources (experimental)
 
@@ -75,6 +93,121 @@ the same repository under two names lists it twice but joins both rows to the sa
 An installed extension keeps its identity if that source is removed and later registered again.
 A name retained by an installed extension cannot be reassigned to a different source.
 
+## Plugin source shapes
+
+Each `plugins[]` entry in `marketplace.json` names its package with one of five `source` shapes:
+
+```json
+{
+  "name": "acme-plugins",
+  "owner": { "name": "Acme" },
+  "plugins": [
+    { "name": "local", "source": "./plugins/local", "category": "productivity" },
+    { "name": "gh", "source": { "source": "github", "repo": "acme/gh-plugin", "ref": "v1.2.0" } },
+    { "name": "https", "source": "https://github.com/acme/https-plugin" },
+    {
+      "name": "whole",
+      "source": { "source": "url", "url": "https://gitlab.com/acme/whole.git", "ref": "main" },
+      "category": "DATA_ANALYTICS"
+    },
+    {
+      "name": "sub",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/acme/mono.git",
+        "path": "plugins/sub",
+        "ref": "4f2a9c1"
+      },
+      "category": "design"
+    }
+  ]
+}
+```
+
+`url` installs a whole repository. `git-subdir` installs one contained folder of a repository; its
+`path` must stay inside the repository. `ref` is optional for both. Every Git URL follows the same
+policy as other sources: public HTTPS, no credentials, no query or fragment. A shape the daemon cannot
+read is reported on the source as `unsupported_source` and skipped; the rest of the document still
+lists.
+
+`category` is free text. Compozy maps it to one of its own categories and uses More when it cannot.
+
+### Curated fields
+
+Compozy-curated sources (`compozy-catalog` and `compozy-plugins`) may add an `x-compozy` object to
+an entry:
+
+```json
+{
+  "name": "linear",
+  "source": { "source": "github", "repo": "acme/linear-plugin" },
+  "x-compozy": {
+    "category": "productivity",
+    "featured": true,
+    "supersedes": ["claude-plugins-official/linear"]
+  }
+}
+```
+
+`category` sets the Compozy category directly, `featured` adds the entry to Featured, and
+`supersedes` hides each listed `<source>/<entry_id>` row from Browse, category pages, search and
+counts while this entry is listed. If you installed the superseded row, that row stays visible and
+the curated row is hidden instead. Superseded rows remain readable through
+`compozy marketplace info`. The daemon ignores `x-compozy` from every other source, so a third-party
+marketplace cannot feature itself or hide another source.
+
+## Client plugin compatibility
+
+Plugins in the Claude Code (`.claude-plugin/`), Cursor (`.cursor-plugin/`) and Codex
+(`.codex-plugin/`) layouts load as they are:
+
+- **Root MCP file.** A manifest without `mcpServers` loads `mcp.json` or `.mcp.json` from the plugin
+  root; `mcp.json` wins when both exist. A plugin without a manifest loads its skills and MCP file
+  from the default locations, using the marketplace entry for its name. The entry reports
+  `client_mcp_discovered`.
+- **Placeholders.** `${CLAUDE_PLUGIN_ROOT}` and `${CURSOR_PLUGIN_ROOT}` mean `${PLUGIN_ROOT}`, and
+  `${CLAUDE_PLUGIN_DATA}` means `${PLUGIN_DATA}`. A command that starts with a root placeholder runs
+  as a contained `./` path inside the plugin.
+- **Unknown server fields.** A field Compozy does not support, such as `placement`, is dropped with a
+  `client_field_ignored` warning instead of rejecting the server.
+- **Values the plugin needs.** `${NAME}` and `${NAME:-default}` in a server's `url`, `headers`, `env`
+  or `args` become plugin inputs. A name without a default is required. A name ending in `KEY`,
+  `TOKEN`, `SECRET` or `PASSWORD` is a secret stored in the Vault; every other name is plain text.
+  The daemon fills them in when the server starts, and secret values never appear in the catalog,
+  manifest copy or logs. An invalid name reports `client_placeholder_invalid`.
+- **OAuth.** A remote server's `auth` object (`CLIENT_ID`, `CLIENT_SECRET`, `scopes`) becomes its
+  OAuth sign-in. Write the secret as `${CLIENT_SECRET}` so it becomes a secret input. `auth` keys
+  that cannot be mapped are dropped with `client_field_ignored`.
+
+For example, this root `.mcp.json` asks for `NOTION_TOKEN` (secret) and `SERVICENOW_HOST` (text) and
+signs `servicenow` in with OAuth:
+
+```json
+{
+  "mcpServers": {
+    "notion-local": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/notion-mcp",
+      "env": { "NOTION_TOKEN": "${NOTION_TOKEN}" },
+      "placement": "sidebar"
+    },
+    "servicenow": {
+      "type": "http",
+      "url": "https://${SERVICENOW_HOST}/sncapps/mcp-server/mcp",
+      "auth": {
+        "CLIENT_ID": "abc123",
+        "CLIENT_SECRET": "${CLIENT_SECRET}",
+        "scopes": ["mcp_server"]
+      }
+    }
+  }
+}
+```
+
+In Marketplace, Add opens the review dialog to collect required values, and the row reads **Set up**
+until every value is set and every server that needs sign-in is signed in. Plugin `hooks`,
+`commands`, `agents` and Cursor `rules` folders are not loaded; they report
+`client_component_ignored` and do not block installation.
+
 ## Install approved bytes
 
 Read the entry detail before installing. Send its install slug and digest through HTTP or UDS:
@@ -88,7 +221,8 @@ Read the entry detail before installing. Send its install slug and digest throug
 }
 ```
 
-Use this body with `POST /api/extensions`. The daemon also requires
+Use this body with `POST /api/extensions`; add `"enable": true` to turn the extension on in the same
+operation. The daemon also requires
 `extensions.trust.allow_unverified = true`. Plugin marketplaces are unverified: a Claude plugin layout
 or a matching digest does not establish publisher trust. Required inputs use the normal extension
 confirmation flow. A different origin that declares an already installed instance name returns

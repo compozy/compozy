@@ -1,5 +1,46 @@
 # Compozy Change Impact
 
+## Marketplace plugin catalog — category browse, one-step Add, plugin compatibility
+
+Owner: spec `.compozy/tasks/marketplace-plugin-catalog/` (slices S1–S9), integration branch
+`feat/marketplace-plugin-catalog`. Slices link here; S8 wrote this entry.
+
+- **Native tools.** New read-only `compozy__marketplace_categories` (marketplace toolset, same app
+  access as search). Additive optional args: `compozy__marketplace_search {category}`,
+  `compozy__extensions_install {enable}`; install output gains optional `enable_error`. Setup state
+  stays on `compozy__extensions_info` and `compozy__mcp_auth_status`.
+- **CLI/HTTP/UDS.** Additive: `compozy marketplace categories`, `marketplace search --category`
+  (unknown id exits 2, `marketplace_category_unknown`), `extension install --enable`;
+  `GET /api/marketplace?category=`, new `GET /api/marketplace/sections`, `POST /api/extensions`
+  `enable` (enable failure → `201` with `enable_error`, install kept). Listing DTOs gain `category`,
+  `category_label`, `featured`; list gains `categories` counts. OpenAPI, TS and Go clients
+  regenerated. No public delete targets (SD-013: additive, no shim).
+- **Extensibility/hooks/config.** `marketplace.json` accepts `url` and `git-subdir` sources and the
+  Codex index `.agents/plugins/marketplace.json`; `x-compozy {category, featured, supersedes}` is
+  honored only for curated sources. Client plugins load root `mcp.json`/`.mcp.json`, vendor
+  placeholder aliases, tolerant server fields (`client_field_ignored`), `${NAME}` derived inputs
+  (`client_placeholder_invalid`) and `auth` → OAuth. Unreadable source shapes keep the existing
+  `unsupported_source` code (the spec's `marketplace_plugin_source_unsupported` was not introduced);
+  missing required values keep `extension_inputs_required`. No hooks added; plugin hooks/commands
+  stay ignored. No new config keys; the `compozy-plugins` preset (default on) is preset data and an
+  existing disabled state is preserved.
+- **User state.** No SQLite migration: category/featured/supersedes live in the refreshable catalog
+  payload; old rows resolve their category on read.
+- **Workspace data isolation.** Sections and category reads use the existing list scope, workspace
+  and profile resolution; install-with-enable uses the existing scoped install and per-extension
+  operation lock. Derived secrets go to the scoped vault, never to catalog payloads or logs.
+- **Web.** Browse home by category (Featured + sections with View all), new
+  `/marketplace/categories/<id>` route and window location, one-step Add with Set up / Ready /
+  Turn on / Couldn't turn on + Retry, detail "From {source}" and `?setup=1`. Source-grouped sections
+  deleted (internal hard cut).
+- **Docs and official skill.** `packages/site/content/docs/marketplace/{index,sources}.mdx`;
+  `skills/compozy/references/extensions.md` (Marketplace categories and Add, client compatibility);
+  `COPY.md` Marketplace Terms; glossary "Marketplace category".
+- **QA.** `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`,
+  `ET-web-marketplace-search-fanout.md`, `ET-cli-marketplace-search.md`,
+  `ET-agent-plugin-marketplace-install.md`, `ET-agent-plugin-source-install.md`; integrated walk
+  E2E-004 in S8.
+
 ## Oversized invoked skills deferred to `compozy__skill_view`
 
 Owner: `fix/oversized-skill-deferred-delivery`. QA:

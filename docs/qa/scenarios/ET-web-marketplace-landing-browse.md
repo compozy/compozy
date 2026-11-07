@@ -4,14 +4,14 @@ area: ET
 title: Enter and browse the Web marketplace
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The sidebar and /marketplace open one extension catalog with search, installed markers, the installed-count shelf, Refresh and all three Add items. One source has no section header; loading, stale, empty and narrow-window states remain truthful and keyboard operable.
-entry_points: /marketplace; Marketplace sidebar item
-qa_status: pass
-bug_ids: [BUG-20260714-keyboard-focus-invisible, BUG-20260913-marketplace-search-loading-visuals, BUG-20260913-marketplace-background-refresh]
-fix_status: fixed
-retest_status: pass
+expected: The sidebar and /marketplace open one catalog grouped by category: installed shelf, Featured when a curated source features entries, then each non-empty category in daemon order with up to six rows and View all · N (the daemon's full count). No source sections. View all opens /marketplace/categories/<id> with the full paged list, a category-scoped search and Load more; an unknown id shows "This category doesn't exist" with Back to Marketplace. Loading, stale, empty and narrow-window states remain truthful and keyboard operable.
+entry_points: /marketplace; /marketplace/categories/<id>; Marketplace sidebar item; View all link
+qa_status: fail
+bug_ids: [BUG-20260714-keyboard-focus-invisible, BUG-20260913-marketplace-search-loading-visuals, BUG-20260913-marketplace-background-refresh, BUG-20261107-marketplace-empty-version-500, BUG-20261107-catalog-entries-uncategorized-duplicated]
+fix_status: open
+retest_status: pending
 fix_commits: 8eeb8a38
-evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/retired-web-recovered.json
+evidence: /tmp/mpc-shots/s8 (web-browse-home-*-DEFECT-500.png, web-category-page-finance.png, web-category-not-found.png, web-add-ready-page.png)
 last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
@@ -74,3 +74,43 @@ Focused verification passed under `-race`: `TestCatalogServiceDetailAndStatus` (
 Existing root CI mappings, not rerun by this worker: `TestCatalogServiceHTTPProjectionIntegration` (`internal/marketplace/service_integration_test.go`); browser `E2E-001 / E2E-005: operator browses independent sources and retains installed packages across source recovery` and `E2E-006: Retry recovers one failed source and shipped logos load under production CSP` (`web/e2e/__tests__/marketplace.spec.ts`). These remain the owners for source degradation/recovery and production-bundle rendering.
 
 Historical browser verdicts remain unchanged. No current screenshot, keyboard, narrow-window, CSP or live source-recovery pass is claimed. Evidence and limitations: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).
+
+## QA impact 2026-11-07 — marketplace plugin catalog (spec `marketplace-plugin-catalog`, S8)
+
+Browse is rebuilt around categories (US-001, US-002, US-004; `_uiux.md` S1, S2, S7). The
+earlier "one source has no section header" contract is retired; source sections are deleted.
+
+Walk with the default sources enabled in an isolated lab:
+
+1. Open `/marketplace`. Verify order: installed shelf → Featured (only when non-empty) → categories
+   in the fixed order, empty ones omitted. Each section is a labelled region named by its category,
+   shows at most six rows in two columns (one column below `sm`), and **View all · N** matches
+   `GET /api/marketplace/sections` `total` for that category. No row repeats an app that a curated
+   entry supersedes.
+2. Activate **View all** on a populated category (accessible name "View all {Category}"). The
+   window location becomes `/marketplace/categories/<id>`, the title is the daemon label, and the
+   count matches `compozy marketplace categories -o json`. Scroll to **Load more** and verify the next
+   page appends without duplicates.
+3. Type in "Search {Category}": results stay inside the category; an unmatched query reads
+   `No results for "{q}" in {Category}`; clearing restores the full list.
+4. Open `/marketplace/categories/apps`: "This category doesn't exist" with **Back to Marketplace**,
+   which returns to Browse.
+5. Capture Browse in light and dark, a category page and the not-found state.
+
+### Walk result 2026-11-07 (S8 integrated lab, `feat/mpc-s8` with S1–S7 + S9)
+
+Isolated lab (own home, ports 49760/49761, worktree web dev server), default sources plus a local `lab-plugins` folder source; cold refresh of the default sources took ~65.7 s (compozy-catalog 18, claude-plugins-official 316, compozy-plugins 333). Screenshots and CLI captures are lab-local in `/tmp/mpc-shots/s8/` (not committed).
+
+- **FAIL — Browse home with the real catalog.** After the refresh, `GET /api/marketplace/sections` and
+  the unfiltered list return 500 and Browse shows "The marketplace is unreachable"
+  (BUG-20261107-marketplace-empty-version-500). Category pages for productivity, design, development,
+  data and more fail the same way.
+- PASS before the GitHub sources loaded (compozy-catalog + lab-plugins): sections in daemon order with
+  View all · N, rows ≤ 6, Featured absent when empty (`web-add-ready-page.png`).
+- PASS — category page `finance` (30, scoped search, two columns) and `more` (18) with title and count
+  from the daemon; View all link named "View all More".
+- PASS — `/marketplace/categories/apps` shows "This category doesn't exist" and Back to Marketplace
+  returns to `/marketplace`.
+- Degraded — all 18 compozy-catalog entries resolve to More and duplicate compozy-plugins apps
+  (BUG-20261107-catalog-entries-uncategorized-duplicated).
+- Not captured: Browse home light/dark with the full catalog (blocked by the 500).
