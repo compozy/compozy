@@ -8,10 +8,9 @@ import {
 } from "@compozy/ui";
 
 import { usePrefersReducedMotion } from "@/components/assistant-ui/hooks/use-prefers-reduced-motion";
-import { desktopShellBridge } from "@/systems/os";
-import { useOpenInEditor } from "../hooks/use-open-in-editor";
-import { FilePathOpenerContext } from "../lib/file-path-opener-context";
-import { FilePathAnchor, FilePathInlineCode, FilePathLocalLink } from "./file-path-open-in-editor";
+import { useFilePathLinks } from "../hooks/use-file-path-links";
+import { FilePathLinksContext } from "../lib/file-path-links-context";
+import { FilePathAnchor, FilePathInlineCode, FilePathLocalLink } from "./file-path-link";
 import { useSmoothStreamedText } from "../hooks/use-smooth-streamed-text";
 import { useSmoothStreamingPreference } from "../hooks/use-smooth-streaming-preference";
 import { useThrottledStreamingValue } from "../hooks/use-throttled-streaming-value";
@@ -49,16 +48,25 @@ type FilePathMarkdownProps = Pick<
 >;
 
 const PLAIN_MARKDOWN_PROPS: FilePathMarkdownProps = { components: MESSAGE_MARKDOWN_COMPONENTS };
-// Desktop only (spec #1167 BR-1): inline-code paths and path links open in the editor.
+// This session's paths: a click opens the viewer, Cmd/Ctrl-click the desktop editor (US-005).
 const FILE_PATH_MARKDOWN_PROPS: FilePathMarkdownProps = {
   components: { ...MESSAGE_MARKDOWN_COMPONENTS, a: FilePathAnchor },
   inlineCodeDecorator: decorateFilePathInlineCode,
   localLinkComponent: FilePathLocalLink,
 };
 
-function FilePathOpenerScope({ children }: { children: ReactNode }) {
-  const opener = useOpenInEditor();
-  return <FilePathOpenerContext value={opener}>{children}</FilePathOpenerContext>;
+/** Path links apply only when this session has an action for them; otherwise plain markdown. */
+function FilePathLinksScope({
+  children,
+}: {
+  children: (markdownProps: FilePathMarkdownProps) => ReactNode;
+}) {
+  const links = useFilePathLinks();
+  return (
+    <FilePathLinksContext value={links}>
+      {children(links ? FILE_PATH_MARKDOWN_PROPS : PLAIN_MARKDOWN_PROPS)}
+    </FilePathLinksContext>
+  );
 }
 
 export interface MessageMarkdownProps {
@@ -78,8 +86,9 @@ export interface MessageMarkdownProps {
   /** Operator-typed prose: authored line breaks and safe external links (`StreamMarkdown`). */
   authored?: boolean;
   /**
-   * This session's assistant-authored prose: on the desktop app, file paths in inline code and
-   * links open in the editor. User turns and other sessions' reply cards leave it off.
+   * This session's assistant-authored prose: file paths in inline code and links open in the
+   * session's viewer (and the editor on desktop). User turns and other sessions' reply cards
+   * leave it off.
    */
   openPaths?: boolean;
 }
@@ -123,27 +132,30 @@ export const MessageMarkdown = memo(
     authored = false,
     openPaths = false,
   }: MessageMarkdownProps) {
-    const filePaths = openPaths && desktopShellBridge()?.files !== undefined;
-    const markdownProps = filePaths ? FILE_PATH_MARKDOWN_PROPS : PLAIN_MARKDOWN_PROPS;
-    const markdown = reveal ? (
-      <RevealedMarkdown
-        content={content}
-        streaming={streaming}
-        compact={compact}
-        markdownProps={markdownProps}
-      />
+    const render = (markdownProps: FilePathMarkdownProps) =>
+      reveal ? (
+        <RevealedMarkdown
+          content={content}
+          streaming={streaming}
+          compact={compact}
+          markdownProps={markdownProps}
+        />
+      ) : (
+        <StreamMarkdown
+          streaming={streaming}
+          compact={compact}
+          slots={slots}
+          authored={authored}
+          {...markdownProps}
+        >
+          {content}
+        </StreamMarkdown>
+      );
+    return openPaths ? (
+      <FilePathLinksScope>{render}</FilePathLinksScope>
     ) : (
-      <StreamMarkdown
-        streaming={streaming}
-        compact={compact}
-        slots={slots}
-        authored={authored}
-        {...markdownProps}
-      >
-        {content}
-      </StreamMarkdown>
+      render(PLAIN_MARKDOWN_PROPS)
     );
-    return filePaths ? <FilePathOpenerScope>{markdown}</FilePathOpenerScope> : markdown;
   },
   (prev, next) =>
     prev.content === next.content &&

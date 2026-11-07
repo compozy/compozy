@@ -65,6 +65,8 @@ function SessionPublisher({
   session = primarySessionFixture,
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
+  reviewOpen = false,
+  onReviewToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
   transportChip,
@@ -83,6 +85,8 @@ function SessionPublisher({
   session?: SessionPayload;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
+  reviewOpen?: boolean;
+  onReviewToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
   transportChip?: ReactNode;
@@ -97,6 +101,8 @@ function SessionPublisher({
     isStopping: false,
     isUnarchiving: false,
     inspectorOpen,
+    reviewOpen,
+    onReviewToggle,
     sidebarOpen,
     onInspectorToggle,
     onSidebarToggle,
@@ -193,6 +199,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onInspectorToggle: vi.fn(),
         onSidebarToggle: vi.fn(),
@@ -442,6 +450,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
@@ -499,6 +509,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
@@ -619,6 +631,33 @@ describe("useSessionTopbarSlot", () => {
       expect(screen.getByTestId("session-sidebar-toggle")).toBeInTheDocument();
       expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
       expect(screen.queryByText("Always-on")).toBeNull();
+    });
+
+    // UT-044 (file-explorer). Invariant: the Review panel toggle sits before the Inspector toggle
+    // for a session with a file root and is absent in user scope, where there is no root.
+    it("Should offer the Review panel toggle only for a session with a file root (UT-044)", () => {
+      agentInstances.rows = [];
+      const onReviewToggle = vi.fn();
+      const project = renderWithTopbar(
+        <SessionPublisher onStop={vi.fn()} onReviewToggle={onReviewToggle} />
+      );
+      const toggle = screen.getByRole("button", { name: "Open review panel" });
+      expect(
+        toggle.compareDocumentPosition(screen.getByTestId("session-inspector-toggle")) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      fireEvent.click(toggle);
+      expect(onReviewToggle).toHaveBeenCalledTimes(1);
+      project.unmount();
+
+      renderWithTopbar(
+        <SessionPublisher
+          onStop={vi.fn()}
+          session={{ ...primarySessionFixture, workspace_id: "" }}
+        />
+      );
+      expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+      expect(screen.queryByTestId("session-review-toggle")).toBeNull();
     });
 
     it("Should drop the linked chip, Stop and both panel toggles on the agent's main", () => {

@@ -22,6 +22,7 @@ import { SessionMarkSeenAction } from "../components/session-mark-seen-action";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
+import { SessionReviewPanelToggle } from "../components/session-review-panel";
 import { AlwaysOnAgentMenu } from "../components/always-on/always-on-agent-menu";
 
 import type { WorktreePayload } from "@/systems/workspace";
@@ -73,6 +74,9 @@ interface UseSessionTopbarSlotInput {
   isStopping: boolean;
   isUnarchiving: boolean;
   inspectorOpen: boolean;
+  /** The Review panel (Files); its toggle is absent for a session without a file root. */
+  reviewOpen: boolean;
+  onReviewToggle: () => void;
   sidebarOpen: boolean;
   /** Absent for workspace-root sessions: commit/push/create-PR never appear there. */
   pullRequestExit?: SessionTopbarPullRequestExit;
@@ -170,7 +174,7 @@ function sidebarToggle(input: UseSessionTopbarSlotInput, inWindow: boolean) {
   ) : null;
 }
 
-/** An ordinary session's head: linked work entry, run verbs, then both panel toggles. */
+/** An ordinary session's head: linked work entry, run verbs, then the panel toggles. */
 function sessionActions(
   input: UseSessionTopbarSlotInput,
   actions: ReturnType<typeof sessionTopbarActions>,
@@ -190,6 +194,11 @@ function sessionActions(
         processPorts={sessionProcessPorts(session)}
       />
       {sidebarToggle(input, inWindow)}
+      <SessionReviewPanelToggle
+        workspaceId={session.workspace_id}
+        open={input.reviewOpen}
+        onToggle={input.onReviewToggle}
+      />
       <SessionPanelToggle
         panel="inspector"
         open={input.inspectorOpen}
@@ -214,6 +223,9 @@ function alwaysOnMainActions(
       <AlwaysOnAgentMenu instance={instance} />
       <SessionMarkSeenAction session={input.session} />
       {input.sidebarOpen ? sidebarToggle(input, inWindow) : null}
+      {input.reviewOpen ? (
+        <SessionPanelToggle panel="review" open onToggle={input.onReviewToggle} />
+      ) : null}
       {input.inspectorOpen ? (
         <SessionPanelToggle panel="inspector" open onToggle={input.onInspectorToggle} />
       ) : null}

@@ -83,6 +83,12 @@ export {
   type UseSessionInspectorStateResult,
 } from "./use-session-inspector-state";
 export {
+  requestSessionReviewFile,
+  useSessionReviewPanelState,
+  type SessionReviewTab,
+  type UseSessionReviewPanelStateResult,
+} from "./use-session-review-panel-state";
+export {
   pruneSessionSidebarScopes,
   useSessionSidebarState,
   type SessionWindowViewMode,

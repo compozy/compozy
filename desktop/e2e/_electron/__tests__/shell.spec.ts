@@ -1043,7 +1043,9 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
   });
   const path = product.locator("code", { hasText: "fixture.txt:7" }).first();
   await expect(path).toBeVisible({ timeout: 30_000 });
-  await expect(product.getByRole("button", { name: "Open fixture.txt in editor" })).toHaveCount(1);
+  // The path itself is the link (file-explorer US-005): a plain click opens the viewer, the
+  // modifier click the editor.
+  await expect(product.getByRole("button", { name: "Open fixture.txt in viewer" })).toHaveCount(1);
   await path.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
 
   const recorded = join(desktop.home, "fixtures", "editor-argv.json");

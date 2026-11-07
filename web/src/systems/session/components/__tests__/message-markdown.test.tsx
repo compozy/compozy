@@ -19,6 +19,7 @@ vi.mock("@/lib/utils", () => ({
 import type { CompozyShellBridge, OpenInEditorResult } from "@/systems/os/lib/desktop-shell-bridge";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 
+import { sessionReviewPanelStore } from "../../hooks/use-session-review-panel-state";
 import { sessionKeys } from "../../lib/query-keys";
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import type { SessionPayload } from "../../types";
@@ -163,11 +164,12 @@ describe("MessageMarkdown", () => {
   });
 });
 
-// Suite: transcript file paths (spec #1167 S5; UT-040..UT-046, UT-048).
-// Invariant: on the desktop app only, this session's assistant markdown turns path inline code
-// and path links into Cmd/Ctrl+click and button affordances that call the shell bridge with the
-// click-time resolved path and inside roots; every other client renders exactly as before.
-// Owning layer: MessageMarkdown and the session open-in-editor hook. Boundary: `window.compozyShell`
+// Suite: transcript file paths (spec #1167 S5; UT-040..UT-046, UT-048; file-explorer US-005).
+// Invariant: this session's assistant markdown turns path inline code and path links into links:
+// a plain click opens the session's viewer on every client with a session root, and on the desktop
+// app Cmd/Ctrl+click calls the shell bridge with the click-time resolved path and inside roots.
+// Without either action (user scope on the web, other sessions' prose) paths render as before.
+// Owning layer: MessageMarkdown and the session path-link hooks. Boundary: `window.compozyShell`
 // (stubbed) and `fetch` (stubbed for the detail reread).
 const WS = "ws_paths";
 const SID = "sess-paths";
@@ -189,16 +191,24 @@ function seededClient(
   return client;
 }
 
-function renderTranscript(ui: ReactNode, client = seededClient({ working_dir: "/repo" })) {
+function renderTranscript(
+  ui: ReactNode,
+  client = seededClient({ working_dir: "/repo" }),
+  workspaceId = WS
+) {
   return render(
     <QueryClientProvider client={client}>
       <UIProvider>
-        <SessionRuntimeRenderProvider sessionId={SID} workspaceId={WS}>
+        <SessionRuntimeRenderProvider sessionId={SID} workspaceId={workspaceId}>
           {ui}
         </SessionRuntimeRenderProvider>
       </UIProvider>
     </QueryClientProvider>
   );
+}
+
+function viewerTarget() {
+  return sessionReviewPanelStore.getSnapshot().context.targets[SID] ?? null;
 }
 
 function blockedSpans(container: HTMLElement) {
@@ -219,7 +229,7 @@ describe("MessageMarkdown file paths", () => {
   it("Should open an inline path on Cmd+click with the resolved path and roots (UT-040)", async () => {
     const openInEditor = stubShell("darwin");
     renderTranscript(<MessageMarkdown openPaths content="Changed `internal/a.go:42` here." />);
-    expect(screen.getByRole("button", { name: "Open a.go in editor" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.go in viewer" })).toBeInTheDocument();
     expect(openInEditor).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText("internal/a.go:42"), { ctrlKey: true });
@@ -257,44 +267,82 @@ describe("MessageMarkdown file paths", () => {
     );
   });
 
-  it("Should keep a plain click on the path inert (UT-042)", () => {
+  // US-005.AC-1/AC-2 (file-explorer). A plain click opens the viewer on every client, including
+  // the browser without a desktop bridge.
+  it("Should open the viewer at the path and line on a plain click (UT-042)", async () => {
     const openInEditor = stubShell();
     renderTranscript(<MessageMarkdown openPaths content="See `internal/a.go:42`." />);
+    const before = viewerTarget()?.nonce;
     fireEvent.click(screen.getByText("internal/a.go:42"));
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(before));
+    expect(viewerTarget()).toMatchObject({ kind: "file", path: "internal/a.go", line: 42 });
+    expect(sessionReviewPanelStore.getSnapshot().context.bySession[SID]).toMatchObject({
+      open: true,
+      tab: "files",
+    });
     expect(openInEditor).not.toHaveBeenCalled();
+
+    delete window.compozyShell;
+    renderTranscript(<MessageMarkdown openPaths content="See `/tmp/report.md`." />);
+    fireEvent.click(screen.getByRole("button", { name: "Open report.md in viewer" }));
+    await waitFor(() =>
+      expect(viewerTarget()).toMatchObject({ kind: "outside", path: "/tmp/report.md" })
+    );
   });
 
-  it("Should reach the open button by keyboard and open on Enter and Space (UT-043)", async () => {
-    const openInEditor = stubShell();
+  it("Should reach the path link by keyboard and open on Enter and Space (UT-043)", async () => {
+    stubShell();
     const user = userEvent.setup();
     renderTranscript(<MessageMarkdown openPaths content="See `internal/a.go:42`." />);
-    const button = screen.getByRole("button", { name: "Open a.go in editor" });
+    const link = screen.getByRole("button", { name: "Open a.go in viewer" });
     await user.tab();
-    expect(button).toHaveFocus();
+    expect(link).toHaveFocus();
+    const before = viewerTarget()?.nonce;
     await user.keyboard("{Enter}");
-    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(before));
+    expect(viewerTarget()).toMatchObject({ path: "internal/a.go", line: 42 });
+    const first = viewerTarget()?.nonce;
     await user.keyboard(" ");
-    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(first));
   });
 
-  it("Should render exactly as today without the desktop bridge or outside assistant prose (UT-044)", () => {
+  // UT-054 (file-explorer). Invariant: a user-scope session has no root, so on the web its
+  // transcript paths stay plain code; on desktop only the modifier click remains.
+  it("Should render plain code outside assistant prose and for a user-scope session (UT-044, UT-054)", async () => {
     const content = "See `internal/a.go:42` and [x](internal/a.go).";
-    const browser = render(<MessageMarkdown content={content} />);
-    const browserHtml = browser.container.innerHTML;
-    browser.unmount();
+    const plain = render(<MessageMarkdown content={content} />);
+    const plainHtml = plain.container.innerHTML;
+    plain.unmount();
 
-    const remote = renderTranscript(<MessageMarkdown openPaths content={content} />);
-    expect(remote.container.querySelector("[data-slot='stream-markdown']")?.outerHTML).toBe(
-      new DOMParser().parseFromString(browserHtml, "text/html").body.firstElementChild?.outerHTML
+    const userScope = renderTranscript(
+      <MessageMarkdown openPaths content={content} />,
+      seededClient({ working_dir: "/home/d" }),
+      ""
+    );
+    expect(userScope.container.querySelector("[data-slot='stream-markdown']")?.outerHTML).toBe(
+      new DOMParser().parseFromString(plainHtml, "text/html").body.firstElementChild?.outerHTML
     );
     expect(screen.queryByRole("button")).toBeNull();
-    expect(remote.container).toHaveTextContent("x [blocked]");
-    remote.unmount();
+    expect(userScope.container).toHaveTextContent("x [blocked]");
+    userScope.unmount();
 
-    stubShell();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({}, { status: 404 }))
+    );
+    const openInEditor = stubShell();
+    const desktopUserScope = renderTranscript(
+      <MessageMarkdown openPaths content="See `/tmp/a.md`." />,
+      seededClient({ working_dir: "/home/d" }),
+      ""
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByText("/tmp/a.md"), { metaKey: true });
+    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
+    desktopUserScope.unmount();
+
     const userTurn = renderTranscript(<MessageMarkdown authored content={content} />);
-    expect(screen.queryByRole("button", { name: /in editor/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /in viewer/ })).toBeNull();
     expect(userTurn.container).toHaveTextContent("x [blocked]");
   });
 
@@ -308,8 +356,8 @@ describe("MessageMarkdown file paths", () => {
 
     const openInEditor = stubShell();
     const { container } = renderTranscript(<MessageMarkdown openPaths content={content} />);
-    expect(screen.getByRole("button", { name: "Open a.go in editor" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open a.md in editor" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.go in viewer" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.md in viewer" })).toBeInTheDocument();
     expect(container.querySelector("a[href='https://a.dev/']")?.outerHTML).toBe(browserAnchor);
     expect(blockedSpans(container)).toEqual(browserBlocked.slice(-2));
     expect(container.querySelector("a[href^='/tmp']")).toBeNull();
@@ -352,9 +400,9 @@ describe("MessageMarkdown file paths", () => {
       error.mockClear();
       stubShell("darwin", result);
       const view = renderTranscript(<MessageMarkdown openPaths content="See `a.go:1`." />);
-      fireEvent.click(screen.getByRole("button", { name: "Open a.go in editor" }));
+      fireEvent.click(screen.getByText("a.go:1"), { metaKey: true });
       await waitFor(() => expect(window.compozyShell?.files?.openInEditor).toHaveBeenCalled());
-      await waitFor(() => expect(screen.getByRole("button", { name: /in editor/ })).toBeEnabled());
+      await waitFor(() => (message === null ? undefined : expect(error).toHaveBeenCalled()));
       if (message === null) {
         expect(error).not.toHaveBeenCalled();
       } else if (withAction) {
@@ -439,7 +487,7 @@ describe("MessageMarkdown file paths", () => {
     expect(openInEditor).not.toHaveBeenCalled();
 
     const local = renderTranscript(<MessageMarkdown openPaths content="[`a.ts:3`](a.ts:3)" />);
-    expect(within(local.container).getAllByRole("button", { name: /in editor/ })).toHaveLength(1);
+    expect(within(local.container).getAllByRole("button", { name: /in viewer/ })).toHaveLength(1);
     expect(local.container.querySelectorAll("[data-file-path]")).toHaveLength(1);
     fireEvent.click(within(local.container).getByText("a.ts:3"), { metaKey: true });
     await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
@@ -457,7 +505,7 @@ describe("MessageMarkdown file paths", () => {
     stubShell("win32");
     const win = renderTranscript(<MessageMarkdown openPaths content={content} />);
     expect(
-      within(win.container).getAllByRole("button", { name: "Open b.txt in editor" })
+      within(win.container).getAllByRole("button", { name: "Open b.txt in viewer" })
     ).toHaveLength(2);
   });
 
