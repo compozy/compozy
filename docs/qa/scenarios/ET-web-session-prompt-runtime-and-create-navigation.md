@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits:
 evidence: docs/qa/reports/2026-08-04-durable-acp-sessions.md;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png
-last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps: MS-web-session-simple-advanced-launch; RT-new-session-fast-feedback; RT-063; ET-web-runtime-selector-minimal-slider
 ---
 
@@ -31,3 +31,8 @@ showed Grok 4.5 High/Fast before bind, and its separate first prompt completed o
 kept the same effective runtime after bind.
 
 QA impact 2026-10-19 (#825): a just-created session now lands in an existing Session window on the landing desktop (focused, else empty-state, else most recently focused; pinned and other-desktop windows skipped) instead of opening another window. The window choice is owned by ET-web-new-session-reuses-session-window; replay this scenario's create step with a Session window already open.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): Runtime selectors and create-session pickers omit turned-off providers in the same browser right after a Settings toggle (BR-12). A session pinned to a turned-off provider shows it with a "Disabled" pill; starting new work on it fails with `provider_disabled`. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

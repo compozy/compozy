@@ -6,13 +6,13 @@ persona: Ada
 journey: J-provider-usage
 expected: HTTP, UDS, CLI and native tools expose the same profile-scoped cache without credentials; only local explicit actions can authorize Keychain access.
 entry_points: compozy provider usage; /api/provider-usage; compozy__provider_usage_list; compozy__provider_usage_refresh
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-11-05-usage-backoff-signin-boot.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -212,3 +212,8 @@ pre-existing ownership, read-fence, and scheduling suites (race-enabled).
 Verification 2026-11-05: isolated lab walk PASS (floor, explicit-bypass strike 2, cross-profile single request for 429 and 200). See `../reports/2026-11-05-usage-backoff-signin-boot.md`.
 This section-level walk leaves the scenario-level `qa_status` unchanged; the scenario's original
 steps 1-8 (top of this file) still need their integrated walk.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): A turned-off provider resolves to the usage `disabled` status: it leaves the aggregate usage views and is not collected (no provider requests). Settings → Provider usage shows "Provider disabled" on its row. `provider_usage.providers.<id>.enabled` is never rewritten by the toggle. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.
