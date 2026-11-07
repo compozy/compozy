@@ -51,7 +51,8 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
           items.length === 0 &&
           (reader.isPlaceholderData || pages.some(page => page.refreshing)))),
     hasMore: Boolean(reader.hasNextPage),
-    isLoadingMore: reader.isFetchingNextPage,
+    // A stale-cursor restart holds Load more until the fresh pages land.
+    isLoadingMore: reader.isFetchingNextPage || reader.isRestarting,
     loadMore: reader.loadMore,
     retry: () => void reader.refetch(),
     /** Retry under the list: the next page when that failed, otherwise the whole read again. */

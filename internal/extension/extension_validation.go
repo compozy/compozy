@@ -62,7 +62,12 @@ func validationIssuesForError(dir string, err error) ([]ValidationIssue, error) 
 
 // ValidateBundleReport adds the permission-derived consent summary to ValidateBundle.
 func ValidateBundleReport(dir string, pluginName ...string) (*ValidationReport, error) {
-	format, dualManifest, err := extensionValidationFormat(dir)
+	return ValidateBundleReportWithAgentPluginDataDir(dir, "", pluginName...)
+}
+
+// ValidateBundleReportWithAgentPluginDataDir validates against instance-owned plugin data.
+func ValidateBundleReportWithAgentPluginDataDir(dir, dataDir string, pluginName ...string) (*ValidationReport, error) {
+	format, dualManifest, err := extensionValidationFormat(dir, pluginName...)
 	if err != nil {
 		if errors.Is(err, ErrAgentPluginManifestInvalid) {
 			return invalidAgentPluginValidationReport(err), nil
@@ -70,7 +75,7 @@ func ValidateBundleReport(dir string, pluginName ...string) (*ValidationReport, 
 		return nil, err
 	}
 	if format == FormatAgentPlugin {
-		return validateAgentPluginBundleReport(dir, pluginName...)
+		return validateAgentPluginBundleReport(dir, dataDir, pluginName...)
 	}
 
 	manifest, issues, err := ValidateBundle(dir)
@@ -104,7 +109,7 @@ func ValidateBundleReport(dir string, pluginName ...string) (*ValidationReport, 
 	return report, nil
 }
 
-func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
+func extensionValidationFormat(dir string, pluginName ...string) (ExtensionFormat, bool, error) {
 	root := strings.TrimSpace(dir)
 	pluginPath := filepath.Join(root, agentPluginManifestFileName)
 	pluginInfo, pluginErr := os.Lstat(pluginPath)
@@ -122,14 +127,14 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 	if pluginExists && !pluginInfo.Mode().IsRegular() {
 		return "", false, agentPluginFormatDetectionError(root)
 	}
-	status, _, err := agentplugin.ClassifyManifest(root)
+	status, declared, err := agentplugin.ClassifyManifest(root)
 	if err != nil {
 		return "", false, err
 	}
 	if status == agentplugin.SchemaSupported {
 		return FormatAgentPlugin, false, nil
 	}
-	if status == agentplugin.SchemaUnrelated && pluginExists {
+	if status == agentplugin.SchemaUnrelated && pluginExists && (declared == "" || len(pluginName) > 0) {
 		document, readErr := agentplugin.ReadManifest(root)
 		if readErr == nil && document.ValidJSON() {
 			return FormatAgentPlugin, false, nil
@@ -153,13 +158,12 @@ func agentPluginFormatDetectionError(root string) error {
 	return fmt.Errorf("extension: Agent Plugins format detection failed for %q", root)
 }
 
-func validateAgentPluginBundleReport(dir string, pluginName ...string) (*ValidationReport, error) {
-	root := strings.TrimSpace(dir)
-	dataDir, err := defaultAgentPluginDataDir(root, filepath.Base(root))
+func validateAgentPluginBundleReport(dir, dataDir string, pluginName ...string) (*ValidationReport, error) {
+	root, err := filepath.Abs(strings.TrimSpace(dir))
 	if err != nil {
 		return nil, err
 	}
-	opts := agentplugin.LoadOptions{DataDir: dataDir}
+	opts := agentplugin.LoadOptions{}
 	document, readErr := agentplugin.ReadManifest(root)
 	_, missing := errors.AsType[*agentplugin.NotManifestError](readErr)
 	clientRoot := false
@@ -172,6 +176,20 @@ func validateAgentPluginBundleReport(dir string, pluginName ...string) (*Validat
 	} else if missing || clientRoot {
 		opts.Name = filepath.Base(root)
 	}
+	if dataDir == "" {
+		name := opts.Name
+		if name == "" && readErr == nil {
+			name, err = document.Name()
+			if err != nil {
+				return invalidAgentPluginValidationReport(err), nil
+			}
+		}
+		dataDir, err = defaultAgentPluginDataDir(root, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	opts.DataDir = dataDir
 	pkg, err := agentplugin.Load(root, opts)
 	if err != nil {
 		if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](err); ok {

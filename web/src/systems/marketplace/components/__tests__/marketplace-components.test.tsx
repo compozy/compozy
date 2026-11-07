@@ -1932,22 +1932,26 @@ describe("Category browse and row actions", () => {
     {
       staleCursors = [],
       refreshingReads = 0,
+      beforeAnswer,
     }: {
       /** Cursors the daemon rejects as stale (409, restart), once per listed occurrence. */
       staleCursors?: string[];
       /** How many first reads answer an empty, still-refreshing page. */
       refreshingReads?: number;
+      /** Holds a read (by cursor, "" for page one) until the returned promise settles. */
+      beforeAnswer?: (cursor: string) => Promise<void> | undefined;
     } = {}
   ) {
     let reads = 0;
     // Stale answers already given per cursor; callers may list more cursors after setup.
     const rejectedCursors = new Map<string, number>();
     server.use(
-      http.get("*/api/marketplace", ({ request }) => {
+      http.get("*/api/marketplace", async ({ request }) => {
         const params = new URL(request.url).searchParams;
         mocks.readCatalog(params);
         reads += 1;
         const cursor = params.get("cursor") ?? "";
+        await beforeAnswer?.(cursor);
         const rejected = rejectedCursors.get(cursor) ?? 0;
         if (staleCursors.filter(stale => stale === cursor).length > rejected) {
           rejectedCursors.set(cursor, rejected + 1);
@@ -2059,6 +2063,62 @@ describe("Category browse and row actions", () => {
     expect(screen.queryByTestId("marketplace-category-error")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Load more" }));
     await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+  });
+
+  // UT-022 [US-002.EC-2]: Load more waits for a running restart instead of cancelling it.
+  it("Should hold Load more until the stale-cursor restart finishes [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const reachEnd = () =>
+      act(() =>
+        observers.at(-1)!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
+    try {
+      let holdRestart = false;
+      let release = () => {};
+      const restartHeld = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      useCategoryServer(productivity, 5, {
+        staleCursors: ["5"],
+        beforeAnswer: cursor => (holdRestart && cursor === "" ? restartHeld : undefined),
+      });
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      const firstReads = mocks.readCatalog.mock.calls.length;
+      const cursors = () =>
+        mocks.readCatalog.mock.calls.slice(firstReads).map(([params]) => params.get("cursor"));
+      holdRestart = true;
+      await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+      await waitFor(() => expect(cursors()).toEqual(["5", null]));
+      // The restart is in flight: the control shows it and the end of the list asks nothing.
+      await waitFor(() => expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled());
+      reachEnd();
+      expect(cursors()).toEqual(["5", null]);
+      release();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled());
+      expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+      expect(screen.queryByRole("alert")).toBeNull();
+      reachEnd();
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      expect(cursors()).toEqual(["5", null, "5"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   // UT-022 [US-002.EC-2]: a background refetch that meets a stale cursor restarts silently too.

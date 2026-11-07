@@ -40,7 +40,10 @@ func loadAgentPluginDocument(
 	}
 	if document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && document.ValidJSON() &&
 		len(pluginName) == 0 {
-		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{document.Path}}
+		if declared != "" {
+			return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{document.Path}}
+		}
+		pluginName = []string{filepath.Base(root)}
 	}
 	nameOverride := ""
 	if (document.Layout != agentplugin.LayoutStandard || status == agentplugin.SchemaUnrelated) && len(pluginName) > 0 {

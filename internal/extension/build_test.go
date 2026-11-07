@@ -1192,7 +1192,6 @@ func writePackageBuildFixture(t *testing.T, dir string) {
 }
 
 func TestManifestlessValidationReport(t *testing.T) {
-	t.Parallel()
 	t.Run("Should report discovered inputs and components for manifestless plugins", func(t *testing.T) {
 		t.Parallel()
 		root := filepath.Join(t.TempDir(), "manifestless")
@@ -1204,6 +1203,19 @@ func TestManifestlessValidationReport(t *testing.T) {
 		if err != nil || report.Format != string(FormatAgentPlugin) || len(report.Inputs) != 1 ||
 			len(report.WouldIngest) != 1 {
 			t.Fatalf("report=%+v %v", report, err)
+		}
+	})
+	t.Run("Should resolve relative directories before deriving plugin identity", func(t *testing.T) {
+		root := filepath.Join(t.TempDir(), "client")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(root, "mcp.json"), `{"mcpServers":{"remote":{"url":"https://example.com/mcp"}}}`)
+		writeFile(t, filepath.Join(root, "plugin.json"), `{"name":"Client Display Name"}`)
+		t.Chdir(root)
+		report, err := ValidateBundleReport(".")
+		if err != nil || report.Status != "valid" || report.Name != "client" || len(report.WouldIngest) != 1 {
+			t.Fatalf("relative report = %+v, %v", report, err)
 		}
 	})
 }

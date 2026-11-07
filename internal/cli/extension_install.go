@@ -78,6 +78,14 @@ func extensionInstallValidationReport(
 	plan extensionInstallPlan,
 	item *ExtensionRecord,
 ) *extensionpkg.ValidationReport {
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		return nil
+	}
+	dataDir, err := homePaths.ExtensionDataPath(item.Name, "", "")
+	if err != nil {
+		return nil
+	}
 	for _, request := range plan.Attempts {
 		if request.Source != contract.InstallExtensionSourceLocalPath {
 			continue
@@ -90,7 +98,7 @@ func extensionInstallValidationReport(
 		if !info.IsDir() {
 			continue
 		}
-		report, err := extensionpkg.ValidateBundleReport(path, item.Name)
+		report, err := extensionpkg.ValidateBundleReportWithAgentPluginDataDir(path, dataDir, item.Name)
 		if err != nil {
 			continue
 		}
@@ -101,12 +109,8 @@ func extensionInstallValidationReport(
 	if strings.TrimSpace(item.Format) != string(extensionpkg.FormatAgentPlugin) {
 		return nil
 	}
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		return nil
-	}
 	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
-	report, err := extensionpkg.ValidateBundleReport(path, item.Name)
+	report, err := extensionpkg.ValidateBundleReportWithAgentPluginDataDir(path, dataDir, item.Name)
 	if err != nil {
 		return nil
 	}

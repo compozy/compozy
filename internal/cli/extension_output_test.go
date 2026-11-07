@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
@@ -289,7 +290,12 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
 			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
 		}}}
-		report := extensionInstallValidationReport(commandDeps{}, plan, &item)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil }}
+		report := extensionInstallValidationReport(deps, plan, &item)
 		if report == nil || report.Status != "valid" || report.Name != item.Name {
 			t.Fatalf("install report = %+v, want valid approved identity %q", report, item.Name)
 		}
@@ -298,6 +304,79 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 			if err != nil || !strings.Contains(output, item.Name) {
 				t.Fatalf("install %s output = %q, error = %v", format, output, err)
 			}
+		}
+	})
+
+	t.Run("Should reject foreign root schemas consistently with local installation", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"),
+			[]byte(`{"$schema":"https://example.com/foreign.schema.json","name":"foreign"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		report, validationErr := extensionpkg.ValidateBundleReport(root)
+		if validationErr == nil && report.Status == "valid" {
+			t.Fatalf("foreign schema accepted: %+v", report)
+		}
+		if _, err := prepareExtensionInstall(root); err == nil {
+			t.Fatal("local installer accepted foreign schema")
+		}
+	})
+
+	t.Run("Should accept root client manifests consistently with local installation", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "client")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"),
+			[]byte(`{"name":"Client Display Name"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		report, err := extensionpkg.ValidateBundleReport(root)
+		if err != nil || report.Status != "valid" || report.Name != "client" {
+			t.Fatalf("root client validation = %+v, %v", report, err)
+		}
+		prepared, err := prepareExtensionInstall(root)
+		if err != nil || prepared.Manifest.Name != report.Name {
+			t.Fatalf("local installer identity = %+v, %v", prepared.Manifest, err)
+		}
+	})
+
+	t.Run("Should report MCP servers against installed data instead of source data", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "source", "plugins", "approved")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "mcp.json"), []byte(
+			`{"mcpServers":{"local":{"command":"node","cwd":"${CLAUDE_PLUGIN_DATA}/work"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sourceData := filepath.Join(filepath.Dir(filepath.Dir(root)), "extension-data", "approved")
+		if err := os.MkdirAll(sourceData, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(t.TempDir(), filepath.Join(sourceData, "work")); err != nil {
+			t.Fatal(err)
+		}
+		preview, err := extensionpkg.ValidateBundleReport(root)
+		if err != nil || len(preview.WouldIngest) != 0 || len(preview.Issues) == 0 {
+			t.Fatalf("source validation = %+v, %v; want skipped server", preview, err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil }}
+		item := ExtensionRecord{Name: "approved", Format: string(extensionpkg.FormatAgentPlugin)}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		report := extensionInstallValidationReport(deps, plan, &item)
+		if report == nil || report.Status != "valid" || len(report.WouldIngest) != 1 || len(report.Issues) != 1 ||
+			report.Issues[0].Code != "client_mcp_discovered" {
+			t.Fatalf("installed report = %+v; want accepted MCP server", report)
 		}
 	})
 

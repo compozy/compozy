@@ -3,7 +3,13 @@ import {
   previewMarketplaceSource,
 } from "../adapters/marketplace-sources-api";
 import type { AddMarketplaceSourceRequest } from "../types";
-import { infiniteQueryOptions, noop, queryOptions, skipToken } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  noop,
+  queryOptions,
+  skipToken,
+  type Query,
+} from "@tanstack/react-query";
 import {
   browseMarketplace,
   getMarketplaceCatalogEntry,
@@ -76,6 +82,18 @@ export function marketplaceSectionsOptions(
 
 /** Marks the fetch that restarts a category after a stale cursor; identity is the marker. */
 const STALE_CURSOR_RESTART = {};
+
+/**
+ * Matches the category's stale-cursor restart while it is in flight. Load more waits for it: a
+ * next-page fetch would cancel the restart and keep the pages it was replacing.
+ */
+export function marketplaceCategoryRestartFilters(options: MarketplaceCatalogOptions) {
+  return {
+    queryKey: marketplaceKeys.category(options),
+    exact: true,
+    predicate: (query: Query) => query.state.fetchMeta === STALE_CURSOR_RESTART,
+  };
+}
 
 /**
  * One category, daemon-paged by cursor; the cursor stays in `pageParam`. A stale cursor — met by
