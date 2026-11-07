@@ -208,12 +208,24 @@ func errorDiagnosticItem(message string, err error) *contract.DiagnosticItem {
 		ID:            strings.ReplaceAll(code, "_", "."),
 		Code:          code,
 		Category:      category,
-		Title:         "Role operation failed",
+		Title:         diagnosticFallbackTitle(code),
 		Message:       message,
 		Severity:      contract.SeverityError,
 		DataFreshness: contract.FreshnessLive,
 	})
 	return &item
+}
+
+// diagnosticFallbackTitle names coded errors that carry no title of their own.
+func diagnosticFallbackTitle(code string) string {
+	switch code {
+	case contract.CodeProviderDisabled:
+		return "Provider is disabled"
+	case contract.CodeProviderDefaultDisableRejected:
+		return "Default provider can't be disabled"
+	default:
+		return "Role operation failed"
+	}
 }
 
 func lifecycleReasonDetails(meta map[string]string) map[string]string {

@@ -411,6 +411,22 @@ func TestErrorPayloadForError(t *testing.T) {
 		}
 	})
 
+	t.Run("Should title provider enabled diagnostics after the provider, not a role", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			err   error
+			title string
+		}{
+			{&compozyconfig.ProviderDisabledError{Provider: "gemini"}, "Provider is disabled"},
+			{&compozyconfig.ProviderDefaultDisableError{Provider: "codex"}, "Default provider can't be disabled"},
+		} {
+			payload := ErrorPayloadForError(fmt.Errorf("start refused: %w", tc.err))
+			if payload.Diagnostic == nil || payload.Diagnostic.Title != tc.title {
+				t.Fatalf("diagnostic for %v = %#v, want title %q", tc.err, payload.Diagnostic, tc.title)
+			}
+		}
+	})
+
 	t.Run("Should expose superseded sessions as a structured conflict", func(t *testing.T) {
 		t.Parallel()
 		err := fmt.Errorf("admission: %w", store.ErrSessionSuperseded)

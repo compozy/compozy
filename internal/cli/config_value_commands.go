@@ -290,7 +290,7 @@ func runConfigSetCommand(
 		workspace,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return setConfigOverlayValue(editor, path, kind, value)
+			return setConfigOverlayValue(editor, target, path, kind, value)
 		},
 	); err != nil {
 		return err
@@ -393,6 +393,7 @@ func configSetRecordForLocalWrite(
 
 func setConfigOverlayValue(
 	editor *compozyconfig.OverlayEditor,
+	target compozyconfig.WriteTarget,
 	path []string,
 	kind configSetValueKind,
 	value any,
@@ -407,5 +408,5 @@ func setConfigOverlayValue(
 			return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
 		}
 	}
-	return editor.SetValue(path, value)
+	return editor.SetValueAtTarget(target, path, value)
 }

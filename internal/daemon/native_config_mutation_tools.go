@@ -71,7 +71,7 @@ func (n *daemonNativeTools) configSet(
 					return fmt.Errorf("daemon: config path %q requires an object", path)
 				}
 			}
-			return editor.SetValue(policy.Segments, value)
+			return editor.SetValueAtTarget(target, policy.Segments, value)
 		},
 	); err != nil {
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)

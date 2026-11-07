@@ -48,3 +48,24 @@ func (e *OverlayEditor) DeleteKeyPruningEmptyTable(path []string) error {
 	}
 	return nil
 }
+
+// SetValueAtTarget writes value at path in target. Turning a provider back on
+// (providers.<id>.enabled = true) in the global or profile layer deletes the key, and an emptied
+// provider block, instead: an absent key means enabled (BR-1) and the toggle stays lossless
+// (BR-11). Workspace layers keep the plain write so validation still rejects the key there.
+func (e *OverlayEditor) SetValueAtTarget(target WriteTarget, path []string, value any) error {
+	kind := target.Kind()
+	if providerReEnable(path, value) && (kind == WriteTargetGlobalConfig || kind == WriteTargetProfileConfig) {
+		return e.DeleteKeyPruningEmptyTable(path)
+	}
+	return e.SetValue(path, value)
+}
+
+// providerEnabledField is the providers.<id> key that turns a provider on or off.
+const providerEnabledField = "enabled"
+
+func providerReEnable(path []string, value any) bool {
+	enabled, ok := value.(bool)
+	return ok && enabled && len(path) == 3 &&
+		strings.TrimSpace(path[0]) == "providers" && strings.TrimSpace(path[2]) == providerEnabledField
+}
