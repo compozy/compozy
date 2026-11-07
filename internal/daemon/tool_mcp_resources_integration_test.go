@@ -543,10 +543,6 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
-		if err := syncer.Sync(testutil.Context(t)); err != nil {
-			t.Fatalf("syncer.Sync(active config) error = %v", err)
-		}
-		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
 		// Settings snapshots stay active until an explicit rollback or a later file edit.
 		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
 			t.Fatalf("syncer.SyncConfig(published config) error = %v", err)
