@@ -13,6 +13,8 @@ export interface ProductRuntimeShell {
   /** Attaches to or starts the runtime again and opens a new product window. */
   readonly resolveRuntime: () => Promise<void>;
   readonly logger: Pick<DesktopLogger, "info" | "error">;
+  /** The desktop log a recovery failure points the user to. */
+  readonly logPath: string;
 }
 
 /**
@@ -52,7 +54,21 @@ export function monitorProductRuntime(
       shell.logger.info("runtime did not return; resolving it again", fields);
       await shell.publish({ state: "disconnected" });
       shell.showBoot();
-      await shell.closeProduct();
+      try {
+        await shell.closeProduct();
+      } catch (error) {
+        // Without this, the boot page would stay "disconnected", which offers no Retry.
+        shell.logger.error("close product window for runtime recovery", error);
+        await shell.publish({
+          state: "error",
+          error: {
+            code: "runtime_recovery_failed",
+            safe_message: "CompozyOS stopped responding and could not reconnect.",
+            log_path: shell.logPath,
+          },
+        });
+        return;
+      }
       await shell.resolveRuntime();
     },
   });

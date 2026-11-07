@@ -73,6 +73,41 @@ describe("runtime health monitor", () => {
     }
   });
 
+  it("Should retry a failed reconnection on the next healthy probe", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    let attempts = 0;
+    const errors: unknown[] = [];
+    const monitor = new RuntimeHealthMonitor({
+      origin: ORIGIN,
+      intervalMs: 2,
+      failureThreshold: 1,
+      reconnectTimeoutMs: 100,
+      fetcher: runtimeFetcher(() => up),
+      onDisconnected: async () => {},
+      onReconnected: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("reload raced another drop");
+      },
+      onLost: async () => {},
+      onError: error => void errors.push(error),
+    });
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(2);
+      up = true;
+      await vi.advanceTimersByTimeAsync(2);
+      expect(attempts).toBe(1);
+      expect(errors).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(attempts).toBe(2);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(attempts).toBe(2);
+    } finally {
+      monitor.stop();
+    }
+  });
+
   it("Should report a lost runtime once after the reconnect window and stop probing", async () => {
     vi.useFakeTimers();
     let probes = 0;
@@ -109,15 +144,23 @@ describe("runtime health monitor", () => {
 // Invariant: the shell always holds a window while it follows its runtime, so a daemon restart
 // never quits the app; the product window reloads on reconnect and hands off to boot when lost.
 describe("product runtime follower", () => {
-  function shell(steps: string[]): ProductRuntimeShell {
+  function shell(
+    steps: string[],
+    overrides: Partial<ProductRuntimeShell> = {}
+  ): ProductRuntimeShell {
     return {
       stopped: () => false,
-      publish: async snapshot => void steps.push(`publish:${snapshot.state}`),
+      publish: async snapshot =>
+        void steps.push(
+          `publish:${snapshot.state}${snapshot.error ? `:${snapshot.error.code}` : ""}`
+        ),
       reloadProduct: async () => void steps.push("reload"),
       showBoot: () => void steps.push("show-boot"),
       closeProduct: async () => void steps.push("close-product"),
       resolveRuntime: async () => void steps.push("resolve"),
       logger: { info: () => undefined, error: () => undefined },
+      logPath: "/tmp/desktop.log",
+      ...overrides,
     };
   }
 
@@ -161,6 +204,39 @@ describe("product runtime follower", () => {
         "show-boot",
         "close-product",
         "resolve",
+      ]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should surface a retryable error when the product window cannot close for recovery", async () => {
+    vi.useFakeTimers();
+    const steps: string[] = [];
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true },
+      shell(steps, {
+        closeProduct: async () => {
+          steps.push("close-product");
+          throw new Error("window state write failed");
+        },
+      }),
+      {
+        intervalMs: 2,
+        failureThreshold: 1,
+        reconnectTimeoutMs: 4,
+        fetcher: runtimeFetcher(() => false),
+      }
+    );
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      expect(steps).toEqual([
+        "publish:disconnected",
+        "publish:disconnected",
+        "show-boot",
+        "close-product",
+        "publish:error:runtime_recovery_failed",
       ]);
     } finally {
       monitor.stop();

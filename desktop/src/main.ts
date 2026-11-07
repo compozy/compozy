@@ -350,6 +350,7 @@ async function start(): Promise<void> {
             },
             resolveRuntime: runBootstrap,
             logger,
+            logPath: paths.desktopLog,
           });
           runtimeMonitor.start();
           boot?.close();

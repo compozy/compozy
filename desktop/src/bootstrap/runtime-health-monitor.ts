@@ -10,7 +10,7 @@ type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
 /**
  * Watches the runtime the product window is bound to. An outage first reports `onDisconnected`
- * while probing continues; the runtime answering again reports `onReconnected`, and an outage that
+ * while probing continues; the runtime answering again reports `onReconnected` until it succeeds, and an outage that
  * outlasts the reconnect window stops the monitor and reports `onLost`.
  */
 export class RuntimeHealthMonitor {
@@ -98,8 +98,10 @@ export class RuntimeHealthMonitor {
   async #recordSuccess(): Promise<void> {
     this.#failures = 0;
     if (this.#disconnectedAt === null) return;
-    this.#disconnectedAt = null;
+    // A failed reconnection (such as a reload that raced another drop) stays pending, so the next
+    // healthy probe retries it instead of leaving the window on a failed page.
     await this.#onReconnected();
+    this.#disconnectedAt = null;
   }
 
   async #recordFailure(): Promise<void> {
