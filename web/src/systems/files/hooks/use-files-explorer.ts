@@ -22,7 +22,8 @@ export function useFilesExplorer(root: FilesRootRef, target: FileViewerTarget | 
   const [pane, setPane] = useState<ExplorerPane>("files");
   const [goToFileOpen, setGoToFileOpen] = useState(false);
   const [searchFocus, setSearchFocus] = useState(0);
-  // "Reveal in tree" asks the tree to reveal the selection again, even after a collapse.
+  // "Reveal in tree" and a Go to file folder choice ask the tree to reveal the selection again,
+  // even after a collapse.
   const [revealCount, setRevealCount] = useState(0);
   // A folder chosen in Go to file stays revealed until the next open request.
   const [folder, setFolder] = useState<{ path: string; nonce: number | null } | null>(null);
@@ -71,10 +72,13 @@ export function useFilesExplorer(root: FilesRootRef, target: FileViewerTarget | 
     goToFileOpen,
     openGoToFile: () => setGoToFileOpen(true),
     closeGoToFile: () => setGoToFileOpen(false),
+    // Every folder choice is a fresh reveal, even of the same folder after a collapse; a file
+    // choice needs none of this, since each open request carries a new target nonce.
     revealFolder: (path: string) => {
       setPane("files");
       setFilter("");
       setFolder({ path, nonce: targetNonce });
+      setRevealCount(count => count + 1);
     },
     showFiles: () => setPane("files"),
     onKeyDown,
