@@ -17,14 +17,13 @@ An ERROR fingerprint is emitted when it is new, last raised more than 7 days
 ago, or at least 3x (and 10) its count when last raised. A WARN fingerprint is
 emitted when its hourly rate is at least 3x the previous window's with 20+
 lines. A clean window emits no items, so no model turn runs. A window with more
-candidates than `max_items` pages with `more`: its end, stdio offset and page
-position stay fixed in `state.open` until the last page, so paging never
-depends on the trimmable history.
+candidates than `max_items` pages with `more`: `state.open` pins its end, stdio
+offset, last emitted key and emitted key prefixes until the last page.
 
 `params.key` returns that one fingerprint over the window, with no dedup and no
 state: the read-only lookup a picked proposal uses.
 
-Samples carry an allowlist of log fields, never prompt or output bodies, with
+Samples carry allowlisted log fields only, never prompt or output bodies, with
 home paths replaced by `~` and secret-looking values redacted. Read-only.
 Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
 """
@@ -34,6 +33,7 @@ import functools
 import glob
 import gzip
 import hashlib
+import zlib
 import json
 import os
 import re
@@ -57,13 +57,15 @@ SAMPLE_FIELDS = (
 STAMP = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) ")
 TEXT_LINE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) (ERROR|WARN) (.*)$")
 TEXT_ATTR = re.compile(r"\s[A-Za-z_][A-Za-z0-9_.]*=")
+TEXT_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)=(\"(?:[^\"\\]|\\.)*\"|\S+)")
 STDIO_ALERT = re.compile(r"^(panic: |fatal error: |error: )(.*)$")
 GO_FRAME = re.compile(r"^(github\.com/compozy/compozy/\S+)\([^()]*\)\s*$")
 
 AUTH_SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[^\s,;\"']+")
+URL_SECRET = re.compile(r"(?i)(://)[^/@\s:]+:[^/@\s]+@|([?&](?:key|token|access_token|api_key|secret|sig|signature|password)=)[^&\s\"']+")
 SECRET = re.compile(
-    r"(?i)(?<![A-Za-z])(token|password|passwd|api[_-]?key|secret|authorization|cookie)"
-    r"(\s*[:=]\s*|\s+)(\"[^\"]*\"|'[^']*'|[^\s,;\"']+)"
+    r"(?i)\b([A-Za-z0-9_-]*?(?:token|password|passwd|api[_-]?key|secret|authorization|bearer|cookie)[\"']?)"
+    r"(\s*[:=]\s*|\s+)(\"[^\"]*\"|'[^']*'|[^\s,;\"'}]+)"
 )
 SECRET_VALUE = re.compile(
     r"\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
@@ -108,6 +110,7 @@ def iso(moment):
 
 
 def redact(text):
+    text = URL_SECRET.sub(lambda m: (m.group(1) or m.group(2)) + "[REDACTED]" + ("@" if m.group(1) else ""), text)
     text = AUTH_SCHEME.sub(lambda m: m.group(1) + " [REDACTED]", text)
     text = SECRET.sub(lambda m: m.group(1) + m.group(2) + "[REDACTED]", text)
     return SECRET_VALUE.sub("[REDACTED]", text)
@@ -200,7 +203,8 @@ def json_sample(record):
     for field in SAMPLE_FIELDS:
         value = record.get(field)
         if value not in (None, ""):
-            parts.append(f"{field}={json.dumps(value) if isinstance(value, str) else value}")
+            value = redact(value if isinstance(value, str) else json.dumps(value))
+            parts.append(f"{field}={json.dumps(value)}")
     return " ".join(parts)
 
 
@@ -219,9 +223,28 @@ def text_record(line):
         return None
     level, rest = match.group(2), match.group(3)
     attr = TEXT_ATTR.search(rest)
-    err = re.search(r"\berror=(\"(?:[^\"\\]|\\.)*\"|\S+)", rest)
-    cls = error_class(err.group(1).strip("\"")) if err else ""
-    return moment, level, rest[: attr.start()] if attr else rest, cls, f"{level} {rest}"
+    msg = rest[: attr.start()] if attr else rest
+    fields = dict(TEXT_FIELD.findall(rest[len(msg):]))
+    cls = error_class(fields["error"].strip("\"")) if fields.get("error") else ""
+    kept = " ".join(f"{k}={redact(v)}" for k, v in fields.items() if k in SAMPLE_FIELDS)
+    return moment, level, msg, cls, f"{level} {msg} {kept}"
+
+
+def log_record(line):
+    """One ERROR or WARN record of a daemon log line, or None."""
+    if not line.startswith("{"):
+        return text_record(line)
+    if '"ERROR"' not in line and '"WARN"' not in line:
+        return None
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return None
+    level = record.get("level") if isinstance(record, dict) else None
+    moment = parse_time(record.get("time")) if level in ("ERROR", "WARN") else None
+    if moment is None:
+        return None
+    return moment, level, record.get("msg") or "", json_class(record), functools.partial(json_sample, record)
 
 
 def scan_daemon_logs(directory, groups, warns):
@@ -230,34 +253,17 @@ def scan_daemon_logs(directory, groups, warns):
     paths += sorted(glob.glob(os.path.join(directory, "compozy-*.log.gz")))
     paths.append(os.path.join(directory, "compozy.log"))
     for path in paths:
+        opener = gzip.open if path.endswith(".gz") else open
         try:
             if dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc) < groups.start:
                 continue
-        except OSError:
-            continue
-        opener = gzip.open if path.endswith(".gz") else open
-        with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
-            for line in handle:
-                if line.startswith("{"):
-                    if '"ERROR"' not in line and '"WARN"' not in line:
-                        continue
-                    try:
-                        record = json.loads(line)
-                    except ValueError:
-                        continue
-                    level = record.get("level") if isinstance(record, dict) else None
-                    moment = parse_time(record.get("time")) if level in ("ERROR", "WARN") else None
-                    if moment is None:
-                        continue
-                    msg, cls = record.get("msg") or "", json_class(record)
-                    sample = functools.partial(json_sample, record)
-                else:
-                    parsed = text_record(line)
-                    if parsed is None:
-                        continue
-                    moment, level, msg, cls, sample = parsed
-                target = groups if level == "ERROR" else warns
-                target.add("error" if level == "ERROR" else "warn", level, "daemon-log", msg, cls, moment, sample)
+            with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
+                records = [record for record in map(log_record, handle) if record]
+        except (OSError, EOFError, zlib.error):
+            continue  # an unreadable or truncated file must not fail the whole check
+        for moment, level, msg, cls, sample in records:
+            target, kind = (groups, "error") if level == "ERROR" else (warns, "warn")
+            target.add(kind, level, "daemon-log", msg, cls, moment, sample)
 
 
 def scan_stdio(directory, groups, committed, end_off=None):
@@ -275,7 +281,7 @@ def scan_stdio(directory, groups, committed, end_off=None):
     if committed.get("ino") == info.st_ino and 0 <= committed.get("off", -1) <= info.st_size:
         offset = committed["off"]
     elif not resumed and mtime < groups.start:
-        return {"ino": info.st_ino, "off": info.st_size}
+        return {"ino": info.st_ino, "off": info.st_size, "read": False}
     stop = info.st_size if end_off is None else min(end_off, info.st_size)
     with open(path, "rb") as handle:
         handle.seek(offset)
@@ -394,7 +400,7 @@ def to_item(group, reason):
 
 def bounded_state(state, budget):
     """Trim the oldest history, then the lowest WARN baselines, to fit the state limit."""
-    known, warn = state["known"], state["warn"]
+    known, warn = state.get("known") or {}, state.get("warn") or {}
     oldest = sorted(known, key=lambda key: known[key][0])
     lowest = sorted(warn, key=warn.get)
     while len(json.dumps(state, separators=(",", ":"))) > budget and (oldest or lowest):
@@ -426,14 +432,19 @@ def main():
     home = os.environ.get("HOME", "")
     directory = os.path.expanduser(params.get("logs_dir") or "~/.compozy/logs")
     now = parse_time(request.get("now")) or dt.datetime.now(dt.timezone.utc)
-    end = parse_time(page.get("end")) or now
+    # Whole seconds: `end` round-trips through state exactly, so pages and the next cursor match.
+    end = parse_time(page.get("end")) or now.replace(microsecond=0)
     start = parse_time(previous.get("cursor")) or end - dt.timedelta(hours=float(params.get("window_hours") or DEFAULT_WINDOW_HOURS))
     start = max(start, end - dt.timedelta(days=RECHECK_DAYS))
     hours = max((end - start).total_seconds() / 3600, 1 / 60)
 
     errors, warns = Groups(start, end, home), Groups(start, end, home)
     scan_daemon_logs(directory, errors, warns)
-    stdio = scan_stdio(directory, errors, previous.get("stdio") or {}, page.get("stdio_end") if page else None)
+    if page.get("stdio_read", True):
+        pinned = (page.get("stdio") or {}).get("off") if page else None
+        stdio = scan_stdio(directory, errors, previous.get("stdio") or {}, pinned)
+    else:
+        stdio = page["stdio"]  # the first page skipped an old file; later pages must too
     scan_crash_bundles(directory, errors)
 
     if lookup:
@@ -441,8 +452,9 @@ def main():
         found = errors.groups.get(lookup) or warns.groups.get(lookup)
         return emit({"items": [to_item(found, "in window")] if found else []})
 
-    # Candidates depend only on the pinned window and the history committed
-    # before it opened, so every page of one window sees the same ordered list.
+    # Pages walk the pinned window in (priority, key) order after the last emitted
+    # key, so a candidate that appears or vanishes between pages shifts nothing;
+    # only emitted keys (tracked by prefix) enter the history when the window closes.
     known = dict(previous.get("known") or {})
     spikes = warn_spikes(warns, previous.get("warn") or {}, hours) if "warn" in previous else []
     candidates = []
@@ -450,27 +462,33 @@ def main():
         reason = should_emit(group, known, end.date())
         if reason:
             candidates.append((group, "spike" if group["kind"] == "warn" and reason == "new" else reason))
-    candidates.sort(key=lambda pair: (PRIORITY[pair[0]["kind"]], -pair[0]["count"], pair[0]["key"]))
-    done = int(page.get("done") or 0)
-    emitted = candidates[done : done + max_items]
+    order = lambda pair: [PRIORITY[pair[0]["kind"]], pair[0]["key"]]  # noqa: E731
+    after = page.get("after") or [-1, ""]
+    remaining = sorted((pair for pair in candidates if order(pair) > after), key=order)
+    emitted = remaining[:max_items]
+    sent = set(page.get("sent") or []) | {group["key"][-6:] for group, _ in emitted}
 
-    if done + len(emitted) < len(candidates):
+    if len(remaining) > max_items:
         state = dict(previous)
-        state["open"] = {"end": iso(end), "done": done + len(emitted), "stdio_end": stdio.get("off", 0)}
+        state["open"] = {
+            "end": iso(end), "after": order(emitted[-1]), "sent": sorted(sent),
+            "stdio": stdio, "stdio_read": page.get("stdio_read", stdio.get("read", True)),
+        }
+        state = bounded_state(state, budget)
         return emit({"items": [to_item(g, r) for g, r in emitted], "state": state, "more": True})
 
     for group, _ in candidates:
-        known[group["key"]] = [end.date().isoformat(), group["count"]]
+        if group["key"][-6:] in sent:
+            known[group["key"]] = [end.date().isoformat(), group["count"]]
     top = sorted(warns.groups.values(), key=lambda group: -group["count"])[:WARN_BASELINE_LIMIT]
     state = {
         "v": 1,
         "cursor": iso(end),
-        "stdio": stdio,
+        "stdio": {"ino": stdio.get("ino"), "off": stdio.get("off")} if stdio else {},
         "known": known,
         "warn": {group["key"]: round(group["count"] / hours, 2) for group in top},
     }
     emit({"items": [to_item(g, r) for g, r in emitted], "state": bounded_state(state, budget)})
-
 
 if __name__ == "__main__":
     try:
