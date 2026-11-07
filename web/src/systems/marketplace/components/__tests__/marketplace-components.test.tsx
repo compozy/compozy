@@ -2091,7 +2091,9 @@ describe("Category browse and row actions", () => {
       const restartHeld = new Promise<void>(resolve => {
         release = resolve;
       });
-      useCategoryServer(productivity, 5, {
+      // A test-local copy, so a row can change while the restart is held.
+      const rows = [...productivity];
+      useCategoryServer(rows, 5, {
         staleCursors: ["5"],
         beforeAnswer: cursor => (holdRestart && cursor === "" ? restartHeld : undefined),
       });
@@ -2107,9 +2109,16 @@ describe("Category browse and row actions", () => {
       await waitFor(() => expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled());
       reachEnd();
       expect(cursors()).toEqual(["5", null]);
+      // The daemon changes a first-page row while the restart is held; the restart shows it.
+      rows[0] = { ...rows[0]!, description: "Tasks refreshed by the restart" };
       release();
       await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled());
       expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+      expect(
+        within(screen.getByTestId("marketplace-card-prod-0")).getByText(
+          "Tasks refreshed by the restart"
+        )
+      ).toBeInTheDocument();
       expect(screen.queryByRole("alert")).toBeNull();
       reachEnd();
       await waitFor(() =>

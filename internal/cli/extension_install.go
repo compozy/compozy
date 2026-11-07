@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -78,13 +79,18 @@ func extensionInstallValidationReport(
 	plan extensionInstallPlan,
 	item *ExtensionRecord,
 ) *extensionpkg.ValidationReport {
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		return nil
-	}
-	dataDir, err := homePaths.ExtensionDataPath(item.Name, "", "")
-	if err != nil {
-		return nil
+	var homePaths compozyconfig.HomePaths
+	dataDir := ""
+	if strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin) {
+		var err error
+		homePaths, err = deps.resolveHome()
+		if err != nil {
+			return nil
+		}
+		dataDir, err = homePaths.ExtensionDataPath(item.Name, "", "")
+		if err != nil {
+			return nil
+		}
 	}
 	for _, request := range plan.Attempts {
 		if request.Source != contract.InstallExtensionSourceLocalPath {

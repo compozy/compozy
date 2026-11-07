@@ -307,6 +307,39 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain native precedence without resolving plugin data", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for name, content := range map[string]string{
+			"extension.toml": "[extension]\nname = \"acme@tools\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.3.0-beta.1\"\n",
+			"plugin.json":    `{"name":"client"}`,
+		} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		prepared, err := prepareExtensionInstall(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := ExtensionRecord{Name: prepared.Manifest.Name, Format: string(extensionpkg.FormatCompozy)}
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) {
+			t.Error("native report must not resolve plugin data")
+			return compozyconfig.HomePaths{}, fmt.Errorf("home unavailable")
+		}}
+		plan := extensionInstallPlan{Attempts: []InstallExtensionRequest{{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root,
+		}}}
+		report := extensionInstallValidationReport(deps, plan, &item)
+		if report == nil || report.Status != "valid" || !report.DualManifest {
+			t.Fatalf("native install report = %+v, want valid dual manifest", report)
+		}
+		human, err := extensionInstallSuccessBundle(&item, report).human()
+		if err != nil || strings.Count(human, "(native manifest wins)") != 1 {
+			t.Fatalf("native install output = %q, %v; want one precedence note", human, err)
+		}
+	})
+
 	t.Run("Should reject foreign root schemas consistently with local installation", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

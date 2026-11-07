@@ -166,6 +166,9 @@ func validateAgentPluginBundleReport(dir, dataDir string, pluginName ...string) 
 	opts := agentplugin.LoadOptions{}
 	document, readErr := agentplugin.ReadManifest(root)
 	_, missing := errors.AsType[*agentplugin.NotManifestError](readErr)
+	if readErr != nil && !missing {
+		return nil, readErr
+	}
 	clientRoot := false
 	if readErr == nil {
 		status, _ := document.Classify()

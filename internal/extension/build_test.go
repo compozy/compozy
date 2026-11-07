@@ -16,6 +16,7 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"golang.org/x/mod/modfile"
@@ -1192,6 +1193,28 @@ func writePackageBuildFixture(t *testing.T, dir string) {
 }
 
 func TestManifestlessValidationReport(t *testing.T) {
+	for _, component := range []string{"skills", "mcp.json"} {
+		t.Run("Should report unreadable nested manifest before data resolution with "+component, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			manifestPath := filepath.Join(root, ".claude-plugin", "plugin.json")
+			if err := os.MkdirAll(manifestPath, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if component == "skills" {
+				if err := os.MkdirAll(filepath.Join(root, component), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeFile(t, filepath.Join(root, component), `{}`)
+			}
+			report, err := ValidateBundleReport(root)
+			if !errors.Is(err, fileutil.ErrDirectory) || !strings.Contains(err.Error(), manifestPath) {
+				t.Fatalf("report = %+v, error = %v; want nested manifest directory error", report, err)
+			}
+		})
+	}
+
 	t.Run("Should report discovered inputs and components for manifestless plugins", func(t *testing.T) {
 		t.Parallel()
 		root := filepath.Join(t.TempDir(), "manifestless")
