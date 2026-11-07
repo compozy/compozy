@@ -205,9 +205,10 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	var remoteErr error
 	definitionMatches := false
 	if err == nil {
-		definitionMatches, err = s.tokenMatchesServerDefinition(ctx, token, cfg)
-		if err != nil {
-			return Status{}, err
+		var bindingErr error
+		definitionMatches, bindingErr = s.tokenMatchesServerDefinition(ctx, token, cfg)
+		if bindingErr != nil {
+			remoteErr = fmt.Errorf("mcp auth: validate revocation binding: %w", bindingErr)
 		}
 	}
 	if definitionMatches {

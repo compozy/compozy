@@ -314,7 +314,14 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 		t.Parallel()
 
 		var issuerURL, resourceURL string
+		var metadataDown atomic.Bool
+		var metadataRequests atomic.Int32
 		resource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			metadataRequests.Add(1)
+			if metadataDown.Load() {
+				http.Error(w, "metadata unavailable", http.StatusServiceUnavailable)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).
 				Encode(map[string]any{"resource": resourceURL, "authorization_servers": []string{issuerURL}}); err != nil {
@@ -388,6 +395,20 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertUsable()
+		metadataDown.Store(true)
+		requestsBefore := metadataRequests.Load()
+		for range 2 {
+			status, err := service.Status(t.Context(), cfg)
+			if err != nil || !status.TokenPresent {
+				t.Fatalf("offline status = %+v, err = %v", status, err)
+			}
+			if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+				t.Fatalf("offline bearer: %v", err)
+			}
+		}
+		if got := metadataRequests.Load(); got != requestsBefore {
+			t.Fatalf("token checks fetched metadata: %d -> %d", requestsBefore, got)
+		}
 	})
 
 	t.Run("Should include the protected resource in the authorization request", func(t *testing.T) {
@@ -998,37 +1019,83 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 
 func TestLogoutCleansUpAfterRevocationFailure(t *testing.T) {
 	t.Parallel()
-	t.Run("Should delete local authorization state when remote revocation fails", func(t *testing.T) {
-		t.Parallel()
-		var revocations atomic.Int32
-		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			switch request.URL.Path {
-			case "/.well-known/oauth-authorization-server", "/.well-known/openid-configuration":
-				writeOAuthMetadataResponse(t, writer, request, true)
-			case "/revoke":
-				revocations.Add(1)
-				http.Error(writer, "provider detail", http.StatusBadGateway)
-			default:
-				http.NotFound(writer, request)
+	for _, metadataOutage := range []bool{false, true} {
+		name := "Should delete local authorization state when remote revocation fails"
+		if metadataOutage {
+			name = "Should delete local authorization state when omitted issuer discovery fails"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var revocations atomic.Int32
+			var metadataDown atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if metadataDown.Load() {
+					http.Error(writer, "metadata unavailable", http.StatusServiceUnavailable)
+					return
+				}
+				switch request.URL.Path {
+				case "/.well-known/oauth-authorization-server", "/.well-known/openid-configuration":
+					writeOAuthMetadataResponse(t, writer, request, true)
+				case "/.well-known/oauth-protected-resource/mcp":
+					writer.Header().Set("Content-Type", "application/json")
+					if _, err := fmt.Fprintf(
+						writer,
+						`{"resource":%q,"authorization_servers":[%q]}`,
+						"http://"+request.Host+"/mcp",
+						"http://"+request.Host,
+					); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					writer.Header().Set("Content-Type", "application/json")
+					if _, err := writer.Write(
+						[]byte(`{"access_token":"access","refresh_token":"refresh","token_type":"Bearer"}`),
+					); err != nil {
+						t.Error(err)
+					}
+				case "/revoke":
+					revocations.Add(1)
+					http.Error(writer, "provider detail", http.StatusBadGateway)
+				default:
+					http.NotFound(writer, request)
+				}
+			}))
+			defer server.Close()
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, server)
+			if metadataOutage {
+				cfg.IssuerURL = ""
 			}
-		}))
-		defer server.Close()
-		store := &adapterTestStore{}
-		service, cfg := newPreRegisteredTestService(t, store, server)
-		store.token = managerBoundToken(t, cfg, "access")
-		store.token.RefreshToken = "refresh"
-		status, err := service.Logout(t.Context(), cfg)
-		if err != nil {
-			t.Fatalf("Logout() error = %v", err)
-		}
-		if !store.authorizationStateDeleted || status.Status != StatusNeedsLogin ||
-			!strings.Contains(status.Diagnostic, "remote revocation failed") {
-			t.Fatalf("Logout() status = %#v, deleted = %t", status, store.authorizationStateDeleted)
-		}
-		if got := revocations.Load(); got != 1 {
-			t.Fatalf("revocation calls = %d, want 1", got)
-		}
-	})
+			state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Exchange(
+				t.Context(),
+				&state,
+				oauthCallbackURL(t, state.RedirectURL, state.State, ""),
+			); err != nil {
+				t.Fatal(err)
+			}
+			metadataDown.Store(metadataOutage)
+			status, err := service.Logout(t.Context(), cfg)
+			if err != nil {
+				t.Fatalf("Logout() error = %v", err)
+			}
+			if !store.authorizationStateDeleted || store.token.AccessToken != "" ||
+				store.registration.ClientID != "" || store.secrets.ClientSecret != "" || status.Status != StatusNeedsLogin ||
+				!strings.Contains(status.Diagnostic, "remote revocation failed") {
+				t.Fatalf("Logout() status = %#v, deleted = %t", status, store.authorizationStateDeleted)
+			}
+			wantRevocations := int32(1)
+			if metadataOutage {
+				wantRevocations = 0
+			}
+			if got := revocations.Load(); got != wantRevocations {
+				t.Fatalf("revocation calls = %d, want %d", got, wantRevocations)
+			}
+		})
+	}
 }
 
 func TestOAuthRefreshCannotReinsertTokenAfterLogout(t *testing.T) {

@@ -97,13 +97,10 @@ func (s *Service) tokenMatchesServerDefinition(
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
 		issuer := strings.TrimSpace(cfg.IssuerURL)
 		if issuer == "" {
-			metadata, err := s.preRegisteredMetadata(ctx, cfg)
-			if err != nil {
-				return false, err
-			}
-			issuer = metadata.Issuer
+			// Login verified this issuer; the fingerprint binds the resource and client.
+			issuer = strings.TrimSpace(token.Issuer)
 		}
-		return issuersEqual(token.Issuer, issuer) &&
+		return issuer != "" && issuersEqual(token.Issuer, issuer) &&
 			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil
 	}
 	if s.registrations == nil {

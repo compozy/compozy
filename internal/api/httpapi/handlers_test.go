@@ -4957,38 +4957,57 @@ func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) err
 
 func TestExtensionEnablementValidationFailure(t *testing.T) {
 	t.Parallel()
-	t.Run("Should return a structured validation error", func(t *testing.T) {
-		t.Parallel()
-		homePaths := newTestHomePaths(t)
-		handlers := newTestHandlersWithSettingsAndExtensions(
-			t,
-			"127.0.0.1",
-			&stubSettingsService{},
-			&stubSettingsRestartController{},
-			stubExtensionService{
-				SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
-					return contract.ExtensionEnablementPayload{}, fmt.Errorf(
-						"%w: invalid MCP declaration",
-						extensionpkg.ErrManifestInvalid,
-					)
-				},
-			},
-			homePaths,
-		)
-		response := performRequest(
-			t,
-			newTestRouter(t, handlers),
-			http.MethodPut,
-			"/api/extensions/demo/enablement",
-			[]byte(`{"profile":"default","enabled":true}`),
-		)
-		var payload contract.ExtensionEnableError
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatal(err)
-		}
-		if response.Code != http.StatusBadRequest || payload.Code != "extension_enable_failed" ||
-			!strings.Contains(payload.Error, "invalid MCP declaration") {
-			t.Fatalf("response = %d %s", response.Code, response.Body)
-		}
-	})
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+		mask   bool
+	}{
+		{"Should preserve manifest validation issues", fmt.Errorf("%w: invalid MCP declaration", extensionpkg.ErrManifestInvalid), http.StatusBadRequest, true},
+		{"Should preserve missing inputs and environment", &extensionpkg.InputsRequiredError{MissingInputs: []string{"HOST"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, true},
+		{"Should mask internal enablement failures", errors.New("private registry path"), http.StatusInternalServerError, true},
+		{"Should respect disabled internal masking", errors.New("private registry path"), http.StatusInternalServerError, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			handlers := newTestHandlersWithSettingsAndExtensions(t, "127.0.0.1",
+				&stubSettingsService{}, &stubSettingsRestartController{}, stubExtensionService{
+					SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
+						return contract.ExtensionEnablementPayload{}, test.err
+					},
+				}, newTestHomePaths(t))
+			handlers.MaskInternalErrors = test.mask
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodPut,
+				"/api/extensions/demo/enablement", []byte(`{"profile":"default","enabled":true}`))
+			var payload struct {
+				contract.ExtensionOperationErrorPayload
+				Issues []contract.ValidationIssue `json:"issues"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != test.status || payload.Error == "" {
+				t.Fatalf("response = %d %s", response.Code, response.Body)
+			}
+			switch test.status {
+			case http.StatusBadRequest:
+				if len(payload.Issues) != 1 || !strings.Contains(payload.Issues[0].Message, "invalid MCP declaration") {
+					t.Fatalf("missing validation issues: %s", response.Body)
+				}
+			case http.StatusUnprocessableEntity:
+				if payload.Code != "extension_inputs_required" || !slices.Equal(payload.Inputs, []string{"HOST"}) ||
+					!slices.Equal(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("missing input details: %s", response.Body)
+				}
+			case http.StatusInternalServerError:
+				want := "private registry path"
+				if test.mask {
+					want = http.StatusText(http.StatusInternalServerError)
+				}
+				if payload.Error != want {
+					t.Fatalf("error = %q, want %q", payload.Error, want)
+				}
+			}
+		})
+	}
 }

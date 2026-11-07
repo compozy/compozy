@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2910,6 +2911,14 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 
 func TestDaemonExtensionInstallEnable(t *testing.T) {
 	t.Parallel()
+	t.Run("Should mask internal enable failures for every consumer", func(t *testing.T) {
+		t.Parallel()
+		failure := installEnableError(errors.New("reload failed at /private/registry"))
+		if failure.Code != "extension_enable_failed" ||
+			failure.Error != http.StatusText(http.StatusInternalServerError) {
+			t.Fatalf("failure = %+v", failure)
+		}
+	})
 	t.Run("Should redact credentials from the underlying enable failure", func(t *testing.T) {
 		t.Parallel()
 		failure := installEnableError(
@@ -2957,7 +2966,7 @@ func TestDaemonExtensionInstallEnable(t *testing.T) {
 				t.Fatalf("install = %#v", item)
 			}
 			if failEnable &&
-				(!strings.Contains(item.InstallEnableError.Error, "enable refused") || item.InstallEnableError.Code != "extension_enable_failed") {
+				(item.InstallEnableError.Error != http.StatusText(http.StatusInternalServerError) || item.InstallEnableError.Code != "extension_enable_failed") {
 				t.Fatalf("enable error = %+v", item.InstallEnableError)
 			}
 			persisted, err := registry.Get(item.Name)

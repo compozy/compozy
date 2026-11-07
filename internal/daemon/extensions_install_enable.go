@@ -52,6 +52,7 @@ func (s *daemonExtensionService) enableInstalledExtension(
 }
 
 func installEnableError(err error) *contract.ExtensionEnableError {
-	payload := core.ExtensionEnableFailure(err)
+	// Install outcomes also reach CLI and native tools without an HTTP masking boundary.
+	payload := core.ExtensionEnableFailure(err, true)
 	return &payload
 }
