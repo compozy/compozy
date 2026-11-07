@@ -173,7 +173,7 @@ func (n *daemonNativeTools) extensionInstall(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 	return structuredResult(
-		contract.ExtensionResponse{Extension: item, EnableError: item.InstallEnableError},
+		contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError},
 		item.Name,
 	)
 }

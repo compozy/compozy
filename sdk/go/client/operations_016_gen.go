@@ -388,7 +388,7 @@ type InstallExtensionParams struct {
 }
 
 // InstallExtension Install a local or marketplace extension
-func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*ExtensionResponse, error) {
+func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*InstallExtensionResponse, error) {
 	path := "/api/extensions"
 	query := url.Values{}
 	if params.Profile != nil {
@@ -397,7 +397,7 @@ func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionPa
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out ExtensionResponse
+	var out InstallExtensionResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

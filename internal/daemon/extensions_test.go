@@ -1768,6 +1768,7 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 	// Invariant: install attachment, inputs, secret ownership and response address the selected cell.
 	// Owner: daemon install coordination; canonical suite: TestDaemonExtensionInputLifecycle.
 	for _, scenario := range []daemonScopedInstallCase{
+		{name: "Should install and enable a workspace instance", workspaceID: "ws-install", enable: true, local: true},
 		{name: "Should retain global all-profile installation by default"},
 		{name: "Should install for an explicit global profile", profile: "marketing"},
 		{name: "Should install for an explicit default profile", profile: "default"},
@@ -2204,6 +2205,7 @@ binding = { type = "url_query", name = "region" }
 }
 
 type daemonScopedInstallCase struct {
+	enable        bool
 	native        bool
 	update        bool
 	reinstall     bool
@@ -2255,6 +2257,20 @@ func testDaemonScopedInstall(t *testing.T, scenario daemonScopedInstallCase) {
 			ID: "ws-install", RootDir: workspaceRoot, WorkspaceID: "ws-install",
 		}}),
 	).(*daemonExtensionService)
+	if scenario.enable {
+		runtime := extensionpkg.NewManager(registry)
+		if err := runtime.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Stop(t.Context()); err != nil {
+				t.Error(err)
+			}
+		})
+		service.runtime = runtime
+		service.resourceCodecs = inventoryTestResourceCodecs(t)
+		service.automation = &fakeAutomationManager{}
+	}
 	sections := `[resources.mcp_servers.server]
 command = "server"
 secret_env = { TOKEN = "token" }
@@ -2310,6 +2326,9 @@ binding = { type = "env", name = "TOKEN" }
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
+		if scenario.enable {
+			manifest = []byte(strings.ReplaceAll(string(manifest), `requires = ["sessions/list"]`, `requires = []`))
+		}
 		if writeErr := os.WriteFile(manifestPath, append(manifest, []byte("\n"+sections)...), 0o600); writeErr != nil {
 			t.Fatal(writeErr)
 		}
@@ -2330,6 +2349,7 @@ binding = { type = "env", name = "TOKEN" }
 		actor.ReadScope = store.ReadScope{ProfileID: profileID}
 		request.Profile, request.WorkspaceID = "", ""
 	}
+	request.Enable = scenario.enable
 	installed, err := service.Install(ctx, request, actor)
 	if scenario.errorField != "" {
 		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](
@@ -2360,6 +2380,18 @@ binding = { type = "env", name = "TOKEN" }
 	if installed.Profile != profileName || installed.WorkspaceID != workspaceID || len(installed.MissingInputs) != 0 {
 		t.Fatalf("installed scope/readiness = %#v", installed)
 	}
+	if scenario.enable && (!installed.Enabled || installed.InstallEnableError != nil) {
+		t.Fatalf("workspace enable = %+v", installed.InstallEnableError)
+	}
+	if scenario.enable {
+		current, err := service.runtime.(*extensionpkg.Manager).GetForInstance(extensionpkg.InstanceKey{
+			Name: installed.Name, WorkspaceID: workspaceID,
+		})
+		if err != nil || !current.Status.Active {
+			t.Fatalf("workspace runtime = %+v, error = %v", current, err)
+		}
+	}
+
 	attachments, err := registry.Installations(ctx, "tool-ext")
 	if err != nil {
 		t.Fatal(err)

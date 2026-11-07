@@ -2015,7 +2015,7 @@ func TestInstallExtensionEnableOutcome(t *testing.T) {
 				"/extensions",
 				[]byte(`{"source":"local_path","ref":"/tmp/added","enable":true}`),
 			)
-			var payload contract.ExtensionResponse
+			var payload contract.InstallExtensionResponse
 			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 				t.Fatal(err)
 			}

@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// LoopBudgetExceeded is a daemon API value.
+type LoopBudgetExceeded string
+
 // LoopCatalogAggregateEntryPayload is a daemon API value.
 type LoopCatalogAggregateEntryPayload struct {
 	WorkspaceID   string                      `json:"workspace_id,omitempty"`

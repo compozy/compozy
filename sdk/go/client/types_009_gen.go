@@ -300,6 +300,12 @@ type InstallExtensionRequest struct {
 	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
 }
 
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
+}
+
 // InstallExtensionSource is a daemon API value.
 type InstallExtensionSource string
 
@@ -442,6 +448,3 @@ type LoopBudget struct {
 	WallClockSec int                `json:"wall_clock_sec"`
 	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
 }
-
-// LoopBudgetExceeded is a daemon API value.
-type LoopBudgetExceeded string

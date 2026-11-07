@@ -19,6 +19,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1929,6 +1930,69 @@ func (m *faultingSourceSessionManager) failNextActivation(err error) {
 
 func TestClientRootMCPInventory(t *testing.T) {
 	t.Parallel()
+	t.Run("Should install and reload the approved identity of a normalized client plugin", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := newLifecycleSourceNamed(t, "tool", "github", "1.0.0")
+		source.archives["1.0.0"] = lifecycleTarGzFiles(t, map[string]string{
+			"tool/.cursor-plugin/plugin.json": `{"name":"Foo Bar","version":"1.0.0"}`,
+			"tool/mcp.json":                   `{"mcpServers":{"remote":{"url":"https://example.com/mcp"}}}`,
+		})
+		info, err := InstallMarketplaceManaged(
+			t.Context(),
+			paths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug:                   "acme/tool",
+				SourceFilter:           "github",
+				PolicyAllowsUnverified: true,
+				AllowUnverified:        true,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Name != "tool" {
+			t.Fatalf("identity = %q", info.Name)
+		}
+		manager := NewManager(env.registry)
+		t.Cleanup(func() {
+			if err := manager.Stop(t.Context()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Reload(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Stop(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager = NewManager(env.registry)
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+
+		loaded, err := manager.InspectPackageResources(t.Context(), "tool")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loaded.Manifest.Name != "tool" || len(loaded.Manifest.Resources.MCPServers) != 1 {
+			t.Fatalf("reloaded package = %+v", loaded)
+		}
+		current, err := manager.Get("tool")
+		if err != nil || !current.Status.Active {
+			t.Fatalf("runtime = %+v, error = %v", current, err)
+		}
+	})
+
 	for _, layout := range []string{"cursor", "manifestless", "servicenow", "secret-env"} {
 		t.Run("Should install "+layout+" root MCP and publish its inventory and server", func(t *testing.T) {
 			t.Parallel()

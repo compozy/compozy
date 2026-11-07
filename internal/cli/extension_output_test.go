@@ -746,7 +746,7 @@ func TestExtensionInstallEnableFailureOutput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var payload contract.ExtensionResponse
+		var payload contract.InstallExtensionResponse
 		if err := json.Unmarshal(data, &payload); err != nil {
 			t.Fatal(err)
 		}

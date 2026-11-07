@@ -9000,19 +9000,6 @@
       },
       "ExtensionResponse": {
         "properties": {
-          "enable_error": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ExtensionEnableError"
-              },
-              {
-                "enum": [
-                  null
-                ],
-                "nullable": true
-              }
-            ]
-          },
           "extension": {
             "$ref": "#/components/schemas/ExtensionPayload"
           }
@@ -13967,6 +13954,30 @@
         "required": [
           "ref",
           "source"
+        ],
+        "type": "object"
+      },
+      "InstallExtensionResponse": {
+        "properties": {
+          "enable_error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExtensionEnableError"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "extension": {
+            "$ref": "#/components/schemas/ExtensionPayload"
+          }
+        },
+        "required": [
+          "extension"
         ],
         "type": "object"
       },
@@ -61300,7 +61311,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExtensionResponse"
+                  "$ref": "#/components/schemas/InstallExtensionResponse"
                 }
               }
             },

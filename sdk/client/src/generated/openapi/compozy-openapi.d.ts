@@ -10336,7 +10336,6 @@ export interface components {
       extension: components["schemas"]["ManagedExtensionRemovePayload"];
     };
     ExtensionResponse: {
-      enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
     ExtensionSecretBindingInput: {
@@ -11939,6 +11938,10 @@ export interface components {
       version?: string;
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
+    };
+    InstallExtensionResponse: {
+      enable_error?: components["schemas"]["ExtensionEnableError"] | null;
+      extension: components["schemas"]["ExtensionPayload"];
     };
     /** @enum {string} */
     IssueSeverity: "error" | "warning" | "warn" | "info";
@@ -30658,7 +30661,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionResponse"];
+          "application/json": components["schemas"]["InstallExtensionResponse"];
         };
       };
       /** @description Invalid install request */

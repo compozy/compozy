@@ -205,6 +205,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/logs/stream",
 		"GET /api/mcp/oauth/callback",
 		"GET /api/marketplace",
+		"GET /api/marketplace/sections",
 		"GET /api/marketplace/entries/:entry_id",
 		"GET /api/marketplace/sources",
 		"POST /api/marketplace/sources",

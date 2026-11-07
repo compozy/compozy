@@ -2412,7 +2412,6 @@ export type ExtensionRemoveResponse = {
 };
 
 export type ExtensionResponse = {
-  enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
 
@@ -4006,6 +4005,11 @@ export type InstallExtensionRequest = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type InstallExtensionResponse = {
+  enable_error?: ExtensionEnableError | null;
+  extension: ExtensionPayload;
 };
 
 export type JobPayload = {
@@ -19781,10 +19785,10 @@ export type InstallExtensionResponses = {
   /**
    * Created
    */
-  201: ExtensionResponse;
+  201: InstallExtensionResponse;
 };
 
-export type InstallExtensionResponse = InstallExtensionResponses[keyof InstallExtensionResponses];
+export type InstallExtensionResponse2 = InstallExtensionResponses[keyof InstallExtensionResponses];
 
 export type ListExtensionCommandsData = {
   body?: never;

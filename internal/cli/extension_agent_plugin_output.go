@@ -105,7 +105,7 @@ func extensionDiagnosticReason(item contract.DiagnosticItem, scope string) strin
 func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
 	bundle := extensionBundle(item)
 	if item.InstallEnableError != nil {
-		response := contract.ExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
+		response := contract.InstallExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
 		bundle.jsonValue = response
 		bundle.jsonl = func(cmd *cobra.Command) error { return writeJSONLine(cmd, response) }
 	}
@@ -235,7 +235,7 @@ func extensionInstallResultBundle(
 	if !enable {
 		return bundle
 	}
-	response := contract.ExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
+	response := contract.InstallExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
 	bundle.jsonValue = response
 	bundle.jsonl = func(cmd *cobra.Command) error { return writeJSONLine(cmd, response) }
 	if item.InstallEnableError == nil {

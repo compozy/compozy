@@ -2720,7 +2720,7 @@ func TestExtensionAuthoringComponentSchemas(t *testing.T) {
 		if severity == nil || severity.Value == nil {
 			t.Fatal("IssueSeverity component is missing")
 		}
-		if got, want := severity.Value.Enum, []any{"error", "warning", "warn"}; !reflect.DeepEqual(got, want) {
+		if got, want := severity.Value.Enum, []any{"error", "warning", "warn", "info"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("IssueSeverity enum = %v, want %v", got, want)
 		}
 		payload := document.Components.Schemas["ExtensionValidatePayload"]
@@ -3304,8 +3304,68 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
-		assertAlwaysOnHardeningFields(t, current)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		addMarketplacePluginCatalogSchemas(baseline)
+		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
+			"type": "array",
+			"items": map[string]any{
+				"type": "object", "required": []any{"binding", "id", "prompt", "required", "type"},
+				"properties": map[string]any{
+					"binding": map[string]any{
+						"type":     "object",
+						"required": []any{"name", "type"},
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string"},
+							"type": map[string]any{"type": "string"},
+						},
+					},
+					"default": map[string]any{}, "id": map[string]any{"type": "string"},
+					"prompt": map[string]any{"type": "string"}, "required": map[string]any{"type": "boolean"},
+					"type": map[string]any{"type": "string"},
+				},
+			},
+		}
+		// Only the installation response gains the optional enable outcome.
+		installProperties := baseline
+		for _, key := range []string{
+			"paths", "/api/extensions", "post", "responses", "201", "content", "application/json", "schema", "properties",
+		} {
+			installProperties = installProperties[key].(map[string]any)
+		}
+		installProperties["enable_error"] = map[string]any{
+			"type":     "object",
+			"nullable": true,
+			"properties": map[string]any{
+				"error": map[string]any{"type": "string"},
+				"code":  map[string]any{"type": "string"},
+			},
+			"required": []any{"code", "error"},
+		}
+
+		oldBrowse := baseline["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		newBrowse := current["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		for index, parameter := range newBrowse["parameters"].([]any) {
+			if parameter.(map[string]any)["name"] == "category" {
+				oldBrowse["parameters"] = slices.Insert(oldBrowse["parameters"].([]any), index, parameter)
+			}
+		}
+
+		browseSchema := oldBrowse
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema"} {
+			browseSchema = browseSchema[key].(map[string]any)
+		}
+		browseSchema["properties"].(map[string]any)["categories"] = map[string]any{
+			"type": "array", "items": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"count": map[string]any{"type": "integer"},
+					"id":    map[string]any{"type": "string"},
+					"label": map[string]any{"type": "string"},
+				}, "required": []any{"count", "id", "label"},
+			},
+		}
+		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
+
+		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
 			compareSchemaContract(
@@ -3319,6 +3379,42 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+// Marketplace catalog metadata and discovery notices are approved additive contracts.
+func addMarketplacePluginCatalogSchemas(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+		if reflect.DeepEqual(node["enum"], []any{"error", "warning", "warn"}) {
+			node["enum"] = []any{"error", "warning", "warn", "info"}
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["allow_unverified"] != nil && properties["ref"] != nil && properties["source"] != nil {
+			properties["enable"] = map[string]any{"type": "boolean", "default": false,
+				"description": "Enable after installation under the same operation lock. " +
+					"Activation failure returns 201 with enable_error and retains the installed package and inputs."}
+		}
+		if ok && properties["severity"] != nil && properties["message"] != nil && properties["path"] != nil {
+			properties["code"] = map[string]any{"type": "string"}
+		}
+		if !ok || properties["install_slug"] == nil || properties["entry_id"] == nil {
+			return
+		}
+		properties["category"] = map[string]any{"type": "string"}
+		properties["category_label"] = map[string]any{"type": "string"}
+		properties["featured"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(required, "category", "category_label", "featured")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
 }
 
 func addBoundarySteerDelivery(value any) int {

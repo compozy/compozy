@@ -1766,6 +1766,7 @@ export type {
   InstallExtensionRequest,
   InstallExtensionRequestWritable,
   InstallExtensionResponse,
+  InstallExtensionResponse2,
   InstallExtensionResponses,
   InvokeCmdPaletteCommandData,
   InvokeCmdPaletteCommandError,

@@ -86,10 +86,10 @@ func restartBackoff(failures int, maximum time.Duration) time.Duration {
 	return delay
 }
 
-func loadManifestAtPath(path string) (*Manifest, error) {
+func loadManifestAtPath(path string, pluginName ...string) (*Manifest, error) {
 	normalizedPath := strings.TrimSpace(path)
 	if filepath.Base(normalizedPath) == agentPluginManifestFileName {
-		return LoadManifest(PackageRootFromManifest(normalizedPath))
+		return loadManifest(PackageRootFromManifest(normalizedPath), "", pluginName...)
 	}
 	switch strings.ToLower(filepath.Ext(normalizedPath)) {
 	case manifestFileExtTOML:

@@ -174,7 +174,16 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (mcpauth.ServerConfig, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, s.secretResolver)
+	rendered, _, err := server.RenderInputs(func(ref string) (string, error) {
+		if s.secretResolver == nil {
+			return "", errors.New("daemon: secret resolver is unavailable")
+		}
+		return s.secretResolver(ctx, ref)
+	})
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth inputs: %w", err)
+	}
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
 	}

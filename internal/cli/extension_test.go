@@ -1315,7 +1315,7 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 				t.Fatalf("failure output = %s", stdout)
 			}
 			if scenario.jsonOutput {
-				var response contract.ExtensionResponse
+				var response contract.InstallExtensionResponse
 				if err := json.Unmarshal([]byte(stdout), &response); err != nil {
 					t.Fatal(err)
 				}

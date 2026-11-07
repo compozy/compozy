@@ -62,8 +62,7 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 			return nil, err
 		}
 		fields[lifecycleEventDigestMatchedKey] = e.DigestMatched
-		fields["enabled"] = e.Enabled
-		fields["enable_error_class"] = e.EnableErrorClass
+		e.appendInstallEnableFields(fields)
 	case eventspkg.ExtensionUpdateCompleted, eventspkg.ExtensionUpdateFailed:
 		if err := requireLifecycleStringField(
 			fields, lifecycleEventSourceKindKey, e.SourceKind,
@@ -183,4 +182,11 @@ func recordExtensionLifecycleEvent(
 		return err
 	}
 	return sink.RecordExtensionLifecycleEvent(ctx, event)
+}
+
+func (e LifecycleEvent) appendInstallEnableFields(fields map[string]any) {
+	fields["enabled"] = e.Enabled
+	if e.EnableErrorClass != "" {
+		fields["enable_error_class"] = e.EnableErrorClass
+	}
 }

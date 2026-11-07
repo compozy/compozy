@@ -31,6 +31,11 @@ func LoadManifestWithAgentPluginDataDir(dir string, dataDir string) (*Manifest, 
 	return loadManifest(dir, strings.TrimSpace(dataDir))
 }
 
+// LoadInstalledManifest retains the approved identity when reloading client plugin bytes.
+func LoadInstalledManifest(info *ExtensionInfo) (*Manifest, error) {
+	return loadManifestAtPath(info.ManifestPath, info.Name)
+}
+
 func loadManifest(dir string, dataDir string, pluginName ...string) (*Manifest, error) {
 	manifestDir := strings.TrimSpace(dir)
 	if manifestDir == "" {

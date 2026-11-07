@@ -425,8 +425,7 @@ type ExtensionRemoveResponse struct {
 
 // ExtensionResponse is a daemon API value.
 type ExtensionResponse struct {
-	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
-	Extension   ExtensionPayload      `json:"extension"`
+	Extension ExtensionPayload `json:"extension"`
 }
 
 // ExtensionSecretBindingInput is a daemon API value.

@@ -20,9 +20,9 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	case item.Enabled:
 		result.Extension = *item
 	case prepared.target.profile.ID == extensionDefaultProfileLens().ID:
-		result, err = s.enableUnlocked(ctx, prepared.name, contract.EnableExtensionRequest{
+		result, err = s.enableTargetUnlocked(ctx, prepared.name, contract.EnableExtensionRequest{
 			ConfirmGatewayDigest: req.ConfirmGatewayDigest,
-		}, actor)
+		}, actor, prepared.target)
 	default:
 		err = s.applyProfileEnablement(
 			ctx, prepared.name, prepared.target.profile.ID, prepared.target.profile.Name, true, actor,

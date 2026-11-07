@@ -317,6 +317,11 @@ type ExtensionEnableError struct {
 
 // ExtensionResponse wraps one extension payload.
 type ExtensionResponse struct {
+	Extension ExtensionPayload `json:"extension"`
+}
+
+// InstallExtensionResponse includes the outcome of the optional enable step.
+type InstallExtensionResponse struct {
 	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
 	Extension   ExtensionPayload      `json:"extension"`
 }
