@@ -1191,6 +1191,32 @@ export type CatalogMeta = {
   use_when?: string;
 };
 
+export type ChangeBasePayload = {
+  merge_base_sha: string;
+  ref: string;
+  source: string;
+};
+
+export type ChangeBaseRefPayload = {
+  is_default?: boolean;
+  kind: string;
+  ref: string;
+  source?: string;
+};
+
+export type ChangeHeadPayload = {
+  branch: string;
+  sha: string;
+};
+
+export type ChangePatchPayload = {
+  fingerprint: string;
+  patch?: string;
+  path: string;
+  sensitive?: boolean;
+  too_large?: boolean;
+};
+
 export type ChangeSet = {
   client_ids?: Array<string>;
   desktop_ids?: Array<string>;
@@ -1199,6 +1225,18 @@ export type ChangeSet = {
   stack_grouped?: Array<string>;
   stack_ungrouped?: Array<string>;
   window_ids?: Array<string>;
+};
+
+export type ChangeSidePayload = {
+  sensitive?: boolean;
+  text?: string | null;
+};
+
+export type ChangeTotalsPayload = {
+  additions: number;
+  deletions: number;
+  files: number;
+  partial?: boolean;
 };
 
 export type Chip = {
@@ -2455,6 +2493,18 @@ export type FanoutRollup = {
   generation: number;
   node_id: string;
   total: number;
+};
+
+export type FileChangePayload = {
+  additions: number;
+  binary?: boolean;
+  deletions: number;
+  fingerprint: string;
+  generated?: boolean;
+  old_path?: string;
+  path: string;
+  sensitive?: boolean;
+  status: string;
 };
 
 export type FileContentResponse = {
@@ -7037,6 +7087,39 @@ export type SessionCatalogPagePayload = {
 export type SessionCatalogResponse = {
   page: SessionCatalogPagePayload;
   sessions: Array<SessionPayload>;
+};
+
+export type SessionChangeBasesResponse = {
+  default: ChangeBaseRefPayload | null;
+  refs: Array<ChangeBaseRefPayload>;
+  resolvable: boolean;
+  truncated: boolean;
+};
+
+export type SessionChangeContentsResponse = {
+  fingerprint: string;
+  new?: ChangeSidePayload | null;
+  old?: ChangeSidePayload | null;
+  old_path?: string;
+  path: string;
+  revision: string;
+};
+
+export type SessionChangePatchesResponse = {
+  patches: Array<ChangePatchPayload>;
+  revision: string;
+};
+
+export type SessionChangesResponse = {
+  base: ChangeBasePayload;
+  files: Array<FileChangePayload>;
+  head: ChangeHeadPayload;
+  pull_request?: SessionPullRequestPayload | null;
+  revision: string;
+  root: FileRootPayload;
+  scope: string;
+  totals: ChangeTotalsPayload;
+  truncated: boolean;
 };
 
 export type SessionChildrenPayload = {
@@ -37319,6 +37402,345 @@ export type ReadSessionAttachmentBytesResponses = {
 
 export type ReadSessionAttachmentBytesResponse =
   ReadSessionAttachmentBytesResponses[keyof ReadSessionAttachmentBytesResponses];
+
+export type GetSessionChangesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes";
+};
+
+export type GetSessionChangesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangesError = GetSessionChangesErrors[keyof GetSessionChangesErrors];
+
+export type GetSessionChangesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangesResponse;
+};
+
+export type GetSessionChangesResponse =
+  GetSessionChangesResponses[keyof GetSessionChangesResponses];
+
+export type ListSessionChangeBasesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Substring ref filter
+     */
+    q?: string;
+    /**
+     * Default 200, maximum 500
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases";
+};
+
+export type ListSessionChangeBasesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionChangeBasesError =
+  ListSessionChangeBasesErrors[keyof ListSessionChangeBasesErrors];
+
+export type ListSessionChangeBasesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeBasesResponse;
+};
+
+export type ListSessionChangeBasesResponse =
+  ListSessionChangeBasesResponses[keyof ListSessionChangeBasesResponses];
+
+export type GetSessionChangeContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: string;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents";
+};
+
+export type GetSessionChangeContentsErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangeContentsError =
+  GetSessionChangeContentsErrors[keyof GetSessionChangeContentsErrors];
+
+export type GetSessionChangeContentsResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeContentsResponse;
+};
+
+export type GetSessionChangeContentsResponse =
+  GetSessionChangeContentsResponses[keyof GetSessionChangeContentsResponses];
+
+export type GetSessionChangePatchesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: Array<string>;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: Array<string>;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches";
+};
+
+export type GetSessionChangePatchesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangePatchesError =
+  GetSessionChangePatchesErrors[keyof GetSessionChangePatchesErrors];
+
+export type GetSessionChangePatchesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangePatchesResponse;
+};
+
+export type GetSessionChangePatchesResponse =
+  GetSessionChangePatchesResponses[keyof GetSessionChangePatchesResponses];
 
 export type ListSessionClarificationsData = {
   body?: never;

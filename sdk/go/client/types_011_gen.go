@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+// LoopLintSeverity is a daemon API value.
+type LoopLintSeverity string
+
+// LoopMetricDirection is a daemon API value.
+type LoopMetricDirection string
+
+// LoopMetricSpec is a daemon API value.
+type LoopMetricSpec struct {
+	Direction LoopMetricDirection `json:"direction"`
+	MinDelta  *float64            `json:"min_delta,omitzero"`
+}
+
+// LoopMutationResponse is a daemon API value.
+type LoopMutationResponse struct {
+	OK         bool                          `json:"ok"`
+	RunID      string                        `json:"run_id"`
+	NodeID     string                        `json:"node_id,omitempty"`
+	ItemIndex  *int                          `json:"item_index,omitzero"`
+	Status     string                        `json:"status,omitempty"`
+	Provenance *LoopControlProvenancePayload `json:"provenance,omitzero"`
+	Control    *LoopNodeControlPayload       `json:"control,omitzero"`
+}
+
+// LoopNoProgress is a daemon API value.
+type LoopNoProgress struct {
+	Window int `json:"window"`
+}
+
+// LoopNodeAmendRequest is a daemon API value.
+type LoopNodeAmendRequest struct {
+	Generation int             `json:"generation,omitzero"`
+	ItemIndex  int             `json:"item_index,omitzero"`
+	Payload    json.RawMessage `json:"payload"`
+	Reason     string          `json:"reason,omitempty"`
+}
+
+// LoopNodeAmendResponse is a daemon API value.
+type LoopNodeAmendResponse struct {
+	OK        bool                     `json:"ok"`
+	Amendment LoopNodeAmendmentPayload `json:"amendment"`
+}
+
 // LoopNodeAmendmentPayload is a daemon API value.
 type LoopNodeAmendmentPayload struct {
 	LoopRunID       string                     `json:"loop_run_id"`
@@ -400,43 +442,4 @@ type LoopTarget struct {
 	LoopName     string            `json:"loop_name"`
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-// LoopValidationResponse is a daemon API value.
-type LoopValidationResponse struct {
-	Valid             bool                               `json:"valid"`
-	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
-	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
-	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitzero"`
-}
-
-// LoopWatchEventKind is a daemon API value.
-type LoopWatchEventKind string
-
-// LoopWatchEventSubscription is a daemon API value.
-type LoopWatchEventSubscription struct {
-	Kind   LoopWatchEventKind `json:"kind"`
-	Filter string             `json:"filter,omitempty"`
-}
-
-// LoopWatchEventsState is a daemon API value.
-type LoopWatchEventsState struct {
-	Subscriptions []LoopWatchEventSubscription `json:"subscriptions"`
-	Cursors       map[string]int64             `json:"cursors,omitempty"`
-	LastWakeAt    *time.Time                   `json:"last_wake_at,omitempty"`
-}
-
-// LoopsResponse is a daemon API value.
-type LoopsResponse struct {
-	Loops  []LoopCatalogEntryPayload `json:"loops"`
-	Facets LoopCatalogFacetsPayload  `json:"facets"`
-	Page   CountedCursorPagePayload  `json:"page"`
-}
-
-// MCPAuthSummary is a daemon API value.
-type MCPAuthSummary struct {
-	Method       string   `json:"method"`
-	Registration string   `json:"registration,omitempty"`
-	IssuerURL    string   `json:"issuer_url,omitempty"`
-	Scopes       []string `json:"scopes,omitempty"`
 }

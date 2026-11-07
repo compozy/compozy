@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -249,6 +250,135 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	t.Run("Should expose Changes summary patches contents and bases identically over HTTP and UDS", func(t *testing.T) {
+		base := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + bound.ID + "/changes"
+		var a, b compozycontract.SessionChangesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"?scope=uncommitted", nil, &a); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, base+"?scope=uncommitted", nil, &b); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "changes summary", a, b)
+		if a.Root.WorktreeID != created.ID || a.Revision == "" || len(a.Files) == 0 {
+			t.Fatalf("summary: %+v", a)
+		}
+		query := "?scope=uncommitted&revision=" + url.QueryEscape(a.Revision) + "&path=worktree_only.go"
+		var pa, pb compozycontract.SessionChangePatchesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/patches"+query, nil, &pa); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, base+"/patches"+query, nil, &pb); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "changes patches", pa, pb)
+		if len(pa.Patches) != 1 || !strings.Contains(pa.Patches[0].Patch, "package wt") {
+			t.Fatalf("patches: %+v", pa)
+		}
+		var ca, cb compozycontract.SessionChangeContentsResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/contents"+query, nil, &ca); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, base+"/contents"+query, nil, &cb); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "changes contents", ca, cb)
+		if ca.Old != nil || ca.New == nil || ca.New.Text == nil || *ca.New.Text != "package wt\n" {
+			t.Fatalf("contents: %+v", ca)
+		}
+		var ba, bb compozycontract.SessionChangeBasesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/bases?q=main", nil, &ba); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, base+"/bases?q=main", nil, &bb); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreeE2EJSONParity(t, "changes bases", ba, bb)
+		if !ba.Resolvable || ba.Default == nil {
+			t.Fatalf("bases: %+v", ba)
+		}
+		if err := os.WriteFile(
+			filepath.Join(ready.Worktree.Path, "worktree_only.go"),
+			[]byte("package updated\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		var updated compozycontract.SessionChangePatchesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/patches"+query, nil, &updated); err != nil {
+			t.Fatal(err)
+		}
+		if updated.Patches[0].Fingerprint == pa.Patches[0].Fingerprint {
+			t.Fatal("edit did not invalidate file fingerprint")
+		}
+		var issued compozycontract.AppTokenIssuedResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			"/api/app-tokens",
+			compozycontract.CreateAppTokenRequest{Name: "Changes reader"},
+			&issued,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, suffix := range []string{"/patches", "/contents"} {
+			for _, reveal := range []bool{false, true} {
+				req, err := http.NewRequestWithContext(
+					ctx,
+					http.MethodGet,
+					harness.HTTPURL(
+						base+suffix+"?scope=uncommitted&revision="+url.QueryEscape(
+							a.Revision,
+						)+"&path=.env&reveal="+strconv.FormatBool(
+							reveal,
+						),
+					),
+					http.NoBody,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.Header.Set("Authorization", "Bearer "+issued.Token)
+				res, err := harness.HTTPClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, err := io.ReadAll(res.Body)
+				closeErr := res.Body.Close()
+				if err != nil || closeErr != nil {
+					t.Fatalf("body: %v close: %v", err, closeErr)
+				}
+				want := 200
+				if reveal {
+					want = 403
+				}
+				if res.StatusCode != want || bytes.Contains(body, []byte("secret")) ||
+					bytes.Contains(body, []byte(ready.Worktree.Path)) {
+					t.Fatalf("%d %s", res.StatusCode, body)
+				}
+			}
+		}
+		runWorktreeE2EGit(t, ctx, ready.Worktree.Path, "add", "worktree_only.go")
+		runWorktreeE2EGit(t, ctx, ready.Worktree.Path, "commit", "-m", "move changes revision")
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(base+"/patches"+query), http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := harness.HTTPClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		closeErr := res.Body.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read: %v close: %v", err, closeErr)
+		}
+		if res.StatusCode != 409 || !bytes.Contains(body, []byte("changes_stale")) {
+			t.Fatalf("stale %d %s", res.StatusCode, body)
+		}
+
 	})
 	t.Run("Should report a removed worktree as root unavailable", func(t *testing.T) {
 		if err := os.RemoveAll(ready.Worktree.Path); err != nil {

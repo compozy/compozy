@@ -7,6 +7,71 @@ import (
 	"time"
 )
 
+// ToolErrorPayload is a daemon API value.
+type ToolErrorPayload struct {
+	Code          ErrorCode                  `json:"code"`
+	Message       string                     `json:"message"`
+	ToolID        ToolID                     `json:"tool_id,omitempty"`
+	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
+	Layer         string                     `json:"layer,omitempty"`
+	Details       map[string]json.RawMessage `json:"details,omitempty"`
+	PartialResult *ToolResult                `json:"partial_result,omitzero"`
+}
+
+// ToolErrorResponse is a daemon API value.
+type ToolErrorResponse struct {
+	Error ToolErrorPayload `json:"error"`
+}
+
+// ToolID is a daemon API value.
+type ToolID string
+
+// ToolInvokeRequest is a daemon API value.
+type ToolInvokeRequest struct {
+	SessionID            string          `json:"session_id,omitempty"`
+	WorkspaceID          string          `json:"workspace_id,omitempty"`
+	AgentName            string          `json:"agent_name,omitempty"`
+	ToolCallID           string          `json:"tool_call_id,omitempty"`
+	TurnID               string          `json:"turn_id,omitempty"`
+	CorrelationID        string          `json:"correlation_id,omitempty"`
+	Input                json.RawMessage `json:"input"`
+	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
+	ApprovalToken        string          `json:"approval_token,omitempty"`
+}
+
+// ToolInvokeResponse is a daemon API value.
+type ToolInvokeResponse struct {
+	ToolID     ToolID                 `json:"tool_id"`
+	Status     string                 `json:"status"`
+	Result     ToolResult             `json:"result"`
+	Truncated  bool                   `json:"truncated"`
+	DurationMS int64                  `json:"duration_ms"`
+	Events     []ToolCallEventPayload `json:"events"`
+}
+
+// ToolPayload is a daemon API value.
+type ToolPayload struct {
+	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
+	Availability ToolAvailabilityPayload   `json:"availability"`
+	Decision     ToolPolicyDecisionPayload `json:"decision"`
+}
+
+// ToolPolicyDecisionPayload is a daemon API value.
+type ToolPolicyDecisionPayload struct {
+	VisibleToOperator    bool         `json:"visible_to_operator"`
+	VisibleToSession     bool         `json:"visible_to_session"`
+	Callable             bool         `json:"callable"`
+	ApprovalRequired     bool         `json:"approval_required"`
+	SystemPermissionMode string       `json:"system_permission_mode,omitempty"`
+	SessionPolicyResult  string       `json:"session_policy_result,omitempty"`
+	AgentPolicyResult    string       `json:"agent_policy_result,omitempty"`
+	RegistryPolicyResult string       `json:"registry_policy_result,omitempty"`
+	SourcePolicyResult   string       `json:"source_policy_result,omitempty"`
+	AvailabilityResult   string       `json:"availability_result,omitempty"`
+	HookResult           string       `json:"hook_result,omitempty"`
+	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
+}
+
 // ToolResponse is a daemon API value.
 type ToolResponse struct {
 	Tool ToolPayload `json:"tool"`
@@ -378,62 +443,4 @@ type UsageSignal struct {
 	CommandID  CommandID `json:"command_id"`
 	Weight     float64   `json:"weight"`
 	LastUsedAt int64     `json:"last_used_at"`
-}
-
-// ValidateLoopRequest is a daemon API value.
-type ValidateLoopRequest struct {
-	Definition LoopDefinitionDocument `json:"definition"`
-}
-
-// Value is a daemon API value.
-type Value struct {
-	Value    json.RawMessage `json:"value,omitempty"`
-	VaultRef *string         `json:"vault_ref,omitzero"`
-}
-
-// VaultSecretPayload is a daemon API value.
-type VaultSecretPayload struct {
-	Ref       string    `json:"ref"`
-	Namespace string    `json:"namespace"`
-	Kind      string    `json:"kind,omitempty"`
-	Present   bool      `json:"present"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// VaultSecretResponse is a daemon API value.
-type VaultSecretResponse struct {
-	Secret VaultSecretPayload `json:"secret"`
-}
-
-// VaultSecretsResponse is a daemon API value.
-type VaultSecretsResponse struct {
-	Secrets []VaultSecretPayload `json:"secrets"`
-}
-
-// VerdictPolicy is a daemon API value.
-type VerdictPolicy string
-
-// ViewBadge is a daemon API value.
-type ViewBadge struct {
-	Label string `json:"label"`
-	Tone  string `json:"tone"`
-}
-
-// ViewChrome is a daemon API value.
-type ViewChrome struct {
-	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  *string     `json:"search_text,omitempty"`
-	EventCount  int64       `json:"event_count,omitempty"`
-	Placeholder string      `json:"search_placeholder,omitempty"`
-	ThrottleMs  int         `json:"throttle_ms,omitempty"`
-	Filtering   *bool       `json:"filtering,omitempty"`
-	Complete    bool        `json:"complete,omitempty"`
-	ActiveChip  string      `json:"active_chip,omitempty"`
-	Columns     int         `json:"columns,omitempty"`
-	Pagination  *Pagination `json:"pagination,omitempty"`
-	OnSearch    string      `json:"on_search,omitempty"`
-	OnChip      string      `json:"on_chip,omitempty"`
-	OnSelection string      `json:"on_selection,omitempty"`
-	OnLoadMore  string      `json:"on_load_more,omitempty"`
 }

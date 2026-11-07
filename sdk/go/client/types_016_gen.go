@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// ReviewProfile is a daemon API value.
+type ReviewProfile struct {
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 Speed                `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
+}
+
+// ReviewSpec is a daemon API value.
+type ReviewSpec struct {
+	Decisions  []ReviewDecision `json:"decisions,omitempty"`
+	When       string           `json:"when,omitempty"`
+	Prompt     string           `json:"prompt,omitempty"`
+	Responders *ResponderSpec   `json:"responders,omitzero"`
+	OnReject   *RejectPolicy    `json:"on_reject,omitzero"`
+	Expires    *WaitExpiry      `json:"expires,omitzero"`
+}
+
+// RiskClass is a daemon API value.
+type RiskClass string
+
+// RoleDiagnostic is a daemon API value.
+type RoleDiagnostic struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Agent   string `json:"agent,omitempty"`
+}
+
+// RoleFallbackStatus is a daemon API value.
+type RoleFallbackStatus struct {
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider           string                              `json:"provider"`
+	Model              string                              `json:"model"`
+	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command            string                              `json:"command,omitempty"`
+	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
+}
+
 // RoleResolutionMode is a daemon API value.
 type RoleResolutionMode string
 
@@ -397,45 +443,3 @@ type SchedulerBacklogRunPayload struct {
 
 // SchedulerCatchUpPolicy is a daemon API value.
 type SchedulerCatchUpPolicy string
-
-// SchedulerCountersPayload is a daemon API value.
-type SchedulerCountersPayload struct {
-	Cycles              int        `json:"cycles"`
-	WakeAttempts        int        `json:"wake_attempts"`
-	WakeSkipped         int        `json:"wake_skipped"`
-	WakeSucceeded       int        `json:"wake_succeeded"`
-	WakeFailed          int        `json:"wake_failed"`
-	CapacityWaitingRuns int        `json:"capacity_waiting_runs"`
-	SpawnRequested      int        `json:"spawn_requested"`
-	NeedsAttention      int        `json:"needs_attention"`
-	LastCycleAt         *time.Time `json:"last_cycle_at,omitempty"`
-}
-
-// SchedulerDrainRequest is a daemon API value.
-type SchedulerDrainRequest struct {
-	Reason         string `json:"reason,omitempty"`
-	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
-}
-
-// SchedulerDrainResponse is a daemon API value.
-type SchedulerDrainResponse struct {
-	Scheduler       SchedulerStatusPayload `json:"scheduler"`
-	Completed       bool                   `json:"completed"`
-	TimedOut        bool                   `json:"timed_out,omitzero"`
-	RemainingClaims int                    `json:"remaining_claims"`
-	StartedAt       time.Time              `json:"started_at"`
-	CompletedAt     time.Time              `json:"completed_at"`
-}
-
-// SchedulerPauseRequest is a daemon API value.
-type SchedulerPauseRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerResumeRequest is a daemon API value.
-type SchedulerResumeRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerSkipReason is a daemon API value.
-type SchedulerSkipReason string

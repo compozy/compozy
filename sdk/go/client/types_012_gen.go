@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// LoopValidationResponse is a daemon API value.
+type LoopValidationResponse struct {
+	Valid             bool                               `json:"valid"`
+	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
+	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
+	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitzero"`
+}
+
+// LoopWatchEventKind is a daemon API value.
+type LoopWatchEventKind string
+
+// LoopWatchEventSubscription is a daemon API value.
+type LoopWatchEventSubscription struct {
+	Kind   LoopWatchEventKind `json:"kind"`
+	Filter string             `json:"filter,omitempty"`
+}
+
+// LoopWatchEventsState is a daemon API value.
+type LoopWatchEventsState struct {
+	Subscriptions []LoopWatchEventSubscription `json:"subscriptions"`
+	Cursors       map[string]int64             `json:"cursors,omitempty"`
+	LastWakeAt    *time.Time                   `json:"last_wake_at,omitempty"`
+}
+
+// LoopsResponse is a daemon API value.
+type LoopsResponse struct {
+	Loops  []LoopCatalogEntryPayload `json:"loops"`
+	Facets LoopCatalogFacetsPayload  `json:"facets"`
+	Page   CountedCursorPagePayload  `json:"page"`
+}
+
+// MCPAuthSummary is a daemon API value.
+type MCPAuthSummary struct {
+	Method       string   `json:"method"`
+	Registration string   `json:"registration,omitempty"`
+	IssuerURL    string   `json:"issuer_url,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+}
+
 // MCPServerStatusPayload is a daemon API value.
 type MCPServerStatusPayload struct {
 	Name          string `json:"name"`
@@ -404,46 +443,4 @@ type NormalizedRect struct {
 	Y      float64 `json:"y"`
 	Width  float64 `json:"width"`
 	Height float64 `json:"height"`
-}
-
-// ObserveFailureHealthPayload is a daemon API value.
-type ObserveFailureHealthPayload struct {
-	Status string                        `json:"status"`
-	Total  int                           `json:"total"`
-	ByKind map[FailureKind]int           `json:"by_kind,omitempty"`
-	Recent []SessionFailureHealthPayload `json:"recent,omitempty"`
-}
-
-// ObserveHealthPayload is a daemon API value.
-type ObserveHealthPayload struct {
-	Status             string                          `json:"status"`
-	UptimeSeconds      int64                           `json:"uptime_seconds"`
-	ActiveSessions     int                             `json:"active_sessions"`
-	ActiveAgents       int                             `json:"active_agents"`
-	GlobalDBSizeBytes  int64                           `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
-	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
-	Retention          ObserveRetentionHealthPayload   `json:"retention"`
-	Failures           ObserveFailureHealthPayload     `json:"failures"`
-	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
-	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
-	Version            string                          `json:"version"`
-}
-
-// ObserveOverviewPayload is a daemon API value.
-type ObserveOverviewPayload struct {
-	SchemaVersion string                        `json:"schema_version"`
-	GeneratedAt   time.Time                     `json:"generated_at"`
-	Attention     OverviewAttentionPayload      `json:"attention"`
-	Today         OverviewTodayPayload          `json:"today"`
-	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
-	Usage         OverviewUsagePayload          `json:"usage"`
-	Pulse         OverviewPulsePayload          `json:"pulse"`
-	System        OverviewSystemPayload         `json:"system"`
-	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
-}
-
-// ObserveOverviewResponse is a daemon API value.
-type ObserveOverviewResponse struct {
-	Overview ObserveOverviewPayload `json:"overview"`
 }

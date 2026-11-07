@@ -73,6 +73,7 @@ func (h *BaseHandlers) projectFileRoot(c *gin.Context) (projectfiles.Root, bool)
 		root.WorktreeID = item.ID
 		root.AbsPath = item.Path
 		root.Branch = item.Branch
+		root.BaseRef = item.BaseRef
 	}
 	root, err = projectfiles.CanonicalRoot(root)
 	if err != nil {

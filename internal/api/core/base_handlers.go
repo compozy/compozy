@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -53,6 +54,7 @@ type BaseHandlerConfig struct {
 	FileTree                     FileTreeReader
 	FileFinder                   projectfiles.Finder
 	FileSearcher                 projectfiles.Searcher
+	SessionChanges               SessionChangesReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -149,6 +151,7 @@ type BaseHandlers struct {
 	FileTree                     FileTreeReader
 	FileFinder                   projectfiles.Finder
 	FileSearcher                 projectfiles.Searcher
+	SessionChanges               SessionChangesReader
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -234,6 +237,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	}
 	defaults := normalizeBaseHandlerConfig(cfg)
 	handlers := baseHandlersFromConfig(cfg, defaults)
+	handlers.SessionChanges = cfg.SessionChanges
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
@@ -389,6 +393,9 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 		if cfg.FileSearcher == nil {
 			cfg.FileSearcher = search
 		}
+	}
+	if cfg.SessionChanges == nil {
+		cfg.SessionChanges = changes.NewEngine()
 	}
 	if cfg.FileTree == nil {
 		cfg.FileTree = projectfiles.NewReader()

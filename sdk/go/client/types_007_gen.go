@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// ExtensionTrustReportPayload is a daemon API value.
+type ExtensionTrustReportPayload struct {
+	Decision         string           `json:"decision"`
+	RegistryTier     string           `json:"registry_tier"`
+	ChecksumVerified bool             `json:"checksum_verified"`
+	AllowUnverified  bool             `json:"allow_unverified"`
+	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
+}
+
+// ExtensionUpdateBatchResponse is a daemon API value.
+type ExtensionUpdateBatchResponse struct {
+	Updates []ManagedExtensionUpdatePayload `json:"updates"`
+}
+
+// ExtensionUpdateResponse is a daemon API value.
+type ExtensionUpdateResponse struct {
+	Update ManagedExtensionUpdatePayload `json:"update"`
+}
+
+// ExtensionsResponse is a daemon API value.
+type ExtensionsResponse struct {
+	Extensions []ExtensionPayload `json:"extensions"`
+}
+
+// FSBrowseResponse is a daemon API value.
+type FSBrowseResponse struct {
+	Path    string           `json:"path"`
+	Parent  string           `json:"parent,omitempty"`
+	Home    string           `json:"home,omitempty"`
+	Roots   []string         `json:"roots"`
+	Entries []FSEntryPayload `json:"entries"`
+}
+
+// FSEntryPayload is a daemon API value.
+type FSEntryPayload struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
 // FailTaskRunRequest is a daemon API value.
 type FailTaskRunRequest struct {
 	Error    string          `json:"error"`
@@ -39,6 +79,19 @@ type FanoutRollup struct {
 	Done       int    `json:"done"`
 	Total      int    `json:"total"`
 	Failed     int    `json:"failed"`
+}
+
+// FileChangePayload is a daemon API value.
+type FileChangePayload struct {
+	Path        string `json:"path"`
+	OldPath     string `json:"old_path,omitempty"`
+	Status      string `json:"status"`
+	Additions   int    `json:"additions"`
+	Deletions   int    `json:"deletions"`
+	Binary      bool   `json:"binary,omitzero"`
+	Generated   bool   `json:"generated,omitzero"`
+	Sensitive   bool   `json:"sensitive,omitzero"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 // FileContentResponse is a daemon API value.
@@ -392,54 +445,4 @@ type GatewayProviderPayload struct {
 	Generation uint64 `json:"generation"`
 	Health     string `json:"health"`
 	Cause      string `json:"cause,omitempty"`
-}
-
-// GatewayRefusalPayload is a daemon API value.
-type GatewayRefusalPayload struct {
-	Cause string `json:"cause"`
-	Fix   string `json:"fix"`
-}
-
-// GatewayRevokePayload is a daemon API value.
-type GatewayRevokePayload struct {
-	Device   GatewayDevicePayload `json:"device"`
-	Changed  bool                 `json:"changed"`
-	Canceled int                  `json:"canceled"`
-}
-
-// GatewayStatusPayload is a daemon API value.
-type GatewayStatusPayload struct {
-	Enabled   bool                     `json:"enabled"`
-	Changed   bool                     `json:"changed"`
-	Tiers     []GatewayTierPayload     `json:"tiers"`
-	Surfaces  []GatewaySurfacePayload  `json:"surfaces"`
-	Providers []GatewayProviderPayload `json:"providers"`
-	Addresses []GatewayAddressPayload  `json:"addresses"`
-	Devices   []GatewayDevicePayload   `json:"devices"`
-	Bindings  []GatewayIngressPayload  `json:"bindings"`
-	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
-}
-
-// GatewayStreamTicketPayload is a daemon API value.
-type GatewayStreamTicketPayload struct {
-	Ticket    string    `json:"ticket"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// GatewaySurfacePayload is a daemon API value.
-type GatewaySurfacePayload struct {
-	Surface    string `json:"surface"`
-	Tier       string `json:"tier"`
-	Desired    string `json:"desired"`
-	Observed   string `json:"observed"`
-	Generation uint64 `json:"generation"`
-}
-
-// GatewaySurfaceRequest is a daemon API value.
-type GatewaySurfaceRequest struct {
-	Surface            string `json:"surface"`
-	Tier               string `json:"tier"`
-	Desired            string `json:"desired"`
-	ExpectedGeneration uint64 `json:"expected_generation"`
-	Consent            bool   `json:"consent"`
 }

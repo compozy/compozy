@@ -85,6 +85,36 @@ type CatalogMeta struct {
 	Category string   `json:"category,omitempty"`
 }
 
+// ChangeBasePayload is a daemon API value.
+type ChangeBasePayload struct {
+	Ref          string `json:"ref"`
+	Source       string `json:"source"`
+	MergeBaseSHA string `json:"merge_base_sha"`
+}
+
+// ChangeBaseRefPayload is a daemon API value.
+type ChangeBaseRefPayload struct {
+	Ref       string `json:"ref"`
+	Kind      string `json:"kind"`
+	IsDefault bool   `json:"is_default,omitzero"`
+	Source    string `json:"source,omitempty"`
+}
+
+// ChangeHeadPayload is a daemon API value.
+type ChangeHeadPayload struct {
+	Branch string `json:"branch"`
+	SHA    string `json:"sha"`
+}
+
+// ChangePatchPayload is a daemon API value.
+type ChangePatchPayload struct {
+	Path        string `json:"path"`
+	Patch       string `json:"patch,omitempty"`
+	TooLarge    bool   `json:"too_large,omitzero"`
+	Sensitive   bool   `json:"sensitive,omitzero"`
+	Fingerprint string `json:"fingerprint"`
+}
+
 // ChangeSet is a daemon API value.
 type ChangeSet struct {
 	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
@@ -94,6 +124,20 @@ type ChangeSet struct {
 	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
 	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
 	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
+}
+
+// ChangeSidePayload is a daemon API value.
+type ChangeSidePayload struct {
+	Text      *string `json:"text,omitempty"`
+	Sensitive bool    `json:"sensitive,omitzero"`
+}
+
+// ChangeTotalsPayload is a daemon API value.
+type ChangeTotalsPayload struct {
+	Files     int  `json:"files"`
+	Additions int  `json:"additions"`
+	Deletions int  `json:"deletions"`
+	Partial   bool `json:"partial,omitzero"`
 }
 
 // ChecksState is a daemon API value.
@@ -391,57 +435,4 @@ type Confirmation struct {
 	Title   string `json:"title"`
 	Body    string `json:"body,omitempty"`
 	Confirm string `json:"confirm"`
-}
-
-// ContextBundle is a daemon API value.
-type ContextBundle struct {
-	Task               Reference           `json:"task"`
-	LatestEventSeq     int64               `json:"latest_event_seq"`
-	CurrentRun         *RunSummary         `json:"current_run,omitzero"`
-	PriorAttempts      []RunSummary        `json:"prior_attempts"`
-	RecentEvents       []TimelineItem      `json:"recent_events"`
-	HandoffSummary     string              `json:"handoff_summary,omitempty"`
-	Limits             RuntimeLimits       `json:"limits"`
-	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitzero"`
-	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitzero"`
-	ReviewHistory      []RunReviewSummary  `json:"review_history"`
-}
-
-// ContextKey is a daemon API value.
-type ContextKey string
-
-// ContinueSessionRequest is a daemon API value.
-type ContinueSessionRequest struct {
-	AgentName           string                         `json:"agent_name"`
-	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
-	Route               int                            `json:"route,omitzero"`
-	Name                string                         `json:"name,omitempty"`
-	Message             string                         `json:"message,omitempty"`
-	IdempotencyKey      string                         `json:"idempotency_key"`
-	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
-}
-
-// Contract is a daemon API value.
-type Contract struct {
-	Goal             string             `json:"goal"`
-	DefinitionOfDone string             `json:"definition_of_done"`
-	Constraints      []string           `json:"constraints,omitempty"`
-	Boundaries       []string           `json:"boundaries,omitempty"`
-	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
-	Verification     []GateCriterion    `json:"verification,omitempty"`
-	IterationCap     int                `json:"iteration_cap"`
-	NoProgress       NoProgress         `json:"no_progress"`
-	Budget           Budget             `json:"budget"`
-	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
-	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
-	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
-	OnDone           []EffectSpec       `json:"on_done,omitempty"`
-	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
-	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
-	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
-	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
-	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
-	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
 }

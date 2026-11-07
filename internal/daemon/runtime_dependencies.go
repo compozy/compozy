@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 )
 
 func (d *Daemon) runtimeDeps(
@@ -26,22 +27,20 @@ func (d *Daemon) runtimeDeps(
 		soul:      state.soulCatalog,
 		heartbeat: state.heartbeatCatalog,
 	})
-	return RuntimeDeps{
-		AgentInstances:     state.agentInstances,
-		Config:             state.cfg,
-		AgentProbeConfig:   state.agentProbeConfig,
-		HomePaths:          d.homePaths,
-		Logger:             state.logger,
-		Sessions:           sessions,
-		Subagents:          state.subagents,
-		SessionMonitors:    sessionMonitorService(state),
-		SessionProcesses:   sessionProcessService(state),
-		SessionAttachments: state.sessionAttachments,
-		ToolArtifacts:      state.toolArtifacts,
-		SessionFiles:       newSessionFileIndex(state.logger),
-		FileTree:           projectfiles.NewReader(),
-		DrainController:    d,
-
+	return *withProjectFileServices(&RuntimeDeps{
+		AgentInstances:        state.agentInstances,
+		Config:                state.cfg,
+		AgentProbeConfig:      state.agentProbeConfig,
+		HomePaths:             d.homePaths,
+		Logger:                state.logger,
+		Sessions:              sessions,
+		Subagents:             state.subagents,
+		SessionMonitors:       sessionMonitorService(state),
+		SessionProcesses:      sessionProcessService(state),
+		SessionAttachments:    state.sessionAttachments,
+		ToolArtifacts:         state.toolArtifacts,
+		SessionFiles:          newSessionFileIndex(state.logger),
+		DrainController:       d,
 		Registry:              state.registry,
 		Profiles:              state.profiles,
 		SchemaStreams:         newDaemonSchemaStreamStatusReader(state.registry),
@@ -87,7 +86,7 @@ func (d *Daemon) runtimeDeps(
 		StartedAt:             state.startedAt,
 		OnProviderAuthSuccess: d.providerPreStarter.Clear,
 		ProviderAuthVerdicts:  d.providerAuthVerdicts,
-	}
+	})
 }
 
 // sessionMonitorService keeps a missing monitor service a nil interface.
@@ -103,4 +102,10 @@ func sessionProcessService(state *bootState) core.SessionProcessService {
 		return nil
 	}
 	return state.sessionProcesses
+}
+
+func withProjectFileServices(deps *RuntimeDeps) *RuntimeDeps {
+	deps.FileTree = projectfiles.NewReader()
+	deps.SessionChanges = changes.NewEngine()
+	return deps
 }

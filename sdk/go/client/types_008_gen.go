@@ -7,6 +7,56 @@ import (
 	"time"
 )
 
+// GatewayRefusalPayload is a daemon API value.
+type GatewayRefusalPayload struct {
+	Cause string `json:"cause"`
+	Fix   string `json:"fix"`
+}
+
+// GatewayRevokePayload is a daemon API value.
+type GatewayRevokePayload struct {
+	Device   GatewayDevicePayload `json:"device"`
+	Changed  bool                 `json:"changed"`
+	Canceled int                  `json:"canceled"`
+}
+
+// GatewayStatusPayload is a daemon API value.
+type GatewayStatusPayload struct {
+	Enabled   bool                     `json:"enabled"`
+	Changed   bool                     `json:"changed"`
+	Tiers     []GatewayTierPayload     `json:"tiers"`
+	Surfaces  []GatewaySurfacePayload  `json:"surfaces"`
+	Providers []GatewayProviderPayload `json:"providers"`
+	Addresses []GatewayAddressPayload  `json:"addresses"`
+	Devices   []GatewayDevicePayload   `json:"devices"`
+	Bindings  []GatewayIngressPayload  `json:"bindings"`
+	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
+}
+
+// GatewayStreamTicketPayload is a daemon API value.
+type GatewayStreamTicketPayload struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// GatewaySurfacePayload is a daemon API value.
+type GatewaySurfacePayload struct {
+	Surface    string `json:"surface"`
+	Tier       string `json:"tier"`
+	Desired    string `json:"desired"`
+	Observed   string `json:"observed"`
+	Generation uint64 `json:"generation"`
+}
+
+// GatewaySurfaceRequest is a daemon API value.
+type GatewaySurfaceRequest struct {
+	Surface            string `json:"surface"`
+	Tier               string `json:"tier"`
+	Desired            string `json:"desired"`
+	ExpectedGeneration uint64 `json:"expected_generation"`
+	Consent            bool   `json:"consent"`
+}
+
 // GatewayTierPayload is a daemon API value.
 type GatewayTierPayload struct {
 	Tier            string `json:"tier"`
@@ -396,53 +446,4 @@ type HeartbeatScriptApprovalPayload struct {
 	Script     string    `json:"script"`
 	SHA256     string    `json:"sha256"`
 	ApprovedAt time.Time `json:"approved_at"`
-}
-
-// HeartbeatScriptApprovalRequest is a daemon API value.
-type HeartbeatScriptApprovalRequest struct {
-	SHA256 string `json:"sha256"`
-}
-
-// HeartbeatSourceCatalogPayload is a daemon API value.
-type HeartbeatSourceCatalogPayload struct {
-	Agent          string                         `json:"agent"`
-	ScriptsEnabled bool                           `json:"scripts_enabled"`
-	Limits         HeartbeatSourceLimitsPayload   `json:"limits"`
-	Kinds          []KindDescriptor               `json:"kinds"`
-	Scripts        []HeartbeatSourceScriptPayload `json:"scripts"`
-}
-
-// HeartbeatSourceLimitsPayload is a daemon API value.
-type HeartbeatSourceLimitsPayload struct {
-	MaxPerAgent int `json:"max_per_agent"`
-	MaxItems    int `json:"max_items"`
-}
-
-// HeartbeatSourceScriptPayload is a daemon API value.
-type HeartbeatSourceScriptPayload struct {
-	LineCount      int        `json:"line_count,omitzero"`
-	LastModified   *time.Time `json:"last_modified,omitempty"`
-	Name           string     `json:"name"`
-	Path           string     `json:"path,omitempty"`
-	Executable     bool       `json:"executable"`
-	SHA256         string     `json:"sha256"`
-	Approved       bool       `json:"approved"`
-	ApprovedSHA256 *string    `json:"approved_sha256"`
-}
-
-// HeartbeatSourceStatus is a daemon API value.
-type HeartbeatSourceStatus struct {
-	ID               string `json:"id"`
-	Kind             string `json:"kind,omitempty"`
-	Script           string `json:"script,omitempty"`
-	Status           string `json:"status"`
-	LastPolledAt     string `json:"last_polled_at,omitempty"`
-	LastSuccessAt    string `json:"last_success_at,omitempty"`
-	LastItemCount    int64  `json:"last_item_count"`
-	FailureStreak    int64  `json:"failure_streak"`
-	Error            *Error `json:"error,omitempty"`
-	NextPollAt       string `json:"next_poll_at,omitempty"`
-	ScriptSHA256     string `json:"script_sha256,omitempty"`
-	ScriptPath       string `json:"script_path,omitempty"`
-	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
 }

@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// ProfileOperation is a daemon API value.
+type ProfileOperation struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Profile string `json:"profile"`
+	Status  string `json:"status"`
+	Step    string `json:"step"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ProfilePlacement is a daemon API value.
+type ProfilePlacement struct {
+	Extension string `json:"extension"`
+	Resource  string `json:"resource"`
+	Profile   string `json:"profile"`
+}
+
+// ProfilePlanRequest is a daemon API value.
+type ProfilePlanRequest struct {
+	PlanRevision string `json:"plan_revision"`
+}
+
+// ProfileRemovalSummary is a daemon API value.
+type ProfileRemovalSummary struct {
+	AgentInstances      int `json:"agent_instances"`
+	AgentMemoryFiles    int `json:"agent_memory_files"`
+	Agents              int `json:"agents"`
+	Skills              int `json:"skills"`
+	Loops               int `json:"loops"`
+	MCPServers          int `json:"mcp_servers"`
+	ConfigKeys          int `json:"config_keys"`
+	CredentialOverrides int `json:"credential_overrides"`
+	DesktopPartitions   int `json:"desktop_partitions"`
+	PaletteUsage        int `json:"palette_usage"`
+	PaletteQueryHits    int `json:"palette_query_hits"`
+	PalettePins         int `json:"palette_pins"`
+	TerminalApprovals   int `json:"terminal_approvals"`
+	EventSummaries      int `json:"event_summaries"`
+}
+
 // ProfileRepoRenameOutcome is a daemon API value.
 type ProfileRepoRenameOutcome struct {
 	WorkspaceID string `json:"workspace_id"`
@@ -404,46 +444,4 @@ type PutResourceRequest struct {
 	Scope           ResourceScope   `json:"scope"`
 	ExpectedVersion int64           `json:"expected_version,omitzero"`
 	Spec            json.RawMessage `json:"spec"`
-}
-
-// PutSettingsHookRequest is a daemon API value.
-type PutSettingsHookRequest struct {
-	Declaration SettingsHookDeclarationPayload `json:"declaration"`
-}
-
-// PutSettingsMCPServerRequest is a daemon API value.
-type PutSettingsMCPServerRequest struct {
-	Server          SettingsMCPServerPayload              `json:"server"`
-	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
-	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
-	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
-	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
-}
-
-// PutSettingsProviderRequest is a daemon API value.
-type PutSettingsProviderRequest struct {
-	Settings      SettingsProviderWritePayload         `json:"settings"`
-	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
-	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
-}
-
-// PutVaultSecretRequest is a daemon API value.
-type PutVaultSecretRequest struct {
-	Ref         string `json:"ref"`
-	Kind        string `json:"kind,omitempty"`
-	SecretValue string `json:"secret_value"`
-}
-
-// QueryHit is a daemon API value.
-type QueryHit struct {
-	Query     string    `json:"query"`
-	CommandID CommandID `json:"command_id"`
-	Weight    float64   `json:"weight"`
-}
-
-// QuietWarning is a daemon API value.
-type QuietWarning struct {
-	QuietSince time.Time  `json:"quiet_since"`
-	WarnedAt   time.Time  `json:"warned_at"`
-	StopAt     *time.Time `json:"stop_at"`
 }

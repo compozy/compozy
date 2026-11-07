@@ -238,6 +238,7 @@ func newSessionFilesHandlerEngine(
 	infos := map[string]*session.Info{}
 	for id, workspaceID := range map[string]string{
 		"sess-ok":               "registry-workspace",
+		"sess-user":             "",
 		"sess-gone":             "registry-workspace",
 		"sess-missing-worktree": "registry-workspace",
 		"sess-broken":           "registry-workspace",
@@ -297,6 +298,11 @@ func newSessionFilesHandlerEngine(
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files", handlers.SearchSessionFiles)
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/entries", handlers.ListSessionFileEntries)
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/content", handlers.ReadSessionFileContent)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes", handlers.GetSessionChanges)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/patches", handlers.GetSessionChangePatches)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/contents", handlers.GetSessionChangeContents)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/bases", handlers.ListSessionChangeBases)
+
 	engine.GET("/api/workspaces/:workspace_id/files/entries", handlers.ListFileEntries)
 	engine.GET("/api/workspaces/:workspace_id/files/content", handlers.ReadFileContent)
 
@@ -362,6 +368,44 @@ func TestProjectFileContentReveal(t *testing.T) {
 				} else if !strings.Contains(response.Body.String(), "code") {
 					t.Fatal("missing structured error")
 				}
+			}
+		}
+	})
+}
+
+func TestProjectChangesReveal(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject app token reveal before running git", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		engine, _ := newSessionFilesHandlerEngine(t, root, workspacefiles.New(nil))
+		for _, suffix := range []string{"/patches", "/contents"} {
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/workspaces/workspace/sessions/sess-ok/changes"+suffix+"?path=.env&revision=x&reveal=true",
+				http.NoBody,
+			)
+			req = req.WithContext(core.ContextWithAppToken(req.Context(), gateway.AppToken{}))
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, req)
+			if response.Code != 403 || !strings.Contains(response.Body.String(), "reveal_forbidden") ||
+				strings.Contains(response.Body.String(), root) {
+				t.Fatalf("%d: %s", response.Code, response.Body.String())
+			}
+		}
+	})
+}
+
+func TestProjectChangesUserScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report user session roots as unavailable for every Changes operation", func(t *testing.T) {
+		t.Parallel()
+		engine, _ := newSessionFilesHandlerEngine(t, t.TempDir(), workspacefiles.New(nil))
+		for _, suffix := range []string{"", "/patches", "/contents", "/bases"} {
+			response := serveSessionFilesRequest(t, engine, "/api/workspaces/@user/sessions/sess-user/changes"+suffix)
+			if response.Code != 409 || !strings.Contains(response.Body.String(), "root_unavailable") {
+				t.Fatalf("%d %s", response.Code, response.Body.String())
 			}
 		}
 	})

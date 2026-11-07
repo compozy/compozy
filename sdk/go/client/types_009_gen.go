@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+// HeartbeatScriptApprovalRequest is a daemon API value.
+type HeartbeatScriptApprovalRequest struct {
+	SHA256 string `json:"sha256"`
+}
+
+// HeartbeatSourceCatalogPayload is a daemon API value.
+type HeartbeatSourceCatalogPayload struct {
+	Agent          string                         `json:"agent"`
+	ScriptsEnabled bool                           `json:"scripts_enabled"`
+	Limits         HeartbeatSourceLimitsPayload   `json:"limits"`
+	Kinds          []KindDescriptor               `json:"kinds"`
+	Scripts        []HeartbeatSourceScriptPayload `json:"scripts"`
+}
+
+// HeartbeatSourceLimitsPayload is a daemon API value.
+type HeartbeatSourceLimitsPayload struct {
+	MaxPerAgent int `json:"max_per_agent"`
+	MaxItems    int `json:"max_items"`
+}
+
+// HeartbeatSourceScriptPayload is a daemon API value.
+type HeartbeatSourceScriptPayload struct {
+	LineCount      int        `json:"line_count,omitzero"`
+	LastModified   *time.Time `json:"last_modified,omitempty"`
+	Name           string     `json:"name"`
+	Path           string     `json:"path,omitempty"`
+	Executable     bool       `json:"executable"`
+	SHA256         string     `json:"sha256"`
+	Approved       bool       `json:"approved"`
+	ApprovedSHA256 *string    `json:"approved_sha256"`
+}
+
+// HeartbeatSourceStatus is a daemon API value.
+type HeartbeatSourceStatus struct {
+	ID               string `json:"id"`
+	Kind             string `json:"kind,omitempty"`
+	Script           string `json:"script,omitempty"`
+	Status           string `json:"status"`
+	LastPolledAt     string `json:"last_polled_at,omitempty"`
+	LastSuccessAt    string `json:"last_success_at,omitempty"`
+	LastItemCount    int64  `json:"last_item_count"`
+	FailureStreak    int64  `json:"failure_streak"`
+	Error            *Error `json:"error,omitempty"`
+	NextPollAt       string `json:"next_poll_at,omitempty"`
+	ScriptSHA256     string `json:"script_sha256,omitempty"`
+	ScriptPath       string `json:"script_path,omitempty"`
+	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
+}
+
 // HeartbeatStatusResponse is a daemon API value.
 type HeartbeatStatusResponse struct {
 	AgentName        string                             `json:"agent_name"`
@@ -394,57 +443,4 @@ type LoopCatalogAggregateEntryPayload struct {
 	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
 	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
 	SuccessRate30 float64                     `json:"success_rate_30d"`
-}
-
-// LoopCatalogAggregatePayload is a daemon API value.
-type LoopCatalogAggregatePayload struct {
-	Runs      int `json:"runs"`
-	Succeeded int `json:"succeeded"`
-	Failed    int `json:"failed"`
-}
-
-// LoopCatalogBatchResponse is a daemon API value.
-type LoopCatalogBatchResponse struct {
-	Entries   []LoopCatalogAggregateEntryPayload `json:"entries"`
-	Errors    []LoopCatalogWorkspaceError        `json:"errors"`
-	Truncated bool                               `json:"truncated"`
-}
-
-// LoopCatalogEntryPayload is a daemon API value.
-type LoopCatalogEntryPayload struct {
-	WorkspaceID   string                      `json:"workspace_id,omitempty"`
-	Name          string                      `json:"name"`
-	Version       int                         `json:"version"`
-	Description   string                      `json:"description,omitempty"`
-	Source        LoopSource                  `json:"source"`
-	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
-	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
-	Start         []LoopStartBinding          `json:"start,omitempty"`
-	Contract      LoopContract                `json:"contract"`
-	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
-	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
-	SuccessRate30 float64                     `json:"success_rate_30d"`
-}
-
-// LoopCatalogFacetsPayload is a daemon API value.
-type LoopCatalogFacetsPayload struct {
-	Kinds      map[string]int `json:"kinds"`
-	Categories map[string]int `json:"categories"`
-	Statuses   map[string]int `json:"statuses"`
-}
-
-// LoopCatalogLastRunPayload is a daemon API value.
-type LoopCatalogLastRunPayload struct {
-	ID             string        `json:"id"`
-	Status         LoopRunStatus `json:"status"`
-	BestGeneration *int64        `json:"best_generation,omitzero"`
-	BestScore      *float64      `json:"best_score,omitzero"`
-	CreatedAt      time.Time     `json:"created_at"`
-}
-
-// LoopCatalogResourceSpec is a daemon API value.
-type LoopCatalogResourceSpec struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
 }

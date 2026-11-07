@@ -20,6 +20,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"readFileContent",
 			"listSessionFileEntries",
 			"readSessionFileContent",
+			"getSessionChanges", "getSessionChangePatches", "getSessionChangeContents", "listSessionChangeBases",
 			"getAgentHeartbeatSources",
 			"listSessionLinkedWork",
 			"listSessionPendingInteractions",

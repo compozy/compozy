@@ -12,3 +12,7 @@ func WithSessionFileSearcher(searcher core.SessionFileSearcher) Option {
 func WithFileTreeReader(reader core.FileTreeReader) Option {
 	return func(server *Server) { server.fileTree = reader }
 }
+
+func WithSessionChangesReader(reader core.SessionChangesReader) Option {
+	return func(server *Server) { server.sessionChanges = reader }
+}

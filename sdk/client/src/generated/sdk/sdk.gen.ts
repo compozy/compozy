@@ -615,6 +615,15 @@ import type {
   GetSessionByIDData,
   GetSessionByIDErrors,
   GetSessionByIDResponses,
+  GetSessionChangeContentsData,
+  GetSessionChangeContentsErrors,
+  GetSessionChangeContentsResponses,
+  GetSessionChangePatchesData,
+  GetSessionChangePatchesErrors,
+  GetSessionChangePatchesResponses,
+  GetSessionChangesData,
+  GetSessionChangesErrors,
+  GetSessionChangesResponses,
   GetSessionCommandsData,
   GetSessionCommandsErrors,
   GetSessionCommandsResponses,
@@ -951,6 +960,9 @@ import type {
   ListRolesData,
   ListRolesErrors,
   ListRolesResponses,
+  ListSessionChangeBasesData,
+  ListSessionChangeBasesErrors,
+  ListSessionChangeBasesResponses,
   ListSessionClarificationsData,
   ListSessionClarificationsErrors,
   ListSessionClarificationsResponses,
@@ -12105,6 +12117,93 @@ export class workspaces extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChanges<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangesData, ThrowOnError>
+  ): RequestResult<GetSessionChangesResponses, GetSessionChangesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionChangesResponses,
+      GetSessionChangesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public listSessionChangeBases<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionChangeBasesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionChangeBasesResponses,
+    ListSessionChangeBasesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionChangeBasesResponses,
+      ListSessionChangeBasesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangeContents<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangeContentsData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangeContentsResponses,
+    GetSessionChangeContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangeContentsResponses,
+      GetSessionChangeContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangePatches<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangePatchesData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangePatchesResponses,
+    GetSessionChangePatchesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangePatchesResponses,
+      GetSessionChangePatchesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches",
       ...options,
     });
   }

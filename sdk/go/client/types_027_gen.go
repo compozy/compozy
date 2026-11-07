@@ -7,6 +7,67 @@ import (
 	"time"
 )
 
+// TerminalInfoPayload is a daemon API value.
+type TerminalInfoPayload struct {
+	ID           TerminalID                  `json:"id"`
+	WorkspaceID  string                      `json:"workspace_id"`
+	ProfileID    string                      `json:"profile_id"`
+	ProfileName  string                      `json:"profile_name"`
+	Title        string                      `json:"title"`
+	Shell        string                      `json:"shell"`
+	Cwd          string                      `json:"cwd"`
+	Mode         TerminalMode                `json:"mode"`
+	State        TerminalState               `json:"state"`
+	Viewers      int                         `json:"viewers"`
+	BoundRun     *TerminalRunPayload         `json:"bound_run"`
+	Capabilities TerminalCapabilitiesPayload `json:"capabilities"`
+	CreatedAt    time.Time                   `json:"created_at"`
+	Exit         *TerminalExitPayload        `json:"exit,omitzero"`
+}
+
+// TerminalInputActorPayload is a daemon API value.
+type TerminalInputActorPayload struct {
+	Kind TerminalActorKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+// TerminalInputAnswerResponse is a daemon API value.
+type TerminalInputAnswerResponse struct {
+	DeliveredBytes int  `json:"delivered_bytes"`
+	Redacted       bool `json:"redacted"`
+}
+
+// TerminalInputRejectOutcome is a daemon API value.
+type TerminalInputRejectOutcome string
+
+// TerminalInputRejectResponse is a daemon API value.
+type TerminalInputRejectResponse struct {
+	Outcome TerminalInputRejectOutcome `json:"outcome"`
+}
+
+// TerminalInputRequestsResponse is a daemon API value.
+type TerminalInputRequestsResponse struct {
+	Pending  []TerminalPendingInputRequest  `json:"pending"`
+	Resolved []TerminalResolvedInputRequest `json:"resolved"`
+}
+
+// TerminalInputResolutionOutcome is a daemon API value.
+type TerminalInputResolutionOutcome string
+
+// TerminalJournalResponse is a daemon API value.
+type TerminalJournalResponse struct {
+	Entries []TerminalCommandRowPayload `json:"entries"`
+	Next    *string                     `json:"next"`
+}
+
+// TerminalListResponse is a daemon API value.
+type TerminalListResponse struct {
+	Terminals []TerminalInfoPayload `json:"terminals"`
+}
+
+// TerminalMode is a daemon API value.
+type TerminalMode string
+
 // TerminalOutputShape is a daemon API value.
 type TerminalOutputShape struct {
 	MaxBytes int    `json:"max_bytes,omitzero"`
@@ -381,69 +442,4 @@ type ToolDescriptorPayload struct {
 	Toolsets            []ToolsetID           `json:"toolsets,omitempty"`
 	Tags                []string              `json:"tags,omitempty"`
 	SearchHints         []string              `json:"search_hints,omitempty"`
-}
-
-// ToolErrorPayload is a daemon API value.
-type ToolErrorPayload struct {
-	Code          ErrorCode                  `json:"code"`
-	Message       string                     `json:"message"`
-	ToolID        ToolID                     `json:"tool_id,omitempty"`
-	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
-	Layer         string                     `json:"layer,omitempty"`
-	Details       map[string]json.RawMessage `json:"details,omitempty"`
-	PartialResult *ToolResult                `json:"partial_result,omitzero"`
-}
-
-// ToolErrorResponse is a daemon API value.
-type ToolErrorResponse struct {
-	Error ToolErrorPayload `json:"error"`
-}
-
-// ToolID is a daemon API value.
-type ToolID string
-
-// ToolInvokeRequest is a daemon API value.
-type ToolInvokeRequest struct {
-	SessionID            string          `json:"session_id,omitempty"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	AgentName            string          `json:"agent_name,omitempty"`
-	ToolCallID           string          `json:"tool_call_id,omitempty"`
-	TurnID               string          `json:"turn_id,omitempty"`
-	CorrelationID        string          `json:"correlation_id,omitempty"`
-	Input                json.RawMessage `json:"input"`
-	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
-	ApprovalToken        string          `json:"approval_token,omitempty"`
-}
-
-// ToolInvokeResponse is a daemon API value.
-type ToolInvokeResponse struct {
-	ToolID     ToolID                 `json:"tool_id"`
-	Status     string                 `json:"status"`
-	Result     ToolResult             `json:"result"`
-	Truncated  bool                   `json:"truncated"`
-	DurationMS int64                  `json:"duration_ms"`
-	Events     []ToolCallEventPayload `json:"events"`
-}
-
-// ToolPayload is a daemon API value.
-type ToolPayload struct {
-	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
-	Availability ToolAvailabilityPayload   `json:"availability"`
-	Decision     ToolPolicyDecisionPayload `json:"decision"`
-}
-
-// ToolPolicyDecisionPayload is a daemon API value.
-type ToolPolicyDecisionPayload struct {
-	VisibleToOperator    bool         `json:"visible_to_operator"`
-	VisibleToSession     bool         `json:"visible_to_session"`
-	Callable             bool         `json:"callable"`
-	ApprovalRequired     bool         `json:"approval_required"`
-	SystemPermissionMode string       `json:"system_permission_mode,omitempty"`
-	SessionPolicyResult  string       `json:"session_policy_result,omitempty"`
-	AgentPolicyResult    string       `json:"agent_policy_result,omitempty"`
-	RegistryPolicyResult string       `json:"registry_policy_result,omitempty"`
-	SourcePolicyResult   string       `json:"source_policy_result,omitempty"`
-	AvailabilityResult   string       `json:"availability_result,omitempty"`
-	HookResult           string       `json:"hook_result,omitempty"`
-	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
 }

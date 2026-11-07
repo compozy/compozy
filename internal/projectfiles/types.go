@@ -14,8 +14,8 @@ const (
 
 type RootRef struct{ WorkspaceID, WorktreeID, SessionID string }
 type Root struct {
-	Kind                                           RootKind
-	WorkspaceID, WorktreeID, Name, Branch, AbsPath string
+	Kind                                                    RootKind
+	WorkspaceID, WorktreeID, Name, Branch, BaseRef, AbsPath string
 }
 type RootResolver interface {
 	Resolve(context.Context, RootRef) (Root, error)

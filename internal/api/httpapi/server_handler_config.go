@@ -8,6 +8,7 @@ import (
 
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	config := s.handlerDependencies()
+	config.sessionChanges = s.sessionChanges
 	config.staticFS = staticFS
 	config.boundHost = s.host
 	config.httpPort = s.port
@@ -90,7 +91,6 @@ func (s *Server) handlerDependencies() handlerConfig {
 		pollInterval:          s.pollInterval,
 		agentLoader:           s.agentLoader,
 		extensions:            s.extensions,
-
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
 		providerAuthVerdicts:  s.providerAuthVerdicts,
 	}

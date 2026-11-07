@@ -9,6 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Masterminds/semver/v3 v3.5.0
+	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/x/conpty v0.2.0

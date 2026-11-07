@@ -6126,6 +6126,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChanges"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["listSessionChangeBases"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChangeContents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session changes */
+    get: operations["getSessionChangePatches"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications": {
     parameters: {
       query?: never;
@@ -9026,6 +9094,28 @@ export interface components {
       keywords?: string[];
       use_when?: string;
     };
+    ChangeBasePayload: {
+      merge_base_sha: string;
+      ref: string;
+      source: string;
+    };
+    ChangeBaseRefPayload: {
+      is_default?: boolean;
+      kind: string;
+      ref: string;
+      source?: string;
+    };
+    ChangeHeadPayload: {
+      branch: string;
+      sha: string;
+    };
+    ChangePatchPayload: {
+      fingerprint: string;
+      patch?: string;
+      path: string;
+      sensitive?: boolean;
+      too_large?: boolean;
+    };
     ChangeSet: {
       client_ids?: string[];
       desktop_ids?: string[];
@@ -9034,6 +9124,16 @@ export interface components {
       stack_grouped?: string[];
       stack_ungrouped?: string[];
       window_ids?: string[];
+    };
+    ChangeSidePayload: {
+      sensitive?: boolean;
+      text?: string | null;
+    };
+    ChangeTotalsPayload: {
+      additions: number;
+      deletions: number;
+      files: number;
+      partial?: boolean;
     };
     Chip: {
       count?: number | null;
@@ -10302,6 +10402,17 @@ export interface components {
       generation: number;
       node_id: string;
       total: number;
+    };
+    FileChangePayload: {
+      additions: number;
+      binary?: boolean;
+      deletions: number;
+      fingerprint: string;
+      generated?: boolean;
+      old_path?: string;
+      path: string;
+      sensitive?: boolean;
+      status: string;
     };
     FileContentResponse: {
       image_base64?: string;
@@ -15056,6 +15167,35 @@ export interface components {
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
       sessions: components["schemas"]["SessionPayload"][];
+    };
+    SessionChangeBasesResponse: {
+      default: components["schemas"]["ChangeBaseRefPayload"] | null;
+      refs: components["schemas"]["ChangeBaseRefPayload"][];
+      resolvable: boolean;
+      truncated: boolean;
+    };
+    SessionChangeContentsResponse: {
+      fingerprint: string;
+      new?: components["schemas"]["ChangeSidePayload"] | null;
+      old?: components["schemas"]["ChangeSidePayload"] | null;
+      old_path?: string;
+      path: string;
+      revision: string;
+    };
+    SessionChangePatchesResponse: {
+      patches: components["schemas"]["ChangePatchPayload"][];
+      revision: string;
+    };
+    SessionChangesResponse: {
+      base: components["schemas"]["ChangeBasePayload"];
+      files: components["schemas"]["FileChangePayload"][];
+      head: components["schemas"]["ChangeHeadPayload"];
+      pull_request?: components["schemas"]["SessionPullRequestPayload"] | null;
+      revision: string;
+      root: components["schemas"]["FileRootPayload"];
+      scope: string;
+      totals: components["schemas"]["ChangeTotalsPayload"];
+      truncated: boolean;
     };
     SessionChildrenPayload: {
       done: number;
@@ -53452,6 +53592,410 @@ export interface operations {
       };
       /** @description Service unavailable - dependent service missing */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionChanges: {
+    parameters: {
+      query?: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionChangeBases: {
+    parameters: {
+      query?: {
+        /** @description Substring ref filter */
+        q?: string;
+        /** @description Default 200, maximum 500 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangeBasesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionChangeContents: {
+    parameters: {
+      query: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Summary revision fence */
+        revision: string;
+        /** @description Root-relative path */
+        path: string;
+        /** @description Aligned old path for renames */
+        old_path?: string;
+        /** @description Reveal sensitive contents; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangeContentsResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionChangePatches: {
+    parameters: {
+      query: {
+        /** @description Changes scope */
+        scope?: "branch" | "uncommitted";
+        /** @description Optional base ref */
+        base?: string;
+        /** @description Summary revision fence */
+        revision: string;
+        /** @description Root-relative path */
+        path: string[];
+        /** @description Aligned old path for renames */
+        old_path?: string[];
+        /** @description Reveal sensitive contents; forbidden to app tokens */
+        reveal?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionChangePatchesResponse"];
+        };
+      };
+      /** @description Changes operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Changes operation failed */
+      500: {
         headers: {
           [name: string]: unknown;
         };

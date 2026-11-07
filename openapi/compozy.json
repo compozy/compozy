@@ -4177,6 +4177,85 @@
         },
         "type": "object"
       },
+      "ChangeBasePayload": {
+        "properties": {
+          "merge_base_sha": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "merge_base_sha",
+          "ref",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ChangeBaseRefPayload": {
+        "properties": {
+          "is_default": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "ChangeHeadPayload": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "sha": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "sha"
+        ],
+        "type": "object"
+      },
+      "ChangePatchPayload": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "too_large": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "path"
+        ],
+        "type": "object"
+      },
       "ChangeSet": {
         "properties": {
           "client_ids": {
@@ -4222,6 +4301,40 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ChangeSidePayload": {
+        "properties": {
+          "sensitive": {
+            "type": "boolean"
+          },
+          "text": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChangeTotalsPayload": {
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "partial": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "additions",
+          "deletions",
+          "files"
+        ],
         "type": "object"
       },
       "Chip": {
@@ -9249,6 +9362,45 @@
           "generation",
           "node_id",
           "total"
+        ],
+        "type": "object"
+      },
+      "FileChangePayload": {
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "binary": {
+            "type": "boolean"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "generated": {
+            "type": "boolean"
+          },
+          "old_path": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "additions",
+          "deletions",
+          "fingerprint",
+          "path",
+          "status"
         ],
         "type": "object"
       },
@@ -25178,6 +25330,163 @@
         "required": [
           "page",
           "sessions"
+        ],
+        "type": "object"
+      },
+      "SessionChangeBasesResponse": {
+        "properties": {
+          "default": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeBaseRefPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeBaseRefPayload"
+            },
+            "type": "array"
+          },
+          "resolvable": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "default",
+          "refs",
+          "resolvable",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "SessionChangeContentsResponse": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "new": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeSidePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "old": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangeSidePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "old_path": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "path",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "SessionChangePatchesResponse": {
+        "properties": {
+          "patches": {
+            "items": {
+              "$ref": "#/components/schemas/ChangePatchPayload"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "patches",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "SessionChangesResponse": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/ChangeBasePayload"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileChangePayload"
+            },
+            "type": "array"
+          },
+          "head": {
+            "$ref": "#/components/schemas/ChangeHeadPayload"
+          },
+          "pull_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "revision": {
+            "type": "string"
+          },
+          "root": {
+            "$ref": "#/components/schemas/FileRootPayload"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ChangeTotalsPayload"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "base",
+          "files",
+          "head",
+          "revision",
+          "root",
+          "scope",
+          "totals",
+          "truncated"
         ],
         "type": "object"
       },
@@ -95251,6 +95560,689 @@
         "summary": "Read session attachment bytes",
         "tags": [
           "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes": {
+      "get": {
+        "operationId": "getSessionChanges",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases": {
+      "get": {
+        "operationId": "listSessionChangeBases",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Substring ref filter",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default 200, maximum 500",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangeBasesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents": {
+      "get": {
+        "operationId": "getSessionChangeContents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Summary revision fence",
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Aligned old path for renames",
+            "in": "query",
+            "name": "old_path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reveal sensitive contents; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangeContentsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches": {
+      "get": {
+        "operationId": "getSessionChangePatches",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Changes scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional base ref",
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Summary revision fence",
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path",
+            "explode": true,
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Aligned old path for renames",
+            "explode": true,
+            "in": "query",
+            "name": "old_path",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Reveal sensitive contents; forbidden to app tokens",
+            "in": "query",
+            "name": "reveal",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionChangePatchesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Changes operation failed"
+          }
+        },
+        "summary": "Read session changes",
+        "tags": [
+          "workspaces"
         ],
         "x-compozy-app-access": "allowed",
         "x-compozy-transports": [

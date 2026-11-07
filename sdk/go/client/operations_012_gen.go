@@ -370,20 +370,40 @@ func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams
 	return &out, nil
 }
 
-// GetSessionCommandsParams carries the path, query, and header parameters.
-type GetSessionCommandsParams struct {
+// GetSessionChangeContentsParams carries the path, query, and header parameters.
+type GetSessionChangeContentsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
+	Scope       *string `url:"scope"`
+	Base        *string `url:"base"`
+	Revision    string  `url:"revision"`
+	Path        string  `url:"path"`
+	OldPath     *string `url:"old_path"`
+	Reveal      *bool   `url:"reveal"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// GetSessionCommands List commands available to a session
-func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
+// GetSessionChangeContents Read session changes
+func (c *Client) GetSessionChangeContents(ctx context.Context, params GetSessionChangeContentsParams) (*SessionChangeContentsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Base != nil {
+		query.Set("base", *params.Base)
+	}
+	query.Set("revision", params.Revision)
+	query.Set("path", params.Path)
+	if params.OldPath != nil {
+		query.Set("old_path", *params.OldPath)
+	}
+	if params.Reveal != nil {
+		query.Set("reveal", strconv.FormatBool(*params.Reveal))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
@@ -393,47 +413,23 @@ func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionComman
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionCommandsResponse
+	var out SessionChangeContentsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// GetSessionGoalParams carries the path, query, and header parameters.
-type GetSessionGoalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionGoal Get the newest visible session Goal
-func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionGoalResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionHealthParams carries the path, query, and header parameters.
-type GetSessionHealthParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+// GetSessionChangePatchesParams carries the path, query, and header parameters.
+type GetSessionChangePatchesParams struct {
+	WorkspaceID string    `url:"workspace_id"`
+	SessionID   string    `url:"session_id"`
+	Scope       *string   `url:"scope"`
+	Base        *string   `url:"base"`
+	Revision    string    `url:"revision"`
+	Path        []string  `url:"path"`
+	OldPath     *[]string `url:"old_path"`
+	Reveal      *bool     `url:"reveal"`
+	Profile     *string   `url:"profile"`
+	AllProfiles *bool     `url:"all_profiles"`
 }
