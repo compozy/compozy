@@ -125,7 +125,10 @@ func (m *Manager) bindUnboundPromptRuntime(
 		plan.spec.selectedRuntime != nil {
 		return nil, false, nil
 	}
-	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
+	routes := enabledFallbackRoutes(
+		&plan.spec.workspace.Config, fallbackRoutesForAgent(plan.runtime.agentDef), m.sessionLogger(session),
+	)
+	if len(routes) > 0 {
 		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
 		return proc, true, err
 	}

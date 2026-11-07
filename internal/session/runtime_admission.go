@@ -80,3 +80,29 @@ func requireEnabledRuntimeProvider(
 	}
 	return err
 }
+
+// enabledFallbackRoutes drops agent-chain routes on disabled providers (BR-6) so a chain only
+// attempts enabled routes. Each skip logs the route's declared 1-based index.
+func enabledFallbackRoutes(cfg *compozyconfig.Config, routes []FallbackRoute, logger *slog.Logger) []FallbackRoute {
+	if len(routes) == 0 {
+		return routes
+	}
+	kept := make([]FallbackRoute, 0, len(routes))
+	for index, route := range routes {
+		if !cfg.IsProviderDisabled(route.Provider) {
+			kept = append(kept, route)
+			continue
+		}
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Info(
+			"fallback.route_skipped",
+			"reason", "provider_disabled",
+			"provider", compozyconfig.CanonicalProviderName(route.Provider),
+			"route_index", index+1,
+			"owner", "agent_chain",
+		)
+	}
+	return kept
+}

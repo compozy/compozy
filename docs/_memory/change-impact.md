@@ -190,6 +190,10 @@ usage scenarios updated by the spec's QA task.
 - New diagnostic codes `provider_disabled` and `provider_default_disable_rejected`
   (CategoryProvider). Starts, resumes, runtime changes, spawns and loop/goal runs on a disabled
   provider fail with `provider_disabled` (409); running sessions continue.
+- Fallbacks and roles: agent fallback chains and role fallbacks skip disabled routes
+  (`fallback.route_skipped`, `reason=provider_disabled`); a role with a disabled primary uses its
+  first enabled fallback, and a role with no enabled route reports `provider_disabled` (resolution
+  error and role status diagnostic).
 - Native tools: `compozy__config_set`/`compozy__config_get` accept the bool path; selection tools
   (`compozy__provider_models_list`, `compozy__subagent_capabilities`) omit disabled providers;
   session create/spawn and loop/goal starts return `provider_disabled`. No tool ID changes.

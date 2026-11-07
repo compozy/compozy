@@ -74,7 +74,7 @@ func (r *roleResolver) projectRoleStatus(
 		Speed:           roleStatusSpeed(common.Speed),
 		ACPOptions:      roleStatusACPOptions(common.ACPOptions),
 		FallbackChain:   roleStatusFallbacks(common.FallbackChain),
-		Diagnostics:     diagnostics,
+		Diagnostics:     appendRoleProviderDisabledDiagnostic(diagnostics, effective, common),
 	}
 	status.Provenance = roleStatusProvenance(
 		roleProvenance(role, effective),

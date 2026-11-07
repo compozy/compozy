@@ -762,6 +762,42 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should skip a disabled fallback route and log the skip", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, db := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		setHarnessProviderEnabled(t, h, "codex", false)
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+		})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 2 attempt(s)") {
+			t.Fatalf("Create() error = %v, want exhaustion over the two enabled routes", err)
+		}
+		if slices.Contains(startCommands(h), codexCommand) {
+			t.Fatalf("start commands = %v, want the disabled codex route never launched", startCommands(h))
+		}
+		if got := ledgerRows(t, db); got != 1 {
+			t.Fatalf("ledger rows = %d, want only the enabled fallback attempt", got)
+		}
+		var skipped []capturedLogRecord
+		for _, record := range logs.Records() {
+			if record.Message == "fallback.route_skipped" {
+				skipped = append(skipped, record)
+			}
+		}
+		if len(skipped) != 1 || skipped[0].Attrs["provider"] != "codex" ||
+			skipped[0].Attrs["reason"] != "provider_disabled" || skipped[0].Attrs["route_index"] != "2" ||
+			skipped[0].Attrs["owner"] != "agent_chain" {
+			t.Fatalf("fallback.route_skipped records = %#v, want one codex agent_chain skip at route 2", skipped)
+		}
+	})
+
 	// refuseWithProcess makes the fake driver return a live process together with a
 	// pre-acceptance refusal for the given commands; stopping such a process fails.
 	refuseWithProcess := func(h *harness, commands map[string]bool, stopErr error) {
