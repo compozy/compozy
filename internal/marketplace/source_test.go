@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
@@ -246,9 +248,9 @@ func TestPluginProjectionBudget(t *testing.T) {
 		},
 	)
 
-	t.Run("Should resolve two hundred plugins with at most four workers and preserve source order", func(t *testing.T) {
+	t.Run("Should bound one thousand resolves to four workers and preserve order", func(t *testing.T) {
 		t.Parallel()
-		doc := pluginsource.Document{SourceRef: "github:team/plugins", Plugins: make([]pluginsource.Plugin, 250)}
+		doc := pluginsource.Document{SourceRef: "github:team/plugins", Plugins: make([]pluginsource.Plugin, 1050)}
 		for i := range doc.Plugins {
 			doc.Plugins[i] = pluginsource.Plugin{Name: fmt.Sprintf("plugin-%03d", i)}
 		}
@@ -284,7 +286,7 @@ func TestPluginProjectionBudget(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		entries, diagnostics, err := projector.Project(ctx, doc, "team-plugins", nil)
-		if err != nil || len(entries) != 250 || calls.Load() != 200 || peak.Load() != 4 || active.Load() != 0 {
+		if err != nil || len(entries) != 1050 || calls.Load() != 1000 || peak.Load() != 4 || active.Load() != 0 {
 			t.Fatalf(
 				"budget = %d entries, calls %d, peak %d, active %d, error %v",
 				len(entries),
@@ -296,10 +298,10 @@ func TestPluginProjectionBudget(t *testing.T) {
 		}
 		for i, entry := range entries {
 			if entry.EntryID != doc.Plugins[i].Name || entry.SourceName != "team-plugins" ||
-				entry.Installable != (i < 200) {
+				entry.Installable != (i < 1000) {
 				t.Fatalf("entry %d = %+v", i, entry)
 			}
-			if i >= 200 && entry.InstallBlocker != budgetExhausted {
+			if i >= 1000 && entry.InstallBlocker != budgetExhausted {
 				t.Fatalf("entry %d is not budget blocked: %+v", i, entry)
 			}
 		}
@@ -1681,4 +1683,134 @@ func TestCatalogPresetFetch(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Invariant: curated preset choices survive upgrades and local pinned packages retain curation.
+// Owner: marketplace source composition; canonical suite: IT-011.
+func TestCuratedPluginCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should default the published preset on and preserve a disabled source identity", func(t *testing.T) {
+		t.Parallel()
+		raw, err := os.ReadFile("../../catalog/v3/marketplaces.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		presets, err := DecodePresets(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, disabled := range []bool{false, true} {
+			cfg := config.DefaultMarketplaceRuntimeConfig()
+			if disabled {
+				cfg.PluginSources = []config.MarketplacePluginSourceConfig{
+					{Name: "old-curated-name", Source: "github:compozy/plugins", Enabled: new(false)},
+				}
+			}
+			sources, err := ResolveSources(cfg, presets.Entries)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var found bool
+			for _, source := range sources {
+				if source.Name == "compozy-plugins" {
+					found = true
+					if source.Ref != "github:compozy/plugins" || source.Enabled == disabled ||
+						source.Kind != SourceKindPreset {
+						t.Fatalf("preset = %+v", source)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("curated preset missing")
+			}
+		}
+	})
+	t.Run(
+		"Should acquire a committed local catalog and project declared categories and featured flags",
+		func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for _, name := range []string{"linear", "figma"} {
+				dir := filepath.Join(root, name, ".claude-plugin")
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(dir, "plugin.json"),
+					[]byte(`{"name":"`+name+`","version":"1.0.0"}`),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(root, name, "mcp.json"),
+					[]byte(`{"mcpServers":{"remote":{"type":"http","url":"https://example.com/mcp"}}}`),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			raw := `{"name":"compozy-plugins","plugins":[{"name":"linear","source":"./linear","category":"development","x-compozy":{"category":"productivity","featured":true,"supersedes":["claude-plugins-official/linear"]}},{"name":"figma","source":"./figma","x-compozy":{"category":"design"}}]}`
+			if err := os.WriteFile(filepath.Join(root, "marketplace.json"), []byte(raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{"init", "--initial-branch=main"}, {"add", "."}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false", "commit", "-m", "fixture"}} {
+				cmd := exec.CommandContext(t.Context(), "git", args...)
+				cmd.Dir = root
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git fixture: %s: %v", out, err)
+				}
+			}
+			cmd := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD")
+			cmd.Dir = root
+			head, err := cmd.Output()
+			if err != nil || len(strings.TrimSpace(string(head))) != 40 {
+				t.Fatalf("fixture pin = %s: %v", head, err)
+			}
+			resolver := &pluginsource.Resolver{
+				Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
+				Sources: pluginsource.Sources{TempDir: t.TempDir()},
+			}
+			projector, err := NewPluginProjector(
+				resolver,
+				func(_ context.Context, path, name string) (PluginInspection, error) {
+					pkg, err := agentplugin.Load(path, agentplugin.LoadOptions{Name: name, DataDir: t.TempDir()})
+					if err != nil {
+						return PluginInspection{}, err
+					}
+					return PluginInspection{
+						InstanceName: pkg.Name,
+						Contents:     PluginContents{MCPServers: len(pkg.Servers)},
+					}, nil
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			source, err := NewPluginSource(
+				ResolvedSource{Name: "compozy-plugins", Ref: root, Kind: SourceKindPreset},
+				&pluginsource.Sources{},
+				projector,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := source.Fetch(t.Context())
+			if err != nil || len(doc.Entries) != 2 {
+				t.Fatalf("catalog = %+v: %v", doc, err)
+			}
+			for i, entry := range doc.Entries {
+				detail, err := ProjectEntry(entry)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantCategory := []CategoryID{CategoryProductivity, CategoryDesign}[i]
+				if !entry.Installable || detail.Category.ID != wantCategory || detail.Featured != (i == 0) ||
+					detail.Extension.Contents.MCPServers != 1 ||
+					len(entry.DigestSHA256) != 64 {
+					t.Fatalf("curated entry = %+v, detail = %+v", entry, detail)
+				}
+			}
+		},
+	)
 }

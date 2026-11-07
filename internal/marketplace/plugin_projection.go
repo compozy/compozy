@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	maxPluginResolves   = 4
-	maxProjectedPlugins = 200
+	maxPluginResolves = 4
+	// Match the curated catalog ceiling without increasing concurrency or the refresh deadline.
+	maxProjectedPlugins = 1000
 	pluginRefreshBudget = 10 * time.Minute
 	budgetExhausted     = "refresh_budget_exhausted"
 )
