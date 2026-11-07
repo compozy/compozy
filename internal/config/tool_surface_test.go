@@ -49,6 +49,10 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			path: "vault.key_provider", denial: ConfigPathTrustForbidden,
 		},
 		{
+			name: "Should allow provider enabled toggle",
+			path: "providers.gemini.enabled", kind: ConfigValueBool,
+		},
+		{
 			name: "Should allow provider steer capability mutation",
 			path: "providers.codex.steer_capability", kind: ConfigValueString,
 		},

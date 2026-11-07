@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -40,6 +41,9 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
 		*overlay.Permissions.ProviderFullAccess {
 		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
+	}
+	if err := rejectWorkspaceProviderEnabled(overlay, roleSource); err != nil {
+		return err
 	}
 	if err := overlay.Apply(dst); err != nil {
 		return err
@@ -320,4 +324,21 @@ func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 	if o.ProviderFullAccess != nil {
 		dst.ProviderFullAccess = *o.ProviderFullAccess
 	}
+}
+
+// rejectWorkspaceProviderEnabled keeps providers.<id>.enabled in the global and profile layers
+// (BR-2): provider usage resolves per profile, so a workspace value could not apply consistently.
+func rejectWorkspaceProviderEnabled(overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceWorkspace && roleSource != RoleFieldSourceWorkspaceProfile {
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(overlay.Providers)) {
+		if overlay.Providers[name].Enabled != nil {
+			return ValidationError{
+				Path:    "providers." + name + ".enabled",
+				Message: "can only be set in the global or profile config",
+			}
+		}
+	}
+	return nil
 }

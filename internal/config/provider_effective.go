@@ -86,6 +86,11 @@ func (p ProviderConfig) SessionMCPEnabled() bool {
 	return *p.SessionMCP
 }
 
+// EffectiveEnabled reports whether the provider may be selected and launched. Nil means enabled.
+func (p ProviderConfig) EffectiveEnabled() bool {
+	return p.Enabled == nil || *p.Enabled
+}
+
 // SessionMCPOverHTTP reports whether stdio session MCP servers reach the
 // provider through a loopback HTTP bridge instead of as stdio servers.
 func (p ProviderConfig) SessionMCPOverHTTP() bool {

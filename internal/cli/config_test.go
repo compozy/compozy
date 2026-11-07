@@ -2691,6 +2691,12 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: false,
 			},
 			{
+				name:        "Should allow provider enabled toggle",
+				path:        "providers.gemini.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow full roles section",
 				path:        "roles",
 				wantKind:    configSetTable,

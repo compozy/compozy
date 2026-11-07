@@ -70,6 +70,9 @@ func (o providerOverlay) applySessionMCP(dst *ProviderConfig) {
 	if o.SessionMCPTransport != nil {
 		dst.SessionMCPTransport = *o.SessionMCPTransport
 	}
+	if o.Enabled != nil {
+		dst.Enabled = new(*o.Enabled)
+	}
 }
 
 func (o providerModelsOverlay) Apply(dst *ProviderModelsConfig) {

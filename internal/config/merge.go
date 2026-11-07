@@ -145,6 +145,7 @@ type providerOverlay struct {
 	AuthLoginCmd        *string                     `toml:"auth_login_command"`
 	AuthACPMethod       *string                     `toml:"auth_acp_method"`
 	SessionMCP          *bool                       `toml:"session_mcp"`
+	Enabled             *bool                       `toml:"enabled"`
 	SessionMCPTransport *MCPServerTransport         `toml:"session_mcp_transport"`
 	CredentialSlots     []providerCredentialOverlay `toml:"credential_slots"`
 	MCPServers          []mcpServerOverlay          `toml:"mcp_servers"`
