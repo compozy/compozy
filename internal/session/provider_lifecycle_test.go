@@ -671,3 +671,105 @@ func assertCapturedLogAttr(t *testing.T, record capturedLogRecord, key string, w
 		t.Fatalf("log %q attr %q = %q, want %q", record.Message, key, got, want)
 	}
 }
+
+// setHarnessProviderEnabled swaps in a provider map with providers.<name>.enabled set, the
+// way a config apply publishes a new snapshot.
+func setHarnessProviderEnabled(t *testing.T, h *harness, name string, enabled bool) {
+	t.Helper()
+	providers := compozyconfig.CloneProviderConfigs(h.cfg.Providers)
+	provider := providers[name]
+	provider.Enabled = new(enabled)
+	providers[name] = provider
+	h.cfg.Providers = providers
+	h.resolver.mu.Lock()
+	defer h.resolver.mu.Unlock()
+	resolved := h.resolver.byRef[h.workspaceID]
+	resolved.Config = h.cfg
+	h.resolver.upsert(&resolved)
+}
+
+func TestDisabledProviderGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse a start on a disabled provider and persist nothing", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		for attempt := range 2 {
+			_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
+				AgentName: "coder", Name: "disabled", Workspace: h.workspaceID, Provider: "codex",
+			}))
+			if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("Create() attempt %d error = %v, want ErrProviderDisabled", attempt, err)
+			}
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+		infos, err := h.manager.ListAll(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		if len(infos) != 0 {
+			t.Fatalf("ListAll() = %d sessions, want none persisted", len(infos))
+		}
+	})
+
+	t.Run("Should admit starts before a disable and refuse them after", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		admitted, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
+			AgentName: "coder", Name: "before", Workspace: h.workspaceID, Provider: "codex",
+		}))
+		if err != nil {
+			t.Fatalf("Create(before disable) error = %v", err)
+		}
+		t.Cleanup(func() { _ = h.manager.Stop(testutil.Context(t), admitted.ID) })
+		setHarnessProviderEnabled(t, h, "codex", false)
+		_, err = h.manager.Create(testutil.Context(t), new(CreateOpts{
+			AgentName: "coder", Name: "after", Workspace: h.workspaceID, Provider: "codex",
+		}))
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Create(after disable) error = %v, want ErrProviderDisabled", err)
+		}
+		if _, ok := h.manager.Get(admitted.ID); !ok {
+			t.Fatal("admitted session stopped after the disable, want it running")
+		}
+	})
+
+	t.Run("Should refuse resuming a stopped session on a disabled provider", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		setHarnessProviderEnabled(t, h, "claude", false)
+		_, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Resume() error = %v, want ErrProviderDisabled", err)
+		}
+		if got := len(h.driver.startCalls); got != 1 {
+			t.Fatalf("driver start calls = %d, want 1 (create only)", got)
+		}
+	})
+
+	t.Run("Should exempt recovery of the accepted route but gate another disabled route", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { _ = h.manager.Stop(testutil.Context(t), session.ID) })
+		setHarnessProviderEnabled(t, h, "claude", false)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		ctx := testutil.Context(t)
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(
+			ctx, session, RuntimeSelection{Provider: "claude"}, "", nil,
+		); err != nil {
+			t.Fatalf("preparePromptRuntimePlanForRoute(accepted route) error = %v, want recovery allowed", err)
+		}
+		_, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, RuntimeSelection{Provider: "codex"}, "", nil)
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("preparePromptRuntimePlanForRoute(other route) error = %v, want ErrProviderDisabled", err)
+		}
+	})
+}

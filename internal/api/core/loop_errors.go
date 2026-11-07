@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -46,6 +48,9 @@ func (e *LoopLintFailedError) Error() string {
 
 // StatusForLoopError maps loop-domain failures to transport statuses.
 func StatusForLoopError(err error) int {
+	if errors.Is(err, compozyconfig.ErrProviderDisabled) {
+		return http.StatusConflict
+	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return http.StatusConflict
 	}

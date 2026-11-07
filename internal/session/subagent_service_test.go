@@ -3191,3 +3191,24 @@ func TestSubagentFingerprintCompatibility(t *testing.T) {
 		}
 	})
 }
+
+func TestSubagentCapabilitiesOmitDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit disabled providers from capabilities", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		_, options, err := runtime.Capabilities(t.Context(), parent)
+		if err != nil {
+			t.Fatalf("Capabilities() error = %v", err)
+		}
+		for _, option := range options {
+			if option.Provider == "codex" {
+				t.Fatalf("Capabilities() listed disabled codex: %#v", option)
+			}
+		}
+	})
+}

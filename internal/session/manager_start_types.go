@@ -30,7 +30,11 @@ type sessionStartSpec struct {
 	sessionName               string
 	agentName                 string
 	provider                  string
-	commandFingerprint        string
+	// admission is why the runtime is resolved; the zero value is new work.
+	admission runtimeAdmission
+	// boundProvider is the provider a runtime plan's session is already bound to.
+	boundProvider      string
+	commandFingerprint string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
 	sessionEnv compozyconfig.SessionEnv

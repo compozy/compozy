@@ -75,7 +75,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 		}
 		target.CollectorID = r.collectorFamily(id, provider)
 		switch {
-		case !cfg.ProviderUsage.ProviderEnabled(id):
+		case cfg.IsProviderDisabled(id) || !cfg.ProviderUsage.ProviderEnabled(id):
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeDisabled, id)
 		case r.collectors[target.CollectorID] == nil:
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)

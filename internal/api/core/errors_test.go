@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -197,6 +199,14 @@ func TestLoopErrorHelpers(t *testing.T) {
 			name: "Should preserve unavailable actor lookup as service unavailable",
 			err:  agentidentity.ErrIdentityLookupUnavailable,
 			want: http.StatusServiceUnavailable,
+		},
+		{
+			name: "Should map a runtime validation caused by a disabled provider to conflict",
+			err: looppkg.NewRuntimeValidationCauseError(
+				&compozyconfig.ProviderDisabledError{Provider: "gemini"},
+				looppkg.RuntimeValidationItem{Field: "provider", Value: "gemini", Reason: "provider_disabled"},
+			),
+			want: http.StatusConflict,
 		},
 		{
 			name: "Should map unknown Loop errors to internal server error",
@@ -384,6 +394,7 @@ func TestErrorPayloadForError(t *testing.T) {
 			{store.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},
 			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
+			{&compozyconfig.ProviderDisabledError{Provider: "gemini"}, "provider_disabled", http.StatusConflict},
 		} {
 			err := fmt.Errorf("send refused: %w", tc.err)
 			payload := ErrorPayloadForError(err)

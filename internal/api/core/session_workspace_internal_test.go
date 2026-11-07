@@ -314,6 +314,23 @@ func TestSessionProviderOptionPayloads(t *testing.T) {
 	}
 }
 
+func TestSessionProviderOptionPayloadsOmitDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit providers the operator disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := &compozyconfig.Config{
+			Defaults:  compozyconfig.DefaultsConfig{Provider: "codex"},
+			Providers: map[string]compozyconfig.ProviderConfig{"gemini": {Enabled: new(false)}},
+		}
+		for _, payload := range SessionProviderOptionPayloadsFromConfig(cfg) {
+			if payload.Name == "gemini" {
+				t.Fatalf("SessionProviderOptionPayloadsFromConfig() listed disabled gemini: %#v", payload)
+			}
+		}
+	})
+}
+
 func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	t.Parallel()
 

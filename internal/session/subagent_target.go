@@ -178,6 +178,9 @@ func (r managerSubagentRuntime) Capabilities(
 	options := make([]SubagentProviderOption, 0, len(names))
 	byName := make(map[string]SubagentProviderOption)
 	for _, name := range ordered {
+		if workspace.Config.IsProviderDisabled(name) {
+			continue
+		}
 		option, err := r.providerOption(ctx, &workspace.Config, name)
 		if err != nil {
 			return nil, nil, err
@@ -204,6 +207,9 @@ func (r managerSubagentRuntime) Capabilities(
 		option := SubagentAgentOption{Name: agent.Name, Constraints: []string{}}
 		if err != nil {
 			option.Constraints = []string{err.Error()}
+		} else if disabledErr := workspace.Config.RequireEnabledProvider(resolved.Provider); disabledErr != nil {
+			option.Provider = resolved.Provider
+			option.Constraints = []string{disabledErr.Error()}
 		} else {
 			provider := byName[resolved.Provider]
 			option.Provider = resolved.Provider

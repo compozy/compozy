@@ -96,6 +96,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = string(reason.Code)
 		payload.Details = lifecycleReasonDetails(reason.Meta)
 	}
+	enrichProviderEnabledError(&payload, err)
 	payload.Diagnostic = errorDiagnosticItem(message, err)
 	enrichSessionInputError(&payload, err)
 	return payload
@@ -271,5 +272,16 @@ func enrichWorkspaceConfigError(payload *contract.ErrorPayload, err error) {
 				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
 			}
 		}
+	}
+}
+
+// enrichProviderEnabledError maps the disabled-provider gate and the default-provider lock ahead of
+// generic provider codes.
+func enrichProviderEnabledError(payload *contract.ErrorPayload, err error) {
+	switch {
+	case errors.Is(err, compozyconfig.ErrProviderDisabled):
+		payload.Code = contract.CodeProviderDisabled
+	case errors.Is(err, compozyconfig.ErrProviderDefaultDisableRejected):
+		payload.Code = contract.CodeProviderDefaultDisableRejected
 	}
 }

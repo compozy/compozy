@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -111,8 +113,27 @@ func (n *daemonNativeTools) providerModelsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
 	}
-	payload := core.ProviderModelListPayloadFromModels(models)
-	return structuredResult(payload, fmt.Sprintf("%d provider models", len(payload.Models)))
+	cfg := n.activeConfig(ctx)
+	payload := core.ProviderModelListPayloadFromModels(core.SelectableProviderModels(&cfg, models))
+	summary := fmt.Sprintf("%d provider models", len(payload.Models))
+	if disabledErr := cfg.RequireEnabledProvider(providerID); disabledErr != nil {
+		summary += "; " + disabledErr.Error() + " (provider_disabled)"
+	}
+	return structuredResult(payload, summary)
+}
+
+// activeConfig reads the live active config through settings, falling back to the boot snapshot.
+func (n *daemonNativeTools) activeConfig(ctx context.Context) compozyconfig.Config {
+	if n.deps.Settings != nil {
+		if source, ok := n.deps.Settings().(interface {
+			ActiveConfig(context.Context) (compozyconfig.Config, error)
+		}); ok {
+			if cfg, err := source.ActiveConfig(ctx); err == nil {
+				return cfg
+			}
+		}
+	}
+	return n.deps.Config
 }
 
 func (n *daemonNativeTools) providerModelsCurate(

@@ -93,6 +93,7 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeAttentionRequiresAction),
 		string(tools.ErrorCodeAgentInstanceNotFound),
 		string(tools.ErrorCodeAgentInstanceStarting),
+		string(tools.ErrorCodeProviderDisabled),
 		string(tools.ErrorCodeUnavailable),
 		string(tools.ErrorCodeDenied),
 		string(tools.ErrorCodeApprovalRequired),

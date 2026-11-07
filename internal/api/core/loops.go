@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -319,6 +321,10 @@ func (h *BaseHandlers) respondLoopError(c *gin.Context, err error) {
 			Valid:  false,
 			Errors: lint.Errors,
 		})
+		return
+	}
+	if errors.Is(err, compozyconfig.ErrProviderDisabled) {
+		h.respondError(c, http.StatusConflict, err)
 		return
 	}
 	if runtimeValidation, ok := errors.AsType[*looppkg.RuntimeValidationError](err); ok {

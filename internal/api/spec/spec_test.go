@@ -3328,6 +3328,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAttentionNotificationSessionOrigin(baseline) == 0 {
 			t.Fatal("approved notification session origin addition: no historical notification schema found")
 		}
+		// #1326: launches on a disabled provider return their own tool error code.
+		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
+			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
