@@ -465,6 +465,39 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 			t.Fatalf("COMPOZY_AGENT_NAME = %q, want coder", got)
 		}
 	})
+
+	t.Run("Should never pass internal daemon handoff variables to the agent", func(t *testing.T) {
+		t.Parallel()
+
+		for _, policy := range []compozyconfig.ProviderEnvPolicy{
+			compozyconfig.ProviderEnvPolicyFiltered,
+			compozyconfig.ProviderEnvPolicyIsolated,
+		} {
+			env := sessionStartEnvForProvider(
+				[]string{
+					"PATH=/usr/bin",
+					"COMPOZY_HOME=/tmp/compozy",
+					"COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1",
+					"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=false",
+				},
+				&Session{ID: "sess-1", AgentName: "coder"},
+				policy,
+				"",
+			)
+
+			for _, key := range []string{
+				"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
+				"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
+			} {
+				if got := envValue(env, key); got != "" {
+					t.Fatalf("%s policy: %s = %q, want absent", policy, key, got)
+				}
+			}
+			if got := envValue(env, "COMPOZY_HOME"); got != "/tmp/compozy" {
+				t.Fatalf("%s policy: COMPOZY_HOME = %q, want /tmp/compozy", policy, got)
+			}
+		}
+	})
 }
 
 func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {

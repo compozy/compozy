@@ -179,6 +179,21 @@ func TestLaunchSandboxFiltersFallbackEnvironment(t *testing.T) {
 			t.Fatalf("launchSandbox(nil) missing COMPOZY_HOME in %#v", env)
 		}
 	})
+
+	t.Run("Should keep explicit internal handoff variables only for detached launches", func(t *testing.T) {
+		const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1"
+		base := []string{"PATH=/usr/bin", handoff}
+
+		if !containsEnvEntry(launchSandbox(base), handoff) {
+			t.Fatalf("launchSandbox() dropped explicit handoff %q", handoff)
+		}
+		if containsEnvEntry(FilteredDaemonEnv(base), handoff) {
+			t.Fatalf("FilteredDaemonEnv() leaked handoff %q", handoff)
+		}
+		if containsEnvEntry(WithoutInternalHandoffEnv(base), handoff) {
+			t.Fatalf("WithoutInternalHandoffEnv() kept handoff %q", handoff)
+		}
+	})
 }
 
 func TestResolveLoginShellPath(t *testing.T) {
