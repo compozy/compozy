@@ -13,6 +13,7 @@ describe("parseMarketplaceWindowLocation", () => {
     ["/marketplace/compozy-catalog", "detail"],
     ["/marketplace/a/b", "not-found"],
     ["/marketplace/categories/a/b", "not-found"],
+    ["/marketplace/categories", "not-found"],
     ["/elsewhere", "not-found"],
   ] as const)("Should read %s as the %s surface", (pathname, kind) => {
     expect(parseMarketplaceWindowLocation({ pathname, search: {} }).kind).toBe(kind);

@@ -34,11 +34,16 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
     stale: pages.some(page => page.stale),
     unknownCategory,
     error: unknownCategory ? null : reader.error,
-    isLoading: reader.isPending || (reader.isPlaceholderData && items.length === 0),
+    // A placeholder or a refreshing catalog with no rows is not an answer yet.
+    isLoading:
+      reader.isPending ||
+      (items.length === 0 && (reader.isPlaceholderData || pages.some(page => page.refreshing))),
     hasMore: Boolean(reader.hasNextPage),
     isLoadingMore: reader.isFetchingNextPage,
     loadMore: reader.loadMore,
     retry: () => void reader.refetch(),
+    /** Retry under the list: the next page when that failed, otherwise the whole read again. */
+    retryMore: () => void (reader.isFetchNextPageError ? reader.loadMore() : reader.refetch()),
     inventory: { items: inventory.data, pending: inventory.isPending },
   };
 }

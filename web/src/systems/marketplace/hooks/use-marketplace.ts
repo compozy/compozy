@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
 import {
@@ -23,19 +23,18 @@ export function useMarketplaceSections(options: MarketplaceSectionsOptions = {},
 
 /**
  * One category, paged by the daemon. A cursor that went stale while paging restarts the list from
- * the first page silently (US-002.EC-2), the way Browse restarts its own snapshot.
+ * the first page silently (US-002.EC-2): the rows on screen stay while every loaded page is read
+ * again with fresh cursors, and the stale answer is never reported as an error.
  */
 export function useMarketplaceCategory(options: MarketplaceCatalogOptions, enabled = true) {
-  const queryClient = useQueryClient();
   const query = useInfiniteQuery(marketplaceCategoryOptions(options, enabled));
   const loadMore = async () => {
     if (!query.hasNextPage || query.isFetchingNextPage) return;
     const result = await query.fetchNextPage();
-    if (isMarketplaceCursorStale(result.error)) {
-      await queryClient.resetQueries({ queryKey: marketplaceCategoryOptions(options).queryKey });
-    }
+    if (isMarketplaceCursorStale(result.error)) await query.refetch();
   };
-  return { ...query, loadMore };
+  const restarting = isMarketplaceCursorStale(query.error);
+  return { ...query, error: restarting ? null : query.error, loadMore };
 }
 
 export function useMarketplaceCatalogEntry(

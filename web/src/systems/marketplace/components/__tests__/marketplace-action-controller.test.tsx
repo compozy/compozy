@@ -150,10 +150,15 @@ function RowHarness({
   item?: InstalledExtensionView;
 }) {
   const actions = useMarketplaceActionController();
+  const destination = useExtensionInstanceScope();
   const failure = actions.enableFailureFor(entry);
   const pending = actions.isEntryPending(entry);
   return (
     <>
+      <output aria-label="Destination">
+        {destination.workspaceId}:{destination.profileName}
+      </output>
+      <output aria-label="Announcement">{actions.announcement}</output>
       <MarketplaceCatalogTrail
         entry={entry}
         onInstall={actions.install}
@@ -190,6 +195,15 @@ function renderRow(entry: MarketplaceCatalogListing, item?: InstalledExtensionVi
   );
   return {
     ...view,
+    /** Leave the page and open another one on the same cache, as Browse → View all does. */
+    remountRow: (next: MarketplaceCatalogListing, nextItem?: InstalledExtensionView) => {
+      view.unmount();
+      return render(
+        <QueryClientProvider client={client}>
+          <RowHarness entry={next} item={nextItem} />
+        </QueryClientProvider>
+      );
+    },
     rerenderRow: (next: MarketplaceCatalogListing, nextItem?: InstalledExtensionView) =>
       view.rerender(
         <QueryClientProvider client={client}>
@@ -1022,6 +1036,9 @@ describe("Add", () => {
       ref: verified.install_slug,
     });
     expect(io.install.mock.calls[0]![0]).not.toHaveProperty("confirm_gateway_digest");
+    expect(await screen.findByRole("status", { name: "Announcement" })).toHaveTextContent(
+      `${verified.name} added · Ready`
+    );
   });
 
   // UT-028 [US-005.AC-2]: a required input opens review; its confirm still enables.
@@ -1074,10 +1091,17 @@ describe("Add", () => {
     view.rerenderRow(added, off);
     const word = await screen.findByTestId(`marketplace-enable-failed-${verified.entry_id}`);
     expect(word).toHaveTextContent("Couldn't turn on");
-    expect(word).toHaveAttribute("title", "Added but couldn't turn on: binary missing");
     expect(io.error).toHaveBeenCalledWith(`Added ${verified.name} but couldn't turn it on`, {
       description: "binary missing",
     });
+    expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(
+      `Added ${verified.name} but couldn't turn it on: binary missing`
+    );
+    // Leaving Browse for the category page keeps the failure and its cause on the same row.
+    view.remountRow(added, off);
+    expect(
+      await screen.findByRole("button", { name: `Retry turning on ${verified.name}` })
+    ).toHaveAccessibleDescription("Added but couldn't turn on: binary missing");
     await userEvent.click(
       screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
     );
@@ -1087,6 +1111,60 @@ describe("Add", () => {
     await waitFor(() =>
       expect(screen.queryByTestId(`marketplace-enable-failed-${verified.entry_id}`)).toBeNull()
     );
+    expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(
+      `${verified.name} turned on`
+    );
+  });
+
+  // Invariant [astra F2]: an enable failure belongs to the destination its Add named; a late
+  // answer never paints, nor retries, the same origin in another profile.
+  it("Should keep a late enable failure in the destination its Add started in", async () => {
+    setProfileView({ kind: "profile", profile: "marketing" });
+    io.preview.mockImplementation(gateFree);
+    let finishInstall!: () => void;
+    io.install.mockImplementationOnce(
+      (request: { profile: string }) =>
+        new Promise(resolve => {
+          finishInstall = () =>
+            resolve({
+              extension: {
+                ...extensionFixtures[0]!,
+                name: "otel-local",
+                profile: request.profile,
+                enabled: false,
+              },
+              enable_error: { code: "extension_start_failed", error: "binary missing" },
+            });
+        })
+    );
+    const view = renderRow(verified);
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(":marketing")
+    );
+    await userEvent.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install.mock.calls[0]![0]).toMatchObject({ profile: "marketing" });
+    act(() => setProfileView({ kind: "profile", profile: "consulting" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(":consulting")
+    );
+    await act(async () => finishInstall());
+    // The same origin, installed and off in consulting: it offers Turn on, not marketing's Retry.
+    const added = { ...verified, installed: true, installed_name: "otel-local" };
+    const offIn = (profile: string): InstalledExtensionView => ({
+      extension: { ...extensionFixtures[0]!, name: "otel-local", profile, enabled: false },
+      listing: added,
+      updateAvailable: false,
+    });
+    view.rerenderRow(added, offIn("consulting"));
+    expect(await screen.findByTestId(`marketplace-turn-on-${verified.entry_id}`)).toBeVisible();
+    expect(screen.queryByTestId(`marketplace-enable-failed-${verified.entry_id}`)).toBeNull();
+    act(() => setProfileView({ kind: "profile", profile: "marketing" }));
+    view.rerenderRow(added, offIn("marketing"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: `Retry turning on ${verified.name}` })
+    );
+    await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("otel-local", "marketing", true));
   });
 
   // UT-030 [US-005.AC-4, EC-4]: a second press while the first is in flight sends nothing.

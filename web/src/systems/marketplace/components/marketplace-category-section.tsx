@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "@compozy/ui/icons";
 
-import { Section } from "@compozy/ui";
+import { buttonVariants, Section } from "@compozy/ui";
 
 import type { MarketplaceSection } from "../types";
 import { MarketplaceCatalogRow, type MarketplaceRowInventory } from "./marketplace-catalog-row";
@@ -33,9 +33,10 @@ function MarketplaceCategorySection({
       headClassName="flex-row items-center justify-between pb-0 @md/section:items-center"
       label={section.label}
       right={
+        // The primitive's link look on a real link: navigation keeps the link role.
         <Link
           aria-label={`View all ${section.label}`}
-          className="inline-flex items-center gap-1 rounded-xs text-eyebrow font-medium text-subtle transition-colors duration-fast hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+          className={buttonVariants({ size: "sm", variant: "link" })}
           data-testid={`marketplace-view-all-${section.id}`}
           params={{ category: section.id }}
           to="/marketplace/categories/$category"

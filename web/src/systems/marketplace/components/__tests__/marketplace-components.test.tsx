@@ -1810,11 +1810,41 @@ describe("Category browse and row actions", () => {
     featured: false,
   }));
   /** `GET /api/marketplace?category=` the way the daemon pages it, cursor = next offset. */
-  function useCategoryServer(rows = productivity, pageSize = 5) {
+  function useCategoryServer(
+    rows = productivity,
+    pageSize = 5,
+    {
+      staleCursors = new Set<string>(),
+      refreshingReads = 0,
+    }: {
+      /** Cursors the daemon rejects once as stale (409, restart). */
+      staleCursors?: Set<string>;
+      /** How many first reads answer an empty, still-refreshing page. */
+      refreshingReads?: number;
+    } = {}
+  ) {
+    let reads = 0;
     server.use(
       http.get("*/api/marketplace", ({ request }) => {
         const params = new URL(request.url).searchParams;
         mocks.readCatalog(params);
+        reads += 1;
+        const cursor = params.get("cursor") ?? "";
+        if (staleCursors.delete(cursor)) {
+          return HttpResponse.json(
+            { code: "marketplace_cursor_stale", error: "cursor is stale", restart: true },
+            { status: 409 }
+          );
+        }
+        if (reads <= refreshingReads) {
+          return HttpResponse.json({
+            ...catalog,
+            categories: [],
+            items: [],
+            refreshing: true,
+            total: 0,
+          });
+        }
         const category = params.get("category") ?? "";
         if (category === "apps") {
           return HttpResponse.json(
@@ -1854,6 +1884,75 @@ describe("Category browse and row actions", () => {
     await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
     expect(mocks.readCatalog.mock.calls.at(-1)?.[0].get("cursor")).toBe("5");
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  // UT-022 [US-002.AC-2]: the end of the list coming into view asks for the next page by itself.
+  it("Should load the next page when the end of the category comes into view [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    try {
+      useCategoryServer();
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      await waitFor(() => expect(observers).toHaveLength(1));
+      act(() =>
+        observers[0]!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      // One observer for the sentinel's lifetime, not one per render.
+      expect(observers).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // UT-022 [US-002.EC-2]: a stale cursor restarts from page one silently, keeping the rows shown.
+  it("Should restart a stale category cursor from the first page without an error [UT-022]", async () => {
+    useCategoryServer(productivity, 5, { staleCursors: new Set(["5"]) });
+    setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    const firstReads = mocks.readCatalog.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() =>
+      expect(
+        mocks.readCatalog.mock.calls.slice(firstReads).map(([params]) => params.get("cursor"))
+      ).toEqual(["5", null])
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled());
+    expect(grid).toBeInTheDocument();
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("marketplace-category-error")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+  });
+
+  // F3 / _uiux S2: a category read while the catalog refreshes is loading, then fills in by itself.
+  it("Should keep loading while the catalog refreshes and follow the refresh", async () => {
+    useCategoryServer(productivity, 5, { refreshingReads: 1 });
+    setup(undefined, "/marketplace/categories/productivity");
+    await waitFor(() => expect(mocks.readCatalog).toHaveBeenCalled());
+    expect(screen.queryByTestId("marketplace-category-empty")).toBeNull();
+    const grid = await screen.findByTestId(
+      "marketplace-category-grid-productivity",
+      {},
+      { timeout: 3_000 }
+    );
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
   });
 
   // UT-023 [US-002.AC-3, EC-3]: the search stays inside the category and clearing restores it.

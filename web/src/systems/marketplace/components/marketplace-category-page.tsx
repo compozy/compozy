@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { AlertCircle, LayoutGrid, SearchX } from "@compozy/ui/icons";
 
 import { Button, Empty, ListingPage, Spinner, useTopbarSlot } from "@compozy/ui";
@@ -62,8 +63,9 @@ function MarketplaceCategoryPage({
         />
       </div>
       {actions.dialogs}
-      <span aria-live="polite" className="sr-only">
-        {query && !page.isLoading ? `Search updated · ${page.total} results` : ""}
+      <span aria-live="polite" className="sr-only" data-testid="marketplace-live-region">
+        <span>{query && !page.isLoading ? `Search updated · ${page.total} results` : ""}</span>
+        <span>{actions.announcement}</span>
       </span>
     </ListingPage>
   );
@@ -166,7 +168,7 @@ function MarketplaceCategoryBody({
           <span className="text-small-body text-destructive">
             The next entries could not be loaded.
           </span>
-          <Button onClick={() => void page.loadMore()} size="sm" type="button" variant="secondary">
+          <Button onClick={page.retryMore} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         </div>
@@ -188,16 +190,27 @@ function MarketplaceLoadMore({
   loading: boolean;
   onLoadMore: () => Promise<void>;
 }) {
-  const observe = (node: HTMLDivElement | null) => {
+  const sentinel = useRef<HTMLDivElement>(null);
+  const latestLoadMore = useRef(onLoadMore);
+  useEffect(() => {
+    latestLoadMore.current = onLoadMore;
+  });
+  // One observer for the sentinel's lifetime; it always asks with the current loader.
+  useEffect(() => {
+    const node = sentinel.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) void onLoadMore();
+      if (entries.some(entry => entry.isIntersecting)) void latestLoadMore.current();
     });
     observer.observe(node);
     return () => observer.disconnect();
-  };
+  }, []);
   return (
-    <div className="flex justify-center py-3" data-testid="marketplace-category-more" ref={observe}>
+    <div
+      className="flex justify-center py-3"
+      data-testid="marketplace-category-more"
+      ref={sentinel}
+    >
       <Button
         disabled={loading}
         onClick={() => void onLoadMore()}

@@ -4,10 +4,50 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { BrowserMarketplaceCatalogSeed } from "./runtime-seed";
+import type { BrowserExtensionRegistrySeed } from "./extension-registry-server";
+import type {
+  BrowserMarketplaceCatalogSeed,
+  BrowserMarketplaceExtensionEntrySeed,
+} from "./runtime-seed";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_GENERATED_AT = "2026-07-14T00:00:00Z";
+
+const VERIFIED_REPOSITORY = "compozy/verified-kit";
+const VERIFIED_TAG = "v1.0.0";
+
+/**
+ * A verified, gate-free curated entry: an `official` feed row whose archive the fake registry
+ * serves under the listed digest, with no inputs, servers or gateway requirement. Add on it has
+ * nothing to decide, so it installs and enables inline (US-005.AC-1, E2E-003). Seed both halves:
+ * `extensionRegistry` serves the archive and `marketplaceCatalog` lists the entry.
+ */
+export const verifiedCatalogFixture: {
+  entryId: string;
+  extensionRegistry: BrowserExtensionRegistrySeed;
+  entry: BrowserMarketplaceExtensionEntrySeed;
+} = {
+  entryId: "verified-kit",
+  extensionRegistry: {
+    repository: VERIFIED_REPOSITORY,
+    extensionName: "verified-kit",
+    description: "Verified kit with nothing to configure",
+    releases: [{ tag: VERIFIED_TAG, version: "1.0.0" }],
+  },
+  entry: {
+    entry_id: "verified-kit",
+    name: "Verified Kit",
+    description: "Verified kit with nothing to configure",
+    version: "1.0.0",
+    install_slug: VERIFIED_REPOSITORY,
+    repository: `https://github.com/${VERIFIED_REPOSITORY}`,
+    // Resolved by the runtime fixture to the registry's artifact URL and archive digest.
+    artifact_url: "",
+    digest_release_tag: VERIFIED_TAG,
+    tier: "official",
+    category: "design",
+  },
+};
 
 export interface MarketplaceCatalogTestServer {
   baseURL: string;

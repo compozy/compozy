@@ -22,6 +22,24 @@ export type MarketplaceSectionsQuery = OperationQuery<"getMarketplaceSections">;
 export type MarketplaceCategoryCount = MarketplaceCatalogResponse["categories"][number];
 export type ExtensionEnableError = NonNullable<ExtensionInstallResponse["enable_error"]>;
 
+/** The installed instance a Turn on / Retry addresses. */
+export interface MarketplaceEnableTarget {
+  name: string;
+  profileName: string;
+  workspaceId: string | null;
+}
+/** The installed instance an Add produced, kept with the cause its enable reported. */
+export interface MarketplaceEnableFailure extends MarketplaceEnableTarget {
+  cause: ExtensionEnableError;
+}
+/** Enable failures of one destination (workspace + profile), keyed by catalog origin. */
+export type MarketplaceEnableFailures = Readonly<Record<string, MarketplaceEnableFailure>>;
+/** The destination identity an install, enable or failure belongs to. */
+export interface MarketplaceDestinationScope {
+  profileName?: string | null;
+  workspaceId?: string | null;
+}
+
 export interface MarketplaceCatalogOptions extends MarketplaceScopeOptions {
   q?: string | null;
   /** Compozy category id; the daemon scopes paging, search and counts to it. */

@@ -3,7 +3,7 @@ import {
   previewMarketplaceSource,
 } from "../adapters/marketplace-sources-api";
 import type { AddMarketplaceSourceRequest } from "../types";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions, skipToken } from "@tanstack/react-query";
 import {
   browseMarketplace,
   getMarketplaceCatalogEntry,
@@ -15,6 +15,8 @@ import { readMarketplaceSnapshot } from "./catalog-snapshot";
 import type {
   MarketplaceCatalogOptions,
   MarketplaceCatalogEntryOptions,
+  MarketplaceDestinationScope,
+  MarketplaceEnableFailures,
   MarketplaceSectionsOptions,
 } from "../types";
 
@@ -84,9 +86,26 @@ export function marketplaceCategoryOptions(options: MarketplaceCatalogOptions, e
     meta: { population },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.population === population ? previousData : undefined,
+    // Follow the daemon's refresh flight like Browse does, so a starting catalog fills in.
+    refetchInterval: query =>
+      query.state.data?.pages.some(page => page.refreshing) ? 1_000 : false,
     staleTime: MARKETPLACE_STALE_TIME,
     retry: retryMarketplaceRead,
     enabled: enabled && (options.category?.trim() ?? "") !== "",
+  });
+}
+
+/**
+ * Enable failures of one destination. The controller writes them with `setQueryData`; nothing
+ * fetches them (`skipToken`), so a marketplace invalidation leaves them alone and they outlive
+ * the page that recorded them until a Retry or Turn on succeeds.
+ */
+export function marketplaceEnableFailuresOptions(scope: MarketplaceDestinationScope) {
+  return queryOptions<MarketplaceEnableFailures>({
+    queryKey: marketplaceKeys.enableFailures(scope),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 

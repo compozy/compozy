@@ -8,7 +8,6 @@ import {
   extensionTrustFacts,
   extensionUpdateScope,
   extensionsListOptions,
-  ExtensionGatewayConfirmDialog,
   previewExtensionInstall,
   useExtensionInstanceScope,
   type InstalledExtensionView,
@@ -20,11 +19,13 @@ import {
   useInstallMarketplaceExtension,
   useUpdateMarketplaceExtension,
 } from "../hooks/use-marketplace-actions";
-import type { ExtensionInstallRequest, MarketplaceCatalogListing } from "../types";
+import type {
+  MarketplaceCatalogListing,
+  MarketplaceEnableFailure,
+  MarketplaceEnableTarget,
+} from "../types";
 import { marketplaceCatalogEntryOptions } from "../lib/query-options";
 import { marketplaceOriginKey } from "../lib/marketplace-installed-view";
-import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
-import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
   marketplaceActionControllerLogic,
@@ -32,12 +33,15 @@ import {
   marketplaceInstallPreviewLogic,
   type MarketplaceInstallPreview,
 } from "./marketplace-action-controller-logic";
+import { MarketplaceActionDialogs } from "./marketplace-action-dialogs";
 import {
-  formatMarketplaceVersion,
-  marketplaceEntrySlug,
-  marketplaceErrorMessage,
-  marketplaceErrorCode,
-} from "./marketplace-ui";
+  catalogInstallRequest,
+  installedName,
+  installRequestScope,
+  reportFailure,
+  updatedToast,
+} from "./marketplace-action-requests";
+import { marketplaceErrorMessage, marketplaceErrorCode } from "./marketplace-ui";
 import { useMarketplaceUpdateRecovery } from "./use-marketplace-update-recovery";
 import {
   createExtensionInputDraft,
@@ -45,14 +49,12 @@ import {
   type ExtensionInputDraft,
 } from "./extension-install-model";
 import { useMarketplacePending } from "./use-marketplace-pending";
-import {
-  useMarketplaceEnableRecovery,
-  type MarketplaceEnableFailure,
-  type MarketplaceEnableTarget,
-} from "./use-marketplace-enable-recovery";
+import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery";
 
 interface MarketplaceActionController {
   dialogs: React.ReactNode;
+  /** The latest Add / Ready / Couldn't-turn-on transition, for the page's polite live region. */
+  announcement: string;
   /**
    * Catalog row Add: install and enable in one call. Consent comes first for an unverified entry;
    * the review dialog opens only when a required input or the gateway needs a decision.
@@ -81,37 +83,6 @@ interface MarketplaceActionController {
   ) => Promise<T>;
 }
 
-function installedName(entry: MarketplaceCatalogListing): string {
-  if (!entry.installed_name) {
-    throw new Error(`Installed identity is unavailable for ${entry.name}`);
-  }
-  return entry.installed_name;
-}
-
-/** Use the listed source and digest for this catalog acquisition. */
-function catalogInstallRequest(
-  entry: MarketplaceCatalogListing,
-  allowUnverified: boolean,
-  destination: ReturnType<typeof useExtensionInstanceScope>
-): ExtensionInstallRequest {
-  return {
-    profile: destination.profileName,
-    scope: destination.workspaceId ? "workspace" : "global",
-    ...(destination.workspaceId ? { workspace_id: destination.workspaceId } : {}),
-    allow_unverified: allowUnverified,
-    enable: true,
-    expected_digest: entry.digest_sha256,
-    ref: marketplaceEntrySlug(entry),
-    source: entry.source_ref === "catalog:compozy" ? "curated" : "marketplace",
-    version: entry.version,
-  };
-}
-
-function updatedToast(name: string, version: string | null | undefined) {
-  const display = formatMarketplaceVersion(version);
-  toast.success(display ? `${name} updated to ${display}` : `${name} updated`);
-}
-
 /**
  * Install/update/enable for the one-kind catalog. Every mutation keeps its daemon gates — install
  * preview, unverified consent, gateway confirmation — and rows report pending by origin or by the
@@ -132,7 +103,8 @@ function useMarketplaceActionController(
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
-  const enableRecovery = useMarketplaceEnableRecovery();
+  const [announcement, setAnnouncement] = useState("");
+  const enableRecovery = useMarketplaceEnableRecovery(destination, setAnnouncement);
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
   const { runUpdate } = updateFlow;
   const destinationKey = JSON.stringify([destination.profileName, destination.workspaceId]);
@@ -199,6 +171,7 @@ function useMarketplaceActionController(
   };
 
   const previewInstall = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
+    if (!entry.update_available) setAnnouncement(`Adding ${entry.name}…`);
     try {
       await loadInstallPreview(entry, allowUnverified);
     } catch (error) {
@@ -353,8 +326,10 @@ function useMarketplaceActionController(
       });
       acquisition.preview.trigger.previewDismissed();
       pending.flashEntry(selected.entry);
+      // The destination this request named, even if the window has switched since.
+      const scope = installRequestScope(selected.request);
       if (enableError) {
-        enableRecovery.record(selected.entry, {
+        enableRecovery.record(scope, selected.entry, {
           cause: enableError,
           name: extension.name,
           profileName: extension.profile,
@@ -363,12 +338,17 @@ function useMarketplaceActionController(
         toast.error(`Added ${selected.entry.name} but couldn't turn it on`, {
           description: enableError.error,
         });
+        setAnnouncement(
+          `Added ${selected.entry.name} but couldn't turn it on: ${enableError.error}`
+        );
         return;
       }
-      enableRecovery.record(selected.entry, null);
-      viewInstalledToast(
-        `${selected.entry.name} added`,
-        extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false
+      enableRecovery.record(scope, selected.entry, null);
+      const needsAuthorization =
+        extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false;
+      viewInstalledToast(`${selected.entry.name} added`, needsAuthorization);
+      setAnnouncement(
+        `${selected.entry.name} added · ${needsAuthorization ? "Set up to finish" : "Ready"}`
       );
     } catch (error) {
       acquisition.preview.trigger.previewDismissed();
@@ -386,80 +366,49 @@ function useMarketplaceActionController(
   };
 
   const dialogs = (
-    <>
-      {installedTrust ? (
-        <ExtensionTrustDialog
-          action="update"
-          name={installedTrust.extension.name}
-          onConfirm={() => runInstalledUpdate(installedTrust, true)}
-          onOpenChange={open => {
-            if (!open && !pending.isItemPending(installedTrust)) setInstalledTrust(null);
-          }}
-          open
-          pending={pending.isItemPending(installedTrust)}
-          warnings={installedTrust.extension.trust?.warnings}
-        />
-      ) : null}
-      {trustEntry ? (
-        <ExtensionTrustDialog
-          action={trustEntry.update_available ? "update" : "install"}
-          error={phase.status === "extensionTrust" ? phase.error : null}
-          name={trustEntry.name}
-          onConfirm={confirmTrust}
-          onOpenChange={open => {
-            if (!open) store.trigger.dialogDismissed();
-          }}
-          open
-          pending={phase.status === "extensionTrustSubmitting"}
-          warnings={trustEntry.trust?.warnings}
-        />
-      ) : null}
-      {updateFlow.recovery?.kind === "gateway" ? (
-        <ExtensionGatewayConfirmDialog
-          digest={updateFlow.recovery.digest}
-          extensionName={updateFlow.recovery.label}
-          onConfirm={() => updateFlow.confirm()}
-          onOpenChange={open => {
-            if (!open) updateFlow.dismiss();
-          }}
-          open
-          pending={updateFlow.pending}
-        />
-      ) : null}
-      {updateFlow.recovery?.kind === "inputs" ? (
-        <ExtensionInstallSummaryDialog
-          action="update"
-          name={updateFlow.recovery.label}
-          definitions={updateFlow.recovery.definitions}
-          key={JSON.stringify(updateFlow.recovery.definitions)}
-          onConfirm={updateFlow.confirm}
-          onOpenChange={open => {
-            if (!open) updateFlow.dismiss();
-          }}
-          open
-          pending={updateFlow.pending}
-        />
-      ) : null}
-      {installPreview ? (
-        <ExtensionInstallSummaryDialog
-          action="install"
-          key={JSON.stringify([installPreview.request, installPreview.preview.inputs])}
-          onConfirm={confirmInstall}
-          onOpenChange={open => {
-            if (!open && !entryActions.current.has(marketplaceOriginKey(installPreview.entry)))
-              acquisition.preview.trigger.previewDismissed();
-          }}
-          open
-          pending={pending.isEntryPending(installPreview.entry)}
-          preview={installPreview.preview}
-          entry={installPreview.entry}
-          destination={installPreview.request}
-        />
-      ) : null}
-    </>
+    <MarketplaceActionDialogs
+      install={
+        installPreview
+          ? {
+              selected: installPreview,
+              pending: pending.isEntryPending(installPreview.entry),
+              onConfirm: confirmInstall,
+              onDismiss: () => {
+                if (!entryActions.current.has(marketplaceOriginKey(installPreview.entry)))
+                  acquisition.preview.trigger.previewDismissed();
+              },
+            }
+          : null
+      }
+      installedTrust={
+        installedTrust
+          ? {
+              item: installedTrust,
+              pending: pending.isItemPending(installedTrust),
+              onConfirm: () => runInstalledUpdate(installedTrust, true),
+              onDismiss: () => {
+                if (!pending.isItemPending(installedTrust)) setInstalledTrust(null);
+              },
+            }
+          : null
+      }
+      trust={
+        trustEntry
+          ? {
+              entry: trustEntry,
+              error: phase.status === "extensionTrust" ? phase.error : null,
+              pending: phase.status === "extensionTrustSubmitting",
+              onConfirm: confirmTrust,
+              onDismiss: () => store.trigger.dialogDismissed(),
+            }
+          : null
+      }
+      updateFlow={updateFlow}
+    />
   );
 
   return {
+    announcement,
     dialogs,
     enableFailureFor: enableRecovery.failureFor,
     isEntryEnabling: enableRecovery.isEnabling,
@@ -478,13 +427,6 @@ function useMarketplaceActionController(
     update,
     updateInstalled,
   };
-}
-
-function reportFailure(error: unknown, fallback: string) {
-  const message = marketplaceErrorMessage(error, fallback);
-  const code = marketplaceErrorCode(error);
-  if (code) toast.error(message, { description: code });
-  else toast.error(message);
 }
 
 export { useMarketplaceActionController };

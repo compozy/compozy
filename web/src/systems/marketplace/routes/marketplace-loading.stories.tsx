@@ -53,3 +53,12 @@ export const InstalledLoading: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/** A category opened while the catalog refreshes: placeholder rows, never "Nothing in … yet". */
+export const CategoryRefreshing: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/categories/development"),
+    ...marketplaceStoryHandlers({ catalog: [], catalogOverrides: { refreshing: true } }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};

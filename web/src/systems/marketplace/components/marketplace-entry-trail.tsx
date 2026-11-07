@@ -1,7 +1,16 @@
 import { Check } from "@compozy/ui/icons";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
-import { Button, Pill, Skeleton, SkeletonRegion, Spinner } from "@compozy/ui";
+import {
+  Button,
+  Pill,
+  Skeleton,
+  SkeletonRegion,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import type { MarketplaceSetupState } from "../lib/marketplace-setup-state";
 import type { MarketplaceCatalogListing } from "../types";
@@ -196,37 +205,65 @@ function MarketplaceSetupWord({
         </Button>
       );
     case "enable-failed":
-      return (
-        <>
-          <Pill
-            className="cursor-help"
-            data-testid={`marketplace-enable-failed-${entry.entry_id}`}
-            form="plain"
-            title={
-              setup.enableCause ? `Added but couldn't turn on: ${setup.enableCause}` : undefined
-            }
-            tone="destructive"
-          >
-            <Pill.Dot />
-            Couldn't turn on
-          </Pill>
-          <Button
-            aria-label={`Retry turning on ${entry.name}`}
-            data-testid={`marketplace-enable-retry-${entry.entry_id}`}
-            disabled={setup.enabling}
-            onClick={setup.onRetry}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {setup.enabling ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
-            Retry
-          </Button>
-        </>
-      );
+      return <MarketplaceEnableFailed entry={entry} setup={setup} />;
     default:
       return null;
   }
+}
+
+/**
+ * Couldn't turn on + Retry. The cause is the Retry button's accessible description and its
+ * tooltip, so keyboard, touch and screen-reader users reach it, not only a mouse hover.
+ */
+function MarketplaceEnableFailed({
+  entry,
+  setup,
+}: {
+  entry: MarketplaceCatalogListing;
+  setup: MarketplaceCatalogTrailSetup;
+}) {
+  const causeId = useId();
+  const cause = setup.enableCause ? `Added but couldn't turn on: ${setup.enableCause}` : null;
+  const retry = (
+    <Button
+      aria-describedby={cause ? causeId : undefined}
+      aria-label={`Retry turning on ${entry.name}`}
+      data-testid={`marketplace-enable-retry-${entry.entry_id}`}
+      disabled={setup.enabling}
+      onClick={setup.onRetry}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      {setup.enabling ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
+      Retry
+    </Button>
+  );
+  return (
+    <>
+      <Pill
+        data-testid={`marketplace-enable-failed-${entry.entry_id}`}
+        form="plain"
+        tone="destructive"
+      >
+        <Pill.Dot />
+        Couldn't turn on
+      </Pill>
+      {cause ? (
+        <>
+          <span className="sr-only" id={causeId}>
+            {cause}
+          </span>
+          <Tooltip>
+            <TooltipTrigger render={retry} />
+            <TooltipContent>{cause}</TooltipContent>
+          </Tooltip>
+        </>
+      ) : (
+        retry
+      )}
+    </>
+  );
 }
 
 /**

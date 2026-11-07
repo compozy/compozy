@@ -36,7 +36,8 @@ export function parseMarketplaceWindowLocation(location: OsWindowRoute): Marketp
       search: validateMarketplaceSearch(location.search),
     };
   }
-  if (segments[0] !== "marketplace" || segments.length > 2) {
+  // `categories` is the category route's own prefix, never an entry id.
+  if (segments[0] !== "marketplace" || segments.length > 2 || second === "categories") {
     return { kind: "not-found", search: validateMarketplaceSearch(location.search) };
   }
   if (second === "installed") {

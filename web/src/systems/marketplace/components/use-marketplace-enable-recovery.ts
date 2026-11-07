@@ -1,49 +1,62 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@compozy/ui";
 
 import { useToggleExtension } from "@/systems/extensions";
 
 import { marketplaceOriginKey } from "../lib/marketplace-installed-view";
-import type { ExtensionEnableError, MarketplaceCatalogListing } from "../types";
+import { marketplaceEnableFailuresOptions } from "../lib/query-options";
+import type {
+  MarketplaceCatalogListing,
+  MarketplaceDestinationScope,
+  MarketplaceEnableFailure,
+  MarketplaceEnableFailures,
+  MarketplaceEnableTarget,
+} from "../types";
 import { marketplaceErrorMessage } from "./marketplace-ui";
 
-/** The installed instance an Add produced, kept with the cause its enable reported. */
-interface MarketplaceEnableFailure {
-  name: string;
-  profileName: string;
-  workspaceId: string | null;
-  cause: ExtensionEnableError;
-}
+const NO_FAILURES: MarketplaceEnableFailures = {};
 
-/** The installed instance a Turn on / Retry addresses. */
-interface MarketplaceEnableTarget {
-  name: string;
-  profileName: string;
-  workspaceId: string | null;
+/** Identity of one row in one destination: the same origin elsewhere is another row. */
+function scopedOriginKey(scope: MarketplaceDestinationScope, entry: MarketplaceCatalogListing) {
+  return JSON.stringify([
+    marketplaceEnableFailuresOptions(scope).queryKey,
+    marketplaceOriginKey(entry),
+  ]);
 }
 
 /**
  * Add installs and enables in one daemon operation; when only the enable fails the extension stays
- * installed (ADR-003). This keeps that cause on the row until a Retry or Turn on succeeds, keyed by
- * the catalog origin like every other row state.
+ * installed (ADR-003). This keeps that cause on the row until a Retry or Turn on succeeds. Failures
+ * live in the query cache under the destination (workspace + profile) and the catalog origin, so
+ * they survive navigation between Browse and a category page, and every write lands in the
+ * destination its action started in — a late answer never paints another workspace's row.
  */
-export function useMarketplaceEnableRecovery() {
+export function useMarketplaceEnableRecovery(
+  destination: MarketplaceDestinationScope,
+  announce: (message: string) => void
+) {
+  const queryClient = useQueryClient();
   const toggle = useToggleExtension();
-  const [failures, setFailures] = useState<ReadonlyMap<string, MarketplaceEnableFailure>>(
-    () => new Map()
-  );
+  const failures = useQuery(marketplaceEnableFailuresOptions(destination)).data ?? NO_FAILURES;
   const [enabling, setEnabling] = useState<ReadonlySet<string>>(() => new Set());
 
-  const record = (entry: MarketplaceCatalogListing, failure: MarketplaceEnableFailure | null) =>
-    setFailures(current => {
-      const next = new Map(current);
-      if (failure) next.set(marketplaceOriginKey(entry), failure);
-      else next.delete(marketplaceOriginKey(entry));
+  const record = (
+    scope: MarketplaceDestinationScope,
+    entry: MarketplaceCatalogListing,
+    failure: MarketplaceEnableFailure | null
+  ) =>
+    queryClient.setQueryData(marketplaceEnableFailuresOptions(scope).queryKey, current => {
+      const next = { ...current };
+      if (failure) next[marketplaceOriginKey(entry)] = failure;
+      else delete next[marketplaceOriginKey(entry)];
       return next;
     });
 
   const turnOn = async (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => {
-    const key = marketplaceOriginKey(entry);
+    // Captured now: the answer belongs to this destination even if the window switches meanwhile.
+    const scope = { profileName: destination.profileName, workspaceId: destination.workspaceId };
+    const key = scopedOriginKey(scope, entry);
     if (enabling.has(key)) return;
     setEnabling(current => new Set(current).add(key));
     try {
@@ -53,9 +66,12 @@ export function useMarketplaceEnableRecovery() {
         profileName: target.profileName,
         workspaceId: target.workspaceId,
       });
-      record(entry, null);
+      record(scope, entry, null);
+      announce(`${entry.name} turned on`);
     } catch (error) {
-      toast.error(marketplaceErrorMessage(error, `Couldn't turn on ${entry.name}`));
+      const message = marketplaceErrorMessage(error, `Couldn't turn on ${entry.name}`);
+      toast.error(message);
+      announce(message);
     } finally {
       setEnabling(current => {
         const next = new Set(current);
@@ -67,16 +83,14 @@ export function useMarketplaceEnableRecovery() {
 
   return {
     record,
-    failureFor: (entry: MarketplaceCatalogListing) =>
-      failures.get(marketplaceOriginKey(entry)) ?? null,
-    isEnabling: (entry: MarketplaceCatalogListing) => enabling.has(marketplaceOriginKey(entry)),
+    failureFor: (entry: MarketplaceCatalogListing) => failures[marketplaceOriginKey(entry)] ?? null,
+    isEnabling: (entry: MarketplaceCatalogListing) =>
+      enabling.has(scopedOriginKey(destination, entry)),
     turnOn,
     /** Retry the enable an Add could not finish, on the instance that Add installed. */
     retry: (entry: MarketplaceCatalogListing) => {
-      const failure = failures.get(marketplaceOriginKey(entry));
+      const failure = failures[marketplaceOriginKey(entry)];
       if (failure) void turnOn(entry, failure);
     },
   };
 }
-
-export type { MarketplaceEnableFailure, MarketplaceEnableTarget };

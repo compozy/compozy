@@ -33,7 +33,10 @@ import {
   runBrowserRuntimeCLIJSON,
   sensitiveArtifactPattern,
 } from "../fixtures/scenario-contracts";
-import { createPluginMarketplaceFixture } from "../fixtures/marketplace-server";
+import {
+  createPluginMarketplaceFixture,
+  verifiedCatalogFixture,
+} from "../fixtures/marketplace-server";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
@@ -379,9 +382,11 @@ test.describe("Marketplace plugin catalog by category", () => {
     runtimeOptions: {
       extensionsAllowUnverified: true,
       seed: {
+        extensionRegistry: verifiedCatalogFixture.extensionRegistry,
         marketplaceCatalog: {
           extensions: [
             ...productivity,
+            verifiedCatalogFixture.entry,
             {
               entry_id: "canvas",
               name: "Canvas",
@@ -484,7 +489,31 @@ test.describe("Marketplace plugin catalog by category", () => {
         expect(response.request().postDataJSON()).toMatchObject({ enable: true });
       };
 
-      await test.step("a plugin with nothing left to do reads Ready", async () => {
+      await test.step("a verified plugin with no gate adds inline and reads Ready, no dialog", async () => {
+        const { entryId } = verifiedCatalogFixture;
+        const added = appPage.waitForResponse(
+          response =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/api/extensions"
+        );
+        await win
+          .getByTestId(`marketplace-card-${entryId}`)
+          .getByRole("button", { name: /^Add / })
+          .click();
+        const response = await added;
+        expect(response.status()).toBe(201);
+        expect(response.request().postDataJSON()).toMatchObject({
+          enable: true,
+          source: "curated",
+          allow_unverified: false,
+        });
+        await expect(win.getByTestId(`marketplace-ready-${entryId}`)).toBeVisible();
+        // Nothing to decide: neither consent nor the review dialog ever opened.
+        await expect(appPage.getByTestId("extension-trust-confirm")).toHaveCount(0);
+        await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
+      });
+
+      await test.step("a gated (unverified) plugin with nothing left to do reads Ready", async () => {
         await addAndConsent("tool");
         await expect(win.getByTestId("marketplace-ready-tool")).toBeVisible();
       });

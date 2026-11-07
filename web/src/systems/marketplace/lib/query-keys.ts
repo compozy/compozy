@@ -1,4 +1,5 @@
 import type {
+  MarketplaceDestinationScope,
   MarketplaceCatalogOptions,
   MarketplaceCatalogEntryOptions,
   MarketplaceSectionsOptions,
@@ -62,5 +63,16 @@ export const marketplaceKeys = {
       normalizeText(options.installedName),
       ...scopeIdentity(options.workspaceId),
       normalizeText(options.profileName) ?? "default",
+    ] as const,
+  /**
+   * Enable failures an Add left behind in one destination. Client-held (never fetched), so they
+   * survive navigation between Browse and a category page without crossing workspace or profile.
+   */
+  enableFailures: (scope: MarketplaceDestinationScope) =>
+    [
+      ...marketplaceKeys.all,
+      "enable-failures",
+      ...scopeIdentity(scope.workspaceId),
+      normalizeText(scope.profileName) ?? "default",
     ] as const,
 };
