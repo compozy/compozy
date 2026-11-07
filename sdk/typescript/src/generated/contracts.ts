@@ -336,7 +336,12 @@ export interface AgentHeartbeatWakeBeforePayload {
   dry_run?: boolean;
 }
 
-export type HeartbeatWakeSource = "scheduler" | "manual" | "harness_reentry";
+export type HeartbeatWakeSource =
+  | "timer"
+  | "instance_check"
+  | "scheduler"
+  | "manual"
+  | "harness_reentry";
 
 export interface AgentHeartbeatWakeParams {
   workspace_id?: string;
@@ -2071,9 +2076,34 @@ export interface HeartbeatStatusRequest {
   include_recent_wake_events?: boolean;
 }
 
-export type HeartbeatWakeResult = "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+export type HeartbeatWakeResult =
+  | "quiet"
+  | "cancelled"
+  | "reported"
+  | "sent"
+  | "skipped"
+  | "coalesced"
+  | "rate_limited"
+  | "failed";
 
 export type HeartbeatWakeReason =
+  | "quiet"
+  | "reported"
+  | "cancelled"
+  | "digest_empty"
+  | "digest_unchanged"
+  | "policy_disabled"
+  | "definition_not_always_on"
+  | "definition_missing"
+  | "no_slot"
+  | "hook_cancelled"
+  | "duplicate_suppressed"
+  | "triage_unsupported"
+  | "triage_output_invalid"
+  | "triage_timeout"
+  | "triage_interrupted"
+  | "triage_config_unavailable"
+  | "triage_failed"
   | "source_poll_in_flight"
   | "wake_sent"
   | "heartbeat_disabled"

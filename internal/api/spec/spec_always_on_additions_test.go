@@ -100,16 +100,91 @@ type approvedAdditionWalker struct {
 
 // alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
 var alwaysOnHardeningEnumValues = map[string][]string{
-	"#/components/schemas/CreateAgentPayload/properties/permissions":        {"approve-edits", "auto"},
-	"#/components/schemas/DuplicateAgentOverrides/properties/permissions":   {"approve-edits", "auto"},
-	"#/components/schemas/SettingsPermissionsPayload/properties/mode":       {"approve-edits", "auto"},
-	"#/components/schemas/GoalCommandResult/properties/reason_code":         {"goal_on_instance_main"},
-	"#/components/schemas/GoalSnapshot/properties/cause":                    {"goal_on_instance_main"},
-	"#/components/schemas/GoalTurn/properties/reason_code":                  {"goal_on_instance_main"},
-	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/reason":   {"source_poll_in_flight"},
-	"#/components/schemas/HeartbeatWakeEventPayload/properties/reason":      {"source_poll_in_flight"},
-	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_reason": {"source_poll_in_flight"},
-	"#/paths/~1api~1automation~1triggers/get/parameters/schema":             {"agent_instance"},
+	"#/components/schemas/CreateAgentPayload/properties/permissions":      {"approve-edits", "auto"},
+	"#/components/schemas/DuplicateAgentOverrides/properties/permissions": {"approve-edits", "auto"},
+	"#/components/schemas/SettingsPermissionsPayload/properties/mode":     {"approve-edits", "auto"},
+	"#/components/schemas/GoalCommandResult/properties/reason_code":       {"goal_on_instance_main"},
+	"#/components/schemas/GoalSnapshot/properties/cause":                  {"goal_on_instance_main"},
+	"#/components/schemas/GoalTurn/properties/reason_code":                {"goal_on_instance_main"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_reason": {
+		"source_poll_in_flight",
+		"quiet",
+		"reported",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"digest_empty",
+		"digest_unchanged",
+		"policy_disabled",
+		"definition_not_always_on",
+		"definition_missing",
+		"no_slot",
+		"hook_cancelled", //nolint:misspell // Stored spelling.
+		"duplicate_suppressed",
+		"triage_unsupported",
+		"triage_output_invalid",
+		"triage_timeout",
+		"triage_interrupted",
+		"triage_config_unavailable",
+		"triage_failed",
+	},
+	"#/paths/~1api~1automation~1triggers/get/parameters/schema":           {"agent_instance"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/source": {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeByPathRequest/properties/source":   {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/source":    {"timer", "instance_check"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
+	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_result": {
+		"quiet",
+		"cancelled", //nolint:misspell // Stored spelling.
+		"reported",
+	},
 }
 
 // copyApprovedEnum extends a baseline enum with approved members the current document added.

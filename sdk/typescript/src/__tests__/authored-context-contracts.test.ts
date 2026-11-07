@@ -32,6 +32,11 @@ describe("generated authored context contracts", () => {
 
   it("exports Heartbeat status health and wake contract types", () => {
     type WakeDecision = HeartbeatWakeResponse["decision"];
+    type WakeEvent = NonNullable<HeartbeatStatusResponse["wake_events"]>[number];
+
+    expectTypeOf<WakeEvent["source"]>().toEqualTypeOf<
+      "scheduler" | "manual" | "harness_reentry" | "timer" | "instance_check"
+    >();
 
     expectTypeOf<SessionHealthPayload["state"]>().toEqualTypeOf<
       "idle" | "prompting" | "stopped" | "detached"
@@ -40,7 +45,14 @@ describe("generated authored context contracts", () => {
       "healthy" | "degraded" | "stale" | "dead" | "unknown"
     >();
     expectTypeOf<WakeDecision["result"]>().toEqualTypeOf<
-      "sent" | "skipped" | "coalesced" | "rate_limited" | "failed"
+      | "sent"
+      | "skipped"
+      | "coalesced"
+      | "rate_limited"
+      | "failed"
+      | "quiet"
+      | "cancelled"
+      | "reported"
     >();
     expectTypeOf<WakeDecision["reason"]>().toEqualTypeOf<
       | "wake_sent"
@@ -59,6 +71,23 @@ describe("generated authored context contracts", () => {
       | "synthetic_prompt_failed"
       | "wake_coalesced"
       | "source_poll_in_flight"
+      | "quiet"
+      | "reported"
+      | "cancelled"
+      | "digest_empty"
+      | "digest_unchanged"
+      | "policy_disabled"
+      | "definition_not_always_on"
+      | "definition_missing"
+      | "no_slot"
+      | "hook_cancelled"
+      | "duplicate_suppressed"
+      | "triage_unsupported"
+      | "triage_output_invalid"
+      | "triage_timeout"
+      | "triage_interrupted"
+      | "triage_config_unavailable"
+      | "triage_failed"
     >();
     expectTypeOf<HeartbeatStatusResponse["session_health"]>().toMatchTypeOf<
       SessionHealthPayload | null | undefined

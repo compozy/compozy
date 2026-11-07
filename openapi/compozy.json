@@ -12748,6 +12748,8 @@
           },
           "source": {
             "enum": [
+              "timer",
+              "instance_check",
               "scheduler",
               "manual",
               "harness_reentry"
@@ -12783,6 +12785,23 @@
           },
           "reason": {
             "enum": [
+              "quiet",
+              "reported",
+              "cancelled",
+              "digest_empty",
+              "digest_unchanged",
+              "policy_disabled",
+              "definition_not_always_on",
+              "definition_missing",
+              "no_slot",
+              "hook_cancelled",
+              "duplicate_suppressed",
+              "triage_unsupported",
+              "triage_output_invalid",
+              "triage_timeout",
+              "triage_interrupted",
+              "triage_config_unavailable",
+              "triage_failed",
               "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
@@ -12804,6 +12823,9 @@
           },
           "result": {
             "enum": [
+              "quiet",
+              "cancelled",
+              "reported",
               "sent",
               "skipped",
               "coalesced",
@@ -12849,6 +12871,23 @@
           },
           "reason": {
             "enum": [
+              "quiet",
+              "reported",
+              "cancelled",
+              "digest_empty",
+              "digest_unchanged",
+              "policy_disabled",
+              "definition_not_always_on",
+              "definition_missing",
+              "no_slot",
+              "hook_cancelled",
+              "duplicate_suppressed",
+              "triage_unsupported",
+              "triage_output_invalid",
+              "triage_timeout",
+              "triage_interrupted",
+              "triage_config_unavailable",
+              "triage_failed",
               "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
@@ -12870,6 +12909,9 @@
           },
           "result": {
             "enum": [
+              "quiet",
+              "cancelled",
+              "reported",
               "sent",
               "skipped",
               "coalesced",
@@ -12883,6 +12925,8 @@
           },
           "source": {
             "enum": [
+              "timer",
+              "instance_check",
               "scheduler",
               "manual",
               "harness_reentry"
@@ -12927,6 +12971,23 @@
           },
           "last_reason": {
             "enum": [
+              "quiet",
+              "reported",
+              "cancelled",
+              "digest_empty",
+              "digest_unchanged",
+              "policy_disabled",
+              "definition_not_always_on",
+              "definition_missing",
+              "no_slot",
+              "hook_cancelled",
+              "duplicate_suppressed",
+              "triage_unsupported",
+              "triage_output_invalid",
+              "triage_timeout",
+              "triage_interrupted",
+              "triage_config_unavailable",
+              "triage_failed",
               "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
@@ -12948,6 +13009,9 @@
           },
           "last_result": {
             "enum": [
+              "quiet",
+              "cancelled",
+              "reported",
               "sent",
               "skipped",
               "coalesced",

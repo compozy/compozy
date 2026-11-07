@@ -223,6 +223,11 @@ compozy agent heartbeat status reviewer --json
 There is no `compozy agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
 and wake decisions evaluate the latest valid snapshot at wake-decision time.
 
+Recent wake events include proactive checks: `timer` identifies scheduled checks and
+`instance_check` identifies manual instance checks. These retain their check outcomes
+(`quiet`, `reported`, `cancelled`, `skipped`, or `failed`) alongside legacy heartbeat wakes
+(`scheduler`, `manual`, and `harness_reentry`). Existing audit rows remain readable after upgrade.
+
 ## Diagnostics
 
 Validation and wake responses use one diagnostic shape across CLI, HTTP, UDS, and Host API.

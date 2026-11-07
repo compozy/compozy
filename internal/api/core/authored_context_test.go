@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -2164,4 +2165,116 @@ func (catalogExtensionPoller) PollSource(
 	source.Request,
 ) (source.Result, error) {
 	return source.Result{}, errors.New("catalog must not poll sources")
+}
+
+// TestAuthoredContextHeartbeatStatusInstanceChecks verifies retained proactive audit through status reads.
+func TestAuthoredContextHeartbeatStatusInstanceChecks(t *testing.T) {
+	t.Parallel()
+	for _, source := range []string{"timer", "instance_check"} {
+		t.Run("Should list persisted "+source+" check occurrences in heartbeat status", func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			if err := os.WriteFile(
+				filepath.Join(root, "AGENT.md"),
+				[]byte("---\nname: coder\nprovider: codex\n---\nCheck work.\n"),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			db, err := globaldb.OpenGlobalDB(t.Context(), databasePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: "ws-check", Name: "check", RootDir: root},
+			); err != nil {
+				t.Fatal(err)
+			}
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				WorkspaceID:       "ws-check",
+				AgentName:         "coder",
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			}, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 6, 22, 0, 0, 0, time.UTC)
+			outcomes := []struct{ result, reason string }{
+				{"skipped", "digest_empty"}, {"quiet", "quiet"}, {"reported", "reported"},
+				{"cancelled", "cancelled"}, //nolint:misspell // Stored spelling.
+				{"failed", "triage_failed"},
+			}
+			for _, outcome := range outcomes {
+				_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+                    (id, workspace_id, agent_name, source, result, reason, instance_id, created_at, expires_at)
+                    SELECT ?, workspace_id, agent_name, ?, ?, ?, id, ?, ? FROM agent_instances WHERE id = ?`,
+					outcome.result, source, outcome.result, outcome.reason,
+					store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := db.Close(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			db, err = globaldb.OpenGlobalDB(t.Context(), databasePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			foreign, err := db.ListHeartbeatWakeEvents(t.Context(), heartbeat.WakeEventListQuery{
+				ProfileID: "profile-other", WorkspaceID: "ws-check", AgentName: "coder",
+			})
+			if err != nil || len(foreign) != 0 {
+				t.Fatalf("foreign profile events=%+v error=%v", foreign, err)
+			}
+			status, err := heartbeat.NewManagedHeartbeatStatusService(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := testutil.NewTestHomePaths(t)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				HomePaths:           home,
+				Config:              compozyconfig.DefaultWithHome(home),
+				HeartbeatStatus:     status,
+				HeartbeatWakeEvents: db,
+				Workspaces: testutil.StubWorkspaceService{
+					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							ID: "ws-check", WorkspaceID: "ws-check", RootDir: root,
+							Config: compozyconfig.DefaultWithHome(home),
+							Agents: []compozyconfig.AgentDef{
+								{Name: "coder", SourcePath: filepath.Join(root, "AGENT.md")},
+							},
+						}, nil
+					},
+				},
+			})
+			engine := gin.New()
+			engine.GET("/agents/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
+			response := performRequest(t, engine, http.MethodGet,
+				"/agents/coder/heartbeat/status?workspace_id=ws-check&include_recent_wake_events=true", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body)
+			}
+			var payload contract.HeartbeatStatusResponse
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if len(payload.WakeEvents) != len(outcomes) {
+				t.Fatalf("wake events=%+v", payload.WakeEvents)
+			}
+			for _, event := range payload.WakeEvents {
+				if string(event.Source) != source || event.ID != string(event.Result) {
+					t.Fatalf("wake event=%+v", event)
+				}
+			}
+		})
+	}
 }

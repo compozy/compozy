@@ -383,6 +383,8 @@ Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete
 The `agent.heartbeat.wake.before` hook accepts `cancel: true` for proactive `timer` and
 `instance_check` sources. Legacy `scheduler`, `manual`, and `harness_reentry` sources ignore
 cancellation. Dry-run checks skip this hook. Cancellation creates no triage occurrence.
+Heartbeat status includes both proactive sources in recent wake events, preserving their
+check results and reasons, including retained events written before upgrade.
 
 For proactive wake cancellation, hooks may return `{"cancel":true,"reason":"maintenance_window"}`.
 The persisted wake event keeps `hook_cancelled` as its reason and records the supplied text in

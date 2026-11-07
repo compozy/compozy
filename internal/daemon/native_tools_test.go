@@ -13885,7 +13885,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			toolspkg.Scope{Operator: true, ProfileID: "profile-marketing"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
-				Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+				Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true}`),
 			},
 		)
 		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
@@ -13904,6 +13904,46 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			root := t.TempDir()
 			home := apitest.NewTestHomePaths(t)
 			cfg := compozyconfig.DefaultWithHome(home)
+			db := openDaemonTestGlobalDB(t)
+			profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			marketing, err := profiles.Create(
+				t.Context(),
+				profilepkg.CreateInput{Name: "marketing", Color: "#E8572A", Icon: "megaphone"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			profileIDs := map[string]string{"default": store.DefaultProfileID, "marketing": marketing.ID}
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: "ws-1", Name: "native-audit", RootDir: root},
+			); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 6, 23, 0, 0, 0, time.UTC)
+			for name, id := range profileIDs {
+				instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					ProfileID:         id,
+					WorkspaceID:       "ws-1",
+					AgentName:         "coder",
+					PermissionCeiling: "{}",
+					CreatedByKind:     "human",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+                    (id,workspace_id,agent_name,source,result,reason,detail,instance_id,created_at,expires_at)
+                    VALUES (?, 'ws-1', 'coder', 'instance_check', 'quiet', 'quiet', ?, ?, ?, ?)`,
+					name+"-audit", name+"-only", instance.ID, store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
 			digests := map[string]string{}
 			for _, name := range []string{"default", "marketing"} {
 				dir := filepath.Join(root, ".compozy", "profiles", name, "agents", "coder")
@@ -13941,6 +13981,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					ID: ref, RootDir: root,
 					WorkspaceID: ref,
+					ProfileID:   profileIDs[name],
 					ProfileName: name,
 					Config:      cfg,
 					Agents:      agents,
@@ -13952,7 +13993,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				},
 				ResolveForProfileFn: resolve,
 			}
-			status, err := heartbeat.NewManagedHeartbeatStatusService(nativeEmptyHeartbeatStore{})
+			status, err := heartbeat.NewManagedHeartbeatStatusService(db)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -13960,25 +14001,35 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				HomePaths:         home,
 				Workspaces:        nativeTestWorkspaceServiceWithRoot(t, root),
 				WorkspaceResolver: workspace,
-				Profiles: nativeProfileReaderStub{
-					profiles: []profilepkg.WithCounts{
-						{ID: "profile-" + profileName, Name: profileName},
-					},
-				},
-				HeartbeatStatus: status,
+				Profiles:          profiles,
+				HeartbeatStatus:   status,
+				WakeEvents:        db,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{Operator: true, ProfileID: "profile-" + profileName},
+				toolspkg.Scope{Operator: true, ProfileID: profileIDs[profileName]},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
-					Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+					Input: json.RawMessage(
+						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true}`,
+					),
 				},
 			)
 			if err != nil {
 				t.Fatalf("heartbeat status failed: %v", err)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"digest":"`+digests[profileName]+`"`))
+			var response struct {
+				Heartbeat contract.HeartbeatStatusResponse `json:"heartbeat"`
+			}
+			if err := json.Unmarshal(result.Structured, &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Heartbeat.WakeEvents) != 1 ||
+				response.Heartbeat.WakeEvents[0].Detail != profileName+"-only" ||
+				response.Heartbeat.WakeEvents[0].Source != contract.HeartbeatWakeSourceInstanceCheck {
+				t.Fatalf("profile audit = %+v", response.Heartbeat.WakeEvents)
+			}
 		})
 	}
 }
