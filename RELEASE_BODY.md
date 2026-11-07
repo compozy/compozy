@@ -1,100 +1,68 @@
-## 0.5.3 - 2026-11-06
+## 0.5.4 - 2026-11-07
 
 ### Bug Fixes
 
-- Show a pending runtime switch on session rows (#1294)
-- Allow profile moves with archived descendants (#1299)
-- Wake pull request monitors when merge conflicts appear (#1289)
-- Keep code_implementer working until its item is done
-- Hide session chrome that doesn't apply to always-on main sessions (#1304)
-- Defer fallback steering until active tools finish (#1296)
-- Enable sign-in for bare OAuth MCP remotes (#1308)
-- Let agents attach MCP servers (#1309)
-- Align OAuth browser journeys with sign-in action (#1310)
-- Keep native CLI sign-in verdicts truthful (#1278)
-- Load skill resources in User sessions (#1312)
-- Back off provider usage 429s, collect each account once, and re-verify native sign-in after restart (#1307)
-- Keep CompozyOS usage aliases on their own account (#1280)
+- Retain oversized tool results in User sessions (#1322)
+- Allow profile moves with stopped subagent descendants (#1321)
+- Compare SQLite commit pauses against paired storage tails (#1325)
+- Accept fenced proactive triage replies (#1319)
+- Preserve managed Goal pause ownership until coordinator settlement (#1329)
+- Read proactive check events in heartbeat status (#1332)
+- Hold MCP server form errors until a field is touched (#1338)
+- Settle expired permissions and stopped session interactions (#1335)
+- Keep the CompozyOS desktop window open when Settings restarts the daemon (#1339)
+- Compact always-on agent cards and hide deleted agents (#1341)
+- Keep dispatched children responsive after definition pauses (#1333)
+- Defer oversized invoked skills to skill_view instead of failing dispatch (#1330)
+- Refresh MCP tools in open sessions (#1342)
+- Preserve permission recovery reports and terminal refusals (#1347)
 
 ### Features
 
-- Remove retired agent kind compatibility inputs (#1295)
-- Add a Marketplace MCPs view with a Plugins | MCPs toggle (#1306)
+- Route new issues through an unattended issue vetter
+- Add a desktop download page and header download CTA to the site
+- Add daily CompozyOS daemon log triage agent (#1353)
+- Add project file explorer, file viewer and session Changes panel (#1351)
 
-### Performance Improvements
+### Refactoring
 
-- Batch forge lookups and refresh displayed branches on demand (#1291)
+- Rename the workspace always-on agents by their pipeline role
 
 ### Testing
 
-- Give the post-upgrade phase of the destructive-cut reopen test its own budget
+- Observe paused child monitor settlement before receipts (#1349)
 
 ### Release Notes
 
-#### Breaking Changes
-
-##### Retired agent kind inputs now report actionable errors
-
-The release after v0.5.2 removes the agent kind input aliases retained since v0.5.1.
-Use `always_on` in definitions, CLI flags, HTTP/UDS requests and native creation.
-
-## Migration notes
-
-Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Canonical keys
-win conflicts; original values and source text are retained as inactive comments. Persisted
-AGENT.md files migrate when loaded from any discovery root, including extension roots.
-Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
-still decode as `always_on` and log guidance to update the source before v0.6.0.
-This single persisted-file shim generation is scheduled for removal in v0.6.0.
-CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
-update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
-
-- Old kinds fail with `agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
-- Old tables in persisted config files migrate on load; API/config mutation paths reject the retired key.
-- Old config paths fail with `removed config key "agents.stays_on.max_proposals": use "agents.always_on.max_proposals"` (with the requested suffix).
-
-No new database migration is needed: v0.5.1 already migrated persisted rows.
-
 #### Fixes
 
-##### Provider usage works with several accounts and profiles
+##### A denser Agents list
 
-If you run more than one Claude account through provider aliases (for example `claude-mm1` with its own `CLAUDE_CONFIG_DIR`), or use more than one profile, Provider usage now behaves correctly.
+- **Compact always-on cards.** Always-on agents now use a smaller card: five per row on a wide window instead of three, with the description on one line and status and recent activity at a glance. Twenty agents fit on one screen.
+- **Deleted agents are gone.** An always-on agent whose definition was deleted no longer lingers in the list or in the filter counts, and no longer opens a "not found" page.
 
-- **No more 429 storms.** A rate-limit reply with `Retry-After: 0` made CompozyOS retry right away and get rate-limited again. Every 429 now pauses that account for at least 5 minutes, longer if it repeats.
-- **One request per account.** Each profile used to collect the same account separately. Collection is now shared per account, so two profiles no longer double the requests.
-- **Aliases show their own account.** An alias whose launch command doesn't set its own account variable used to show the default account's quota. It now shows no usage instead of the wrong one.
-- **Toggles and logos for aliases.** Settings → Provider usage lists every eligible alias with an on/off switch and its provider's logo, and you can edit the provider list while collection is off.
+##### Always-on agents keep working through pauses, renames and failed checks
 
-##### Provider sign-in status stays accurate
+- **Work dispatched by a paused agent keeps going.** If an always-on agent's definition was deleted or renamed, the sessions it had started stopped receiving their own monitor wakes and messages, and looked like they were just waiting. Those sessions now keep running. When input really is held, the reason and the agent holding it are shown, and the session asks for your attention instead of waiting silently.
+- **Proactive checks accept fenced replies.** A check failed with "The proactive check returned an invalid response" when the model wrapped a valid answer in a Markdown code block. Fenced answers are now accepted, and a rejected answer is recorded in the failure report with its contents redacted. A failed check never drops the items it was looking at; the next check sees them again.
+- **Heartbeat status opens again.** Reading an always-on agent's heartbeat status failed with `invalid wake event: invalid source "timer"` once proactive checks had run. Check runs now appear in the heartbeat history.
+- **Pausing an agent with a running Goal.** Pausing an always-on agent while one of its Goals was finishing a turn could lose track of that pause, so the Goal kept running or could not be resumed. Pause and resume now hold through that window.
 
-The sign-in badge for CLI providers could be wrong in a few cases. It now reports what is actually true.
+##### Restarting CompozyOS from Settings keeps the app open
 
-- **After a restart.** Sign-in used to show as unverified until a session started or you clicked **Check sign-in**. The daemon now checks each installed CLI provider once in the background after it starts.
-- **When the CLI is broken.** A saved **Ready** no longer hides a CLI that can't be found or run.
-- **With a different account folder.** A session that signs in with another `HOME`, `CLAUDE_CONFIG_DIR` or `CODEX_HOME` no longer marks the default account as Ready.
-- **After a timeout.** A check that timed out is no longer recorded as **Needs login**.
-- **Ready looks ready.** The Ready dot in Settings now uses the success color.
+Some settings ask you to restart CompozyOS. Clicking **Restart** used to close the whole desktop app whenever the restart took more than a few seconds, for example with busy sessions or a data migration, and you had to open it again by hand. The window now stays open. It shows that CompozyOS is restarting, reconnects to the new daemon and returns you to where you were. Runtime updates that restart the daemon get the same treatment.
+
+##### MCP servers reach your open sessions
+
+Adding or signing in to an MCP server could show it as Ready in Settings while a session that was already open still reported it as unavailable. MCP servers declared in your user or profile `mcp.json` could also be missing from new sessions. Open sessions now pick up an MCP server as soon as you add or authorize it, and lose access when you sign out, disable or remove it, without restarting CompozyOS or losing the conversation. Claude sessions refresh their tool list in place. Codex sessions reload at the next turn boundary, because Codex does not yet re-list MCP tools mid-session.
+
+##### Expired permission requests no longer stay pending
+
+A permission request that expired, or whose session was stopped, could stay **pending** for hours. The session kept showing "waiting for auth" with approval buttons that failed. Requests now close when they expire and when their session stops, is force-stopped or crashes, and the session's attention state clears. Requests left over from before a daemon restart are settled when it starts again. Answering one that already closed explains that it expired. Thanks to @zaptoscompany for the detailed report.
 
 ##### Smaller fixes
 
-- **Skills in User sessions.** User sessions can read a bundled skill's resource files again. Thanks to @zaptoscompany for the detailed report.
-- **Pending model switch is visible.** When you switch a running session to another provider, its sidebar row and board card show `current → next` until the next message applies it.
-- **Cleaner always-on sessions.** An always-on agent's main session hides controls that don't apply to it, such as the linked-work chip, Stop session and the sidebar toggles.
-- **PR monitors notice merge conflicts.** A session watching a pull request now wakes up once when the PR starts to conflict with its base branch.
-- **Moving sessions between profiles.** A session whose sub-sessions are all stopped and archived can now move to another profile.
-- **Fewer GitHub calls.** Branch and PR lookups are batched, and branches you're looking at refresh on demand.
-
-##### Steering no longer cancels a running tool
-
-Some providers can't take a message in the middle of a turn. With those, sending a message while the agent was running a tool could cancel the tool right away. CompozyOS now waits until the running tools finish, then delivers your message. It waits at most 45 seconds, which you can change with `session.busy_input.steer_boundary_timeout`. Providers that can take messages mid-turn get them right away, as before.
-
-#### Highlights
-
-##### Sign in to MCP servers, attach them to agents, and find them in the Marketplace
-
-MCP servers are now easier to reach and connect, wherever you start.
-
-- **Sign in to any OAuth remote.** A plain HTTP MCP remote that reported **Needs sign-in** used to offer only Edit, and `compozy mcp login` rejected it. Remotes without custom headers now discover their authorization server and register a client automatically, so **Sign in** just works from Settings and the CLI. The Advanced editor has a working **Use OAuth** toggle. Remotes that authenticate with headers are left alone.
-- **Attach MCP servers to an agent.** An agent's Tools sheet showed its MCP servers but could not add one. It now offers **Add MCP server**: pick a configured server or create a new connection. Configured servers are saved by name in the agent's `mcp.json`, so they follow later edits to that server. If the server is removed, it shows **Broken reference**. Secrets stay in your Vault.
-- **MCPs in the Marketplace.** A **Plugins | MCPs** toggle next to the Marketplace search opens your MCP servers with the same status, sign-in, edit and remove actions as Settings, plus **Add MCP server**.
+- **Large skills no longer fail the prompt.** Invoking a skill whose instructions are too large for the turn used to fail the whole prompt with "session prompt dispatch is indeterminate". The agent now gets a pointer to read the skill with `skill_view` instead. Thanks to @madtocc for the fix.
+- **Large tool results in User sessions.** Oversized results such as a long `skill_view` are now saved and readable in User sessions, not just in projects. Thanks to @zaptoscompany for the report.
+- **Moving a session with stopped sub-agents.** A session whose sub-agents are stopped but not archived can now move to another profile.
+- **Add MCP server form.** The form no longer shows "required" errors before you type anything. Errors appear after you leave a field empty or try to save.
