@@ -4972,14 +4972,17 @@ func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashChec
 			continue
 		}
 		found[row.InteractionID] = true
-		result, err := d.sessions.ApprovePermission(
+		_, err := d.sessions.ApprovePermission(
 			t.Context(),
 			row.SessionID,
 			acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
 		)
-		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
-			result.ResolvedDecision != row.Resolution {
-			t.Fatalf("late approval = %#v, %v; want existing terminal decision %s", result, err, row.Resolution)
+		wantErr := session.ErrPendingPermissionCanceled
+		if row.Status == store.PendingInteractionStatusTimedOut {
+			wantErr = session.ErrPendingPermissionExpired
+		}
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("late approval error = %v, want %v", err, wantErr)
 		}
 	}
 	if len(found) != 2 {
