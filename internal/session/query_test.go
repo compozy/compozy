@@ -451,8 +451,12 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err != nil || facets.Facets.All != 1 {
 			t.Fatalf("default facets = %#v, %v", facets.Facets, err)
 		}
-		if !slices.Equal(catalog.asked, []string{run.ID}) {
-			t.Fatalf("asked = %v, want only the automation-initiated live session", catalog.asked)
+		if !slices.Equal(catalog.asked, []string{run.ID}) || !slices.Equal(catalog.initiators, []string{"job-1"}) {
+			t.Fatalf(
+				"asked = %v with initiators %v, want only the automation-initiated live session and its job",
+				catalog.asked,
+				catalog.initiators,
+			)
 		}
 		query.ExcludeAutomation = false
 		if page, err = h.manager.ListPage(ctx, query); err != nil || page.Total != 2 {
@@ -1883,18 +1887,21 @@ type multiPagedRecordingSessionCatalog struct {
 // automation rule hides; the store suite owns the rule itself.
 type automationRunRecordingSessionCatalog struct {
 	*multiPagedRecordingSessionCatalog
-	hidden []string
-	asked  []string
+	hidden     []string
+	asked      []string
+	initiators []string
 }
 
 func (c *automationRunRecordingSessionCatalog) AutomationRunSessionIDs(
 	_ context.Context,
-	sessionIDs []string,
+	candidates []store.SessionAutomationRunCandidate,
 ) ([]string, error) {
-	hidden := make([]string, 0, len(sessionIDs))
-	for _, id := range sessionIDs {
+	hidden := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		id := candidate.ID
 		if !slices.Contains(c.asked, id) {
 			c.asked = append(c.asked, id)
+			c.initiators = append(c.initiators, candidate.InitiatorID)
 		}
 		if slices.Contains(c.hidden, id) {
 			hidden = append(hidden, id)

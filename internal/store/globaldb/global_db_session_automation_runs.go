@@ -36,31 +36,49 @@ var sessionCatalogAutomationRunExpression = fmt.Sprintf(`(sessions.initiator_kin
 	sessionCatalogHierarchyChildExpression,
 )
 
-// AutomationRunSessionIDs returns the given sessions that the ExcludeAutomation
-// catalog rule hides, so live rows overlaid on a page follow the durable rule.
-func (g *SessionRepo) AutomationRunSessionIDs(ctx context.Context, sessionIDs []string) (ids []string, err error) {
+// sessionAutomationRunCandidatesQuery classifies live sessions. A saved row
+// follows the catalog rule. A live session the catalog has not saved yet,
+// because a start registers before it persists, is an automation run when its
+// initiator names an existing job or trigger.
+var sessionAutomationRunCandidatesQuery = fmt.Sprintf(`SELECT candidate.id FROM (
+ SELECT CAST(json_extract(value, '$.id') AS TEXT) AS id,
+ CAST(json_extract(value, '$.initiator_id') AS TEXT) AS initiator_id FROM json_each(?)) AS candidate
+ WHERE EXISTS (SELECT 1 FROM sessions WHERE sessions.id = candidate.id AND %[1]s)
+ OR (NOT EXISTS (SELECT 1 FROM sessions WHERE sessions.id = candidate.id)
+ AND (EXISTS (SELECT 1 FROM automation_jobs AS job WHERE job.id = candidate.initiator_id)
+ OR EXISTS (SELECT 1 FROM automation_triggers AS trigger_definition
+ WHERE trigger_definition.id = candidate.initiator_id)))`,
+	sessionCatalogAutomationRunExpression,
+)
+
+// AutomationRunSessionIDs returns the given live sessions that the
+// ExcludeAutomation catalog rule hides, so rows overlaid on a page follow it.
+func (g *SessionRepo) AutomationRunSessionIDs(
+	ctx context.Context,
+	candidates []store.SessionAutomationRunCandidate,
+) (ids []string, err error) {
 	if err := g.checkReady(ctx, "automation run sessions"); err != nil {
 		return nil, err
 	}
-	candidates := make([]string, 0, len(sessionIDs))
-	for _, id := range sessionIDs {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			candidates = append(candidates, trimmed)
+	type candidateJSON struct {
+		ID          string `json:"id"`
+		InitiatorID string `json:"initiator_id"`
+	}
+	values := make([]candidateJSON, 0, len(candidates))
+	for _, candidate := range candidates {
+		if id := strings.TrimSpace(candidate.ID); id != "" {
+			values = append(values, candidateJSON{ID: id, InitiatorID: strings.TrimSpace(candidate.InitiatorID)})
 		}
 	}
-	if len(candidates) == 0 {
+	if len(values) == 0 {
 		return nil, nil
 	}
-	encoded, err := json.Marshal(candidates)
+	encoded, err := json.Marshal(values)
 	if err != nil {
-		return nil, fmt.Errorf("store: encode automation run session ids: %w", err)
+		return nil, fmt.Errorf("store: encode automation run session candidates: %w", err)
 	}
 	// dynamic-sql: the catalog visibility expression is shared with the page filters.
-	statement := store.AppendWhere("SELECT id FROM sessions", []string{
-		"id IN (SELECT CAST(value AS TEXT) FROM json_each(?))",
-		sessionCatalogAutomationRunExpression,
-	})
-	rows, err := g.readDB.QueryContext(ctx, statement, string(encoded))
+	rows, err := g.readDB.QueryContext(ctx, sessionAutomationRunCandidatesQuery, string(encoded))
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation run sessions: %w", err)
 	}

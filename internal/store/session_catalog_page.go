@@ -163,11 +163,18 @@ type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
 }
 
-// SessionAutomationRunReader names which sessions belong to an automation job or
-// trigger run family the operator has not prompted, so live rows follow the
-// durable ExcludeAutomation rule.
+// SessionAutomationRunCandidate is one live session the ExcludeAutomation rule
+// classifies; InitiatorID classifies a session whose row is not saved yet.
+type SessionAutomationRunCandidate struct {
+	ID          string
+	InitiatorID string
+}
+
+// SessionAutomationRunReader names which live sessions belong to an automation
+// job or trigger run family the operator has not prompted, so live rows follow
+// the durable ExcludeAutomation rule.
 type SessionAutomationRunReader interface {
-	AutomationRunSessionIDs(ctx context.Context, sessionIDs []string) ([]string, error)
+	AutomationRunSessionIDs(ctx context.Context, candidates []SessionAutomationRunCandidate) ([]string, error)
 }
 
 // SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.

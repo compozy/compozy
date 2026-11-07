@@ -76,20 +76,23 @@ func (m *Manager) dropAutomationRunMatches(
 	if !query.ExcludeAutomation || len(matches) == 0 {
 		return matches, nil
 	}
-	ids := make([]string, 0, len(matches))
+	candidates := make([]store.SessionAutomationRunCandidate, 0, len(matches))
 	for index := range matches {
 		if matches[index].InitiatorKind == string(workspaceaccess.ActorAutomation) {
-			ids = append(ids, matches[index].ID)
+			candidates = append(candidates, store.SessionAutomationRunCandidate{
+				ID:          matches[index].ID,
+				InitiatorID: matches[index].InitiatorID,
+			})
 		}
 	}
-	if len(ids) == 0 {
+	if len(candidates) == 0 {
 		return matches, nil
 	}
 	reader, ok := m.sessionCatalog.(store.SessionAutomationRunReader)
 	if !ok || reader == nil {
 		return nil, errors.New("session: automation run catalog is required")
 	}
-	hidden, err := reader.AutomationRunSessionIDs(ctx, ids)
+	hidden, err := reader.AutomationRunSessionIDs(ctx, candidates)
 	if err != nil {
 		return nil, fmt.Errorf("session: read automation run sessions: %w", err)
 	}

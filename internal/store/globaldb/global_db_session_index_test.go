@@ -431,13 +431,25 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("complete total = %d, want every session", page.Total)
 		}
 
-		live, err := db.AutomationRunSessionIDs(ctx, append(listed, "hidden-starting", "hidden-child", "missing"))
+		// A start registers its live session before the catalog saves the row.
+		candidates := []store.SessionAutomationRunCandidate{
+			{ID: "hidden-starting", InitiatorID: "job-1"},
+			{ID: "hidden-child", InitiatorID: "job-1"},
+			{ID: "visible-prompted", InitiatorID: "job-1"},
+			{ID: "visible-task", InitiatorID: "task-1"},
+			{ID: "unsaved-job-run", InitiatorID: "job-1"},
+			{ID: "unsaved-trigger-run", InitiatorID: "trg-1"},
+			{ID: "unsaved-task-session", InitiatorID: "task-1"},
+			{ID: "unsaved-unknown"},
+		}
+		live, err := db.AutomationRunSessionIDs(ctx, candidates)
 		if err != nil {
 			t.Fatal(err)
 		}
 		slices.Sort(live)
-		if !slices.Equal(live, []string{"hidden-child", "hidden-starting"}) {
-			t.Fatalf("live automation rows = %v", live)
+		want := []string{"hidden-child", "hidden-starting", "unsaved-job-run", "unsaved-trigger-run"}
+		if !slices.Equal(live, want) {
+			t.Fatalf("live automation rows = %v, want %v", live, want)
 		}
 	})
 
