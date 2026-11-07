@@ -115,6 +115,65 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 			t.Fatalf("owner after concurrent close: %v", err)
 		}
 	})
+	// Invariant: live WAL appends never invalidate an owner snapshot; a WAL restart does.
+	t.Run("Should keep an owner snapshot valid across appended WAL frames", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		source := openTestSessionDB(t, "sess-snapshot-append")
+		if _, err := source.db.ExecContext(ctx, "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		insert := func() {
+			t.Helper()
+			if _, err := source.db.ExecContext(ctx, "INSERT INTO snapshot_fixture VALUES ('row')"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		insert()
+		snapshot := filepath.Join(t.TempDir(), "events.db")
+		copied, err := copyOwnerGuardFamilyFiles(ctx, source.path, snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insert()
+		if err := copied.requireCurrent(source.path); err != nil {
+			t.Fatalf("snapshot after appended WAL frame: %v", err)
+		}
+		db, err := sql.Open("sqlite", sessionSQLiteModeDSN(snapshot, "ro"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := verifySessionDBOwner(ctx, db, source.owner); err != nil {
+			t.Fatalf("owner in appended-WAL snapshot: %v", err)
+		}
+		var rows int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM snapshot_fixture").Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		if rows != 1 {
+			t.Fatalf("snapshot rows = %d, want the 1 row committed before copying", rows)
+		}
+
+		// After a full backfill the next write restarts the WAL in place with new
+		// salts, leaving the main file and the WAL size unchanged.
+		if _, err := source.db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+			t.Fatal(err)
+		}
+		restarted := filepath.Join(t.TempDir(), "events.db")
+		copied, err = copyOwnerGuardFamilyFiles(ctx, source.path, restarted)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insert()
+		if err := copied.requireCurrent(source.path); !errors.Is(err, errOwnerGuardSnapshotChanged) {
+			t.Fatalf("snapshot after WAL restart error = %v, want %v", err, errOwnerGuardSnapshotChanged)
+		}
+	})
 	// Invariant: an owner-read corruption error is retried only after a successful SQLite integrity probe.
 	t.Run("Should retry an owner read only when integrity is verified", func(t *testing.T) {
 		t.Parallel()
