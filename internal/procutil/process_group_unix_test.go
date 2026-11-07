@@ -219,14 +219,32 @@ func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup
 	return nicenessProcessGroup{pgid: pgid, stdin: stdin, stdout: bufio.NewReader(stdout)}
 }
 
+// waitLine fails the subtest when the handshake line does not arrive in time, so
+// cleanup kills the group instead of the read blocking until the binary times out.
+// Cleanup closes stdout through Wait, which ends the abandoned read.
 func (g nicenessProcessGroup) waitLine(t *testing.T, want string) {
 	t.Helper()
-	line, err := g.stdout.ReadString('\n')
-	if err != nil {
-		t.Fatalf("read process group output: %v", err)
+	type readResult struct {
+		line string
+		err  error
 	}
-	if got := strings.TrimSpace(line); got != want {
-		t.Fatalf("process group output = %q, want %q", got, want)
+	result := make(chan readResult, 1)
+	go func() {
+		line, err := g.stdout.ReadString('\n')
+		result <- readResult{line: line, err: err}
+	}()
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	select {
+	case read := <-result:
+		if read.err != nil {
+			t.Fatalf("read process group output: %v", read.err)
+		}
+		if got := strings.TrimSpace(read.line); got != want {
+			t.Fatalf("process group output = %q, want %q", got, want)
+		}
+	case <-timer.C:
+		t.Fatalf("process group output %q did not arrive within 10s", want)
 	}
 }
 
