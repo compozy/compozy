@@ -450,6 +450,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			{ID: "hidden-child", InitiatorID: "job-1"},
 			{ID: "visible-prompted", InitiatorID: "job-1"},
 			{ID: "visible-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+			{ID: "visible-prompted-family", InitiatorID: "job-1"},
+			{ID: "visible-prompted-fork", InitiatorID: "job-1"},
 			{ID: "hidden-fork-source", InitiatorID: "job-1"},
 			{ID: "visible-task", InitiatorID: "task-1"},
 			{ID: "unsaved-job-run", InitiatorID: "job-1"},
