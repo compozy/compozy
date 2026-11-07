@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.4 - 2026-11-07
+
+### Bug Fixes
+
+- Retain oversized tool results in User sessions (#1322)
+- Allow profile moves with stopped subagent descendants (#1321)
+- Compare SQLite commit pauses against paired storage tails (#1325)
+- Accept fenced proactive triage replies (#1319)
+- Preserve managed Goal pause ownership until coordinator settlement (#1329)
+- Read proactive check events in heartbeat status (#1332)
+- Hold MCP server form errors until a field is touched (#1338)
+- Settle expired permissions and stopped session interactions (#1335)
+- Keep the CompozyOS desktop window open when Settings restarts the daemon (#1339)
+- Compact always-on agent cards and hide deleted agents (#1341)
+- Keep dispatched children responsive after definition pauses (#1333)
+- Defer oversized invoked skills to skill_view instead of failing dispatch (#1330)
+- Refresh MCP tools in open sessions (#1342)
+- Preserve permission recovery reports and terminal refusals (#1347)
+
+### Features
+
+- Route new issues through an unattended issue vetter
+- Add a desktop download page and header download CTA to the site
+
+### Refactoring
+
+- Rename the workspace always-on agents by their pipeline role
+
+### Testing
+
+- Observe paused child monitor settlement before receipts (#1349)
+
 ## 0.5.3 - 2026-11-06
 
 ### Bug Fixes
@@ -1282,6 +1314,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.5.4]: https://github.com/compozy/compozy/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/compozy/compozy/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/compozy/compozy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1
