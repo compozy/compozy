@@ -51,6 +51,12 @@ import {
 import { useMarketplacePending } from "./use-marketplace-pending";
 import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery";
 
+/**
+ * An Add that installed but could not turn on needs the user to act, so its toast outlives the
+ * default few seconds that a slow install would otherwise leave unread.
+ */
+const ENABLE_FAILURE_TOAST_MS = 10_000;
+
 interface MarketplaceActionController {
   dialogs: React.ReactNode;
   /** The latest Add / Ready / Couldn't-turn-on transition, for the page's polite live region. */
@@ -337,6 +343,7 @@ function useMarketplaceActionController(
         });
         toast.error(`Added ${selected.entry.name} but couldn't turn it on`, {
           description: enableError.error,
+          duration: ENABLE_FAILURE_TOAST_MS,
         });
         setAnnouncement(
           `Added ${selected.entry.name} but couldn't turn it on: ${enableError.error}`

@@ -1,10 +1,11 @@
-import { AlertCircle, ClockAlert, Puzzle, SearchX, Store } from "@compozy/ui/icons";
+import { ClockAlert, Puzzle, SearchX, Store } from "@compozy/ui/icons";
 
 import { Button, Empty, Skeleton, SkeletonRegion, Spinner, Time } from "@compozy/ui";
 import { GithubLogo } from "@compozy/ui/logos";
 
 import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
 import type { useMarketplacePage } from "../hooks/use-marketplace-page";
+import { MarketplaceCatalogFailure } from "./marketplace-catalog-failure";
 import { MarketplaceCatalogRow } from "./marketplace-catalog-row";
 import { MarketplaceCategorySection } from "./marketplace-category-section";
 import { MARKETPLACE_SECTION_GRID_CLASS } from "./marketplace-classes";
@@ -62,25 +63,12 @@ function MarketplaceResults({
     return (
       <>
         {shelf}
-        <Empty
-          action={
-            <Button
-              data-testid="marketplace-retry"
-              variant="secondary"
-              onClick={() => void page.refresh()}
-              size="sm"
-              type="button"
-            >
-              Retry
-            </Button>
-          }
-          cause={page.catalogError.message}
-          data-testid="marketplace-unreachable"
-          description="No sources responded. Retry, or come back in a moment."
-          framed
-          icon={AlertCircle}
-          title="The marketplace is unreachable"
-          titleAs="h2"
+        <MarketplaceCatalogFailure
+          error={page.catalogError}
+          onRetry={() => void page.refresh()}
+          retryTestId="marketplace-retry"
+          testId="marketplace-unreachable"
+          unreachable={page.catalogUnreachable}
         />
       </>
     );

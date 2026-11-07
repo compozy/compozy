@@ -27,13 +27,21 @@ export function useMarketplaceCategoryPage(category: string, query = "", liveDat
     reader.error instanceof MarketplaceApiError &&
     reader.error.status === 400 &&
     reader.error.diagnosticCode === "marketplace_category_unknown";
+  const failed = unknownCategory ? null : reader.error;
+  // The daemon answered but reported its sources unreachable, with no rows to show.
+  const unavailable =
+    !failed && first?.error_class && items.length === 0
+      ? new Error(first.error || `Catalog unavailable (${first.error_class})`)
+      : null;
   return {
     items,
     label,
     total: first?.total ?? 0,
     stale: pages.some(page => page.stale),
     unknownCategory,
-    error: unknownCategory ? null : reader.error,
+    error: failed ?? unavailable,
+    /** Only the daemon's own source report is "unreachable"; a failed read is a load failure. */
+    unreachable: unavailable !== null,
     // A placeholder or a refreshing catalog with no rows is not an answer yet.
     isLoading:
       reader.isPending ||

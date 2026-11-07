@@ -69,6 +69,8 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     stale: searching ? pages.some(page => page.stale) : Boolean(home.data?.stale),
     diagnostic: envelope?.error,
     catalogError: reader.error ?? unavailable,
+    /** Only the daemon's own source report is "unreachable"; a failed read is a load failure. */
+    catalogUnreachable: !reader.error && unavailable !== null,
     installedError: inventory.error,
     // An edited search keeps the previous results on screen; a placeholder with none is no answer.
     isLoading:

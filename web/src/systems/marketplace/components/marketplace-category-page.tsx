@@ -1,11 +1,12 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { AlertCircle, LayoutGrid, SearchX } from "@compozy/ui/icons";
+import { LayoutGrid, SearchX } from "@compozy/ui/icons";
 
 import { Button, Empty, ListingPage, Spinner, useTopbarSlot } from "@compozy/ui";
 
 import { useMarketplaceCategoryPage } from "../hooks/use-marketplace-category-page";
 import type { MarketplaceSearch } from "../lib/marketplace-search";
+import { MarketplaceCatalogFailure } from "./marketplace-catalog-failure";
 import { MarketplaceCatalogRow } from "./marketplace-catalog-row";
 import { MARKETPLACE_PAGE_BODY_CLASS, MARKETPLACE_SECTION_GRID_CLASS } from "./marketplace-classes";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
@@ -113,19 +114,11 @@ function MarketplaceCategoryBody({
   }
   if (page.error && page.items.length === 0) {
     return (
-      <Empty
-        action={
-          <Button onClick={page.retry} size="sm" type="button" variant="secondary">
-            Retry
-          </Button>
-        }
-        cause={page.error.message}
-        data-testid="marketplace-category-error"
-        description="The category could not be loaded."
-        framed
-        icon={AlertCircle}
-        title="The marketplace is unreachable"
-        titleAs="h2"
+      <MarketplaceCatalogFailure
+        error={page.error}
+        onRetry={page.retry}
+        testId="marketplace-category-error"
+        unreachable={page.unreachable}
       />
     );
   }

@@ -825,16 +825,25 @@ describe("Marketplace page and cards", () => {
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
     expect(screen.getByTestId("marketplace-stale")).toBeVisible();
   });
-  it("Should show unreachable rather than an empty catalog when no projection could be read", async () => {
+  // Invariant: a failed daemon read is a load failure with Retry, never blamed on the sources.
+  it("Should show a load failure, not unreachable, when the daemon read fails", async () => {
+    let reads = 0;
     server.use(
-      http.get("*/api/marketplace/sections", () =>
-        HttpResponse.json({ error: "feed unavailable" }, { status: 400 })
-      )
+      http.get("*/api/marketplace/sections", () => {
+        reads++;
+        return HttpResponse.json({ error: "Internal Server Error" }, { status: 500 });
+      })
     );
     setup();
-    expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
-    expect(screen.getByTestId("marketplace-retry")).toBeVisible();
+    // A 5xx is retried twice with backoff before the failure shows.
+    expect(
+      await screen.findByText("Couldn't load the marketplace", {}, { timeout: 6_000 })
+    ).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
     expect(screen.queryByText("No extensions yet")).not.toBeInTheDocument();
+    const before = reads;
+    await userEvent.click(screen.getByTestId("marketplace-retry"));
+    await waitFor(() => expect(reads).toBeGreaterThan(before));
   });
   it("Should expose a daemon diagnostic on a successful empty envelope as unreachable", async () => {
     catalog = {
@@ -1978,6 +1987,34 @@ describe("Category browse and row actions", () => {
     );
     await userEvent.type(screen.getByRole("searchbox", { name: "Search Productivity" }), "zzz");
     expect(await screen.findByText('No results for "zzz" in Productivity')).toBeVisible();
+  });
+
+  // Invariant: a 5xx category read is a load failure with Retry; only a daemon envelope that
+  // reports its sources unreachable says the marketplace is unreachable.
+  it("Should separate a failed category read from unreachable sources", async () => {
+    let failing = true;
+    server.use(
+      http.get("*/api/marketplace", () =>
+        failing
+          ? HttpResponse.json({ error: "Internal Server Error" }, { status: 500 })
+          : HttpResponse.json({
+              ...catalog,
+              items: [],
+              total: 0,
+              error_class: "source_unreachable",
+              error: "feed unavailable",
+            })
+      )
+    );
+    setup(undefined, "/marketplace/categories/productivity");
+    // A 5xx is retried twice with backoff before the failure shows.
+    const failure = await screen.findByTestId("marketplace-category-error", {}, { timeout: 6_000 });
+    expect(within(failure).getByText("Couldn't load the marketplace")).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
+    failing = false;
+    await userEvent.click(within(failure).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
+    expect(screen.queryByText("Couldn't load the marketplace")).not.toBeInTheDocument();
   });
 
   // UT-024 [US-002.EC-1]: an unknown id is a not-found state with a way back to Browse.

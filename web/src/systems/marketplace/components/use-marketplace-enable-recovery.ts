@@ -13,7 +13,7 @@ import type {
   MarketplaceEnableFailures,
   MarketplaceEnableTarget,
 } from "../types";
-import { marketplaceErrorMessage } from "./marketplace-ui";
+import { marketplaceErrorCode, marketplaceErrorMessage } from "./marketplace-ui";
 
 const NO_FAILURES: MarketplaceEnableFailures = {};
 
@@ -53,6 +53,18 @@ export function useMarketplaceEnableRecovery(
       return next;
     });
 
+  /** Keep a recorded failure on its row, now described by the latest enable answer. */
+  const updateCause = (
+    scope: MarketplaceDestinationScope,
+    entry: MarketplaceCatalogListing,
+    cause: MarketplaceEnableFailure["cause"]
+  ) =>
+    queryClient.setQueryData(marketplaceEnableFailuresOptions(scope).queryKey, current => {
+      const failure = current?.[marketplaceOriginKey(entry)];
+      if (!failure) return current;
+      return { ...current, [marketplaceOriginKey(entry)]: { ...failure, cause } };
+    });
+
   const turnOn = async (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => {
     // Captured now: the answer belongs to this destination even if the window switches meanwhile.
     const scope = { profileName: destination.profileName, workspaceId: destination.workspaceId };
@@ -70,7 +82,11 @@ export function useMarketplaceEnableRecovery(
       announce(`${entry.name} turned on`);
     } catch (error) {
       const message = marketplaceErrorMessage(error, `Couldn't turn on ${entry.name}`);
-      toast.error(message);
+      const code = marketplaceErrorCode(error);
+      // A failed Retry replaces the cause the row describes: the daemon's newest answer wins.
+      updateCause(scope, entry, { error: message, code: code ?? "extension_enable_failed" });
+      if (code) toast.error(message, { description: code });
+      else toast.error(message);
       announce(message);
     } finally {
       setEnabling(current => {

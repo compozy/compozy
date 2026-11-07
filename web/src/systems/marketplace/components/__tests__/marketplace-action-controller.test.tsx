@@ -1091,8 +1091,10 @@ describe("Add", () => {
     view.rerenderRow(added, off);
     const word = await screen.findByTestId(`marketplace-enable-failed-${verified.entry_id}`);
     expect(word).toHaveTextContent("Couldn't turn on");
+    // The failure needs the user to act, so its toast outlives the default few seconds.
     expect(io.error).toHaveBeenCalledWith(`Added ${verified.name} but couldn't turn it on`, {
       description: "binary missing",
+      duration: 10_000,
     });
     expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(
       `Added ${verified.name} but couldn't turn it on: binary missing`
@@ -1102,12 +1104,27 @@ describe("Add", () => {
     expect(
       await screen.findByRole("button", { name: `Retry turning on ${verified.name}` })
     ).toHaveAccessibleDescription("Added but couldn't turn on: binary missing");
+    // A Retry the daemon rejects with {error, code} keeps the row and describes it with that answer.
+    const invalid =
+      "extension.mcp_server.env.DEMO_API_KEY must move secret-like values to secret_env";
+    io.toggle.mockRejectedValueOnce(
+      new ExtensionsApiError(invalid, 422, "daemon", { code: "extension_invalid" })
+    );
     await userEvent.click(
       screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
     );
     await waitFor(() =>
-      expect(io.toggle).toHaveBeenCalledWith("otel-local", extensionFixtures[0]!.profile, true)
+      expect(
+        screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
+      ).toHaveAccessibleDescription(`Added but couldn't turn on: ${invalid}`)
     );
+    expect(io.error).toHaveBeenCalledWith(invalid, { description: "extension_invalid" });
+    expect(screen.getByRole("status", { name: "Announcement" })).toHaveTextContent(invalid);
+    await userEvent.click(
+      screen.getByRole("button", { name: `Retry turning on ${verified.name}` })
+    );
+    await waitFor(() => expect(io.toggle).toHaveBeenCalledTimes(2));
+    expect(io.toggle).toHaveBeenLastCalledWith("otel-local", extensionFixtures[0]!.profile, true);
     await waitFor(() =>
       expect(screen.queryByTestId(`marketplace-enable-failed-${verified.entry_id}`)).toBeNull()
     );
