@@ -169,7 +169,7 @@ binding = { type = "url_query", name = "workspace" }
 			},
 			daemonConfigMCPDeclarationProvider(
 				&publishedConfig,
-				compozyconfig.HomePaths{HomeDir: t.TempDir()},
+				testHomePaths(t),
 				nil,
 				discardLogger(),
 				nil,
@@ -544,7 +544,12 @@ binding = { type = "url_query", name = "workspace" }
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
-			t.Fatalf("syncer.Sync(published config) error = %v", err)
+			t.Fatalf("syncer.Sync(active config) error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
+		// Settings snapshots stay active until an explicit rollback or a later file edit.
+		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
+			t.Fatalf("syncer.SyncConfig(published config) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 3)
 
@@ -558,10 +563,20 @@ binding = { type = "url_query", name = "workspace" }
 		if got, want := len(rebuiltToolCatalog.Snapshot()), 1; got != want {
 			t.Fatalf("len(rebuiltToolCatalog.Snapshot()) = %d, want %d", got, want)
 		}
-		if got, want := len(rebuiltMCPCatalog.Snapshot()), 3; got != want {
+		rebuiltServers := rebuiltMCPCatalog.Snapshot()
+		if got, want := len(rebuiltServers), 3; got != want {
 			t.Fatalf("len(rebuiltMCPCatalog.Snapshot()) = %d, want %d", got, want)
 		}
-		rebuilt := requireMCPServerRecord(t, rebuiltMCPCatalog.Snapshot(), "remote")
+		if got, want := mcpServerNames(rebuiltServers), []string{"git", "kubectl", "remote"}; !slices.Equal(got, want) {
+			t.Fatalf("rebuilt MCP servers = %#v, want %#v", got, want)
+		}
+		rebuiltConfig := requireMCPServerRecord(t, rebuiltServers, "git")
+		if rebuiltConfig.ID != configServer.ID || rebuiltConfig.Scope != configServer.Scope ||
+			rebuiltConfig.Spec.Command != configServer.Spec.Command ||
+			!slices.Equal(rebuiltConfig.Spec.Args, configServer.Spec.Args) {
+			t.Fatalf("rebuilt config server = %#v, want %#v", rebuiltConfig, configServer)
+		}
+		rebuilt := requireMCPServerRecord(t, rebuiltServers, "remote")
 		if rebuilt.Spec.URL != remote.Spec.URL || rebuilt.Spec.Auth.IssuerURL != remote.Spec.Auth.IssuerURL ||
 			!slices.Equal(rebuilt.Spec.Auth.Scopes, remote.Spec.Auth.Scopes) ||
 			rebuilt.Scope != remote.Scope {
