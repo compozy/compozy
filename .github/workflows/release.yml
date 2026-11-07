@@ -9,6 +9,7 @@ on:
     types:
       - opened
       - synchronize
+      - labeled
     branches:
       - main
       - "release/v*"
@@ -49,9 +50,11 @@ on:
 # cancel an in-flight publication. Actions cannot interpolate YAML aliases inside
 # expressions, and workflow concurrency/job if cannot read env. Keep the inline
 # subject predicates aligned through the release workflow contract test.
+# Unrelated label events skip all jobs and use a unique group so they cannot
+# cancel an active PR validation run.
 concurrency:
   group: >-
-    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}
+    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'ci:full' && format('-ignored-label-{0}', github.run_id) || '' }}
   cancel-in-progress: >-
     ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) }}
 
@@ -134,6 +137,7 @@ jobs:
     name: Resolve Dry-Run Release Identity
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -163,6 +167,7 @@ jobs:
     needs: dry-run-identity
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -409,6 +414,7 @@ jobs:
     needs: dry-run-identity
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     strategy:
@@ -579,6 +585,7 @@ jobs:
     name: E2E Nightly Lane
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
@@ -642,6 +649,7 @@ jobs:
     timeout-minutes: 120
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     steps:
@@ -702,7 +710,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Run the full integration suite on a fresh runner: on release PRs, and on
+  # Run the full integration suite on a fresh runner: on release or ci:full PRs, and on
   # every routine push to main so integration regressions surface when they
   # merge instead of at release time. Release-merge pushes are skipped (their
   # release PR already ran it); superseded main pushes cancel via concurrency.
@@ -710,8 +718,10 @@ jobs:
     name: Full Integration Suite (${{ matrix.shard_index }})
     if: |
       (github.event_name == 'pull_request' &&
+       (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
        (startsWith(github.event.pull_request.title, 'build: release ') ||
-        startsWith(github.base_ref, 'release/v'))) ||
+        startsWith(github.base_ref, 'release/v') ||
+        contains(github.event.pull_request.labels.*.name, 'ci:full'))) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
        !startsWith(github.event.head_commit.message, 'release:') &&
        !startsWith(github.event.head_commit.message, 'ci(release):') &&

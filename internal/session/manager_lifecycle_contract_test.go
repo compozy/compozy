@@ -1044,7 +1044,42 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 	})
 }
 
+// TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	for _, tc := range []struct {
+		reason store.StopReason
+		detail string
+	}{
+		{store.StopUserCanceled, "user requested"},
+		{store.StopMaxIterations, "max_iterations"},
+		{store.StopLoopDetected, "loop_detected"},
+		{store.StopBudgetExceeded, "budget_exceeded"},
+	} {
+		t.Run("Should preserve explicit "+string(tc.reason)+" intent during boot recovery", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := seedRecoveredLocalStop(t, h)
+			meta := readMeta(t, active.MetaPath())
+			meta.StopReason, meta.StopDetail = new(tc.reason), tc.detail
+			// Restore the bound, pre-finalization runtime rather than the seed's released runtime.
+			meta.RuntimeStatus = store.SessionRuntimeReady
+			meta.Failure = nil
+			if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.RecoverPendingStops(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			outcome, err := h.manager.AwaitStopped(t.Context(), active.ID)
+			if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+				t.Fatalf("recovered stop = %#v, %v, want verified user-requested stop", outcome, err)
+			}
+			settled := readMeta(t, active.MetaPath())
+			if settled.StopReason == nil || *settled.StopReason != tc.reason {
+				t.Fatalf("recovered reason = %v, want %s", settled.StopReason, tc.reason)
+			}
+		})
+	}
 	// Invariant: Stop's durable Goal pause precedes settlement of a prompt setup it interrupts.
 	// Owner/canonical suite: Manager stop lifecycle, with the Goal persistence I/O boundary held.
 	t.Run("Should settle managed setup ambiguity only after the Goal pause is persisted", func(t *testing.T) {
