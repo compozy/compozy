@@ -26,6 +26,8 @@ export interface SessionListGroupsInput {
   workspaces: ReadonlyArray<{ id: string; name: string }>;
   /** Active, the archive, or Later: groups list only that population. */
   shelf: SessionListShelf;
+  /** The window's "Show automation runs" (#1355). */
+  showAutomation?: boolean;
   search?: string;
   /** The list's worktree restriction: groups and counts cover only its sessions. */
   worktreeId?: string;
@@ -59,6 +61,7 @@ export function useSessionListGroups({
   lens,
   workspaces,
   shelf,
+  showAutomation,
   search,
   worktreeId,
   enabled,
@@ -68,7 +71,15 @@ export function useSessionListGroups({
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
     ...sessionFacetsOptions(
-      sessionListFacetFilters({ scope, lens, shelf, search, worktreeId, population })
+      sessionListFacetFilters({
+        scope,
+        lens,
+        shelf,
+        showAutomation,
+        search,
+        worktreeId,
+        population,
+      })
     ),
     enabled: grouped,
     ...(refetchInterval ? { refetchInterval } : {}),
@@ -124,22 +135,25 @@ export function sessionListFacetFilters({
   scope,
   lens,
   shelf,
+  showAutomation,
   search,
   worktreeId,
   population,
 }: Pick<
   SessionListGroupsInput,
-  "scope" | "lens" | "shelf" | "search" | "worktreeId" | "population"
+  "scope" | "lens" | "shelf" | "showAutomation" | "search" | "worktreeId" | "population"
 >): SessionListFilters {
-  // A search reaches finished automation runs, so their groups must survive the counts.
-  const { exclude_finished_automation: hideFinished, ...shelfFilters } =
-    sessionListShelfFilters(shelf);
+  // A search reaches automation runs, so their groups must survive the counts.
+  const { exclude_automation: hideAutomation, ...shelfFilters } = sessionListShelfFilters(
+    shelf,
+    showAutomation
+  );
   return {
     ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
     ...(population ?? { subagents: sessionListSubagentsParam(search) }),
     ...(worktreeId ? { worktree: worktreeId } : {}),
     ...shelfFilters,
-    ...(hideFinished && !search?.trim() ? { exclude_finished_automation: true } : {}),
+    ...(hideAutomation && !search?.trim() ? { exclude_automation: true } : {}),
     ...lens,
   };
 }
@@ -187,6 +201,7 @@ export function useSessionListTotals({
   search,
   worktreeId,
   shelf,
+  showAutomation,
   enabled: listEnabled,
 }: {
   scope: DataScope | null;
@@ -195,12 +210,14 @@ export function useSessionListTotals({
   worktreeId?: string;
   /** The archive and Later count nothing live, so they show no totals. */
   shelf: SessionListShelf;
+  /** The window's "Show automation runs" (#1355): the totals count what the list shows. */
+  showAutomation?: boolean;
   enabled: boolean;
 }): SessionListTotals | undefined {
   const enabled = listEnabled && shelf === "active";
   const facets = useQuery({
     ...sessionFacetsOptions(
-      sessionListFacetFilters({ scope, lens, shelf: "active", search, worktreeId })
+      sessionListFacetFilters({ scope, lens, shelf: "active", showAutomation, search, worktreeId })
     ),
     enabled: enabled && scope !== null,
   }).data?.facets;

@@ -23,6 +23,9 @@ export interface SessionListToolbarProps {
   /** Project grouping also lists projects with no sessions in view (#1085). */
   showEmptyProjects: boolean;
   onShowEmptyProjectsChange: (show: boolean) => void;
+  /** "Show automation runs" (#1355): automation job and trigger sessions join the list. */
+  showAutomation: boolean;
+  onShowAutomationChange: (show: boolean) => void;
   /** Collapse all is on: folders, groups, child session lists and subagent lists. */
   allCollapsed: boolean;
   onAllCollapsedChange: (collapsed: boolean) => void;
@@ -59,6 +62,8 @@ export function SessionListToolbar({
   onGroupByChange,
   showEmptyProjects,
   onShowEmptyProjectsChange,
+  showAutomation,
+  onShowAutomationChange,
   allCollapsed,
   onAllCollapsedChange,
   onNewSession,
@@ -87,8 +92,10 @@ export function SessionListToolbar({
         groupByOptions={groupByOptions}
         onAllCollapsedChange={onAllCollapsedChange}
         onGroupByChange={onGroupByChange}
+        onShowAutomationChange={onShowAutomationChange}
         onShowEmptyProjectsChange={onShowEmptyProjectsChange}
         onSortChange={onSortChange}
+        showAutomation={showAutomation}
         showEmptyProjects={showEmptyProjects}
         sort={sort}
         testId={testIdPrefix}

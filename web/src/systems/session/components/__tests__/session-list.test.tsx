@@ -3005,6 +3005,27 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.queryByRole("menuitemcheckbox", { name: "Hide child sessions" })).toBeNull();
   });
 
+  // #1355: automation runs stay out of the list until the window shows them; showing them marks
+  // the trigger because hiding them is the default.
+  it.each([
+    { showAutomation: false, marked: false, next: true },
+    { showAutomation: true, marked: true, next: false },
+  ])(
+    "Should offer Show automation runs in the List's View options (checked: $showAutomation)",
+    async ({ showAutomation, marked, next }) => {
+      const user = userEvent.setup();
+      const setShowAutomation = vi.fn();
+      renderList({ view: { ...view, showAutomation, setShowAutomation } });
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      await user.click(trigger);
+      const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show automation runs" });
+      expect(toggle).toHaveAttribute("aria-checked", String(showAutomation));
+      await user.click(toggle);
+      expect(setShowAutomation).toHaveBeenCalledWith(next);
+    }
+  );
+
   // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
   it.each([
     { checked: false, next: true },

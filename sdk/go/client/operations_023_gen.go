@@ -89,6 +89,7 @@ type ListSessionsParams struct {
 	SkipTotal                 *bool     `url:"skip_total"`
 	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
 	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	ExcludeAutomation         *bool     `url:"exclude_automation"`
 	State                     *string   `url:"state"`
 	Type                      *string   `url:"type"`
 	Agent                     *string   `url:"agent"`
@@ -138,6 +139,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.ExcludeFinishedAutomation != nil {
 		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
+	}
+	if params.ExcludeAutomation != nil {
+		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
 	}
 	if params.State != nil {
 		query.Set("state", *params.State)

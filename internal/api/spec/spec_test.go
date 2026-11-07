@@ -5816,6 +5816,15 @@ func addRuntimeRecoveryReason(baseline map[string]any) {
 	walk(baseline)
 }
 
+func automationParameter() map[string]any {
+	return map[string]any{
+		"name":        "exclude_automation",
+		"in":          "query",
+		"description": automationParamDescription,
+		"schema":      map[string]any{"type": "boolean"},
+	}
+}
+
 func finishedAutomationParameter() map[string]any {
 	return map[string]any{
 		"name":        "exclude_finished_automation",
@@ -5838,6 +5847,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "boolean"},
 			},
 			finishedAutomationParameter(),
+			automationParameter(),
 		},
 		facets["parameters"].([]any)...)
 
@@ -5860,7 +5870,8 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"description": "Exclude always-on main sessions from the page and its total",
 				"schema":      map[string]any{"type": "boolean"},
 			}
-			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()))
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()),
+				any(automationParameter()))
 			break
 		}
 	}

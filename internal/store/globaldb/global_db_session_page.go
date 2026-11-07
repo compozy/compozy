@@ -184,6 +184,9 @@ func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCa
 	if query.ExcludeFinishedAutomation {
 		where = append(where, "NOT "+sessionCatalogFinishedAutomationExpression)
 	}
+	if query.ExcludeAutomation {
+		where = append(where, "NOT "+sessionCatalogAutomationRunExpression)
+	}
 	return appendSubagentSessionFilter(where, query.Subagents)
 }
 

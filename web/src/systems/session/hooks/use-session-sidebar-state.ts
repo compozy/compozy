@@ -89,6 +89,7 @@ function withScopeState(
     ...next,
     view: DEFAULT_SCOPE_STATE.view,
     hideChildren: DEFAULT_SCOPE_STATE.hideChildren,
+    showAutomation: DEFAULT_SCOPE_STATE.showAutomation,
     collapsedBoardColumns: previousShell?.collapsedBoardColumns ?? {},
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
@@ -138,6 +139,14 @@ export const sessionSidebarLogic = createStoreLogic({
       return withScopeState(context, event.scopeId, state => ({
         ...state,
         hideChildren: event.hideChildren,
+      }));
+    },
+    showAutomationChanged: (context, event: { scopeId: string; show: boolean }) => {
+      // Like the board's filter, showing automation runs never seeds new windows.
+      if (event.scopeId === SHELL_WORKTREE_SCOPE) return;
+      return withScopeState(context, event.scopeId, state => ({
+        ...state,
+        showAutomation: event.show,
       }));
     },
     boardColumnCollapsedChanged: (
@@ -375,6 +384,9 @@ export interface UseSessionSidebarStateResult {
   /** Project grouping lists projects with no sessions too (#1085); new windows inherit it. */
   showEmptyProjects: boolean;
   setShowEmptyProjects: (show: boolean) => void;
+  /** "Show automation runs" (#1355); per window, never inherited. */
+  showAutomation: boolean;
+  setShowAutomation: (show: boolean) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -426,6 +438,9 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     showEmptyProjects: state.showEmptyProjects,
     setShowEmptyProjects: (show: boolean) =>
       sessionSidebarStore.trigger.showEmptyProjectsChanged({ scopeId, show }),
+    showAutomation: state.showAutomation,
+    setShowAutomation: (show: boolean) =>
+      sessionSidebarStore.trigger.showAutomationChanged({ scopeId, show }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),

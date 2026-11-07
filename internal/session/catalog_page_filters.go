@@ -70,6 +70,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	}
 	query.Later = later
 	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicitSessionLookup(query)
+	query.ExcludeAutomation = query.ExcludeAutomation && !explicitSessionLookup(query)
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}

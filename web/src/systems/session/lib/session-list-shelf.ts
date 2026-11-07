@@ -7,19 +7,20 @@ import type { SessionListFilters } from "../types";
  */
 export type SessionListShelf = "active" | "archive" | "later";
 
-/** The catalog population a shelf reads; the daemon hides parked and archived rows by default. */
+/**
+ * The catalog population a shelf reads; the daemon hides parked and archived rows by default.
+ * `showAutomation` is the window's "Show automation runs" (#1355).
+ */
 export function sessionListShelfFilters(
-  shelf: SessionListShelf
-): Pick<
-  SessionListFilters,
-  "archive" | "exclude_finished_automation" | "exclude_instance_main" | "later"
-> {
+  shelf: SessionListShelf,
+  showAutomation = false
+): Pick<SessionListFilters, "archive" | "exclude_automation" | "exclude_instance_main" | "later"> {
   // An always-on agent's main session lives in its avatar, never in a row.
   const population = { exclude_instance_main: true };
   if (shelf === "archive") return { ...population, archive: "only" };
   if (shelf === "later") return { ...population, later: "only" };
-  // Finished automation runs live in their Automations run view and in search.
-  return { ...population, exclude_finished_automation: true };
+  // Automation runs live in their Automations run view and in search unless the window asks.
+  return showAutomation ? population : { ...population, exclude_automation: true };
 }
 
 /** The noun an empty shelf names: "No sessions in Later yet." */

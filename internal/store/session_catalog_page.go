@@ -68,31 +68,34 @@ type SessionCatalogPageQuery struct {
 	ExcludeVerdictOnly bool
 	// ExcludeFinishedAutomation hides settled automation-run session families.
 	ExcludeFinishedAutomation bool
-	Subagents                 string
-	SkipTotal                 bool
-	ReadScope                 ReadScope
-	WorkspaceIDs              []string
-	WorkspaceID               string
-	WorktreeID                string
-	State                     string
-	SessionType               string
-	AgentName                 string
-	ParentSessionID           string
-	RootSessionID             string
-	LineageKind               LineageKind
-	SearchFields              string
-	Search                    string
-	AttentionOnly             bool
-	Badges                    []string
-	Resumable                 bool
-	Archive                   SessionArchiveFilter
-	Later                     SessionLaterFilter
-	Sort                      string
-	Limit                     int
-	After                     *SessionCatalogPosition
-	ExcludeIDs                []string
-	ExcludeSessionTypes       []string
-	ExcludeSpawnRoles         []string
+	// ExcludeAutomation hides every automation job or trigger run family the
+	// operator has not prompted, whatever its state.
+	ExcludeAutomation   bool
+	Subagents           string
+	SkipTotal           bool
+	ReadScope           ReadScope
+	WorkspaceIDs        []string
+	WorkspaceID         string
+	WorktreeID          string
+	State               string
+	SessionType         string
+	AgentName           string
+	ParentSessionID     string
+	RootSessionID       string
+	LineageKind         LineageKind
+	SearchFields        string
+	Search              string
+	AttentionOnly       bool
+	Badges              []string
+	Resumable           bool
+	Archive             SessionArchiveFilter
+	Later               SessionLaterFilter
+	Sort                string
+	Limit               int
+	After               *SessionCatalogPosition
+	ExcludeIDs          []string
+	ExcludeSessionTypes []string
+	ExcludeSpawnRoles   []string
 }
 
 // Validate ensures the durable query is bounded and its anchor is usable.
@@ -158,6 +161,13 @@ type SessionCatalogPage struct {
 // SessionCatalogPager exposes the bounded catalog read used by public session lists.
 type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
+}
+
+// SessionAutomationRunReader names which sessions belong to an automation job or
+// trigger run family the operator has not prompted, so live rows follow the
+// durable ExcludeAutomation rule.
+type SessionAutomationRunReader interface {
+	AutomationRunSessionIDs(ctx context.Context, sessionIDs []string) ([]string, error)
 }
 
 // SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.

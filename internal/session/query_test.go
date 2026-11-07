@@ -412,6 +412,54 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop live automation run sessions from the page and its counts", func(t *testing.T) {
+		t.Parallel()
+		catalog := &automationRunRecordingSessionCatalog{
+			multiPagedRecordingSessionCatalog: &multiPagedRecordingSessionCatalog{
+				recordingSessionCatalog: newRecordingSessionCatalog(),
+			},
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		ordinary, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, ordinary.ID) })
+		run, err := h.manager.Create(ctx, new(CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSystem,
+			Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "job-1"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, run.ID) })
+		catalog.hidden = []string{run.ID}
+		query := ListQuery{
+			ReadScope:         store.ReadScope{AllProfiles: true},
+			WorkspaceID:       h.workspaceID,
+			Limit:             MaxListLimit,
+			ExcludeAutomation: true,
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != ordinary.ID {
+			t.Fatalf("default catalog = %#v, %v", page, err)
+		}
+		facets, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 1 {
+			t.Fatalf("default facets = %#v, %v", facets.Facets, err)
+		}
+		if !slices.Equal(catalog.asked, []string{run.ID}) {
+			t.Fatalf("asked = %v, want only the automation-initiated live session", catalog.asked)
+		}
+		query.ExcludeAutomation = false
+		if page, err = h.manager.ListPage(ctx, query); err != nil || page.Total != 2 {
+			t.Fatalf("opt-in catalog = %#v, %v", page, err)
+		}
+	})
+
 	t.Run(
 		"Should hide verdict-only judges before counting and preserve actionable system sessions",
 		func(t *testing.T) {
@@ -1223,6 +1271,7 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 		ReadScope:                 store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID:               "ws-1",
 		ExcludeFinishedAutomation: true,
+		ExcludeAutomation:         true,
 	}
 	tests := []struct {
 		name    string
@@ -1248,8 +1297,13 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if normalized.ExcludeFinishedAutomation != tt.exclude {
-				t.Fatalf("exclude = %v, want %v", normalized.ExcludeFinishedAutomation, tt.exclude)
+			if normalized.ExcludeFinishedAutomation != tt.exclude || normalized.ExcludeAutomation != tt.exclude {
+				t.Fatalf(
+					"exclude finished = %v, exclude all = %v, want %v",
+					normalized.ExcludeFinishedAutomation,
+					normalized.ExcludeAutomation,
+					tt.exclude,
+				)
 			}
 		})
 	}
@@ -1262,7 +1316,7 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !normalized.ExcludeFinishedAutomation {
+		if !normalized.ExcludeFinishedAutomation || !normalized.ExcludeAutomation {
 			t.Fatal("facets lost the default population")
 		}
 	})
@@ -1278,7 +1332,11 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if older == excluded {
+		allAutomation, err := sessionListFingerprintForQuery(ListQuery{WorkspaceID: "ws-1", ExcludeAutomation: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if older == excluded || older == allAutomation || excluded == allAutomation {
 			t.Fatal("a cursor must not cross populations")
 		}
 	})
@@ -1819,6 +1877,30 @@ type multiPagedRecordingSessionCatalog struct {
 	durable    []store.SessionInfo
 	calls      int
 	facetCalls int
+}
+
+// automationRunRecordingSessionCatalog names the live rows the durable
+// automation rule hides; the store suite owns the rule itself.
+type automationRunRecordingSessionCatalog struct {
+	*multiPagedRecordingSessionCatalog
+	hidden []string
+	asked  []string
+}
+
+func (c *automationRunRecordingSessionCatalog) AutomationRunSessionIDs(
+	_ context.Context,
+	sessionIDs []string,
+) ([]string, error) {
+	hidden := make([]string, 0, len(sessionIDs))
+	for _, id := range sessionIDs {
+		if !slices.Contains(c.asked, id) {
+			c.asked = append(c.asked, id)
+		}
+		if slices.Contains(c.hidden, id) {
+			hidden = append(hidden, id)
+		}
+	}
+	return hidden, nil
 }
 
 func (c *multiPagedRecordingSessionCatalog) SessionCatalogFacets(

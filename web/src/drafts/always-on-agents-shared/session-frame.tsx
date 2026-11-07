@@ -345,9 +345,11 @@ export function SessionRail({
         onNewFolder={() => undefined}
         onNewSession={() => undefined}
         onShelfChange={() => undefined}
+        onShowAutomationChange={() => undefined}
         onShowEmptyProjectsChange={() => undefined}
         onSortChange={() => undefined}
         shelf="active"
+        showAutomation={false}
         showEmptyProjects={false}
         sort="created"
         testIdPrefix="draft-rail"

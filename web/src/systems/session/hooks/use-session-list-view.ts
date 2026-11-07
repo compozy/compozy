@@ -80,6 +80,9 @@ export interface SessionListViewModel {
   /** Project grouping also lists projects with no sessions in view (#1085); per window. */
   showEmptyProjects: boolean;
   setShowEmptyProjects: (show: boolean) => void;
+  /** "Show automation runs" (#1355): automation job and trigger sessions join the list. */
+  showAutomation: boolean;
+  setShowAutomation: (show: boolean) => void;
   setShelf: (shelf: SessionListShelf) => void;
   /** Group-by groups from server facets; empty while flat. */
   groups: SessionListGroupSpec[];
@@ -174,7 +177,13 @@ export function useSessionListView(
   const flat = groupBy === "none";
   const pair = sessionListPair(scope, profile.params);
 
-  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, shelf);
+  const showAutomation = sidebar.showAutomation;
+  const groupFilters = sessionListGroupFiltersFor(
+    remoteSearch,
+    options.worktreeId,
+    shelf,
+    showAutomation
+  );
   const catalog = useSessionCatalog(
     scope,
     { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
@@ -186,6 +195,7 @@ export function useSessionListView(
     lens: profile.params,
     workspaces,
     shelf,
+    showAutomation,
     search: remoteSearch,
     worktreeId: options.worktreeId,
     enabled,
@@ -211,6 +221,7 @@ export function useSessionListView(
     search: remoteSearch,
     worktreeId: options.worktreeId,
     shelf,
+    showAutomation,
     enabled,
   });
   const laterCount = useSessionListLaterCount({
@@ -256,6 +267,8 @@ export function useSessionListView(
     setGroupBy: preferences.setGroupBy,
     showEmptyProjects: sidebar.showEmptyProjects,
     setShowEmptyProjects: sidebar.setShowEmptyProjects,
+    showAutomation,
+    setShowAutomation: sidebar.setShowAutomation,
     setShelf,
     groups,
     groupsLoading: awaiting.groupsLoading,
@@ -305,7 +318,8 @@ function hiddenProjectGroupKeys(
 function sessionListGroupFiltersFor(
   search: string,
   worktreeId: string | undefined,
-  shelf: SessionListShelf
+  shelf: SessionListShelf,
+  showAutomation: boolean
 ): SessionListFilters {
   return {
     include_health: true,
@@ -314,7 +328,7 @@ function sessionListGroupFiltersFor(
     search_fields: "title_agent",
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
-    ...sessionListShelfFilters(shelf),
+    ...sessionListShelfFilters(shelf, showAutomation),
   };
 }
 

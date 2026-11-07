@@ -72092,6 +72092,14 @@
             }
           },
           {
+            "description": "Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it",
+            "in": "query",
+            "name": "exclude_automation",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Filter by exact session state",
             "in": "query",
             "name": "state",
@@ -72661,6 +72669,14 @@
             "description": "Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it",
             "in": "query",
             "name": "exclude_finished_automation",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it",
+            "in": "query",
+            "name": "exclude_automation",
             "schema": {
               "type": "boolean"
             }
@@ -94281,6 +94297,14 @@
             "description": "Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it",
             "in": "query",
             "name": "exclude_finished_automation",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it",
+            "in": "query",
+            "name": "exclude_automation",
             "schema": {
               "type": "boolean"
             }

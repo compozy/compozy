@@ -71,6 +71,7 @@ func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEvents
 type ListSessionFacetsParams struct {
 	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
 	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	ExcludeAutomation         *bool     `url:"exclude_automation"`
 	WorkspaceID               *string   `url:"workspace_id"`
 	AllWorkspaces             *bool     `url:"all_workspaces"`
 	WorkspaceIds              *[]string `url:"workspace_ids"`
@@ -98,6 +99,9 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	}
 	if params.ExcludeFinishedAutomation != nil {
 		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
+	}
+	if params.ExcludeAutomation != nil {
+		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
 	}
 	if params.WorkspaceID != nil {
 		query.Set("workspace_id", *params.WorkspaceID)

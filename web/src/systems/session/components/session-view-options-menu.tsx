@@ -12,6 +12,7 @@ import {
   Rows3,
   SlidersHorizontal,
   UserRound,
+  Zap,
   type LucideIcon,
 } from "@compozy/ui/icons";
 import type * as React from "react";
@@ -115,6 +116,9 @@ export interface SessionViewOptionsMenuProps {
   /** The board's "Hide child sessions" filter; absent where a surface has no such filter. */
   hideChildren?: boolean;
   onHideChildrenChange?: (hide: boolean) => void;
+  /** "Show automation runs" (#1355); absent where a surface has no such filter. */
+  showAutomation?: boolean;
+  onShowAutomationChange?: (show: boolean) => void;
   allCollapsed: boolean;
   /** Absent where nothing folds: the action is left out. */
   onAllCollapsedChange?: (collapsed: boolean) => void;
@@ -138,6 +142,8 @@ export function SessionViewOptionsMenu({
   onShowEmptyProjectsChange,
   hideChildren = true,
   onHideChildrenChange,
+  showAutomation = false,
+  onShowAutomationChange,
   allCollapsed,
   onAllCollapsedChange,
   testId,
@@ -145,7 +151,8 @@ export function SessionViewOptionsMenu({
 }: SessionViewOptionsMenuProps) {
   // The filter starts on, so showing child sessions is the choice worth marking.
   const showsChildren = onHideChildrenChange !== undefined && !hideChildren;
-  const marked = groupBy !== "none" || allCollapsed || showsChildren;
+  const showsAutomation = onShowAutomationChange !== undefined && showAutomation;
+  const marked = groupBy !== "none" || allCollapsed || showsChildren || showsAutomation;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
@@ -198,20 +205,33 @@ export function SessionViewOptionsMenu({
             </ChoiceSection>
           </>
         ) : null}
-        {onHideChildrenChange ? (
+        {onHideChildrenChange || onShowAutomationChange ? (
           <>
             <DropdownMenuSeparator className={SECTION_DIVIDER} />
             <DropdownMenuGroup>
               <DropdownMenuLabel>Filter</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={hideChildren}
-                className={CHOICE_ITEM}
-                data-testid={`${testId}-hide-children`}
-                onCheckedChange={checked => onHideChildrenChange(checked === true)}
-              >
-                <Icon as={ListTree} size="sm" />
-                Hide child sessions
-              </DropdownMenuCheckboxItem>
+              {onHideChildrenChange ? (
+                <DropdownMenuCheckboxItem
+                  checked={hideChildren}
+                  className={CHOICE_ITEM}
+                  data-testid={`${testId}-hide-children`}
+                  onCheckedChange={checked => onHideChildrenChange(checked === true)}
+                >
+                  <Icon as={ListTree} size="sm" />
+                  Hide child sessions
+                </DropdownMenuCheckboxItem>
+              ) : null}
+              {onShowAutomationChange ? (
+                <DropdownMenuCheckboxItem
+                  checked={showAutomation}
+                  className={CHOICE_ITEM}
+                  data-testid={`${testId}-show-automation`}
+                  onCheckedChange={checked => onShowAutomationChange(checked === true)}
+                >
+                  <Icon as={Zap} size="sm" />
+                  Show automation runs
+                </DropdownMenuCheckboxItem>
+              ) : null}
             </DropdownMenuGroup>
           </>
         ) : null}

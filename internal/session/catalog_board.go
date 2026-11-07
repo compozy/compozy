@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -57,7 +59,46 @@ func (m *Manager) activeBoardSessionCatalogRows(
 		)
 	}
 	active, ids, matches := m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
+	matches, err = m.dropAutomationRunMatches(ctx, query, matches)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	return active, ids, matches, nil
+}
+
+// dropAutomationRunMatches applies the durable ExcludeAutomation rule to live
+// rows, which the page overlays instead of reading from the catalog.
+func (m *Manager) dropAutomationRunMatches(
+	ctx context.Context,
+	query ListQuery,
+	matches []store.SessionInfo,
+) ([]store.SessionInfo, error) {
+	if !query.ExcludeAutomation || len(matches) == 0 {
+		return matches, nil
+	}
+	ids := make([]string, 0, len(matches))
+	for index := range matches {
+		if matches[index].InitiatorKind == string(workspaceaccess.ActorAutomation) {
+			ids = append(ids, matches[index].ID)
+		}
+	}
+	if len(ids) == 0 {
+		return matches, nil
+	}
+	reader, ok := m.sessionCatalog.(store.SessionAutomationRunReader)
+	if !ok || reader == nil {
+		return nil, errors.New("session: automation run catalog is required")
+	}
+	hidden, err := reader.AutomationRunSessionIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("session: read automation run sessions: %w", err)
+	}
+	if len(hidden) == 0 {
+		return matches, nil
+	}
+	return slices.DeleteFunc(matches, func(info store.SessionInfo) bool {
+		return slices.Contains(hidden, info.ID)
+	}), nil
 }
 
 func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {

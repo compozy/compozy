@@ -185,10 +185,13 @@ export function useSessionsBoard({
   sort,
   groupBy,
   showEmptyProjects = false,
+  showAutomation = false,
   enabled = true,
 }: {
   scope: DataScope | null;
   hideChildren: boolean;
+  /** "Show automation runs" (#1355), shared with the window's List. */
+  showAutomation?: boolean;
   sort: SessionListSort;
   groupBy: SessionListGroupBy;
   /** Lanes for projects with no sessions too, as the window's List shows them. */
@@ -204,7 +207,7 @@ export function useSessionsBoard({
   const population = hideChildren ? { children: "exclude" as const } : {};
   const shared: SessionListFilters = {
     ...population,
-    ...sessionListShelfFilters("active"),
+    ...sessionListShelfFilters("active", showAutomation),
     sort: sessionBoardSort(sort),
   };
   const base = sessionCatalogScopedFilters(scope, shared, params);
@@ -215,6 +218,7 @@ export function useSessionsBoard({
     lens: params,
     workspaces: registeredWorkspaces,
     shelf: "active",
+    showAutomation,
     enabled: active,
     // Lane membership and totals count the rows the lane's columns read.
     population,
