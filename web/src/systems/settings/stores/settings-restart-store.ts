@@ -21,7 +21,7 @@ export interface PendingSettingsMutation {
 
 export interface SettingsRestartState {
   operationId: string | null;
-  /** Epoch ms when this tab started the restart; absent in state persisted before it existed. */
+  /** Epoch ms when this tab started (or, after an upgrade, rehydrated) the restart. */
   operationStartedAt: number | null;
   lastMutation: PendingSettingsMutation | null;
   mutationGeneration: number;
@@ -77,10 +77,17 @@ export const settingsRestartStore = createStore({
   persist({
     name: settingsRestartStorageKey,
     storage: settingsRestartStorage,
-    version: 1,
-    migrate: (persisted: Omit<SettingsRestartState, "snoozedApplyRecordId">) => ({
+    version: 2,
+    // v0 lacks snoozedApplyRecordId; v0–v1 lack operationStartedAt. A restart already in flight
+    // counts from rehydration, so its prolonged-outage guidance can still appear.
+    migrate: (
+      persisted: Omit<SettingsRestartState, "snoozedApplyRecordId" | "operationStartedAt"> &
+        Partial<Pick<SettingsRestartState, "snoozedApplyRecordId" | "operationStartedAt">>
+    ) => ({
       ...persisted,
-      snoozedApplyRecordId: null,
+      snoozedApplyRecordId: persisted.snoozedApplyRecordId ?? null,
+      operationStartedAt:
+        persisted.operationStartedAt ?? (persisted.operationId ? Date.now() : null),
     }),
   })
 );

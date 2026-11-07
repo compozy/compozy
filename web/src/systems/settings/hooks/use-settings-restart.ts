@@ -27,7 +27,7 @@ function selectRestartReadiness(status: StatusPayload) {
 export function useSettingsRestart() {
   const queryClient = useQueryClient();
   const operationId = useSettingsRestartState(state => state.operationId);
-  const operationStartedAt = useSettingsRestartState(state => state.operationStartedAt ?? null);
+  const operationStartedAt = useSettingsRestartState(state => state.operationStartedAt);
   const lastMutation = useSettingsRestartState(state => state.lastMutation);
   const mutationGeneration = useSettingsRestartState(state => state.mutationGeneration);
   const snoozedMutationGeneration = useSettingsRestartState(
@@ -56,7 +56,7 @@ export function useSettingsRestart() {
   const resolvedOperationId = statusQuery.isError && !isStatusUnreachable ? null : operationId;
   // Polling continues through a slow restart; past a normal restart's length the notice adds
   // guidance. The outage counts from the restart's start, which survives a page refresh, or else
-  // from the last successful read.
+  // from the last successful read for an operation this tab did not start.
   const outageSince = operationStartedAt ?? statusQuery.dataUpdatedAt;
   const isOutageProlonged =
     isStatusUnreachable &&

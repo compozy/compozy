@@ -402,6 +402,43 @@ describe("useSettingsRestart", () => {
     expect(result.current.isOutageProlonged).toBe(true);
   });
 
+  // Invariant: a restart persisted before the start time existed is upgraded on rehydration, so
+  // its prolonged-outage guidance still appears and polling continues.
+  it("Should time a restart rehydrated from the previous persisted version", async () => {
+    window.sessionStorage.setItem(
+      settingsRestartStorageKey,
+      JSON.stringify({
+        context: {
+          operationId: "op_upgraded",
+          lastMutation: null,
+          mutationGeneration: 1,
+          snoozedMutationGeneration: null,
+          snoozedApplyRecordId: null,
+        },
+        version: 1,
+      })
+    );
+    const rehydratedAt = Date.now() - 60_000;
+    const now = vi.spyOn(Date, "now").mockReturnValue(rehydratedAt);
+    await act(async () => {
+      await rehydrateStore(settingsRestartStore);
+    });
+    now.mockRestore();
+    expect(settingsRestartStore.getSnapshot().context.operationStartedAt).toBe(rehydratedAt);
+
+    vi.mocked(getSettingsRestartStatus).mockRejectedValue(new TypeError("Failed to fetch"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => expect(result.current.isOutageProlonged).toBe(true), { timeout: 5_000 });
+    const polls = vi.mocked(getSettingsRestartStatus).mock.calls.length;
+    await waitFor(
+      () => expect(vi.mocked(getSettingsRestartStatus).mock.calls.length).toBeGreaterThan(polls),
+      { timeout: 5_000 }
+    );
+    expect(result.current.operationId).toBe("op_upgraded");
+  });
+
   it("Should fall back to the restart action when the status endpoint returns an HTTP error", async () => {
     settingsRestartStore.trigger.settingsMutationRecorded({
       mutation: {
