@@ -6,13 +6,13 @@ persona: Bruno
 journey:
 expected: A job or trigger session never appears on the list, the board, the dock launcher or the counts, in one project and in All projects, from the moment it is created through running, waiting, failing and finishing, and it never takes the selection. Pagination stays complete. It is not archived. The Automations run view, search, the session URL, `type=system`, `compozy session list` and `compozy__session_list` still reach it, and a run that needs the operator still raises its attention toast. Turning on "Show automation runs" in a window's View options lists every run with its counts, persists for that window across a reload and does not reach a new window. An operator-prompted run and its family stay visible. Loop and Task sessions never leave. Runs created before the upgrade follow the same rule with no backfill. `exclude_finished_automation` keeps hiding only settled runs.
 entry_points: GET /api/sessions?exclude_automation=true; GET /api/sessions/facets?exclude_automation=true; GET /api/sessions?exclude_finished_automation=true; SessionList; SessionsBoard; SessionViewOptionsMenu; dock Sessions launcher; Automations run view; compozy session list
-qa_status: untested
+qa_status: passed
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/hide-automation-sessions-1355/214246d1f8a1/
+last_report: 2026-11-07 #1355 lab walk
 overlaps: ET-web-session-list-aggregate-parity, ET-web-sessions-board-paging-archive
 ---
 
@@ -33,3 +33,15 @@ board and `/api/sessions/facets` with and without `exclude_automation`. Open the
 run history. Turn on "Show automation runs": the runs appear with their counts; reload and open a
 new window. Prompt a run and check it stays. Click the dock's Sessions launcher right after a run
 starts: it opens the ordinary session. Repeat under All projects, in light and dark.
+
+Walk 2026-11-07 (#1355): isolated lab daemon and `web/dist` built from the branch, acpmock-backed
+`general` agent, one ordinary session and an `every:1m` workspace job. The scheduled run fired and
+worked for 45 seconds. Polling every 2 seconds, `/api/sessions` and `/api/sessions/facets` with
+`exclude_automation=true` never listed the run and kept `working=0, idle=1`; without the flag they
+listed it with `working=1`. In the browser, the dock's Sessions launcher opened the ordinary session
+while the run was the newest session, the list and footer showed only "My own work · 1 idle", "Show
+automation runs" in View options added the run with "1 working · 1 idle" and marked the trigger, and
+the finished run stayed hidden. The job's run history linked the run's session, and its URL opened
+it without adding a row. `compozy session list` still returned both sessions. Dark theme only; the
+board, All projects with several projects, a prompted run and a reload were not walked here and rest
+on their automated suites.
