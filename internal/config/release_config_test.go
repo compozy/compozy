@@ -903,7 +903,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 				"github.event.head_commit.author.name != 'github-actions[bot]')",
 			"integration": "(github.event_name == 'pull_request' && " +
 				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
-				"startsWith(github.base_ref, 'release/v'))) || (" + routinePush + ")",
+				"startsWith(github.base_ref, 'release/v') || " +
+				"contains(github.event.pull_request.labels.*.name, 'ci:full'))) || (" + routinePush + ")",
 			"release-plan": "github.event_name == 'workflow_dispatch' || (" + mainPush +
 				" && " + current + " && " +
 				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",
