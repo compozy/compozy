@@ -115,7 +115,7 @@ func decodeClientServer(name string, raw json.RawMessage, root, dataDir string) 
 func discoverClientMCP(root string, pkg *Package) json.RawMessage {
 	selected := ""
 	for _, name := range []string{"mcp.json", ".mcp.json"} {
-		_, err := os.Lstat(filepath.Join(root, name))
+		info, err := os.Lstat(filepath.Join(root, name))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -129,6 +129,13 @@ func discoverClientMCP(root string, pkg *Package) json.RawMessage {
 				Diagnostic{Scope: scopeMCP, Message: name + " ignored because " + selected + " takes precedence"},
 			)
 			continue
+		}
+		if !info.Mode().IsRegular() {
+			pkg.Diagnostics = append(
+				pkg.Diagnostics,
+				Diagnostic{Scope: scopeMCP, Message: name + " must be a regular file, not a symlink"},
+			)
+			return nil
 		}
 		selected = name
 	}

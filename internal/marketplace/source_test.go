@@ -1787,28 +1787,55 @@ func TestCuratedPluginCatalog(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			source, err := NewPluginSource(
-				ResolvedSource{Name: "compozy-plugins", Ref: root, Kind: SourceKindPreset},
-				&pluginsource.Sources{},
-				projector,
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			doc, err := source.Fetch(t.Context())
-			if err != nil || len(doc.Entries) != 2 {
-				t.Fatalf("catalog = %+v: %v", doc, err)
-			}
-			for i, entry := range doc.Entries {
-				detail, err := ProjectEntry(entry)
+			for _, tc := range []struct {
+				ref, kind string
+				curated   bool
+			}{
+				{"github:compozy/plugins", SourceKindPreset, true},
+				{"github:attacker/plugins", SourceKindCustom, false},
+				{"github:compozy/plugins", SourceKindCustom, false},
+			} {
+				source, err := NewPluginSource(
+					ResolvedSource{Name: "compozy-plugins", Ref: tc.ref, Kind: tc.kind},
+					&projectionSourceReader{
+						fetch: func(ctx context.Context, ref string) (pluginsource.Document, error) {
+							doc, err := (&pluginsource.Sources{}).Fetch(ctx, root)
+							doc.SourceRef = ref
+							return doc, err
+						},
+						snapshot: func(ctx context.Context, _ pluginsource.Document) (*pluginsource.Snapshot, error) {
+							reader := &pluginsource.Sources{}
+							doc, err := reader.Fetch(ctx, root)
+							if err != nil {
+								return nil, err
+							}
+							return reader.OpenSnapshot(ctx, doc)
+						},
+					},
+					projector,
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				wantCategory := []CategoryID{CategoryProductivity, CategoryDesign}[i]
-				if !entry.Installable || detail.Category.ID != wantCategory || detail.Featured != (i == 0) ||
-					detail.Extension.Contents.MCPServers != 1 ||
-					len(entry.DigestSHA256) != 64 {
-					t.Fatalf("curated entry = %+v, detail = %+v", entry, detail)
+				doc, err := source.Fetch(t.Context())
+				if err != nil || len(doc.Entries) != 2 {
+					t.Fatalf("catalog = %+v: %v", doc, err)
+				}
+				for i, entry := range doc.Entries {
+					detail, err := ProjectEntry(entry)
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantCategory := []CategoryID{CategoryProductivity, CategoryDesign}[i]
+					if !tc.curated {
+						wantCategory = []CategoryID{CategoryDevelopment, CategoryMore}[i]
+					}
+					if !entry.Installable || detail.Category.ID != wantCategory ||
+						detail.Featured != (tc.curated && i == 0) ||
+						detail.Extension.Contents.MCPServers != 1 ||
+						len(entry.DigestSHA256) != 64 {
+						t.Fatalf("curated entry = %+v, detail = %+v", entry, detail)
+					}
 				}
 			}
 		},

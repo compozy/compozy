@@ -31,6 +31,9 @@ func applyManifestMCPInputs(
 				server.InputValues = make(map[string]compozyconfig.MCPInputValue)
 			}
 			server.InputValues[input.ID] = compozyconfig.MCPInputValue{Value: value, SecretRef: ref}
+			if declaration.Auth != nil && declaration.Auth.ClientID == "${"+input.ID+"}" {
+				server.Auth.ClientID = value
+			}
 			if declaration.Auth != nil && declaration.Auth.ClientSecretInput == "${"+input.ID+"}" {
 				server.Auth.ClientSecretRef = ref
 			}

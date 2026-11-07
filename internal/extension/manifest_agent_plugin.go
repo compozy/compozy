@@ -203,7 +203,7 @@ func derivedManifestInputs(derivedInputs []agentplugin.DerivedInput) ([]Manifest
 		}
 		if derived.Secret {
 			input.Type = manifestInputTypeSecret
-		} else if !derived.Required {
+		} else if !derived.Required && derived.Default != "" {
 			value, err := json.Marshal(derived.Default)
 			if err != nil {
 				return nil, err
@@ -228,9 +228,6 @@ func clientManifestOAuth(server agentplugin.ServerSpec) *MCPServerAuthConfig {
 	}
 	if server.Auth.ClientID != "" {
 		auth.Registration = "pre_registered"
-		scheme, authority, _ := strings.Cut(server.URL, "://")
-		authority, _, _ = strings.Cut(authority, "/")
-		auth.IssuerURL = scheme + "://" + authority
 	}
 	return auth
 }

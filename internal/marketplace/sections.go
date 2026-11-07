@@ -9,9 +9,10 @@ import (
 )
 
 type BrowseFilter struct {
-	Query     string
-	Category  CategoryID
-	Installed []Origin
+	PerSection int
+	Query      string
+	Category   CategoryID
+	Installed  []Origin
 }
 type CategoryCount struct {
 	Category Category
@@ -55,8 +56,7 @@ func FilterBrowse(page BrowseResult, filter BrowseFilter, offset, limit int) (Br
 		if row.details.Featured {
 			counts[CategoryFeatured]++
 		}
-		if filter.Category == "" || row.details.Category.ID == filter.Category ||
-			(filter.Category == CategoryFeatured && row.details.Featured) {
+		if categoryMatches(row.details, filter.Category) {
 			matches = append(matches, row)
 		}
 	}
@@ -70,14 +70,26 @@ func FilterBrowse(page BrowseResult, filter BrowseFilter, offset, limit int) (Br
 	for _, category := range Categories() {
 		page.Categories = append(page.Categories, CategoryCount{category, counts[category.ID]})
 	}
+	page.details = make(map[string]EntryDetails, len(matches))
+	for _, row := range matches {
+		page.details[row.entry.SourceName+"/"+row.entry.EntryID] = row.details
+	}
 	page.Total = len(matches)
 	page.Entries = []Entry{}
 	pageLimit := normalizeListLimit(limit)
-	if limit == maxCatalogEntriesPerSource {
+	if limit == AllEntries {
 		pageLimit = len(matches)
 	}
 	for _, row := range matches[min(offset, len(matches)):min(offset+pageLimit, len(matches))] {
 		page.Entries = append(page.Entries, row.entry)
+	}
+
+	if filter.PerSection > 0 {
+		sections, err := BuildSections(page, filter.PerSection)
+		if err != nil {
+			return BrowseResult{}, err
+		}
+		page.Entries = uniqueSectionEntries(sections.Sections)
 	}
 	return page, nil
 }
@@ -89,7 +101,7 @@ func (s *CatalogService) Sections(ctx context.Context, query string, perSection 
 	if perSection < 1 || perSection > 12 {
 		return SectionsResult{}, fmt.Errorf("per_section must be between 1 and 12")
 	}
-	page, err := s.BrowseFiltered(ctx, BrowseFilter{Query: query}, 0, maxCatalogEntriesPerSource)
+	page, err := s.BrowseFiltered(ctx, BrowseFilter{Query: query, PerSection: perSection}, 0, AllEntries)
 	if err != nil {
 		return SectionsResult{}, err
 	}
@@ -106,15 +118,34 @@ func BuildSections(page BrowseResult, perSection int) (SectionsResult, error) {
 		ErrorClass: page.ErrorClass,
 		LastError:  page.LastError,
 	}
+
+	rows := make([]categoryCandidate, 0, len(page.Entries))
+	for _, entry := range page.Entries {
+		details, ok := page.details[entry.SourceName+"/"+entry.EntryID]
+		if !ok {
+			var err error
+			details, err = ProjectEntry(entry)
+			if err != nil {
+				return SectionsResult{}, err
+			}
+		}
+		rows = append(rows, categoryCandidate{entry, details})
+	}
+	sortCategoryCandidates(rows)
 	for _, count := range page.Categories {
 		if count.Count == 0 {
 			continue
 		}
-		section, err := FilterBrowse(page, BrowseFilter{Category: count.Category.ID}, 0, perSection)
-		if err != nil {
-			return SectionsResult{}, err
+		entries := []Entry{}
+		for _, row := range rows {
+			if categoryMatches(row.details, count.Category.ID) {
+				entries = append(entries, row.entry)
+				if len(entries) == perSection {
+					break
+				}
+			}
 		}
-		result.Sections = append(result.Sections, Section{count.Category, section.Total, section.Entries})
+		result.Sections = append(result.Sections, Section{count.Category, count.Count, entries})
 	}
 	return result, nil
 }
@@ -180,4 +211,23 @@ func sortCategoryCandidates(matches []categoryCandidate) {
 			cmp.Compare(a.entry.SourceName, b.entry.SourceName),
 		)
 	})
+}
+
+func uniqueSectionEntries(sections []Section) []Entry {
+	entries := []Entry{}
+	seen := make(map[string]bool)
+	for _, section := range sections {
+		for _, entry := range section.Entries {
+			key := entry.SourceName + "/" + entry.EntryID
+			if !seen[key] {
+				entries = append(entries, entry)
+				seen[key] = true
+			}
+		}
+	}
+	return entries
+}
+
+func categoryMatches(details EntryDetails, category CategoryID) bool {
+	return category == "" || details.Category.ID == category || (category == CategoryFeatured && details.Featured)
 }

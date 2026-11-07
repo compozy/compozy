@@ -41,19 +41,24 @@ func TestCategoryResolver(t *testing.T) {
 }
 func TestCategoryProjection(t *testing.T) {
 	t.Parallel()
+	if curatedSource("") {
+		t.Fatal("empty source grants curation")
+	}
 	for _, tc := range []struct {
 		name, source, payload string
 		want                  CategoryID
 		featured              bool
 	}{
 		{"Should resolve old rows", "compozy-catalog", `{"category":"payments"}`, "finance", false},
-		{"Should honor curated metadata", "compozy-plugins", `{"category":"database","x-compozy":{"category":"productivity","featured":true}}`, "productivity", true},
+		{"Should honor curated metadata", "compozy-plugins", `{"source_ref":"github:compozy/plugins","category":"database","x-compozy":{"category":"productivity","featured":true}}`, "productivity", true},
+		{"Should ignore a custom source impersonating a curated name", "compozy-plugins", `{"source_ref":"github:attacker/plugins","category":"database","x-compozy":{"category":"productivity","featured":true,"supersedes":["official/x"]}}`, "data", false},
 		{"Should ignore third party metadata", "third-party", `{"category":"database","compozy_category":"design","featured":true,"x-compozy":{"category":"productivity","featured":true}}`, "data", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			details, err := ProjectEntry(Entry{SourceName: tc.source, Payload: json.RawMessage(tc.payload)})
-			if err != nil || details.Category.ID != tc.want || details.Featured != tc.featured {
+			if err != nil || details.Category.ID != tc.want || details.Featured != tc.featured ||
+				(!tc.featured && len(details.Supersedes) != 0) {
 				t.Fatalf("projection=%+v err=%v", details, err)
 			}
 		})

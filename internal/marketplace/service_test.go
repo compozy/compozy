@@ -1552,17 +1552,21 @@ func TestCatalogCategoryCollapse(t *testing.T) {
 				target = "missing/linear"
 			}
 			binding := func(name string, enabled, curated bool) SourceBinding {
+				ref, kind := "github:team/"+name, SourceKindCustom
+				if name == "compozy-plugins" {
+					ref, kind = "github:compozy/plugins", SourceKindPreset
+				}
 				return SourceBinding{
 					Config: ResolvedSource{
 						Name:    name,
-						Ref:     "github:team/" + name,
-						Kind:    SourceKindCustom,
+						Ref:     ref,
+						Kind:    kind,
 						Enabled: enabled,
 					},
 					Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
 						entry := testEntry("linear", "Linear", "Issue tracker")
 						entry.InstallSlug = name + "/linear"
-						payload := pluginEntry{Category: "productivity", SourceRef: "github:team/" + name}
+						payload := pluginEntry{Category: "productivity", SourceRef: ref}
 						if curated {
 							payload.Supersedes = []string{target}
 						}
@@ -1625,4 +1629,57 @@ func TestCatalogCategoryCollapse(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCatalogSectionsAvailability(t *testing.T) {
+	t.Parallel()
+	t.Run("Should check availability only for selected section rows and retain complete totals", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+		entries := make([]Entry, 120)
+		for i := range entries {
+			entries[i] = testEntry(fmt.Sprintf("entry-%03d", i), fmt.Sprintf("Entry %03d", i), "Data")
+			entries[i].Payload = json.RawMessage(`{"category":"database"}`)
+			entries[i].DigestSHA256 = "invalid-unselected-digest"
+		}
+		entries[0].DigestSHA256 = strings.Repeat("a", 64)
+		bindings := marketplaceTestBindings(
+			t,
+			&recordingSource{fetch: func(context.Context) (*Document, error) { return testDocument(at), nil }},
+		)
+		bindings = append(bindings, SourceBinding{
+			Config: ResolvedSource{Name: "custom", Ref: "github:team/custom", Kind: SourceKindCustom, Enabled: true},
+			Fetcher: &recordingSource{
+				fetch: func(context.Context) (*Document, error) { return testDocument(at, entries...), nil },
+			},
+		})
+		service, err := NewService(
+			t.Context(),
+			openMarketplaceTestStore(t),
+			bindings,
+			time.Hour,
+			time.Second,
+			WithNow(func() time.Time { return at }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		service.packageCache = &pluginsource.PackageCache{Root: t.TempDir()}
+		sections, err := service.Sections(t.Context(), "", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sections.Sections) != 1 || sections.Sections[0].Total != 120 || len(sections.Sections[0].Entries) != 1 ||
+			sections.Sections[0].Entries[0].InstallBlocker != "package_unavailable" {
+			t.Fatalf("sections = %+v", sections)
+		}
+	})
 }

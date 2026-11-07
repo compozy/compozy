@@ -58,7 +58,7 @@ func ProjectEntry(entry Entry) (EntryDetails, error) {
 		sourceRef = CompozyCatalogRef
 	}
 	explicit, featured, supersedes := "", false, []string(nil)
-	if curatedSource(source) {
+	if curatedIdentity(source, sourceRef) {
 		explicit, featured, supersedes = value.CompozyCategory, value.Featured, value.Supersedes
 		if value.XCompozy != nil {
 			explicit, featured, supersedes = value.XCompozy.Category, value.XCompozy.Featured, value.XCompozy.Supersedes

@@ -310,6 +310,48 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 
 func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	t.Parallel()
+	t.Run("Should discover a separate issuer for pre-registered credentials", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{},
+		)
+		var resourceURL string
+		resource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).
+				Encode(map[string]any{"resource": resourceURL, "authorization_servers": []string{fixture.Endpoints.IssuerURL}}); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(resource.Close)
+		resourceURL = strings.Replace(resource.URL, "127.0.0.1", "localhost", 1) + "/mcp"
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(fixture.Server.Client()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, err := service.BeginLogin(t.Context(), ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "separate"}, Type: authTypeOAuth,
+			RemoteURL: resourceURL, ClientID: "registered-client", Registration: RegistrationPreRegistered,
+		}, "http://127.0.0.1:2123/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := url.Parse(state.AuthorizationURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.Metadata.Issuer != fixture.Endpoints.IssuerURL ||
+			parsed.Query().Get("client_id") != "registered-client" ||
+			parsed.Query().Get("resource") != resourceURL {
+			t.Fatalf("state = %+v", state.Metadata)
+		}
+		if len(fixture.Requests().Registration) != 0 {
+			t.Fatal("pre-registered flow registered a client")
+		}
+	})
+
 	t.Run("Should include the protected resource in the authorization request", func(t *testing.T) {
 		t.Parallel()
 		fixture := mcpfixture.StartOAuthHTTP(

@@ -363,7 +363,7 @@ func TestClientRootMCPDiscovery(t *testing.T) {
 			t.Fatalf("package = %#v", pkg)
 		}
 	})
-	for _, kind := range []string{"invalid JSON", "symlink", "directory"} {
+	for _, kind := range []string{"invalid JSON", "symlink", "internal symlink", "directory"} {
 		t.Run("Should retain skills when root MCP is "+kind, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
@@ -377,8 +377,11 @@ func TestClientRootMCPDiscovery(t *testing.T) {
 				if err := os.Mkdir(path, 0o700); err != nil {
 					t.Fatal(err)
 				}
-			case "symlink":
+			case "symlink", "internal symlink":
 				target := filepath.Join(t.TempDir(), "outside.json")
+				if kind == "internal symlink" {
+					target = filepath.Join(root, "config", "mcp.json")
+				}
 				writeJSONFile(
 					t,
 					target,

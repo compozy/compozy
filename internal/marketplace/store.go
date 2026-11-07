@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	AllEntries       = -1
 	defaultListLimit = 20
 	maxListLimit     = 100
 )
@@ -61,8 +62,8 @@ func listCatalogRows(rows []storepkg.MarketplaceCatalogEntry, query string, offs
 		return ListResult{Entries: []Entry{}, Total: total}, nil
 	}
 	pageLimit := normalizeListLimit(limit)
-	if limit == maxCatalogEntriesPerSource {
-		pageLimit = limit
+	if limit == AllEntries {
+		pageLimit = len(entries)
 	}
 	end := min(offset+pageLimit, total)
 	return ListResult{Entries: entries[offset:end], Total: total}, nil

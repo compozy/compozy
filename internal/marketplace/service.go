@@ -121,7 +121,7 @@ func (s *CatalogService) BrowseFiltered(
 	s.flightMu.Lock()
 	completed := s.completedRefreshes
 	s.flightMu.Unlock()
-	page, err := s.store.BrowseSources(ctx, names, "", 0, maxCatalogEntriesPerSource)
+	page, err := s.store.BrowseSources(ctx, names, "", 0, AllEntries)
 	if err != nil {
 		return BrowseResult{}, err
 	}

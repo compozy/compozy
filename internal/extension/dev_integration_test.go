@@ -1929,7 +1929,7 @@ func (m *faultingSourceSessionManager) failNextActivation(err error) {
 
 func TestClientRootMCPInventory(t *testing.T) {
 	t.Parallel()
-	for _, layout := range []string{"cursor", "manifestless"} {
+	for _, layout := range []string{"cursor", "manifestless", "servicenow"} {
 		t.Run("Should install "+layout+" root MCP and publish its inventory and server", func(t *testing.T) {
 			t.Parallel()
 			env := newRegistryTestEnv(t)
@@ -1937,7 +1937,7 @@ func TestClientRootMCPInventory(t *testing.T) {
 			if err := os.MkdirAll(root, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			if layout == "cursor" {
+			if layout != "manifestless" {
 				if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
 					t.Fatal(err)
 				}
@@ -1948,6 +1948,23 @@ func TestClientRootMCPInventory(t *testing.T) {
 				filepath.Join(root, "mcp.json"),
 				`{"mcpServers":{"remote":{"url":"https://example.com/mcp","placement":"remote"}}}`,
 			)
+
+			state := InputState{}
+			if layout == "servicenow" {
+				writeFile(
+					t,
+					filepath.Join(root, "mcp.json"),
+					`{"mcpServers":{"remote":{"url":"https://example.com/mcp","auth":{"CLIENT_ID":"${CLIENT_ID}","CLIENT_SECRET":"${CLIENT_SECRET}","scopes":["mcp_server"]}}}}`,
+				)
+				state.Values = map[string]InputValueRecord{
+					"CLIENT_ID": {Type: "string", Value: json.RawMessage(`"registered-client"`), Active: true},
+					"CLIENT_SECRET": {
+						Type:      "secret",
+						SecretRef: "vault:extensions/global/acme/env/CLIENT_SECRET",
+						Active:    true,
+					},
+				}
+			}
 			inspected, err := InspectPluginPackage(t.Context(), root, "marketplace-name")
 			if err != nil {
 				t.Fatal(err)
@@ -1985,7 +2002,7 @@ func TestClientRootMCPInventory(t *testing.T) {
 			servers, err := ResolveManifestMCPServerResources(
 				root,
 				installed.Manifest,
-				InputState{},
+				state,
 				func(string) string { return "" },
 			)
 			if err != nil {
@@ -1993,6 +2010,16 @@ func TestClientRootMCPInventory(t *testing.T) {
 			}
 			if len(servers) != 1 || servers[0].URL != "https://example.com/mcp" {
 				t.Fatalf("projection = %#v", servers)
+			}
+
+			if layout == "servicenow" {
+				if servers[0].Auth.ClientID != "registered-client" ||
+					servers[0].Auth.ClientSecretRef != state.Values["CLIENT_SECRET"].SecretRef {
+					t.Fatalf("bound auth = %+v", servers[0].Auth)
+				}
+				if err := servers[0].Auth.Validate("auth"); err != nil {
+					t.Fatal(err)
+				}
 			}
 			for _, d := range installed.Manifest.IngestDiagnostics {
 				if d.Code == agentplugin.ClientMCPDiscovered && d.Severity != "info" {

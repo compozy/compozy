@@ -82,6 +82,7 @@ type SourceState struct {
 
 // BrowseResult is one ordered page from the complete enabled source set.
 type BrowseResult struct {
+	details    map[string]EntryDetails
 	Categories []CategoryCount
 	Refreshing bool
 	Entries    []Entry

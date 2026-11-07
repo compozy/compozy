@@ -44,6 +44,9 @@ func deriveClientInputs(pkg *Package, server ServerSpec) {
 			}
 			input := &pkg.Inputs[index]
 			input.Required = input.Required || !optional
+			if input.Default != fallback {
+				input.Default = ""
+			}
 			if !slices.Contains(input.Servers, server.Name) {
 				input.Servers = append(input.Servers, server.Name)
 			}
@@ -60,6 +63,7 @@ func deriveClientInputs(pkg *Package, server ServerSpec) {
 		scan(value)
 	}
 	if server.Auth != nil {
+		scan(server.Auth.ClientID)
 		scan(server.Auth.ClientSecret)
 	}
 	slices.SortFunc(pkg.Inputs, func(a, b DerivedInput) int {
@@ -92,20 +96,14 @@ func decodeClientAuth(name string, raw json.RawMessage, transport string) (*OAut
 		switch key {
 		case "CLIENT_ID":
 			value, ok := stringField(fields, key, true)
-			if ok && value != "" && !containsPlaceholder(value) {
+			if ok && value != "" && (!containsPlaceholder(value) || validClientInput(value, false)) {
 				auth.ClientID = value
 			} else {
 				ignored("auth." + key)
 			}
 		case "CLIENT_SECRET":
 			value, ok := stringField(fields, key, true)
-			valid := false
-			mcppolicy.ReplaceInputs(value, func(name, _ string, optional bool) string {
-				valid = value == "${"+name+"}" && mcppolicy.ValidInputName(name) && mcppolicy.SecretInputName(name) &&
-					!optional
-				return ""
-			})
-			if ok && valid {
+			if ok && validClientInput(value, true) {
 				auth.ClientSecret = value
 			} else {
 				ignored("auth." + key)
@@ -121,6 +119,10 @@ func decodeClientAuth(name string, raw json.RawMessage, transport string) (*OAut
 			ignored("auth." + key)
 		}
 	}
+	if auth.ClientID == "" && auth.ClientSecret != "" {
+		auth.ClientSecret = ""
+		ignored("auth.CLIENT_SECRET")
+	}
 	return auth, diagnostics
 }
 
@@ -128,4 +130,14 @@ func containsPlaceholder(value string) bool {
 	found := false
 	mcppolicy.ReplaceInputs(value, func(_, _ string, _ bool) string { found = true; return "" })
 	return found
+}
+
+func validClientInput(value string, secret bool) bool {
+	valid := false
+	mcppolicy.ReplaceInputs(value, func(name, _ string, optional bool) string {
+		valid = value == "${"+name+"}" && mcppolicy.ValidInputName(name) && mcppolicy.SecretInputName(name) == secret &&
+			!optional
+		return ""
+	})
+	return valid
 }

@@ -94,5 +94,10 @@ func categoryFor(id CategoryID) Category {
 	return taxonomy[len(taxonomy)-1]
 }
 func curatedSource(name string) bool {
-	return name == "" || name == CatalogSource || name == "compozy-plugins"
+	return name == CatalogSource || name == "compozy-plugins"
+}
+
+func curatedIdentity(name, ref string) bool {
+	return curatedSource(name) && ((name == CatalogSource && ref == CompozyCatalogRef) ||
+		(name == "compozy-plugins" && ref == "github:compozy/plugins"))
 }

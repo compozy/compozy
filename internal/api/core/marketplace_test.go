@@ -65,7 +65,7 @@ func (s marketplaceCatalogStub) BrowseFiltered(
 	if filter.Category == "" {
 		return s.Browse(ctx, filter.Query, offset, limit)
 	}
-	page, err := s.Browse(ctx, filter.Query, 0, 50_000)
+	page, err := s.Browse(ctx, filter.Query, 0, marketplacepkg.AllEntries)
 	if err != nil {
 		return page, err
 	}
@@ -961,7 +961,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
 			browsePageFn: func(_ context.Context, q string, offset, limit int) (marketplacepkg.BrowseResult, error) {
 				if q != strings.Repeat("é", 200) || offset != 0 ||
-					limit != 50 {
+					limit != 100 {
 					t.Fatalf("browse %q %d %d", q, offset, limit)
 				}
 				return marketplacepkg.BrowseResult{
@@ -1097,7 +1097,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 			t.Fatalf("stale=%d %#v", stale.Code, failure)
 		}
 		mismatch := performRequest(t, engine, http.MethodGet, "/marketplace?q=different&cursor="+page.NextCursor, nil)
-		if mismatch.Code != 409 || !strings.Contains(mismatch.Body.String(), "marketplace_cursor_stale") {
+		if mismatch.Code != 400 || !strings.Contains(mismatch.Body.String(), "cursor does not match") {
 			t.Fatalf("mismatch=%d %s", mismatch.Code, mismatch.Body.String())
 		}
 	})
@@ -1306,8 +1306,12 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 				}, nil
 			},
 		}
+		installedNow := true
 		h.Extensions = extensionServiceStub{
 			listScopedFn: func(_ context.Context, got taskpkg.ActorContext) ([]contract.ExtensionPayload, error) {
+				if !installedNow {
+					return nil, nil
+				}
 				if got.Scope.WorkspaceID != "ws-a" || got.ReadScope.ProfileID != "profile-work" {
 					t.Fatalf("actor=%#v", got)
 				}
@@ -1337,6 +1341,21 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 		request.Cursor = first.NextCursor
 		if _, err := h.MarketplaceList(t.Context(), request); err != nil {
 			t.Fatal(err)
+		}
+		installedNow = false
+		if _, err := h.MarketplaceList(t.Context(), request); !errors.Is(err, core.ErrMarketplaceCursorStale) {
+			t.Fatalf("installed mutation: %v", err)
+		}
+
+		request.Cursor = ""
+		empty, err := h.MarketplaceList(t.Context(), request)
+		if err != nil || empty.NextCursor == "" || empty.Items[0].Installed {
+			t.Fatalf("uninstalled page=%+v err=%v", empty, err)
+		}
+		request.Cursor = empty.NextCursor
+		installedNow = true
+		if _, err := h.MarketplaceList(t.Context(), request); !errors.Is(err, core.ErrMarketplaceCursorStale) {
+			t.Fatalf("install between pages: %v", err)
 		}
 		request.ProfileName = "personal"
 		if _, err := h.MarketplaceList(t.Context(), request); !errors.Is(err, core.ErrMarketplaceValidation) {

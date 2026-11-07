@@ -1,10 +1,14 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
+
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
 const marketplaceCursorVersion = 3
@@ -58,8 +62,11 @@ func marketplaceCursorOffset(
 	if err := json.Unmarshal(payload, &cursor); err != nil {
 		return 0, "", marketplaceValidationf("cursor is invalid")
 	}
-	if cursor.Category != scope.category || cursor.Query != strings.TrimSpace(query) {
+	if cursor.Category != scope.category {
 		return 0, "", ErrMarketplaceCursorStale
+	}
+	if cursor.Query != strings.TrimSpace(query) {
+		return 0, "", marketplaceValidationf("cursor does not match the marketplace request")
 	}
 	if cursor.Version != marketplaceCursorVersion || cursor.Offset < 0 || cursor.Fence == "" ||
 		cursor.Scope != string(scope.scope) || cursor.WorkspaceID != scope.workspaceID ||
@@ -70,4 +77,14 @@ func marketplaceCursorOffset(
 		return 0, "", fmt.Errorf("%w: cursor offset must be positive", ErrMarketplaceValidation)
 	}
 	return cursor.Offset, cursor.Fence, nil
+}
+
+func marketplacePopulationRevision(revision string, origins []marketplacepkg.Origin) string {
+	keys := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		keys = append(keys, origin.SourceRef+"/"+origin.EntryID)
+	}
+	slices.Sort(keys)
+	digest := sha256.Sum256([]byte(revision + "\x00" + strings.Join(keys, "\x00")))
+	return fmt.Sprintf("%x", digest)
 }

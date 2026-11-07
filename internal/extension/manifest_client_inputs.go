@@ -17,6 +17,7 @@ func manifestServerReferencesInput(server MCPServerConfig, name string) bool {
 		scan(value)
 	}
 	if server.Auth != nil {
+		scan(server.Auth.ClientID)
 		scan(server.Auth.ClientSecretInput)
 	}
 	return found

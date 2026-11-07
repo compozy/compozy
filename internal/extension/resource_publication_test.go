@@ -658,7 +658,7 @@ func TestClientInputRuntimeBinding(t *testing.T) {
 		writeFile(
 			t,
 			filepath.Join(root, "mcp.json"),
-			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","headers":{"Authorization":"Bearer ${LINEAR_API_KEY}"}},"local":{"command":"node","env":{"TOKEN":"${LINEAR_API_KEY}","R":"${REGION:-us-east-1}","OPTIONAL_TOKEN":"${OPTIONAL_TOKEN:-package-default}"},"args":["${HOST}"]}}}`,
+			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","headers":{"Authorization":"Bearer ${LINEAR_API_KEY}"}},"local":{"command":"node","env":{"TOKEN":"${LINEAR_API_KEY}","R":"${REGION:-us-east-1}","R2":"${REGION:-eu-west-1}","OPTIONAL_TOKEN":"${OPTIONAL_TOKEN:-package-default}"},"args":["${HOST}"]}}}`,
 		)
 		manifest, err := loadManifest(root, "", "client")
 		if err != nil {
@@ -710,7 +710,7 @@ func TestClientInputRuntimeBinding(t *testing.T) {
 				t.Fatalf("incorrect remote rendering")
 			}
 			if server.Name == "local" &&
-				(rendered.Env["TOKEN"] != "private-token" || rendered.Env["R"] != "us-east-1" || rendered.Env["OPTIONAL_TOKEN"] != "package-default" || rendered.Args[0] != "api.example.com") {
+				(rendered.Env["TOKEN"] != "private-token" || rendered.Env["R"] != "us-east-1" || rendered.Env["R2"] != "eu-west-1" || rendered.Env["OPTIONAL_TOKEN"] != "package-default" || rendered.Args[0] != "api.example.com") {
 				t.Fatalf("incorrect stdio rendering")
 			}
 		}
@@ -725,7 +725,7 @@ func TestClientOAuthRuntimeBinding(t *testing.T) {
 		writeFile(
 			t,
 			filepath.Join(root, "mcp.json"),
-			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","auth":{"CLIENT_ID":"abc","CLIENT_SECRET":"${CLIENT_SECRET}","scopes":["s"]}}}}`,
+			`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","auth":{"CLIENT_ID":"${CLIENT_ID}","CLIENT_SECRET":"${CLIENT_SECRET}","scopes":["s"]}}}}`,
 		)
 		manifest, err := loadManifest(root, "", "client")
 		if err != nil {
@@ -736,6 +736,7 @@ func TestClientOAuthRuntimeBinding(t *testing.T) {
 			root,
 			manifest,
 			InputState{Values: map[string]InputValueRecord{
+				"CLIENT_ID":     {Type: "string", Value: json.RawMessage(`"abc"`), Active: true},
 				"HOST":          {Type: "string", Value: json.RawMessage(`"api.example.com"`), Active: true},
 				"CLIENT_SECRET": {Type: "secret", SecretRef: ref, Active: true},
 			}},
@@ -747,6 +748,9 @@ func TestClientOAuthRuntimeBinding(t *testing.T) {
 		if len(servers) != 1 || servers[0].Auth.ClientID != "abc" || servers[0].Auth.ClientSecretRef != ref ||
 			!slices.Equal(servers[0].Auth.Scopes, []string{"s"}) {
 			t.Fatalf("OAuth binding = %+v", servers)
+		}
+		if err := servers[0].Auth.Validate("auth"); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

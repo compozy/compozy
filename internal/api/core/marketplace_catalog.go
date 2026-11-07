@@ -33,7 +33,10 @@ func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
 		return
 	}
 
-	limit := 50
+	limit := 100
+	if c.Query("category") != "" {
+		limit = 50
+	}
 	var err error
 	if c.Query("limit") != "" {
 		limit, err = marketplaceLimit(c.Query("limit"))
@@ -66,7 +69,10 @@ func (h *BaseHandlers) MarketplaceList(
 	}
 	limit := request.Limit
 	if limit == 0 {
-		limit = 50
+		limit = 100
+		if request.Category != "" {
+			limit = 50
+		}
 	}
 	limit, err := marketplaceLimitValue(limit)
 	if err != nil {
@@ -104,7 +110,8 @@ func (h *BaseHandlers) MarketplaceList(
 	if err != nil {
 		return contract.MarketplaceListResponse{}, normalizeCuratedMarketplaceError(err)
 	}
-	if fence != "" && fence != page.Revision {
+	cursorRevision := marketplacePopulationRevision(page.Revision, origins)
+	if fence != "" && fence != cursorRevision {
 		return contract.MarketplaceListResponse{}, ErrMarketplaceCursorStale
 	}
 	response, err := h.marketplacePagePayload(ctx, page, installed)
@@ -114,7 +121,7 @@ func (h *BaseHandlers) MarketplaceList(
 	response.NextCursor, err = marketplaceNextCursor(
 		query,
 		scope,
-		page.Revision,
+		cursorRevision,
 		offset+len(page.Entries),
 		offset+len(page.Entries) < page.Total,
 	)

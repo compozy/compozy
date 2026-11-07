@@ -592,6 +592,29 @@ func TestClientMCPCompatibility(t *testing.T) {
 
 func TestClientDerivedInputs(t *testing.T) {
 	t.Parallel()
+	t.Run("Should discard an unusable client secret when the client id cannot map", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{
+				"name": "client",
+				"mcpServers": map[string]any{
+					"remote": map[string]any{
+						"url":  "https://example.com/mcp",
+						"auth": map[string]any{"CLIENT_ID": "${bad-name}", "CLIENT_SECRET": "${CLIENT_SECRET}"},
+					},
+				},
+			},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 1 || len(pkg.Inputs) != 0 || pkg.Servers[0].Auth.ClientSecret != "" ||
+			!hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth.CLIENT_SECRET") {
+			t.Fatalf("package = %+v", pkg)
+		}
+	})
+
 	t.Run("Should derive OAuth and typed inputs and deduplicate their server owners", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

@@ -74,7 +74,7 @@ func (s *SQLiteStore) BrowseSources(
 	}
 	result := BrowseResult{Entries: []Entry{}, Sources: make([]SourceState, 0, len(snapshot.Sources))}
 	remaining := normalizeListLimit(limit)
-	if limit == maxCatalogEntriesPerSource {
+	if limit == AllEntries {
 		remaining = maxCatalogEntriesPerSource * len(sources)
 	}
 	type sourceRevision struct {
@@ -97,8 +97,8 @@ func (s *SQLiteStore) BrowseSources(
 			continue
 		}
 		pageLimit := max(1, remaining)
-		if limit == maxCatalogEntriesPerSource {
-			pageLimit = maxCatalogEntriesPerSource
+		if limit == AllEntries {
+			pageLimit = AllEntries
 		}
 		page, err := listCatalogRows(sourceSnapshot.Entries, query, offset, pageLimit)
 		if err != nil {

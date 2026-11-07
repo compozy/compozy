@@ -151,13 +151,6 @@ func (a MCPAuthConfig) Validate(path string) error {
 			}
 		}
 	case MCPAuthRegistrationPreRegistered:
-		if strings.TrimSpace(a.IssuerURL) == "" {
-			return fmt.Errorf(
-				"%s.issuer_url is required for registration = %q",
-				path,
-				MCPAuthRegistrationPreRegistered,
-			)
-		}
 		if strings.TrimSpace(a.ClientID) == "" {
 			return fmt.Errorf(
 				"%s.client_id is required for registration = %q",
@@ -165,8 +158,10 @@ func (a MCPAuthConfig) Validate(path string) error {
 				MCPAuthRegistrationPreRegistered,
 			)
 		}
-		if err := ValidateMCPOAuthURL(path+".issuer_url", a.IssuerURL); err != nil {
-			return err
+		if strings.TrimSpace(a.IssuerURL) != "" {
+			if err := ValidateMCPOAuthURL(path+".issuer_url", a.IssuerURL); err != nil {
+				return err
+			}
 		}
 		if strings.TrimSpace(a.ClientSecretRef) != "" {
 			if err := validateOAuthClientSecretRef(a.ClientSecretRef); err != nil {

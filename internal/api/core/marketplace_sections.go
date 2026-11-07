@@ -73,9 +73,9 @@ func (h *BaseHandlers) MarketplaceSections(
 	}
 	page, err := h.MarketplaceCatalog.BrowseFiltered(
 		ctx,
-		marketplacepkg.BrowseFilter{Query: request.Query, Installed: origins},
+		marketplacepkg.BrowseFilter{Query: request.Query, Installed: origins, PerSection: perSection},
 		0,
-		50_000,
+		marketplacepkg.AllEntries,
 	)
 	if err != nil {
 		return contract.MarketplaceSectionsResponse{}, normalizeCuratedMarketplaceError(err)
