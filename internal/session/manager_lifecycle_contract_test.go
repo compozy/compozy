@@ -1061,7 +1061,8 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			active := seedRecoveredLocalStop(t, h)
 			meta := readMeta(t, active.MetaPath())
 			meta.StopReason, meta.StopDetail = new(tc.reason), tc.detail
-			// The pending stop has not acquired the seed's completed cancellation failure.
+			// Restore the bound, pre-finalization runtime rather than the seed's released runtime.
+			meta.RuntimeStatus = store.SessionRuntimeReady
 			meta.Failure = nil
 			if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
 				t.Fatal(err)

@@ -544,6 +544,10 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
+		// Settings rollback explicitly restores its active snapshot before passive sync.
+		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
+			t.Fatalf("syncer.SyncConfig(rollback) error = %v", err)
+		}
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync(published config) error = %v", err)
 		}
