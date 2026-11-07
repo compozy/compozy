@@ -127,6 +127,11 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
 
+		// Target above the inherited niceness so the call must change every member.
+		want := testCurrentNiceness(t) + 3
+		if want > maxTestNiceness {
+			t.Skipf("current niceness %d leaves no room to lower priority", want-3)
+		}
 		// Each child prints its own pid once it runs, so it has joined the group, and then
 		// blocks reading fd 3, which only the test holds open, so it stays alive through
 		// the assertions. The later fork waits for stdin, so no fork is in flight during
@@ -134,8 +139,7 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 		const child = `sh -c 'echo $$; read hold <&3'`
 		group := startNicenessProcessGroup(t, child+" & read go; "+child+" & wait")
 		earlier := group.readPID(t)
-		want := max(7, testCurrentNiceness(t))
-		if err := SetProcessGroupNiceness(group.pgid, 7); err != nil {
+		if err := SetProcessGroupNiceness(group.pgid, want); err != nil {
 			t.Fatalf("SetProcessGroupNiceness() error = %v", err)
 		}
 		group.release(t)
@@ -162,7 +166,9 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should leave a group already niced above the target unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		pgid := startNicenessProcessGroup(t, "sleep 30").pgid
+		// exec keeps the group to one process: a fork in flight during the first call
+		// would keep niceness 0 and make the second call try to lower the group.
+		pgid := startNicenessProcessGroup(t, "exec sleep 30").pgid
 		higher := max(9, testCurrentNiceness(t)+2)
 		if err := SetProcessGroupNiceness(pgid, higher); err != nil {
 			t.Fatalf("SetProcessGroupNiceness(%d) error = %v", higher, err)
@@ -192,6 +198,9 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 		}
 	})
 }
+
+// maxTestNiceness is the highest niceness every supported Unix accepts.
+const maxTestNiceness = 19
 
 // nicenessProcessGroup is a shell process group whose script reports progress on
 // stdout and waits on stdin, so tests can order forks around a niceness change.
