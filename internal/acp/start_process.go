@@ -185,6 +185,7 @@ func (d *Driver) newAgentProcess(
 		pendingPermissions:     make(map[string]*pendingPermission),
 		permissionTimeout:      d.permissionWait,
 		permissionWaitResolver: d.permissionWaitResolver,
+		permissionEventHandler: normalized.PermissionEventHandler,
 		compozySessionID:       normalized.CompozySessionID,
 		controlTimeout:         d.controlTimeout,
 		systemPrompt:           normalized.SystemPrompt,

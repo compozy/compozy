@@ -1223,6 +1223,51 @@ func TestCollectDigest(t *testing.T) {
 }
 
 func TestParseTriageReply(t *testing.T) {
+	const validReply = `{"proposals":[{"title":"Review","body":"Inspect task","item_keys":[]}]}`
+	t.Run("Should accept a single fence around proposals or the quiet sentinel", func(t *testing.T) {
+		t.Parallel()
+		for _, opener := range []string{"```json", "```JSON", "```"} {
+			for _, newline := range []string{"\n", "\r\n"} {
+				for _, body := range []string{validReply, "NOTHING_TO_REPORT"} {
+					reply := " \t" + opener + " \t" + newline + " \t" + body + newline + "``` \t\n"
+					proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+					if err != nil {
+						t.Fatalf("reply %q: %v", reply, err)
+					}
+					if body == "NOTHING_TO_REPORT" {
+						if len(proposals) != 0 {
+							t.Fatalf("quiet reply produced proposals: %+v", proposals)
+						}
+					} else if len(proposals) != 1 || proposals[0].Title != "Review" || proposals[0].Body != "Inspect task" {
+						t.Fatalf("proposals=%+v", proposals)
+					}
+				}
+			}
+		}
+	})
+	t.Run("Should reject prose malformed JSON and multiple fenced values", func(t *testing.T) {
+		t.Parallel()
+		fenced := "```json\n" + validReply + "\n```"
+		for _, reply := range []string{
+			"Explanation\n" + fenced, fenced + "\nExplanation",
+			"```json\nExplanation\n" + validReply + "\n```",
+			"```json\n" + validReply + "\nExplanation\n```",
+			"```json\n" + validReply + "\n" + validReply + "\n```",
+			fenced + "\n" + fenced,
+			"```\n" + fenced + "\n```",
+			"```json\n{invalid}\n```",
+			"```json\nNOTHING_TO_REPORT\nNOTHING_TO_REPORT\n```",
+			"```python\n" + validReply + "\n```",
+			"```json\n" + validReply,
+			"```json " + validReply + "```",
+			"```json\n" + validReply + "\n````",
+			validReply + "\n```", validReply + validReply,
+		} {
+			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Errorf("reply %q: %v", reply, err)
+			}
+		}
+	})
 	t.Run("Should honor every supported proposal limit", func(t *testing.T) {
 		t.Parallel()
 		proposals := make([]string, 21)
@@ -1311,6 +1356,38 @@ func TestParseTriageReply(t *testing.T) {
 }
 
 func TestTriageReplyOutcome(t *testing.T) {
+	t.Run("Should bound and redact rejected output in the failure report", func(t *testing.T) {
+		t.Parallel()
+		secret := "ghp_" + strings.Repeat("a", 36)
+		oauthCode := "shortOAuthCode42"
+		punctuationCode := "[{::,}][{,::}]"
+		reply := "```json\n{\"code\":\"" + oauthCode + "\",\"token\":\"" + secret +
+			"\",\"other\":\"" + punctuationCode + "\"}\n``` " + strings.Repeat(
+			"界",
+			600,
+		)
+		outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+		if outcome.Result != "failed" || outcome.Reason != "triage_output_invalid" || outcome.Report == nil {
+			t.Fatalf("outcome=%+v", outcome)
+		}
+		var payload struct {
+			Reason string `json:"reason"`
+			Detail string `json:"detail"`
+		}
+		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") ||
+			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
+			strings.Contains(payload.Detail, punctuationCode) || !strings.Contains(payload.Detail, "[REDACTED]") ||
+			strings.Contains(payload.Detail, "token") || len(payload.Detail) > 600 {
+			t.Fatalf("payload=%+v", payload)
+		}
+		outcome.Report.SourceKey = "occ:test"
+		if err := outcome.Report.Validate(); err != nil {
+			t.Fatalf("unpersistable report: %v", err)
+		}
+	})
 	for _, tc := range []struct{ name, reply, result, reason string }{
 		{"Should accept one JSON fence containing proposals", "```json\n{\"proposals\":[{\"title\":\"Review\",\"body\":\"Inspect task\",\"item_keys\":[]}]}\n```", "reported", "reported"},
 		{"Should finish silence without a report", "NOTHING_TO_REPORT", "quiet", "quiet"},

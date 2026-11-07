@@ -201,3 +201,17 @@ Return more source proposals than the report limit, with a distinct failure deta
 an overflow body. The delivered report retains that detail and the source item keys, sharing
 the 500-rune folded body budget across proposals even when the first body fills the limit.
 Focused regression: `TestSourceDigestGateAndFolding/Should_deliver_overflow_body_details`.
+
+## Fenced triage replies
+
+Return a valid proposals object in one Markdown code fence, using `json`, `JSON`, or no
+language tag, with surrounding whitespace and LF or CRLF. The occurrence publishes its
+proposal report. The same wrappers around `NOTHING_TO_REPORT` finish quietly. Prose before,
+after, or inside the fence, multiple objects or fences, and malformed JSON still produce
+`triage_output_invalid`. Its failure report includes a fully redacted output placeholder
+and a generated fenced/unfenced format classification in `detail`. No reply characters
+survive, including punctuation-only OAuth codes; the diagnostic stays fixed in size.
+
+Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
+`internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns
+source dispatch and report persistence. Live-provider re-walk is separate from these checks.

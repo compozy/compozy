@@ -187,6 +187,16 @@ func (s *presenceAttentionStore) CreatePendingInteraction(
 	return store.SessionAttentionCommit{}, errors.New("unexpected CreatePendingInteraction call")
 }
 
+func (s *presenceAttentionStore) HasPermissionOccurrence(
+	context.Context,
+	string,
+	string,
+	string,
+	time.Time,
+) (bool, error) {
+	return false, errors.New("unexpected HasPermissionOccurrence call")
+}
+
 func (s *presenceAttentionStore) TransitionPendingInteraction(
 	context.Context,
 	store.PendingInteractionTransition,

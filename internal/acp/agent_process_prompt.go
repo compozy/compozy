@@ -211,29 +211,31 @@ func (p *AgentProcess) markSystemPromptSent() {
 	p.systemPromptSent = true
 }
 
-func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
+func (p *AgentProcess) emitPromptEvent(event AgentEvent) bool {
 	p.promptMu.RLock()
 	active := p.activePrompt
 	p.promptMu.RUnlock()
 	if active == nil {
-		return
+		return false
 	}
 
 	active.sendMu.Lock()
 	defer active.sendMu.Unlock()
 	if active.closed {
-		return
+		return false
 	}
 	if active.deferToolResultLocked(event) {
-		return
+		return true
 	}
 	if active.shouldSuppressToolCallLocked(event) {
-		return
+		return true
 	}
 	if event.Type == EventTypeDone {
 		active.flushDeferredToolResultsLocked()
 	}
-	active.sendEventLocked(event)
+	if !active.sendEventLocked(event) {
+		return false
+	}
 	if event.Type == EventTypeToolCall {
 		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
 		projection := active.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
@@ -246,6 +248,7 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 			active.sendEventLocked(event)
 		}
 	}
+	return true
 }
 
 func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
@@ -389,23 +392,23 @@ func (a *activePromptState) flushDeferredToolResultsLocked() {
 	}
 }
 
-func (a *activePromptState) sendEventLocked(event AgentEvent) {
+func (a *activePromptState) sendEventLocked(event AgentEvent) bool {
 	if a == nil {
-		return
+		return false
 	}
 	event = a.stampAsyncToolResultLocked(event)
 	if event.Type == EventTypeToolResult {
 		projection := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
 		if projection.syntheticResult && projection.hasResult {
 			if !toolResultHasOutput(event) {
-				return
+				return true
 			}
 			event = event.WithToolResultUpdate()
 		}
 	}
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
-		return
+		return false
 	}
 	if event.Type == EventTypeToolResult {
 		id := strings.TrimSpace(event.ToolCallID)
@@ -417,6 +420,7 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+	return true
 }
 
 func toolResultHasOutput(event AgentEvent) bool {

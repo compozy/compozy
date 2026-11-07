@@ -37,6 +37,7 @@ function useSettingsPage(options: UseSettingsPageOptions = {}) {
     lastMutation: restart.lastMutation,
     trigger: restart.trigger,
     isTriggerPending: restart.isTriggerPending,
+    isOutageProlonged: restart.isOutageProlonged,
     triggerError: restart.triggerError,
     dismiss: restart.dismiss,
   } as const;

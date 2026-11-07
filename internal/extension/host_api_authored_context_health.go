@@ -67,6 +67,7 @@ func (h *HostAPIHandler) hostAPIWakeEvents(
 		return nil, nil
 	}
 	events, err := h.wakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+		ProfileID:   target.profileID,
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
 		SessionID:   strings.TrimSpace(sessionID),

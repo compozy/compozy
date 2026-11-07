@@ -13,7 +13,12 @@
 // catalog stream, which a payload read (and every view that renders one) must not load.
 import { terminalAttentionReason } from "@/systems/terminal/lib/terminal-permission-copy";
 
-import type { SessionInteractionRecord, SessionPayload, SessionPendingInteraction } from "../types";
+import type {
+  PermissionRequest,
+  SessionInteractionRecord,
+  SessionPayload,
+  SessionPendingInteraction,
+} from "../types";
 
 const PENDING_STATUSES: ReadonlySet<string> = new Set(["pending", "orphaned"]);
 
@@ -67,25 +72,44 @@ export function maskedAttentionNote(session: SessionPayload, badge: string): str
 }
 
 /**
- * Settled decisions the transcript never recorded an answer for, keyed by the provider
- * request id the transcript's permission/clarify parts carry. Only `canceled` rows
- * qualify: a resolved or timed-out decision reaches the transcript as its own event, so
- * projecting it here would double the receipt.
+ * Settled decisions keyed by permission occurrence or clarification request id. Canceled and timed-out
+ * rows also settle asks whose prompt stream closed before the final event arrived.
  */
 export function expiredInteractionsByRequest(
   rows: readonly SessionInteractionRecord[]
 ): ReadonlyMap<string, SessionInteractionRecord> {
   const byRequest = new Map<string, SessionInteractionRecord>();
   for (const row of rows) {
-    if (row.status !== "canceled") continue;
+    if (row.status !== "canceled" && row.status !== "timed_out") continue;
     const requestId = row.provider_request_id.trim();
-    if (requestId) byRequest.set(requestId, row);
+    if (requestId)
+      byRequest.set(
+        row.kind === "permission"
+          ? permissionOccurrenceKey({
+              requestId,
+              turnId: row.turn_id,
+              timestamp: row.created_at,
+            })
+          : requestId,
+        row
+      );
   }
   return byRequest;
 }
 
+export function permissionOccurrenceKey(
+  permission: Pick<PermissionRequest, "requestId" | "turnId" | "timestamp">
+): string {
+  const stamp = (permission.timestamp ?? "")
+    .replace(/(\.\d*?[1-9])0+Z$/, "$1Z")
+    .replace(/\.0+Z$/, "Z");
+  return JSON.stringify([permission.requestId, permission.turnId ?? "", stamp]);
+}
+
 /** The daemon expired this decision because it restarted before anyone answered. */
-export function interactionExpiredByRestart(row: SessionInteractionRecord): boolean {
+export function interactionExpiredByRestart(
+  row: Pick<SessionInteractionRecord, "status" | "resolution">
+): boolean {
   return row.status === "canceled" && row.resolution === RESTART_EXPIRED_RESOLUTION;
 }
 

@@ -180,10 +180,44 @@ export class ProductWindow {
     window.webContents.openDevTools({ mode: "detach" });
   }
 
+  /** Reloads the current route from the runtime, bypassing the HTTP cache like every shell load. */
+  async reload(): Promise<void> {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return;
+    await window.loadURL(window.webContents.getURL() || this.#origin, SHELL_LOAD_OPTIONS);
+  }
+
   async flushState(): Promise<void> {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;
     await this.#save();
+  }
+
+  /** The current product path with its query, or `null` before load or on the default view. */
+  route(): string | null {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return null;
+    try {
+      const url = new URL(window.webContents.getURL());
+      if (url.origin !== new URL(this.#origin).origin || url.pathname === "/") return null;
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Destroys the window even when its state cannot be saved, so a runtime recovery never leaves
+   * a stale window beside its replacement. The save failure still rejects.
+   */
+  async discard(): Promise<void> {
+    try {
+      await this.flushState();
+    } finally {
+      const window = this.#window;
+      if (window && !window.isDestroyed()) window.destroy();
+      this.#window = null;
+    }
   }
 
   async close(): Promise<void> {

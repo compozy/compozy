@@ -30,6 +30,8 @@ var (
 	ErrSessionNotActive = errors.New("session: session is not active")
 	// ErrPendingPermissionNotFound reports that no waiting permission matched the approval request.
 	ErrPendingPermissionNotFound = errors.New("session: pending permission not found")
+	ErrPendingPermissionExpired  = fmt.Errorf("%w: permission request expired", ErrPendingPermissionNotFound)
+	ErrPendingPermissionCanceled = fmt.Errorf("%w: permission request canceled", ErrPendingPermissionNotFound)
 	// ErrPendingPermissionConflict reports that the approval request matched multiple pending permissions.
 	ErrPendingPermissionConflict = errors.New("session: pending permission lookup is ambiguous")
 	// ErrInvalidPermissionDecision reports an approval decision unsupported by the pending provider request.

@@ -100,6 +100,11 @@ export function agentInstancePausedUnattended(
   return instance?.state === "paused" && instance.pause_reason === "unattended";
 }
 
+/** Its definition was deleted, so it has no agent page to open; only its session and Archive remain. */
+export function agentInstanceDefinitionGone(instance: Pick<AgentInstancePayload, "pause_reason">) {
+  return instance.pause_reason === "definition_missing";
+}
+
 /** These reasons resume only once the definition is back, so Resume stays disabled. */
 export function agentInstanceResumeBlocked(instance: AgentInstancePayload) {
   return (

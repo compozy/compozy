@@ -16,14 +16,15 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
+import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
+import { withTransport } from "../lib/mcp-editor-model";
 import type {
   SettingsLayeredScope,
   SettingsMCPServerEntry,
   SettingsMCPServerTarget,
 } from "../types";
 
-import { MCPEditorConnectionSection } from "./mcp-editor-connection-section";
+import { MCPEditorConnectionSection, type MCPRequiredField } from "./mcp-editor-connection-section";
 import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
 import { MCPEditorProcessSection } from "./mcp-editor-stdio-section";
 import type { MCPVaultInventory } from "./mcp-secret-binding";
@@ -88,7 +89,25 @@ export function MCPServerEditor({
   onRemove,
 }: MCPServerEditorProps) {
   const [tier, setTier] = useState<EntityMode>(initialTier);
+  const [touched, setTouched] = useState<ReadonlySet<MCPRequiredField>>(() => new Set());
   if (!open) return null;
+
+  const touch = (field: MCPRequiredField) => {
+    setTouched(current => (current.has(field) ? current : new Set(current).add(field)));
+  };
+  // Switching transport clears the launch fields, so they start pristine again.
+  const changeTransport = (transport: MCPTransport) => {
+    if (draft.transport === transport) return;
+    setTouched(current => new Set([...current].filter(field => field === "name")));
+    onChange(current => withTransport(current, transport));
+  };
+  // Required fields speak up only once touched; the disabled save still gates submission.
+  const shownErrors: MCPDraftErrors = {
+    ...errors,
+    name: touched.has("name") ? errors.name : undefined,
+    command: touched.has("command") ? errors.command : undefined,
+    url: touched.has("url") ? errors.url : undefined,
+  };
 
   const isCreate = mode === "create";
   const isRemote = draft.transport !== "stdio";
@@ -170,10 +189,12 @@ export function MCPServerEditor({
           <MCPEditorConnectionSection
             availableTargets={availableTargets}
             draft={draft}
-            errors={errors}
+            errors={shownErrors}
             isCreate={isCreate}
             onChange={onChange}
             onTargetChange={onTargetChange}
+            onTouch={touch}
+            onTransportChange={changeTransport}
             scope={scope}
             target={target}
           />

@@ -126,3 +126,76 @@ export function activityFixture(): AgentActivityPayload {
     ),
   };
 }
+
+const CREW = [
+  ["triage", "Triage Lead", "Watches issues and proposes the next step"],
+  ["release-captain", "Release Captain", "Keeps the release train moving and the notes honest"],
+  ["merge-gate", "Merge Gate", "Merges pull requests once their reviews and checks hold"],
+  ["ci-medic", "CI Medic", "Reads failed CI runs and opens a fix for each flake"],
+  ["docs-keeper", "Docs Keeper", "Updates the docs whenever a public surface changes"],
+  ["deps-bot", "Deps Bot", "Bumps dependencies weekly and reads every changelog"],
+  ["qa-walker", "QA Walker", "Walks the QA scenarios after each merge to main"],
+  ["security-watch", "Security Watch", "Checks advisories against the lockfiles every morning"],
+  ["perf-sentinel", "Perf Sentinel", "Compares benchmark runs and flags regressions"],
+  ["inbox-zero", "Inbox Zero", "Sorts the support inbox and drafts first replies"],
+  ["spec-scout", "Spec Scout", "Reads new specs and lists their open questions"],
+  ["changelog", "Changelog Writer", "Turns merged pull requests into release notes"],
+  ["design-review", "Design Review", "Compares UI changes against the design tokens"],
+  ["copy-editor", "Copy Editor", "Checks product copy against the voice guide"],
+  ["metrics-digest", "Metrics Digest", "Posts a daily digest of usage and errors"],
+  ["backlog-groomer", "Backlog Groomer", "Closes stale issues and merges duplicates"],
+  ["flake-hunter", "Flake Hunter", "Reruns suspicious tests until a flake shows itself"],
+  ["onboarding", "Onboarding Guide", "Answers first-week questions from new contributors"],
+  ["cost-watch", "Cost Watch", "Tracks provider spend and warns before a limit"],
+  ["night-shift", "Night Shift", "Picks up small fixes while everyone is asleep"],
+] as const;
+
+/** A busy always-on crew, for density checks: twenty agents across three projects. */
+export function crewItems(): AgentGroupedCatalogItem[] {
+  return CREW.map(([name, label, description]) =>
+    teamItemFixture(
+      {
+        name,
+        label,
+        description,
+        definition_digest: `sha256:${name}`,
+        resolved_appearance: { version: 1, avatar: "generated", seed: name, generation: 1 },
+      },
+      { kind: "always_on", scopes: ["@user", "ws-compozy", "ws-advos", "ws-reloaddev"] }
+    )
+  );
+}
+
+/** The crew's instances, plus one whose definition was deleted and that the page must not show. */
+export function crewInstances(): AgentInstancePayload[] {
+  const deleted = agentInstanceFixture({
+    id: "ainst-orchestrator-full",
+    agent_name: "orchestrator_full",
+    label: "Orchestrator Full",
+    state: "paused",
+    pause_reason: "definition_missing",
+    now: "",
+  });
+  return [deleted, ...crewInstancesOfCrew()];
+}
+
+function crewInstancesOfCrew(): AgentInstancePayload[] {
+  return CREW.flatMap(([name, label], index) => {
+    const workspace = TEAM_WORKSPACES[index % TEAM_WORKSPACES.length]!;
+    const base = {
+      id: `ainst-${name}`,
+      agent_name: name,
+      label,
+      workspace_id: workspace.id,
+      scope: workspace.name,
+    };
+    if (index % 7 === 1) return [agentInstanceFixture({ ...base, needs_attention: true })];
+    if (index % 5 === 2) {
+      return [agentInstanceFixture({ ...base, state: "paused", pause_reason: "manual", now: "" })];
+    }
+    if (index % 3 === 0) {
+      return [agentInstanceFixture({ ...base, activity: "working", now: "Reading new issues" })];
+    }
+    return [agentInstanceFixture({ ...base, now: "" })];
+  });
+}

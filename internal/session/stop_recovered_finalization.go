@@ -58,6 +58,9 @@ func (m *Manager) settleRecoveredStop(
 	if err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
+	if err := m.cancelSessionInteractions(settleCtx, run.recoveredID, "session-stopped"); err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
 	info := m.sessionInfoFromMeta(settleCtx, &meta)
 	info.StopCause = outcome.Cause
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {

@@ -21,6 +21,14 @@ and independently re-read distinctive SOUL.md and HEARTBEAT.md bodies through CL
 Confirm the returned digest, revision, source, and scope agree. A stale expected_digest must refuse
 without mutation. Exercise history, rollback, and deletion; package-owned sidecars remain read-only.
 
+With proactive checks enabled, let a timer check finish and run a manual instance check.
+Read heartbeat status with `include_recent_wake_events=true` over HTTP and UDS, and with
+`compozy__agent_heartbeat_status` and `compozy agent heartbeat status coder --json`.
+Use two profiles with the same agent in the same workspace; native and Host API status
+must return only the caller profile audit, including when no session is selected.
+Both `timer` and `instance_check` rows must appear, including quiet, reported, cancelled,
+skipped and failed outcomes. Repeat after reopening the database to cover retained rows.
+
 Start a managed session and inspect its resolved authored context. Refresh Soul, then read it again
 from that session; restarting the daemon must preserve authored bytes and revision history. A foreign
 workspace or profile must not expose those bodies or operate on the session.

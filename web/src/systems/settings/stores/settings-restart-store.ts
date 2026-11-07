@@ -21,6 +21,8 @@ export interface PendingSettingsMutation {
 
 export interface SettingsRestartState {
   operationId: string | null;
+  /** Epoch ms when this tab started (or, after an upgrade, rehydrated) the restart. */
+  operationStartedAt: number | null;
   lastMutation: PendingSettingsMutation | null;
   mutationGeneration: number;
   snoozedMutationGeneration: number | null;
@@ -29,6 +31,7 @@ export interface SettingsRestartState {
 
 const initialSettingsRestartState: SettingsRestartState = {
   operationId: null,
+  operationStartedAt: null,
   lastMutation: null,
   mutationGeneration: 0,
   snoozedMutationGeneration: null,
@@ -49,18 +52,21 @@ export const settingsRestartStore = createStore({
       snoozedMutationGeneration: null,
       snoozedApplyRecordId: null,
     }),
-    restartOperationStarted: (context, event: { operationId: string }) => ({
+    restartOperationStarted: (context, event: { operationId: string; startedAt?: number }) => ({
       ...context,
       operationId: event.operationId,
+      operationStartedAt: event.startedAt ?? null,
     }),
     restartOperationCleared: context => ({
       ...context,
       operationId: null,
+      operationStartedAt: null,
     }),
     restartStateReset: () => initialSettingsRestartState,
     restartNoticeDismissed: (context, event: { applyRecordId?: string }) => ({
       ...context,
       operationId: null,
+      operationStartedAt: null,
       snoozedMutationGeneration: context.lastMutation?.restartRequired
         ? context.mutationGeneration
         : null,
@@ -71,10 +77,17 @@ export const settingsRestartStore = createStore({
   persist({
     name: settingsRestartStorageKey,
     storage: settingsRestartStorage,
-    version: 1,
-    migrate: (persisted: Omit<SettingsRestartState, "snoozedApplyRecordId">) => ({
+    version: 2,
+    // v0 lacks snoozedApplyRecordId; v0–v1 lack operationStartedAt. A restart already in flight
+    // counts from rehydration, so its prolonged-outage guidance can still appear.
+    migrate: (
+      persisted: Omit<SettingsRestartState, "snoozedApplyRecordId" | "operationStartedAt"> &
+        Partial<Pick<SettingsRestartState, "snoozedApplyRecordId" | "operationStartedAt">>
+    ) => ({
       ...persisted,
-      snoozedApplyRecordId: null,
+      snoozedApplyRecordId: persisted.snoozedApplyRecordId ?? null,
+      operationStartedAt:
+        persisted.operationStartedAt ?? (persisted.operationId ? Date.now() : null),
     }),
   })
 );

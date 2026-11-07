@@ -187,8 +187,8 @@ func WarnUntrustedScripts(policy *ResolvedPolicy) {
 
 const (
 	checkHookCancelled      = "hook_cancelled" //nolint:misspell // Persisted wake reason.
-	checkTimerSource        = "timer"
-	checkManualSource       = "instance_check"
+	checkTimerSource        = string(WakeSourceTimer)
+	checkManualSource       = string(WakeSourceInstanceCheck)
 	checkNoSlot             = "no_slot"
 	checkSourcePollInFlight = "source_poll_in_flight"
 	itemSourceKind          = "source"

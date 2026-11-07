@@ -506,7 +506,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		}
 		for _, event := range collectEventsUntilCount(t, active.events, 8) {
 			if event.Type != EventTypePermission || event.Decision != "canceled" ||
-				event.ResolvedByValue() != "provider" || event.RequestIDValue() == "" {
+				event.ResolvedByValue() != "system" || event.RequestIDValue() == "" {
 				t.Fatalf("connection death event = %#v, want attributed terminal cancellation", event)
 			}
 		}
@@ -568,6 +568,28 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 }
 
 func TestPermissionExpiryOwnership(t *testing.T) {
+	t.Run("Should refuse an elapsed deadline before the timer goroutine runs", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		id, pending, err := proc.registerPendingPermission("turn", acpsdk.RequestPermissionRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending.expiresAt = time.Unix(1, 0)
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: id, Decision: "allow-once"},
+		); !errors.Is(
+			err,
+			ErrPendingPermissionExpired,
+		) {
+			t.Fatalf("elapsed approval = %v", err)
+		}
+		decision, actor := proc.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+		if decision != decisionRejectOnce || actor != "timeout" {
+			t.Fatalf("winner = %s/%s", decision, actor)
+		}
+	})
+
 	for _, operatorFirst := range []bool{false, true} {
 		name := "Should reject answers after expiry wins"
 		if operatorFirst {
@@ -805,6 +827,28 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 
 func TestEmitPermissionEvent(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report whether the prompt accepted a permission event", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
+		var deliveries []bool
+		proc.permissionEventHandler = func(_ AgentEvent, delivered bool) { deliveries = append(deliveries, delivered) }
+		emit := func() {
+			proc.emitPermissionEvent("session", "turn", "request", "Approve", "tool", "file", "", "provider", nil)
+		}
+		emit()
+		active, err := proc.beginPrompt("turn", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		emit()
+		active.ingest.Close(ErrIngestSaturated)
+		emit()
+		proc.endPrompt(active)
+		emit()
+		if !slices.Equal(deliveries, []bool{false, true, false, false}) {
+			t.Fatalf("permission deliveries = %v", deliveries)
+		}
+	})
 
 	tests := []struct {
 		name     string

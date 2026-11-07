@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 
 	"fmt"
@@ -177,9 +178,13 @@ func (p *AgentProcess) emitPermissionEvent(
 		Resource:   resource,
 		Decision:   string(decision),
 		Raw:        CloneRawMessage(raw),
-	}.WithRequestID(requestID).WithResolvedBy(resolvedBy)
+	}.WithRequestID(requestID).WithResolvedBy(resolvedBy).WithEventID("permission:" + rand.Text())
 	if len(expiresAt) > 0 {
 		event = event.WithExpiresAt(expiresAt[0])
 	}
-	p.emitPromptEvent(event)
+	// Prompt delivery owns transcript ordering while its channel remains open.
+	delivered := p.emitPromptEvent(event)
+	if p.permissionEventHandler != nil {
+		p.permissionEventHandler(event, delivered)
+	}
 }

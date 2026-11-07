@@ -18,6 +18,48 @@ import (
 func TestPromptChunkCoalescing(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should persist a buffered tool call before its delivered permission event", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			at := h.manager.now()
+			events := make(chan acp.AgentEvent, 3)
+			events <- acp.AgentEvent{
+				Type: acp.EventTypeToolCall, ToolCallID: "tool", Title: "Protected write",
+				SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: at,
+			}
+			permission := acp.AgentEvent{
+				Type: acp.EventTypePermission, ToolCallID: "tool", Title: "Approve protected write",
+				SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: at.Add(time.Millisecond),
+			}.WithRequestID("request").WithEventID("permission-event")
+			events <- permission
+			h.manager.permissionEventHandler(target)(permission, true)
+			events <- acp.AgentEvent{
+				Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID,
+				Timestamp: at.Add(2 * time.Millisecond),
+			}
+			close(events)
+			return events, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "write the file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		events, err := target.recorderHandle().Query(t.Context(), store.EventQuery{
+			Types: []string{acp.EventTypeToolCall, acp.EventTypePermission},
+		})
+		if err != nil || len(events) != 2 || events[0].Type != acp.EventTypeToolCall ||
+			events[1].Type != acp.EventTypePermission {
+			t.Fatalf("permission boundary history = %#v, %v", events, err)
+		}
+	})
+
 	t.Run("Should persist contiguous same-turn text chunks as one event row", func(t *testing.T) {
 		t.Parallel()
 

@@ -20,6 +20,7 @@ import {
   agentPauseCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  agentInstanceDefinitionGone,
   agentInstanceResumeBlocked,
   agentInstancesByUrgency,
   agentScopeLabel,
@@ -70,14 +71,18 @@ function SeatMenu({
         {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
         {paused ? "Resume" : "Pause"}
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => void actions.openAgent(instance)}>
-        <Bot aria-hidden="true" />
-        Open agent
-      </ContextMenuItem>
-      <ContextMenuItem onClick={() => void actions.openCheckIns(instance)}>
-        <HeartPulse aria-hidden="true" />
-        Heartbeat
-      </ContextMenuItem>
+      {agentInstanceDefinitionGone(instance) ? null : (
+        <>
+          <ContextMenuItem onClick={() => void actions.openAgent(instance)}>
+            <Bot aria-hidden="true" />
+            Open agent
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => void actions.openCheckIns(instance)}>
+            <HeartPulse aria-hidden="true" />
+            Heartbeat
+          </ContextMenuItem>
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem onClick={() => actions.archive(instance)}>
         <Archive aria-hidden="true" />

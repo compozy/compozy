@@ -226,6 +226,16 @@ func (s *committingAttentionStore) ListPendingInteractions(
 	return []store.PendingInteraction{}, nil
 }
 
+func (s *committingAttentionStore) HasPermissionOccurrence(
+	context.Context,
+	string,
+	string,
+	string,
+	time.Time,
+) (bool, error) {
+	return false, nil
+}
+
 func (s *committingAttentionStore) MarkSessionSettled(
 	context.Context,
 	string,

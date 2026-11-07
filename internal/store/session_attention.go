@@ -311,6 +311,7 @@ type SessionAttentionStore interface {
 		req PendingInteractionTransition,
 	) (SessionAttentionCommit, error)
 	ListPendingInteractions(ctx context.Context, sessionID string, statuses []string) ([]PendingInteraction, error)
+	HasPermissionOccurrence(ctx context.Context, sessionID, requestID, turnID string, createdAt time.Time) (bool, error)
 	MarkSessionSettled(ctx context.Context, sessionID string, seen bool, at time.Time) (SessionAttentionCommit, error)
 	MarkSessionSeen(ctx context.Context, sessionID string, at time.Time) (SessionAttentionCommit, error)
 	// MarkSessionEndedEarly records the early-stopped turn; an empty turn id clears it.

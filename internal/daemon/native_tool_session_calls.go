@@ -173,6 +173,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	}
 	if input.IncludeRecentWakeEvents && n.deps.WakeEvents != nil {
 		events, err := n.deps.WakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+			ProfileID:   target.profileID,
 			WorkspaceID: target.workspaceID,
 			AgentName:   target.agentName,
 			SessionID:   sessionID,

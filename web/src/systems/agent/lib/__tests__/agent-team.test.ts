@@ -1,5 +1,6 @@
 // Suite: the Agents page's view model
-// Invariant: one member per definition, each holding only its own places; a stopped agent keeps
+// Invariant: one member per definition, each holding only its own places; an instance no definition
+//   claims never becomes a member, so it is neither listed nor counted; a stopped agent keeps
 //   explaining itself; attention outranks everything else.
 // Boundary IN: `buildAgentTeam`, overall state, filters. Boundary OUT: the catalog's grouping,
 //   owned by `internal/api/core`.
@@ -87,24 +88,56 @@ describe("buildAgentTeam", () => {
     expect(team.map(member => member.places.length)).toEqual([0, 1]);
   });
 
-  it("Should not borrow an out-of-scope instance even with only one visible definition", () => {
+  it("Should not borrow or list an out-of-scope instance", () => {
     const team = build(
       [teamItemFixture({}, { scopes: ["ws-compozy"] })],
       [agentInstanceFixture({ workspace_id: "ws-advos", needs_attention: true })]
     );
+    expect(team).toHaveLength(1);
     expect(team[0]!.places).toEqual([]);
-    expect(team[1]!.agent).toBeNull();
-    expect(team[1]!.places).toHaveLength(1);
+    expect(team.filter(member => matchesAgentFocus(member, "needs-you"))).toEqual([]);
   });
 
-  it("Should keep a card for an instance whose definition is gone", () => {
-    const team = build(
-      [],
-      [agentInstanceFixture({ state: "paused", pause_reason: "definition_missing" })]
-    );
+  it("Should let a user-level definition claim its work in a project [#1340]", () => {
+    const instance = agentInstanceFixture({ workspace_id: "ws-compozy", needs_attention: true });
+    const team = build([teamItemFixture({}, { scopes: ["@user"] })], [instance]);
     expect(team).toHaveLength(1);
-    expect(team[0]).toMatchObject({ agent: null, kind: "always_on" });
-    expect(agentNowLine(team[0]!, null).text).toBe("Its setup was deleted");
+    expect(team[0]!.places.map(place => place.instance.id)).toEqual([instance.id]);
+    expect(team.filter(member => matchesAgentFocus(member, "needs-you"))).toHaveLength(1);
+  });
+
+  it("Should leave a project's work to that project's own definition of the same name", () => {
+    const team = build(
+      [
+        teamItemFixture(
+          { definition_digest: "user" },
+          { definition_digest: "user", scopes: ["@user"] }
+        ),
+        teamItemFixture(
+          { definition_digest: "project" },
+          { definition_digest: "project", scopes: ["ws-compozy"] }
+        ),
+      ],
+      [agentInstanceFixture({ workspace_id: "ws-compozy" })]
+    );
+    expect(team.map(member => member.places.length)).toEqual([0, 1]);
+  });
+
+  it("Should neither list nor count an instance whose definition was deleted", () => {
+    const team = build(teamItems(), [
+      ...teamInstances(),
+      agentInstanceFixture({
+        id: "ainst-gone",
+        agent_name: "orchestrator_full",
+        label: "Orchestrator Full",
+        state: "paused",
+        pause_reason: "definition_missing",
+      }),
+    ]);
+    expect(team.map(member => member.name)).not.toContain("orchestrator_full");
+    expect(team.filter(member => matchesAgentFocus(member, "paused"))).toEqual(
+      build().filter(member => matchesAgentFocus(member, "paused"))
+    );
   });
 
   it("Should never read a paused instance with a failure report as working", () => {

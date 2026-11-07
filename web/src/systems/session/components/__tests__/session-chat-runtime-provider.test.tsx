@@ -876,7 +876,13 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
       ) {
-        return jsonResponse({ interactions: settledInteractions });
+        return jsonResponse({
+          interactions: settledInteractions.filter(
+            row =>
+              !requestURL.searchParams.get("status") ||
+              row.status === requestURL.searchParams.get("status")
+          ),
+        });
       }
 
       if (
@@ -3231,6 +3237,7 @@ describe("SessionChatRuntimeProvider", () => {
             data: {
               type: "permission",
               request_id: requestId,
+              turn_id: "turn_001",
               title: "compozy__terminal_exec",
               action: "session/request_permission",
               timestamp: "2026-09-05T10:00:00Z",
@@ -3281,7 +3288,10 @@ describe("SessionChatRuntimeProvider", () => {
 
     await act(async () => {
       await vi.waitFor(() =>
-        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"])
+        expect(interactionFetchSearches(fetchMock)).toEqual([
+          "?status=canceled",
+          "?status=timed_out",
+        ])
       );
     });
     expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
@@ -3291,7 +3301,12 @@ describe("SessionChatRuntimeProvider", () => {
       await vi.advanceTimersByTimeAsync(5_500);
     });
 
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual([
+      "?status=canceled",
+      "?status=timed_out",
+      "?status=canceled",
+      "?status=timed_out",
+    ]);
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);
 
@@ -3315,7 +3330,7 @@ describe("SessionChatRuntimeProvider", () => {
       "Not decided · CompozyOS restarted before you answered — bun test did not run"
     );
     expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=timed_out"]);
     // The other rewind blockers (pending clarifications, queued inputs) settle on
     // their own reads; the settled ask must not be the one holding rewind.
     await act(async () => {
@@ -3326,7 +3341,7 @@ describe("SessionChatRuntimeProvider", () => {
       await vi.advanceTimersByTimeAsync(11_000);
     });
 
-    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=timed_out"]);
     expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);

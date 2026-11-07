@@ -143,7 +143,7 @@ function useOpenTeamMember(allProjects: boolean) {
     const route = { pathname: `/agents/${encodeURIComponent(member.name)}`, search: {} };
     if (allProjects) {
       // All projects: an agent opens in place, its window bound to the agent's project.
-      openItem({ app: "agents", binding: ownerDataScope(member.agent?.workspace_id), route });
+      openItem({ app: "agents", binding: ownerDataScope(member.agent.workspace_id), route });
       return;
     }
     void navigate({ to: "/agents/$name", params: { name: member.name } });
@@ -200,7 +200,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const onPreload = (member: AgentTeamMember) => {
     const workspace =
       dataScope?.kind === "all"
-        ? member.agent?.workspace_id || GLOBAL_SCOPE
+        ? member.agent.workspace_id || GLOBAL_SCOPE
         : focusedWorkspaceSelector(dataScope);
     return queryClient.prefetchQuery(agentDetailOptions(member.name, workspace, destination));
   };
