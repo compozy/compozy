@@ -881,6 +881,10 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		cfg := parseYAMLMap(t, []byte(workflow), "release.yml")
 		jobs := mapAt(t, cfg, "jobs")
 		concurrency := mapAt(t, cfg, "concurrency")
+		pullRequest := mapAt(t, mapAt(t, cfg, "on"), "pull_request")
+		if !stringSliceContains(sliceAt(t, pullRequest, "types"), "labeled") {
+			t.Fatal("pull request label changes must evaluate the full integration opt-in")
+		}
 		const subject = "github.event.head_commit.message"
 		const current = "(startsWith(" + subject + ", 'build: release ') || " +
 			"startsWith(" + subject + ", 'build: prepare release '))"
@@ -891,19 +895,32 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"startsWith(" + subject + ", 'build: prepare release ')))"
 		assertEqualString(t, "publication concurrency group", stringAt(t, concurrency, "group"),
 			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ "+
-				publishingPush+" && '-publish' || '' }}")
+				publishingPush+" && '-publish' || '' }}${{ github.event_name == 'pull_request' && "+
+				"github.event.action == 'labeled' && github.event.label.name != 'ci:full' && "+
+				"format('-ignored-label-{0}', github.run_id) || '' }}")
 		assertEqualString(t, "publication cancellation", stringAt(t, concurrency, "cancel-in-progress"),
 			"${{ !"+publishingPush+" }}")
 		const mainPush = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
 		const routinePush = mainPush + " && !startsWith(" + subject + ", 'release:') && " +
 			"!startsWith(" + subject + ", 'ci(release):') && !" + current
+		const selectedPullRequest = "github.event_name == 'pull_request' && " +
+			"(github.event.action != 'labeled' || github.event.label.name == 'ci:full')"
+		const releasePullRequest = selectedPullRequest + " && " +
+			"(startsWith(github.event.pull_request.title, 'build: release ') || " +
+			"startsWith(github.base_ref, 'release/v'))"
 		conditions := map[string]string{
 			"release-pr": "(" + routinePush + " && " +
 				"!startsWith(" + subject + ", 'Merge pull request') && " +
 				"github.event.head_commit.author.name != 'github-actions[bot]')",
-			"integration": "(github.event_name == 'pull_request' && " +
+			"dry-run-identity":    releasePullRequest,
+			"dry-run":             releasePullRequest,
+			"desktop-dry-run":     releasePullRequest,
+			"e2e-nightly":         releasePullRequest,
+			"e2e-desktop-nightly": releasePullRequest,
+			"integration": "(" + selectedPullRequest + " && " +
 				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
-				"startsWith(github.base_ref, 'release/v'))) || (" + routinePush + ")",
+				"startsWith(github.base_ref, 'release/v') || " +
+				"contains(github.event.pull_request.labels.*.name, 'ci:full'))) || (" + routinePush + ")",
 			"release-plan": "github.event_name == 'workflow_dispatch' || (" + mainPush +
 				" && " + current + " && " +
 				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",

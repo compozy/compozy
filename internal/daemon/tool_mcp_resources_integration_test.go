@@ -30,6 +30,7 @@ import (
 
 // Invariant: extension auth policy survives desired-resource persistence and boot reconstruction.
 // Owner: daemon resource publication, canonical real SQLite integration suite.
+// TestToolMCPStaticPublicationAndBootRebuild verifies persisted config and extension publication.
 func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 	t.Parallel()
 	// Invariant: explicit profile installations publish only into their owning
@@ -169,7 +170,7 @@ binding = { type = "url_query", name = "workspace" }
 			},
 			daemonConfigMCPDeclarationProvider(
 				&publishedConfig,
-				compozyconfig.HomePaths{HomeDir: t.TempDir()},
+				testHomePaths(t),
 				nil,
 				discardLogger(),
 				nil,
@@ -543,6 +544,21 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
+		// Settings rollback explicitly restores its active snapshot before passive sync.
+		if err := syncer.SyncConfig(testutil.Context(t), &publishedConfig); err != nil {
+			t.Fatalf("syncer.SyncConfig(rollback) error = %v", err)
+		}
+		servers, err = mcpStore.List(
+			testutil.Context(t),
+			toolMCPSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
+		if err != nil {
+			t.Fatalf("mcpStore.List(rollback) error = %v", err)
+		}
+		if got, want := mcpServerNames(servers), []string{"git", "kubectl", "remote"}; !slices.Equal(got, want) {
+			t.Fatalf("rollback MCP servers = %#v, want %#v", got, want)
+		}
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync(published config) error = %v", err)
 		}
