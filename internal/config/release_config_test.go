@@ -895,17 +895,29 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"startsWith(" + subject + ", 'build: prepare release ')))"
 		assertEqualString(t, "publication concurrency group", stringAt(t, concurrency, "group"),
 			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ "+
-				publishingPush+" && '-publish' || '' }}")
+				publishingPush+" && '-publish' || '' }}${{ github.event_name == 'pull_request' && "+
+				"github.event.action == 'labeled' && github.event.label.name != 'ci:full' && "+
+				"format('-ignored-label-{0}', github.run_id) || '' }}")
 		assertEqualString(t, "publication cancellation", stringAt(t, concurrency, "cancel-in-progress"),
 			"${{ !"+publishingPush+" }}")
 		const mainPush = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
 		const routinePush = mainPush + " && !startsWith(" + subject + ", 'release:') && " +
 			"!startsWith(" + subject + ", 'ci(release):') && !" + current
+		const selectedPullRequest = "github.event_name == 'pull_request' && " +
+			"(github.event.action != 'labeled' || github.event.label.name == 'ci:full')"
+		const releasePullRequest = selectedPullRequest + " && " +
+			"(startsWith(github.event.pull_request.title, 'build: release ') || " +
+			"startsWith(github.base_ref, 'release/v'))"
 		conditions := map[string]string{
 			"release-pr": "(" + routinePush + " && " +
 				"!startsWith(" + subject + ", 'Merge pull request') && " +
 				"github.event.head_commit.author.name != 'github-actions[bot]')",
-			"integration": "(github.event_name == 'pull_request' && " +
+			"dry-run-identity":    releasePullRequest,
+			"dry-run":             releasePullRequest,
+			"desktop-dry-run":     releasePullRequest,
+			"e2e-nightly":         releasePullRequest,
+			"e2e-desktop-nightly": releasePullRequest,
+			"integration": "(" + selectedPullRequest + " && " +
 				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
 				"startsWith(github.base_ref, 'release/v') || " +
 				"contains(github.event.pull_request.labels.*.name, 'ci:full'))) || (" + routinePush + ")",
