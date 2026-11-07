@@ -281,7 +281,8 @@ func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstanc
 }
 
 const getHeldSessionInput = `-- name: GetHeldSessionInput :one
-SELECT instance.id, instance.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
 FROM sessions target
 JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
 JOIN agent_instances instance ON instance.id = root.instance_id
@@ -356,7 +357,8 @@ func (q *Queries) GetInstanceMainAttempt(ctx context.Context, instanceID sql.Nul
 }
 
 const getSessionInputHold = `-- name: GetSessionInputHold :one
-SELECT instance.id, instance.pause_reason FROM sessions target
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
 JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
 JOIN agent_instances instance ON instance.id = root.instance_id
 WHERE target.id = ?1 AND instance.state = 'paused'
@@ -629,8 +631,10 @@ func (q *Queries) ListInstancesForReconciliation(ctx context.Context, arg ListIn
 }
 
 const pauseAgentInstance = `-- name: PauseAgentInstance :execrows
-UPDATE agent_instances SET state = 'paused', pause_reason = ?, updated_at = ?
-WHERE id = ? AND state = 'active' AND archived_at IS NULL
+UPDATE agent_instances SET state = 'paused', pause_reason = ?1, updated_at = ?2
+WHERE id = ?3 AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND ?1 = 'manual'
+ AND pause_reason IN ('definition_missing', 'definition_not_always_on')))
 `
 
 type PauseAgentInstanceParams struct {

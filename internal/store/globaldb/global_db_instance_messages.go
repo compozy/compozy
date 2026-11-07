@@ -39,6 +39,7 @@ func checkInstancePromptTarget(
 	return nil
 }
 
+// applyInstancePromptDelivery records the admission-time hold, preserving human ingress exemptions.
 func applyInstancePromptDelivery(
 	ctx context.Context,
 	exec globalSQLExecutor,

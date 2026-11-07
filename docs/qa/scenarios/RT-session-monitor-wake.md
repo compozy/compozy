@@ -220,9 +220,14 @@ Create an always-on main with a dispatched child and grandchild. Queue their own
 monitor wakes and a peer message. Remove the creator's definition, producing
 `definition_missing`: children deliver once, while the main retains its inputs.
 Repeat after rotation and with `definition_not_always_on`. Already queued work is
-released by instance reconciliation; stopped descendants stay stopped. Repeat with a
+released by instance reconciliation; stopped descendants stay stopped. Idle-release a
+child using the removed definition before releasing its queued work: the accepted
+runtime reloads on the same route and both inputs are delivered. A new session or
+runtime switch still requires an available definition. Repeat with a
 prepared Goal ahead of those inputs: normal child continuations still deliver,
-while the Goal retains its explicit pause guard.
+while the Goal retains its explicit pause guard. Explicitly pause the definition-paused
+instance manually: the reason becomes `manual`, and later child messages and wakes
+stay held. Definition reconciliation must not weaken that manual brake.
 
 Repeat with `manual`, `fatigue`, `unattended` and an unknown pause reason: all
 autonomous lineage input stays held. Read prompt results and input lists for
@@ -231,4 +236,14 @@ attention signal and Needs attention badge. A human prompt still runs. Resume an
 confirm the hold explanation and attention clear. Under a definition pause, lower
 the unattended limit and let a child reach it: the pause becomes `unattended`,
 and later child wakes stay held. Adoption preserves child lineage and does not
-implicitly transfer it to another instance.
+implicitly transfer it to another instance. Archive a manually paused instance, then
+queue later child input: the receipt, queue and attention say `instance_archived`,
+and the input remains fenced rather than suggesting a resumable pause.
+
+Backend verification 2026-11-06 (#1328): passed the owning paused-input queue,
+coalesced wake, prompt-admission and unattended-brake tests; the prepared Goal
+lifecycle integration rejected claims for both definition reasons on descendants
+and retained queued rows without dispatch tokens. The HTTP/ACP child journey
+verified held attention, manual takeover, idle release, definition removal and
+queued wake/message delivery without resuming the creator. Browser and live-provider
+walks are not claimed.

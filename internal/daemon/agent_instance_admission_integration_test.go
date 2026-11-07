@@ -1022,6 +1022,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 	// Invariant: a definition pause releases dispatched child wakes; safety holds remain visible and resumable.
 	t.Run("Should release child monitor work after a definition pause and explain safety holds", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.IdleReleaseAfter = time.Second
 			for name, provider := range cfg.Providers {
 				provider.Models.Discovery.Enabled = new(false)
 				cfg.Providers[name] = provider
@@ -1035,6 +1036,9 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 			})
 		})
 		ctx := t.Context()
+		if err := d.runtimeWorkers.instanceMaintenance.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
 		main, err := manager.Create(ctx, &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 		if err != nil {
 			t.Fatal(err)
@@ -1103,18 +1107,70 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 			}) {
 			t.Fatalf("held attention: %+v %v", info, err)
 		}
-		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+
+		// A manual pause takes over a definition pause before any new work can escape.
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE agent_instances SET pause_reason='definition_missing' WHERE id=?", instance.ID); err != nil {
 			t.Fatal(err)
 		}
-		paused, err := db.Instances().Pause(ctx, instance.ID, "definition_missing")
+		status, raw := instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+		if status != http.StatusOK {
+			t.Fatalf("manual takeover HTTP=%d %s", status, raw)
+		}
+		takeover, err := manager.SendPrompt(ctx, child.ID, session.SendPromptOpts{
+			Message:        "child work",
+			MessageID:      "manual-after-definition",
+			IdempotencyKey: "manual-after-definition",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: workspace,
+				Hop:         1,
+			},
+		})
+		if err != nil || takeover.Delivery != "held" || takeover.HeldReason != "manual" ||
+			takeover.HeldInstanceID != instance.ID {
+			t.Fatalf("manual takeover delivery: %+v %v", takeover, err)
+		}
+		// Invariant: an idle-released child can finish its accepted work without the live definition.
+		now := time.Now().Add(2*d.config.Session.Supervision.ActivityHeartbeatInterval + time.Second)
+		for _, tick := range []time.Time{now, now.Add(2 * time.Second)} {
+			if err := manager.Supervise(ctx, tick); err != nil {
+				t.Fatal(err)
+			}
+		}
+		released, err := manager.Status(ctx, child.ID)
+		if err != nil || released.RuntimeStatus != session.RuntimeStatusUnbound {
+			t.Fatalf("child not idle-released: %+v %v", released, err)
+		}
+		definitionPath := filepath.Join(d.homePaths.AgentsDir, main.AgentName, "AGENT.md")
+		if err := os.Remove(definitionPath); err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "removed definition leaves the catalog", func() bool {
+			_, err := agentCatalogDependency(d.agentCatalog).ResolveAgent(main.AgentName, nil)
+			return errors.Is(err, workspacepkg.ErrAgentNotAvailable)
+		})
+		// Simulate pre-upgrade held work without an active interval that could deliver it early.
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE agent_instances SET pause_reason='definition_missing' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		paused, err := db.Instances().Get(ctx, instance.ID)
 		if err != nil {
 			t.Fatal(err)
+		}
+		for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
+			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, id)
+			if err != nil || row.Status != store.SessionInputQueueStatusQueued {
+				t.Fatalf("wake delivered before release: %+v %v", row, err)
+			}
 		}
 		if err := releaseInstanceInputs(
 			ctx,
 			&bootState{sessions: manager},
 			db.Instances(),
-			paused.Instance,
+			paused,
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -1124,7 +1180,11 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				return false
 			}
 			row, err := db.GetSessionInputQueueEntry(ctx, child.ID, peer.QueueEntryID)
-			return err == nil && row.Status == store.SessionInputQueueStatusSent && !manager.IsPrompting(child.ID)
+			if err != nil || row.Status != store.SessionInputQueueStatusSent {
+				return false
+			}
+			manual, err := db.GetSessionInputQueueEntry(ctx, child.ID, takeover.QueueEntryID)
+			return err == nil && manual.Status == store.SessionInputQueueStatusSent && !manager.IsPrompting(child.ID)
 		})
 		if err := manager.Supervise(ctx, time.Now()); err != nil {
 			t.Fatal(err)

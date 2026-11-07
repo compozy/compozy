@@ -62,6 +62,7 @@ func idleRuntimeReleaseDueLocked(
 	return !now.Before(target.supervisionIdleSince.Add(after))
 }
 
+// runtimeWorkPending excludes passive monitors and blocked inputs that can safely survive idle release.
 func runtimeWorkPending(signals []WorkSignal) bool {
 	for _, signal := range signals {
 		switch signal.Kind {

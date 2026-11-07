@@ -14,6 +14,7 @@ type sessionInputHoldReader interface {
 	SessionInputHold(context.Context, string) (*store.SessionInputHold, error)
 }
 
+// heldInputs projects a durable queue hold as attention without treating it as runnable work.
 func (s sessionWorkSources) heldInputs(ctx context.Context, id string) ([]session.WorkSignal, error) {
 	reader, ok := s.state.registry.(sessionInputHoldReader)
 	if !ok {
@@ -27,6 +28,6 @@ func (s sessionWorkSources) heldInputs(ctx context.Context, id string) ([]sessio
 		Kind: session.WorkSignalHeldInput, Since: hold.Since, Ref: hold.InstanceID,
 		HeldReason: hold.Reason, HeldInstanceID: hold.InstanceID,
 		ValidUntil:      s.now().Add(2 * toolruntime.SweepInterval),
-		AttentionReason: fmt.Sprintf("Input held by paused instance %s: %s", hold.InstanceID, hold.Reason),
+		AttentionReason: fmt.Sprintf("Input held by instance %s: %s", hold.InstanceID, hold.Reason),
 	}}, nil
 }

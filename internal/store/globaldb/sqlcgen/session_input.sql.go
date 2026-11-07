@@ -1458,7 +1458,7 @@ WHERE queued.session_id = ?1
     JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
     JOIN agent_instances AS instance ON instance.id = root.instance_id
     WHERE target.id = queued.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
+      AND (target.instance_id = instance.id OR queued.owner_kind = 'goal'
         OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
   ))
   AND queued.status = ?2

@@ -16,8 +16,10 @@ UPDATE agent_instances SET main_session_id = sqlc.arg(session_id), state = 'acti
 WHERE id = sqlc.arg(id) AND state = 'starting' AND archived_at IS NULL AND main_session_id IS NULL;
 
 -- name: PauseAgentInstance :execrows
-UPDATE agent_instances SET state = 'paused', pause_reason = ?, updated_at = ?
-WHERE id = ? AND state = 'active' AND archived_at IS NULL;
+UPDATE agent_instances SET state = 'paused', pause_reason = sqlc.arg(pause_reason), updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+AND (state = 'active' OR (state = 'paused' AND sqlc.arg(pause_reason) = 'manual'
+ AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
 
 -- name: ResumeAgentInstance :execrows
 UPDATE agent_instances SET state = 'active', pause_reason = '', updated_at = ?
@@ -183,7 +185,8 @@ WHERE id = sqlc.arg(id) AND archived_at IS NULL
 AND (state = 'active' OR (state = 'paused' AND pause_reason IN ('definition_missing', 'definition_not_always_on')));
 
 -- name: GetSessionInputHold :one
-SELECT instance.id, instance.pause_reason FROM sessions target
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason FROM sessions target
 JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
 JOIN agent_instances instance ON instance.id = root.instance_id
 WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
@@ -191,7 +194,8 @@ WHERE target.id = sqlc.arg(session_id) AND instance.state = 'paused'
     OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'));
 
 -- name: GetHeldSessionInput :one
-SELECT instance.id, instance.pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
+SELECT instance.id, CAST(CASE WHEN instance.archived_at IS NOT NULL THEN 'instance_archived'
+ ELSE instance.pause_reason END AS TEXT) AS pause_reason, CAST(MIN(q.enqueued_at) AS TEXT) AS since
 FROM sessions target
 JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
 JOIN agent_instances instance ON instance.id = root.instance_id

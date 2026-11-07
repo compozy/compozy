@@ -452,7 +452,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	// The bound route records whether an unrestricted preference was already present at session start.
 	boundRoute := session.providerRoutingSnapshot()
 	dropInheritedUnrestricted := hasUnrestrictedACPMode(spec.provider, boundRoute.ACPOptionsValue())
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
+	runtime, err := m.resolvePromptStartRuntime(ctx, session, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
 	}

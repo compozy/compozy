@@ -364,11 +364,16 @@ rotation. Dispatched children continue their monitor wakes and agent messages, a
 their turns still count toward the unattended limit. Reaching that limit replaces
 the definition pause with `unattended` and holds the whole lineage. A prepared Goal's
 ordering boundary does not hold normal child continuations during a definition
-pause; the Goal itself retains its explicit pause guard.
+pause; the Goal itself retains its explicit pause guard. Manually pausing an instance
+that has a definition pause replaces it with the full lineage brake; other existing
+safety pauses remain unchanged. If an idle-released child also used the removed
+definition, its queued work can reload the same runtime from its accepted definition;
+new sessions and runtime switches still require an available definition.
 
 Held prompt results and queued inputs include `held_reason` and `held_instance_id`.
 A session with held input shows Needs attention; its status includes a `held_input`
-work signal with the reason and instance. Restoring or adopting an agent does not
+work signal with the reason and instance. Holds belonging to an archived instance
+report `instance_archived`, since that instance cannot be resumed. Restoring or adopting an agent does not
 transfer children from a different instance. Quiet windows do not hold monitor wakes. Lost main-session
 wakes produce one interrupted report per wake, except shutdown cancellations. A
 delivered wake does not trigger another check.

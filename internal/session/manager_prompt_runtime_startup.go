@@ -2,10 +2,12 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // preparePromptRuntimeStartupDefinition keeps the accepted startup prompt for a rebind of
@@ -46,4 +48,28 @@ func startupRuntimeIdentityChanged(current *Info, provider string, model string)
 	return compozyconfig.CanonicalProviderName(strings.TrimSpace(current.Provider)) !=
 		compozyconfig.CanonicalProviderName(strings.TrimSpace(provider)) ||
 		strings.TrimSpace(current.Model) != strings.TrimSpace(model)
+}
+
+// An idle-released child may finish accepted work after its definition disappears.
+// New sessions and runtime switches still require a live definition.
+func (m *Manager) resolvePromptStartRuntime(
+	ctx context.Context, target *Session, spec *sessionStartSpec, dropInheritedUnrestricted bool,
+) (sessionStartRuntime, error) {
+	runtime, err := m.resolveSessionStartRuntime(ctx, spec, dropInheritedUnrestricted)
+	if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return runtime, err
+	}
+	snapshot := target.runtimeBindingSnapshot()
+	if (spec.lineage == nil || spec.lineage.SpawnDepth == 0) || snapshot.runtimeRelease == nil ||
+		snapshot.agentDef.Name == "" ||
+		!runtimeSelectionsEqual(snapshot.selection, RuntimeSelection{
+			Provider:        spec.provider,
+			Model:           spec.model,
+			ReasoningEffort: spec.reasoningEffort,
+			Speed:           spec.speed,
+			ACPOptions:      spec.acpOptions,
+		}) {
+		return runtime, err
+	}
+	return m.resolveSessionRuntimeWithDefinition(ctx, spec, dropInheritedUnrestricted, snapshot.agentDef)
 }

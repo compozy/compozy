@@ -27,6 +27,7 @@ func observeReleasedInstanceInput(ctx context.Context, entry *store.SessionInput
 	}
 }
 
+// SessionInputHold reads the oldest queued input blocked by an instance pause.
 func (g *SessionRepo) SessionInputHold(ctx context.Context, sessionID string) (*store.SessionInputHold, error) {
 	if err := g.checkReady(ctx, "read session input hold"); err != nil {
 		return nil, err
