@@ -205,36 +205,13 @@ export function SessionViewOptionsMenu({
             </ChoiceSection>
           </>
         ) : null}
-        {onHideChildrenChange || onShowAutomationChange ? (
-          <>
-            <DropdownMenuSeparator className={SECTION_DIVIDER} />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Filter</DropdownMenuLabel>
-              {onHideChildrenChange ? (
-                <DropdownMenuCheckboxItem
-                  checked={hideChildren}
-                  className={CHOICE_ITEM}
-                  data-testid={`${testId}-hide-children`}
-                  onCheckedChange={checked => onHideChildrenChange(checked === true)}
-                >
-                  <Icon as={ListTree} size="sm" />
-                  Hide child sessions
-                </DropdownMenuCheckboxItem>
-              ) : null}
-              {onShowAutomationChange ? (
-                <DropdownMenuCheckboxItem
-                  checked={showAutomation}
-                  className={CHOICE_ITEM}
-                  data-testid={`${testId}-show-automation`}
-                  onCheckedChange={checked => onShowAutomationChange(checked === true)}
-                >
-                  <Icon as={Zap} size="sm" />
-                  Show automation runs
-                </DropdownMenuCheckboxItem>
-              ) : null}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
+        <FilterSection
+          hideChildren={hideChildren}
+          onHideChildrenChange={onHideChildrenChange}
+          onShowAutomationChange={onShowAutomationChange}
+          showAutomation={showAutomation}
+          testId={testId}
+        />
         {onAllCollapsedChange ? (
           <>
             <DropdownMenuSeparator className={SECTION_DIVIDER} />
@@ -255,5 +232,49 @@ export function SessionViewOptionsMenu({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The Filter section: each item shows only where its surface passes a handler. */
+function FilterSection({
+  hideChildren,
+  onHideChildrenChange,
+  showAutomation,
+  onShowAutomationChange,
+  testId,
+}: Pick<
+  SessionViewOptionsMenuProps,
+  "onHideChildrenChange" | "onShowAutomationChange" | "testId"
+> & { hideChildren: boolean; showAutomation: boolean }) {
+  if (!onHideChildrenChange && !onShowAutomationChange) return null;
+  return (
+    <>
+      <DropdownMenuSeparator className={SECTION_DIVIDER} />
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>Filter</DropdownMenuLabel>
+        {onHideChildrenChange ? (
+          <DropdownMenuCheckboxItem
+            checked={hideChildren}
+            className={CHOICE_ITEM}
+            data-testid={`${testId}-hide-children`}
+            onCheckedChange={checked => onHideChildrenChange(checked === true)}
+          >
+            <Icon as={ListTree} size="sm" />
+            Hide child sessions
+          </DropdownMenuCheckboxItem>
+        ) : null}
+        {onShowAutomationChange ? (
+          <DropdownMenuCheckboxItem
+            checked={showAutomation}
+            className={CHOICE_ITEM}
+            data-testid={`${testId}-show-automation`}
+            onCheckedChange={checked => onShowAutomationChange(checked === true)}
+          >
+            <Icon as={Zap} size="sm" />
+            Show automation runs
+          </DropdownMenuCheckboxItem>
+        ) : null}
+      </DropdownMenuGroup>
+    </>
   );
 }
