@@ -4,7 +4,7 @@ area: MS
 title: MCP server editor splits connection from process environment and locks route identity
 persona: Dora
 journey: J-mcp-authorize-repair
-expected: Opening Add MCP server shows Simple only — a two-card choice between Local program and Remote URL, the server name, and either the command or the endpoint URL. Advanced adds the process environment (args, env, typed secret inputs) for a local server, or the discovered OAuth registration block for a remote one — never both. Switching transport replaces the launch configuration: the abandoned branch's command, args, env, and secret_env are omitted from the request entirely. On edit, the server name and scope render as readable locked identity because they are the tool prefix agents already see. Untouched secret bindings emit their preservation flags and are never disclosed; a Vault-bound secret shows only its reference. The scope the definition writes to stays visible in both modes.
+expected: Opening Add MCP server shows Simple only — a two-card choice between Local program and Remote URL, the server name, and either the command or the endpoint URL, with no field errors until a field is blurred or edited (Add server stays disabled while the form is invalid, and a transport switch leaves the new launch fields pristine). Advanced adds the process environment (args, env, typed secret inputs) for a local server, or the discovered OAuth registration block for a remote one — never both. Switching transport replaces the launch configuration: the abandoned branch's command, args, env, and secret_env are omitted from the request entirely. On edit, the server name and scope render as readable locked identity because they are the tool prefix agents already see. Untouched secret bindings emit their preservation flags and are never disclosed; a Vault-bound secret shows only its reference. The scope the definition writes to stays visible in both modes.
 entry_points: web desktop shell → Marketplace → MCPs → Installed → Add server / Edit
 qa_status: skipped
 bug_ids:
@@ -31,3 +31,5 @@ src: web/src/systems/settings/components/mcp-server-editor.tsx; web/src/systems/
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-11-07 (#1337): required-field errors (Name, Command, URL) now wait for blur or edit; a transport switch resets the cleared launch fields to pristine. Verified in the real web app against the live daemon: pristine Local program and Remote URL show no errors; blurring empty Name and URL shows both errors; switching back to Local program keeps Command pristine; a filled form enables Add server; Edit opens without errors. Only this slice was walked; the scenario status stays as recorded above.
