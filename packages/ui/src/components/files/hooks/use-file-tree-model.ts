@@ -29,6 +29,7 @@ export interface UseFileTreeModelOptions {
   paths: readonly string[];
   resetKey?: string | number;
   selectedPath?: string | null;
+  revealKey?: string | number;
 }
 
 export interface FileTreeModelState {
@@ -88,6 +89,7 @@ export function useFileTreeModel({
   paths,
   resetKey,
   selectedPath,
+  revealKey,
 }: UseFileTreeModelOptions): FileTreeModelState {
   const decorationsRef = useLatest(decorations);
   const loadingRef = useLatest(new Set(loadingPaths));
@@ -117,7 +119,7 @@ export function useFileTreeModel({
 
   useLazyExpansion(model, paths, resetKey, onExpandRef, onExpandedChangeRef);
   useDecorations(model, decorations, loadingPaths, decorationsRef);
-  useControlledSelection(model, selectedPath, paths);
+  useControlledSelection(model, selectedPath, revealKey, paths);
   const filterMatches = useFilter(model, filter, paths);
 
   const handleClickCapture = (event: React.MouseEvent<HTMLElement>) => {
@@ -200,23 +202,39 @@ function useDecorations(
   }, [model, decorations, loadingKey, decorationsRef]);
 }
 
+/**
+ * Selects `selectedPath` and reveals it when the reveal request changes (a new path or a new
+ * `revealKey`). A lazy reveal keeps expanding ancestors as their listings arrive, then stops
+ * once the row exists, so later path changes never undo a user's collapse.
+ */
 function useControlledSelection(
   model: PierreFileTreeModel,
   selectedPath: string | null | undefined,
+  revealKey: string | number | undefined,
   paths: readonly string[]
 ) {
+  const request = `${selectedPath ?? ""}\u0000${revealKey ?? ""}`;
+  const pendingRef = React.useRef<string | null>(null);
+  const seenRequestRef = React.useRef<string | null>(null);
   React.useLayoutEffect(() => {
-    if (selectedPath) expandAncestors(model, selectedPath);
-    // A selected directory (`dir/`) is revealed open, so its children show.
-    if (selectedPath?.endsWith("/")) {
-      const directory = model.getItem(selectedPath);
-      if (directory && "expand" in directory && !directory.isExpanded()) directory.expand();
+    if (seenRequestRef.current !== request) {
+      seenRequestRef.current = request;
+      pendingRef.current = selectedPath ? request : null;
+    }
+    if (selectedPath && pendingRef.current === request) {
+      expandAncestors(model, selectedPath);
+      // A selected directory (`dir/`) is revealed open, so its children show.
+      if (selectedPath.endsWith("/")) {
+        const directory = model.getItem(selectedPath);
+        if (directory && "expand" in directory && !directory.isExpanded()) directory.expand();
+      }
+      if (model.getItem(selectedPath)) {
+        model.scrollToPath(selectedPath, { offset: "nearest" });
+        pendingRef.current = null;
+      }
     }
     selectOnly(model, selectedPath);
-    if (selectedPath && model.getItem(selectedPath)) {
-      model.scrollToPath(selectedPath, { offset: "nearest" });
-    }
-  }, [model, selectedPath, paths]);
+  }, [model, selectedPath, request, paths]);
 }
 
 function useFilter(

@@ -54,6 +54,11 @@ export interface FileTreeProps extends Omit<
    * directory (`dir/`) is expanded too.
    */
   selectedPath?: string | null;
+  /**
+   * Reveals `selectedPath` again when it changes (a new open request or "Reveal in tree").
+   * Without a change, a user's collapse of the selection's ancestors sticks.
+   */
+  revealKey?: string | number;
   decorations?: FileTreeDecorations;
   /** Hides rows that do not match; matching runs over loaded paths only. */
   filter?: string;
@@ -80,6 +85,7 @@ function FileTree({
   loadingPaths,
   onSelect,
   selectedPath,
+  revealKey,
   decorations,
   filter,
   filterEmpty,
@@ -100,6 +106,7 @@ function FileTree({
     paths,
     resetKey,
     selectedPath,
+    revealKey,
   });
   const isEmpty = paths.length === 0;
 

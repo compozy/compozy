@@ -142,6 +142,53 @@ describe("FileTree", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  // Greptile regression on the perf batch. Invariant: a user's collapse of the selected file's
+  // ancestor sticks when the path set changes (a listing arrives, a folder collapses); only a
+  // new reveal request (another path or revealKey) expands ancestors again.
+  it("Should keep a collapsed ancestor of the selection collapsed until a new reveal", async () => {
+    const paths = ["web/", "web/src/", "web/src/main.tsx", "web/src/app.tsx", "README.md"];
+    const view = (props: Partial<FileTreeProps>) => (
+      <FileTree
+        aria-label="Project files"
+        paths={paths}
+        selectedPath="web/src/main.tsx"
+        revealKey="open-1"
+        {...props}
+      />
+    );
+    const { container, rerender } = render(view({}));
+    await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() => row(container, "web/src/main.tsx"));
+
+    act(() => row(container, "web/").click());
+    await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "false"));
+    // A path change (a listing arriving) must not undo the collapse.
+    rerender(view({ paths: [...paths, "docs/"] }));
+    await waitFor(() => row(container, "docs/"));
+    expect(row(container, "web/")).toHaveAttribute("aria-expanded", "false");
+
+    // Selecting another deep file is a new reveal request.
+    rerender(
+      view({ paths: [...paths, "docs/"], selectedPath: "web/src/app.tsx", revealKey: "open-2" })
+    );
+    await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() =>
+      expect(row(container, "web/src/app.tsx")).toHaveAttribute("aria-selected", "true")
+    );
+
+    // So is "Reveal in tree" for the same file, after another collapse.
+    act(() => row(container, "web/").click());
+    await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "false"));
+    rerender(
+      view({
+        paths: [...paths, "docs/"],
+        selectedPath: "web/src/app.tsx",
+        revealKey: "open-2:reveal",
+      })
+    );
+    await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "true"));
+  });
+
   it("Should render the empty slot when there are no paths", () => {
     const { getByText } = render(
       <FileTree aria-label="Project files" paths={[]} empty={<p>This folder is empty</p>} />

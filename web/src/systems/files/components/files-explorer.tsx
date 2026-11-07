@@ -151,6 +151,7 @@ function TreeBody({
   bridge,
   filter,
   selectedPath,
+  revealKey,
   onOpenFile,
   treeLabel,
   resetKey,
@@ -159,6 +160,7 @@ function TreeBody({
   bridge: FileTreeBridge;
   filter: string;
   selectedPath: string | null;
+  revealKey: string;
   onOpenFile: (path: string) => void;
   treeLabel: string;
   resetKey: string;
@@ -192,6 +194,7 @@ function TreeBody({
             loadingPaths={bridge.loadingPaths}
             decorations={bridge.decorations}
             selectedPath={selectedPath}
+            revealKey={revealKey}
             onSelect={onOpenFile}
             onExpand={bridge.expand}
             onExpandedChange={bridge.expandedChanged}
@@ -269,6 +272,7 @@ export function FilesExplorer({
                 bridge={bridge}
                 filter={explorer.filter}
                 selectedPath={explorer.selectedPath}
+                revealKey={explorer.revealKey}
                 onOpenFile={path => onOpenFile(path)}
                 treeLabel={treeLabel}
                 resetKey={explorer.showIgnored ? "all" : "visible"}
@@ -292,6 +296,7 @@ export function FilesExplorer({
               onRevealInTree={() => {
                 explorer.setFilter("");
                 explorer.showFiles();
+                explorer.revealSelection();
               }}
               onRefreshTree={bridge.refresh}
             />
