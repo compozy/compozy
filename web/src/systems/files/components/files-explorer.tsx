@@ -22,6 +22,8 @@ import { GoToFileBox } from "./go-to-file-box";
 import { FileTreeUnavailableState, FileViewerMessageState } from "./file-viewer-states";
 import { FileTreeNotes } from "./file-tree-notes";
 import { FileViewerPane } from "./file-viewer-pane";
+import { FilesTreeRowMenu } from "./files-tree-row-menu";
+import { OpenRootInMenu } from "./open-in-button";
 
 export interface FilesExplorerProps {
   root: FilesRootRef;
@@ -79,6 +81,7 @@ function TreeIconAction({
 }
 
 function TreeHeader({
+  root: rootRef,
   bridge,
   filter,
   onFilterChange,
@@ -86,6 +89,7 @@ function TreeHeader({
   onShowIgnoredChange,
   onOpenInFilesWindow,
 }: {
+  root: FilesRootRef;
   bridge: FileTreeBridge;
   filter: string;
   onFilterChange: (next: string) => void;
@@ -120,6 +124,7 @@ function TreeHeader({
         <TreeIconAction label="Refresh" testId="files-refresh" onClick={bridge.refresh}>
           <RefreshCw aria-hidden className="size-3.5" />
         </TreeIconAction>
+        {root ? <OpenRootInMenu root={rootRef} /> : null}
         {root && onOpenInFilesWindow ? (
           <TreeIconAction
             label="Open in Files window"
@@ -142,6 +147,7 @@ function TreeHeader({
 }
 
 function TreeBody({
+  root,
   bridge,
   filter,
   selectedPath,
@@ -149,6 +155,7 @@ function TreeBody({
   treeLabel,
   resetKey,
 }: {
+  root: FilesRootRef;
   bridge: FileTreeBridge;
   filter: string;
   selectedPath: string | null;
@@ -193,6 +200,7 @@ function TreeBody({
             }
             empty={<p className="px-3 py-2 text-xs text-muted-foreground">This folder is empty</p>}
             resetKey={resetKey}
+            rowMenu={item => <FilesTreeRowMenu root={root} item={item} />}
           />
           <FileTreeNotes bridge={bridge} />
         </>
@@ -242,6 +250,7 @@ export function FilesExplorer({
             {/* Both panes stay mounted, so switching keeps the tree and the last search. */}
             <div className={pane === "files" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
               <TreeHeader
+                root={root}
                 bridge={bridge}
                 filter={explorer.filter}
                 onFilterChange={explorer.setFilter}
@@ -255,6 +264,7 @@ export function FilesExplorer({
                 }
               />
               <TreeBody
+                root={root}
                 bridge={bridge}
                 filter={explorer.filter}
                 selectedPath={explorer.selectedPath}

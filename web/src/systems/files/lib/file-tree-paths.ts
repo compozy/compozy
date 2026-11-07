@@ -44,11 +44,21 @@ export function entryDecoration(entry: FileEntry): FileTreeDecoration | null {
   return Object.keys(decoration).length > 0 ? decoration : null;
 }
 
+/**
+ * Decorations for the loaded entries. A directory the daemon marks `contains_changes` gets the
+ * dot until one of its changed descendants is loaded, when the tree draws the dot itself
+ * (US-001.AC-4).
+ */
 export function entriesDecorations(entries: readonly FileEntry[]): FileTreeDecorations {
   const decorations: Record<string, FileTreeDecoration> = {};
+  const changed = entries.filter(entry => entry.git_status && STATUSES.has(entry.git_status));
   for (const entry of entries) {
-    const decoration = entryDecoration(entry);
-    if (decoration) decorations[treePath(entry)] = decoration;
+    const decoration = entryDecoration(entry) ?? {};
+    if (entry.kind === "directory" && entry.contains_changes) {
+      const prefix = `${entry.path}/`;
+      if (!changed.some(item => item.path.startsWith(prefix))) decoration.containsChanges = true;
+    }
+    if (Object.keys(decoration).length > 0) decorations[treePath(entry)] = decoration;
   }
   return decorations;
 }

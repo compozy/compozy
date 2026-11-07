@@ -1,6 +1,7 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CodeHighlightPoolProvider } from "../code-highlight-pool";
 import { CodeViewer } from "../code-viewer";
 import { countLines, resolveTargetLine } from "../code-viewer-lines";
 import { FileImagePreview } from "../file-image-preview";
@@ -81,6 +82,38 @@ describe("CodeViewer", () => {
     expect(Math.max(...scrolledTo)).toBeGreaterThan(0);
   });
 
+  // Invariant: the viewer is never blank while the highlighter loads (US-003): the lines paint
+  // as plain text with line numbers first, and the highlighted view replaces them.
+  it("Should paint plain numbered lines while the highlight pool is not ready", () => {
+    // The worker is the I/O boundary: a stand-in that never answers keeps the pool loading.
+    const inertWorker = () =>
+      ({
+        postMessage() {},
+        addEventListener() {},
+        removeEventListener() {},
+        terminate() {},
+      }) as unknown as Worker;
+    const { container, unmount } = render(
+      <CodeHighlightPoolProvider workerFactory={inertWorker}>
+        <CodeViewer path="internal/a.go" text={sourceText(312)} targetLine={200} />
+      </CodeHighlightPoolProvider>
+    );
+    const plain = container.querySelector('[data-slot="code-viewer-plain"]');
+    expect(plain).not.toBeNull();
+    const target = plain?.querySelector('[data-line="200"]');
+    expect(target).toHaveTextContent("200const line200 = 200;");
+    expect(target).toHaveAttribute("data-target-line", "true");
+    expect(plain?.querySelector('[data-line="1"]')).toBeNull();
+    expect(renderedLine(container, 200)).toBeNull();
+    unmount();
+  });
+
+  it("Should replace the plain paint once the highlighted view renders", async () => {
+    const { container } = render(<CodeViewer path="internal/a.go" text={sourceText(40)} />);
+    await waitFor(() => expect(renderedLine(container, 1)).not.toBeNull());
+    expect(container.querySelector('[data-slot="code-viewer-plain"]')).toBeNull();
+  });
+
   it("Should count lines without a phantom trailing line and clamp targets", () => {
     expect(countLines("a\nb\n")).toBe(2);
     expect(countLines("")).toBe(1);
@@ -101,6 +134,21 @@ describe("FileImagePreview", () => {
     expect(image.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(container.querySelector("svg")).toBeNull();
     expect(container.querySelector("script")).toBeNull();
+  });
+
+  // US-004.AC-1: the preview names its dimensions, read from the decoded image.
+  it("Should caption the preview with the loaded dimensions and the size", () => {
+    const { getByRole, container } = render(
+      <FileImagePreview data={btoa("png")} mimeType="image/png" alt="shot.png" meta="245 KB" />
+    );
+    const caption = () =>
+      container.querySelector('[data-slot="file-image-preview-caption"]')?.textContent;
+    expect(caption()).toBe("245 KB");
+    const image = getByRole("img", { name: "shot.png" });
+    Object.defineProperty(image, "naturalWidth", { value: 1280 });
+    Object.defineProperty(image, "naturalHeight", { value: 720 });
+    fireEvent.load(image);
+    expect(caption()).toBe("1280 × 720 · 245 KB");
   });
 
   it("Should render the fallback for a non-previewable type or a bad payload", () => {

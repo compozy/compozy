@@ -247,6 +247,19 @@ describe("MessageMarkdown file paths", () => {
     localStorage.removeItem("compozy.open-target");
   });
 
+  // US-005.AC-5: the tooltip names the target the modifier click opens in.
+  it("Should name the last-used Open in target in the path tooltip", async () => {
+    stubShell("darwin");
+    window.compozyShell!.files!.listOpenTargets = async () => [
+      { id: "cursor", label: "Cursor", kind: "editor", supportsLine: true },
+    ];
+    localStorage.setItem("compozy.open-target", "cursor");
+    renderTranscript(<MessageMarkdown openPaths content="See `src/a.ts:12:3`." />);
+    fireEvent.focus(screen.getByRole("button", { name: "Open a.ts in viewer" }));
+    expect(await screen.findByText(/opens in Cursor/)).toBeInTheDocument();
+    localStorage.removeItem("compozy.open-target");
+  });
+
   it("Should open an inline path on Cmd+click with the resolved path and roots (UT-040)", async () => {
     const openInEditor = stubShell("darwin");
     renderTranscript(<MessageMarkdown openPaths content="Changed `internal/a.go:42` here." />);

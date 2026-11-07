@@ -1,9 +1,15 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { DropdownMenuItem } from "../../dropdown-menu";
 import { FileTree, type FileTreeProps } from "../file-tree";
-import { buildRowDecoration, planPathSync } from "../file-tree-model";
+import {
+  buildRowDecoration,
+  planPathSync,
+  toGitStatusEntries,
+  UNLOADED_CHANGES_ENTRY,
+} from "../file-tree-model";
 
 function treeRoot(container: HTMLElement): ShadowRoot {
   const host = container.querySelector("file-tree-container");
@@ -85,6 +91,39 @@ describe("FileTree", () => {
     await waitFor(() => row(container, "web/src/main.tsx"));
   });
 
+  it("Should open the row menu at a right-clicked row and close it after an action", async () => {
+    const onCopy = vi.fn();
+    const { container } = render(
+      <FileTree
+        aria-label="Project files"
+        paths={["web/", "README.md"]}
+        rowMenu={(item, { close }) =>
+          item.path === "README.md" ? null : (
+            <DropdownMenuItem
+              onClick={() => {
+                onCopy(item);
+                close();
+              }}
+            >
+              Copy path
+            </DropdownMenuItem>
+          )
+        }
+      />
+    );
+    await waitFor(() => row(container, "web/"));
+
+    fireEvent.contextMenu(row(container, "web/"));
+    const menu = await screen.findByRole("menu", { name: "Actions for web" });
+    expect(menu).toHaveAttribute("data-file-tree-context-menu-root", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy path" }));
+    expect(onCopy).toHaveBeenCalledWith({ kind: "directory", name: "web", path: "web/" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    fireEvent.contextMenu(row(container, "README.md"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("Should render the empty slot when there are no paths", () => {
     const { getByText } = render(
       <FileTree aria-label="Project files" paths={[]} empty={<p>This folder is empty</p>} />
@@ -99,6 +138,16 @@ describe("FileTree", () => {
       { type: "remove", path: "a/", recursive: true },
       { type: "add", path: "n/" },
       { type: "add", path: "n/m.ts" },
+    ]);
+  });
+
+  // US-001.AC-4: an unloaded changed directory gets Pierre's own dot through one placeholder.
+  it("Should mark an unloaded changed directory with a placeholder descendant status", () => {
+    expect(
+      toGitStatusEntries({ "web/": { containsChanges: true }, "go.mod": { status: "modified" } })
+    ).toEqual([
+      { path: `web/${UNLOADED_CHANGES_ENTRY}`, status: "modified" },
+      { path: "go.mod", status: "modified" },
     ]);
   });
 

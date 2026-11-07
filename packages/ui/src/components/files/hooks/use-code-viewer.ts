@@ -89,16 +89,26 @@ export function useCodeViewer({
   }, [path, activeFindLine, activeFindMatch, version]);
 
   const { scheduleSync, unsafeCSS } = find;
+  // Pierre paints nothing until its highlighter (or worker pool) is ready; until its first
+  // render the viewer shows the lines as plain text, so it is never blank.
+  const [painted, setPainted] = React.useState(false);
+  const onPostRender = React.useCallback(
+    (_node: HTMLElement, _instance: unknown, phase: "mount" | "update" | "unmount") => {
+      if (phase !== "unmount") setPainted(true);
+      scheduleSync();
+    },
+    [scheduleSync]
+  );
   const options = React.useMemo(
     () => ({
       theme: PIERRE_CODE_THEMES,
       themeType,
       disableFileHeader: true,
       overflow: wrap ? ("wrap" as const) : ("scroll" as const),
-      onPostRender: scheduleSync,
+      onPostRender,
       unsafeCSS,
     }),
-    [themeType, wrap, scheduleSync, unsafeCSS]
+    [themeType, wrap, onPostRender, unsafeCSS]
   );
 
   return {
@@ -109,6 +119,7 @@ export function useCodeViewer({
     lineCount,
     onScroll: scheduleSync,
     options,
+    painted,
     selectedLines,
     target,
   };

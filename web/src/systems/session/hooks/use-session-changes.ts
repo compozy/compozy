@@ -11,7 +11,12 @@ import {
   type SessionChangesScope,
   type SessionChangesSummary,
 } from "../adapters/session-changes-api";
-import { firstChangedLine, type SessionChangeItem } from "../lib/session-changes";
+import {
+  firstChangedLine,
+  type SessionChangeExpandBlock,
+  type SessionChangeExpandRefusal,
+  type SessionChangeItem,
+} from "../lib/session-changes";
 import {
   createPatchBatcher,
   nextStaleFence,
@@ -49,6 +54,8 @@ export interface SessionChangesModel {
   loadContents: (item: SessionChangeItem) => Promise<DiffViewerContents>;
   noteOf: (id: string) => SessionChangeNote | undefined;
   firstLineOf: (id: string) => number | undefined;
+  /** Files whose context expansion the daemon refused (too large, sensitive), by path. */
+  expandRefusals: ReadonlyMap<string, SessionChangeExpandRefusal>;
 }
 
 class StalePatchError extends Error {
@@ -91,6 +98,13 @@ export function useSessionChanges(input: UseSessionChangesInput): SessionChanges
   const [fence, dispatchFence] = useReducer(nextStaleFence, "clean" as StaleFenceState);
   const [notes] = useState(() => new Map<string, SessionChangeNote>());
   const [firstLines] = useState(() => new Map<string, number>());
+  const [expandRefusals, setExpandRefusals] = useState<
+    ReadonlyMap<string, SessionChangeExpandRefusal>
+  >(() => new Map());
+  const refuseExpansion = (item: SessionChangeItem, reason: SessionChangeExpandBlock) =>
+    setExpandRefusals(current =>
+      new Map(current).set(item.id, { version: String(item.version), reason })
+    );
   const staleIds = useRef(new Set<string>());
   const reloadItemsRef = useRef(input.reloadItems);
   const refetchRef = useRef(query.refetch);
@@ -182,7 +196,10 @@ export function useSessionChanges(input: UseSessionChangesInput): SessionChanges
         { reveal: revealed.has(item.path) }
       );
     } catch (error) {
-      if (sessionChangesErrorCode(error) === "changes_stale") markStale(item.id);
+      const code = sessionChangesErrorCode(error);
+      if (code === "changes_stale") markStale(item.id);
+      // Over the expand cap: the control goes away and the header says why (US-007.EC-5).
+      if (code === "too_large_to_expand") refuseExpansion(item, "too_large");
       throw error;
     }
     if (contents.fingerprint !== item.fingerprint) {
@@ -190,6 +207,7 @@ export function useSessionChanges(input: UseSessionChangesInput): SessionChanges
       throw new StalePatchError(item.path);
     }
     if (contents.old?.sensitive || contents.new?.sensitive) {
+      refuseExpansion(item, "sensitive");
       throw new Error("sensitive contents stay hidden");
     }
     return { oldText: contents.old?.text ?? null, newText: contents.new?.text ?? "" };
@@ -212,5 +230,6 @@ export function useSessionChanges(input: UseSessionChangesInput): SessionChanges
     loadContents,
     noteOf: id => notes.get(id),
     firstLineOf: id => firstLines.get(id),
+    expandRefusals,
   };
 }

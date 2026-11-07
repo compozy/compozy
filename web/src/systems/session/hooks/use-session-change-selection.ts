@@ -24,6 +24,29 @@ export function useBaseSelectorOpen(errorCode: string | null) {
 }
 
 /**
+ * A persisted base that no longer exists falls back to the default base instead of staying
+ * persisted, so focus refreshes stop asking for it (US-008.EC-1). The lost ref stays named
+ * until the operator picks a base or scope.
+ */
+export function useMissingBaseFallback(
+  errorCode: string | null,
+  base: string | undefined,
+  clearBase: () => void
+) {
+  const missing = errorCode === "base_not_found" && base ? base : null;
+  const [lost, setLost] = useState<string | null>(null);
+  if (missing !== null && lost !== missing) setLost(missing);
+  const clearBaseRef = useRef(clearBase);
+  useEffect(() => {
+    clearBaseRef.current = clearBase;
+  });
+  useEffect(() => {
+    if (missing !== null) clearBaseRef.current();
+  }, [missing]);
+  return { missingBase: lost, dismissMissingBase: () => setLost(null) };
+}
+
+/**
  * The selected changed file: tree clicks, `[`/`]` steps, scrolling the diffs, and a
  * changed-file row's focus request (US-005.AC-6). A file that leaves the summary hands its
  * selection to the file now at its place (US-010.EC-1).

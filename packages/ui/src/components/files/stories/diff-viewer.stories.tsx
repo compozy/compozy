@@ -64,7 +64,7 @@ const meta: Meta<typeof DiffViewer> = {
     docs: {
       description: {
         component:
-          "Virtualized multi-file diff over `@pierre/diffs` `CodeView`. Patches load per file as it nears the viewport; `version` bumps refetch; `loadable: false` renders header-only; `loadContents` enables expanding unchanged context.",
+          "Virtualized multi-file diff over `@pierre/diffs` `CodeView`. Patches load per file as it nears the viewport; `version` bumps refetch; `loadable: false` renders header-only; `loadContents` enables expanding unchanged context, and `expandable: false` turns it off for one item.",
       },
     },
   },
@@ -90,6 +90,22 @@ export const Split: Story = { args: { mode: "split" } };
 export const Collapsed: Story = {
   name: "Collapse all",
   args: { mode: "unified", collapsed: true },
+};
+
+export const NotExpandable: Story = {
+  name: "Context not expandable",
+  args: {
+    mode: "unified",
+    items: [{ ...items[0]!, expandable: false }, items[1]!],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`expandable: false` keeps one file's unchanged context collapsed (for example contents over the expand cap); the header slot says why.",
+      },
+    },
+  },
 };
 
 export const OneFileAtATime: Story = {

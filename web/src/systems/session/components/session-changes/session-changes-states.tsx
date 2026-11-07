@@ -172,6 +172,18 @@ export function ChangesRefreshFailed({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/** The chosen base is gone; Changes compares against the default base (US-008.EC-1). */
+export function ChangesBaseFallbackNote({ base }: { base: string }) {
+  return (
+    <Alert variant="warning" className="rounded-none border-x-0 border-t-0 py-1.5" role="status">
+      <GitBranch aria-hidden />
+      <AlertDescription data-testid="changes-base-fallback">
+        Base {base} no longer exists. Showing changes against the default base.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 /** Large mode: one file at a time with steppers (US-009.AC-1, EC-2). */
 export function ChangesLargeBanner({
   index,

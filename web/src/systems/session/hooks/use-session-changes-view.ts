@@ -4,12 +4,17 @@ import { useEffect, useState, type RefObject } from "react";
 import type { DiffViewerHandle } from "@compozy/ui";
 
 import { copyFilePath, fileViewerTarget } from "@/systems/files";
+import { useShellFocusedSessionId } from "@/systems/os";
 
 import type { SessionChangesScope } from "../adapters/session-changes-api";
 import { isLargeDiff, sessionChangeItems, type SessionChangeItem } from "../lib/session-changes";
 import { sessionChangeBasesOptions } from "../lib/session-changes-query";
 import { useSessionChanges, type SessionChangesModel } from "./use-session-changes";
-import { useBaseSelectorOpen, useSessionChangeSelection } from "./use-session-change-selection";
+import {
+  useBaseSelectorOpen,
+  useMissingBaseFallback,
+  useSessionChangeSelection,
+} from "./use-session-change-selection";
 import { useSessionChangesLiveRefresh } from "./use-session-changes-live-refresh";
 import {
   requestSessionReviewFile,
@@ -45,6 +50,8 @@ export interface SessionChangesView {
   scope: SessionChangesScope;
   branchAvailable: boolean;
   baseRef: string | undefined;
+  /** A chosen base that no longer exists; Changes fell back to the default base. */
+  missingBase: string | null;
   mode: "split" | "unified";
   narrow: boolean;
   treeOpen: boolean;
@@ -100,13 +107,25 @@ export function useSessionChangesView({
     workspaceId,
     sessionId,
     enabled: changes.summary !== undefined,
+    windowFocused: useShellFocusedSessionId() === sessionId,
     onRefresh: changes.refresh,
   });
   const bases = useQuery(sessionChangeBasesOptions(workspaceId, sessionId, ""));
   const [baseOpen, setBaseOpen] = useBaseSelectorOpen(changes.errorCode);
+  const { missingBase, dismissMissingBase } = useMissingBaseFallback(
+    changes.errorCode,
+    review.base,
+    () => review.setChangesPreference({ base: undefined })
+  );
 
   const { summary } = changes;
-  const items = summary ? sessionChangeItems(summary, { revealed, collapsed }) : [];
+  const items = summary
+    ? sessionChangeItems(summary, {
+        revealed,
+        collapsed,
+        expandRefusals: changes.expandRefusals,
+      })
+    : [];
   const large = summary ? isLargeDiff(summary.totals) : false;
   const selection = useSessionChangeSelection({
     sessionId,
@@ -131,6 +150,7 @@ export function useSessionChangesView({
     scope,
     branchAvailable: bases.data?.resolvable !== false,
     baseRef: summary?.base.ref || review.base,
+    missingBase,
     mode: narrow ? "unified" : review.diffMode,
     narrow,
     treeOpen: narrow ? narrowTreeOpen : review.changesTree,
@@ -152,8 +172,14 @@ export function useSessionChangesView({
       if (narrow) return;
       review.setChangesPreference({ diffMode: review.diffMode === "split" ? "unified" : "split" });
     },
-    setScope: next => review.setChangesPreference({ scope: next }),
-    setBase: ref => review.setChangesPreference({ base: ref, scope: "branch" }),
+    setScope: next => {
+      dismissMissingBase();
+      review.setChangesPreference({ scope: next });
+    },
+    setBase: ref => {
+      dismissMissingBase();
+      review.setChangesPreference({ base: ref, scope: "branch" });
+    },
     reveal: path => setRevealed(prev => new Set(prev).add(path)),
     openInViewer: item => {
       if (item.file.status === "deleted") return;

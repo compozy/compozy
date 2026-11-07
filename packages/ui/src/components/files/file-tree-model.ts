@@ -27,6 +27,11 @@ export interface FileTreeDecoration {
   deletions?: number;
   sensitive?: boolean;
   symlink?: boolean;
+  /**
+   * A directory whose descendants changed but are not loaded yet. Pierre draws its own dot once
+   * a changed descendant is in the tree, so set this only while none is.
+   */
+  containsChanges?: boolean;
 }
 
 interface DecorationPart {
@@ -39,6 +44,13 @@ export type FileTreeDecorations = Readonly<Record<string, FileTreeDecoration>>;
 export const TREE_SPINNER_ICON = "compozy-tree-spinner";
 export const TREE_SYMLINK_ICON = "compozy-tree-symlink";
 const TREE_LOCK_ICON = "file-tree-icon-lock";
+/**
+ * Pierre marks a directory "contains changes" only from descendant status entries, and keeps
+ * entries for paths it has not loaded. An unloaded changed directory gets one entry under this
+ * name, so its dot is Pierre's own dot in the git lane. The name starts with U+2063 (invisible
+ * separator) so it cannot collide with a real file in practice, and it never becomes a row.
+ */
+export const UNLOADED_CHANGES_ENTRY = "\u2063compozy-unloaded-changes";
 
 // Custom decoration glyphs live in the tree's own shadow root, so they ship as
 // a sprite sheet instead of React icons. The spinner animates through SMIL so
@@ -125,6 +137,9 @@ export function toGitStatusEntries(decorations: FileTreeDecorations | undefined)
   for (const [path, decoration] of Object.entries(decorations)) {
     const status = decoration.status ? PIERRE_STATUS[decoration.status] : null;
     if (status) entries.push({ path, status });
+    if (decoration.containsChanges && isDirectoryPath(path)) {
+      entries.push({ path: `${path}${UNLOADED_CHANGES_ENTRY}`, status: "modified" });
+    }
   }
   return entries;
 }

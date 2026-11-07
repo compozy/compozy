@@ -6,7 +6,11 @@ import {
   type ReactNode,
 } from "react";
 
+import { useQuery } from "@tanstack/react-query";
+
 import { Kbd, MarkdownAnchor, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { openTargetsOptions } from "@/systems/files";
+import { lastOpenTarget } from "@/systems/os";
 
 import type { FilePathLinks } from "../hooks/use-file-path-links";
 import { useFilePathEditorOpen } from "../hooks/use-file-path-editor-open";
@@ -86,15 +90,25 @@ function FilePathAffordance({
       </TooltipTrigger>
       <TooltipContent className="gap-1.5">
         Open in viewer
-        {editor ? (
-          <>
-            {" · "}
-            <Kbd>{editor.modifier === "meta" ? "⌘-click" : "Ctrl-click"}</Kbd> opens in last-used
-            app
-          </>
-        ) : null}
+        {editor ? <ModifierClickHint modifier={editor.modifier} /> : null}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/** The Cmd/Ctrl-click target the transcript link opens in (US-005.AC-5): "⌘-click opens in Cursor". */
+function ModifierClickHint({ modifier }: { modifier: "meta" | "ctrl" }) {
+  const { data: targets = [] } = useQuery(openTargetsOptions());
+  const remembered = lastOpenTarget();
+  const target = targets.find(item => item.id === remembered);
+  // An unset editor command opens in the system's default editor.
+  const name = target ? target.label : remembered === "configured" ? "your default editor" : null;
+  return (
+    <>
+      {" · "}
+      <Kbd>{modifier === "meta" ? "⌘-click" : "Ctrl-click"}</Kbd> opens in{" "}
+      {name ?? "the last-used app"}
+    </>
   );
 }
 

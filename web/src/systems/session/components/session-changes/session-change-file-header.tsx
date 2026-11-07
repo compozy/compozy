@@ -24,17 +24,31 @@ function SplitPath({ path }: { path: string }) {
   );
 }
 
-/** Why a file shows no diff; `null` when the patch renders (or is still loading). */
+type FileNoteReason =
+  | "binary"
+  | "gated"
+  | SessionChangeNote
+  | "error"
+  | "too_large_to_expand"
+  | "sensitive_context";
+
+/**
+ * Why a file shows no diff, or why its drawn diff can't expand context; `null` when the patch
+ * renders as usual (or is still loading).
+ */
 function fileNote(
   item: SessionChangeItem,
   state: DiffViewerFileHeaderState,
   note: SessionChangeNote | undefined,
   revealed: boolean
-): "binary" | "gated" | SessionChangeNote | "error" | null {
+): FileNoteReason | null {
   if (item.file.binary) return "binary";
   if (item.file.sensitive && !revealed) return "gated";
   if (state.status === "error") return "error";
   if (state.status === "unavailable") return note ?? null;
+  if (state.status === "ready" && item.expandBlock) {
+    return item.expandBlock === "too_large" ? "too_large_to_expand" : "sensitive_context";
+  }
   return null;
 }
 
@@ -165,7 +179,7 @@ function FileNote({
   onRetry,
   onOpenInViewer,
 }: {
-  reason: NonNullable<ReturnType<typeof fileNote>>;
+  reason: FileNoteReason;
   onReveal: () => void;
   onRetry: () => void;
   onOpenInViewer: () => void;
@@ -185,6 +199,8 @@ function FileNote({
       button: noteAction("Open in viewer", onOpenInViewer),
     },
     no_content: { text: "No content changes", button: null },
+    too_large_to_expand: { text: "File too large to expand", button: null },
+    sensitive_context: { text: "Sensitive file · context stays hidden", button: null },
     error: { text: "Couldn't load this diff", button: noteAction("Retry", onRetry) },
   }[reason];
   return (

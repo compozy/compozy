@@ -106,6 +106,51 @@ not the git error, so there is no root cause. Next step: log the underlying git 
 - `compozy workspace add` writes `.compozy/workspace.toml` into the project, so it shows as an
   untracked change (251 files in the 250-file project).
 
+## Review remediation (frontend and desktop)
+
+Branch `feat/file-explorer-fix-frontend`, based on `c24a0f887`. It fixes the Opus implementation
+review findings O-1 to O-10 (`.compozy/tasks/file-explorer/qa/impl-review-opus.md`). Backend
+findings are fixed on a separate branch.
+
+| Finding | Fix | Covering test |
+| --- | --- | --- |
+| O-1 Open in menu | The configured editor is listed only when `editor_command` is set. Catalog has all 13 spec editors. Menu: icons, separators, file manager (Finder / Show in folder / Show in Explorer), Copy path, Refresh list / Editor settings… footer, "Set an editor in Settings" when no editor exists. Docs and `APP-open-in-targets` were rewritten back to this spec behavior. | `file-opener.test.ts` (configured gating, catalog order, platform labels, new argv cases); `open-in-button.test.tsx`; desktop E2E-008 |
+| O-2 Tree row menu | `FileTree` renders `rowMenu` through `DropdownMenu`, anchored at the pointer. Rows offer Copy path, plus the Open in targets in the desktop app; directories open without a line. The root header has **Open folder in…**. | `packages/ui` `file-tree.test.tsx`; `open-in-button.test.tsx` (`FilesTreeRowMenu`) |
+| O-3 Silent expand failure | `DiffViewerItem.expandable`; on `too_large_to_expand` or sensitive contents the expand control goes and the header says "File too large to expand" or "Sensitive file · context stays hidden". | `diff-viewer.test.tsx`; `use-session-changes.test.tsx` |
+| O-4 Search ↑/↓ focus | The find bar focuses only on an explicit Cmd/Ctrl+F, not when seeded from Search. | `file-viewer-pane.test.tsx` ("keep stepping Search results") |
+| O-5 Keyboard tests | `[`/`]`, last-file boundary, Alt+S (persisted, ignored in inputs and narrow windows), result-list ↑/↓. | `use-session-changes.test.tsx`; `file-viewer-pane.test.tsx` |
+| O-6 Vanished editor | The toast names the editor ("Cursor is no longer available."), and the target list is re-detected, from both the button and Cmd-click. | `file-opener.test.ts`; `open-in-button.test.tsx` |
+| O-7 Credential confirmation | In-root credential files get "Open a file that may contain credentials?"; the outside-path text is unchanged. | `file-opener.test.ts` |
+| O-8 Target line, blank paint | CodeViewer target line uses `--color-brand` through Pierre's selection overrides. Light row contrast went from 1.03:1 (ΔE 1.0) to 1.26:1 (ΔE 15.3); dark went from 1.05:1 to 1.34:1 (ΔE 23.3). A plain numbered-text paint shows until the highlight renders. | `code-viewer.test.tsx`; Storybook captures in both themes |
+| O-9 Link tooltip | The tooltip reads "⌘-click opens in <last-used target>". | `message-markdown.test.tsx` |
+| O-10 Missing base | A persisted `base_not_found` base is cleared back to the default, with a notice. | `use-session-changes.test.tsx` |
+
+Operator assumptions:
+
+- **US-010.AC-2:** focusing the session's in-app OS window refreshes the Changes summary
+  (`useShellFocusedSessionId`). Covered by `use-session-changes.test.tsx` and
+  `os-interaction-hooks.test.tsx`.
+- **US-004.AC-1:** the image preview caption shows "W × H · size". Covered by `code-viewer.test.tsx`.
+- **US-001.AC-4:** implemented. The listing already carries `contains_changes`. An unloaded changed
+  folder feeds Pierre one placeholder descendant status, so it shows the tree's own dot. Covered by
+  `file-tree.test.tsx` and `file-tree-paths.test.ts`; Storybook captures in both themes.
+
+Verification (every `COMPOZY_*` variable unset for E2E):
+
+```sh
+cd web && bunx playwright test e2e/__tests__/files-explorer.spec.ts e2e/__tests__/session-changes.spec.ts  # 10 passed
+bun run --cwd desktop build:e2e-update                                                                     # ok
+cd desktop && bun x playwright test --config playwright.config.ts --grep 'E2E-008|E2E-001 \(#1167\)'      # 3 passed
+bunx turbo run typecheck --filter=./web --filter=./packages/ui --filter=./desktop                           # 6/6 ok
+```
+
+Real-browser checks (Storybook, light and dark): the tree row menu opens at the pointer; the unloaded
+folder dot matches the loaded one; the target line is visibly tinted. Captures are in
+`/tmp/fe-fix-shots/`.
+
+Still unverified: real editor launches, native confirmation sheets, and Finder reveal on a packaged
+build with real apps installed. `APP-open-in-targets` stays `partial`.
+
 ## Commands
 
 ```sh

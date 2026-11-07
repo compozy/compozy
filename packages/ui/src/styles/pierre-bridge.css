@@ -57,7 +57,7 @@
   --diffs-bg-buffer-override: var(--color-sunken);
   --diffs-bg-separator-override: var(--color-sunken);
   --diffs-bg-hover-override: var(--color-hover);
-  /* The target line (CodeViewer) and line selection share the selected-row role. */
+  /* Line selection takes the selected-row role. */
   --diffs-bg-selection-override: var(--color-selected);
   --diffs-bg-selection-number-override: var(--color-selected);
   --diffs-addition-color-override: var(--color-success);
@@ -67,4 +67,15 @@
   --diffs-bg-deletion-override: var(--color-destructive-tint);
   --diffs-bg-addition-number-override: var(--color-success-tint);
   --diffs-bg-deletion-number-override: var(--color-destructive-tint);
+}
+
+/* CodeViewer's target line rides the brand highlight. Pierre paints a selected
+   row as mix(row 82 %, target) in light and mix(row 75 %, target) in dark (the
+   gutter 75 % / 60 %), so a grey `selected` target all but vanished (1.03:1 on
+   white). The brand hue reads in both themes: light row #fbdfd5 (1.26:1,
+   ΔE 15), dark row #44251a (1.35:1, ΔE 24) on canvas. Find matches stay brand
+   tints over the text, with the current one underlined. */
+[data-slot="code-viewer"] {
+  --diffs-bg-selection-override: var(--color-brand);
+  --diffs-bg-selection-number-override: var(--color-brand);
 }

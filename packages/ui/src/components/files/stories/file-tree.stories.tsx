@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import * as React from "react";
 import { expect, fn, waitFor } from "storybook/test";
 
+import { DropdownMenuItem, DropdownMenuSeparator } from "../../dropdown-menu";
 import { Empty } from "../../empty";
 import { FileTree, type FileTreeDecorations } from "../file-tree";
 import { CHANGED_PATHS, CHILD_LISTINGS, ROOT_LISTING } from "./files-fixtures";
@@ -45,6 +46,8 @@ const explorerDecorations: FileTreeDecorations = {
   "internal/projectfiles/status.go": { status: "untracked" },
   "internal/api/files.go": { status: "added" },
   "web/src/main.tsx": { symlink: true },
+  // Unloaded until expanded; the daemon's listing says something below it changed.
+  "web/": { containsChanges: true },
 };
 
 function LazyExplorer({
@@ -151,5 +154,49 @@ export const EmptyFolder: Story = {
     "aria-label": "Project files",
     paths: [],
     empty: <Empty size="compact" title="This folder is empty" />,
+  },
+};
+
+export const RowMenu: Story = {
+  name: "Row menu",
+  args: {
+    "aria-label": "Project files",
+    paths: CHANGED_PATHS,
+    initialExpansion: "open",
+    rowMenu: (item, { close }) => (
+      <>
+        <DropdownMenuItem onClick={close}>Copy path</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={close}>Open in Cursor</DropdownMenuItem>
+        <DropdownMenuItem onClick={close}>
+          {item.kind === "directory" ? "Reveal folder in Finder" : "Reveal in Finder"}
+        </DropdownMenuItem>
+      </>
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Right-click a row, or press Shift+F10 on a focused row, to open its menu. The consumer returns `DropdownMenu` items; the tree anchors them at the row.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(treeRow(canvasElement, "docs/old.md")).not.toBeNull());
+    const row = treeRow(canvasElement, "docs/old.md");
+    const box = row?.getBoundingClientRect();
+    row?.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+        clientX: (box?.left ?? 0) + 24,
+        clientY: (box?.top ?? 0) + (box?.height ?? 0) / 2,
+      })
+    );
+    await waitFor(() =>
+      expect(canvasElement.ownerDocument.querySelector('[role="menu"]')).not.toBeNull()
+    );
   },
 };

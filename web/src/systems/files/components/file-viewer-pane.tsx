@@ -213,6 +213,7 @@ function stateBody(
           data={state.content.image_base64 ?? ""}
           mimeType={state.content.image_mime ?? ""}
           alt={basename(props.path)}
+          meta={formatFileSize(state.content.size)}
           fallback={<FileViewerBinaryState size={state.content.size} />}
           data-testid="file-viewer-image"
         />

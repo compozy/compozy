@@ -87,7 +87,7 @@ function harness(
         fsCalls.push(`stat ${path}`);
         const entry = entries[path];
         if (!entry) throw enoent(path);
-        return { isFile: () => entry === "file" };
+        return { isFile: () => entry === "file", isDirectory: () => entry === "dir" };
       },
     },
     async showMessageBox(window, messageBox) {
@@ -408,8 +408,9 @@ describe("file opener", () => {
     );
     expect(run.dialogs).toHaveLength(1);
     expect(at(run.dialogs, 0).detail).toBe(
-      "/Users/d/.aws/credentials\n\nAn agent mentioned this file. It may contain credentials."
+      "/Users/d/.aws/credentials\n\nIt may contain credentials, such as keys or tokens."
     );
+    expect(at(run.dialogs, 0).message).toBe("Open a file that may contain credentials?");
   });
 
   it("Should expand ~/ with the operator home before touching the filesystem", async () => {
@@ -650,7 +651,7 @@ describe("file opener", () => {
       expect(await run.open({ path, roots: [root] })).toEqual({ status: "opened" });
       expect(run.dialogs).toHaveLength(1);
       expect(at(run.dialogs, 0).detail).toBe(
-        `${path}\n\nAn agent mentioned this file. It may contain credentials.`
+        `${path}\n\nIt may contain credentials, such as keys or tokens.`
       );
     }
   });
@@ -668,6 +669,102 @@ describe("Open in targets", () => {
     });
     expect(targets.some(target => target.id === "sublime")).toBe(false);
     expect(h.loginShellPath).toHaveBeenCalledOnce();
+  });
+
+  it("Should list the configured editor only when editor_command is set", async () => {
+    const unset = harness({ settings: { body: settingsBody("") }, executables: [] });
+    expect(await unset.opener.listOpenTargets()).toEqual([
+      { id: "reveal", label: "Finder", kind: "reveal", supportsLine: false },
+    ]);
+    const older = harness({ settings: { body: settingsBody(null) }, executables: [] });
+    expect((await older.opener.listOpenTargets()).map(target => target.id)).toEqual(["reveal"]);
+    const failing = harness({ settings: { status: 500 }, executables: [] });
+    expect((await failing.opener.listOpenTargets()).map(target => target.id)).toEqual(["reveal"]);
+    const set = harness({ executables: [] });
+    expect(at(await set.opener.listOpenTargets(), 0)).toEqual({
+      id: "configured",
+      label: "Configured editor",
+      kind: "editor",
+      supportsLine: true,
+    });
+  });
+
+  it("Should detect every catalog editor in catalog order", async () => {
+    const binaries = [
+      "cursor",
+      "code",
+      "code-insiders",
+      "windsurf",
+      "zed",
+      "subl",
+      "idea",
+      "webstorm",
+      "goland",
+      "pycharm",
+      "xed",
+      "studio",
+      "fleet",
+    ];
+    const h = harness({
+      settings: { body: settingsBody("") },
+      executables: binaries.map(binary => `/usr/bin/${binary}`),
+    });
+    const targets = await h.opener.listOpenTargets();
+    expect(targets.map(target => target.label)).toEqual([
+      "Cursor",
+      "VS Code",
+      "VS Code Insiders",
+      "Windsurf",
+      "Zed",
+      "Sublime Text",
+      "IntelliJ IDEA",
+      "WebStorm",
+      "GoLand",
+      "PyCharm",
+      "Xcode",
+      "Android Studio",
+      "Fleet",
+      "Finder",
+    ]);
+    expect(targets.find(target => target.id === "fleet")?.supportsLine).toBe(false);
+  });
+
+  it.each([
+    ["linux", "Show in folder"],
+    ["win32", "Show in Explorer"],
+  ] as const)("Should label the %s file manager %s", async (platform, label) => {
+    const h = harness({ platform, settings: { body: settingsBody("") }, executables: [] });
+    expect(await h.opener.listOpenTargets()).toEqual([
+      { id: "reveal", label, kind: "reveal", supportsLine: false },
+    ]);
+  });
+
+  it("Should open a directory without a line in an editor, the configured editor, and Finder", async () => {
+    const entries = { "/repo": "dir", "/repo/src": "dir" } as const;
+    const editor = harness({ entries, executables: ["/usr/bin/cursor"] });
+    expect(
+      await editor.opener.openWith(
+        { target: "cursor", path: "/repo/src", roots: ["/repo"] },
+        WINDOW
+      )
+    ).toEqual({ status: "opened" });
+    expect(at(editor.spawned, 0).args).toEqual(["/repo/src"]);
+    const configured = harness({ entries });
+    expect(
+      await configured.opener.openWith(
+        { target: "configured", path: "/repo/src", roots: ["/repo"] },
+        WINDOW
+      )
+    ).toEqual({ status: "opened" });
+    expect(at(configured.spawned, 0).command).toBe("/usr/bin/code");
+    const reveal = harness({ entries });
+    expect(
+      await reveal.opener.openWith(
+        { target: "reveal", path: "/repo/src", roots: ["/repo"] },
+        WINDOW
+      )
+    ).toEqual({ status: "opened" });
+    expect(reveal.showItemInFolder).toHaveBeenCalledWith("/repo/src");
   });
 
   it("Should detect and launch a macOS application bundle when its CLI is absent", async () => {
@@ -709,6 +806,11 @@ describe("Open in targets", () => {
     ["vscode", "code", ["-g", "/repo/a.ts:12:3"]],
     ["zed", "zed", ["/repo/a.ts:12:3"]],
     ["idea", "idea", ["--line", "12", "/repo/a.ts"]],
+    ["vscode-insiders", "code-insiders", ["-g", "/repo/a.ts:12:3"]],
+    ["windsurf", "windsurf", ["-g", "/repo/a.ts:12:3"]],
+    ["pycharm", "pycharm", ["--line", "12", "/repo/a.ts"]],
+    ["android-studio", "studio", ["--line", "12", "/repo/a.ts"]],
+    ["fleet", "fleet", ["/repo/a.ts"]],
   ])("Should launch %s with fixed argv and no shell", async (target, binary, args) => {
     const h = harness({ entries: REPO, executables: ["/usr/bin/" + binary] });
     expect(
@@ -737,8 +839,10 @@ describe("Open in targets", () => {
     expect(await h.opener.openWith({ ...request, target: "arbitrary" }, WINDOW)).toMatchObject({
       code: "target_unknown",
     });
-    expect(await h.opener.openWith({ ...request, target: "cursor" }, WINDOW)).toMatchObject({
+    expect(await h.opener.openWith({ ...request, target: "cursor" }, WINDOW)).toEqual({
+      status: "error",
       code: "target_unavailable",
+      message: "Cursor is no longer available.",
     });
     expect(h.spawned).toEqual([]);
   });

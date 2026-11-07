@@ -4,7 +4,7 @@ area: ET
 title: Open transcript file paths in the session Review panel viewer
 persona: Dora
 journey: J-14
-expected: A plain click on a file path in an assistant message opens the session Review panel on Files, with the file in the in-app viewer at its line and the tree revealing it; every viewer state (sensitive gate, image, binary, truncated, not found, outside this project) renders; the panel replaces the Inspector and its open state and tab persist; "Open in Files window" opens the project's Files window on the same root and file; a User-scope session renders plain code with no Review panel.
+expected: A plain click on a file path in an assistant message opens the session Review panel on Files, with the file in the in-app viewer at its line and the tree revealing it; every viewer state (sensitive gate, image, binary, truncated, not found, outside this project) renders; the panel replaces the Inspector and its open state and tab persist; "Open in Files window" opens the project's Files window on the same root and file; a User-scope session renders plain code with no Review panel; unloaded changed folders show a dot, tree rows have a Copy path menu, image previews show their dimensions, and the target line is visible in both themes.
 entry_points: web session window transcript (inline code paths in assistant messages); session topbar Review panel toggle; Review panel Files tab tree and viewer header
 qa_status: pass
 bug_ids: BUG-20261107-files-root-internal-workspace-id
@@ -46,6 +46,12 @@ Walk:
    focuses that window.
 9. Open a User-scope session whose agent cites the same paths. They render as plain inline code,
    and there is no Review panel toggle.
+10. Review remediation (2026-11-07): a collapsed folder that contains changes shows the tree's dot
+    before it is expanded. Right-click a tree row (or Shift+F10): the menu offers **Copy path**,
+    plus the Open in targets in the desktop app. Open a PNG: the preview caption reads
+    "<width> × <height> · <size>". Open `file:200` in light and dark themes: the target line is
+    clearly tinted, and a large file shows plain numbered text instead of a blank pane while the
+    highlight loads.
 
 Owning automated coverage: web `file-path-links.test.ts` (UT-048–UT-051), `message-markdown.test.tsx`
 (UT-054), `use-session-topbar-slot.test.tsx` (UT-044), `file-viewer-pane.test.tsx` (UT-055 and the

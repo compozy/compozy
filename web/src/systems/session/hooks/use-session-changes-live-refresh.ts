@@ -19,16 +19,22 @@ function activeTurnId(session: SessionPayload | undefined): string {
  * Event-driven Changes refresh (US-010.AC-1). It watches what the session's live stream
  * already writes — the transcript cache and the session read — and debounces every settled
  * tool call or ended turn into one summary refetch. It opens no stream of its own.
+ *
+ * Focusing the session's OS window refreshes too (US-010.AC-2): switching between in-app
+ * windows never fires the browser focus that Query's `refetchOnWindowFocus` listens to.
  */
 export function useSessionChangesLiveRefresh({
   workspaceId,
   sessionId,
   enabled,
+  windowFocused = false,
   onRefresh,
 }: {
   workspaceId: string;
   sessionId: string;
   enabled: boolean;
+  /** The session's OS window is the focused one. */
+  windowFocused?: boolean;
   onRefresh: () => void;
 }): void {
   const queryClient = useQueryClient();
@@ -36,6 +42,13 @@ export function useSessionChangesLiveRefresh({
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   });
+
+  const focusedRef = useRef(windowFocused);
+  useEffect(() => {
+    const wasFocused = focusedRef.current;
+    focusedRef.current = windowFocused;
+    if (enabled && windowFocused && !wasFocused) onRefreshRef.current();
+  }, [enabled, windowFocused]);
 
   useEffect(() => {
     if (!enabled || !workspaceId || !sessionId) return;

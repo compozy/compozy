@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { notifyUser } from "@/lib/user-feedback";
+import { filesKeys } from "@/systems/files";
 import {
   desktopShellBridge,
   lastOpenTarget,
@@ -69,6 +70,10 @@ export function useOpenInEditor(): OpenInEditor | null {
           code: "editor_failed",
           message: "Couldn't open the editor. Check the editor command in Settings.",
         };
+      }
+      // The remembered editor went away (US-006.EC-1): re-detect so Open in stops offering it.
+      if (result.status === "error" && result.code === "target_unavailable") {
+        void queryClient.invalidateQueries({ queryKey: filesKeys.openTargets() });
       }
       reportOpenInEditorResult(result, path, openSettings);
     },

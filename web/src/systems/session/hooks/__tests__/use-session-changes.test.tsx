@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionChangedFilesRowView } from "@/components/assistant-ui/session-changed-files-row";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 
 import type { SessionChangesSummary } from "../../adapters/session-changes-api";
+import { SessionChangesTab } from "../../components/session-changes/session-changes-tab";
 import { sessionKeys } from "../../lib/query-keys";
 import { sessionChangeItems } from "../../lib/session-changes";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
@@ -28,9 +31,11 @@ vi.mock("../../adapters/session-changes-api", async importOriginal => ({
 
 import {
   SessionChangesApiError,
+  getSessionChangeContents,
   getSessionChangePatches,
   getSessionChanges,
   listSessionChangeBases,
+  type SessionChangeTarget,
 } from "../../adapters/session-changes-api";
 
 const WORKSPACE_ID = "ws_changes";
@@ -104,8 +109,73 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
+
+/** A patch with unchanged lines above its hunk, so the diff offers to expand context. */
+function contextPatch(path: string): string {
+  return [
+    `diff --git a/${path} b/${path}`,
+    "index 1111111..2222222 100644",
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -10,3 +10,4 @@",
+    " a",
+    "+b",
+    " c",
+    " d",
+    "",
+  ].join("\n");
+}
+
+function mockPatches() {
+  vi.mocked(getSessionChangePatches).mockImplementation(
+    async (_request, targets: readonly SessionChangeTarget[]) =>
+      ({
+        patches: targets.map(target => ({
+          path: target.path,
+          fingerprint: `f:${target.path}`,
+          patch: contextPatch(target.path),
+        })),
+      }) as Awaited<ReturnType<typeof getSessionChangePatches>>
+  );
+}
+
+function ChangesTab({ sessionId }: { sessionId: string }) {
+  const review = useSessionReviewPanelState(sessionId);
+  return <SessionChangesTab workspaceId={WORKSPACE_ID} sessionId={sessionId} review={review} />;
+}
+
+function renderChangesTab(sessionId: string, wrap?: (children: ReactNode) => ReactNode) {
+  const Wrapper = createWrapper(newQueryClient());
+  const tab = <ChangesTab sessionId={sessionId} />;
+  return render(<Wrapper>{wrap ? wrap(tab) : tab}</Wrapper>);
+}
+
+function reviewPreference(sessionId: string) {
+  return sessionReviewPanelStore.getSnapshot().context.bySession[sessionId];
+}
+
+function expandControls(path: string): number {
+  const header = document.querySelector(`[data-testid="changes-file-header"][data-path="${path}"]`);
+  const host = header?.closest("diffs-container");
+  return host?.shadowRoot?.querySelectorAll("[data-expand-button]").length ?? 0;
+}
+
+/** Reports the Changes tab as narrower than its split breakpoint; other observers stay idle. */
+class NarrowResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+  observe(target: Element) {
+    if (target.getAttribute("data-testid") !== "session-changes-tab") return;
+    this.callback(
+      [{ contentRect: { width: 600 } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver
+    );
+  }
+  unobserve() {}
+  disconnect() {}
+}
 
 describe("useSessionChangesLiveRefresh", () => {
   // UT-057. Invariant: a burst of settled tool calls debounces into exactly one summary refresh.
@@ -140,6 +210,60 @@ describe("useSessionChangesLiveRefresh", () => {
       await vi.advanceTimersByTimeAsync(3_000);
     });
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  // US-010.AC-2. Invariant: the session's OS window gaining focus refreshes the summary once;
+  // a window that was already focused, or loses focus, does not.
+  it("Should refresh the summary when the session window gains focus", () => {
+    const onRefresh = vi.fn();
+    const { rerender } = renderHook(
+      ({ windowFocused }: { windowFocused: boolean }) =>
+        useSessionChangesLiveRefresh({
+          workspaceId: WORKSPACE_ID,
+          sessionId: "sess-window-focus",
+          enabled: true,
+          windowFocused,
+          onRefresh,
+        }),
+      { wrapper: createWrapper(newQueryClient()), initialProps: { windowFocused: true } }
+    );
+    expect(onRefresh).not.toHaveBeenCalled();
+    rerender({ windowFocused: false });
+    expect(onRefresh).not.toHaveBeenCalled();
+    rerender({ windowFocused: true });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  // US-010.AC-2 (operator decision): switching between in-app OS windows counts as focusing
+  // the session window, so the Changes tab rereads its summary.
+  it("Should reread the summary when the shell focuses the session's window", async () => {
+    const sessionId = "sess-shell-focus";
+    const windows = {
+      "w-session": {
+        desktopId: "d1",
+        minimized: false,
+        stackActive: true,
+        route: { pathname: `/agents/codex/sessions/${sessionId}` },
+      },
+      "w-files": {
+        desktopId: "d1",
+        minimized: false,
+        stackActive: true,
+        route: { pathname: "/files/ws_changes" },
+      },
+    };
+    const projection = createAtom({ activeDesktopId: "d1", focusedId: "w-files", windows });
+    const shell = { projection } as unknown as OsShellHandle;
+    vi.mocked(getSessionChanges).mockResolvedValue(changesSummary(["a.go"]));
+    mockPatches();
+    renderChangesTab(sessionId, children => (
+      <OsShellContext.Provider value={shell}>{children}</OsShellContext.Provider>
+    ));
+    await screen.findByTestId("changes-tree");
+    expect(getSessionChanges).toHaveBeenCalledTimes(1);
+
+    act(() => projection.set({ activeDesktopId: "d1", focusedId: "w-session", windows }));
+    await waitFor(() => expect(getSessionChanges).toHaveBeenCalledTimes(2));
   });
 });
 
@@ -239,5 +363,122 @@ describe("changed-file routing", () => {
       kind: "file",
       path: "missing.go",
     });
+  });
+});
+
+describe("SessionChangesTab", () => {
+  // US-009.AC-1/EC-2. Invariant: `]` steps to the next file, `[` back, and on the last file
+  // Next is disabled and `]` stays put.
+  it("Should step files with the bracket keys and stop at the last file", async () => {
+    const sessionId = "sess-bracket-step";
+    vi.mocked(getSessionChanges).mockResolvedValue(
+      changesSummary(["a.go", "b.go", "c.go"], {
+        totals: { files: 3, additions: 20_001, deletions: 0 },
+      })
+    );
+    mockPatches();
+    renderChangesTab(sessionId);
+    const position = await screen.findByTestId("changes-large-position");
+    const tab = screen.getByTestId("session-changes-tab");
+    expect(position).toHaveTextContent("1 of 3");
+
+    fireEvent.keyDown(tab, { key: "]" });
+    expect(position).toHaveTextContent("2 of 3");
+    fireEvent.keyDown(tab, { key: "[" });
+    expect(position).toHaveTextContent("1 of 3");
+    fireEvent.keyDown(tab, { key: "]" });
+    fireEvent.keyDown(tab, { key: "]" });
+    expect(position).toHaveTextContent("3 of 3");
+    expect(screen.getByTestId("changes-next-file")).toBeDisabled();
+    fireEvent.keyDown(tab, { key: "]" });
+    expect(position).toHaveTextContent("3 of 3");
+  });
+
+  // US-007.AC-5. Invariant: Alt+S flips the persisted split/unified mode, except while typing
+  // in a text field.
+  it("Should toggle the persisted diff mode with Alt+S outside text fields", async () => {
+    const sessionId = "sess-alt-s";
+    vi.mocked(getSessionChanges).mockResolvedValue(changesSummary(["a.go"]));
+    mockPatches();
+    renderChangesTab(sessionId);
+    const viewer = await screen.findByTestId("changes-diff-list");
+    const tab = screen.getByTestId("session-changes-tab");
+
+    fireEvent.keyDown(tab, { altKey: true, code: "KeyS" });
+    expect(reviewPreference(sessionId)?.diffMode).toBe("split");
+    expect(viewer).toHaveAttribute("data-mode", "split");
+
+    fireEvent.keyDown(screen.getByLabelText("Filter changed files"), {
+      altKey: true,
+      code: "KeyS",
+    });
+    expect(reviewPreference(sessionId)?.diffMode).toBe("split");
+
+    fireEvent.keyDown(tab, { altKey: true, code: "KeyS" });
+    expect(reviewPreference(sessionId)?.diffMode).toBe("unified");
+  });
+
+  // US-007.AC-5. Invariant: a narrow session window is always unified; Alt+S leaves the
+  // persisted mode alone there.
+  it("Should ignore Alt+S in a narrow session window", async () => {
+    vi.stubGlobal("ResizeObserver", NarrowResizeObserver);
+    const sessionId = "sess-alt-s-narrow";
+    vi.mocked(getSessionChanges).mockResolvedValue(changesSummary(["a.go"]));
+    mockPatches();
+    renderChangesTab(sessionId);
+    const viewer = await screen.findByTestId("changes-diff-list");
+
+    fireEvent.keyDown(screen.getByTestId("session-changes-tab"), { altKey: true, code: "KeyS" });
+    expect(reviewPreference(sessionId)?.diffMode).toBeUndefined();
+    expect(viewer).toHaveAttribute("data-mode", "unified");
+  });
+
+  // US-007.EC-5. Invariant: when the daemon refuses a file's full contents as too large, the
+  // expand control goes away and the header says "File too large to expand".
+  it("Should drop the expand control and say why when a file is too large to expand", async () => {
+    const sessionId = "sess-too-large-expand";
+    vi.mocked(getSessionChanges).mockResolvedValue(changesSummary(["big.go"]));
+    mockPatches();
+    vi.mocked(getSessionChangeContents).mockRejectedValue(
+      new SessionChangesApiError("file is too large to expand", 422, "too_large_to_expand")
+    );
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    renderChangesTab(sessionId);
+    await waitFor(() => expect(expandControls("big.go")).toBeGreaterThan(0));
+
+    const header = screen.getByTestId("changes-file-header");
+    const expand = header
+      .closest("diffs-container")!
+      .shadowRoot!.querySelector<HTMLElement>("[data-expand-button]")!;
+    fireEvent.click(expand);
+
+    await waitFor(() => expect(getSessionChangeContents).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("File too large to expand")).toBeInTheDocument();
+    await waitFor(() => expect(expandControls("big.go")).toBe(0));
+  });
+
+  // US-008.EC-1. Invariant: a persisted base that no longer exists is dropped back to the
+  // default base with a notice, so later reads stop asking for it.
+  it("Should fall back to the default base when the persisted base is gone", async () => {
+    const sessionId = "sess-missing-base";
+    sessionReviewPanelStore.trigger.changesPreferenceChanged({
+      sessionId,
+      patch: { scope: "branch", base: "origin/release-1" },
+    });
+    vi.mocked(getSessionChanges).mockImplementation(async request => {
+      if (request.base === "origin/release-1") {
+        throw new SessionChangesApiError("base ref not found", 409, "base_not_found");
+      }
+      return changesSummary(["a.go"]);
+    });
+    mockPatches();
+    renderChangesTab(sessionId);
+
+    expect(await screen.findByTestId("changes-base-fallback")).toHaveTextContent(
+      "Base origin/release-1 no longer exists. Showing changes against the default base."
+    );
+    expect(reviewPreference(sessionId)?.base).toBeUndefined();
+    expect(vi.mocked(getSessionChanges).mock.lastCall?.[0].base).toBeUndefined();
+    expect(await screen.findByTestId("changes-tree")).toHaveAttribute("data-file-count", "1");
   });
 });

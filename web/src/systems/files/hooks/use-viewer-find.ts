@@ -12,7 +12,7 @@ export interface UseViewerFindResult {
   matches: readonly CodeViewerMatch[];
   /** Index of the current match, or `null` with no matches. */
   active: number | null;
-  /** Bumps on every explicit open, so the bar refocuses its input. */
+  /** Bumps on every explicit open, so the bar refocuses its input; `0` for a seeded open. */
   focusToken: number;
   show: () => void;
   close: () => void;

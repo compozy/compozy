@@ -72,6 +72,46 @@ describe("DiffViewer", () => {
     expect(loadPatch).toHaveBeenCalledTimes(2);
   });
 
+  // US-007.EC-5. Invariant: an item marked non-expandable keeps its hunks but loses the
+  // expand control, and never asks for contents.
+  it("Should hide the expand control for a non-expandable item", async () => {
+    const contextPatch = (path: string) =>
+      [
+        `diff --git a/${path} b/${path}`,
+        "index 1111111..2222222 100644",
+        `--- a/${path}`,
+        `+++ b/${path}`,
+        "@@ -10,3 +10,4 @@",
+        " a",
+        "+b",
+        " c",
+        " d",
+        "",
+      ].join("\n");
+    const loadContents = vi.fn(async () => ({ oldText: "a\n", newText: "a\nb\n" }));
+    const expandControls = (id: string) => {
+      const header = screen.getByTestId(`header-${id}`);
+      const host = header.closest("diffs-container");
+      return host?.shadowRoot?.querySelectorAll("[data-expand-button]").length ?? -1;
+    };
+    const item: DiffViewerItem = { id: "big.go", version: "r1", path: "big.go" };
+    const view = (next: DiffViewerItem) => (
+      <DiffViewer
+        items={[next]}
+        loadPatch={async current => contextPatch(current.path)}
+        loadContents={loadContents}
+        fileHeader={header}
+      />
+    );
+    const { rerender } = render(view(item));
+    await waitFor(() => expect(expandControls("big.go")).toBeGreaterThan(0));
+
+    rerender(view({ ...item, expandable: false }));
+    await waitFor(() => expect(expandControls("big.go")).toBe(0));
+    expect(screen.getByTestId("header-big.go")).toHaveTextContent("ready");
+    expect(loadContents).not.toHaveBeenCalled();
+  });
+
   it("Should key parsed patches by item version", () => {
     const fileDiff = parseItemPatch(items[0]!, patchFor("a.go", "var x = 1"));
     expect(fileDiff?.cacheKey).toBe("a.go:r1");

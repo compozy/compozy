@@ -17,6 +17,7 @@ import {
   type DiffViewerItem,
   type DiffViewerItemStatus,
   type DiffViewerPatchEntry,
+  withoutContextExpansion,
 } from "../diff-viewer-items";
 import { PIERRE_CODE_THEMES } from "../pierre-theme";
 
@@ -125,6 +126,18 @@ export function useDiffViewer({
   // The caches are memoization only, so they live in state rather than refs.
   const [placeholderCache] = React.useState(() => new Map<string, FileDiffMetadata>());
   const [itemByDiff] = React.useState(() => new WeakMap<FileDiffMetadata, DiffViewerItem>());
+  const [lockedDiffs] = React.useState(() => new WeakMap<FileDiffMetadata, FileDiffMetadata>());
+  const lockedDiff = React.useCallback(
+    (fileDiff: FileDiffMetadata) => {
+      let locked = lockedDiffs.get(fileDiff);
+      if (!locked) {
+        locked = withoutContextExpansion(fileDiff);
+        lockedDiffs.set(fileDiff, locked);
+      }
+      return locked;
+    },
+    [lockedDiffs]
+  );
 
   const codeViewItems = React.useMemo<CodeViewItem<undefined>[]>(() => {
     const placeholders = new Map<string, FileDiffMetadata>();
@@ -132,8 +145,12 @@ export function useDiffViewer({
       const entry = entries.get(item.id);
       const current = entry?.version === versionKey(item) ? entry : undefined;
       const key = `${item.id}:${versionKey(item)}`;
-      const fileDiff = current?.fileDiff ?? placeholderCache.get(key) ?? placeholderDiff(item);
-      if (!current?.fileDiff) placeholders.set(key, fileDiff);
+      const loaded =
+        current?.fileDiff && item.expandable === false
+          ? lockedDiff(current.fileDiff)
+          : current?.fileDiff;
+      const fileDiff = loaded ?? placeholderCache.get(key) ?? placeholderDiff(item);
+      if (!loaded) placeholders.set(key, fileDiff);
       itemByDiff.set(fileDiff, item);
       const itemCollapsed = item.collapsed ?? collapsed;
       return {
@@ -149,7 +166,7 @@ export function useDiffViewer({
     }
     for (const [key, fileDiff] of placeholders) placeholderCache.set(key, fileDiff);
     return result;
-  }, [items, entries, collapsed, placeholderCache, itemByDiff]);
+  }, [items, entries, collapsed, placeholderCache, itemByDiff, lockedDiff]);
 
   const statusOf = React.useCallback(
     (item: DiffViewerItem): DiffViewerItemStatus => {
@@ -219,7 +236,9 @@ export function useDiffViewer({
             loadDiffFiles: async (fileDiff: FileDiffMetadata): Promise<FileDiffLoadedFiles> => {
               const item = itemByDiff.get(fileDiff);
               const loader = loadContentsRef.current;
-              if (!item || !loader) throw new Error("diff contents are unavailable");
+              if (!item || !loader || item.expandable === false) {
+                throw new Error("diff contents are unavailable");
+              }
               const { oldText, newText } = await loader(item);
               const cacheKey = `${item.id}:${versionKey(item)}`;
               const newFile = { name: item.path, contents: newText, cacheKey: `${cacheKey}:new` };

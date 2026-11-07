@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, waitFor } from "storybook/test";
 
 import { FileImagePreview } from "../file-image-preview";
 import { PNG_BASE64, SVG_WITH_SCRIPT } from "./files-fixtures";
@@ -29,7 +29,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Png: Story = {
-  args: { data: PNG_BASE64, mimeType: "image/png", alt: "checker.png" },
+  tags: ["play-fn"],
+  args: { data: PNG_BASE64, mimeType: "image/png", alt: "checker.png", meta: "86 B" },
+  play: async ({ canvasElement }) => {
+    const image = canvasElement.querySelector("img");
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('[data-slot="file-image-preview-caption"]')
+      ).toHaveTextContent(`${image?.naturalWidth} × ${image?.naturalHeight} · 86 B`)
+    );
+  },
 };
 
 export const SvgAsImage: Story = {

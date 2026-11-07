@@ -57,7 +57,10 @@ export interface ViewerFindBarProps {
 /** Find in file (`_uiux.md` S13), pinned to the viewer's top-right over the code. */
 export function ViewerFindBar({ find, truncated, onClose }: ViewerFindBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Only an explicit open (Cmd/Ctrl+F) takes focus. A bar seeded by a Search open leaves focus
+  // in the results list, so ↑/↓ keep stepping through matches (US-014.AC-4).
   useEffect(() => {
+    if (find.focusToken === 0) return;
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [find.focusToken]);

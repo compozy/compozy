@@ -18,6 +18,12 @@ export interface DiffViewerItem {
    * only the header renders, and the `fileHeader` slot explains why.
    */
   loadable?: boolean;
+  /**
+   * `false` hides the expand-context control for this item even when the viewer has
+   * `loadContents` (for example contents over the expand cap); the `fileHeader` slot
+   * explains why.
+   */
+  expandable?: boolean;
   collapsed?: boolean;
 }
 
@@ -70,11 +76,26 @@ export function parseItemPatch(item: DiffViewerItem, patch: string): FileDiffMet
   return fileDiff;
 }
 
+/**
+ * Pierre hydrates collapsed context only for partial `change` and `rename-changed` diffs, and
+ * takes one loader for the whole CodeView. A non-expandable item is handed over as
+ * `rename-pure`: the same hunks render, with no expand control. Callers cache the result,
+ * since Pierre compares file objects by reference.
+ */
+export function withoutContextExpansion(fileDiff: FileDiffMetadata): FileDiffMetadata {
+  if (fileDiff.type !== "change" && fileDiff.type !== "rename-changed") return fileDiff;
+  // Its own cache key: Pierre reuses a rendered diff by key, expand controls included.
+  return { ...fileDiff, type: "rename-pure", cacheKey: `${fileDiff.cacheKey ?? ""}:no-expand` };
+}
+
 /** CodeView wants a numeric version; derive one from everything that re-renders an item. */
 export function codeViewVersion(
   item: DiffViewerItem,
   entry: DiffViewerPatchEntry | undefined,
   collapsed: boolean
 ): number {
-  return contentVersion(`${versionKey(item)}|${entry?.status ?? "pending"}|${collapsed ? 1 : 0}`);
+  const expandable = item.expandable === false ? 0 : 1;
+  return contentVersion(
+    `${versionKey(item)}|${entry?.status ?? "pending"}|${collapsed ? 1 : 0}|${expandable}`
+  );
 }

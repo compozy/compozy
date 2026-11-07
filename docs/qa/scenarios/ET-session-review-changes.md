@@ -4,7 +4,7 @@ area: ET
 title: Review a session's branch and uncommitted changes in the Changes tab
 persona: Dora
 journey: J-14
-expected: The Review panel Changes tab shows the session root's diff against its base with scope, head → base, totals and a changed-files tree; sensitive sides stay gated, generated files collapse, split/unified persists; Uncommitted drops committed files; any git-resolvable base works and a missing one shows "Base <ref> not found" with Choose base; agent edits appear without a manual refresh and external edits appear on Refresh; a turn's changed-file row focuses that file; diffs over 200 files or 20,000 lines show one file at a time.
+expected: The Review panel Changes tab shows the session root's diff against its base with scope, head → base, totals and a changed-files tree; sensitive sides stay gated, generated files collapse, split/unified persists; Uncommitted drops committed files; any git-resolvable base works and a missing one shows "Base <ref> not found" with Choose base; agent edits appear without a manual refresh and external edits appear on Refresh; a turn's changed-file row focuses that file; diffs over 200 files or 20,000 lines show one file at a time; a file too large to expand says so instead of failing silently; a saved missing base falls back to the default with a notice; focusing the session window from another in-app window refreshes the summary.
 entry_points: web session Review panel Changes tab; PR chip menu Review changes; a turn's Changed files rows; compozy session changes
 qa_status: pass
 bug_ids:
@@ -44,6 +44,15 @@ Walk:
     adds patches; a sensitive patch carries only `sensitive: true` until `--reveal`; a User-scope
     session exits 1 with `root_unavailable`, and a missing base with `base_not_found`.
 11. With a forge-linked PR, the PR chip menu's **Review changes** opens Changes on Branch scope.
+12. Review remediation (2026-11-07): expand context on a file over 1 MiB. The expand control goes
+    away and the header says **File too large to expand**; nothing fails silently. Press `]` and `[`
+    to step files (Next is disabled on the last file) and Alt+S to flip split/unified (ignored while
+    typing in the tree filter or in a narrow window).
+13. Save a base, then delete that branch and reopen the session: Changes falls back to the default
+    base with "Base <ref> no longer exists. Showing changes against the default base." and the
+    browser stops re-requesting the missing base on focus.
+14. Edit a file outside the agent, switch to another CompozyOS window, then back to the session
+    window: the summary refreshes without pressing Refresh.
 
 Owning automated coverage: web `session-changes.test.ts` (UT-056), `use-session-changes.test.tsx`
 (UT-053, UT-057, UT-058), `use-session-topbar-slot.test.tsx` (Review changes), and

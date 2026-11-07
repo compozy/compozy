@@ -10,6 +10,7 @@ import { SessionChangeFileHeader } from "./session-change-file-header";
 import { SessionChangedFilesTree } from "./session-changed-files-tree";
 import { SessionChangesHeader } from "./session-changes-header";
 import {
+  ChangesBaseFallbackNote,
   ChangesErrorState,
   ChangesLargeBanner,
   ChangesLoadingState,
@@ -153,6 +154,7 @@ export function SessionChangesTab({ workspaceId, sessionId, review }: SessionCha
         treeOpen={view.treeOpen}
         onTreeToggle={view.toggleTree}
       />
+      {view.missingBase ? <ChangesBaseFallbackNote base={view.missingBase} /> : null}
       {changes.refreshFailed ? <ChangesRefreshFailed onRetry={changes.retry} /> : null}
       {summary?.truncated ? (
         <ChangesTruncatedNote shown={summary.files.length} total={summary.totals.files} />

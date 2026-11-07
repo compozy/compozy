@@ -10,7 +10,7 @@ import {
   isWindowsBatchExecutable,
   parseEditorCommand,
 } from "./editor-command";
-import { OPEN_TARGETS, targetTemplate } from "./open-targets";
+import { OPEN_TARGETS, openTargetEntry, targetSupportsLine, targetTemplate } from "./open-targets";
 import type { OpenTarget, OpenWithParams } from "./open-in-editor-contract";
 import { FileOpenPolicy } from "./file-open-policy";
 import { lookPath, type CommandRunner } from "./login-shell-path";
@@ -75,7 +75,7 @@ interface PreparedLaunch {
 
 const ERROR_MESSAGES: Record<Exclude<OpenInEditorErrorCode, "not_found" | "not_a_file">, string> = {
   target_unknown: "Unknown application target.",
-  target_unavailable: "This application is no longer available.",
+  target_unavailable: "This app is no longer available.",
   editor_invalid: "The editor command is invalid.",
   editor_unavailable: "Couldn't read the editor command. Try again.",
   editor_not_configured: "No text editor found. Set an editor command in Settings.",
@@ -113,34 +113,49 @@ export class ElectronFileOpener implements FileOpener {
     this.#policy = new FileOpenPolicy(deps.platform);
   }
 
+  /**
+   * The configured editor only when `[desktop] editor_command` is set, then every detected
+   * catalog editor, then the platform file manager (spec §3a).
+   */
   async listOpenTargets(): Promise<OpenTarget[]> {
-    const targets: OpenTarget[] = [
-      { id: "configured", label: "Configured editor", kind: "editor", supportsLine: true },
-    ];
-    const env = await this.#targetEnv();
-    for (const target of OPEN_TARGETS) {
-      if (await this.#resolveTarget(target, env)) {
-        targets.push({ id: target.id, label: target.label, kind: "editor", supportsLine: true });
-      }
+    const targets: OpenTarget[] = [];
+    const command = await this.#editorCommand().catch(() => "");
+    if (command.trim() !== "") {
+      targets.push({
+        id: "configured",
+        label: "Configured editor",
+        kind: "editor",
+        supportsLine: true,
+      });
     }
-    targets.push({
-      id: "reveal",
-      label: this.#deps.platform === "darwin" ? "Finder" : "File manager",
-      kind: "reveal",
-      supportsLine: false,
-    });
+    const env = await this.#targetEnv();
+    const detected = await Promise.all(
+      OPEN_TARGETS.map(async target => ((await this.#resolveTarget(target, env)) ? target : null))
+    );
+    for (const target of detected) {
+      if (!target) continue;
+      targets.push({
+        id: target.id,
+        label: target.label,
+        kind: "editor",
+        supportsLine: targetSupportsLine(target.id),
+      });
+    }
+    targets.push({ id: "reveal", label: this.#revealLabel(), kind: "reveal", supportsLine: false });
     return targets;
+  }
+
+  #revealLabel(): string {
+    if (this.#deps.platform === "darwin") return "Finder";
+    return this.#deps.platform === "win32" ? "Show in Explorer" : "Show in folder";
   }
 
   async openWith(
     params: OpenWithParams,
     window: BrowserWindow | null
   ): Promise<OpenInEditorResult> {
-    if (params.target === "configured") {
-      const { target: _target, ...request } = params;
-      return this.open(request, window);
-    }
-    if (params.target !== "reveal" && !OPEN_TARGETS.some(target => target.id === params.target)) {
+    const known = ["configured", "reveal"].includes(params.target);
+    if (!known && !openTargetEntry(params.target)) {
       return { status: "error", code: "target_unknown", message: ERROR_MESSAGES.target_unknown };
     }
     return this.open(params, window);
@@ -154,10 +169,7 @@ export class ElectronFileOpener implements FileOpener {
       for (const directory of (env.PATH ?? "").split(";")) {
         if (!win32.isAbsolute(directory)) continue;
         const names = [win32.join(directory, `${target.binary}.exe`)];
-        if (target.id === "vscode" || target.id === "cursor")
-          names.push(
-            win32.join(directory, "..", target.id === "vscode" ? "Code.exe" : "Cursor.exe")
-          );
+        if (target.windowsExe) names.push(win32.join(directory, "..", target.windowsExe));
         for (const executable of names)
           if (await this.#deps.isExecutable(executable)) return [executable];
       }
@@ -262,10 +274,13 @@ export class ElectronFileOpener implements FileOpener {
     if (target !== "reveal") {
       if (target === "configured") launch = await this.#prepareLaunch(outcome);
       else {
-        const entry = OPEN_TARGETS.find(item => item.id === target);
+        const entry = openTargetEntry(target);
         const env = await this.#targetEnv();
         const resolved = entry && (await this.#resolveTarget(entry, env));
-        if (!entry || !resolved) throw failure("target_unavailable");
+        if (!entry) throw failure("target_unknown");
+        if (!resolved) {
+          throw new OpenFailure("target_unavailable", `${entry.label} is no longer available.`);
+        }
         launch = {
           template: [...resolved, ...targetTemplate(entry.id, params.line !== undefined)],
           env,
@@ -296,14 +311,20 @@ export class ElectronFileOpener implements FileOpener {
     path: string,
     reason: ConfirmReason
   ): Promise<boolean> {
-    const why =
+    // A credential file inside the root is not "outside"; it gets its own question.
+    const copy =
       reason === "sensitive"
-        ? "It may contain credentials."
-        : "It is outside the session's workspace.";
+        ? {
+            message: "Open a file that may contain credentials?",
+            detail: `${path}\n\nIt may contain credentials, such as keys or tokens.`,
+          }
+        : {
+            message: "Open file outside this workspace?",
+            detail: `${path}\n\nAn agent mentioned this file. It is outside the session's workspace.`,
+          };
     const { response } = await this.#deps.showMessageBox(window, {
       type: "warning",
-      message: "Open file outside this workspace?",
-      detail: `${path}\n\nAn agent mentioned this file. ${why}`,
+      ...copy,
       buttons: ["Open", "Cancel"],
       defaultId: 1,
       cancelId: 1,

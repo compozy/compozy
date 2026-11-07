@@ -5,6 +5,7 @@ import type * as React from "react";
 
 import { InfoIcon } from "../../icons";
 import { cn } from "../../lib/utils";
+import { CodeViewerPlainText } from "./code-viewer-plain";
 import { useCodeViewer } from "./hooks/use-code-viewer";
 import type { CodeViewerMatch } from "./hooks/use-code-viewer-find";
 
@@ -67,7 +68,7 @@ function CodeViewer({
     text,
     wrap,
   });
-  const { handleRef, items, lineCount, options, selectedLines, target } = viewer;
+  const { handleRef, items, lineCount, options, painted, selectedLines, target } = viewer;
 
   return (
     <div
@@ -91,15 +92,24 @@ function CodeViewer({
         </p>
       ) : null}
       {notice}
-      <CodeView
-        ref={handleRef}
-        items={items}
-        options={options}
-        selectedLines={selectedLines}
-        containerRef={viewer.containerRef}
-        onScroll={viewer.onScroll}
-        className="min-h-0 flex-1 overflow-auto"
-      />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <CodeView
+          ref={handleRef}
+          items={items}
+          options={options}
+          selectedLines={selectedLines}
+          containerRef={viewer.containerRef}
+          onScroll={viewer.onScroll}
+          className="min-h-0 flex-1 overflow-auto"
+        />
+        {painted ? null : (
+          <CodeViewerPlainText
+            text={text}
+            lineCount={lineCount}
+            targetLine={target?.line ?? null}
+          />
+        )}
+      </div>
     </div>
   );
 }

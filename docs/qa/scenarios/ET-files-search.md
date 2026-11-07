@@ -4,7 +4,7 @@ area: ET
 title: Go to file, search file contents, and find in the open file
 persona: Dora
 journey: J-14
-expected: In any files explorer (Review panel Files tab or Files app), Cmd/Ctrl+P opens Go to file with daemon-ranked fuzzy matches and `name:line`; Cmd/Ctrl+Shift+F opens the Search pane with grouped results, options, globs, a sensitive-files note and an inline invalid-regex error; a match opens the viewer at its line with Find in file seeded; Cmd/Ctrl+F finds over the whole loaded file only while focus is in the viewer.
+expected: In any files explorer (Review panel Files tab or Files app), Cmd/Ctrl+P opens Go to file with daemon-ranked fuzzy matches and `name:line`; Cmd/Ctrl+Shift+F opens the Search pane with grouped results, options, globs, a sensitive-files note and an inline invalid-regex error; a match opens the viewer at its line with Find in file seeded; Cmd/Ctrl+F finds over the whole loaded file only while focus is in the viewer; ↑/↓ in the results keeps stepping matches without moving focus into the find bar.
 entry_points: files explorer Go to file button and Cmd/Ctrl+P; Files ↔ Search pane switch and Cmd/Ctrl+Shift+F; viewer Cmd/Ctrl+F find bar
 qa_status: pass
 bug_ids:
@@ -38,6 +38,9 @@ Walk:
 8. Open the long file, focus the viewer, press Cmd/Ctrl+F and type the unique word: "1 of 1",
    scrolled to its line (4800) even though that line was never rendered before.
 9. With focus in the tree, Cmd/Ctrl+F does not open the viewer's find bar.
+10. Review remediation (2026-11-07): in the Search results, focus a match and press ↓ repeatedly.
+    Each step opens the next match in the viewer while focus stays in the results list; the last
+    match stays selected at the end, and ↑ steps back.
 
 Owning automated coverage: web `use-files-search.test.tsx` (UT-091, UT-092), `search-text.test.ts`
 (UT-093), `file-viewer-pane.test.tsx` (UT-094, UT-095), `@compozy/ui` files suites, and

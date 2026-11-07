@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -8,9 +9,14 @@ import { UIProvider } from "@compozy/ui";
 import { workspaceDetailOptions } from "@/systems/workspace";
 import type { CompozyShellBridge } from "@/systems/os/lib/desktop-shell-bridge";
 
-import type { FilesRootRef } from "../../adapters/files-api";
-import { fileViewerTarget, outsideViewerTarget } from "../../lib/file-viewer-target";
+import type { FileSearchFile, FilesRootRef } from "../../adapters/files-api";
+import {
+  fileViewerTarget,
+  outsideViewerTarget,
+  type FileViewerTarget,
+} from "../../lib/file-viewer-target";
 import { FileViewerPane } from "../file-viewer-pane";
+import { FilesSearchResults } from "../files-search-results";
 import { OpenInButton } from "../open-in-button";
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
@@ -302,6 +308,59 @@ describe("FileViewerPane", () => {
       fireEvent.click(screen.getByRole("button", { name: "Match case" }));
       expect(screen.getByTestId("viewer-find-count")).toHaveTextContent("No results");
       expect(screen.getByTestId("viewer-find-input")).toHaveAttribute("aria-invalid", "true");
+    });
+
+    // US-014.AC-4. Invariant: ↑/↓ in the Search results open each match in turn, and the seeded
+    // find bar of the opened file never takes focus from the results list.
+    it("Should keep stepping Search results with ↑/↓ while each match opens seeded", async () => {
+      const text = ["const foo = 1;", "bar();", "foo();", "baz();"].join("\n");
+      stubContent(url =>
+        content({ path: url.searchParams.get("path"), kind: "text", size: 40, text })
+      );
+      const match = (line: number) => ({
+        line,
+        column: 1,
+        text: line === 1 ? "const foo = 1;" : "foo();",
+        ranges: [[line === 1 ? 6 : 0, line === 1 ? 9 : 3]],
+      });
+      const files = [
+        { path: "a.ts", matches: [match(1), match(3)] },
+        { path: "b.ts", matches: [match(3)] },
+      ] as unknown as FileSearchFile[];
+      function Harness() {
+        const [target, setTarget] = useState<FileViewerTarget | null>(null);
+        return (
+          <>
+            <FilesSearchResults
+              files={files}
+              dimmed={false}
+              onOpenMatch={(file, hit) =>
+                setTarget(fileViewerTarget(file.path, hit.line, { query: "foo", matchCase: false }))
+              }
+            />
+            <FileViewerPane root={ROOT} target={target} />
+          </>
+        );
+      }
+      renderPane(<Harness />);
+      const results = screen.getByTestId("files-search-results");
+      results.focus();
+      const press = async (key: string, path: string, count: string) => {
+        fireEvent.keyDown(document.activeElement ?? document.body, { key });
+        await waitFor(() =>
+          expect(screen.getByTestId("viewer-find-count")).toHaveTextContent(count)
+        );
+        expect(screen.getByTestId("file-viewer-header")).toHaveTextContent(path);
+        expect(results).toHaveFocus();
+      };
+      await press("ArrowDown", "a.ts", "1 of 2");
+      await press("ArrowDown", "a.ts", "2 of 2");
+      await press("ArrowDown", "b.ts", "2 of 2");
+      // Both files hold the same text, so b.ts line 3 is its second `foo`.
+      // The last match is a boundary: ↓ stays on it, ↑ steps back.
+      await press("ArrowDown", "b.ts", "2 of 2");
+      await press("ArrowUp", "a.ts", "2 of 2");
+      expect(screen.getByTestId("viewer-find-input")).not.toHaveFocus();
     });
   });
 });

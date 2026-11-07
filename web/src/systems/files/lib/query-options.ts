@@ -1,4 +1,4 @@
-import { desktopShellBridge } from "@/systems/os";
+import { desktopShellBridge, type OpenTarget } from "@/systems/os";
 import { queryOptions } from "@tanstack/react-query";
 
 import {
@@ -43,6 +43,21 @@ export function openTargetsOptions() {
     queryFn: async () => (await desktopShellBridge()?.files?.listOpenTargets?.()) ?? [],
     staleTime: 30_000,
   });
+}
+
+/**
+ * The split button's primary target: the last-used one while it is still offered, else the
+ * first editor, else the file manager (US-006.AC-1, AC-5).
+ */
+export function primaryOpenTarget(
+  targets: readonly OpenTarget[],
+  remembered: string
+): OpenTarget | undefined {
+  return (
+    targets.find(target => target.id === remembered) ??
+    targets.find(target => target.kind === "editor") ??
+    targets.find(target => target.kind === "reveal")
+  );
 }
 
 /** The explorer's index refreshes on the daemon every 15 s; a repeat query reuses its answer. */

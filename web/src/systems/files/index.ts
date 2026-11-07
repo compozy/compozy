@@ -18,6 +18,7 @@ export {
   fileEntriesOptions,
   fileFindOptions,
   fileSearchOptions,
+  openTargetsOptions,
 } from "./lib/query-options";
 export {
   fileViewerTarget,

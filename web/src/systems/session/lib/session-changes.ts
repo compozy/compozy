@@ -18,11 +18,22 @@ export function isLargeDiff(totals: SessionChangesSummary["totals"]): boolean {
   );
 }
 
+/** Why a file's unchanged context can't expand: the daemon refused its full contents. */
+export type SessionChangeExpandBlock = "too_large" | "sensitive";
+
+/** A refused expansion, kept for the item version it happened on; a newer version retries. */
+export interface SessionChangeExpandRefusal {
+  version: string;
+  reason: SessionChangeExpandBlock;
+}
+
 /** A diff list item that also carries the summary row it came from. */
 export interface SessionChangeItem extends DiffViewerItem {
   file: SessionChangeFile;
   /** The fingerprint the summary listed; a patch produced under another one is stale. */
   fingerprint: string;
+  /** Set when expanding context was refused; the header says why (US-007.EC-5). */
+  expandBlock?: SessionChangeExpandBlock;
 }
 
 function changeType(file: SessionChangeFile): DiffViewerChangeType {
@@ -44,6 +55,8 @@ export interface SessionChangeItemsOptions {
   revealed: ReadonlySet<string>;
   /** Explicit collapse choices; they survive refreshes for files still present (US-010.AC-4). */
   collapsed: Readonly<Record<string, boolean>>;
+  /** Refused context expansions by path; the matching version shows no expand control. */
+  expandRefusals?: ReadonlyMap<string, SessionChangeExpandRefusal>;
 }
 
 /**
@@ -57,13 +70,17 @@ export function sessionChangeItems(
   return summary.files.map(file => {
     const revealed = options.revealed.has(file.path);
     const gated = file.sensitive === true && !revealed;
+    const version = `${summary.revision}|${file.fingerprint}${revealed ? "|revealed" : ""}`;
+    const refusal = options.expandRefusals?.get(file.path);
+    const expandBlock = refusal?.version === version ? refusal.reason : undefined;
     return {
       id: file.path,
-      version: `${summary.revision}|${file.fingerprint}${revealed ? "|revealed" : ""}`,
+      version,
       path: file.path,
       ...(file.old_path ? { prevPath: file.old_path } : {}),
       changeType: changeType(file),
       loadable: !(file.binary === true || gated),
+      ...(expandBlock ? { expandable: false, expandBlock } : {}),
       // Lockfiles and generated files start collapsed, one click expands (US-007.EC-3).
       collapsed: options.collapsed[file.path] ?? file.generated === true,
       file,

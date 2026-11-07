@@ -41,7 +41,9 @@ When the root has no resolvable base, only **Uncommitted** is offered.
 The base defaults to the worktree's base branch, then the remote's default branch, then `main`, then
 `master`. The base selector lists local and remote branches, filtered as you type, with the default
 marked **default**. Any ref Git can resolve, such as `main~1` or a tag, works too. A base that no
-longer exists shows **Base not found** with **Choose base**.
+longer exists shows **Base not found** with **Choose base**. A saved base that no longer exists is
+dropped: Changes falls back to the default base and says "Base `<ref>` no longer exists. Showing
+changes against the default base."
 
 ### Reading the diff
 
@@ -49,14 +51,17 @@ longer exists shows **Base not found** with **Choose base**.
   **Refresh**, the split or unified toggle, **Collapse all**, and **Show files** for the
   changed-files tree. The tree has its own filter and shows each file's status and counts.
 - Each file shows its status letter, its path (`old → new` for a rename), its counts, collapse,
-  **Open in viewer**, and **Copy path**. Context between hunks expands on demand.
+  **Open in viewer**, and **Copy path**. Context between hunks expands on demand. A file too large
+  to expand loses the expand control and its header says **File too large to expand**; a sensitive
+  file's context says **Sensitive file · context stays hidden**.
 - Lockfiles and generated files (such as `bun.lock`, `go.sum`, `*.gen.*`, and `routeTree.gen.ts`)
   start collapsed with a **Generated** label.
 - Sensitive files show **Sensitive file · contents hidden** with **Show contents**.
 - Binary files show **Binary file changed**. A patch over the size limit shows **Diff too large to
   display** with **Open in viewer**. A file whose patch has no text, such as a mode-only change, shows
   **No content changes**.
-- Use <kbd>[</kbd> and <kbd>]</kbd> to step between files.
+- Use <kbd>[</kbd> and <kbd>]</kbd> to step between files, and <kbd>Alt</kbd>+<kbd>S</kbd> to switch
+  between split and unified (not while typing in a field).
 - When the session window is narrower than 900 px, diffs are unified and the changed-files tree
   stays behind its toggle.
 
@@ -74,7 +79,8 @@ longer exists shows **Base not found** with **Choose base**.
 
 Changes follows the session's live stream. When the agent's tool calls settle or a turn ends, the
 summary refreshes once after a short pause, and only files whose contents moved reload. Focusing the
-window or pressing **Refresh** also refreshes it.
+session's window, including switching to it from another window inside CompozyOS, or pressing
+**Refresh** also refreshes it.
 
 Every patch is checked against the summary it came from. If the branch moved or a file changed while
 a patch was loading, CompozyOS reloads the summary and the affected files once. If it is still out of
@@ -95,12 +101,14 @@ The Files tab is the same explorer as the [Files app](/docs/files/files-app), ro
 root:
 
 - The tree lists folders first in natural order and loads each folder when you expand it. Changed
-  files carry their Git status. **Filter files…** narrows the loaded rows, **Show ignored** includes
+  files carry their Git status, and a folder with changes inside shows a dot, even before you
+  expand it. **Filter files…** narrows the loaded rows, **Show ignored** includes
   Git-ignored files, and **Refresh** reloads the tree.
 - **Open in Files window** opens (or focuses) the project's Files window on the same root and file.
 - The Files ↔ Search switch at the top of the tree opens the [Search pane](/docs/files/search), and
   **Go to file** opens the file finder.
 - If the session's worktree was removed, the tab shows **This worktree is no longer on disk**.
 
-A folder with more than 5,000 entries shows the first 5,000, with a note under the tree. Right-click
-menus on tree rows are not available yet; use **Copy path** and **Open in** in the viewer header.
+A folder with more than 5,000 entries shows the first 5,000, with a note under the tree. Right-click a
+row, or press <kbd>Shift</kbd>+<kbd>F10</kbd> on it, for **Copy path** and, in the desktop app,
+[Open in](/docs/files/open-in) targets for that file or folder.

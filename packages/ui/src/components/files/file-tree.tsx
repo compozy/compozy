@@ -5,6 +5,7 @@ import type * as React from "react";
 
 import { cn } from "../../lib/utils";
 import type { FileTreeDecorations } from "./file-tree-model";
+import { FileTreeRowMenu } from "./file-tree-row-menu";
 import { useFileTreeModel } from "./hooks/use-file-tree-model";
 
 export type { FileTreeDecoration, FileTreeDecorations, FileTreeStatus } from "./file-tree-model";
@@ -54,7 +55,11 @@ export interface FileTreeProps extends Omit<
   filterEmpty?: React.ReactNode;
   /** Shown instead of the tree when `paths` is empty. */
   empty?: React.ReactNode;
-  /** Right-click and keyboard context menu content for a row. */
+  /**
+   * Row context menu items (`DropdownMenuItem`, `DropdownMenuSeparator`, …), opened by
+   * right-click, Shift+F10, or the ContextMenu key. The tree renders them in a menu at the row;
+   * return `null` for a row without a menu.
+   */
   rowMenu?: (item: FileTreeRowMenuItem, controls: FileTreeRowMenuControls) => React.ReactNode;
   /** Changing it replaces the whole model (root switch or full refresh). */
   resetKey?: string | number;
@@ -103,11 +108,22 @@ function FileTree({
         className={cn("block min-h-0 flex-1", isEmpty && "hidden")}
         renderContextMenu={
           rowMenu
-            ? (item, context) =>
-                rowMenu(
+            ? (item, context) => {
+                const items = rowMenu(
                   { kind: item.kind, name: item.name, path: item.path },
                   { close: () => context.close() }
-                )
+                );
+                if (items === null || items === undefined) return null;
+                return (
+                  <FileTreeRowMenu
+                    anchor={{ getBoundingClientRect: () => DOMRect.fromRect(context.anchorRect) }}
+                    label={`Actions for ${item.name}`}
+                    onClose={() => context.close()}
+                  >
+                    {items}
+                  </FileTreeRowMenu>
+                );
+              }
             : undefined
         }
       />
