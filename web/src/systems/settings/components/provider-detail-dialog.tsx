@@ -23,6 +23,7 @@ import { useProviderEditorTier } from "../hooks/use-provider-editor-tier";
 import { getProviderStateView, type ProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderEditForm } from "./provider-edit-form";
+import { ProviderEnabledSwitch } from "./provider-enabled-switch";
 import { ProviderInspectView } from "./provider-inspect-view";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
@@ -34,6 +35,11 @@ export interface ProviderDetailDialogProps {
   open: boolean;
   mode: DetailMode;
   entry: SettingsProviderEntry | null;
+  /**
+   * The entry as the provider list holds it now. The Enabled switch reads it, so a toggle shows
+   * while the editor keeps the entry it opened with. Defaults to `entry`.
+   */
+  liveEntry?: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
   error: string | null;
   warnings: string[] | undefined;
@@ -97,6 +103,7 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
             <ProviderDetailTabs
               activeTab={isEditing ? "configure" : "overview"}
               onChange={handleTabChange}
+              provider={props.liveEntry ?? provider}
             />
           )}
           {isEditing ? (
@@ -181,18 +188,27 @@ const DETAIL_TABS = [
 function ProviderDetailTabs({
   activeTab,
   onChange,
+  provider,
 }: {
   activeTab: DetailTab;
   onChange: (next: DetailTab) => void;
+  provider: SettingsProviderEntry | null;
 }) {
   return (
-    <div className="border-b border-line px-5 pb-2">
+    <div className="flex items-center justify-between gap-3 border-b border-line px-5 pb-2">
       <LaneTabs<DetailTab>
         ariaLabel="Provider detail sections"
         items={DETAIL_TABS}
         onChange={onChange}
         value={activeTab}
       />
+      {provider ? (
+        <ProviderEnabledSwitch
+          data-testid="provider-detail-enabled"
+          provider={provider}
+          showLabel
+        />
+      ) : null}
     </div>
   );
 }

@@ -28,6 +28,22 @@ describe("deriveProviderStateLabel", () => {
     expect(deriveProviderStateLabel(settingsProviderFixtures[2]!)).toBe("unconfigured");
   });
 
+  // UT-020: turned off outranks install and sign-in facts, and a missing field reads as on.
+  it("reads a disabled provider as disabled ahead of binary-missing and needs-sign-in (UT-020)", () => {
+    const off = { ...base, settings: { ...base.settings, enabled: false } };
+    for (const state of ["missing_cli", "needs_login"] as const) {
+      const entry = { ...off, auth_status: { ...base.auth_status!, state } };
+      expect(deriveProviderStateLabel(entry)).toBe("disabled");
+      expect(deriveProviderStateLabel({ ...entry, command_available: false })).toBe("disabled");
+    }
+    expect(getProviderStateView(off)).toMatchObject({ tone: "neutral", display: "Disabled" });
+    const { enabled: _enabled, ...legacy } = base.settings;
+    expect(deriveProviderStateLabel({ ...base, settings: legacy as typeof base.settings })).toBe(
+      deriveProviderStateLabel(base)
+    );
+    expect(deriveProviderStateLabel(base)).not.toBe("disabled");
+  });
+
   it("keeps a present-but-unverified protocol login out of ready", () => {
     const agy = settingsProviderFixtures.find(entry => entry.name === "agy")!;
     expect(agy.auth_status?.login?.presence).toBe("present");

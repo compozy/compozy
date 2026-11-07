@@ -17,6 +17,7 @@ const nativeProvider: SettingsProviderEntry = {
   default: false,
   command_available: true,
   settings: {
+    enabled: true,
     command: "npx -y @agentclientprotocol/codex-acp@latest",
     display_name: "Codex",
     models: { default: "gpt-5.6-sol", curated: [{ id: "gpt-5.6-sol" }] },
@@ -50,6 +51,7 @@ const boundSecretProvider: SettingsProviderEntry = {
   default: false,
   command_available: true,
   settings: {
+    enabled: true,
     command: "npx -y pi-acp@latest",
     display_name: "OpenRouter",
     models: { default: "openai/gpt-5.4", curated: [{ id: "openai/gpt-5.4" }] },
@@ -88,6 +90,7 @@ const nativeACPProvider: SettingsProviderEntry = {
   default: false,
   command_available: true,
   settings: {
+    enabled: true,
     command: "agy_acp_server.par --uid=",
     display_name: "Google Antigravity",
     models: { default: "", curated: [] },
@@ -176,6 +179,29 @@ function renderDialog(props: HarnessProps) {
 function dialog() {
   return screen.getByTestId("provider-detail-dialog");
 }
+
+describe("ProviderDetailDialog enabled switch", () => {
+  // S3: the switch sits in the header area for an existing provider, never on create; on the
+  // default provider it is inactive (UT-032, dialog half).
+  it("Should show the Enabled switch for an existing provider and lock it on the default", () => {
+    const { unmount } = renderDialog({ mode: "inspect", entry: nativeProvider });
+    const toggle = within(dialog()).getByRole("switch", { name: "Enabled" });
+    expect(toggle).toBeChecked();
+    expect(toggle).not.toHaveAttribute("data-disabled");
+    unmount();
+
+    renderDialog({ mode: "inspect", entry: { ...nativeProvider, default: true } });
+    expect(within(dialog()).getByRole("switch", { name: "Enabled" })).toHaveAttribute(
+      "data-disabled"
+    );
+    expect(screen.getByTestId("provider-detail-enabled-locked")).toBeInTheDocument();
+  });
+
+  it("Should leave the switch out of create", () => {
+    renderDialog({ mode: "create" });
+    expect(within(dialog()).queryByRole("switch", { name: "Enabled" })).toBeNull();
+  });
+});
 
 describe("ProviderDetailDialog", () => {
   it("Should render the create header and safe native credential controls", () => {

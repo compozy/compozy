@@ -2643,3 +2643,74 @@ describe("model list issues", () => {
     expect(screen.getByTestId("runtime-selector-catalog-issues-popup")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Providers turned off in Settings (UT-027, UT-030, UT-040)
+// ---------------------------------------------------------------------------
+
+// Invariant: a selector lists only enabled providers, except the provider its current value pins,
+// which stays listed and marked "Disabled" so the saved choice is never rewritten.
+describe("RuntimeSelector disabled providers", () => {
+  const disabledClaude: RuntimeProviderOption = { ...claudeProvider, disabled: true };
+
+  function selector(providers: RuntimeProviderOption[], value: RuntimeSelectorValue) {
+    return (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TooltipProvider delay={0}>
+          <RuntimeSelector
+            value={value}
+            onChange={vi.fn()}
+            providers={providers}
+            models={[model("gpt-a")]}
+            triggerTestId="rt-trigger"
+          />
+        </TooltipProvider>
+      </UIProvider>
+    );
+  }
+
+  it("Should drop a disabled provider from the rail (UT-027)", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "gpt-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    const popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Codex" })).toBeInTheDocument();
+    expect(within(popup).queryByRole("radio", { name: /Claude/ })).toBeNull();
+    expect(
+      screen.getByTestId("rt-trigger").querySelector("[data-slot='runtime-selector-disabled']")
+    ).toBeNull();
+  });
+
+  it("Should keep a pinned disabled provider, marked Disabled (UT-030)", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(within(trigger).getByText("Disabled")).toBeInTheDocument();
+    expect(trigger).toHaveAccessibleName(/provider disabled/);
+    const popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Claude · disabled" })).toBeInTheDocument();
+  });
+
+  it("Should drop a provider disabled while the selector stays mounted (UT-040)", async () => {
+    const user = userEvent.setup();
+    const value = { provider: "codex", model: "gpt-a", reasoning_effort: "" as const };
+    const { rerender } = render(selector([codexProvider, claudeProvider], value));
+    let popup = await openSelector(user);
+    expect(within(popup).getByRole("radio", { name: "Claude" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("runtime-selector-popup")).toBeNull());
+
+    rerender(selector([codexProvider, disabledClaude], value));
+    popup = await openSelector(user);
+    expect(within(popup).queryByRole("radio", { name: /Claude/ })).toBeNull();
+  });
+});

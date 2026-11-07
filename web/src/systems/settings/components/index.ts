@@ -22,6 +22,7 @@ export {
   mcpServerProvenanceLine,
   mcpServerRowTestId,
 } from "./mcp-server-labels";
+export { DisabledProvidersGroup } from "./disabled-providers-group";
 export { ProviderCard, ProviderCardGrid } from "./provider-card";
 export { ProvidersToolbar } from "./providers-toolbar";
 export type { ProvidersToolbarProps } from "./providers-toolbar";

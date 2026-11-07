@@ -5,6 +5,7 @@ import { CatalogCard, CatalogCardSkeleton, cn, Pill, Skeleton, SkeletonText } fr
 import { providerListingView } from "../lib/provider-listing-view";
 import { providerLogoKey } from "../lib/provider-logo-key";
 import type { SettingsProviderEntry } from "../types";
+import { ProviderEnabledSwitch } from "./provider-enabled-switch";
 import { ProviderLogo } from "./provider-logo";
 import { ProviderStatusLabel } from "./provider-status-label";
 
@@ -28,16 +29,18 @@ interface ProviderCardProps {
 export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
   const view = providerListingView(provider);
   const testId = `settings-page-providers-card-${provider.name}`;
+  const disabled = view.state.label === "disabled";
 
   return (
-    <CatalogCard actionable className="p-0" data-state={view.state.label}>
+    <CatalogCard actionable className="relative p-0" data-state={view.state.label}>
       <button
-        className={cn("group", PROVIDER_CARD_BODY_CLASS)}
+        className={cn("group", PROVIDER_CARD_BODY_CLASS, disabled && "opacity-60")}
         data-testid={testId}
         onClick={() => onOpen(provider)}
         type="button"
       >
-        <span className="flex min-w-0 items-center gap-3">
+        {/* Room for the switch, which sits outside this button so it never opens the detail. */}
+        <span className="flex min-w-0 items-center gap-3 pr-10">
           <CatalogCard.Logo data-testid={`${testId}-logo`} size="lg">
             <ProviderLogo className="size-4.5" provider={providerLogoKey(provider)} />
           </CatalogCard.Logo>
@@ -72,6 +75,7 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
           </span>
         </span>
       </button>
+      <ProviderEnabledSwitch className="absolute top-3.5 right-4" provider={provider} />
     </CatalogCard>
   );
 }

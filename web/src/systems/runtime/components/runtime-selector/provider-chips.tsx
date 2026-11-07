@@ -144,7 +144,11 @@ export function ProviderChips({
         {chipRadio("fav", "Favorites", <Star aria-hidden="true" className="size-3.5" />)}
         <span aria-hidden="true" className="mx-1 h-3.5 w-px shrink-0 bg-line" />
         {providers.map(provider => {
-          const label = provider.needs_auth ? `${provider.name} · needs sign in` : provider.name;
+          const label = provider.disabled
+            ? `${provider.name} · disabled`
+            : provider.needs_auth
+              ? `${provider.name} · needs sign in`
+              : provider.name;
           return chipRadio(
             provider.id,
             label,

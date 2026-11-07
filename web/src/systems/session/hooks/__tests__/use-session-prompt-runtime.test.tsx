@@ -63,6 +63,7 @@ function provider(
   authState: NonNullable<ProviderAuthStatus>["state"]
 ): ProviderSummary {
   return {
+    enabled: true,
     auth_status: {
       env_policy: "inherit",
       home_policy: "operator",

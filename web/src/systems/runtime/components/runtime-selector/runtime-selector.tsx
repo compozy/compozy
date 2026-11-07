@@ -66,7 +66,7 @@ export interface RuntimeSelectorProps {
 export function RuntimeSelector({
   value,
   onChange,
-  providers,
+  providers: providerOptions,
   models,
   acpOptions,
   variant = "default",
@@ -88,6 +88,7 @@ export function RuntimeSelector({
   ariaLabelledby,
   className,
 }: RuntimeSelectorProps) {
+  const providers = selectableProviders(providerOptions, value.provider);
   const controller = useRuntimeSelector({
     value,
     onChange,
@@ -245,4 +246,13 @@ export function RuntimeSelector({
       </PopoverContent>
     </Popover>
   );
+}
+
+/** Disabled providers drop out, except the one the current value names (shown marked "Disabled"). */
+function selectableProviders(
+  providers: RuntimeProviderOption[],
+  current: string
+): RuntimeProviderOption[] {
+  if (!providers.some(provider => provider.disabled)) return providers;
+  return providers.filter(provider => !provider.disabled || provider.id === current);
 }

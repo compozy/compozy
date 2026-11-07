@@ -13,6 +13,7 @@ vi.mock("../../adapters/settings-api", () => ({
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
   reloadSettings: vi.fn(),
+  setSettingsProviderEnabled: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   updateSettingsAttention: vi.fn(),
   updateSettingsGeneral: vi.fn(),
@@ -34,6 +35,7 @@ import {
   deleteSettingsProvider,
   putSettingsMCPServer,
   reloadSettings,
+  setSettingsProviderEnabled,
   updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
@@ -49,6 +51,11 @@ import {
 } from "../../adapters/settings-mcp-auth-api";
 import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
+import { modelCatalogKeys } from "@/systems/model-catalog";
+import { providerKeys } from "@/systems/providers";
+import { providerUsageKeys } from "@/systems/provider-usage";
+import { workspaceKeys } from "@/systems/workspace";
+import { settingsProviderFixtures } from "../../mocks/fixtures";
 import { settingsKeys } from "../../lib/query-keys";
 import {
   settingsAttentionSectionFixture,
@@ -69,6 +76,7 @@ import {
   useLogoutMCPAuth,
   usePutSettingsMCPServer,
   useReloadSettings,
+  useSetProviderEnabled,
   useUpdateSettingsAttention,
   useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
@@ -440,6 +448,44 @@ describe("provider mutations", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: settingsKeys.providerDetail("openai"),
       });
+    });
+  });
+});
+
+describe("useSetProviderEnabled", () => {
+  // UT-040: every reader that lists or launches providers rereads after a toggle, and the
+  // confirmed entry replaces the cached one at once.
+  it("Should refresh every provider reader and replace the list entry on success (UT-040)", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const [first, ...rest] = settingsProviderFixtures;
+    const target = rest[0]!;
+    const disabled = { ...target, settings: { ...target.settings, enabled: false } };
+    queryClient.setQueryData(settingsKeys.providersList(), { providers: [first, target] });
+    vi.mocked(setSettingsProviderEnabled).mockResolvedValue({
+      provider: disabled,
+      apply: { ...generalMutation, section: "providers" as const },
+    });
+
+    const { result } = renderHook(() => useSetProviderEnabled(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ name: target.name, enabled: false });
+    });
+
+    expect(setSettingsProviderEnabled).toHaveBeenCalledWith(target.name, false);
+    expect(queryClient.getQueryData(settingsKeys.providersList())).toEqual({
+      providers: [first, disabled],
+    });
+    await waitFor(() => {
+      for (const queryKey of [
+        settingsKeys.providersRoot(),
+        workspaceKeys.details(),
+        providerKeys.all,
+        modelCatalogKeys.all,
+        providerUsageKeys.all,
+      ]) {
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
+      }
     });
   });
 });

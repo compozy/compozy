@@ -1,7 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { toast } from "@compozy/ui";
+
 import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
+import { modelCatalogKeys } from "@/systems/model-catalog";
+import { providerKeys } from "@/systems/providers";
+import { providerUsageKeys } from "@/systems/provider-usage";
+import { workspaceKeys } from "@/systems/workspace";
 
 import {
   deleteSettingsHook,
@@ -11,6 +17,7 @@ import {
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
+  setSettingsProviderEnabled,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -36,6 +43,7 @@ import type {
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,
+  SettingsProviderCollection,
   SettingsProviderRequest,
   SettingsPersonaFilter,
   SettingsUpdateAutomationRequest,
@@ -334,6 +342,47 @@ export function useDeleteSettingsProvider() {
     mutationFn: (name: string) => deleteSettingsProvider(name),
     onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, name) => invalidateProviders(queryClient, name),
+  });
+}
+
+/**
+ * Turns one provider on or off. The confirmed provider replaces its list entry at once, then every
+ * reader that lists or launches providers rereads: Settings, workspace detail (selector options),
+ * provider inventory, model catalog, and provider usage.
+ */
+export function useSetProviderEnabled() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    networkMode: "always",
+    mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
+      setSettingsProviderEnabled(name, enabled),
+    // Here, not per call: a disabled card remounts in its group before a per-call callback runs.
+    onSuccess: (result, { enabled }) => {
+      recordSettingsMutation(result.apply);
+      if (!enabled) {
+        const name = result.provider.settings.display_name?.trim() || result.provider.name;
+        toast.success(`${name} disabled. Running sessions keep going; new ones can't use it.`);
+      }
+      queryClient.setQueryData<SettingsProviderCollection>(settingsKeys.providersList(), current =>
+        current
+          ? {
+              ...current,
+              providers: current.providers.map(provider =>
+                provider.name === result.provider.name ? result.provider : provider
+              ),
+            }
+          : current
+      );
+    },
+    onSettled: (_result, _error, variables) =>
+      Promise.all([
+        invalidateProviders(queryClient, variables?.name),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.details() }),
+        queryClient.invalidateQueries({ queryKey: providerKeys.all }),
+        queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all }),
+        queryClient.invalidateQueries({ queryKey: providerUsageKeys.all }),
+      ]),
   });
 }
 

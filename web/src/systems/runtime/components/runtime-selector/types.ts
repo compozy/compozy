@@ -133,6 +133,11 @@ export interface RuntimeProviderOption {
   runtime_strategy?: RuntimeProviderStrategy;
   /** Omitted when a change waits for the next message's process binding. */
   runtime_live_apply?: RuntimeProviderLiveApply;
+  /**
+   * Turned off in Settings. A selector lists it only while it is the current value, marked
+   * "Disabled", so a saved choice is never rewritten behind the operator's back.
+   */
+  disabled?: boolean;
 }
 
 /**

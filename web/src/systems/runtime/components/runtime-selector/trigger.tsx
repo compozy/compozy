@@ -2,7 +2,7 @@ import { ChevronDown, TriangleAlert, Zap } from "@compozy/ui/icons";
 import { useId, type ComponentProps } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";
-import { cn, IntensityMeter, KindIcon, providerKindIconRegistry } from "@compozy/ui";
+import { cn, IntensityMeter, KindIcon, Pill, providerKindIconRegistry } from "@compozy/ui";
 
 import { runtimeTriggerView } from "./trigger-model";
 import {
@@ -190,6 +190,11 @@ export function RuntimeSelectorTrigger({
           hollow={view.meter.hollow}
           className="shrink-0"
         />
+      ) : null}
+      {view.providerDisabled && !view.compact ? (
+        <Pill aria-hidden="true" data-slot="runtime-selector-disabled" tone="neutral">
+          Disabled
+        </Pill>
       ) : null}
       {view.showFast ? <TriggerFastMark /> : null}
       {view.warningLabel ? <TriggerWarningMark label={view.warningLabel} /> : null}
