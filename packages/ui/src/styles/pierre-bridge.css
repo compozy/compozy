@@ -1,0 +1,81 @@
+/* Pierre theme bridge. `FileTree` (@pierre/trees) and `CodeViewer` /
+   `DiffViewer` (@pierre/diffs) render inside shadow roots, which only accept
+   theming through inherited `--trees-*-override` and `--diffs-*` custom
+   properties. This file maps them once onto tokens.css roles; it declares no
+   colour literals, so light and dark follow the token theme. Syntax colours
+   come from the Shiki pair in lib/code-theme.ts. Visual gaps are fixed here,
+   never at callsites. */
+
+[data-slot="file-tree"] {
+  --trees-bg-override: transparent;
+  --trees-fg-override: var(--color-fg-2);
+  --trees-fg-muted-override: var(--color-muted-foreground);
+  --trees-bg-muted-override: var(--color-hover);
+  --trees-selected-bg-override: var(--color-selected);
+  --trees-selected-fg-override: var(--color-fg);
+  --trees-selected-focused-border-color-override: var(--color-line-focus);
+  --trees-accent-override: var(--color-brand);
+  --trees-border-color-override: var(--color-line-soft);
+  --trees-indent-guide-bg-override: var(--color-line-soft);
+  --trees-input-bg-override: var(--color-sunken);
+  --trees-search-bg-override: var(--color-sunken);
+  --trees-search-fg-override: var(--color-fg);
+  --trees-scrollbar-thumb-override: var(--color-line-strong);
+  --trees-border-radius-override: var(--radius-xs);
+  --trees-font-family-override: var(--font-sans);
+  --trees-font-size-override: var(--text-small-body);
+  --trees-font-weight-regular-override: var(--font-weight-normal);
+  --trees-font-weight-semibold-override: var(--font-weight-semibold);
+  /* Focus indicator: the 2 px, 50 %-ink ring of `shadow-focus-inset`, drawn
+     inside full-bleed rows. */
+  --trees-focus-ring-width-override: 2px;
+  --trees-focus-ring-offset-override: -2px;
+  --trees-focus-ring-color-override: color-mix(in srgb, var(--color-fg-strong) 50%, transparent);
+  /* Git signals: added success, deleted destructive, modified/renamed warning,
+     untracked muted, ignored at reduced emphasis. */
+  --trees-git-added-color-override: var(--color-success);
+  --trees-git-deleted-color-override: var(--color-destructive);
+  --trees-git-modified-color-override: var(--color-warning);
+  --trees-git-renamed-color-override: var(--color-warning);
+  --trees-git-untracked-color-override: var(--color-muted-foreground);
+  --trees-git-ignored-color-override: var(--color-faint);
+  --trees-status-added-override: var(--color-success);
+  --trees-status-deleted-override: var(--color-destructive);
+  --trees-status-modified-override: var(--color-warning);
+  --trees-status-renamed-override: var(--color-warning);
+  --trees-status-untracked-override: var(--color-muted-foreground);
+  --trees-status-ignored-override: var(--color-faint);
+}
+
+[data-slot="code-viewer"],
+[data-slot="diff-viewer"] {
+  --diffs-font-family: var(--font-mono);
+  --diffs-header-font-family: var(--font-sans);
+  --diffs-font-size: var(--text-code-block);
+  --diffs-fg-number-override: var(--color-faint);
+  --diffs-bg-context-override: var(--color-canvas);
+  --diffs-bg-buffer-override: var(--color-sunken);
+  --diffs-bg-separator-override: var(--color-sunken);
+  --diffs-bg-hover-override: var(--color-hover);
+  /* Line selection takes the selected-row role. */
+  --diffs-bg-selection-override: var(--color-selected);
+  --diffs-bg-selection-number-override: var(--color-selected);
+  --diffs-addition-color-override: var(--color-success);
+  --diffs-deletion-color-override: var(--color-destructive);
+  --diffs-modified-color-override: var(--color-warning);
+  --diffs-bg-addition-override: var(--color-success-tint);
+  --diffs-bg-deletion-override: var(--color-destructive-tint);
+  --diffs-bg-addition-number-override: var(--color-success-tint);
+  --diffs-bg-deletion-number-override: var(--color-destructive-tint);
+}
+
+/* CodeViewer's target line rides the brand highlight. Pierre paints a selected
+   row as mix(row 82 %, target) in light and mix(row 75 %, target) in dark (the
+   gutter 75 % / 60 %), so a grey `selected` target all but vanished (1.03:1 on
+   white). The brand hue reads in both themes: light row #fbdfd5 (1.26:1,
+   ΔE 15), dark row #44251a (1.35:1, ΔE 24) on canvas. Find matches stay brand
+   tints over the text, with the current one underlined. */
+[data-slot="code-viewer"] {
+  --diffs-bg-selection-override: var(--color-brand);
+  --diffs-bg-selection-number-override: var(--color-brand);
+}

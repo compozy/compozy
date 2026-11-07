@@ -10,6 +10,74 @@ import (
 	"strings"
 )
 
+// GetAgentHeartbeatSources List check-in source kinds, scripts and effective limits
+func (c *Client) GetAgentHeartbeatSources(ctx context.Context, params GetAgentHeartbeatSourcesParams) (*HeartbeatSourceCatalogPayload, error) {
+	path := "/api/agents/{name}/heartbeat/sources"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatSourceCatalogPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatStatusParams carries the path, query, and header parameters.
+type GetAgentHeartbeatStatusParams struct {
+	Name                    string  `url:"name"`
+	WorkspaceID             *string `url:"workspace_id"`
+	SessionID               *string `url:"session_id"`
+	IncludeSessionHealth    *bool   `url:"include_session_health"`
+	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
+	Profile                 *string `url:"profile"`
+}
+
+// GetAgentHeartbeatStatus Read Heartbeat policy status, wake state, and optional session health
+func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHeartbeatStatusParams) (*HeartbeatStatusResponse, error) {
+	path := "/api/agents/{name}/heartbeat/status"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.IncludeSessionHealth != nil {
+		query.Set("include_session_health", strconv.FormatBool(*params.IncludeSessionHealth))
+	}
+	if params.IncludeRecentWakeEvents != nil {
+		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceParams carries the path, query, and header parameters.
+type GetAgentInstanceParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetAgentInstance Get an agent instance
 func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances/{id}"
@@ -377,70 +445,4 @@ func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*Doctor
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetExtensionParams carries the path, query, and header parameters.
-type GetExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtension Get one installed extension
-func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*ExtensionResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionInventoryParams carries the path, query, and header parameters.
-type GetExtensionInventoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtensionInventory List shipped and live resources for one extension
-func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
-	path := "/api/extensions/{name}/inventory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInventoryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionLogsParams carries the path, query, and header parameters.
-type GetExtensionLogsParams struct {
-	Name        string  `url:"name"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	Follow      *string `url:"follow"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
 }

@@ -741,6 +741,7 @@ func TestAppSDKArtifacts(t *testing.T) {
 			}
 		}
 		for id, snippets := range map[string][]string{
+			"getSessionChangePatches": {`"path": ["path"]`, `Path: []string{"path"}`},
 			"listOpenAIModels":        {`client.New(ctx, client.WithBaseURL("http://127.0.0.1:2123"))`},
 			"listProviders":           {"client.New(ctx)"},
 			"listTasks":               {"compozy.tasks.listTasks({ query", "c.ListTasks(ctx"},

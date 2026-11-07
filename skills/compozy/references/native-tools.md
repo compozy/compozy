@@ -128,7 +128,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
-`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
+`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
 Session reads are paged. `compozy__session_events` returns the newest 50 events and
 `compozy__session_history` the newest 10 turns when `limit` is omitted or 0; an explicit `limit` is
@@ -1011,6 +1011,32 @@ complete check counts, review decision, mergeability and `ready_to_merge`. A nul
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
 remain visible during provider outages. Explicit refresh is available through
 `POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.
+
+### Session changes
+
+`compozy__session_changes` (sessions toolset, read risk) reads what a session changed in its
+project root, untracked files included: `session_id` (required), optional `workspace`, `scope`
+(`branch` diffs the working tree against its merge base with `base`; `uncommitted` diffs it
+against HEAD; omitted picks `branch` when HEAD is ahead of the base, else `uncommitted`), `base` (any Git-resolvable ref; omitted uses the
+worktree's base ref, then `origin/HEAD`, then `main` or `master`), `patch_paths` (at most 20 root-relative paths),
+and `reveal`. The root is the session's bound worktree, else its project root; it never follows the
+provider's resumed CWD. The result is the summary (`root`, `head`, `base`, `totals`, `files` with
+status, `old_path` for renames, `+/-` counts and `binary`/`generated`/`sensitive` flags,
+`truncated`, `revision`, and the cached `pull_request` when one exists) plus `patches` for the
+requested paths. Summaries list at most 3,000 files and keep the full totals; `totals.partial`
+marks lower bounds. Each patch is capped at 1 MiB and returns `too_large: true` without text past
+it. Sensitive files (`.env`, keys, credentials, and in-root symlinks to them) return
+`sensitive: true` and no patch text unless the call sets `reveal: true`; reveal only when the
+operator's task needs the content.
+
+Failures come back as a structured `error` with a `code`: `session_not_found` (also for sessions
+outside the caller's profile read scope), `root_unavailable` (User-scope sessions and removed
+worktrees), `not_a_git_repository`, `base_not_found`, `invalid_scope`, `too_many_paths`,
+`invalid_path`, `path_outside_root`, `path_denied` (`.git` and paths resolving into it),
+`file_not_found`, `not_a_file`, `changes_stale` (HEAD or base moved; call again), and
+`changes_unavailable`. There are no native tools or CLI verbs that list, read, or search project
+files; those routes are HTTP/UDS only (see `references/app-sdk.md`). CLI fallback:
+`compozy session changes <session-id>` (`references/runtime-operations.md`).
 
 ### In-place session worktree tools
 

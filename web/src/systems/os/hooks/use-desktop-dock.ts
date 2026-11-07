@@ -18,6 +18,7 @@ import type { OsAppId, OsPresentation } from "../lib/os-types";
 import type { SessionPayload } from "@/systems/session";
 import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
+import { useOpenFilesApp } from "./use-open-files-app";
 import { useOsShell } from "./use-os-shell";
 import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
 
@@ -62,6 +63,7 @@ export function useDesktopDock(
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
   const jumpToSession = useAttentionJump();
+  const openFiles = useOpenFilesApp();
   const presentation = useDesktop(state => state.presentation);
   const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   // Dock state aggregates every instance of an app (ADR-010 §3): the icon
@@ -149,6 +151,11 @@ export function useDesktopDock(
           });
         })
         .catch(() => notifyUser({ message: "Couldn't load sessions. Try again.", tone: "error" }));
+      return;
+    }
+    // Files opens or focuses the active project's window, never another project's (US-002.AC-2).
+    if (appId === "files" && openFiles !== null) {
+      openFiles();
       return;
     }
     // Repeat activation cycles the app's instances (ADR-002); minimizing the

@@ -94,7 +94,7 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 		}
 		if symlink {
 			var keep bool
-			if rel, keep = resolveSymlink(root, rel); !keep {
+			if rel, keep = ClassifySymlink(root, rel); !keep {
 				return nil
 			}
 		}
@@ -129,14 +129,14 @@ func classifyListed(root string, rel string) (string, bool) {
 	case info.Mode()&fs.ModeSymlink == 0:
 		return rel, true
 	default:
-		return resolveSymlink(root, rel)
+		return ClassifySymlink(root, rel)
 	}
 }
 
-// resolveSymlink classifies a symlink by its target, as mention resolution
+// ClassifySymlink classifies a symlink by its target, as mention resolution
 // does: a directory inside root lists as a folder ("rel/"), a regular file
 // inside root as a file, and a broken, escaping, or special target is skipped.
-func resolveSymlink(root string, rel string) (string, bool) {
+func ClassifySymlink(root string, rel string) (string, bool) {
 	resolved, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(rel)))
 	if err != nil {
 		return "", false

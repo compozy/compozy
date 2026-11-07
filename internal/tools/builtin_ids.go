@@ -27,7 +27,8 @@ const (
 	// ToolIDSkillView reads one skill and its verified body.
 	ToolIDSkillView ToolID = "compozy__skill_view"
 	// ToolIDCommandList lists the unified command catalog for one session.
-	ToolIDCommandList ToolID = "compozy__command_list"
+	ToolIDSessionChanges ToolID = "compozy__session_changes"
+	ToolIDCommandList    ToolID = "compozy__command_list"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
 	// ToolIDSessionArchive archives one stopped runtime session.

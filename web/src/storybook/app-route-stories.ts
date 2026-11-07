@@ -58,6 +58,27 @@ export const appRouteStories = [
     storyName: "DetailExtensionBrowse",
   },
   {
+    system: "files",
+    routePath: "/files",
+    storybookPath: "/files",
+    title: "systems/files/routes/Files",
+    storyName: "ActiveProject",
+  },
+  {
+    system: "files",
+    routePath: "/files/",
+    storybookPath: "/files/",
+    title: "systems/files/routes/Files",
+    storyName: "ActiveProject",
+  },
+  {
+    system: "files",
+    routePath: "/files/$workspaceId",
+    storybookPath: "/files/ws_launch_hq",
+    title: "systems/files/routes/Files",
+    storyName: "Project",
+  },
+  {
     system: "tasks",
     routePath: "/tasks",
     storybookPath: "/tasks",

@@ -27,6 +27,7 @@ import { SessionWindowPresentationContext } from "../../contexts/session-window-
 import { closeSessionLinkDialog, sessionLinkDialogStore } from "../use-session-link-dialog";
 import type { SessionLinkedWorkModel } from "../use-session-linked-work";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
+import { sessionReviewPanelStore } from "../use-session-review-panel-state";
 import { SessionTransportChip } from "../../components/session-transport-chip";
 import { SESSION_TRANSPORT_LIVE } from "../../lib/session-transport";
 import {
@@ -65,6 +66,8 @@ function SessionPublisher({
   session = primarySessionFixture,
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
+  reviewOpen = false,
+  onReviewToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
   transportChip,
@@ -83,6 +86,8 @@ function SessionPublisher({
   session?: SessionPayload;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
+  reviewOpen?: boolean;
+  onReviewToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
   transportChip?: ReactNode;
@@ -97,6 +102,8 @@ function SessionPublisher({
     isStopping: false,
     isUnarchiving: false,
     inspectorOpen,
+    reviewOpen,
+    onReviewToggle,
     sidebarOpen,
     onInspectorToggle,
     onSidebarToggle,
@@ -193,6 +200,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onInspectorToggle: vi.fn(),
         onSidebarToggle: vi.fn(),
@@ -322,7 +331,12 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["fix", "open", "refresh"]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
+      "fix",
+      "open",
+      "refresh",
+      "review-changes",
+    ]);
     expect(items[0]).toHaveTextContent("Fix failing checks");
 
     fireEvent.click(items[0]!);
@@ -345,9 +359,29 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["open", "refresh"]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
+      "open",
+      "refresh",
+      "review-changes",
+    ]);
     fireEvent.click(items[1]!);
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  // US-007.AC-8. Invariant: the PR chip's Review changes opens the Review panel on Changes,
+  // Branch scope, for the session's own branch.
+  it("Should open the Review panel on Changes with Branch scope from the chip menu", async () => {
+    const session = withPullRequest({});
+    renderWithTopbar(<SessionPublisher onStop={vi.fn()} session={session} />);
+
+    fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+    const menu = await screen.findByTestId("session-pull-request-menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Review changes" }));
+    expect(sessionReviewPanelStore.getSnapshot().context.bySession[session.id]).toMatchObject({
+      open: true,
+      tab: "changes",
+      scope: "branch",
+    });
   });
 
   it.each(["system", "coordinator", "spawned"] as const)(
@@ -442,6 +476,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
@@ -499,6 +535,8 @@ describe("useSessionTopbarSlot", () => {
         isStopping: false,
         isUnarchiving: false,
         inspectorOpen: false,
+        reviewOpen: false,
+        onReviewToggle: vi.fn(),
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
@@ -619,6 +657,33 @@ describe("useSessionTopbarSlot", () => {
       expect(screen.getByTestId("session-sidebar-toggle")).toBeInTheDocument();
       expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
       expect(screen.queryByText("Always-on")).toBeNull();
+    });
+
+    // UT-044 (file-explorer). Invariant: the Review panel toggle sits before the Inspector toggle
+    // for a session with a file root and is absent in user scope, where there is no root.
+    it("Should offer the Review panel toggle only for a session with a file root (UT-044)", () => {
+      agentInstances.rows = [];
+      const onReviewToggle = vi.fn();
+      const project = renderWithTopbar(
+        <SessionPublisher onStop={vi.fn()} onReviewToggle={onReviewToggle} />
+      );
+      const toggle = screen.getByRole("button", { name: "Open review panel" });
+      expect(
+        toggle.compareDocumentPosition(screen.getByTestId("session-inspector-toggle")) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      fireEvent.click(toggle);
+      expect(onReviewToggle).toHaveBeenCalledTimes(1);
+      project.unmount();
+
+      renderWithTopbar(
+        <SessionPublisher
+          onStop={vi.fn()}
+          session={{ ...primarySessionFixture, workspace_id: "" }}
+        />
+      );
+      expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+      expect(screen.queryByTestId("session-review-toggle")).toBeNull();
     });
 
     it("Should drop the linked chip, Stop and both panel toggles on the agent's main", () => {

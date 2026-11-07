@@ -30,6 +30,8 @@
         "@base-ui/utils": "0.5.0",
         "@blobatar/react": "2.7.0",
         "@fontsource-variable/geist-mono": "5.3.0",
+        "@pierre/diffs": "1.6.2",
+        "@pierre/trees": "1.0.0-beta.6",
         "@shikijs/langs": "4.5.0",
         "@shikijs/themes": "4.5.0",
         "@tiptap/extensions": "3.32.0",

@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+// DoctorSummaryPayload is a daemon API value.
+type DoctorSummaryPayload struct {
+	Total            int            `json:"total"`
+	CountsBySeverity map[string]int `json:"counts_by_severity"`
+}
+
+// DraftAgentInstructionsRequest is a daemon API value.
+type DraftAgentInstructionsRequest struct {
+	Goal    string            `json:"goal"`
+	Runtime AgentDraftRuntime `json:"runtime"`
+}
+
+// DraftAgentInstructionsResponse is a daemon API value.
+type DraftAgentInstructionsResponse struct {
+	Instructions string `json:"instructions"`
+}
+
+// DragAwayPolicy is a daemon API value.
+type DragAwayPolicy string
+
+// DrainState is a daemon API value.
+type DrainState string
+
+// DrainStatusResponse is a daemon API value.
+type DrainStatusResponse struct {
+	State                      DrainState `json:"state"`
+	AdmissionClosed            bool       `json:"admission_closed"`
+	ActiveSessionExecutions    int        `json:"active_session_executions"`
+	ActiveTaskClaims           int        `json:"active_task_claims"`
+	AuthoritativeClaimsSettled bool       `json:"authoritative_claims_settled"`
+	SessionExecutionSettled    bool       `json:"session_execution_settled"`
+	SafeToStop                 bool       `json:"safe_to_stop"`
+}
+
+// DslTerminalState is a daemon API value.
+type DslTerminalState string
+
 // DuplicateAgentOverrides is a daemon API value.
 type DuplicateAgentOverrides struct {
 	DisplayName     *string                             `json:"display_name,omitempty"`
@@ -407,44 +444,4 @@ type ExtensionSecretsPayload struct {
 	DeclaredEnv  []string                        `json:"declared_env"`
 	BoundEnvKeys []string                        `json:"bound_env_keys"`
 	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
-}
-
-// ExtensionTrustReportPayload is a daemon API value.
-type ExtensionTrustReportPayload struct {
-	Decision         string           `json:"decision"`
-	RegistryTier     string           `json:"registry_tier"`
-	ChecksumVerified bool             `json:"checksum_verified"`
-	AllowUnverified  bool             `json:"allow_unverified"`
-	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
-}
-
-// ExtensionUpdateBatchResponse is a daemon API value.
-type ExtensionUpdateBatchResponse struct {
-	Updates []ManagedExtensionUpdatePayload `json:"updates"`
-}
-
-// ExtensionUpdateResponse is a daemon API value.
-type ExtensionUpdateResponse struct {
-	Update ManagedExtensionUpdatePayload `json:"update"`
-}
-
-// ExtensionsResponse is a daemon API value.
-type ExtensionsResponse struct {
-	Extensions []ExtensionPayload `json:"extensions"`
-}
-
-// FSBrowseResponse is a daemon API value.
-type FSBrowseResponse struct {
-	Path    string           `json:"path"`
-	Parent  string           `json:"parent,omitempty"`
-	Home    string           `json:"home,omitempty"`
-	Roots   []string         `json:"roots"`
-	Entries []FSEntryPayload `json:"entries"`
-}
-
-// FSEntryPayload is a daemon API value.
-type FSEntryPayload struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	IsDir bool   `json:"is_dir"`
 }

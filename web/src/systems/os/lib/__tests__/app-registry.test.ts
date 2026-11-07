@@ -7,7 +7,8 @@ import { WindowScopeContext } from "@/hooks/use-window-scope";
 import { useTopbarSlot } from "@compozy/ui";
 
 import { OsWindowSurface } from "../../components/os-window-frame";
-import { OS_APPS, matchSessionInstance, resolveAppForPath } from "../app-registry";
+import { OS_APPS, dockApps, matchSessionInstance, resolveAppForPath } from "../app-registry";
+import { filesOpenTarget, filesProjectForOpen } from "../files-open-target";
 import type { OsAppId } from "../os-types";
 import { defaultOsWindowRoute } from "../window-manager-view";
 import { pickLastCreatedSession } from "../last-created-session";
@@ -78,6 +79,37 @@ describe("app registry", () => {
     });
     expect(resolveAppForPath("/automations/jobs/morning-digest")?.app.id).toBe("automations");
     expect(resolveAppForPath("/automations/triggers/rerun-delivery")?.app.id).toBe("automations");
+  });
+
+  it("Should dock Files immediately after Agents in group 2 (UT-045)", () => {
+    const group = dockApps().find(apps => apps.some(app => app.id === "agents")) ?? [];
+    const ids = group.map(app => app.id);
+    expect(ids.indexOf("files")).toBe(ids.indexOf("agents") + 1);
+    expect(OS_APPS.files).toMatchObject({ title: "Files", paths: ["/files"], dock: { group: 2 } });
+  });
+
+  it("Should key one Files window per project, whichever surface opens it (UT-046)", () => {
+    const resolved = resolveAppForPath("/files/ws_1");
+    expect(resolved?.app.id).toBe("files");
+    expect(resolved?.instanceKey).toBe("ws_1");
+    expect(resolveAppForPath("/files")).toMatchObject({ app: { id: "files" }, instanceKey: null });
+    const fromDock = filesOpenTarget(filesProjectForOpen({ windows: {}, focusedId: null }, "ws_1"));
+    const fromMenu = filesOpenTarget("ws_1");
+    expect(fromDock).toEqual(fromMenu);
+    expect(fromDock.instanceKey).toBe("ws_1");
+    expect(OS_APPS.files.matchInstance?.(fromDock.route?.pathname ?? "")).toBe("ws_1");
+  });
+
+  it("Should open the focused window's project before the remembered one", () => {
+    const focused = {
+      id: "w1",
+      app: "loops",
+      instanceKey: null,
+      route: { pathname: "/loops", search: { workspace: "ws_2" } },
+    } as unknown as Parameters<typeof filesProjectForOpen>[0]["windows"][string];
+    expect(filesProjectForOpen({ windows: { w1: focused }, focusedId: "w1" }, "ws_1")).toBe("ws_2");
+    const user = { ...focused, route: { pathname: "/loops", search: { workspace: "@user" } } };
+    expect(filesProjectForOpen({ windows: { w1: user }, focusedId: "w1" }, "ws_1")).toBe("ws_1");
   });
 
   it("Should own the desktop root exactly (no prefix bleed)", () => {
@@ -233,6 +265,8 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
     aggregate: true,
   },
   { app: "usage", label: "Provider usage", pathname: "/usage" },
+  { app: "files", label: "a project's files", pathname: "/files/ws_1" },
+  { app: "files", label: "no project yet", pathname: "/files" },
 ];
 
 describe("app loading fallbacks", () => {

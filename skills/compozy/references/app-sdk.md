@@ -93,6 +93,17 @@ management remain forbidden. See the generated operation table at
 https://compozy.com/docs/apps/browser. `Origin: null` is always denied. A prompt-capable app can ask
 agents to act with their session permissions: the origin allowlist does not sandbox the allowed app.
 
+Project files and session changes are app-access reads. `listFileEntries`, `readFileContent`,
+`findFiles`, and `searchFileContents` take a workspace and optional `worktree_id`; their session forms
+(`listSessionFileEntries`, `readSessionFileContent`, `findSessionFiles`,
+`searchSessionFileContents`) and `getSessionChanges`, `getSessionChangePatches`,
+`getSessionChangeContents`, and `listSessionChangeBases` resolve the session's bound worktree, else
+its project root. Responses carry root-relative paths only, never serve `.git`, and gate sensitive
+files (`.env`, keys, credentials, and in-root symlinks to them) as `sensitive: true` without content.
+`reveal=true` from an app token fails with `403 reveal_forbidden`; only the operator's own clients can
+reveal. User-scope sessions return `409 root_unavailable`, and sessions or workspaces outside the
+token's profile read scope return `404`.
+
 Revocation rejects authentication with `app_token_revoked` and closes its open streams within five
 seconds. A foreign browser can read that 401 only while another active token still allows its origin.
 If revocation removes the last grant, preflight is denied and responses lack the CORS grant; browser

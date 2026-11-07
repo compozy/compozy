@@ -50,6 +50,8 @@ export interface SessionPullRequestChipProps {
   onExitAction?: (action: string) => void;
   onRefresh?: () => void;
   onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
+  /** Opens the Review panel on Changes (US-007.AC-8); absent in user scope. */
+  onReviewChanges?: () => void;
   /** Rows after the delivery actions in the menu. */
   menuFooter?: ReactNode;
   /** Opens with the menu shown (prototypes and stories). */
@@ -69,6 +71,7 @@ export function SessionPullRequestChip({
   onExitAction,
   onRefresh,
   onPrompt,
+  onReviewChanges,
   menuFooter,
   defaultMenuOpen = false,
 }: SessionPullRequestChipProps) {
@@ -113,6 +116,7 @@ export function SessionPullRequestChip({
         onExitAction={onExitAction}
         onPrompt={onPrompt}
         onRefresh={onRefresh}
+        onReviewChanges={onReviewChanges}
         pullRequest={facts.pull_request}
         refreshing={refreshing}
       />
