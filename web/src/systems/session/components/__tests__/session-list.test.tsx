@@ -61,6 +61,7 @@ import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { formatLaterReturn } from "../../lib/session-later";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import { SessionSidebar } from "../session-sidebar";
 import { SessionViewOptionsMenu } from "../session-view-options-menu";
 import { agentKeys } from "@/systems/agent";
@@ -163,6 +164,8 @@ function renderList(
     actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
     /** The session window's clear request for the session it has open. */
     clear?: SessionClearRequest;
+    /** The desktop shell the rail opens windows through; absent outside the shell. */
+    shell?: OsShellHandle;
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -232,7 +235,9 @@ function renderList(
   const tree = (node: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>
       <AgentIdentityProvider>
-        <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+        <OsShellContext value={overrides.shell ?? null}>
+          <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+        </OsShellContext>
       </AgentIdentityProvider>
     </QueryClientProvider>
   );
@@ -3303,6 +3308,29 @@ describe("SessionList breadth and Group by", () => {
     // No project behind the User group: the click falls through and no project menu opens.
     expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  // US-002.AC-4: the project context menu opens that project's Files window.
+  it("Should open the project's Files window from its group header", async () => {
+    const user = userEvent.setup();
+    const userOpen = vi.fn(async () => "w-files");
+    const shell = {
+      manager: { getState: () => ({ windows: {}, focusedId: null }) },
+      coordinator: { userOpen },
+    } as unknown as OsShellHandle;
+    renderList({ sessions: [], view: grouped(), shell });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "Open files" })).toBeVisible();
+    });
+    await user.click(screen.getByRole("menuitem", { name: "Open files" }));
+    expect(userOpen).toHaveBeenCalledWith({
+      app: "files",
+      instanceKey: "ws-alpha",
+      route: { pathname: "/files/ws-alpha", search: {} },
+    });
   });
 
   // A profile group inside a project stands for a profile, not the project: no project menu.

@@ -4,17 +4,15 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
 
-// SetTaskWorktreePolicy Set one task worktree policy
-func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktreePolicyParams, body WorktreePolicy) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile/worktree"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+// RollbackAgentSoul Rollback SOUL.md through managed authoring
+func (c *Client) RollbackAgentSoul(ctx context.Context, params RollbackAgentSoulParams, body AgentSoulRollbackByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -22,244 +20,130 @@ func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktr
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// SetToolApprovalGrantParams carries the path, query, and header parameters.
-type SetToolApprovalGrantParams struct {
+// RunLoopParams carries the path, query, and header parameters.
+type RunLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Dry         *bool   `url:"dry"`
+	Profile     *string `url:"profile"`
+}
+
+// RunLoop Start or dry-run one Loop
+func (c *Client) RunLoop(ctx context.Context, params RunLoopParams, body RunLoopRequest) (*RunLoopResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/run"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Dry != nil {
+		query.Set("dry", strconv.FormatBool(*params.Dry))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunLoopResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RunWorktreeExitActionParams carries the path, query, and header parameters.
+type RunWorktreeExitActionParams struct {
 	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
 }
 
-// SetToolApprovalGrant Set an explicit agent-wide or tool-wide native-tool approval decision
-func (c *Client) SetToolApprovalGrant(ctx context.Context, params SetToolApprovalGrantParams, body ToolApprovalGrantSetRequest) (*ToolApprovalGrantResponse, error) {
-	path := "/api/tool-approval-grants"
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalGrantResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SignalTerminalParams carries the path, query, and header parameters.
-type SignalTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-}
-
-// SignalTerminal Signal one running terminal
-func (c *Client) SignalTerminal(ctx context.Context, params SignalTerminalParams, body TerminalSignalRequest) (*TerminalDeliveredResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/signal"
+// RunWorktreeExitAction Run a worktree exit action
+func (c *Client) RunWorktreeExitAction(ctx context.Context, params RunWorktreeExitActionParams, body RunWorktreeExitActionRequest) (*WorktreeExitOperationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalDeliveredResponse
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	var out WorktreeExitOperationResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// SpawnAgentSessionParams carries the path, query, and header parameters.
-type SpawnAgentSessionParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
+// SearchAgentMemoryParams carries the path, query, and header parameters.
+type SearchAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
 }
 
-// SpawnAgentSession Spawn a narrowed child session for the calling agent
-func (c *Client) SpawnAgentSession(ctx context.Context, params SpawnAgentSessionParams, body AgentSpawnRequest) (*AgentSpawnResponse, error) {
-	path := "/api/agent/spawn"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentSpawnResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StartAgentTaskRunParams carries the path, query, and header parameters.
-type StartAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
-}
-
-// StartAgentTaskRun Start a claimed task run under the calling agent's lease
-func (c *Client) StartAgentTaskRun(ctx context.Context, params StartAgentTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/agent/tasks/{run_id}/start"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StartTaskParams carries the path, query, and header parameters.
-type StartTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// StartTask Start one task by enqueueing executable work
-func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
-	path := "/api/tasks/{id}/start"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+// SearchAgentMemory Search agent notes and accessible sessions (experimental) Experimental: pin the exact SDK version.
+func (c *Client) SearchAgentMemory(ctx context.Context, params SearchAgentMemoryParams, body AgentMemorySearchRequest) (*AgentMemorySearchResponse, error) {
+	path := "/api/agents/{name}/memory/search"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out TaskExecutionResponse
+	var out AgentMemorySearchResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// StartTaskRunParams carries the path, query, and header parameters.
-type StartTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+// SearchFileContentsParams carries the path, query, and header parameters.
+type SearchFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	WorktreeID    *string   `url:"worktree_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
-// StartTaskRun Start one claimed task run
-func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/start"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SteerSessionPromptParams carries the path, query, and header parameters.
-type SteerSessionPromptParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// SteerSessionPrompt Stage steering input for the active session turn
-func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
+// SearchFileContents Search project file contents
+func (c *Client) SearchFileContents(ctx context.Context, params SearchFileContentsParams) (*FileSearchResponse, error) {
+	path := "/api/workspaces/{workspace_id}/files/search"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
+	if params.WorktreeID != nil {
+		query.Set("worktree_id", *params.WorktreeID)
 	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
+	query.Set("q", params.Q)
+	if params.Regex != nil {
+		query.Set("regex", strconv.FormatBool(*params.Regex))
 	}
-	var out SendPromptResultResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
+	if params.CaseSensitive != nil {
+		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
 	}
-	return &out, nil
-}
-
-// StopSessionParams carries the path, query, and header parameters.
-type StopSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// StopSession Stop a session without deleting persisted history
-func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
+	if params.WholeWord != nil {
+		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
 	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
 	}
-	var out SessionStopPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamCmdPaletteParams carries the path, query, and header parameters.
-type StreamCmdPaletteParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// StreamCmdPalette Stream command palette catalog invalidations
-func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
-	path := "/api/cmd-palette/stream"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[CmdPaletteCatalogChangedEvent](ctx, c, "GET", path, nil, nil, "streamCmdPalette")
-}
-
-// StreamCmdPaletteViewParams carries the path, query, and header parameters.
-type StreamCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// StreamCmdPaletteView Stream declarative command palette view patches
-func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPaletteViewParams) (*Stream[CmdPaletteViewPatch], error) {
-	path := "/api/cmd-palette/views/{id}/stream"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.After != nil {
-		query.Set("after", *params.After)
-	}
-	if params.StreamEpoch != nil {
-		query.Set("stream_epoch", *params.StreamEpoch)
+	if params.Exclude != nil {
+		for _, value := range *params.Exclude {
+			query.Add("exclude", value)
+		}
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -270,169 +154,121 @@ func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPalet
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[CmdPaletteViewPatch](ctx, c, "GET", path, nil, nil, "streamCmdPaletteView")
+	var out FileSearchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-// StreamCmdPaletteViewSessionParams carries the path, query, and header parameters.
-type StreamCmdPaletteViewSessionParams struct {
-	Session string `url:"session"`
-	Token   string `url:"token"`
+// SearchGlobalSessionTranscriptParams carries the path, query, and header parameters.
+type SearchGlobalSessionTranscriptParams struct {
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// StreamCmdPaletteViewSession Stream one programmable command palette view
-func (c *Client) StreamCmdPaletteViewSession(ctx context.Context, params StreamCmdPaletteViewSessionParams) (*Stream[ViewFrame], error) {
-	path := "/api/cmd-palette/view-sessions/{session}/stream"
-	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
+// SearchGlobalSessionTranscript Search retained transcript messages with bounded literal matches for a Global session
+func (c *Client) SearchGlobalSessionTranscript(ctx context.Context, params SearchGlobalSessionTranscriptParams) (*SearchResult, error) {
+	path := "/api/sessions/{session_id}/transcript/search"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
-	query.Set("token", params.Token)
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[ViewFrame](ctx, c, "GET", path, nil, nil, "streamCmdPaletteViewSession")
-}
-
-// StreamGlobalSessionParams carries the path, query, and header parameters.
-type StreamGlobalSessionParams struct {
-	SessionID     string  `url:"session_id"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Frames        *string `url:"frames"`
-	Epoch         *int64  `url:"epoch"`
-	Generation    *int64  `url:"generation"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// StreamGlobalSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamGlobalSessionFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamGlobalSessionFrame)(nil)
-
-var _ json.Marshaler = StreamGlobalSessionFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamGlobalSessionFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamGlobalSessionFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
-func (f StreamGlobalSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
-	var out SubagentsSnapshotEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
+	var out SearchResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
-func (f StreamGlobalSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
-	var out SubagentUpdatedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// SearchSessionFileContentsParams carries the path, query, and header parameters.
+type SearchSessionFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	SessionID     string    `url:"session_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
-// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
-func (f StreamGlobalSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
-	var out SessionUsageChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
-func (f StreamGlobalSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
-	var out SessionConsumerDegradedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionEventPayload decodes this payload as SessionEventPayload.
-func (f StreamGlobalSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
-	var out SessionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
-func (f StreamGlobalSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
-	var out TranscriptSnapshotPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamGlobalSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamGlobalSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamGlobalSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsErrorPayload decodes this payload as ErrorPayload.
-func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
-	var out ErrorPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamGlobalSession Stream raw session events or fenced transcript changes for a Global session
-func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSessionParams) (*Stream[StreamGlobalSessionFrame], error) {
-	path := "/api/sessions/{session_id}/stream"
+// SearchSessionFileContents Search project file contents
+func (c *Client) SearchSessionFileContents(ctx context.Context, params SearchSessionFileContentsParams) (*FileSearchResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
 	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	query.Set("q", params.Q)
+	if params.Regex != nil {
+		query.Set("regex", strconv.FormatBool(*params.Regex))
 	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
+	if params.CaseSensitive != nil {
+		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
 	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
+	if params.WholeWord != nil {
+		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
 	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
+	}
+	if params.Exclude != nil {
+		for _, value := range *params.Exclude {
+			query.Add("exclude", value)
+		}
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileSearchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionFilesParams carries the path, query, and header parameters.
+type SearchSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           *string `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// SearchSessionFiles Search files and folders under a session's working directory
+func (c *Client) SearchSessionFiles(ctx context.Context, params SearchSessionFilesParams) (*SessionFilesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
 	}
 	if params.Limit != nil {
 		query.Set("limit", strconv.Itoa(*params.Limit))
@@ -446,5 +282,163 @@ func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSes
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
+	var out SessionFilesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionToolsParams carries the path, query, and header parameters.
+type SearchSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// SearchSessionTools Search session-callable registry tools
+func (c *Client) SearchSessionTools(ctx context.Context, params SearchSessionToolsParams, body ToolSearchRequest) (*ToolsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionTranscriptParams carries the path, query, and header parameters.
+type SearchSessionTranscriptParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// SearchSessionTranscript Search retained transcript messages with bounded literal matches
+func (c *Client) SearchSessionTranscript(ctx context.Context, params SearchSessionTranscriptParams) (*SearchResult, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SearchResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionWorkCandidatesParams carries the path, query, and header parameters.
+type SearchSessionWorkCandidatesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+	Kind        *string `url:"kind"`
+	Q           *string `url:"q"`
+	Page        *string `url:"page"`
+	Limit       *string `url:"limit"`
+}
+
+// SearchSessionWorkCandidates Search this project for link candidates
+func (c *Client) SearchSessionWorkCandidates(ctx context.Context, params SearchSessionWorkCandidatesParams) (*WorkCandidates, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Page != nil {
+		query.Set("page", *params.Page)
+	}
+	if params.Limit != nil {
+		query.Set("limit", *params.Limit)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkCandidates
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchToolsParams carries the path, query, and header parameters.
+type SearchToolsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// SearchTools Search operator-visible registry tools
+func (c *Client) SearchTools(ctx context.Context, params SearchToolsParams, body ToolSearchRequest) (*ToolsResponse, error) {
+	path := "/api/tools/search"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetExtensionEnablementParams carries the path, query, and header parameters.
+type SetExtensionEnablementParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// SetExtensionEnablement Set one extension's effective state for a profile
+func (c *Client) SetExtensionEnablement(ctx context.Context, params SetExtensionEnablementParams, body SetExtensionEnablementRequest) (*ExtensionEnablementPayload, error) {
+	path := "/api/extensions/{name}/enablement"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionEnablementPayload
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

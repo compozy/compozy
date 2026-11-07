@@ -1,4 +1,8 @@
 import {
+  validOpenWithParams,
+  validOpenTargets,
+  type OpenWithParams,
+  type OpenTarget,
   validOpenInEditorParams,
   validOpenInEditorResult,
   type OpenInEditorErrorCode,
@@ -19,6 +23,8 @@ export const PRODUCT_METHOD_VALUES = [
   "theme.set",
   "dialog.pick_directory",
   "files.open_in_editor",
+  "files.list_open_targets",
+  "files.open_with",
 ] as const;
 export type ProductMethod = (typeof PRODUCT_METHOD_VALUES)[number];
 export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
@@ -114,6 +120,8 @@ function validRegistration(value: unknown): value is GlobalShortcutRegistration 
 
 export function validProductParams(method: ProductMethod, value: unknown): boolean {
   if (!isRecord(value)) return false;
+  if (method === "files.open_with") return validOpenWithParams(value);
+  if (method === "files.list_open_targets") return Object.keys(value).length === 0;
   if (method === "files.open_in_editor") return validOpenInEditorParams(value);
   if (method === "global_shortcuts.status") return Object.keys(value).length === 0;
   if (method === "theme.set") {
@@ -137,6 +145,8 @@ export interface ProductResponses {
   "theme.set": { preference: ThemePreference };
   "dialog.pick_directory": PickDirectoryResult;
   "files.open_in_editor": OpenInEditorResult;
+  "files.open_with": OpenInEditorResult;
+  "files.list_open_targets": OpenTarget[];
 }
 
 export function validProductResponse<M extends ProductMethod>(
@@ -148,7 +158,9 @@ export function validProductResponse<M extends ProductMethod>(
       isRecord(value) && Object.keys(value).length === 1 && isThemePreference(value.preference)
     );
   }
-  if (method === "files.open_in_editor") return validOpenInEditorResult(value);
+  if (method === "files.list_open_targets") return validOpenTargets(value);
+  if (method === "files.open_in_editor" || method === "files.open_with")
+    return validOpenInEditorResult(value);
   if (method === "dialog.pick_directory") {
     return (
       isRecord(value) &&
@@ -170,3 +182,5 @@ export function validProductEventPayload(event: ProductEvent, value: unknown): b
 
 export type { GlobalShortcutBinding, GlobalShortcutRegistration };
 export type { OpenInEditorErrorCode, OpenInEditorParams, OpenInEditorResult };
+
+export type { OpenWithParams, OpenTarget };

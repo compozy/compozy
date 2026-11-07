@@ -34,7 +34,7 @@ CompozyOS archives them on load instead of failing; see
 | `[daemon.load]`                      | Agent CPU priority and load-aware admission for background work.                       | niceness `10`, threshold `1.5`, max wait `2m`                                                         |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
-| `[desktop]`                          | Editor command the desktop app runs to open file paths from transcripts.               | `editor_command = ""` (the system text editor)                                                        |
+| `[desktop]`                          | Editor command behind the desktop app's Configured editor Open in target.              | `editor_command = ""` (the system text editor)                                                        |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
@@ -201,7 +201,7 @@ update_check = true
 update_check_interval = "15m"
 
 [desktop]
-# Command the desktop app runs to open a file mentioned in a transcript.
+# Command behind the desktop app's "Configured editor" Open in target.
 # Placeholders: {path} (required), {line}, {col}; missing line/col become 1.
 # Split into arguments with single/double quotes grouping; never run through a shell.
 # Empty (default): the system text editor, without line support.
@@ -954,9 +954,14 @@ Settings for the desktop app. The section is machine-only: it is accepted only i
 `desktop settings are global-only`, and a profile overlay rejects it with
 `profile_config_key_denied`.
 
-| Field            | Type   | Default | Validation                                                                                                                                                                                       | Description                                                                                                                   |
-| ---------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `editor_command` | string | `""`    | Empty, or valid UTF-8 of at most 1024 bytes after trimming, with no control characters, balanced quotes, a `{path}` placeholder, and no placeholders other than `{path}`, `{line}`, and `{col}`. | Command the desktop app runs when you Cmd/Ctrl+click a file path in an assistant message. Empty opens the system text editor. |
+| Field            | Type   | Default | Validation                                                                                                                                                                                       | Description                                                                                                    |
+| ---------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `editor_command` | string | `""`    | Empty, or valid UTF-8 of at most 1024 bytes after trimming, with no control characters, balanced quotes, a `{path}` placeholder, and no placeholders other than `{path}`, `{line}`, and `{col}`. | Command the desktop app runs for the **Configured editor** Open in target. Empty opens the system text editor. |
+
+The desktop app lists this command as **Configured editor** in the file viewer's
+[Open in](/docs/files/open-in) menu, next to the editors it detects. It is also what a Cmd/Ctrl+click
+on a transcript path uses until you pick another Open in target; after that, the click opens the
+last target you used. A plain click opens the in-app viewer.
 
 The desktop app splits the template into arguments on whitespace. Single and double quotes group
 an argument, and there are no other escapes. It then replaces `{path}`, `{line}`, and `{col}`

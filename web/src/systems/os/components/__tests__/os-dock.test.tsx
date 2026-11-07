@@ -5,13 +5,14 @@
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type * as React from "react";
 
 import { TooltipProvider } from "@compozy/ui";
 
+import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import type { ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-palette-fixtures";
@@ -530,6 +531,45 @@ describe("OsDock", () => {
     });
   });
 
+  it("Should open or focus the Files window of the focused window's project, else the remembered one", () => {
+    const remembered = { id: "ws_1", name: "compozy" };
+    const previous = catalogInputs.workspace;
+    onTestFinished(() => {
+      catalogInputs.workspace = previous;
+    });
+    catalogInputs.workspace = {
+      ...catalogInputs.workspace,
+      rememberedWorkspace: remembered,
+      workspaces: [remembered],
+    } as typeof catalogInputs.workspace;
+    setDockState(desktopState());
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <OsShellContext value={dockShell as unknown as OsShellHandle}>{children}</OsShellContext>
+    );
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }), { wrapper });
+
+    act(() => result.current.handleSelect("files"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "files",
+      instanceKey: "ws_1",
+      route: { pathname: "/files/ws_1", search: {} },
+    });
+
+    const bound = windowFixture("loops", "loops");
+    setDockState(
+      desktopState(
+        { loops: { ...bound, route: { pathname: "/loops", search: { workspace: "ws_2" } } } },
+        "loops"
+      )
+    );
+    act(() => result.current.handleSelect("files"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "files",
+      instanceKey: "ws_2",
+      route: { pathname: "/files/ws_2", search: {} },
+    });
+  });
+
   it("Should list every launcher in catalog order with no group separators [UT-110]", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
 
@@ -538,6 +578,7 @@ describe("OsDock", () => {
       "session",
       "terminal",
       "agents",
+      "files",
       "tasks",
       "loops",
       "automations",
@@ -844,7 +885,7 @@ describe("OsDock", () => {
 
     const tabBar = document.querySelector('[data-slot="os-dock-tabbar"]');
     if (!(tabBar instanceof HTMLElement)) throw new Error("Expected the compact tab bar");
-    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(9);
+    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(10);
     expect(screen.getByRole("button", { name: "Tasks — 2 need you" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();

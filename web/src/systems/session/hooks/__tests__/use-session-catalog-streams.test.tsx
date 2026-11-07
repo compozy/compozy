@@ -13,7 +13,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
+import { fileViewerTarget, filesKeys } from "@/systems/files";
+
 import { sessionKeys } from "../../lib/query-keys";
+import { sessionChangesKeys } from "../../lib/session-changes-query";
+import {
+  requestSessionReviewFile,
+  sessionReviewPanelStore,
+  useSessionReviewPanelState,
+} from "../use-session-review-panel-state";
 import {
   sessionDetailOptions,
   sessionExpiredInteractionsOptions,
@@ -1421,6 +1429,63 @@ describe("useSessionCatalogStreams", () => {
       expect(fetchSessionTranscript).not.toHaveBeenCalled();
     }
   );
+
+  it("Should drop the old checkout's files and Changes and reset the Review panel on a location transition", async () => {
+    // Invariant: after the session's checkout changes, the Review panel never shows the previous
+    // checkout's files, search or diffs, and nothing chosen there (viewer target, focused change,
+    // Changes base) carries over. Other sessions keep theirs. Owner: catalog reconciliation.
+    const queryClient = createQueryClient();
+    const root = { kind: "session" as const, workspaceId: WORKSPACE_ID, sessionId: SESSION_ID };
+    const entriesKey = filesKeys.entries(root, "", true);
+    const contentKey = filesKeys.content(root, "a.ts", false);
+    const changesKey = sessionChangesKeys.summary({
+      workspaceId: WORKSPACE_ID,
+      sessionId: SESSION_ID,
+    });
+    const otherKey = filesKeys.entries({ ...root, sessionId: "sess_other" }, "", true);
+    for (const key of [entriesKey, contentKey, changesKey, otherKey]) {
+      queryClient.setQueryData(key, { from: "old-checkout" });
+    }
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+    requestSessionReviewFile(SESSION_ID, fileViewerTarget("a.ts", 3));
+    sessionReviewPanelStore.trigger.changesPreferenceChanged({
+      sessionId: SESSION_ID,
+      patch: { base: "origin/old" },
+    });
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        return useSessionReviewPanelState(SESSION_ID);
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    expect(result.current.target?.path).toBe("a.ts");
+    const rootKey = result.current.rootKey;
+
+    act(() => {
+      sources[0]?.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+        execution_location_changed: true,
+      });
+    });
+
+    await waitFor(() => expect(result.current.rootKey).toBe(rootKey + 1));
+    await waitFor(() => expect(queryClient.getQueryData(entriesKey)).toBeUndefined());
+    expect(queryClient.getQueryData(contentKey)).toBeUndefined();
+    expect(queryClient.getQueryData(changesKey)).toBeUndefined();
+    expect(queryClient.getQueryData(otherKey)).toEqual({ from: "old-checkout" });
+    expect(result.current.target).toBeNull();
+    expect(result.current.base).toBeUndefined();
+    expect(result.current.rootKey).toBe(rootKey + 1);
+  });
 
   it.each([false, true])(
     "Should wake a stopped session's mounted transcript after detail settles (upsert then layout during prior read: %s)",

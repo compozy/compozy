@@ -27,6 +27,7 @@ const (
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	commandListDescriptor(),
+	sessionChangesDescriptor(),
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
 	sessionLaterDescriptor(),

@@ -6,6 +6,8 @@ var appOnlyDefinitions = []domainDefinition{
 	{id: "dashboard", title: "Home", icon: "home"},
 	{id: "session", title: "Session", icon: coreIconTerminal, keywords: []string{"agent"}},
 	{id: "terminal", title: "Terminal", icon: coreIconTerminal, keywords: []string{"terminal", "journal", "pty"}},
+	{id: coreAppFiles, title: "Files", commandTitle: "Open project files", icon: "folder-tree",
+		keywords: []string{"files", "explorer", "browse", "project"}},
 	{id: "new-tab", title: "New tab", icon: coreIconPlus},
 	{id: "usage", title: "Usage", icon: "gauge", keywords: []string{"provider usage", "limits", "quota"}},
 	{id: coreSettingsKey, title: "Settings", icon: coreSettingsKey},
@@ -16,9 +18,13 @@ func appCommands() []cmdpalette.Descriptor {
 	definitions = append(definitions, sharedAppViewDomains...)
 	commands := make([]cmdpalette.Descriptor, 0, len(definitions))
 	for _, app := range definitions {
+		title := "Open " + app.title
+		if app.commandTitle != "" {
+			title = app.commandTitle
+		}
 		command := coreDescriptor(
 			cmdpalette.CommandID("app.open."+app.id),
-			"Open "+app.title,
+			title,
 			coreSectionApps,
 			app.icon,
 			cmdpalette.Action{Kind: cmdpalette.ActionKindNavigate, App: app.id},

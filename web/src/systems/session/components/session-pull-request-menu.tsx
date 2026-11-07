@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ExternalLinkIcon,
+  FileDiffIcon,
   GitPullRequestCreateIcon,
   MessageSquareTextIcon,
   RefreshCwIcon,
@@ -61,6 +62,8 @@ interface SessionPullRequestMenuProps {
   onExitAction?: (action: string) => void;
   onRefresh?: () => void;
   onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
+  /** Opens the session's Review panel on Changes; absent without a session root (user scope). */
+  onReviewChanges?: () => void;
   /** Rows after every delivery action, in their own trailing group. */
   footer?: ReactNode;
 }
@@ -79,6 +82,7 @@ export function SessionPullRequestMenu({
   onExitAction,
   onRefresh,
   onPrompt,
+  onReviewChanges,
   footer,
 }: SessionPullRequestMenuProps) {
   const model = pullRequestMenuModel({
@@ -130,6 +134,16 @@ export function SessionPullRequestMenu({
       {model.primary ? renderItem(model.primary, model.primaryReason) : null}
       {model.primary ? <DropdownMenuSeparator /> : null}
       {model.rest.map(item => renderItem(item))}
+      {onReviewChanges ? (
+        <DropdownMenuItem
+          data-action="review-changes"
+          data-slot="session-pull-request-action"
+          onClick={onReviewChanges}
+        >
+          <FileDiffIcon aria-hidden="true" />
+          Review changes
+        </DropdownMenuItem>
+      ) : null}
       {model.prompts.length > 0 ? (
         <>
           <DropdownMenuSeparator />

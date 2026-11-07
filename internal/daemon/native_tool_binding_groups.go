@@ -54,6 +54,7 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionList,
 			availability: catalogAvailability,
 		},
+		toolspkg.ToolIDSessionChanges: {call: n.sessionChanges, availability: availability},
 		toolspkg.ToolIDCommandList: {
 			call:         n.commandList,
 			availability: availability,

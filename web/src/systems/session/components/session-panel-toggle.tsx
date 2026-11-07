@@ -1,8 +1,9 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
-import { List, PanelRight } from "@compozy/ui/icons";
+import { GitCompare, List, PanelRight } from "@compozy/ui/icons";
 
 const PANELS = {
   sidebar: { label: "sessions sidebar", testId: "session-sidebar-toggle", Glyph: List },
+  review: { label: "review panel", testId: "session-review-toggle", Glyph: GitCompare },
   inspector: { label: "context sidebar", testId: "session-inspector-toggle", Glyph: PanelRight },
 } as const;
 

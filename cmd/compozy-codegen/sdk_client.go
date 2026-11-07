@@ -22,6 +22,7 @@ const (
 	sdkKindPrompt     = "prompt"
 	sdkKindSSE        = "sse"
 	sdkParamString    = "string"
+	sdkParamArray     = "array"
 	sdkParamInteger   = "integer"
 	sdkParamBoolean   = "boolean"
 	sdkContentTypeSSE = "text/event-stream"
@@ -113,7 +114,7 @@ func sdkParameterType(parameter spec.ParameterSpec) (string, error) {
 	switch parameter.Kind {
 	case "", sdkParamString:
 		return sdkParamString, nil
-	case "array":
+	case sdkParamArray:
 		return "[]string", nil
 	case sdkParamBoolean:
 		return "bool", nil

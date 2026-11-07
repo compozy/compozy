@@ -2149,6 +2149,19 @@
     "output_schema_digest": "2d5d1fd161998e466ee627b8bb67d61f103ba5af8ecba76fccae5d0bac8a8f00"
   },
   {
+    "tool_id": "compozy__session_changes",
+    "native_name": "session_changes",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e6befe67e9de8980cde331dc0aae0bc4c2523fa0c3d252e6428ebd98bc40d504",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__session_clarify_answer",
     "native_name": "session_clarify_answer",
     "toolsets": [

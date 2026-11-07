@@ -1,0 +1,59 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "session-changes-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "Render the fixture response.",
+            "turns": [
+                {
+                    "name": "report-edit",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "summarize the edits"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "changes-write-b",
+                            "title": "Write",
+                            "tool_kind": "edit",
+                            "path": "src/b.go",
+                            "raw_input": {
+                                "file_path": "src/b.go",
+                                "content": "package src\n"
+                            },
+                            "status": "completed",
+                            "content_text": "wrote src/b.go"
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Updated src/b.go."
+                        }
+                    ]
+                },
+                {
+                    "name": "add-file",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "add e.go"
+                    },
+                    "steps": [
+                        {
+                            "kind": "command_exec",
+                            "tool_call_id": "changes-add-e",
+                            "title": "Add e.go",
+                            "command": "sh",
+                            "args": ["-c", "printf 'package e\\n' > e.go"]
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Added e.go."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

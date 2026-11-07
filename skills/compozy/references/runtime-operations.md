@@ -1809,6 +1809,22 @@ or unavailable worktrees never fall back to the root branch. Default branches an
 no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
 `pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.
 
+### Session changes
+
+Use `compozy session changes <session-id> [-o json]` to read what a session changed in its bound
+worktree, else its project root. `--scope branch` (default) compares the working tree, untracked files included,
+with its merge base against `--base <ref>` (omitted: the worktree's base ref, then `origin/HEAD`, then `main`/`master`);
+`--scope uncommitted` compares it with HEAD. Repeat
+`--patch <root-relative-path>` (at most 20) to add bounded patches; sensitive files print
+`(sensitive)` unless `--reveal` is set. Human output is a status/`+`/`−`/path table with totals;
+`-o json` returns the summary (`revision`, `totals`, `files`, `truncated`, optional `pull_request`)
+plus `patches`. Domain failures exit 1 and name their code, such as `root_unavailable` for User-scope
+sessions, `base_not_found`, `not_a_git_repository`, or `too_many_paths`. Agents inside a session use
+`compozy__session_changes` (`references/native-tools.md#session-changes`). The HTTP/UDS routes are
+`GET /api/workspaces/{ws}/sessions/{id}/changes`, `/changes/patches`, `/changes/contents`, and
+`/changes/bases`; detail reads require the summary `revision` and return `409 changes_stale` once HEAD
+or the base moves.
+
 ### Existing-session execution environment
 
 An idle ordinary project user session can change its execution environment in place through

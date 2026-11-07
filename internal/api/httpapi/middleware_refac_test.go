@@ -67,6 +67,7 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 		request.Host = "127.0.0.1:2123"
 		request.Header.Set("Origin", "http://127.0.0.1:2123")
 		request.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+		request.Header.Set("Access-Control-Request-Headers", "Cache-Control")
 
 		engine.ServeHTTP(recorder, request)
 
@@ -78,6 +79,9 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 		}
 		if got, want := recorder.Header().Get("Access-Control-Allow-Origin"), "http://127.0.0.1:2123"; got != want {
 			t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, want)
+		}
+		if got := recorder.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Cache-Control") {
+			t.Fatalf("refresh header not allowed: %q", got)
 		}
 		if got := recorder.Body.String(); got != "" {
 			t.Fatalf("body = %q, want empty body", got)

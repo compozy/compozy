@@ -15,6 +15,7 @@ import {
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
+  useSessionReviewPanelState,
   useSessionLinkedWork,
   useSessionPromptRuntimeContext,
   sessionSuccessorId,
@@ -83,6 +84,7 @@ export function useSessionWindowController(input: {
     workspaceId: session.workspace_id,
   });
   const inspector = useSessionInspectorState(sessionId);
+  const review = useSessionReviewPanelState(sessionId);
   const usageEnabled = liveDataEnabled || inspector.open;
   const sessionContext = useSessionContext(sessionId, workspaceId, session.state, {
     enabled: usageEnabled,
@@ -162,6 +164,8 @@ export function useSessionWindowController(input: {
     isStopping: controls.isStopping,
     isUnarchiving: controls.isUnarchiving,
     inspectorOpen: inspector.open,
+    reviewOpen: review.open,
+    onReviewToggle: review.toggle,
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
@@ -176,6 +180,7 @@ export function useSessionWindowController(input: {
   return {
     controls,
     inspector,
+    review,
     sidebar,
     sessionContext,
     sessionUsageTurns,

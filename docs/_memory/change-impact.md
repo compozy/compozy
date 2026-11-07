@@ -41,6 +41,63 @@ Owner: spec `.compozy/tasks/marketplace-plugin-catalog/` (slices S1–S9), integ
   `ET-agent-plugin-marketplace-install.md`, `ET-agent-plugin-source-install.md`; integrated walk
   E2E-004 in S8.
 
+## Project file explorer, file viewer, and session Changes — 2026-11-07
+
+Owner: spec `.compozy/tasks/file-explorer/` (integration branch `feat/file-explorer`). Additive across
+every public surface (SD-013); no delete targets in the public or user-state regimes. Slice evidence:
+`docs/qa/reports/2026-11-07-file-explorer-s1.md`…`-s9.md`; integrated walk
+`docs/qa/reports/2026-11-07-file-explorer-integration.md`.
+
+- **HTTP / UDS / SDK:** twelve new `GET` operations, all `AppAccessAllowed` with profile read scope:
+  files `listFileEntries`, `readFileContent`, `listSessionFileEntries`, `readSessionFileContent`;
+  search `findFiles`, `findSessionFiles`, `searchFileContents`, `searchSessionFileContents`; changes
+  `getSessionChanges`, `getSessionChangePatches`, `getSessionChangeContents`,
+  `listSessionChangeBases`. Workspace forms take optional `worktree_id`; session forms resolve the
+  bound worktree, else the project root, never the resumed CWD. OpenAPI and the TS/Go SDKs
+  regenerated; the existing `searchSessionFiles` (composer) is unchanged. Every response `root`
+  carries the public registry `workspace_id` (`ws_…`), never the project's internal identity
+  (fixed during the integrated walk, BUG-20261107-files-root-internal-workspace-id).
+- **Native tools / CLI:** new `compozy__session_changes` (toolset `compozy__sessions`, `RiskRead`;
+  `session_id`, `workspace`, `scope`, `base`, `patch_paths` ≤ 20, `reveal`) and
+  `compozy session changes <session-id>` (`--scope`, `--base`, repeatable `--patch`, `--reveal`;
+  domain failures exit 1 with their code). No file list/read/search tools or file CLI verbs (Q6, Q12).
+- **Extensibility / hooks / config:** no hook, manifest, extension protocol, or `config.toml` key
+  change. `[desktop] editor_command` keeps its meaning and is the "Configured editor" Open in target.
+  The desktop product bridge gains `files.listOpenTargets` and `files.openWith` (fixed built-in
+  catalog: VS Code, Cursor, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, Xcode, plus
+  Finder/File manager reveal via `showItemInFolder`; login-shell PATH detection; `shell:false`;
+  main-frame only). The native confirmation now also covers in-root credential files.
+- **User state / workspace isolation:** no SQLite or migration. Reads are confined to registered
+  project and worktree roots (realpath plus open-time containment); responses carry no absolute
+  paths and `.git` is never served. Every git call runs through one read-only policy (fsmonitor,
+  hooks, filter drivers, textconv, external diff neutralized; subtree-confined for repository
+  subdirectories). Sensitive basenames and in-root symlinks to them need explicit `reveal=true`;
+  app tokens get `403 reveal_forbidden` (Q13). User-scope sessions have no root
+  (`409 root_unavailable`); out-of-scope profiles see `404`. Client-only keys:
+  `compozy:session:review-panel:v1`, `compozy:files:v1:<workspace_id>`, `compozy:files:search:v1`,
+  and `compozy.open-target` (remembered Open in target, default `configured`).
+- **Web:** session Review panel (Changes · Files) beside the Inspector; `files` OS app (dock after
+  Agents, palette "Open project files", project context menu "Open files"); transcript paths open
+  the viewer on a plain click on every client, the hover "Open in editor" button is retired, and
+  desktop Cmd/Ctrl-click opens the remembered target. Turn "Changed files" rows link to Changes; the
+  PR chip gains "Review changes". The explorer gains Go to file (Cmd/Ctrl+P), a Search pane
+  (Cmd/Ctrl+Shift+F, `git grep` with a walk fallback), and Find in file (Cmd/Ctrl+F), all scoped to
+  the explorer with no window-manager chord changes. New `@compozy/ui` primitives `FileTree`,
+  `CodeViewer`, `DiffViewer` (Pierre, exact pins). New Go deps: `github.com/junegunn/fzf`
+  (`src/algo`, `src/util` only), `github.com/charlievieth/fastwalk`, `github.com/bluekeyes/go-gitdiff`.
+- **Window manager / palette (internal):** the `files` app ID joins the daemon app inventory
+  (`internal/cmdpalette/corecmds`, palette `app.open.files`); `internal/windowmanager` removes a
+  project's Files window when the project is unregistered.
+- **Official skill / Docs / QA:** `skills/compozy/references/native-tools.md` (Session changes),
+  `runtime-operations.md` (`session changes` CLI), `desktop.md` (viewer-first links, Open in targets,
+  remembered modifier-click target), `worktrees.md` (reviewing a worktree's changes), and
+  `app-sdk.md` (file/changes routes, `reveal_forbidden`). Site: new `files/` category ("Files and
+  changes": `index`, `tutorial`, `review-panel`, `file-viewer`, `search`, `files-app`, `open-in`),
+  `use-cases/review-a-change.mdx`, `sessions/index.mdx`, and
+  `configuration/config-toml.mdx`; generated CLI page `cli/session/changes.mdx`. QA: updated
+  `APP-open-transcript-paths-in-editor`; new `ET-session-review-files`, `ET-session-review-changes`,
+  `ET-files-app`, `APP-open-in-targets`, `ET-files-search`.
+
 ## Oversized invoked skills deferred to `compozy__skill_view`
 
 Owner: `fix/oversized-skill-deferred-delivery`. QA:

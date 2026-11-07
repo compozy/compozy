@@ -44,6 +44,8 @@ type handlerConfig struct {
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    core.SessionAttachmentStore
 	sessionFiles          core.SessionFileSearcher
+	fileTree              core.FileTreeReader
+	sessionChanges        core.SessionChangesReader
 	toolsets              core.ToolsetRegistry
 	toolApprovals         core.ToolApprovalIssuer
 	approvalGrants        core.ToolApprovalGrantService

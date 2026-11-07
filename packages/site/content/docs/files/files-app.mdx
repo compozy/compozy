@@ -1,0 +1,47 @@
+---
+title: Files app
+description: Browse a project's or worktree's files in their own window, without opening a session.
+---
+
+The Files app opens a project's files in a window of their own. Use it to read code, search a
+project, or look at a worktree when no session is involved. It has the same tree, viewer, Go to file,
+Search, and Find in file as the [Review panel](/docs/files/review-panel)'s Files tab.
+
+## Open it
+
+- **Dock:** **Files** sits right after **Agents**.
+- **Command palette:** **Open project files**.
+- **Sessions sidebar:** open a project's menu and choose **Open files**.
+- **Review panel:** **Open in Files window** in the Files tab opens the same root and file there.
+
+Each project has one Files window. Opening it again, from any of these places, focuses the existing
+window instead of adding another. The dock and palette open the project of the window you are focused
+on, otherwise the project you used last, otherwise your first project.
+
+## Choose the project and root
+
+The window's top bar has two pickers:
+
+- **Project** lists your projects. Archived projects are not listed.
+- **Root** lists **Project root** and every ready worktree of the project, with its branch.
+  Switching the root reloads the tree and keeps the same file path open.
+
+The window remembers its root and the open file for each project.
+
+## States
+
+| Situation                         | What you see                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| The project was archived          | **Project archived** · "Unarchive it to browse its files again."                    |
+| The project was removed           | **Project not found** · "It was removed from CompozyOS."                            |
+| The selected worktree was removed | **This worktree is no longer on disk** with **Switch to project root**              |
+| You have no projects yet          | **No projects yet** · "Add a project to browse its files." with a button to add one |
+
+When you remove a project from CompozyOS, its Files window closes with it.
+
+## Read the same files from a script
+
+The window reads the project form of the file routes, such as
+`GET /api/workspaces/{workspace_id}/files/entries` and
+`GET /api/workspaces/{workspace_id}/files/content`, with `worktree_id` for a worktree root. See the
+[Workspaces API reference](/docs/api/workspaces).

@@ -69,6 +69,7 @@ vi.mock("../use-session-window-controller", () => ({
     commandCatalogStatus: "ready",
     controls: mocks.controls,
     inspector: { open: false },
+    review: { open: false },
     sessionContext: { context: { state: "unknown" } },
     sessionUsageTurns: {},
     activityGoal: null,

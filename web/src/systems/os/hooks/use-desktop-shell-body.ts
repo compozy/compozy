@@ -18,6 +18,7 @@ import { useSwitchProfile } from "@/systems/profiles";
 import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
+import { filesRouteProject } from "../lib/files-open-target";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
@@ -47,6 +48,7 @@ import { openPaletteView } from "./use-os-palette-view-stack";
 import { subscribePaletteViewRaise } from "../lib/raise-palette-view";
 import type { PaletteViewId } from "../lib/palette-view-registry";
 import { useOsDocumentReducedMotion } from "./use-os-reduced-motion";
+import { useOpenFilesApp } from "./use-open-files-app";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
 import { usePaletteRegistry } from "./use-palette-registry";
@@ -185,6 +187,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
+  const openFiles = useOpenFilesApp();
   const paletteRegistry = usePaletteRegistry();
   const switchProfile = useSwitchProfile();
   // Shell chrome renders under the focused window's scope: ⌘B, the palette
@@ -300,7 +303,11 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     registry: paletteRegistry,
     workspaceId: model.runtimeWorkspaceId,
     shell: paletteShell,
-    openApp: (app, route) => void coordinator.userOpen({ app, ...(route ? { route } : {}) }),
+    openApp: (app, route) => {
+      // "Open project files" and the Go menu name a project only through `/files/<id>`.
+      if (app === "files" && openFiles !== null) openFiles(filesRouteProject(route));
+      else void coordinator.userOpen({ app, ...(route ? { route } : {}) });
+    },
     ...paletteInvokeIdentity(options.client),
   });
   const onDesktopSummon = useEffectEvent((payload: DesktopShellEventMap["shell:summon"]) => {

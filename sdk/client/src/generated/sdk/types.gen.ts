@@ -1191,6 +1191,32 @@ export type CatalogMeta = {
   use_when?: string;
 };
 
+export type ChangeBasePayload = {
+  merge_base_sha: string;
+  ref: string;
+  source: string;
+};
+
+export type ChangeBaseRefPayload = {
+  is_default?: boolean;
+  kind: string;
+  ref: string;
+  source?: string;
+};
+
+export type ChangeHeadPayload = {
+  branch: string;
+  sha: string;
+};
+
+export type ChangePatchPayload = {
+  fingerprint: string;
+  patch?: string;
+  path: string;
+  sensitive?: boolean;
+  too_large?: boolean;
+};
+
 export type ChangeSet = {
   client_ids?: Array<string>;
   desktop_ids?: Array<string>;
@@ -1199,6 +1225,18 @@ export type ChangeSet = {
   stack_grouped?: Array<string>;
   stack_ungrouped?: Array<string>;
   window_ids?: Array<string>;
+};
+
+export type ChangeSidePayload = {
+  sensitive?: boolean;
+  text?: string | null;
+};
+
+export type ChangeTotalsPayload = {
+  additions: number;
+  deletions: number;
+  files: number;
+  partial?: boolean;
 };
 
 export type Chip = {
@@ -2461,6 +2499,115 @@ export type FanoutRollup = {
   generation: number;
   node_id: string;
   total: number;
+};
+
+export type FileChangePayload = {
+  additions: number;
+  binary?: boolean;
+  deletions: number;
+  fingerprint: string;
+  generated?: boolean;
+  old_path?: string;
+  path: string;
+  sensitive?: boolean;
+  status: string;
+};
+
+export type FileContentResponse = {
+  image_base64?: string;
+  image_mime?: string;
+  kind: string;
+  language?: string;
+  path: string;
+  revision?: string;
+  root: FileRootPayload;
+  sensitive?: boolean;
+  size: number;
+  text?: string | null;
+  truncated: boolean;
+};
+
+export type FileEntriesResponse = {
+  entries: Array<FileEntryPayload>;
+  path: string;
+  root: FileRootPayload;
+  status_unavailable?: boolean;
+  truncated: boolean;
+};
+
+export type FileEntryPayload = {
+  contains_changes?: boolean;
+  git_status?: string;
+  ignored?: boolean;
+  kind: string;
+  name: string;
+  path: string;
+  sensitive?: boolean;
+  size?: number;
+  symlink?: boolean;
+};
+
+export type FileFindMatch = {
+  kind: string;
+  match_ranges: Array<Array<number>>;
+  path: string;
+  score: number;
+  sensitive?: boolean;
+};
+
+export type FileFindResponse = {
+  index_truncated: boolean;
+  indexed_files: number;
+  query: string;
+  results: Array<FileFindMatch>;
+  root: FileRootPayload;
+};
+
+export type FileRootPayload = {
+  branch?: string;
+  kind: string;
+  name: string;
+  workspace_id: string;
+  worktree_id?: string;
+};
+
+export type FileSearchFile = {
+  matches: Array<FileSearchMatch>;
+  path: string;
+  truncated_matches?: boolean;
+};
+
+export type FileSearchMatch = {
+  column: number;
+  line: number;
+  ranges: Array<Array<number>>;
+  text: string;
+  text_offset: number;
+};
+
+export type FileSearchQuery = {
+  case_sensitive: boolean;
+  exclude: Array<string>;
+  include: Array<string>;
+  pattern: string;
+  regex: boolean;
+  whole_word: boolean;
+};
+
+export type FileSearchResponse = {
+  engine: string;
+  files: Array<FileSearchFile>;
+  query: FileSearchQuery;
+  root: FileRootPayload;
+  sensitive_excluded: number;
+  timed_out: boolean;
+  totals: FileSearchTotals;
+  truncated: boolean;
+};
+
+export type FileSearchTotals = {
+  files: number;
+  matches: number;
 };
 
 export type FireLimitConfig = {
@@ -6977,6 +7124,39 @@ export type SessionCatalogPagePayload = {
 export type SessionCatalogResponse = {
   page: SessionCatalogPagePayload;
   sessions: Array<SessionPayload>;
+};
+
+export type SessionChangeBasesResponse = {
+  default: ChangeBaseRefPayload | null;
+  refs: Array<ChangeBaseRefPayload>;
+  resolvable: boolean;
+  truncated: boolean;
+};
+
+export type SessionChangeContentsResponse = {
+  fingerprint: string;
+  new?: ChangeSidePayload | null;
+  old?: ChangeSidePayload | null;
+  old_path?: string;
+  path: string;
+  revision: string;
+};
+
+export type SessionChangePatchesResponse = {
+  patches: Array<ChangePatchPayload>;
+  revision: string;
+};
+
+export type SessionChangesResponse = {
+  base: ChangeBasePayload;
+  files: Array<FileChangePayload>;
+  head: ChangeHeadPayload;
+  pull_request?: SessionPullRequestPayload | null;
+  revision: string;
+  root: FileRootPayload;
+  scope: string;
+  totals: ChangeTotalsPayload;
+  truncated: boolean;
 };
 
 export type SessionChildrenPayload = {
@@ -33408,6 +33588,299 @@ export type DismissAutomationSuggestionResponses = {
 export type DismissAutomationSuggestionResponse =
   DismissAutomationSuggestionResponses[keyof DismissAutomationSuggestionResponses];
 
+export type ReadFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/content";
+};
+
+export type ReadFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadFileContentError = ReadFileContentErrors[keyof ReadFileContentErrors];
+
+export type ReadFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadFileContentResponse = ReadFileContentResponses[keyof ReadFileContentResponses];
+
+export type ListFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/entries";
+};
+
+export type ListFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListFileEntriesError = ListFileEntriesErrors[keyof ListFileEntriesErrors];
+
+export type ListFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListFileEntriesResponse = ListFileEntriesResponses[keyof ListFileEntriesResponses];
+
+export type FindFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/find";
+};
+
+export type FindFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindFilesError = FindFilesErrors[keyof FindFilesErrors];
+
+export type FindFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindFilesResponse = FindFilesResponses[keyof FindFilesResponses];
+
+export type SearchFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query: {
+    /**
+     * Optional worktree id
+     */
+    worktree_id?: string;
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/search";
+};
+
+export type SearchFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchFileContentsError = SearchFileContentsErrors[keyof SearchFileContentsErrors];
+
+export type SearchFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchFileContentsResponse =
+  SearchFileContentsResponses[keyof SearchFileContentsResponses];
+
 export type GetHookRunsData = {
   body?: never;
   path: {
@@ -37032,6 +37505,345 @@ export type ReadSessionAttachmentBytesResponses = {
 export type ReadSessionAttachmentBytesResponse =
   ReadSessionAttachmentBytesResponses[keyof ReadSessionAttachmentBytesResponses];
 
+export type GetSessionChangesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes";
+};
+
+export type GetSessionChangesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangesError = GetSessionChangesErrors[keyof GetSessionChangesErrors];
+
+export type GetSessionChangesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangesResponse;
+};
+
+export type GetSessionChangesResponse =
+  GetSessionChangesResponses[keyof GetSessionChangesResponses];
+
+export type ListSessionChangeBasesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Substring ref filter
+     */
+    q?: string;
+    /**
+     * Default 200, maximum 500
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases";
+};
+
+export type ListSessionChangeBasesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionChangeBasesError =
+  ListSessionChangeBasesErrors[keyof ListSessionChangeBasesErrors];
+
+export type ListSessionChangeBasesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeBasesResponse;
+};
+
+export type ListSessionChangeBasesResponse =
+  ListSessionChangeBasesResponses[keyof ListSessionChangeBasesResponses];
+
+export type GetSessionChangeContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: string;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents";
+};
+
+export type GetSessionChangeContentsErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangeContentsError =
+  GetSessionChangeContentsErrors[keyof GetSessionChangeContentsErrors];
+
+export type GetSessionChangeContentsResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangeContentsResponse;
+};
+
+export type GetSessionChangeContentsResponse =
+  GetSessionChangeContentsResponses[keyof GetSessionChangeContentsResponses];
+
+export type GetSessionChangePatchesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Changes scope
+     */
+    scope?: "branch" | "uncommitted";
+    /**
+     * Optional base ref
+     */
+    base?: string;
+    /**
+     * Summary revision fence
+     */
+    revision: string;
+    /**
+     * Root-relative path
+     */
+    path: Array<string>;
+    /**
+     * Aligned old path for renames
+     */
+    old_path?: Array<string>;
+    /**
+     * Reveal sensitive contents; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches";
+};
+
+export type GetSessionChangePatchesErrors = {
+  /**
+   * Changes operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  413: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * Changes operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type GetSessionChangePatchesError =
+  GetSessionChangePatchesErrors[keyof GetSessionChangePatchesErrors];
+
+export type GetSessionChangePatchesResponses = {
+  /**
+   * OK
+   */
+  200: SessionChangePatchesResponse;
+};
+
+export type GetSessionChangePatchesResponse =
+  GetSessionChangePatchesResponses[keyof GetSessionChangePatchesResponses];
+
 export type ListSessionClarificationsData = {
   body?: never;
   path: {
@@ -37623,6 +38435,304 @@ export type SearchSessionFilesResponses = {
 
 export type SearchSessionFilesResponse =
   SearchSessionFilesResponses[keyof SearchSessionFilesResponses];
+
+export type ReadSessionFileContentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Root-relative path
+     */
+    path: string;
+    /**
+     * Reveal sensitive content; forbidden to app tokens
+     */
+    reveal?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content";
+};
+
+export type ReadSessionFileContentErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadSessionFileContentError =
+  ReadSessionFileContentErrors[keyof ReadSessionFileContentErrors];
+
+export type ReadSessionFileContentResponses = {
+  /**
+   * OK
+   */
+  200: FileContentResponse;
+};
+
+export type ReadSessionFileContentResponse =
+  ReadSessionFileContentResponses[keyof ReadSessionFileContentResponses];
+
+export type ListSessionFileEntriesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Root-relative path
+     */
+    path?: string;
+    /**
+     * Include ignored entries
+     */
+    show_ignored?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries";
+};
+
+export type ListSessionFileEntriesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ListSessionFileEntriesError =
+  ListSessionFileEntriesErrors[keyof ListSessionFileEntriesErrors];
+
+export type ListSessionFileEntriesResponses = {
+  /**
+   * OK
+   */
+  200: FileEntriesResponse;
+};
+
+export type ListSessionFileEntriesResponse =
+  ListSessionFileEntriesResponses[keyof ListSessionFileEntriesResponses];
+
+export type FindSessionFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Result limit; defaults and clamps to 50
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find";
+};
+
+export type FindSessionFilesErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type FindSessionFilesError = FindSessionFilesErrors[keyof FindSessionFilesErrors];
+
+export type FindSessionFilesResponses = {
+  /**
+   * OK
+   */
+  200: FileFindResponse;
+};
+
+export type FindSessionFilesResponse = FindSessionFilesResponses[keyof FindSessionFilesResponses];
+
+export type SearchSessionFileContentsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query: {
+    /**
+     * Search query
+     */
+    q: string;
+    /**
+     * Use POSIX ERE
+     */
+    regex?: boolean;
+    /**
+     * Match case
+     */
+    case_sensitive?: boolean;
+    /**
+     * Match whole words
+     */
+    whole_word?: boolean;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    include?: Array<string>;
+    /**
+     * Root-relative globs; repeat at most ten times
+     */
+    exclude?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search";
+};
+
+export type SearchSessionFileContentsErrors = {
+  /**
+   * Search failed
+   */
+  400: ErrorPayload;
+  /**
+   * Search failed
+   */
+  403: ErrorPayload;
+  /**
+   * Search failed
+   */
+  404: ErrorPayload;
+  /**
+   * Search failed
+   */
+  409: ErrorPayload;
+  /**
+   * Search failed
+   */
+  500: ErrorPayload;
+};
+
+export type SearchSessionFileContentsError =
+  SearchSessionFileContentsErrors[keyof SearchSessionFileContentsErrors];
+
+export type SearchSessionFileContentsResponses = {
+  /**
+   * OK
+   */
+  200: FileSearchResponse;
+};
+
+export type SearchSessionFileContentsResponse =
+  SearchSessionFileContentsResponses[keyof SearchSessionFileContentsResponses];
 
 export type ForkSessionData = {
   /**

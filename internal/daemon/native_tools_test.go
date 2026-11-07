@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -21,18 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/httpapi"
-	"github.com/compozy/compozy/internal/api/udsapi"
-	"github.com/gin-gonic/gin"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -48,6 +45,8 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sessionprocess"
@@ -67,6 +66,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
+	"github.com/gin-gonic/gin"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
@@ -16951,4 +16952,233 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
 		}
 	})
+}
+
+func TestNativeSessionChanges(t *testing.T) {
+	t.Run("Should log sanitized failures and keep public errors fixed", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		root := "/private/project"
+		external := "/outside/private-orderfile"
+		cause := fmt.Errorf(
+			"%w: git diff at %s orderfile '%s': %w",
+			changes.ErrUnavailable,
+			root,
+			external,
+			context.DeadlineExceeded,
+		)
+		result, err := nativeChangesError(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root, cause)
+		if err != nil || !bytes.Contains(result.Structured, []byte("changes_unavailable")) ||
+			bytes.Contains(result.Structured, []byte("deadline")) {
+			t.Fatalf("result=%s err=%v", result.Structured, err)
+		}
+		if strings.Contains(logs.String(), external) || strings.Contains(logs.String(), root) ||
+			!strings.Contains(logs.String(), "deadline exceeded") {
+			t.Fatalf("logs=%s", &logs)
+		}
+	})
+
+	for _, mode := range []string{"once", "continuous", "capped"} {
+		continuous := mode == "continuous"
+		t.Run(fmt.Sprintf("Should fence changing summary fingerprints mode=%s", mode), func(t *testing.T) {
+			t.Parallel()
+			root, rootErr := projectfiles.CanonicalRoot(projectfiles.Root{AbsPath: t.TempDir()})
+			if rootErr != nil {
+				t.Fatal(rootErr)
+			}
+			for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+				cmd := exec.CommandContext(t.Context(), "git", args...)
+				cmd.Dir = root.AbsPath
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s %v", out, err)
+				}
+			}
+			path := filepath.Join(root.AbsPath, "a.go")
+			if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			engine := &editingChangesEngine{
+				Engine:     changes.NewEngine(),
+				t:          t,
+				path:       path,
+				continuous: continuous,
+				capped:     mode == "capped",
+			}
+			summary, patches, err := readSessionChanges(
+				t.Context(),
+				engine,
+				root,
+				changes.Request{Scope: changes.Uncommitted},
+				[]string{"a.go"},
+			)
+			if engine.capped {
+				if err != nil || len(patches) != 1 || engine.calls != 1 {
+					t.Fatalf("capped patches=%+v calls=%d err=%v", patches, engine.calls, err)
+				}
+				return
+			}
+			if engine.calls != 2 {
+				t.Fatalf("summary calls=%d err=%v", engine.calls, err)
+			}
+			if continuous {
+				if !errors.Is(err, changes.ErrStale) {
+					t.Fatalf("error=%v", err)
+				}
+			} else if err != nil || len(patches) != 1 || patches[0].Fingerprint != summary.Files[0].Fingerprint {
+				t.Fatalf("mixed response: %+v %+v %v", summary, patches, err)
+			}
+		})
+	}
+
+	t.Parallel()
+	t.Run("Should return real changes and gate sensitive patches", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+			cmd := exec.CommandContext(t.Context(), "git", args...)
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git: %v %s", err, out)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(root, "c.go"), []byte("package changed\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=private\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws-1"),
+				Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, root, "stable-ws-1"),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["c.go",".env"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			contract.SessionChangesResponse
+			Patches []contract.ChangePatchPayload `json:"patches"`
+		}
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Revision == "" || len(response.Patches) != 2 ||
+			!strings.Contains(response.Patches[0].Patch, "package changed") ||
+			!response.Patches[1].Sensitive ||
+			bytes.Contains(result.Structured, []byte("SECRET")) ||
+			bytes.Contains(result.Structured, []byte(root)) {
+			t.Fatalf("response: %s", result.Structured)
+		}
+		if response.Root.WorkspaceID != "ws-1" {
+			t.Fatalf("root workspace_id=%q want the public registry ID", response.Root.WorkspaceID)
+		}
+		if err := os.Symlink(filepath.Join(root, ".git", "config"), filepath.Join(root, "protected.txt")); err != nil {
+			t.Fatal(err)
+		}
+		protected, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["protected.txt"]}`,
+				),
+			},
+		)
+		if err != nil || !bytes.Contains(protected.Structured, []byte("path_denied")) ||
+			bytes.Contains(protected.Structured, []byte(root)) {
+			t.Fatalf("protected result %s error %v", protected.Structured, err)
+		}
+	})
+	t.Run("Should classify unknown and user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "missing" {
+							return nil, session.ErrSessionNotFound
+						}
+						return &session.Info{ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, nil
+					},
+				},
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"session_id":"missing"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("session_not_found")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+	t.Run("Should return root unavailable for user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		service := nativeTestWorkspaceService(t)
+		service.ResolveUserFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser}, nil
+		}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(""), Workspaces: service},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"workspace":"@user","session_id":"sess-user"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("root_unavailable")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+}
+
+type editingChangesEngine struct {
+	changes.Engine
+	t          *testing.T
+	path       string
+	calls      int
+	continuous bool
+	capped     bool
+}
+
+func (e *editingChangesEngine) Summary(
+	ctx context.Context,
+	root projectfiles.Root,
+	req changes.Request,
+) (changes.Summary, error) {
+	e.t.Helper()
+	s, err := e.Engine.Summary(ctx, root, req)
+	e.calls++
+	if e.capped {
+		s.Files = nil
+		s.Truncated = true
+		return s, err
+	}
+	if e.continuous || e.calls == 1 {
+		if err := os.WriteFile(e.path, []byte(fmt.Sprintf("edit %d\n", e.calls)), 0600); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	return s, err
 }
