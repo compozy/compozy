@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"fmt"
 	"log/slog"
@@ -12,17 +14,22 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/resources"
-
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func daemonConfigMCPDeclarationProvider(
 	cfg *compozyconfig.Config,
 	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
-	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
+	profiles extensionProfileCatalog,
 ) toolMCPConfigDeclarationProvider {
+	var baseline []compozyconfig.MCPServer
+	if _, err := os.Stat(homePaths.ConfigFile); errors.Is(err, os.ErrNotExist) && cfg != nil {
+		for _, server := range cfg.MCPServers {
+			baseline = append(baseline, cloneDaemonMCPServer(server))
+		}
+	}
+	user := configMCPUserDeclarations{home: homePaths, baseline: baseline}
 	return func(ctx context.Context, override *compozyconfig.Config) (toolMCPDesiredResources, error) {
 		desired := toolMCPDesiredResources{}
 		active := cfg
@@ -32,16 +39,8 @@ func daemonConfigMCPDeclarationProvider(
 		if active == nil {
 			return desired, nil
 		}
-		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
-		for _, server := range active.MCPServers {
-			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
-				sourceKey: "config/global/" + strings.TrimSpace(server.Name),
-				scope:     userScope,
-				spec:      cloneDaemonMCPServer(server),
-			})
-		}
-
-		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
+		userServers := user.append(ctx, &desired, override, logger)
+		workspaces, err := registeredMCPWorkspaces(ctx, registry)
 		if err != nil {
 			return toolMCPDesiredResources{}, err
 		}
@@ -51,23 +50,22 @@ func daemonConfigMCPDeclarationProvider(
 				Kind: resources.ResourceScopeKindWorkspace,
 				ID:   strings.TrimSpace(resolved.ID),
 			}
-			// The resolved config merges user and profile layers; publish only servers the
-			// workspace declares so inherited servers keep their declaring scope as OAuth owner.
-			declared, err := compozyconfig.WorkspaceDeclaredMCPServerNames(homePaths, resolved.RootDir)
+			servers, err := compozyconfig.DeclaredMCPServers(
+				homePaths,
+				resolved.RootDir,
+				compozyconfig.WriteScopeWorkspace,
+				"",
+				userServers,
+			)
 			if err != nil {
-				// One unreadable workspace must not block every other publication; keep what
-				// it already published until its declarations read again.
 				if logger != nil {
 					logger.WarnContext(ctx, "daemon: workspace MCP declarations unavailable; keeping published servers",
-						"workspace_id", scope.ID, "error", err)
+						"workspace_id", scope.ID)
 				}
 				desired.heldMCPScopes = append(desired.heldMCPScopes, scope)
 				continue
 			}
-			for _, server := range resolved.Config.MCPServers {
-				if _, ok := declared[strings.TrimSpace(server.Name)]; !ok {
-					continue
-				}
+			for _, server := range servers {
 				desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 					sourceKey: "config/workspace/" + scope.ID + "/" + strings.TrimSpace(server.Name),
 					scope:     scope,
@@ -75,7 +73,17 @@ func daemonConfigMCPDeclarationProvider(
 				})
 			}
 		}
-
+		if err := appendProfileConfigMCPDeclarations(
+			ctx,
+			&desired,
+			homePaths,
+			workspaces,
+			profiles,
+			logger,
+			userServers,
+		); err != nil {
+			return toolMCPDesiredResources{}, err
+		}
 		return desired, nil
 	}
 }

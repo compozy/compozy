@@ -22,6 +22,82 @@ import (
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reuse eager discovery for the initial readiness receipt", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+		now := time.Now()
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-eager", EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-eager"); err != nil {
+			t.Fatal(err)
+		}
+		peer := hostedTestPeer(executable)
+		bound, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-eager", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.ToolDigest(t.Context(), "sess-eager"); !errors.Is(err, errHostedBindPending) {
+			t.Fatalf("unconfirmed bind returned a comparable catalog: %v", err)
+		}
+		if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.WaitForBind(t.Context(), "sess-eager"); err != nil {
+			t.Fatal(err)
+		}
+		if got := registry.listCallCount(); got != 1 {
+			t.Fatalf("initial discovery calls = %d, want 1", got)
+		}
+		initial, err := service.WaitForBindToolDigest(t.Context(), "sess-eager")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if digest, ready := service.InitialToolDigest("sess-eager"); !ready || digest != initial {
+			t.Fatal("lazy host did not receive the original bind digest")
+		}
+		registry.mu.Lock()
+		registry.err = errors.New("later refresh failed")
+		registry.mu.Unlock()
+		now = now.Add(HostedProjectionFallbackRefresh + time.Second)
+		if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err == nil {
+			t.Fatal("refresh unexpectedly succeeded")
+		}
+		if _, err := service.WaitForBindToolDigest(t.Context(), "sess-eager"); err != nil {
+			t.Fatalf("refresh failed an already ready bind: %v", err)
+		}
+		registry.mu.Lock()
+		registry.err = nil
+		registry.mu.Unlock()
+		later := hostedToolView("mcp__docs__lookup")
+		later.Descriptor.Source = tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "docs",
+			RawServerName: "docs",
+			RawToolName:   "lookup",
+		}
+		registry.replaceViews([]tools.ToolView{later})
+		now = now.Add(HostedProjectionFallbackRefresh + time.Second)
+		current, err := service.ToolDigest(t.Context(), "sess-eager")
+		if err != nil || current == initial {
+			t.Fatalf("changed projection digest = %q, %v", current, err)
+		}
+		receipt, err := service.WaitForBindToolDigest(t.Context(), "sess-eager")
+		if err != nil || receipt != initial {
+			t.Fatal("initial provider tools were replaced by later discovery")
+		}
+		if digest, ready := service.InitialToolDigest("sess-eager"); !ready || digest != initial {
+			t.Fatal("lazy host receipt was overwritten by the changed catalog")
+		}
+	})
+
 	t.Run("Should reject an unbound launch after its deadline", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
@@ -45,6 +121,44 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		now = now.Add(time.Hour)
 		if err := service.WaitForBind(t.Context(), "sess-unbound"); !errors.Is(err, ErrHostedBindTimeout) {
 			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
+		}
+	})
+
+	t.Run("Should fail readiness when the full projection fails", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{}
+		service := newHostedTestService(t, executable, registry, time.Now)
+		peer := hostedTestPeer(executable)
+		launch, err := service.Launch(
+			t.Context(),
+			HostedLaunchRequest{SessionID: "sess-projection-failed", EagerTools: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-projection-failed"); err != nil {
+			t.Fatal(err)
+		}
+		registry.mu.Lock()
+		upstreamErr := errors.New("private upstream error")
+		registry.err = upstreamErr
+		registry.mu.Unlock()
+		if _, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-projection-failed", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		); !errors.Is(err, upstreamErr) {
+			t.Fatalf("Bind error = %v, want the injected registry failure", err)
+		}
+		if err := service.WaitForBind(
+			t.Context(),
+			"sess-projection-failed",
+		); !errors.Is(
+			err,
+			ErrHostedProjectionFailed,
+		) {
+			t.Fatalf("readiness = %v, want safe projection failure", err)
 		}
 	})
 
@@ -903,6 +1017,35 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should not cache a deferred bootstrap as a complete catalog generation", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		native, err := tools.NewNativeProvider(
+			tools.BuiltinSource(),
+			hostedRuntimeNativeTool("compozy__late", tools.RiskRead, true),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := tools.NewRegistry(
+			tools.WithProviders(hostedDeferredProvider{native}),
+			tools.WithProjectionGeneration(func(context.Context, tools.Scope) (string, bool) { return "stable", true }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, registry.ProjectionGeneration)
+		peer := hostedTestPeer(executable)
+		bound := hostedTestBind(t, service, "sess-deferred-catalog", peer)
+		if len(bound.Tools) != 0 {
+			t.Fatal("bootstrap unexpectedly discovered deferred tools")
+		}
+		projection, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest)
+		if err != nil || !slices.Equal(hostedToolIDs(projection.Tools), []string{"compozy__late"}) {
+			t.Fatalf("complete projection = %+v, %v", projection, err)
+		}
+	})
 
 	for _, streams := range []int{1, 16} {
 		t.Run(fmt.Sprintf("Should build once per epoch for %d concurrent peers", streams), func(t *testing.T) {
@@ -2642,3 +2785,7 @@ type hostedPolicyResolver func(context.Context, tools.Scope) (tools.PolicyInputs
 func (r hostedPolicyResolver) Resolve(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
 	return r(ctx, scope)
 }
+
+type hostedDeferredProvider struct{ *tools.NativeProvider }
+
+func (hostedDeferredProvider) DeferInitialDiscovery() bool { return true }

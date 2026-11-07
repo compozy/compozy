@@ -11,6 +11,7 @@ import (
 	"maps"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -114,9 +115,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	proxyCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var streamWG sync.WaitGroup
-	streamWG.Go(func() {
-		streamHostedProjection(proxyCtx, client, mcpServer, bind)
-	})
+	streamWG.Go(func() { streamHostedProjection(proxyCtx, client, mcpServer, bind) })
 
 	err = mcpServer.Run(
 		proxyCtx,
@@ -139,21 +138,35 @@ func streamHostedProjection(
 	initial HostedBindResponse,
 ) {
 	lastDigest := strings.TrimSpace(initial.Digest)
-	err := client.StreamHostedMCPProjection(
-		ctx,
-		initial.BindID,
-		lastDigest,
-		func(snapshot HostedProjectionResponse) error {
-			if strings.TrimSpace(snapshot.Digest) == "" || snapshot.Digest == lastDigest {
+	for {
+		err := client.StreamHostedMCPProjection(
+			ctx,
+			initial.BindID,
+			lastDigest,
+			func(snapshot HostedProjectionResponse) error {
+				if strings.TrimSpace(snapshot.Digest) == "" || snapshot.Digest == lastDigest {
+					return nil
+				}
+				lastDigest = snapshot.Digest
+				applyHostedTools(mcpServer, client, initial.BindID, snapshot.Tools)
 				return nil
-			}
-			lastDigest = snapshot.Digest
-			applyHostedTools(mcpServer, client, initial.BindID, snapshot.Tools)
-			return nil
-		},
-	)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return
+			},
+		)
+		if ctx.Err() != nil || errors.Is(err, ErrHostedBindNotFound) || errors.Is(err, ErrHostedBindRequired) {
+			return
+		}
+		// A refresh failure is not a provider disconnect. Calls still go through the
+		// daemon's current authorization, and the next stream rebuild repairs discovery.
+		if err != nil {
+			slog.Warn("mcp: hosted projection stream interrupted; reconnecting")
+		}
+		retry := time.NewTimer(HostedProjectionFallbackRefresh)
+		select {
+		case <-ctx.Done():
+			retry.Stop()
+			return
+		case <-retry.C:
+		}
 	}
 }
 

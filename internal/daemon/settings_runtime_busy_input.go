@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/settings"
 )
 
@@ -28,7 +27,6 @@ func (a daemonSettingsRuntimeApplier) applyBusyInputDefault(previous, next *conf
 	}
 	failure := configApplyFailure(
 		"busy_input",
-		diagnosticcontract.CategoryConfig,
 		"Follow-up configuration failed",
 		err,
 	)

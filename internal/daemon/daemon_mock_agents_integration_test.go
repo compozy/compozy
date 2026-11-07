@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -729,6 +731,181 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
 	}
+}
+
+func TestDaemonHostedMCPLiveAuthRefresh(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run("Should discover call and withdraw an MCP in the same open session", func(t *testing.T) {
+		t.Parallel()
+		authority := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{},
+		)
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixtureAgent: "hosted-native",
+					AgentName:    "mock-live-mcp",
+				},
+			},
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
+			}},
+		})
+
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+		defer cancel()
+		session := createBoundFixtureBackedSession(t, ctx, harness, "mock-live-mcp", "live-mcp")
+		registration, ok := harness.MockAgentRegistration("mock-live-mcp")
+		if !ok {
+			t.Fatal("missing ACP registration")
+		}
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := startHostedMCPClient(
+			t,
+			ctx,
+			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
+			&sdkmcp.ClientOptions{
+				Capabilities:           &sdkmcp.ClientCapabilities{},
+				ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {},
+			},
+		)
+		defer func() {
+			if err := client.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		const toolID = "mcp__github__echo"
+		assertListedFor := func(client *sdkmcp.ClientSession, want bool) {
+			t.Helper()
+			waitForRuntimeCondition(t, "live MCP tool listing", 15*time.Second, func() bool {
+				found := false
+				for tool, err := range client.Tools(ctx, nil) {
+					if err != nil {
+						t.Logf("list error: %v", err)
+						return false
+					}
+					if tool.Name == toolID {
+						found = true
+					}
+				}
+				return found == want
+			})
+		}
+		assertListed := func(want bool) { t.Helper(); assertListedFor(client, want) }
+		assertListed(false)
+		definition := compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+			Name:      "github",
+			Transport: "http",
+			URL:       authority.Endpoints.MCPURL,
+			Auth: &compozycontract.SettingsMCPAuthConfigPayload{
+				Registration: "auto",
+				IssuerURL:    authority.Endpoints.IssuerURL,
+				Scopes:       []string{"tools.read"},
+			},
+		}}
+		var mutation json.RawMessage
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			"/api/settings/mcp-servers/github?scope=user",
+			definition,
+			&mutation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		assertListed(false)
+		authorizeDistributionMCP(t, ctx, harness.HTTPJSON, authority, "")
+		assertListed(true)
+		fresh := createBoundFixtureBackedSession(t, ctx, harness, "mock-live-mcp", "ready-mcp")
+		if fresh.Lineage == nil || !slices.Contains(fresh.Lineage.PermissionPolicy.MCPServers, "github") {
+			t.Fatalf("new session omitted current MCP budget: %+v", fresh.Lineage)
+		}
+		diagnostics, err = acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		freshClient := startHostedMCPClient(
+			t,
+			ctx,
+			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
+			&sdkmcp.ClientOptions{
+				Capabilities:           &sdkmcp.ClientCapabilities{},
+				ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {},
+			},
+		)
+		defer func() {
+			if err := freshClient.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		assertListedFor(freshClient, true)
+		if fresh.ID == session.ID {
+			t.Fatal("expected distinct new session")
+		}
+		result, err := client.CallTool(
+			ctx,
+			&sdkmcp.CallToolParams{Name: toolID, Arguments: map[string]any{"message": "same-session"}},
+		)
+		if err != nil || result.IsError {
+			t.Fatalf("CallTool = %+v, %v", result, err)
+		}
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(encoded), "same-session") {
+			t.Fatalf("echo result = %s", encoded)
+		}
+		var status compozycontract.SettingsMCPAuthStatusPayload
+		workspaceConfig := filepath.Join(harness.WorkspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
+		writeMCPDeclarationFile(t, workspaceConfig, "[tools.policy]\nexternal_default = \"disabled\"\n")
+		assertListed(false)
+		assertListedFor(freshClient, false)
+		if result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID}); err == nil && !result.IsError {
+			t.Fatal("disabled source remained callable")
+		}
+		writeMCPDeclarationFile(t, workspaceConfig, "[tools.policy]\nexternal_default = \"enabled\"\n")
+		assertListed(true)
+		assertListedFor(freshClient, true)
+
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			"/api/settings/mcp-servers/github/auth/logout?scope=user",
+			nil,
+			&status,
+		); err != nil {
+			t.Fatal(err)
+		}
+		assertListed(false)
+		authorizeDistributionMCP(t, ctx, harness.HTTPJSON, authority, "")
+		assertListed(true)
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodDelete,
+			"/api/settings/mcp-servers/github?scope=user",
+			nil,
+			&mutation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		assertListed(false)
+		assertListedFor(freshClient, false)
+		if result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID}); err == nil && !result.IsError {
+			t.Fatal("removed tool remained callable")
+		}
+		current, err := harness.GetSession(ctx, session.ID)
+		if err != nil || current.ID != session.ID {
+			t.Fatalf("session identity changed: %+v, %v", current, err)
+		}
+	})
 }
 
 func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) {
@@ -2001,6 +2178,7 @@ func startHostedMCPClient(
 	t testing.TB,
 	ctx context.Context,
 	stdio acpsdk.McpServerStdio,
+	options ...*sdkmcp.ClientOptions,
 ) *sdkmcp.ClientSession {
 	t.Helper()
 
@@ -2009,9 +2187,13 @@ func startHostedMCPClient(
 	}
 	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
 	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
+	opts := &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}}
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	client := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "compozy-hosted-e2e", Version: "1.0.0"},
-		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		opts,
 	)
 	session, err := client.Connect(ctx, &sdkmcp.CommandTransport{Command: command}, nil)
 	if err != nil {

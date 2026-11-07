@@ -179,6 +179,7 @@ func subagentPermissions(
 	if n := req.Narrowing; n != nil {
 		if n.Tools != nil {
 			policy.Tools = n.Tools
+			policy.MaterializedTools = false
 		}
 		if n.Skills != nil {
 			policy.Skills = n.Skills
@@ -190,6 +191,7 @@ func subagentPermissions(
 			policy.WorkspacePaths = n.WorkspacePaths
 		}
 	}
+	policy.MaterializedMCPServers = false
 	return mode, policy, ValidatePermissionSubset(ceiling, policy)
 }
 func presentSubagent(row store.SessionSubagent) Subagent {

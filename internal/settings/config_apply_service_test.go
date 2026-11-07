@@ -35,6 +35,8 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: MCP repair/add applies live even when the previous definition's auth status is unavailable.
+	// Owner: Settings config-apply coordinator; canonical suite: config_apply_service_test.go.
 	t.Run("Should repair MCP definitions and add servers while existing auth status fails", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -89,12 +91,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			if err != nil {
 				t.Fatalf("apply %s with unavailable prior auth status: %v", name, err)
 			}
-			wantLifecycle := lifecycle.LiveAdd
-			if name == "repair-cloud" {
-				wantLifecycle = lifecycle.RestartRequired
-			}
-			if result.Record.Lifecycle != wantLifecycle {
-				t.Fatalf("%s lifecycle = %s, want %s", name, result.Record.Lifecycle, wantLifecycle)
+			if result.Record.Lifecycle != lifecycle.Live || !result.Applied || result.RestartRequired {
+				t.Fatalf("%s apply = %+v, want applied live without restart", name, result)
 			}
 			cfg, err := compozyconfig.LoadForHome(homePaths)
 			if err != nil {
@@ -2483,6 +2481,64 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 // and retries only pending projections.
 func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the first failed mutation retains the config active before the desired file was written.
+	// Owner: Settings apply coordinator; canonical suite: runtime reconcile failures.
+	for _, operation := range []string{"section", "put", "delete"} {
+		t.Run("Should retain cold active config after failed "+operation, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			home := testHomePaths(t)
+			writeFile(
+				t,
+				home.ConfigFile,
+				baseSettingsConfig()+"\n[[mcp_servers]]\nname = \"docs\"\ncommand = \"old\"\n",
+			)
+			before, err := compozyconfig.LoadForHome(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db, err := openSettingsTestGlobalDB(ctx, t, home.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			applier := &fakeConfigRuntimeApplier{failures: []ApplyFailure{{Subsystem: "mcp"}}}
+			service := testService(t, home, Dependencies{
+				RuntimeApplier: applier, ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+				SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false), testSkill("beta", false)),
+			})
+			var result ApplyResult
+			switch operation {
+			case "section":
+				desired := before.Skills
+				desired.DisabledSkills = []string{"alpha"}
+				result, err = service.ApplySection(ctx, SectionUpdateRequest{Section: SectionSkills, Skills: &desired})
+			case "put":
+				result, err = service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
+					Collection: CollectionMCPServers, Name: "docs",
+					MCPServer: &compozyconfig.MCPServer{Name: "docs", Command: "changed"},
+				})
+			case "delete":
+				result, err = service.ApplyCollectionDelete(ctx, CollectionItemDeleteRequest{
+					Collection: CollectionMCPServers, Name: "docs",
+				})
+			}
+			if err != nil || result.Applied || result.Record.Status != lifecycle.StatusFailed || applier.calls != 1 {
+				t.Fatalf("failed apply = %+v, %v, calls=%d", result, err, applier.calls)
+			}
+			active, err := service.ActiveConfig(ctx)
+			if err != nil || !reflect.DeepEqual(active.MCPServers, before.MCPServers) ||
+				!reflect.DeepEqual(active.Skills, before.Skills) {
+				t.Fatalf("failed %s activated desired config: MCP=%+v skills=%+v, %v",
+					operation, active.MCPServers, active.Skills.DisabledSkills, err)
+			}
+		})
+	}
 
 	t.Run("Should retry a persisted layout without applying unrelated pending config", func(t *testing.T) {
 		t.Parallel()

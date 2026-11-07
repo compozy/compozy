@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -282,6 +283,21 @@ func TestReconcileHostedTools(t *testing.T) {
 
 func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T) {
 	t.Parallel()
+	for _, failure := range []error{ErrHostedBindNotFound, ErrHostedBindRequired} {
+		t.Run("Should stop projection retries after "+failure.Error(), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				client := newHostedProxyClientStub(HostedBindResponse{})
+				client.streamErrors <- failure
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				streamHostedProjection(ctx, client, newHostedProxyTestServer(), HostedBindResponse{})
+				if ctx.Err() != nil {
+					t.Fatal("retired bind kept retrying until cancellation")
+				}
+			})
+		})
+	}
 	t.Run(
 		"Should notify and refresh the list after late discovery without repeating unchanged updates",
 		func(t *testing.T) {
@@ -370,6 +386,29 @@ func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T)
 			if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
 				observedCall.ToolCallID != "call-1" {
 				t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
+			}
+
+			proxyClient.streamErrors <- errors.New("private refresh failure")
+			select {
+			case <-proxyClient.streamClosed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("refresh failure was not delivered")
+			}
+			result, err = session.CallTool(
+				ctx,
+				&sdkmcp.CallToolParams{
+					Name:      "compozy__hosted_echo",
+					Arguments: map[string]any{"message": "during reconnect"},
+				},
+			)
+			if err != nil || result.IsError {
+				t.Fatalf("proxy stopped serving during reconnect: %v", err)
+			}
+			proxyClient.projections <- HostedProjectionResponse{Tools: []tools.ToolView{initial}, Digest: "recovered"}
+			select {
+			case <-proxyClient.applied:
+			case <-time.After(2 * HostedProjectionFallbackRefresh):
+				t.Fatal("proxy did not reconnect its projection stream")
 			}
 
 			proxyClient.emitProjection(
@@ -1084,23 +1123,27 @@ func requireHostedToolMetaString(t *testing.T, meta sdkmcp.Meta, field string) s
 }
 
 type hostedProxyClientStub struct {
-	mu          sync.Mutex
-	bind        HostedBindResponse
-	callResult  HostedCallResponse
-	block       func(HostedCallRequest) (HostedCallResponse, error)
-	calls       []HostedCallRequest
-	releases    []HostedReleaseRequest
-	projections chan HostedProjectionResponse
-	applied     chan struct{}
+	streamErrors chan error
+	streamClosed chan struct{}
+	mu           sync.Mutex
+	bind         HostedBindResponse
+	callResult   HostedCallResponse
+	block        func(HostedCallRequest) (HostedCallResponse, error)
+	calls        []HostedCallRequest
+	releases     []HostedReleaseRequest
+	projections  chan HostedProjectionResponse
+	applied      chan struct{}
 }
 
 var _ HostedProxyClient = (*hostedProxyClientStub)(nil)
 
 func newHostedProxyClientStub(bind HostedBindResponse) *hostedProxyClientStub {
 	return &hostedProxyClientStub{
-		bind:        bind,
-		projections: make(chan HostedProjectionResponse, 4),
-		applied:     make(chan struct{}, 4),
+		streamErrors: make(chan error, 1),
+		streamClosed: make(chan struct{}, 1),
+		bind:         bind,
+		projections:  make(chan HostedProjectionResponse, 4),
+		applied:      make(chan struct{}, 4),
 	}
 }
 
@@ -1124,6 +1167,9 @@ func (c *hostedProxyClientStub) StreamHostedMCPProjection(
 ) error {
 	for {
 		select {
+		case err := <-c.streamErrors:
+			c.streamClosed <- struct{}{}
+			return err
 		case projection := <-c.projections:
 			if err := handler(projection); err != nil {
 				return err

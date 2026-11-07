@@ -6,6 +6,7 @@ import (
 	"maps"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/store"
@@ -56,6 +57,7 @@ func (p *MCPProvider) listSourceDescriptors(
 	ctx context.Context,
 	source SourceRef,
 	profileID string,
+	timeout time.Duration,
 ) ([]Descriptor, error) {
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
@@ -70,7 +72,7 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 	}
 
-	discovered, err := p.exec.ListTools(ctx, source)
+	discovered, err := p.discoverSource(ctx, source, timeout)
 	if err != nil {
 		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
 		// from one executor is a source failure and must not hide healthy MCP servers.

@@ -1720,9 +1720,9 @@ and hosted MCP bind nonces are transient session launch state.
 
 ## `[mcp]`
 
-| Field                  | Type     | Default | Valid values | Description                                                                                             |
-| ---------------------- | -------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------- |
-| `status_probe_timeout` | duration | `15s`   | Positive.    | Bound one settings or `compozy__mcp_status` probe of any MCP server. Restart-required; user scope only. |
+| Field                  | Type     | Default | Valid values | Description                                                                                                                                                                          |
+| ---------------------- | -------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status_probe_timeout` | duration | `15s`   | Positive.    | Bound one status probe and the shared runtime catalog discovery budget (capped at half the hosted bind window). Tool-call deadlines are separate. Restart-required; user scope only. |
 
 A stdio server that is slower than this deadline on its first launch keeps starting in the
 background, bounded by `mcp.stdio.connect_timeout`; the next probe reuses the started process.

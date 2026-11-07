@@ -447,3 +447,18 @@ func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool
 	}
 	return false
 }
+
+// Provider negotiation refusals are retried only by a subsequent prompt request;
+// replacing a healthy process cannot grant an unavailable capability or account tier.
+func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
+	if _, ok := errors.AsType[*acp.NegotiationError](err); !ok || isProcessDone(process) {
+		return false
+	}
+	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
+		switch failure.Kind {
+		case store.FailureTransport, store.FailureProcess, store.FailureCanceled, store.FailureTimeout:
+			return false
+		}
+	}
+	return true
+}

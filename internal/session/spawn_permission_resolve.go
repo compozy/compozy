@@ -22,6 +22,7 @@ func (m *Manager) resolveSpawnPermissionPolicy(parent *Info, opts SpawnOpts) (st
 		if n := opts.PermissionNarrowing; n != nil {
 			if n.Tools != nil {
 				policy.Tools, inheritTools = n.Tools, false
+				policy.MaterializedTools = false
 			}
 			if n.Skills != nil {
 				policy.Skills = n.Skills
@@ -45,7 +46,9 @@ func (m *Manager) resolveSpawnPermissionPolicy(parent *Info, opts SpawnOpts) (st
 			base = nil
 		}
 		policy.Tools = append(slices.Clone(base), selected...)
+		policy.MaterializedTools = false
 	}
+	policy.MaterializedMCPServers = false
 	return store.NormalizeSessionPermissionPolicy(policy), nil
 }
 

@@ -18,8 +18,9 @@ type sessionProjectionEntry struct {
 }
 
 type projectionAvailabilityBatch struct {
-	provider ProjectionAvailabilityProvider
-	ids      []ToolID
+	provider    ProjectionAvailabilityProvider
+	ids         []ToolID
+	descriptors []Descriptor
 }
 
 func projectionAvailabilities(
@@ -43,6 +44,9 @@ func projectionAvailabilities(
 			batches[entry.providerIndex] = batch
 		}
 		batch.ids = append(batch.ids, entry.descriptor.ID)
+		if _, mcp := provider.(*MCPProvider); mcp {
+			batch.descriptors = append(batch.descriptors, entry.descriptor)
+		}
 	}
 	if len(batches) == 0 {
 		return nil
@@ -50,7 +54,12 @@ func projectionAvailabilities(
 	availability := make(map[ToolID]Availability)
 	for _, providerIndex := range slices.Sorted(maps.Keys(batches)) {
 		batch := batches[providerIndex]
-		resolved := batch.provider.ProjectionAvailability(ctx, scope, batch.ids)
+		var resolved map[ToolID]Availability
+		if mcp, ok := batch.provider.(*MCPProvider); ok {
+			resolved = mcp.projectionAvailability(ctx, scope, batch.descriptors)
+		} else {
+			resolved = batch.provider.ProjectionAvailability(ctx, scope, batch.ids)
+		}
 		for _, id := range batch.ids {
 			value, found := resolved[id]
 			if !found {

@@ -102,7 +102,7 @@ var Matrix = []Rule{
 	{Pattern: "mcp.oauth.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp.stdio.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp.status_probe_timeout", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "mcp-servers.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "hooks.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "extensions.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "defaults.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

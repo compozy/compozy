@@ -50,5 +50,6 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 			return stopLoopWatcher(cleanupCtx, state.loopsCancel, state.loopsDone)
 		})
 	}
+	d.bootMCPDeclarationWatcher(ctx, state, cleanup)
 	return nil
 }

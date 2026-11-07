@@ -25,9 +25,12 @@ type daemonRuntimeWorkers struct {
 	loopReconciler        *loopReconcilerRuntime
 	managedDeliveries     *ownedWorkerGroup
 	providerAuthStartup   *ownedWorkerGroup
+	mcpDeclarations       *ownedWorkerGroup
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop MCP declarations watcher",
+		stopOwnedWorker(ctx, mcpDeclarationWatcherLabel, w.mcpDeclarations))
 	if w.proactiveChecks != nil {
 		appendWrappedError(errs, "daemon: shutdown proactive checks", w.proactiveChecks.Shutdown(ctx))
 	}

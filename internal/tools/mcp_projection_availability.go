@@ -20,18 +20,32 @@ func (p *MCPProvider) ProjectionAvailability(ctx context.Context, scope Scope, i
 		}
 		return result
 	}
-	sources := make(map[string]Availability)
-	for _, descriptor := range descriptors {
-		if _, requested := result[descriptor.ID]; !requested {
-			continue
+	for id, availability := range p.projectionAvailability(ctx, scope, descriptors) {
+		if _, requested := result[id]; requested {
+			result[id] = availability
 		}
+	}
+	return result
+}
+
+// projectionAvailability checks current authorization against this request's successful discovery.
+// Call-time resolution still revalidates the source; a second discovery here could discard healthy tools.
+func (p *MCPProvider) projectionAvailability(
+	ctx context.Context,
+	scope Scope,
+	descriptors []Descriptor,
+) map[ToolID]Availability {
+	result := make(map[ToolID]Availability, len(descriptors))
+	sources := make(map[string]Availability)
+	for idx := range descriptors {
+		descriptor := &descriptors[idx]
 		source := descriptor.Source
 		source.RawToolName = ""
 		key := sourceKey(source)
 		availability, found := sources[key]
 		if !found {
 			handle := &mcpHandle{
-				descriptor:  descriptor,
+				descriptor:  *descriptor,
 				exec:        p.exec,
 				auth:        p.auth,
 				scope:       scope,

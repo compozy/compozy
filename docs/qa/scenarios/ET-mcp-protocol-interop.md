@@ -51,3 +51,20 @@ The delayed-server race probe returned all 114 tools in 0.76 s for the operator 
 session; failing the 79-tool source retained all 35 healthy tools. Before batching, the same
 operator list took 36.04 s. These synthetic upstreams establish the repeated-discovery defect;
 they do not identify the cause in the reporter's original services.
+
+Issue #1334 targeted coverage also owns the configuration-to-provider seam: user and profile
+`mcp.json` declarations must reach the runtime catalog in their declaring scope. Ready sources
+must be present on the first provider list, and an OAuth transition must update an already-open
+session. Test subscribed modern clients and provider legacy clients. For Codex versions that do
+not re-list on notifications, require a turn-boundary reload only after the old native writer has
+exited; the logical session and native history remain usable. Do not count a new logical session
+or a registry-only tool-info response as proof of provider access.
+
+The #1334 turn-boundary adapter also covers hosted providers other than the Claude bridge and
+direct stdio sidecars with hosted MCP disabled. Edit the sidecar command, then remove its
+configuration; verify the next turn receives the new payload and retains the logical/native
+session identity. Verify that delegated direct sidecars are filtered by the child's server
+allowlist. Remote HTTP/OAuth use hosted mode; direct ACP mode currently supports stdio only.
+Include authored root ceilings and explicit native-only child tool overrides: config refresh
+must preserve those restrictions. Edit and delete personal-profile and workspace-profile files
+outside Settings and verify catalog publication changes without a daemon restart.

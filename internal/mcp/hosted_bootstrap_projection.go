@@ -26,6 +26,12 @@ func (s *HostedService) bootstrapProjection(
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
+	if record.eagerTools {
+		bootstrapCtx, cancel := context.WithTimeout(ctx, record.initialDeadline.Sub(s.now().UTC()))
+		defer cancel()
+		response, err := s.projectionForGeneration(bootstrapCtx, record, registry, buildHostedProjection)
+		return cloneHostedProjectionResponse(response), err
+	}
 	bootstrap, ok := registry.(hostedBootstrapRegistry)
 	if !ok {
 		return s.projection(ctx, record)
@@ -56,6 +62,11 @@ func (s *HostedService) bootstrapProjectionGeneration(
 ) (string, bool) {
 	if s == nil || s.projectionGeneration == nil || record == nil {
 		return "", false
+	}
+	if bootstrap, ok := s.currentRegistry().(interface {
+		BootstrapProjectionGeneration(context.Context, tools.Scope) (string, bool)
+	}); ok {
+		return bootstrap.BootstrapProjectionGeneration(ctx, record.scope())
 	}
 	return s.projectionGeneration(ctx, record.scope())
 }

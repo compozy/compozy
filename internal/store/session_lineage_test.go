@@ -372,10 +372,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		}
 
 		policy := SessionPermissionPolicy{
-			Tools:          []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
-			Skills:         []string{"go"},
-			MCPServers:     []string{"memory"},
-			WorkspacePaths: []string{"/repo"},
+			Tools:                  []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
+			Skills:                 []string{"go"},
+			MCPServers:             []string{"memory"},
+			WorkspacePaths:         []string{"/repo"},
+			MaterializedTools:      true,
+			MaterializedMCPServers: true,
 		}
 		rawPolicy, err := EncodeSessionPermissionPolicy(policy)
 		if err != nil {
@@ -386,10 +388,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 			t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 		}
 		wantPolicy := SessionPermissionPolicy{
-			Tools:          []string{"compozy__skill_view", "compozy__task_update"},
-			Skills:         []string{"go"},
-			MCPServers:     []string{"memory"},
-			WorkspacePaths: []string{"/repo"},
+			Tools:                  []string{"compozy__skill_view", "compozy__task_update"},
+			Skills:                 []string{"go"},
+			MCPServers:             []string{"memory"},
+			WorkspacePaths:         []string{"/repo"},
+			MaterializedTools:      true,
+			MaterializedMCPServers: true,
 		}
 		if !reflect.DeepEqual(decodedPolicy, wantPolicy) {
 			t.Fatalf("decoded policy = %#v, want %#v", decodedPolicy, wantPolicy)

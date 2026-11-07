@@ -84,6 +84,7 @@ func (a *instanceAdmission) ResolveCreate(
 			return agentinstance.Instance{}, err
 		}
 	}
+	policy.MaterializedTools, policy.MaterializedMCPServers = false, false
 	encoded, err := json.Marshal(policy)
 	if err != nil {
 		return agentinstance.Instance{}, err
@@ -143,6 +144,7 @@ func (a *instanceAdmission) ResolveAdopt(
 		instance.GrantCeiling != workspaceaccess.Unrestricted {
 		return agentinstance.Instance{}, agentinstance.ErrWorkspaceAccessDenied
 	}
+	policy.MaterializedTools, policy.MaterializedMCPServers = false, false
 	encoded, err := json.Marshal(policy)
 	if err != nil {
 		return agentinstance.Instance{}, err

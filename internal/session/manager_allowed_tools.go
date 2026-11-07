@@ -77,6 +77,7 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 		}
 	}
 	lineage.PermissionPolicy.Tools = append([]string(nil), persistedOverride...)
+	lineage.PermissionPolicy.MaterializedTools = false
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {
 		return fmt.Errorf("%w: allowed_tools override lineage policy: %w", ErrValidation, err)
@@ -110,9 +111,19 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 			return err
 		}
 		lineage.PermissionPolicy.Tools = tools
+		lineage.PermissionPolicy.MaterializedTools = true
+	}
+	// Unknown legacy and authored ceilings are never inferred from coincidentally matching names.
+	if lineage.PermissionPolicy.MaterializedMCPServers || !s.preserveDelegationPolicy {
+		lineage.PermissionPolicy.MCPServers = nil
+		for _, server := range resolved.MCPServers {
+			lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
+		}
+		lineage.PermissionPolicy.MaterializedMCPServers = true
 	}
 	// Preserve authored resource grants after the existing native-tool materialization.
 	if s.preserveDelegationPolicy {
+		lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 		s.lineage = lineage
 		return nil
 	}
@@ -126,10 +137,6 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		if !slices.Contains(definition.Skills.Disabled, name) {
 			lineage.PermissionPolicy.Skills = append(lineage.PermissionPolicy.Skills, name)
 		}
-	}
-	lineage.PermissionPolicy.MCPServers = nil
-	for _, server := range resolved.MCPServers {
-		lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
 	}
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {

@@ -394,7 +394,9 @@ discovery, `compozy__mcp_status` probes, and tool calls. `[mcp.stdio]` sets `idl
 (close an unused process), `connect_timeout = "60s"` (one launch plus MCP handshake; a slow first
 start keeps running after the caller's deadline), and `max_concurrent_calls = 8` (in-flight requests
 per process, `1` through `64`). `mcp.status_probe_timeout = "15s"` bounds one status probe of any MCP
-server. All four are restart-required, user-scope only, and rejected in workspace and profile
+server. Runtime catalog discovery shares this timeout across its visible sources, capped at half
+the hosted bind window. A slow source is omitted without canceling healthy discovery or shortening
+tool-call deadlines. All four are restart-required, user-scope only, and rejected in workspace and profile
 layers; none is agent-mutable.
 
 A process that fails to start or exits unexpectedly is relaunched only after an exponential backoff

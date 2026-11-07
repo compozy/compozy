@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -97,6 +98,197 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 
 func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: direct sidecar edits reload the same native session and release its old writer first.
+	// Owner: session runtime lifecycle; canonical suite: TestPromptRuntimeReplacementLifecycle.
+	t.Run("Should reload direct stdio sidecars at the next turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		nativeID := active.Info().ACPSessionID
+		for _, servers := range [][]compozyconfig.MCPServer{
+			{{Name: "docs", Command: "test-mcp"}},
+			{{Name: "docs", Command: "changed-mcp"}},
+			nil,
+		} {
+			previous := active.processHandle()
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.Config.MCPServers = servers
+			h.resolver.upsert(&workspace)
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				if !isProcessDone(previous) {
+					return nil, errors.New("native session still has a writer")
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+			}
+			events, err := h.manager.Prompt(t.Context(), active.ID, "use the current sidecars")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			call := h.driver.startCalls[len(h.driver.startCalls)-1]
+			if active.processHandle() == previous || call.ResumeSessionID != nativeID ||
+				active.Info().ACPSessionID != nativeID {
+				t.Fatal("direct MCP change failed to reload the same native session")
+			}
+			if len(call.MCPServers) != len(servers) ||
+				(len(servers) > 0 && call.MCPServers[0].Command != servers[0].Command) {
+				t.Fatalf("stale direct sidecars: %+v", call.MCPServers)
+			}
+		}
+		h.driver.startHook = nil
+	})
+
+	for _, change := range []string{"catalog change", "missing proxy bind", "post-hook Codex command", "unknown host"} {
+		t.Run("Should release the writer and reload the same session after "+change, func(t *testing.T) {
+			t.Parallel()
+			h := newHostedMCPHarness(t, WithHookSet(fullHookSet(&spyHookDispatcher{
+				dispatchAgentPreStartFn: func(_ context.Context, payload hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error) {
+					if change == "post-hook Codex command" && payload.Command == "other-acp" {
+						payload.Command = "codex-acp"
+					}
+					return payload, nil
+				},
+			})))
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := workspace.Config.Providers["codex"]
+			provider.Command = "codex-acp"
+			if change == "post-hook Codex command" || change == "unknown host" {
+				provider.Command = "other-acp"
+			}
+			workspace.Config.Providers["codex"] = provider
+			claude := workspace.Config.Providers["claude"]
+			claude.Command = "claude-agent-acp"
+			workspace.Config.Providers["claude"] = claude
+			h.resolver.upsert(&workspace)
+			active, err := h.manager.Create(
+				t.Context(),
+				&CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "codex"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			previous := active.processHandle()
+			nativeID := active.Info().ACPSessionID
+			hosted := h.manager.hostedMCP.(*recordingHostedMCPLauncher)
+			hosted.toolDigest = "initial"
+			if change == "unknown host" {
+				hosted.initialToolDigest = "initial"
+			} else if err := h.manager.captureHostedMCPDigest(t.Context(), active); err != nil {
+				t.Fatal(err)
+			}
+			hosted.toolDigestErr = errors.New("transient policy read failure")
+			unchanged, err := h.manager.Prompt(t.Context(), active.ID, "continue through a transient catalog failure")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, unchanged)
+			if active.processHandle() != previous {
+				t.Fatal("transient catalog failure replaced a healthy runtime")
+			}
+			hosted.toolDigestErr = nil
+			hosted.mu.Lock()
+			hosted.initialToolDigest, hosted.toolDigest = "provider-reconnected", "provider-reconnected"
+			hosted.mu.Unlock()
+			reconnected, err := h.manager.Prompt(t.Context(), active.ID, "use the already reconnected MCP proxy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, reconnected)
+			if active.processHandle() != previous {
+				t.Fatal("provider-side MCP reconnect unnecessarily reloaded its runtime")
+			}
+			previous.Command = "npx"
+			previous.Args = []string{"-y", "@agentclientprotocol/codex-acp"}
+
+			hosted.mu.Lock()
+			hosted.toolDigest = "changed"
+			if change == "missing proxy bind" {
+				hosted.toolDigestErr = ErrHostedMCPBindMissing
+			}
+			hosted.mu.Unlock()
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				if !isProcessDone(previous) {
+					return nil, errors.New("native session still has a writer")
+				}
+				hosted.mu.Lock()
+				hosted.toolDigestErr = nil
+				hosted.mu.Unlock()
+				if opts.FinalizeStartup != nil {
+					if _, _, err := opts.FinalizeStartup(t.Context()); err != nil {
+						return nil, err
+					}
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+			}
+			events, err := h.manager.Prompt(t.Context(), active.ID, "use the changed MCP catalog")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if active.processHandle() == previous || active.Info().ACPSessionID != nativeID {
+				t.Fatal("MCP refresh failed to reload the native session")
+			}
+			if got := h.driver.startCalls[1].ResumeSessionID; got != nativeID {
+				t.Fatalf("loaded %q, want %q", got, nativeID)
+			}
+			events, err = h.manager.Prompt(t.Context(), active.ID, "keep using the same catalog")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if got := len(h.driver.startCalls); got != 2 {
+				t.Fatalf("unchanged catalog started %d processes", got)
+			}
+			h.driver.startHook = nil
+			switched, err := h.manager.SendPrompt(
+				t.Context(),
+				active.ID,
+				SendPromptOpts{Message: "continue on Claude", Runtime: &RuntimeSelection{Provider: "claude"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, switched.Events)
+			hosted.mu.Lock()
+			hosted.toolDigestErr = ErrHostedMCPBindMissing
+			hosted.mu.Unlock()
+			events, err = h.manager.Prompt(t.Context(), active.ID, "continue without Codex reload state")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if got := len(h.driver.startCalls); got != 3 {
+				t.Fatalf("provider switch kept stale MCP state: %d starts", got)
+			}
+		})
+	}
+
+	t.Run("Should keep a healthy runtime usable when its agent definition is unavailable", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		previous := active.processHandle()
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Agents = nil
+		h.resolver.upsert(&workspace)
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, nil, previous)
+		if err != nil || process != previous {
+			t.Fatalf("healthy runtime = %p, %v", process, err)
+		}
+	})
 
 	t.Run("Should replace a provider runtime with replay while ignoring the retired process exit", func(t *testing.T) {
 		t.Parallel()

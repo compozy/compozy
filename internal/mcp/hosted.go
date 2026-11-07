@@ -100,6 +100,7 @@ type HostedService struct {
 
 // HostedLaunchRequest describes one session-bound MCP launch.
 type HostedLaunchRequest struct {
+	EagerTools  bool
 	SessionID   string
 	ProfileID   string
 	WorkspaceID string
@@ -146,37 +147,42 @@ type HostedReleaseRequest struct {
 }
 
 type hostedLaunchRecord struct {
-	readiness     changeSignal
-	readyBindID   string
-	sessionID     string
-	profileID     string
-	workspaceID   string
-	agentName     string
-	nonceHash     string
-	expiresAt     time.Time
-	armed         bool
-	expectedBin   string
-	createdAt     time.Time
-	established   bool
-	correlationID string
-	runID         string
-	generation    int64
-	bindID        string
+	eagerTools       bool
+	projectionFailed bool
+	readiness        changeSignal
+	readyBindID      string
+	sessionID        string
+	profileID        string
+	workspaceID      string
+	agentName        string
+	nonceHash        string
+	expiresAt        time.Time
+	armed            bool
+	expectedBin      string
+	createdAt        time.Time
+	established      bool
+	correlationID    string
+	runID            string
+	generation       int64
+	bindID           string
 }
 
 type hostedBindRecord struct {
-	digestMemo    *hostedProjectionDigestMemo
-	bindID        string
-	sessionID     string
-	profileID     string
-	workspaceID   string
-	agentName     string
-	expectedBin   string
-	peer          PeerInfo
-	createdAt     time.Time
-	correlationID string
-	runID         string
-	generation    int64
+	initialToolDigest string
+	initialDeadline   time.Time
+	eagerTools        bool
+	digestMemo        *hostedProjectionDigestMemo
+	bindID            string
+	sessionID         string
+	profileID         string
+	workspaceID       string
+	agentName         string
+	expectedBin       string
+	peer              PeerInfo
+	createdAt         time.Time
+	correlationID     string
+	runID             string
+	generation        int64
 }
 
 // NewHostedService builds a hosted MCP lifecycle service.
@@ -246,6 +252,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 	}
 	now := s.now().UTC()
 	record := &hostedLaunchRecord{
+		eagerTools:    req.EagerTools,
 		sessionID:     sessionID,
 		profileID:     strings.TrimSpace(req.ProfileID),
 		workspaceID:   strings.TrimSpace(req.WorkspaceID),

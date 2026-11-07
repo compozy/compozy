@@ -67,7 +67,11 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 					Kind:   tc.kind,
 					Policy: store.SessionPermissionPolicy{Tools: []string{"read"}},
 				},
-				policy: store.SessionPermissionPolicy{Tools: []string{"read"}},
+				policy: store.SessionPermissionPolicy{
+					Tools:                  []string{"read"},
+					MaterializedTools:      true,
+					MaterializedMCPServers: true,
+				},
 				session: store.SessionInfo{SessionType: "user", AgentName: tc.agent, ProfileID: tc.profile,
 					WorkspaceID: tc.workspace, EffectiveWorkspaceAccess: tc.grant,
 					Lineage: &store.SessionLineage{ParentSessionID: tc.parent}},
@@ -88,6 +92,13 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 			}
 			if err != nil || got.AgentName != "coder" || got.WorkspaceID != "workspace" {
 				t.Fatalf("adoption: %#v, %v", got, err)
+			}
+			var ceiling store.SessionPermissionPolicy
+			if err := json.Unmarshal([]byte(got.PermissionCeiling), &ceiling); err != nil {
+				t.Fatal(err)
+			}
+			if ceiling.MaterializedTools || ceiling.MaterializedMCPServers {
+				t.Fatal("adoption retained mutable root provenance")
 			}
 		})
 	}

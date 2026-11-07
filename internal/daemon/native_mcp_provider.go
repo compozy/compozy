@@ -47,6 +47,9 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		executor,
 		executor,
 		toolspkg.WithMCPDeadEntityService(state.deadEntities),
+		toolspkg.WithMCPDiscoveryBudget(
+			min(state.cfg.MCP.StatusProbeTimeout, state.cfg.Tools.HostedMCP.BindNonceTTL()/2),
+		),
 	)
 	if err != nil {
 		return nil, nil, err

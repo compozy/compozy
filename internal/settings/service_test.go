@@ -2111,7 +2111,7 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 				Section:       SectionName(CollectionMCPServers),
 				ChangedFields: []string{"mcp-servers.alpha.command"},
 			},
-			want: MutationBehaviorRestartRequired,
+			want: MutationBehaviorAppliedNow,
 		},
 		{
 			descriptor: MutationDescriptor{

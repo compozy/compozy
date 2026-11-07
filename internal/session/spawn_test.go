@@ -1811,10 +1811,21 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 	universe := []toolspkg.ToolID{testToolEdit, testToolRead, testToolShell, testToolWrite}
 
 	tests := []struct {
-		name string
-		opts SpawnOpts
-		want store.SessionPermissionPolicy
+		name         string
+		materialized bool
+		opts         SpawnOpts
+		want         store.SessionPermissionPolicy
 	}{
+		{
+			name:         "Should preserve generated tool grants through inheritance and hooks",
+			materialized: true,
+			opts:         SpawnOpts{InheritPermissions: true},
+			want: func() store.SessionPermissionPolicy {
+				policy := parentPolicy
+				policy.MaterializedTools = true
+				return policy
+			}(),
+		},
 		{
 			name: "Should keep omitted lists empty without inheritance",
 			opts: SpawnOpts{},
@@ -1853,7 +1864,9 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 			t.Parallel()
 
 			h := newHostedMCPHarness(t, WithToolsetCatalog(catalog), WithToolUniverse(universe))
-			parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+			ceiling := parentPolicy
+			ceiling.MaterializedTools = tt.materialized
+			parent := createSpawnParent(t, h, ceiling, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 			cleanupSessionStop(t, h, parent.ID)
 			opts := tt.opts
 			opts.ParentSessionID, opts.AgentName, opts.TTL = parent.ID, "coder", time.Minute

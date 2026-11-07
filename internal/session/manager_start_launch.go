@@ -104,12 +104,37 @@ func (m *Manager) prepareHostedMCPStartup(
 	startOpts acp.StartOpts,
 ) acp.StartOpts {
 	const failedOutcome = "failed"
+	// Only the Claude bridge is verified to consume list_changed. Other hosts
+	// reload at the turn boundary, using the effective post-hook command.
+	reloadTools := !providerexec.IsClaudeAgentBridge(startOpts.Command)
+	session.mu.Lock()
+	session.hostedMCPRequiresReload = m.hostedMCP != nil && len(runtime.mcpServers) > 0 && reloadTools
+	session.hostedMCPDigest = ""
+	session.directMCPDigest = ""
+	if m.hostedMCP == nil {
+		session.directMCPDigest = directMCPDigest(runtime.mcpServers)
+	}
+	session.mu.Unlock()
 	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP && m.hostedMCP != nil &&
-		len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
+		len(startOpts.MCPServers) > 0 &&
+		(providerexec.IsClaudeAgentBridge(startOpts.Command) || providerexec.IsCodexAgentBridge(startOpts.Command)) {
 		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
+		finalize := startOpts.FinalizeStartup
 		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
+			if finalize != nil {
+				var err error
+				prompt, manifest, err = finalize(ctx)
+				if err != nil {
+					return prompt, manifest, err
+				}
+			}
 			started := time.Now()
-			err := m.hostedMCP.WaitForBind(ctx, session.ID)
+			var err error
+			if reloadTools {
+				err = m.captureHostedMCPDigest(ctx, session)
+			} else {
+				err = m.hostedMCP.WaitForBind(ctx, session.ID)
+			}
 			outcome := "succeeded"
 			if err != nil {
 				outcome = failedOutcome

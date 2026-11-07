@@ -139,6 +139,9 @@ type Info struct {
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
 	interactionLifecycleMu       sync.Mutex
+	hostedMCPRequiresReload      bool
+	hostedMCPDigest              string
+	directMCPDigest              string
 	permissionDenials            *acp.PermissionDenials
 	rotationSuperseded           bool
 	InstanceID                   string

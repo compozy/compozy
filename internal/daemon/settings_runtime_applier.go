@@ -6,7 +6,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -24,9 +23,16 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	}
 	next := *snap
 
-	a.daemon.mu.Lock()
-	previous := a.state.cfg
-	a.daemon.mu.Unlock()
+	previous, err := a.previousActiveConfig(ctx)
+	if err != nil {
+		return []settingspkg.ApplyFailure{
+			configApplyFailure(
+				"active_config",
+				"Active config snapshot unavailable",
+				err,
+			),
+		}
+	}
 
 	failures := a.applyRuntimeDependencies(ctx, &previous, &next)
 	if len(failures) > 0 {
@@ -90,6 +96,18 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	return nil
 }
 
+// previousActiveConfig uses the fully projected Settings snapshot, including user sidecars at boot.
+func (a daemonSettingsRuntimeApplier) previousActiveConfig(ctx context.Context) (compozyconfig.Config, error) {
+	if active, ok := a.state.deps.Settings.(interface {
+		ActiveConfig(context.Context) (compozyconfig.Config, error)
+	}); ok {
+		return active.ActiveConfig(ctx)
+	}
+	a.daemon.mu.Lock()
+	defer a.daemon.mu.Unlock()
+	return a.state.cfg, nil
+}
+
 func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 	previous *compozyconfig.Config,
 	next *compozyconfig.Config,
@@ -106,7 +124,6 @@ func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_device_limits",
-				diagnosticcontract.CategoryConfig,
 				"Gateway device limit sync failed",
 				err,
 			))
@@ -119,7 +136,6 @@ func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_auth_limits",
-				diagnosticcontract.CategoryConfig,
 				"Gateway authentication limit sync failed",
 				err,
 			))
@@ -132,7 +148,6 @@ func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_verify",
-				diagnosticcontract.CategoryConfig,
 				"Gateway verification config sync failed",
 				err,
 			))
@@ -175,7 +190,6 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_device_limits_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Gateway device limit rollback failed",
 				err,
 			))
@@ -188,7 +202,6 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_auth_limits_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Gateway authentication limit rollback failed",
 				err,
 			))
@@ -201,7 +214,6 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
 		); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_verify_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Gateway verification config rollback failed",
 				err,
 			))
@@ -220,7 +232,6 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayCeiling(
 		if err := a.state.gateway.SetEnabled(ctx, previous.Gateway.Enabled); err != nil {
 			failures = append(failures, configApplyFailure(
 				"gateway_ceiling_rollback",
-				diagnosticcontract.CategoryConfig,
 				"Gateway ceiling rollback failed",
 				err,
 			))
@@ -240,7 +251,6 @@ func (a daemonSettingsRuntimeApplier) applyGatewayCeilingChange(
 	if err := a.state.gateway.SetEnabled(ctx, next.Gateway.Enabled); err != nil {
 		return []settingspkg.ApplyFailure{configApplyFailure(
 			"gateway_ceiling",
-			diagnosticcontract.CategoryConfig,
 			"Gateway ceiling sync failed",
 			err,
 		)}
@@ -261,7 +271,6 @@ func (a daemonSettingsRuntimeApplier) prepareLoopTargetHealthConfigChange(
 	}
 	failure := configApplyFailure(
 		"loop_target_health",
-		diagnosticcontract.CategoryConfig,
 		"Loop target breaker policy sync failed",
 		err,
 	)

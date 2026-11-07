@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
@@ -1038,6 +1039,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 }
 
 type fakeMCPExecutor struct {
+	failAfter         int
 	mu                sync.Mutex
 	tools             []MCPToolDescriptor
 	status            MCPAuthStatus
@@ -1072,6 +1074,9 @@ func (f *fakeMCPExecutor) ListTools(_ context.Context, source SourceRef) ([]MCPT
 	defer f.mu.Unlock()
 
 	f.listedSources = append(f.listedSources, source)
+	if f.failAfter > 0 && len(f.listedSources) > f.failAfter {
+		return nil, ErrToolUnavailable
+	}
 	if err := f.listErrByResource[source.ResourceID]; err != nil {
 		return nil, err
 	}
@@ -1263,6 +1268,66 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 
 func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	t.Parallel()
+	t.Run("Should omit a stalled source within budget and still discover healthy sources", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executor := &stalledMCPExecutor{
+				fakeMCPExecutor: newFakeMCPExecutor(
+					[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+				),
+			}
+			provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{
+					{Kind: SourceMCP, Owner: "blocked", RawServerName: "blocked"},
+					{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy"},
+				}, nil
+			}), executor, executor, WithMCPDiscoveryBudget(10*time.Second))
+			if err != nil {
+				t.Fatal(err)
+			}
+			caller, cancel := context.WithTimeout(t.Context(), 6*time.Second)
+			defer cancel()
+			started := time.Now()
+			listed, err := provider.List(caller, Scope{})
+			if err != nil || len(listed) != 1 || listed[0].ID != "mcp__healthy__lookup" {
+				t.Fatalf("bounded discovery = %+v, %v", listed, err)
+			}
+			if caller.Err() != nil || time.Since(started) > 3*time.Second {
+				t.Fatal("source deadline consumed the caller or catalog budget")
+			}
+		})
+	})
+
+	// Invariant: availability uses the successful discovery of this projection, not a second inconsistent upstream list.
+	// Owner: MCP registry projection; canonical suite: bounded discovery.
+	t.Run("Should project one coherent discovery when a second upstream listing would fail", func(t *testing.T) {
+		t.Parallel()
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "echo", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		executor.failAfter = 1
+		provider := newTestMCPProvider(
+			t,
+			executor,
+			[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+		)
+		inputs := DefaultPolicyInputs()
+		inputs.SystemPermissionMode = PermissionModeApproveAll
+		inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.SessionProjection(t.Context(), Scope{SessionID: "coherent"})
+		if err != nil || len(views) != 1 || views[0].Descriptor.ID != "mcp__probe__echo" {
+			t.Fatalf("successful discovery lost from initial projection: %+v, %v", views, err)
+		}
+		later, err := registry.SessionProjection(t.Context(), Scope{SessionID: "coherent"})
+		if err != nil || len(later) != 0 {
+			t.Fatalf("failed later discovery reused stale tools: %+v, %v", later, err)
+		}
+	})
+
 	for _, operator := range []bool{false, true} {
 		name := "Should discover once per batch for hosted sessions"
 		if operator {
@@ -1302,7 +1367,7 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			executor.mu.Lock()
 			calls := len(executor.listedSources)
 			executor.mu.Unlock()
-			if calls > 2 {
+			if calls != 1 {
 				t.Fatalf("upstream discovery calls = %d for one source, want bounded batch discovery", calls)
 			}
 			executor.setStatus(MCPAuthStatus{Status: "needs_login"})
@@ -1313,7 +1378,7 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			executor.mu.Lock()
 			afterAuthCalls := len(executor.listedSources) - calls
 			executor.mu.Unlock()
-			if afterAuthCalls > 2 {
+			if afterAuthCalls != 1 {
 				t.Fatalf(
 					"upstream discovery calls after auth withdrawal = %d, want bounded batch discovery",
 					afterAuthCalls,
@@ -1387,4 +1452,14 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			}
 		})
 	}
+}
+
+type stalledMCPExecutor struct{ *fakeMCPExecutor }
+
+func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([]MCPToolDescriptor, error) {
+	if source.RawServerName == "blocked" {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return e.fakeMCPExecutor.ListTools(ctx, source)
 }

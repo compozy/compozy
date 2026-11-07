@@ -245,6 +245,148 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonApprovalRequired)
 	})
 
+	// Invariant: extension runtime names do not replace logical names in session server grants.
+	// Owner: effective tool policy; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should match logical MCP grants while retaining runtime tool identity", func(t *testing.T) {
+		t.Parallel()
+		descriptor, err := mcpRegistryDescriptor(
+			SourceRef{
+				Kind:          SourceMCP,
+				Owner:         "github.github",
+				RawServerName: "github.github",
+				ResourceID:    "extension-github",
+			},
+			MCPToolDescriptor{RawName: "search", ReadOnly: true, InputSchema: []byte(`{"type":"object"}`)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, grant := range []string{"github", "github.github", "other"} {
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				MCPResourceNames:     map[string]string{"extension-github": "github"},
+				Session: SessionToolPolicy{
+					Enforced:   true,
+					Tools:      []ToolID{descriptor.ID},
+					MCPServers: []string{grant},
+				},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil || decision.Callable != (grant == "github") {
+				t.Fatalf("grant %s for %s: %+v, %v", grant, descriptor.ID, decision, err)
+			}
+		}
+	})
+
+	// Invariant: a removed catalog resource cannot regain a server grant through its runtime name.
+	// Owner: effective tool policy; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should reject removed resource identities before runtime fallback", func(t *testing.T) {
+		t.Parallel()
+		for _, resourceID := range []string{"removed", ""} {
+			descriptor := mcpDescriptor("mcp__github__search", "github", "search")
+			descriptor.Source.ResourceID = resourceID
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				MCPResourceNames:     map[string]string{},
+				Session: SessionToolPolicy{
+					Enforced:   true,
+					Tools:      []ToolID{descriptor.ID},
+					MCPServers: []string{"github"},
+				},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil || decision.Callable != (resourceID == "") {
+				t.Fatalf("resource %q: %+v, %v", resourceID, decision, err)
+			}
+		}
+	})
+
+	t.Run("Should retain concrete MCP tool narrowing inside an allowed server", func(t *testing.T) {
+		t.Parallel()
+		for _, tool := range []string{"lookup", "delete"} {
+			descriptor := validDescriptor()
+			descriptor.ID = ToolID("mcp__docs__" + tool)
+			descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: tool}
+			evaluator, err := NewEffectivePolicyEvaluator(
+				PolicyInputs{
+					SystemPermissionMode: PermissionModeApproveAll,
+					ExternalDefault:      ExternalDefaultEnabled,
+					Session: SessionToolPolicy{
+						Enforced:   true,
+						Tools:      []ToolID{"mcp__docs__lookup"},
+						MCPServers: []string{"docs"},
+					},
+				},
+				ToolsetCatalog{},
+				[]ToolID{descriptor.ID},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable != (tool == "lookup") {
+				t.Fatalf("concrete narrowing for %s: %+v", tool, decision)
+			}
+		}
+	})
+
+	// Invariant: an explicit native-only override is exhaustive even when it inherits a server grant.
+	// Owner: effective policy evaluator; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should deny MCP tools under an explicit native-only tool override", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
+			Session: SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDSkillView}, MCPServers: []string{"docs"}},
+		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decision.Callable {
+			t.Fatalf("explicit tool ceiling widened: %+v", decision)
+		}
+	})
+
+	t.Run("Should narrow MCP tools by the session server allowlist", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		for _, servers := range [][]string{nil, {"docs"}, {"other"}} {
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
+				Session: SessionToolPolicy{Enforced: true, MCPServers: servers, MCPByServer: true},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable != (len(servers) > 0 && servers[0] == "docs") {
+				t.Fatalf("servers %v: %+v", servers, decision)
+			}
+		}
+	})
+
 	t.Run("Should enforce session lineage concrete atoms independently", func(t *testing.T) {
 		t.Parallel()
 
