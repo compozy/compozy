@@ -265,6 +265,52 @@ func marketplaceEntryForTest() marketplacepkg.Entry {
 func TestMarketplaceCatalog(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should serve healthy rows when another row has invalid trust evidence", func(t *testing.T) {
+		t.Parallel()
+		good := marketplaceEntryForTest()
+		bad := good
+		bad.EntryID, bad.Version = "broken", ""
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
+			catalogBrowse: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
+				return marketplacepkg.FilterBrowse(
+					marketplacepkg.BrowseResult{
+						Entries: []marketplacepkg.Entry{
+							bad,
+							good,
+							{EntryID: "malformed", Name: "Malformed", Payload: json.RawMessage(`{`)},
+						},
+						Total: 3,
+					},
+					marketplacepkg.BrowseFilter{},
+					0,
+					marketplacepkg.AllEntries,
+				)
+			},
+			extensionTrust: func(_ context.Context, evidence extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error) {
+				if evidence.Version == "" {
+					return contract.ExtensionTrustReportPayload{}, errors.New("version required")
+				}
+				return contract.ExtensionTrustReportPayload{}, nil
+			},
+		})
+		page, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
+		if err != nil || len(page.Items) != 3 {
+			t.Fatalf("page = %+v, error = %v", page, err)
+		}
+		if page.Items[0].Installable || page.Items[0].InstallBlocker != "trust_evidence_invalid" ||
+			!page.Items[1].Installable {
+			t.Fatalf("items = %+v", page.Items)
+		}
+		sections, err := handlers.MarketplaceSections(t.Context(), core.MarketplaceListRequest{}, 6)
+		if err != nil || len(sections.Sections) != 1 || len(sections.Sections[0].Items) != 3 {
+			t.Fatalf("sections = %+v, error = %v", sections, err)
+		}
+		category, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{Category: "more"})
+		if err != nil || len(category.Items) != 3 {
+			t.Fatalf("category = %+v, error = %v", category, err)
+		}
+	})
+
 	t.Run("Should preserve valid source diagnostics with plugin identity and stale freshness", func(t *testing.T) {
 		t.Parallel()
 

@@ -2910,6 +2910,17 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 
 func TestDaemonExtensionInstallEnable(t *testing.T) {
 	t.Parallel()
+	t.Run("Should redact credentials from the underlying enable failure", func(t *testing.T) {
+		t.Parallel()
+		failure := installEnableError(
+			fmt.Errorf("%w: Authorization: Bearer sensitive-credential-value", extensionpkg.ErrManifestInvalid),
+		)
+		if failure.Code != "extension_enable_failed" || strings.Contains(failure.Error, "sensitive-credential-value") ||
+			!strings.Contains(failure.Error, "[REDACTED]") {
+			t.Fatalf("failure = %+v", failure)
+		}
+	})
+
 	for _, failEnable := range []bool{false, true} {
 		name := "Should install and enable in one operation"
 		if failEnable {
@@ -2944,6 +2955,10 @@ func TestDaemonExtensionInstallEnable(t *testing.T) {
 
 			if item.Enabled == failEnable || (item.InstallEnableError != nil) != failEnable {
 				t.Fatalf("install = %#v", item)
+			}
+			if failEnable &&
+				(!strings.Contains(item.InstallEnableError.Error, "enable refused") || item.InstallEnableError.Code != "extension_enable_failed") {
+				t.Fatalf("enable error = %+v", item.InstallEnableError)
 			}
 			persisted, err := registry.Get(item.Name)
 			if err != nil || persisted.Enabled == failEnable {
@@ -3005,6 +3020,60 @@ func TestDaemonConcurrentAdd(t *testing.T) {
 
 func TestDerivedInputInstallPreflight(t *testing.T) {
 	t.Parallel()
+	t.Run("Should install and enable a client secret environment binding", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		db, ok := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("fixture requires real database")
+		}
+		secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Runtime: newLifecycleStateRuntime(registry), HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(),
+		}, withDaemonExtensionAutomation(&fakeAutomationManager{}), withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault), withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources)).(*daemonExtensionService)
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			[]byte(
+				`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"secret-client","version":"1.0.0"}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(`{"mcpServers":{"local":{"command":"node","env":{"DEMO_API_KEY":"${DEMO_API_KEY}"}}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "secret client install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root, Enable: true, AllowUnverified: true,
+			Inputs: map[string]extensioninput.Value{"DEMO_API_KEY": {Value: json.RawMessage(`"private-key"`)}},
+		}, actor)
+		if item.InstallEnableError != nil {
+			t.Fatalf("enable failure = %+v", *item.InstallEnableError)
+		}
+		if err != nil || !item.Enabled || item.InstallEnableError != nil {
+			t.Fatalf("install = %+v, error = %v", item, err)
+		}
+		persisted, err := registry.Get(item.Name)
+		if err != nil || !persisted.Enabled {
+			t.Fatalf("persisted = %+v, error = %v", persisted, err)
+		}
+	})
+
 	t.Run("Should reject missing derived input before committing local plugin install", func(t *testing.T) {
 		t.Parallel()
 		deps, registry, _, runtime := newNativeExtensionToolDeps(t)

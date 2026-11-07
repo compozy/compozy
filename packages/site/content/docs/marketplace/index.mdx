@@ -62,6 +62,7 @@ outside 1–12 returns `400 invalid_request`.
 A page contains `items`, the filtered `total`, `sources`, `revision`, and `stale`, plus `next_cursor`
 when more entries remain. Pass the cursor unchanged with the same query, category, profile, and
 workspace.
+Installing a package also invalidates a cursor because installed origins affect which rows are shown.
 If the server returns `marketplace_cursor_stale` with `restart: true`, discard the earlier pages and
 start again. Identical refreshes retain the content revision. While `refreshing` is true,
 read the complete catalog again to observe pending source work; one failed source does not
@@ -104,7 +105,8 @@ compozy extension install compozy/herdr-bridge --enable -o json
 compozy extension provenance herdr-bridge -o json
 ```
 
-Without `--enable`, the extension is installed and stays off. With it, the command exits 0 even
+New installations are enabled by default, including native extensions and client/plugin packages.
+Use `--enable` to explicitly attempt activation in the same operation. The command exits 0 even
 when turning on fails after a successful install: the JSON response carries `enable_error` with
 its `code`, and the human output names the retry command (`compozy extension enable <name>`).
 Over HTTP and UDS, send `"enable": true` in the `POST /api/extensions` body; an enable failure

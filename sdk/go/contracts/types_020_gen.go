@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+type SpawnPermissionPolicyPayload struct {
+	Tools          []string `json:"tools"`
+	Skills         []string `json:"skills"`
+	MCPServers     []string `json:"mcp_servers"`
+	WorkspacePaths []string `json:"workspace_paths"`
+}
+
+type SpawnPreCreatePayload struct {
+	Subagent          *SubagentSpawnPayload `json:"subagent,omitempty"`
+	Event             HookEvent             `json:"event"`
+	Timestamp         time.Time             `json:"timestamp"`
+	ProfileID         string                `json:"profile_id,omitempty"`
+	ParentSessionID   string                `json:"parent_session_id,omitempty"`
+	RootSessionID     string                `json:"root_session_id,omitempty"`
+	ChildSessionID    string                `json:"child_session_id,omitempty"`
+	WorkspaceID       string                `json:"workspace_id,omitempty"`
+	Workspace         string                `json:"workspace,omitempty"`
+	AgentName         string                `json:"agent_name,omitempty"`
+	SpawnRole         string                `json:"spawn_role,omitempty"`
+	SpawnDepth        int                   `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64                 `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool                  `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string                `json:"task_id,omitempty"`
+	RunID             string                `json:"run_id,omitempty"`
+	WorkflowID        string                `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string                `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string                `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string                `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet        `json:"parent_permissions"`
+	ChildPermissions  *PermissionSet        `json:"child_permissions"`
+	Denied            bool                  `json:"denied,omitempty"`
+	DenyReason        string                `json:"deny_reason,omitempty"`
+}
+
 type SpawnReapedPayload struct {
 	Event             HookEvent      `json:"event"`
 	Timestamp         time.Time      `json:"timestamp"`
@@ -287,26 +321,4 @@ type TaskCatalogRunPayload struct {
 	StartedAt            *time.Time           `json:"started_at,omitempty"`
 	EndedAt              *time.Time           `json:"ended_at,omitempty"`
 	Error                string               `json:"error,omitempty"`
-}
-
-type TaskCatalogStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
-}
-
-type TaskContext struct {
-	ProfileID      string `json:"profile_id,omitempty"`
-	TaskID         string `json:"task_id,omitempty"`
-	ParentTaskID   string `json:"parent_task_id,omitempty"`
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	WorkflowID     string `json:"workflow_id,omitempty"`
-	AgentName      string `json:"agent_name,omitempty"`
-	ActorKind      string `json:"actor_kind,omitempty"`
-	ActorID        string `json:"actor_id,omitempty"`
-	OriginKind     string `json:"origin_kind,omitempty"`
-	OriginRef      string `json:"origin_ref,omitempty"`
-	TaskStatus     string `json:"task_status,omitempty"`
-	RunID          string `json:"run_id,omitempty"`
-	ReleaseReason  string `json:"release_reason,omitempty"`
-	ClaimTokenHash string `json:"claim_token_hash,omitempty"`
 }

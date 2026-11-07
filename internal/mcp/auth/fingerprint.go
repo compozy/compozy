@@ -95,7 +95,15 @@ func (s *Service) tokenMatchesServerDefinition(
 		return false, nil
 	}
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
-		return issuersEqual(token.Issuer, cfg.IssuerURL) &&
+		issuer := strings.TrimSpace(cfg.IssuerURL)
+		if issuer == "" {
+			metadata, err := s.preRegisteredMetadata(ctx, cfg)
+			if err != nil {
+				return false, err
+			}
+			issuer = metadata.Issuer
+		}
+		return issuersEqual(token.Issuer, issuer) &&
 			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil
 	}
 	if s.registrations == nil {

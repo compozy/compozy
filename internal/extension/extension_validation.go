@@ -171,7 +171,15 @@ func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
 			Issues: issues,
 		}, nil
 	}
+	inputs := make([]apicontract.MarketplaceInputPayload, 0, len(manifest.Inputs))
+	for _, input := range manifest.Inputs {
+		inputs = append(inputs, apicontract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required, Default: input.Default,
+			Binding: apicontract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+		})
+	}
 	return &ValidationReport{
+		Inputs:      inputs,
 		Status:      "valid",
 		Format:      string(FormatAgentPlugin),
 		Name:        pkg.Name,
@@ -231,8 +239,13 @@ func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []ap
 func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []ValidationIssue {
 	issues := make([]ValidationIssue, 0, len(values))
 	for _, item := range values {
+		severity := IssueSeverityWarn
+		if item.Code == agentplugin.ClientMCPDiscovered {
+			severity = apicontract.IssueSeverityInfo
+		}
 		issues = append(issues, ValidationIssue{
-			Scope: strings.TrimSpace(item.Scope), Message: strings.TrimSpace(item.Message), Severity: IssueSeverityWarn,
+			Code:  item.Code,
+			Scope: strings.TrimSpace(item.Scope), Message: strings.TrimSpace(item.Message), Severity: severity,
 		})
 	}
 	return issues

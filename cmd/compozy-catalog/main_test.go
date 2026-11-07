@@ -87,6 +87,16 @@ func TestPublishCatalog(t *testing.T) {
 			t.Fatalf("v3 version/count = %d/%d", document.ManifestVersion, len(document.Entries))
 		}
 		for _, entry := range document.Entries {
+			details, err := marketplace.ProjectEntry(entry)
+			if err != nil || details.Category.ID == marketplace.CategoryMore {
+				t.Fatalf("uncategorized %s: %+v, %v", entry.EntryID, details, err)
+			}
+			if entry.EntryID == "grafana" && len(details.Supersedes) != 4 {
+				t.Fatalf("Grafana alias curation = %+v", details)
+			}
+			if entry.EntryID == "notion" && (!details.Featured || len(details.Supersedes) != 2) {
+				t.Fatalf("Notion curation = %+v", details)
+			}
 			if entry.EntryID == "documentation-writer" || entry.EntryID == "repository-orientation" {
 				t.Fatalf("retired listing %q remains in v3", entry.EntryID)
 			}
@@ -99,8 +109,8 @@ func TestPublishCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(parsed.Entries) != 2 || parsed.Entries[0].Name != "claude-plugins-official" ||
-			parsed.Entries[0].Default != "on" || parsed.Entries[1].Name != "openai-codex" || parsed.Entries[1].Default != "off" {
+		if len(parsed.Entries) != 3 || parsed.Entries[0].Name != "claude-plugins-official" ||
+			parsed.Entries[0].Default != "on" || parsed.Entries[1].Name != "compozy-plugins" || parsed.Entries[1].Default != "on" || parsed.Entries[2].Name != "openai-codex" || parsed.Entries[2].Default != "off" {
 			t.Fatalf("presets = %#v", parsed.Entries)
 		}
 	})

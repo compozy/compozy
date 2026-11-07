@@ -1,6 +1,7 @@
 # BUG-20261107-derived-secret-env-enable-fails: A derived secret input in a client server's env makes enable fail
 
-- Status: open
+- Status: fixed
+- Fixed in: `68d106e25`
 - Impact (user-side): Blocking for the affected plugins
 - Severity: High; Priority: P1
 - Persona Affected: Bruno

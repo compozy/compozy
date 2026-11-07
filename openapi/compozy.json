@@ -9048,6 +9048,12 @@
           "format": {
             "type": "string"
           },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceInputPayload"
+            },
+            "type": "array"
+          },
           "issues": {
             "items": {
               "$ref": "#/components/schemas/ValidationIssue"
@@ -13467,7 +13473,8 @@
         "enum": [
           "error",
           "warning",
-          "warn"
+          "warn",
+          "info"
         ],
         "type": "string"
       },
@@ -43488,6 +43495,9 @@
       },
       "ValidationIssue": {
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "column": {
             "type": "integer"
           },
@@ -43510,7 +43520,8 @@
             "enum": [
               "error",
               "warning",
-              "warn"
+              "warn",
+              "info"
             ],
             "type": "string"
           }

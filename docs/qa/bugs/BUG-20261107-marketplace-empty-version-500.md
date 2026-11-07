@@ -1,6 +1,7 @@
 # BUG-20261107-marketplace-empty-version-500: Marketplace list and sections return 500 when any listed plugin has no version
 
-- Status: open
+- Status: fixed
+- Fixed in: `68d106e25`
 - Impact (user-side): Blocking
 - Severity: Critical; Priority: P0
 - Persona Affected: Bruno, Ada

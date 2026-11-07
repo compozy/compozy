@@ -12516,13 +12516,14 @@ export type ValidateLoopRequest = {
 };
 
 export type ValidationIssue = {
+  code?: string;
   column?: number;
   field?: string;
   line?: number;
   message: string;
   path: string;
   scope?: string;
-  severity: "error" | "warning" | "warn";
+  severity: "error" | "warning" | "warn" | "info";
 };
 
 export type Value =

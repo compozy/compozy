@@ -223,6 +223,20 @@ type LoopTerminalPayload struct {
 	Details         json.RawMessage `json:"details,omitempty"`
 }
 
+type MarketplaceInputBindingPayload struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+type MarketplaceInputPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+}
+
 type MessageDeltaPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
@@ -368,28 +382,4 @@ type ModelCatalogCostPayload struct {
 	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
 	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
 	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
-}
-
-type ModelCatalogSourceStatusPayload struct {
-	FailureReason string `json:"failure_reason,omitempty"`
-	SourceID      string `json:"source_id"`
-	SourceKind    string `json:"source_kind"`
-	ProviderID    string `json:"provider_id"`
-	Priority      int    `json:"priority"`
-	LastRefresh   string `json:"last_refresh,omitempty"`
-	NextRefresh   string `json:"next_refresh,omitempty"`
-	LastSuccess   string `json:"last_success,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	RefreshState  string `json:"refresh_state"`
-	RowCount      int    `json:"row_count"`
-	Stale         bool   `json:"stale"`
 }

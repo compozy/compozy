@@ -1,6 +1,7 @@
 # BUG-20261107-catalog-entries-uncategorized-duplicated: Curated catalog entries all land in More and duplicate compozy-plugins apps
 
-- Status: open
+- Status: fixed
+- Fixed in: `68d106e25`
 - Impact (user-side): Degraded browse
 - Severity: Medium; Priority: P2
 - Persona Affected: Bruno

@@ -1,6 +1,7 @@
 # BUG-20261107-enablement-route-500: Retry turning on shows Internal Server Error instead of the enable failure
 
-- Status: open
+- Status: fixed
+- Fixed in: `68d106e25`
 - Impact (user-side): Misleading error
 - Severity: Medium; Priority: P2
 - Persona Affected: Bruno

@@ -10137,6 +10137,7 @@ export interface components {
     ExtensionValidatePayload: {
       consent_areas?: components["schemas"]["ConsentArea"][];
       format: string;
+      inputs?: components["schemas"]["MarketplaceInputPayload"][];
       issues: components["schemas"]["ValidationIssue"][];
       manifest?: components["schemas"]["ExtensionManifestSummary"] | null;
       name?: string;
@@ -11605,7 +11606,7 @@ export interface components {
       workspace_id?: string;
     };
     /** @enum {string} */
-    IssueSeverity: "error" | "warning" | "warn";
+    IssueSeverity: "error" | "warning" | "warn" | "info";
     JobPayload: {
       agent_name: string;
       /** Format: date-time */
@@ -20553,6 +20554,7 @@ export interface components {
       definition: components["schemas"]["LoopDefinitionDocument"];
     };
     ValidationIssue: {
+      code?: string;
       column?: number;
       field?: string;
       line?: number;
@@ -20560,7 +20562,7 @@ export interface components {
       path: string;
       scope?: string;
       /** @enum {string} */
-      severity: "error" | "warning" | "warn";
+      severity: "error" | "warning" | "warn" | "info";
     };
     Value:
       | {

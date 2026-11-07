@@ -73,9 +73,16 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 	entry marketplacepkg.Entry,
 	installed marketplaceInstallIndex,
 ) (contract.MarketplaceListingPayload, error) {
+	if err := ctx.Err(); err != nil {
+		return contract.MarketplaceListingPayload{}, err
+	}
 	details, err := marketplacepkg.ProjectEntry(entry)
 	if err != nil {
-		return contract.MarketplaceListingPayload{}, err
+		return contract.MarketplaceListingPayload{
+			EntryID: entry.EntryID, Name: entry.Name, Description: entry.Description, Version: entry.Version,
+			Source: entry.SourceName, InstallSlug: entry.InstallSlug, InstallBlocker: "projection_failed",
+			Category: marketplacepkg.CategoryMore, CategoryLabel: "More",
+		}, nil
 	}
 	installation, isInstalled := installed.byOrigin[marketplacepkg.Origin{
 		SourceRef: details.SourceRef, EntryID: entry.EntryID,
@@ -111,7 +118,7 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 		RegistryTier:        entry.Tier,
 	})
 	if err != nil {
-		return contract.MarketplaceListingPayload{}, err
+		entry.InstallBlocker = "trust_evidence_invalid"
 	}
 	result.SourceRef = details.SourceRef
 	result.DigestSHA256 = entry.DigestSHA256
@@ -124,7 +131,9 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 	}
 	result.Installable = entry.InstallBlocker == ""
 	result.InstallBlocker = entry.InstallBlocker
-	result.Trust = &trust
+	if err == nil {
+		result.Trust = &trust
+	}
 	if !isInstalled {
 		result.NameConflict = marketplaceNameConflict(entry, details, installed)
 	}

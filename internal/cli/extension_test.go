@@ -226,6 +226,53 @@ func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
 func TestExtensionValidatePortableExitContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should show derived inputs and informational diagnostic codes", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			[]byte(
+				`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"client","version":"1.0.0"}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(
+				`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp","headers":{"Authorization":"Bearer ${API_KEY}"}}}}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Inputs", "API_KEY", "secret", "HOST", "INFO", "client_mcp_discovered"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+		stdout, _, err = executeRootCommand(t, commandDeps{}, "extension", "validate", root, "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var report contract.ExtensionValidatePayload
+		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Inputs) != 2 || len(report.Issues) != 1 || report.Issues[0].Code != "client_mcp_discovered" ||
+			report.Issues[0].Severity != contract.IssueSeverityInfo {
+			t.Fatalf("report = %+v", report)
+		}
+	})
+
 	t.Run("Should keep warn-only portable validation successful and daemonless", func(t *testing.T) {
 		t.Parallel()
 

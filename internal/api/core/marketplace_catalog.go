@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var ErrMarketplaceCursorStale = errors.New("marketplace: catalog revision changed")
+var ErrMarketplaceCursorStale = errors.New("marketplace_cursor_stale: Catalog changed; restart from the first page")
 
 // MarketplaceListRequest carries canonical catalog pagination and installed-state scope.
 type MarketplaceListRequest struct {

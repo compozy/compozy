@@ -710,7 +710,7 @@ func TestClientInputRuntimeBinding(t *testing.T) {
 				t.Fatalf("incorrect remote rendering")
 			}
 			if server.Name == "local" &&
-				(rendered.Env["TOKEN"] != "private-token" || rendered.Env["R"] != "us-east-1" || rendered.Env["R2"] != "eu-west-1" || rendered.Env["OPTIONAL_TOKEN"] != "package-default" || rendered.Args[0] != "api.example.com") {
+				(server.SecretEnv["TOKEN"] != state.Values["LINEAR_API_KEY"].SecretRef || rendered.Env["TOKEN"] != "" || rendered.Env["R"] != "us-east-1" || rendered.Env["R2"] != "eu-west-1" || rendered.Env["OPTIONAL_TOKEN"] != "package-default" || rendered.Args[0] != "api.example.com") {
 				t.Fatalf("incorrect stdio rendering")
 			}
 		}

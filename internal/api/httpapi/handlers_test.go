@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -4951,4 +4953,42 @@ func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) err
 	}
 	s.awaitErr = ctx.Err()
 	return s.awaitErr
+}
+
+func TestExtensionEnablementValidationFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return a structured validation error", func(t *testing.T) {
+		t.Parallel()
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlersWithSettingsAndExtensions(
+			t,
+			"127.0.0.1",
+			&stubSettingsService{},
+			&stubSettingsRestartController{},
+			stubExtensionService{
+				SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
+					return contract.ExtensionEnablementPayload{}, fmt.Errorf(
+						"%w: invalid MCP declaration",
+						extensionpkg.ErrManifestInvalid,
+					)
+				},
+			},
+			homePaths,
+		)
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPut,
+			"/api/extensions/demo/enablement",
+			[]byte(`{"profile":"default","enabled":true}`),
+		)
+		var payload contract.ExtensionEnableError
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusBadRequest || payload.Code != "extension_enable_failed" ||
+			!strings.Contains(payload.Error, "invalid MCP declaration") {
+			t.Fatalf("response = %d %s", response.Code, response.Body)
+		}
+	})
 }

@@ -440,3 +440,15 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		}
 	})
 }
+
+func TestMarketplaceNativeCursorFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should classify stale cursors as a restartable conflict", func(t *testing.T) {
+		t.Parallel()
+		err := marketplaceNativeError(toolspkg.ToolIDMarketplaceSearch, core.ErrMarketplaceCursorStale)
+		if !errors.Is(err, toolspkg.ErrToolConflict) || !strings.Contains(err.Error(), "marketplace_cursor_stale") ||
+			!strings.Contains(err.Error(), "restart from the first page") {
+			t.Fatalf("cursor error = %v", err)
+		}
+	})
+}

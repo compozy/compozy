@@ -312,21 +312,23 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	t.Parallel()
 	t.Run("Should discover a separate issuer for pre-registered credentials", func(t *testing.T) {
 		t.Parallel()
-		fixture := mcpfixture.StartOAuthHTTP(
-			t,
-			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
-			mcpfixture.OAuthConfig{},
-		)
-		var resourceURL string
+
+		var issuerURL, resourceURL string
 		resource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).
-				Encode(map[string]any{"resource": resourceURL, "authorization_servers": []string{fixture.Endpoints.IssuerURL}}); err != nil {
+				Encode(map[string]any{"resource": resourceURL, "authorization_servers": []string{issuerURL}}); err != nil {
 				t.Error(err)
 			}
 		}))
 		t.Cleanup(resource.Close)
 		resourceURL = strings.Replace(resource.URL, "127.0.0.1", "localhost", 1) + "/mcp"
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{ResourceURL: resourceURL},
+		)
+		issuerURL = fixture.Endpoints.IssuerURL
 		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(fixture.Server.Client()))
 		if err != nil {
 			t.Fatal(err)
@@ -350,6 +352,42 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 		if len(fixture.Requests().Registration) != 0 {
 			t.Fatal("pre-registered flow registered a client")
 		}
+		cfg := state.Config
+		callback := oauthCallbackURL(t, state.RedirectURL, state.State, "")
+		if _, err := service.Exchange(t.Context(), &state, callback); err != nil {
+			t.Fatal(err)
+		}
+		assertUsable := func() {
+			t.Helper()
+			status, err := service.Status(t.Context(), cfg)
+			if err != nil || !status.TokenPresent {
+				t.Fatalf("status = %+v, err = %v", status, err)
+			}
+			if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+				t.Fatal(err)
+			}
+			refreshed, err := service.Refresh(t.Context(), cfg)
+			if err != nil || !refreshed.TokenPresent {
+				t.Fatalf("refresh = %+v, err = %v", refreshed, err)
+			}
+		}
+		assertUsable()
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatal(err)
+		}
+		begin, err := manager.Begin(t.Context(), cfg, state.RedirectURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.ExchangeCallback(
+			t.Context(),
+			cfg,
+			oauthCallbackURL(t, begin.CallbackURL, begin.State, ""),
+		); err != nil {
+			t.Fatal(err)
+		}
+		assertUsable()
 	})
 
 	t.Run("Should include the protected resource in the authorization request", func(t *testing.T) {

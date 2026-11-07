@@ -24,6 +24,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	"github.com/compozy/compozy/internal/resources"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -827,6 +828,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map blocked unverified policy to unprocessable", err: extensionpkg.ErrExtensionUnverifiedPolicyBlocked, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid Git repository URL to bad request", err: registrygit.ErrInvalidRepositoryRef, want: http.StatusBadRequest},
 		{name: "Should map a blocked Git repository destination to forbidden", err: registrygit.ErrRepositoryDestinationBlocked, want: http.StatusForbidden},
+		{name: "Should map resource publication validation to bad request", err: resources.ErrValidation, want: http.StatusBadRequest},
 		{name: "Should map manifest validation to bad request", err: extensionpkg.ErrManifestInvalid, want: http.StatusBadRequest},
 
 		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},

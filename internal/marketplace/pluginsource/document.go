@@ -164,12 +164,16 @@ func decodePluginSource(raw json.RawMessage) (PluginSource, error) {
 		Repo   string `json:"repo"`
 		URL    string `json:"url"`
 		Ref    string `json:"ref"`
+		SHA    string `json:"sha"`
 		Path   string `json:"path"`
 	}
 	if err := json.Unmarshal(raw, &source); err != nil {
 		return PluginSource{}, errors.New(
 			"source must be a relative path, GitHub object, HTTPS URL, url or git-subdir object",
 		)
+	}
+	if source.SHA != "" {
+		source.Ref = source.SHA
 	}
 	switch source.Source {
 	case "url", "git-subdir":

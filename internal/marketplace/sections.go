@@ -40,10 +40,7 @@ func FilterBrowse(page BrowseResult, filter BrowseFilter, offset, limit int) (Br
 			return BrowseResult{}, err
 		}
 	}
-	rows, err := visibleCategoryCandidates(page.Entries, filter.Installed)
-	if err != nil {
-		return BrowseResult{}, err
-	}
+	rows := visibleCategoryCandidates(page.Entries, filter.Installed)
 	needle := foldMarketplaceText(NormalizeQuery(filter.Query))
 	counts := make(map[CategoryID]int)
 	matches := make([]categoryCandidate, 0, len(rows))
@@ -126,7 +123,8 @@ func BuildSections(page BrowseResult, perSection int) (SectionsResult, error) {
 			var err error
 			details, err = ProjectEntry(entry)
 			if err != nil {
-				return SectionsResult{}, err
+				details = EntryDetails{Category: categoryFor(CategoryMore)}
+				entry.InstallBlocker = "projection_failed"
 			}
 		}
 		rows = append(rows, categoryCandidate{entry, details})
@@ -155,7 +153,7 @@ type categoryCandidate struct {
 	details EntryDetails
 }
 
-func visibleCategoryCandidates(entries []Entry, origins []Origin) ([]categoryCandidate, error) {
+func visibleCategoryCandidates(entries []Entry, origins []Origin) []categoryCandidate {
 	rows := make([]categoryCandidate, 0, len(entries))
 	byKey := make(map[string]int, len(entries))
 	installed := make(map[Origin]bool, len(origins))
@@ -165,7 +163,8 @@ func visibleCategoryCandidates(entries []Entry, origins []Origin) ([]categoryCan
 	for _, entry := range entries {
 		details, err := ProjectEntry(entry)
 		if err != nil {
-			return nil, err
+			details = EntryDetails{Category: categoryFor(CategoryMore)}
+			entry.InstallBlocker = "projection_failed"
 		}
 		byKey[entry.SourceName+"/"+entry.EntryID] = len(rows)
 		rows = append(rows, categoryCandidate{entry, details})
@@ -194,7 +193,7 @@ func visibleCategoryCandidates(entries []Entry, origins []Origin) ([]categoryCan
 			visible = append(visible, row)
 		}
 	}
-	return visible, nil
+	return visible
 }
 
 func sortCategoryCandidates(matches []categoryCandidate) {

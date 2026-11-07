@@ -3,6 +3,7 @@ package pluginsource
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -549,4 +550,21 @@ func TestDecodePluginDocument(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSourceSHAPin(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"url", "git-subdir", "github"} {
+		t.Run("Should prefer immutable SHA for "+kind, func(t *testing.T) {
+			t.Parallel()
+			source, err := decodePluginSource(
+				json.RawMessage(
+					`{"source":"` + kind + `","url":"https://github.com/owner/repo.git","repo":"owner/repo","path":"tool","ref":"main","sha":"0123456789012345678901234567890123456789"}`,
+				),
+			)
+			if err != nil || source.GitRef != "0123456789012345678901234567890123456789" {
+				t.Fatalf("source = %+v, error = %v", source, err)
+			}
+		})
+	}
 }

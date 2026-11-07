@@ -70,5 +70,24 @@ func (h *BaseHandlers) respondExtensionEnablementError(c *gin.Context, err error
 		c.AbortWithStatusJSON(status, payload)
 		return
 	}
-	h.respondExtensionError(c, ExtensionStatusCode(err), err)
+	status := ExtensionStatusCode(err)
+	if status == http.StatusBadRequest || status == http.StatusUnprocessableEntity || status == http.StatusForbidden {
+		c.JSON(status, ExtensionEnableFailure(err))
+		return
+	}
+	h.respondExtensionError(c, status, err)
+}
+
+// ExtensionEnableFailure shares redacted failure details across install and retry surfaces.
+func ExtensionEnableFailure(err error) contract.ExtensionEnableError {
+	code := "extension_enable_failed"
+	if payload, ok := ExtensionAcquisitionErrorPayload(err); ok {
+		code = payload.Code
+	} else if ExtensionStatusCode(err) == http.StatusForbidden {
+		code = "manifest_permission_denied"
+	}
+	return contract.ExtensionEnableError{
+		Error: ErrorPayloadForStatus(http.StatusBadRequest, err, false).Error,
+		Code:  code,
+	}
 }

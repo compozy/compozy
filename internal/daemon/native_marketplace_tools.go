@@ -138,6 +138,13 @@ func (n *daemonNativeTools) marketplaceToolScope(
 
 func marketplaceNativeError(id toolspkg.ToolID, err error) error {
 	switch {
+	case errors.Is(err, core.ErrMarketplaceCursorStale):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+		)
 	case errors.Is(err, core.ErrMarketplaceValidation), errors.Is(err, marketplace.ErrUnknownCategory):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,

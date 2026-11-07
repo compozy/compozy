@@ -1929,7 +1929,7 @@ func (m *faultingSourceSessionManager) failNextActivation(err error) {
 
 func TestClientRootMCPInventory(t *testing.T) {
 	t.Parallel()
-	for _, layout := range []string{"cursor", "manifestless", "servicenow"} {
+	for _, layout := range []string{"cursor", "manifestless", "servicenow", "secret-env"} {
 		t.Run("Should install "+layout+" root MCP and publish its inventory and server", func(t *testing.T) {
 			t.Parallel()
 			env := newRegistryTestEnv(t)
@@ -1961,6 +1961,21 @@ func TestClientRootMCPInventory(t *testing.T) {
 					"CLIENT_SECRET": {
 						Type:      "secret",
 						SecretRef: "vault:extensions/global/acme/env/CLIENT_SECRET",
+						Active:    true,
+					},
+				}
+			}
+
+			if layout == "secret-env" {
+				writeFile(
+					t,
+					filepath.Join(root, "mcp.json"),
+					`{"mcpServers":{"remote":{"command":"node","env":{"DEMO_API_KEY":"${DEMO_API_KEY}"}}}}`,
+				)
+				state.Values = map[string]InputValueRecord{
+					"DEMO_API_KEY": {
+						Type:      "secret",
+						SecretRef: "vault:extensions/global/acme/env/DEMO_API_KEY",
 						Active:    true,
 					},
 				}
@@ -2008,8 +2023,18 @@ func TestClientRootMCPInventory(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(servers) != 1 || servers[0].URL != "https://example.com/mcp" {
+			if len(servers) != 1 || (layout != "secret-env" && servers[0].URL != "https://example.com/mcp") {
 				t.Fatalf("projection = %#v", servers)
+			}
+
+			if layout == "secret-env" {
+				if servers[0].Env["DEMO_API_KEY"] != "" ||
+					servers[0].SecretEnv["DEMO_API_KEY"] != state.Values["DEMO_API_KEY"].SecretRef {
+					t.Fatalf("secret binding = %+v", servers[0])
+				}
+				if err := env.registry.SetEnabledForProfile("acme", "default", true); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			if layout == "servicenow" {

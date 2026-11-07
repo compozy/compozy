@@ -1532,6 +1532,18 @@ func (s *browseInterceptStore) BrowseSources(
 
 func TestCatalogCategoryCollapse(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep readable rows when one projection is malformed", func(t *testing.T) {
+		t.Parallel()
+		rows := visibleCategoryCandidates(
+			[]Entry{{EntryID: "broken", Name: "Broken", Payload: json.RawMessage(`{`)}},
+			nil,
+		)
+		if len(rows) != 1 || rows[0].entry.InstallBlocker != "projection_failed" ||
+			rows[0].details.Category.ID != CategoryMore {
+			t.Fatalf("rows = %+v", rows)
+		}
+	})
+
 	for _, tc := range []struct {
 		name, source                  string
 		installed, disabled, dangling bool

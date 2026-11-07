@@ -1756,15 +1756,30 @@ export interface ExtensionToolCallResponse {
   result: ToolResult;
 }
 
+export interface MarketplaceInputBindingPayload {
+  type: string;
+  name: string;
+}
+
+export interface MarketplaceInputPayload {
+  id: string;
+  prompt: string;
+  type: string;
+  required: boolean;
+  binding: MarketplaceInputBindingPayload;
+  default?: JSONValue;
+}
+
 export interface ExtensionValidationComponent {
   kind: string;
   name: string;
   transport?: string;
 }
 
-export type IssueSeverity = "error" | "warning" | "warn";
+export type IssueSeverity = "error" | "warning" | "warn" | "info";
 
 export interface ValidationIssue {
+  code?: string;
   path: string;
   scope?: string;
   line?: number;
@@ -1775,6 +1790,7 @@ export interface ValidationIssue {
 }
 
 export interface ExtensionValidatePayload {
+  inputs?: MarketplaceInputPayload[];
   status: string;
   format: string;
   name?: string;

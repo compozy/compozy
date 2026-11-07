@@ -2,8 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -41,7 +39,7 @@ func (s *daemonExtensionService) enableInstalledExtension(
 		*item = result.Extension
 	} else {
 		item.Enabled = false
-		item.InstallEnableError = installEnableError(prepared.name, err)
+		item.InstallEnableError = installEnableError(err)
 	}
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallCompleted, ExtensionName: prepared.name,
@@ -53,12 +51,7 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	return s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event)
 }
 
-func installEnableError(name string, err error) *contract.ExtensionEnableError {
-	code := "extension_enable_failed"
-	if payload, ok := core.ExtensionAcquisitionErrorPayload(err); ok {
-		code = payload.Code
-	} else if status := core.ExtensionStatusCode(err); status == http.StatusForbidden {
-		code = "manifest_permission_denied"
-	}
-	return &contract.ExtensionEnableError{Error: fmt.Sprintf("couldn't turn on %s", name), Code: code}
+func installEnableError(err error) *contract.ExtensionEnableError {
+	payload := core.ExtensionEnableFailure(err)
+	return &payload
 }
