@@ -214,9 +214,14 @@ describe("MCPServerEditor", () => {
 
     await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
     expect(screen.queryByText("URL is required for http transport")).toBeNull();
-    expect(screen.getByTestId("settings-mcp-servers-editor-url-input")).not.toHaveAttribute(
-      "aria-invalid"
-    );
+    const url = screen.getByTestId("settings-mcp-servers-editor-url-input");
+    expect(url).not.toHaveAttribute("aria-invalid");
+
+    await user.click(url);
+    await user.click(name);
+    expect(screen.getByText("URL is required for http transport")).toBeInTheDocument();
+    expect(url).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
 
     await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-stdio"));
     expect(screen.queryByText("Command is required")).toBeNull();
