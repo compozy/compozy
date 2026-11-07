@@ -300,6 +300,181 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should hide every unprompted automation run family from pages, counts and live rows", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			db,
+			"automation-hidden",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
+		for _, statement := range []string{
+			`INSERT INTO automation_jobs (id, profile_id, scope, name, agent_name, prompt, retry, fire_limit,
+ created_at, updated_at) VALUES ('job-1', ?, 'global', 'triage', 'coder', 'run', '{}', '{}',
+ '2026-11-07T00:00:00Z', '2026-11-07T00:00:00Z')`,
+			`INSERT INTO automation_triggers (id, profile_id, scope, name, agent_name, prompt, event, retry,
+ fire_limit, created_at, updated_at) VALUES ('trg-1', ?, 'global', 'review', 'coder', 'run', 'session.stopped',
+ '{}', '{}', '2026-11-07T00:00:00Z', '2026-11-07T00:00:00Z')`,
+		} {
+			if _, err := db.db.ExecContext(ctx, statement, store.DefaultProfileID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		base := time.Date(2026, 11, 7, 16, 0, 0, 0, time.UTC)
+		seed := func(id, initiator, root, lineage, state, failure string) {
+			t.Helper()
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, state, base)
+			info.SessionType = "system"
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET initiator_kind = 'automation', initiator_id = ?,
+ root_session_id = NULLIF(?, ''), parent_session_id = NULLIF(?, ''), lineage_kind = ?,
+ origin_agent_name = CASE WHEN ? = 'fork' THEN 'coder' ELSE '' END,
+ spawn_depth = CASE WHEN ? = '' THEN 0 ELSE 1 END, failure_kind = NULLIF(?, '') WHERE id = ?`,
+				initiator,
+				root,
+				root,
+				lineage,
+				lineage,
+				root,
+				failure,
+				id,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run := func(sessionID, status string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO automation_runs (id, job_id, session_id, status)
+ VALUES (?, 'job-gone', ?, ?)`, "run-"+sessionID, sessionID, status); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The dispatcher records the run's session link only after the session row exists.
+		seed("hidden-starting", "job-1", "", "", globalDBSessionStateActive, "")
+		seed("hidden-child", "job-1", "hidden-starting", "spawn", globalDBSessionStateActive, "")
+		seed("hidden-trigger", "trg-1", "", "", globalDBSessionStateActive, "")
+		seed("hidden-failed", "job-1", "", "", globalDBSessionStateStopped, "prompt_failure")
+		seed("hidden-waiting", "job-1", "", "", globalDBSessionStateActive, "")
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET pending_clarify_count = 1 WHERE id = 'hidden-waiting'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		seed("hidden-deleted-job", "job-gone", "", "", globalDBSessionStateStopped, "")
+		run("hidden-deleted-job", "completed")
+		prompt := func(sessionID string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO session_prompt_admissions (id, workspace_id, session_id,
+ message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, turn_id, event_id,
+ created_at, updated_at, human_ingress)
+ VALUES (?, ?, ?, 'message', ?, 'prompt', 'v1', 'fingerprint', 'completed',
+ 'turn', 'event', '2026-11-07T16:00:00Z', '2026-11-07T16:00:00Z', 1)`,
+				"admission-"+sessionID, workspaceID, sessionID, "key-"+sessionID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seed("visible-prompted", "job-1", "", "", globalDBSessionStateStopped, "")
+		prompt("visible-prompted")
+		// A prompt on a child makes the whole family the operator's work.
+		seed("visible-prompted-family", "job-1", "", "", globalDBSessionStateActive, "")
+		seed("visible-prompted-child", "job-1", "visible-prompted-family", "spawn", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-child")
+		// A prompt on a fork keeps the fork's source family hidden.
+		seed("hidden-fork-source", "job-1", "", "", globalDBSessionStateStopped, "")
+		seed("visible-prompted-fork", "job-1", "hidden-fork-source", "fork", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-fork")
+		seed("visible-fork", "job-1", "hidden-starting", "fork", globalDBSessionStateStopped, "")
+		seed("visible-task", "task-1", "", "", globalDBSessionStateActive, "")
+		seed("visible-loop", "looprun-1", "", "", globalDBSessionStateActive, "")
+		user := sessionInfoForWorkspaceStateIndexTest("visible-user", workspaceID, globalDBSessionStateActive, base)
+		if err := db.RegisterSession(ctx, &(user)); err != nil {
+			t.Fatal(err)
+		}
+		const visible, hidden = 8, 7
+
+		query := store.SessionCatalogPageQuery{
+			ReadScope:         store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:       workspaceID,
+			Limit:             20,
+			Sort:              "recent",
+			ExcludeAutomation: true,
+		}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := sessionIDsFromInfos(page.Sessions)
+		if page.Total != visible || len(listed) != visible {
+			t.Fatalf("total = %d listed = %v, want %d visible sessions", page.Total, listed, visible)
+		}
+		for _, id := range listed {
+			if !strings.HasPrefix(id, "visible-") {
+				t.Fatalf("%s leaked into the default page: %v", id, listed)
+			}
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != visible || facets.Facets.Idle != 4 || facets.Facets.NeedsYou != 0 ||
+			facets.ByWorkspace[0].Facets.All != visible || facets.ByProfile[0].Facets.All != visible {
+			t.Fatalf("facets = %+v", facets.Facets)
+		}
+		aggregate := query
+		aggregate.WorkspaceID = ""
+		if page, err = db.PageSessions(ctx, aggregate); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible {
+			t.Fatalf("All projects total = %d, want %d", page.Total, visible)
+		}
+		complete := query
+		complete.ExcludeAutomation = false
+		if page, err = db.PageSessions(ctx, complete); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible+hidden {
+			t.Fatalf("complete total = %d, want every session", page.Total)
+		}
+
+		// A start registers its live session before the catalog saves the row.
+		candidates := []store.SessionAutomationRunCandidate{
+			{ID: "hidden-starting", InitiatorID: "job-1"},
+			{ID: "hidden-child", InitiatorID: "job-1"},
+			{ID: "visible-prompted", InitiatorID: "job-1"},
+			{ID: "visible-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+			{ID: "visible-prompted-family", InitiatorID: "job-1"},
+			{ID: "visible-prompted-fork", InitiatorID: "job-1"},
+			{ID: "hidden-fork-source", InitiatorID: "job-1"},
+			{ID: "visible-task", InitiatorID: "task-1"},
+			{ID: "unsaved-job-run", InitiatorID: "job-1"},
+			{ID: "unsaved-trigger-run", InitiatorID: "trg-1"},
+			{ID: "unsaved-task-session", InitiatorID: "task-1"},
+			{ID: "unsaved-unknown"},
+			{ID: "unsaved-hidden-child", InitiatorID: "job-1", FamilyRootID: "hidden-starting"},
+			{ID: "unsaved-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+		}
+		live, err := db.AutomationRunSessionIDs(ctx, candidates)
+		if err != nil {
+			t.Fatal(err)
+		}
+		slices.Sort(live)
+		want := []string{
+			"hidden-child", "hidden-fork-source", "hidden-starting",
+			"unsaved-hidden-child", "unsaved-job-run", "unsaved-trigger-run",
+		}
+		if !slices.Equal(live, want) {
+			t.Fatalf("live automation rows = %v, want %v", live, want)
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should hide persisted verdict-only judges while preserving actionable system sessions", func(t *testing.T) {

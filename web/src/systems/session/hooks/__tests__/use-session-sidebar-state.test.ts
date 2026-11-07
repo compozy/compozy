@@ -228,6 +228,26 @@ describe("useSessionSidebarState", () => {
     expect(renderInScope(after, WINDOW_TWO).current.showEmptyProjects).toBe(false);
   });
 
+  it("Should keep Show automation runs per window across a reload, off for older entries and new windows", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: { byScope: { [WINDOW_ONE]: { open: true } }, partitionByScope: {} },
+        version: 3,
+      })
+    );
+    const before = await loadFreshSidebarState();
+    const one = renderInScope(before, WINDOW_ONE);
+    expect(one.current.showAutomation).toBe(false);
+    act(() => one.current.setShowAutomation(true));
+    expect(one.current.showAutomation).toBe(true);
+    expect(renderInScope(before, WINDOW_TWO).current.showAutomation).toBe(false);
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() => expect(renderInScope(after, WINDOW_ONE).current.showAutomation).toBe(true));
+    expect(renderInScope(after, WINDOW_TWO).current.showAutomation).toBe(false);
+  });
+
   it("UT-067: Should restore a window's Kanban view and child filter after a reload, never seeding a new window", async () => {
     const before = await loadFreshSidebarState();
     const renderView = (module: SidebarModule, scopeId: string) =>

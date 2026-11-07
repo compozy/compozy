@@ -98,6 +98,7 @@ func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.
 	query.Later = store.SessionLaterOnly
 	// The Later shelf is an explicit view, so it counts what the shelf read returns.
 	query.ExcludeFinishedAutomation = false
+	query.ExcludeAutomation = false
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
 	if err != nil {
 		return 0, err

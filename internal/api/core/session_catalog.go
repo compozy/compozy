@@ -137,6 +137,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	}
 	query := session.ListQuery{
 		ExcludeFinishedAutomation: board.excludeFinishedAutomation,
+		ExcludeAutomation:         board.excludeAutomation,
 
 		Columns:         board.columns,
 		HideChildren:    board.hideChildren,
@@ -170,6 +171,7 @@ type sessionListBoardFilters struct {
 	columns                   []string
 	hideChildren              bool
 	excludeFinishedAutomation bool
+	excludeAutomation         bool
 }
 
 func parseSessionListBoardFilters(c *gin.Context) (sessionListBoardFilters, error) {
@@ -185,7 +187,11 @@ func parseSessionListBoardFilters(c *gin.Context) (sessionListBoardFilters, erro
 	if err != nil {
 		return sessionListBoardFilters{}, err
 	}
-	return sessionListBoardFilters{columns, hideChildren, excludeFinished}, nil
+	excludeAutomation, err := parseBoolQuery(c, "exclude_automation")
+	if err != nil {
+		return sessionListBoardFilters{}, err
+	}
+	return sessionListBoardFilters{columns, hideChildren, excludeFinished, excludeAutomation}, nil
 }
 
 // parseSessionListWorkspaceIDs resolves the All projects narrowing, mapping the legacy global alias.

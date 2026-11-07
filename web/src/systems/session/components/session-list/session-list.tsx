@@ -361,6 +361,8 @@ function SessionListControls({
         onGroupByChange={view.setGroupBy}
         showEmptyProjects={view.showEmptyProjects}
         onShowEmptyProjectsChange={view.setShowEmptyProjects}
+        showAutomation={view.showAutomation}
+        onShowAutomationChange={view.setShowAutomation}
         allCollapsed={view.foldAll === "collapsed"}
         onAllCollapsedChange={collapsed => view.setFoldAll(collapsed ? "collapsed" : "expanded")}
         onNewSession={onNewSession}

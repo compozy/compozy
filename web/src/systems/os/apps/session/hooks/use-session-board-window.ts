@@ -41,6 +41,7 @@ export function useSessionBoardWindow(
     sort: order.sort,
     groupBy: order.groupBy,
     showEmptyProjects: sidebar.showEmptyProjects,
+    showAutomation: sidebar.showAutomation,
   });
   const { openForAgent } = useSessionCreateActions();
   const openSession = useSessionWindowOpenSession({ windowId, sessionId: sessionId ?? undefined });

@@ -69,7 +69,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, err
 	}
 	query.Later = later
-	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicitSessionLookup(query)
+	scopeAutomationExclusions(&query)
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}
@@ -112,6 +112,13 @@ func validateListQueryEnums(query *ListQuery) error {
 		return fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
 	}
 	return nil
+}
+
+// scopeAutomationExclusions keeps automation runs reachable from a read that names what it wants.
+func scopeAutomationExclusions(query *ListQuery) {
+	explicit := explicitSessionLookup(*query)
+	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicit
+	query.ExcludeAutomation = query.ExcludeAutomation && !explicit
 }
 
 // explicitSessionLookup reports a read that names what it wants, so it reaches

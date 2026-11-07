@@ -93,8 +93,10 @@ export function SessionBoardWindow({
           }
           onGroupByChange={order.setGroupBy}
           onHideChildrenChange={view.setHideChildren}
+          onShowAutomationChange={sidebar.setShowAutomation}
           onShowEmptyProjectsChange={sidebar.setShowEmptyProjects}
           onSortChange={order.setSort}
+          showAutomation={sidebar.showAutomation}
           showEmptyProjects={sidebar.showEmptyProjects}
           sort={sessionBoardSort(order.sort)}
           sortOptions={SESSION_BOARD_SORTS}

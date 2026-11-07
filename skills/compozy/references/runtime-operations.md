@@ -717,6 +717,12 @@ prompt. Loop and Task sessions are never hidden. The rows are not archived. `q`,
 `root`, `archive=only` and `later=only` reads ignore the flag, and facets keep the flag under search.
 `compozy session list` and `compozy__session_list` do not send it, so agents still see every run.
 
+`exclude_automation=true` on the same two routes hides every automation job or trigger run family in
+any state, starting, running, waiting, failed or finished, unless the operator prompted one of its
+members. The root is recognized from the moment it exists, before its run records the session link.
+The Web list, board and dock launcher send it unless the window turns on **Show automation runs**.
+The same reads ignore it, and Loop and Task sessions are never hidden.
+
 ### Waiting for session state
 
 `compozy session wait <session-id>` blocks until the session settles or needs someone. The default
