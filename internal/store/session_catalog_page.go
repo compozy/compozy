@@ -163,11 +163,14 @@ type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
 }
 
-// SessionAutomationRunCandidate is one live session the ExcludeAutomation rule
-// classifies; InitiatorID classifies a session whose row is not saved yet.
+// SessionAutomationRunCandidate is one live hierarchy member the
+// ExcludeAutomation rule classifies. InitiatorID and FamilyRootID classify a
+// session whose row is not saved yet; an empty FamilyRootID names the session
+// itself. Forks and continuations are top-level sessions and never candidates.
 type SessionAutomationRunCandidate struct {
-	ID          string
-	InitiatorID string
+	ID           string
+	InitiatorID  string
+	FamilyRootID string
 }
 
 // SessionAutomationRunReader names which live sessions belong to an automation

@@ -1,10 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -78,11 +80,8 @@ func (m *Manager) dropAutomationRunMatches(
 	}
 	candidates := make([]store.SessionAutomationRunCandidate, 0, len(matches))
 	for index := range matches {
-		if matches[index].InitiatorKind == string(workspaceaccess.ActorAutomation) {
-			candidates = append(candidates, store.SessionAutomationRunCandidate{
-				ID:          matches[index].ID,
-				InitiatorID: matches[index].InitiatorID,
-			})
+		if candidate, ok := automationRunCandidate(&matches[index]); ok {
+			candidates = append(candidates, candidate)
 		}
 	}
 	if len(candidates) == 0 {
@@ -102,6 +101,29 @@ func (m *Manager) dropAutomationRunMatches(
 	return slices.DeleteFunc(matches, func(info store.SessionInfo) bool {
 		return slices.Contains(hidden, info.ID)
 	}), nil
+}
+
+// automationRunCandidate names an automation-initiated hierarchy member and
+// its family root. A fork or continuation names its source only as provenance,
+// so it is a new top-level session the rule never hides.
+func automationRunCandidate(info *store.SessionInfo) (store.SessionAutomationRunCandidate, bool) {
+	if info.InitiatorKind != string(workspaceaccess.ActorAutomation) {
+		return store.SessionAutomationRunCandidate{}, false
+	}
+	candidate := store.SessionAutomationRunCandidate{ID: info.ID, InitiatorID: info.InitiatorID}
+	lineage := info.Lineage
+	if lineage == nil {
+		return candidate, true
+	}
+	root := strings.TrimSpace(lineage.RootSessionID)
+	if store.HierarchyParentSessionID(lineage) != "" {
+		candidate.FamilyRootID = cmp.Or(root, strings.TrimSpace(lineage.ParentSessionID))
+		return candidate, true
+	}
+	if root != "" && root != info.ID {
+		return store.SessionAutomationRunCandidate{}, false
+	}
+	return candidate, true
 }
 
 func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {

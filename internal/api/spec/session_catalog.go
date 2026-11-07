@@ -9,6 +9,9 @@ const (
 		"search, type, parent, root, archive=only and later=only reads ignore it"
 	automationParamDescription = "Exclude every automation job or trigger run session the operator has not prompted, " +
 		"whatever its state; search, type, parent, root, archive=only and later=only reads ignore it"
+	automationFacetsParamDescription = "Exclude every automation job or trigger run session the operator has not " +
+		"prompted from the counts, whatever its state; facets ignore the text query, so the counts keep excluding " +
+		"runs a search can list. type, parent, root, archive=only and later=only reads ignore it"
 )
 
 func sessionCatalogOperations() []OperationSpec {
@@ -285,7 +288,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Parameters: withProfileScope(
 			boolQueryParam("exclude_instance_main", "Exclude instance main sessions from board counts"),
 			boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
-			boolQueryParam("exclude_automation", automationParamDescription),
+			boolQueryParam("exclude_automation", automationFacetsParamDescription),
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),

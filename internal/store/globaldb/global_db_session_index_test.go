@@ -369,14 +369,27 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		seed("hidden-deleted-job", "job-gone", "", "", globalDBSessionStateStopped, "")
 		run("hidden-deleted-job", "completed")
-		seed("visible-prompted", "job-1", "", "", globalDBSessionStateStopped, "")
-		if _, err := db.db.ExecContext(ctx, `INSERT INTO session_prompt_admissions (id, workspace_id, session_id,
+		prompt := func(sessionID string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO session_prompt_admissions (id, workspace_id, session_id,
  message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, turn_id, event_id,
  created_at, updated_at, human_ingress)
- VALUES ('admission', ?, 'visible-prompted', 'message', 'key', 'prompt', 'v1', 'fingerprint', 'completed',
- 'turn', 'event', '2026-11-07T16:00:00Z', '2026-11-07T16:00:00Z', 1)`, workspaceID); err != nil {
-			t.Fatal(err)
+ VALUES (?, ?, ?, 'message', ?, 'prompt', 'v1', 'fingerprint', 'completed',
+ 'turn', 'event', '2026-11-07T16:00:00Z', '2026-11-07T16:00:00Z', 1)`,
+				"admission-"+sessionID, workspaceID, sessionID, "key-"+sessionID); err != nil {
+				t.Fatal(err)
+			}
 		}
+		seed("visible-prompted", "job-1", "", "", globalDBSessionStateStopped, "")
+		prompt("visible-prompted")
+		// A prompt on a child makes the whole family the operator's work.
+		seed("visible-prompted-family", "job-1", "", "", globalDBSessionStateActive, "")
+		seed("visible-prompted-child", "job-1", "visible-prompted-family", "spawn", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-child")
+		// A prompt on a fork keeps the fork's source family hidden.
+		seed("hidden-fork-source", "job-1", "", "", globalDBSessionStateStopped, "")
+		seed("visible-prompted-fork", "job-1", "hidden-fork-source", "fork", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-fork")
 		seed("visible-fork", "job-1", "hidden-starting", "fork", globalDBSessionStateStopped, "")
 		seed("visible-task", "task-1", "", "", globalDBSessionStateActive, "")
 		seed("visible-loop", "looprun-1", "", "", globalDBSessionStateActive, "")
@@ -384,7 +397,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err := db.RegisterSession(ctx, &(user)); err != nil {
 			t.Fatal(err)
 		}
-		const visible, hidden = 5, 6
+		const visible, hidden = 8, 7
 
 		query := store.SessionCatalogPageQuery{
 			ReadScope:         store.ReadScope{ProfileID: store.DefaultProfileID},
@@ -410,7 +423,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if facets.Facets.All != visible || facets.Facets.Idle != 3 || facets.Facets.NeedsYou != 0 ||
+		if facets.Facets.All != visible || facets.Facets.Idle != 4 || facets.Facets.NeedsYou != 0 ||
 			facets.ByWorkspace[0].Facets.All != visible || facets.ByProfile[0].Facets.All != visible {
 			t.Fatalf("facets = %+v", facets.Facets)
 		}
@@ -436,18 +449,25 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			{ID: "hidden-starting", InitiatorID: "job-1"},
 			{ID: "hidden-child", InitiatorID: "job-1"},
 			{ID: "visible-prompted", InitiatorID: "job-1"},
+			{ID: "visible-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+			{ID: "hidden-fork-source", InitiatorID: "job-1"},
 			{ID: "visible-task", InitiatorID: "task-1"},
 			{ID: "unsaved-job-run", InitiatorID: "job-1"},
 			{ID: "unsaved-trigger-run", InitiatorID: "trg-1"},
 			{ID: "unsaved-task-session", InitiatorID: "task-1"},
 			{ID: "unsaved-unknown"},
+			{ID: "unsaved-hidden-child", InitiatorID: "job-1", FamilyRootID: "hidden-starting"},
+			{ID: "unsaved-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
 		}
 		live, err := db.AutomationRunSessionIDs(ctx, candidates)
 		if err != nil {
 			t.Fatal(err)
 		}
 		slices.Sort(live)
-		want := []string{"hidden-child", "hidden-starting", "unsaved-job-run", "unsaved-trigger-run"}
+		want := []string{
+			"hidden-child", "hidden-fork-source", "hidden-starting",
+			"unsaved-hidden-child", "unsaved-job-run", "unsaved-trigger-run",
+		}
 		if !slices.Equal(live, want) {
 			t.Fatalf("live automation rows = %v, want %v", live, want)
 		}

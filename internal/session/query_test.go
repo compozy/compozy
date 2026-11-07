@@ -1268,6 +1268,58 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 	})
 }
 
+func TestAutomationRunCandidateNamesFamilyMembers(t *testing.T) {
+	t.Parallel()
+
+	automation := string(workspaceaccess.ActorAutomation)
+	tests := []struct {
+		name string
+		info store.SessionInfo
+		want store.SessionAutomationRunCandidate
+		ok   bool
+	}{
+		{
+			name: "root run",
+			info: store.SessionInfo{ID: "run", InitiatorKind: automation, InitiatorID: "job-1"},
+			want: store.SessionAutomationRunCandidate{ID: "run", InitiatorID: "job-1"},
+			ok:   true,
+		},
+		{
+			name: "spawned child",
+			info: store.SessionInfo{
+				ID: "child", InitiatorKind: automation, InitiatorID: "job-1",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "run", RootSessionID: "run", Kind: store.LineageKindSpawn,
+				},
+			},
+			want: store.SessionAutomationRunCandidate{ID: "child", InitiatorID: "job-1", FamilyRootID: "run"},
+			ok:   true,
+		},
+		{
+			name: "fork",
+			info: store.SessionInfo{
+				ID: "fork", InitiatorKind: automation, InitiatorID: "job-1",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "run", RootSessionID: "run", Kind: store.LineageKindFork,
+				},
+			},
+		},
+		{
+			name: "operator session",
+			info: store.SessionInfo{ID: "mine", InitiatorKind: string(workspaceaccess.ActorHuman)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run("Should classify "+tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := automationRunCandidate(&tt.info)
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("candidate = %#v, %v; want %#v, %v", got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 	t.Parallel()
 

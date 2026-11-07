@@ -5817,10 +5817,14 @@ func addRuntimeRecoveryReason(baseline map[string]any) {
 }
 
 func automationParameter() map[string]any {
+	return automationParameterWith(automationParamDescription)
+}
+
+func automationParameterWith(description string) map[string]any {
 	return map[string]any{
 		"name":        "exclude_automation",
 		"in":          "query",
-		"description": automationParamDescription,
+		"description": description,
 		"schema":      map[string]any{"type": "boolean"},
 	}
 }
@@ -5847,7 +5851,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "boolean"},
 			},
 			finishedAutomationParameter(),
-			automationParameter(),
+			automationParameterWith(automationFacetsParamDescription),
 		},
 		facets["parameters"].([]any)...)
 

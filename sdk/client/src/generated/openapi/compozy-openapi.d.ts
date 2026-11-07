@@ -38327,7 +38327,7 @@ export interface operations {
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;
-        /** @description Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it */
+        /** @description Exclude every automation job or trigger run session the operator has not prompted from the counts, whatever its state; facets ignore the text query, so the counts keep excluding runs a search can list. type, parent, root, archive=only and later=only reads ignore it */
         exclude_automation?: boolean;
         /** @description Workspace id or path */
         workspace_id?: string;
