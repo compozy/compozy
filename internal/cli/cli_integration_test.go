@@ -2257,23 +2257,38 @@ func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
-			ProfileID:         store.DefaultProfileID,
-			WorkspaceID:       created.WorkspaceID,
-			AgentName:         "coder",
-			PermissionCeiling: "{}",
-			CreatedByKind:     "human",
-		}, 10)
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(h.homePaths))
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreignProfile, err := profiles.Create(
+			t.Context(),
+			profilepkg.CreateInput{Name: "marketing", Color: "#E8572A", Icon: "megaphone"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 11, 6, 23, 0, 0, 0, time.UTC)
-		_, err = db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+		for eventID, profileID := range map[string]string{
+			"cli-check": store.DefaultProfileID, "foreign-check": foreignProfile.ID,
+		} {
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID:         profileID,
+				WorkspaceID:       created.WorkspaceID,
+				AgentName:         "coder",
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
         (id,workspace_id,agent_name,source,result,reason,instance_id,created_at,expires_at)
-        VALUES ('cli-check', ?, 'coder', 'instance_check', 'quiet', 'quiet', ?, ?, ?)`,
-			created.WorkspaceID, instance.ID, store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
-		if err != nil {
-			t.Fatal(err)
+        VALUES (?, ?, 'coder', 'instance_check', 'quiet', 'quiet', ?, ?, ?)`,
+				eventID, created.WorkspaceID, instance.ID, store.FormatTimestamp(now), store.FormatTimestamp(now.Add(time.Hour)))
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 		auditOut := mustExecuteRoot(
 			t,
