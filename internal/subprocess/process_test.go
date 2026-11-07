@@ -230,32 +230,52 @@ func TestEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 	}
 }
 
-// Invariant: managed subprocess environments never carry internal handoff variables.
+// Invariant: managed subprocesses never receive internal handoff variables, inherited or explicit.
 // not parallel: mutates process environment with t.Setenv.
-func TestEffectiveEnvironmentDropsInternalHandoff(t *testing.T) {
+func TestManagedCommandDropsInternalHandoffEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell to report the child environment")
+	}
 	const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
-	t.Setenv(handoff, "restart-1")
-	t.Setenv("SUBPROCESS_FALLBACK_MARKER", "kept")
+	t.Setenv(handoff, "inherited")
+	t.Setenv("SUBPROCESS_ENV_MARKER", "inherited-marker")
 
-	t.Run("Should inherit the parent environment without internal handoff variables", func(t *testing.T) {
-		env := effectiveEnvironment(nil)
-		if _, ok := lookupEnvForPlatform(env, handoff, false); ok {
-			t.Fatalf("effectiveEnvironment(nil) kept %s", handoff)
-		}
-		if got, ok := lookupEnvForPlatform(env, "SUBPROCESS_FALLBACK_MARKER", false); !ok || got != "kept" {
-			t.Fatalf("effectiveEnvironment(nil) marker = %q, %t; want kept, true", got, ok)
-		}
-	})
-
-	t.Run("Should drop internal handoff variables from an explicit environment", func(t *testing.T) {
-		env := effectiveEnvironment([]string{"PATH=/usr/bin", handoff + "=copied"})
-		if _, ok := lookupEnvForPlatform(env, handoff, false); ok {
-			t.Fatalf("effectiveEnvironment(explicit) kept %s", handoff)
-		}
-		if got, ok := lookupEnvForPlatform(env, "PATH", false); !ok || got != "/usr/bin" {
-			t.Fatalf("effectiveEnvironment(explicit) PATH = %q, %t; want /usr/bin, true", got, ok)
-		}
-	})
+	for _, tc := range []struct {
+		name       string
+		env        []string
+		wantMarker string
+	}{
+		{name: "Should drop an inherited handoff from the child", wantMarker: "inherited-marker"},
+		{
+			name:       "Should drop an explicit handoff from the child",
+			env:        []string{"PATH=" + os.Getenv("PATH"), handoff + "=explicit", "SUBPROCESS_ENV_MARKER=explicit-marker"},
+			wantMarker: "explicit-marker",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, stdin, stdout, _, _, err := startManagedCommand(LaunchConfig{
+				Command: "sh",
+				Args:    []string{"-c", `echo "handoff=${` + handoff + `:-absent} marker=${SUBPROCESS_ENV_MARKER:-}"`},
+				Dir:     t.TempDir(),
+				Env:     tc.env,
+			})
+			if err != nil {
+				t.Fatalf("startManagedCommand() error = %v", err)
+			}
+			_ = stdin.Close()
+			output, readErr := io.ReadAll(stdout)
+			if waitErr := cmd.Wait(); waitErr != nil {
+				t.Fatalf("child wait error = %v", waitErr)
+			}
+			if readErr != nil {
+				t.Fatalf("read child output: %v", readErr)
+			}
+			want := "handoff=absent marker=" + tc.wantMarker
+			if got := strings.TrimSpace(string(output)); got != want {
+				t.Fatalf("child environment report = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func TestResolveExecutableRejectsImplicitRelativePath(t *testing.T) {
