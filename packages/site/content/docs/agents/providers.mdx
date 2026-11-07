@@ -603,7 +603,7 @@ required = true
 ```
 
 `target_env` names starting with `COMPOZY_INTERNAL_` are reserved for CompozyOS process handoff and
-are rejected.
+are never delivered to the agent process.
 
 For CompozyOS-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
 through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase

@@ -181,18 +181,26 @@ func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
 	t.Run("Should keep internal daemon handoff variables out of the agent launch", func(t *testing.T) {
 		t.Parallel()
 
-		const key = "COMPOZY_INTERNAL_RESTART_OPERATION_ID"
+		keys := []string{"COMPOZY_INTERNAL_RESTART_OPERATION_ID", "COMPOZY_INTERNAL_LOG_MIRROR_STDERR"}
+		command := "sh -c true"
+		env := []string{"PATH=" + os.Getenv("PATH")}
+		for _, key := range keys {
+			command = key + "=from-command " + command
+			env = append(env, key+"=from-daemon")
+		}
 		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
 		spec, err := launcher.PrepareLaunch(testutil.Context(t), LaunchSpec{
-			Command: key + "=from-command sh -c true",
+			Command: command,
 			Cwd:     t.TempDir(),
-			Env:     []string{"PATH=" + os.Getenv("PATH"), key + "=from-daemon"},
+			Env:     env,
 		})
 		if err != nil {
 			t.Fatalf("PrepareLaunch(handoff assignment) error = %v", err)
 		}
-		if got, ok := envValue(spec.Env, key); ok {
-			t.Fatalf("PrepareLaunch() env %s = %q, want absent", key, got)
+		for _, key := range keys {
+			if got, ok := envValue(spec.Env, key); ok {
+				t.Fatalf("PrepareLaunch() env %s = %q, want absent", key, got)
+			}
 		}
 	})
 }

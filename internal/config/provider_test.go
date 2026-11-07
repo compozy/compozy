@@ -943,20 +943,6 @@ func TestProviderCredentialSlotValidateRestrictsSecretRefs(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should reject a target in the reserved internal handoff namespace", func(t *testing.T) {
-		t.Parallel()
-
-		slot := ProviderCredentialSlot{
-			Name:      "api_key",
-			TargetEnv: "COMPOZY_INTERNAL_RESTART_OPERATION_ID",
-			SecretRef: "env:OPENROUTER_API_KEY",
-			Required:  true,
-		}
-		if err := slot.Validate("providers.openrouter.credential_slots[0]"); err == nil {
-			t.Fatal("Validate(internal handoff target) error = nil, want reserved-name failure")
-		}
-	})
 }
 
 func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {

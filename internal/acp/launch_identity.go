@@ -168,8 +168,7 @@ func (l *localLauncher) PrepareLaunch(
 	}
 
 	next := spec
-	// Internal handoff variables never reach an agent, whatever layer assembled its environment.
-	next.Env = procutil.WithoutInternalHandoffEnv(DaemonMatchedEnv(spec.Env))
+	next.Env = DaemonMatchedEnv(spec.Env)
 	if next.ResolvedExecutable != "" {
 		next.Args = append([]string(nil), next.Args...)
 		return next, nil
