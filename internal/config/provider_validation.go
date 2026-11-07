@@ -5,6 +5,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -92,6 +93,8 @@ func (s ProviderCredentialSlot) Validate(path string) error {
 		return fmt.Errorf("%s.target_env is required", path)
 	case !vault.EnvNamePattern.MatchString(strings.TrimSpace(s.TargetEnv)):
 		return fmt.Errorf("%s.target_env must be an environment variable name", path)
+	case procutil.InternalHandoffEnvName(s.TargetEnv):
+		return fmt.Errorf("%s.target_env: %s environment names are reserved", path, procutil.InternalHandoffEnvPrefix)
 	case strings.TrimSpace(s.SecretRef) == "":
 		return fmt.Errorf("%s.secret_ref is required", path)
 	case !validProviderSecretRef(s.SecretRef):

@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providerenv"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -72,8 +71,6 @@ func (m *Manager) prepareProviderForStart(
 		}
 		opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
 	}
-	// Internal handoff variables are reserved: no credential slot or session env may target them.
-	opts.Env = procutil.WithoutInternalHandoffEnv(opts.Env)
 	return opts, nil
 }
 
