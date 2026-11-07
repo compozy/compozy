@@ -53,14 +53,14 @@ function CardName({
   );
 }
 
-/** Two weeks of reports at a glance; it sits above the card link so its count shows on hover. */
+/** Two weeks of reports at a glance; the count is in its label and, above the card link, on hover. */
 function CardPulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
   const pulse = pulseRead?.pulse;
   if (!pulse?.values.some(value => value > 0)) return null;
   const recap = `${pulse.reports} ${pulse.reports === 1 ? "report" : "reports"} in 2 weeks`;
   return (
     <Sparkline
-      ariaLabel={`${member.label}'s activity over the last 2 weeks`}
+      ariaLabel={`${member.label}'s activity over the last 2 weeks: ${recap}`}
       className="relative z-1 w-14 shrink-0 gap-px"
       height={16}
       title={recap}

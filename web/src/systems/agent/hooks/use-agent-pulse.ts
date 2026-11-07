@@ -21,7 +21,10 @@ function pulseBatches(members: readonly AgentTeamMember[]) {
   const batches: PulseSelection[][] = [];
   let scopeCount = 0;
   for (const member of members) {
-    const scopes = [...new Set(member.scopes)].sort();
+    // A user-level definition can work in a project its catalog scopes don't name.
+    const scopes = [
+      ...new Set([...member.scopes, ...member.places.map(place => place.scope)]),
+    ].sort();
     for (let offset = 0; offset < scopes.length; offset += MAX_BATCH_ITEMS) {
       const workspaces = scopes.slice(offset, offset + MAX_BATCH_ITEMS);
       let batch = batches[batches.length - 1];
