@@ -117,7 +117,7 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 		ArchiveDigestSHA256: entry.DigestSHA256,
 		RegistryTier:        entry.Tier,
 	})
-	if err != nil {
+	if err != nil && entry.InstallBlocker == "" {
 		entry.InstallBlocker = "trust_evidence_invalid"
 	}
 	result.SourceRef = details.SourceRef

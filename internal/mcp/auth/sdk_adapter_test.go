@@ -1017,6 +1017,92 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 	})
 }
 
+// Invariant: rediscovery cannot send persisted credentials to a replacement issuer.
+// Owner: OAuth token lifecycle; canonical suite: sdk_adapter_test.go.
+func TestOAuthLifecycleRejectsReplacementIssuer(t *testing.T) {
+	t.Parallel()
+	for _, logout := range []bool{false, true} {
+		name := "Should reject refresh after advertised issuer changes"
+		if logout {
+			name = "Should clean up logout without revoking at a replacement issuer"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var replacementRequests atomic.Int32
+			replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/token" || r.URL.Path == "/revoke" {
+					replacementRequests.Add(1)
+				}
+				writeOAuthMetadataResponse(t, w, r, true)
+			}))
+			t.Cleanup(replacement.Close)
+			var switched atomic.Bool
+			original := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-authorization-server", "/.well-known/openid-configuration":
+					writeOAuthMetadataResponse(t, w, r, true)
+				case "/.well-known/oauth-protected-resource/mcp":
+					issuer := "http://" + r.Host
+					if switched.Load() {
+						issuer = replacement.URL
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if _, err := fmt.Fprintf(
+						w,
+						`{"resource":%q,"authorization_servers":[%q]}`,
+						"http://"+r.Host+"/mcp",
+						issuer,
+					); err != nil {
+						t.Error(err)
+					}
+				case "/token":
+					w.Header().Set("Content-Type", "application/json")
+					if _, err := w.Write(
+						[]byte(`{"access_token":"access-A","refresh_token":"refresh-A","token_type":"Bearer"}`),
+					); err != nil {
+						t.Error(err)
+					}
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(original.Close)
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, original)
+			cfg.IssuerURL = ""
+			state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Exchange(
+				t.Context(),
+				&state,
+				oauthCallbackURL(t, state.RedirectURL, state.State, ""),
+			); err != nil {
+				t.Fatal(err)
+			}
+			switched.Store(true)
+			if logout {
+				status, err := service.Logout(t.Context(), cfg)
+				if err != nil || !store.authorizationStateDeleted || store.token.AccessToken != "" ||
+					status.Status != StatusNeedsLogin {
+					t.Fatalf("logout = %+v, %v; deleted=%v", status, err, store.authorizationStateDeleted)
+				}
+			} else {
+				if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
+					t.Fatalf("refresh = %v", err)
+				}
+				if store.token.AccessToken != "access-A" {
+					t.Fatal("refresh changed persisted token")
+				}
+			}
+			if replacementRequests.Load() != 0 {
+				t.Fatal("replacement issuer received credentials")
+			}
+		})
+	}
+}
+
 func TestLogoutCleansUpAfterRevocationFailure(t *testing.T) {
 	t.Parallel()
 	for _, metadataOutage := range []bool{false, true} {

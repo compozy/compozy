@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,6 +65,22 @@ func TestPublishCatalog(t *testing.T) {
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("Should keep committed feeds consistent with their authored sources", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"extensions.json", "compatibility.json", "marketplaces.json"} {
+			committed, err := os.ReadFile(filepath.Join(source, "v3", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			generated, err := os.ReadFile(filepath.Join(output, "v3", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(committed, generated) {
+				t.Fatalf("%s differs from publication; run compozy-catalog publish", name)
+			}
+		}
+	})
 	t.Run("Should emit only the current catalog family with eighteen extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
 		files, err := os.ReadDir(output)

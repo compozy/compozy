@@ -324,12 +324,12 @@ func TestExtensionEnablementValidationFailure(t *testing.T) {
 			"/api/extensions/demo/enablement",
 			[]byte(`{"profile":"default","enabled":true}`),
 		)
-		var payload contract.ExtensionEnableError
+		var payload contract.ExtensionValidationErrorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
 		}
-		if response.Code != http.StatusBadRequest || payload.Code != "extension_enable_failed" ||
-			!strings.Contains(payload.Error, "invalid MCP declaration") {
+		if response.Code != http.StatusBadRequest || payload.Error == "" || len(payload.Issues) != 1 ||
+			!strings.Contains(payload.Issues[0].Message, "invalid MCP declaration") {
 			t.Fatalf("response = %d %s", response.Code, response.Body)
 		}
 	})

@@ -270,6 +270,8 @@ func TestMarketplaceCatalog(t *testing.T) {
 		good := marketplaceEntryForTest()
 		bad := good
 		bad.EntryID, bad.Version = "broken", ""
+		blocked := bad
+		blocked.EntryID, blocked.InstallBlocker = "load-failed", "load_failed"
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			catalogBrowse: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
 				return marketplacepkg.FilterBrowse(
@@ -277,9 +279,10 @@ func TestMarketplaceCatalog(t *testing.T) {
 						Entries: []marketplacepkg.Entry{
 							bad,
 							good,
+							blocked,
 							{EntryID: "malformed", Name: "Malformed", Payload: json.RawMessage(`{`)},
 						},
-						Total: 3,
+						Total: 4,
 					},
 					marketplacepkg.BrowseFilter{},
 					0,
@@ -294,19 +297,19 @@ func TestMarketplaceCatalog(t *testing.T) {
 			},
 		})
 		page, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
-		if err != nil || len(page.Items) != 3 {
+		if err != nil || len(page.Items) != 4 {
 			t.Fatalf("page = %+v, error = %v", page, err)
 		}
 		if page.Items[0].Installable || page.Items[0].InstallBlocker != "trust_evidence_invalid" ||
-			!page.Items[1].Installable {
+			!page.Items[1].Installable || page.Items[2].InstallBlocker != "load_failed" || page.Items[2].Installable {
 			t.Fatalf("items = %+v", page.Items)
 		}
 		sections, err := handlers.MarketplaceSections(t.Context(), core.MarketplaceListRequest{}, 6)
-		if err != nil || len(sections.Sections) != 1 || len(sections.Sections[0].Items) != 3 {
+		if err != nil || len(sections.Sections) != 1 || len(sections.Sections[0].Items) != 4 {
 			t.Fatalf("sections = %+v, error = %v", sections, err)
 		}
 		category, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{Category: "more"})
-		if err != nil || len(category.Items) != 3 {
+		if err != nil || len(category.Items) != 4 {
 			t.Fatalf("category = %+v, error = %v", category, err)
 		}
 	})

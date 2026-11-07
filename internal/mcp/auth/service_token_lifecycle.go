@@ -116,6 +116,9 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
+	if !issuersEqual(current.Issuer, metadata.Issuer) {
+		return Status{}, ErrTokenBindingInvalid
+	}
 	refreshed, err := s.refreshToken(ctx, refreshConfig, metadata, current)
 	if err != nil {
 		return Status{}, err
@@ -213,9 +216,12 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	}
 	if definitionMatches {
 		metadata, metaErr := s.metadataForConfig(ctx, cfg)
-		if metaErr != nil {
+		switch {
+		case metaErr != nil:
 			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
-		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
+		case !issuersEqual(token.Issuer, metadata.Issuer):
+			remoteErr = ErrTokenBindingInvalid
+		case strings.TrimSpace(metadata.RevocationEndpoint) != "":
 			if revokeErr := s.revoke(ctx, cfg, metadata, token); revokeErr != nil {
 				remoteErr = fmt.Errorf("mcp auth: revoke remote token: %w", revokeErr)
 			}
