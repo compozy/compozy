@@ -9,6 +9,61 @@ import (
 	"strings"
 )
 
+// PrepareProfileArchive Preview profile archival
+func (c *Client) PrepareProfileArchive(ctx context.Context, params PrepareProfileArchiveParams) (*ArchiveProfilePlan, error) {
+	path := "/api/profiles/{name}/archive-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out ArchiveProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareProfileDeleteParams carries the path, query, and header parameters.
+type PrepareProfileDeleteParams struct {
+	Name string `url:"name"`
+}
+
+// PrepareProfileDelete Preview profile deletion
+func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfileDeleteParams) (*DeleteProfilePlan, error) {
+	path := "/api/profiles/{name}/delete-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out DeleteProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareProfileRenameParams carries the path, query, and header parameters.
+type PrepareProfileRenameParams struct {
+	Name    string `url:"name"`
+	NewName string `url:"new_name"`
+}
+
+// PrepareProfileRename Preview a profile rename
+func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
+	path := "/api/profiles/{name}/rename-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("new_name", params.NewName)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RenameProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareWorktreeExitPlanParams carries the path, query, and header parameters.
+type PrepareWorktreeExitPlanParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
 // PrepareWorktreeExitPlan Resolve forge capabilities and prepare the worktree exit plan
 func (c *Client) PrepareWorktreeExitPlan(ctx context.Context, params PrepareWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare"
@@ -389,46 +444,4 @@ func (c *Client) PutResource(ctx context.Context, params PutResourceParams, body
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutSettingsHookParams carries the path, query, and header parameters.
-type PutSettingsHookParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PutSettingsHook Create or replace one settings-backed hook declaration
-func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookParams, body PutSettingsHookRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/hooks/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutSettingsMCPServerParams carries the path, query, and header parameters.
-type PutSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-	Target      *string `url:"target"`
 }

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// Reference is a daemon API value.
+type Reference struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// RejectPolicy is a daemon API value.
+type RejectPolicy struct {
+	Route NodeID `json:"route"`
+}
+
 // ReloadExtensionRequest is a daemon API value.
 type ReloadExtensionRequest struct {
 	GenerationHash       string `json:"generation_hash"`
@@ -422,24 +443,4 @@ type RosterNode struct {
 	SessionID      string            `json:"session_id,omitempty"`
 	CellTaskID     string            `json:"cell_task_id,omitempty"`
 	Usage          *NodeUsage        `json:"usage,omitzero"`
-}
-
-// RosterPage is a daemon API value.
-type RosterPage struct {
-	RunID         RunID          `json:"run_id"`
-	LoopName      string         `json:"loop_name"`
-	RunStatus     Status         `json:"run_status"`
-	Nodes         []RosterNode   `json:"nodes"`
-	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
-	NextCursor    string         `json:"next_cursor,omitempty"`
-}
-
-// RouteIntent is a daemon API value.
-// RouteIntent preserves its custom JSON wire representation.
-type RouteIntent = json.RawMessage
-
-// RouteSpec is a daemon API value.
-type RouteSpec struct {
-	When string `json:"when"`
-	To   NodeID `json:"to"`
 }

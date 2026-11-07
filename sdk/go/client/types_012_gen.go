@@ -6,6 +6,9 @@ import "time"
 
 // MarketplaceListingPayload is a daemon API value.
 type MarketplaceListingPayload struct {
+	Category         string                       `json:"category"`
+	CategoryLabel    string                       `json:"category_label"`
+	Featured         bool                         `json:"featured"`
 	SourceRef        string                       `json:"source_ref,omitempty"`
 	Icon             string                       `json:"icon,omitempty"`
 	Layout           string                       `json:"layout,omitempty"`
@@ -51,6 +54,25 @@ type MarketplaceRefreshSourcePayload struct {
 	EntryCount int    `json:"entry_count"`
 	Stale      bool   `json:"stale"`
 	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceSection is a daemon API value.
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceSectionsResponse is a daemon API value.
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
 }
 
 // MarketplaceServerPayload is a daemon API value.
@@ -423,14 +445,4 @@ type OpenAIModelPayload struct {
 	Created int64                     `json:"created"`
 	OwnedBy string                    `json:"owned_by"`
 	Compozy OpenAIModelCompozyPayload `json:"compozy"`
-}
-
-// OpenAppEffect is a daemon API value.
-type OpenAppEffect struct {
-	App string `json:"app"`
-}
-
-// OpenURLEffect is a daemon API value.
-type OpenURLEffect struct {
-	URL string `json:"url"`
 }

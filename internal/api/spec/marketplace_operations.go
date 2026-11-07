@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func marketplaceOperations() []OperationSpec {
 	return append([]OperationSpec{
 		marketplaceListOperation(),
+		marketplaceSectionsOperation(),
 		marketplaceCatalogEntryOperation(),
 		marketplaceRefreshOperation(),
 	}, marketplaceSourceOperations()...)
@@ -21,6 +22,7 @@ func marketplaceListOperation() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam("q", "Optional catalog search query", false),
+			queryParam("category", "Optional Compozy category id", false),
 			intQueryParam("limit", "Maximum results from 1 to 100"),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			enumQueryParam(
@@ -93,4 +95,29 @@ func marketplaceCatalogEntryOperation() OperationSpec {
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func marketplaceSectionsOperation() OperationSpec {
+	operation := marketplaceListOperation()
+	operation.Path = "/api/marketplace/sections"
+	operation.OperationID = "getMarketplaceSections"
+	operation.Summary = "Browse Featured and category sections"
+	operation.Parameters = []ParameterSpec{
+		queryParam("q", "Optional catalog search query", false),
+		intQueryParam("per_section", "Entries per section from 1 to 12; default 6"),
+		enumQueryParam(
+			specScopeKey,
+			"Installed-state projection scope",
+			[]string{specGlobalKey, specProfileKey, specWorkspaceKey},
+		),
+		queryParam(specProfileKey, "Required for profile scope", false),
+		queryParam("workspace_id", "Required for workspace scope", false),
+	}
+	operation.Responses = []ResponseSpec{
+		{Status: 200, Description: "OK", Body: contract.MarketplaceSectionsResponse{}},
+		{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.ErrorPayload{}},
+		{Status: 503, Description: "Catalog dependency is not configured", Body: contract.ErrorPayload{}},
+		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+	}
+	return operation
 }

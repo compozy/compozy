@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -34,6 +35,18 @@ func lateBootMarketplaceEntry() marketplacepkg.Entry {
 			`{"entry_id":"late-boot-extension","name":"Late boot extension","description":"Attached after the native registry","version":"1.0.0","install_slug":"acme/late-boot-extension","artifact_url":"https://downloads.example.test/late-boot-extension-v1.0.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
 		),
 	}
+}
+
+func (c lateBootMarketplaceCatalog) BrowseFiltered(
+	ctx context.Context,
+	filter marketplacepkg.BrowseFilter,
+	offset, limit int,
+) (marketplacepkg.BrowseResult, error) {
+	page, err := c.Browse(ctx, filter.Query, 0, 50_000)
+	if err != nil {
+		return page, err
+	}
+	return marketplacepkg.FilterBrowse(page, filter, offset, limit)
 }
 
 func (c lateBootMarketplaceCatalog) Browse(
@@ -229,6 +242,37 @@ func (scopedLateBootExtensionService) StatusScoped(
 
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose category counts and scoped search through native tools", func(t *testing.T) {
+		t.Parallel()
+		entry := lateBootMarketplaceEntry()
+		entry.Payload = json.RawMessage(`{"category":"design"}`)
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				MarketplaceCatalog: lateBootMarketplaceCatalog{entry: entry},
+				Extensions:         func() core.ExtensionService { return lateBootExtensionService{} },
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+			want  string
+		}{
+			{toolspkg.ToolIDMarketplaceCategories, `{}`, `"categories"`},
+			{toolspkg.ToolIDMarketplaceSearch, `{"category":"design"}`, `"category":"design"`},
+		} {
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeStructuredContains(t, result, []byte(tc.want))
+		}
+	})
 	t.Run("Should list experimental sources with diagnostics through the native registry", func(t *testing.T) {
 		t.Parallel()
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -1527,4 +1528,101 @@ func (s *browseInterceptStore) BrowseSources(
 		after()
 	}
 	return page, err
+}
+
+func TestCatalogCategoryCollapse(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, source                  string
+		installed, disabled, dangling bool
+		want                          string
+		count                         int
+	}{
+		{name: "Should supersede an upstream row", source: "compozy-plugins", want: "compozy-plugins", count: 1},
+		{name: "Should retain the installed upstream row", source: "compozy-plugins", installed: true, want: "claude-plugins-official", count: 1},
+		{name: "Should ignore third party supersedes", source: "third-party", count: 2},
+		{name: "Should ignore dangling supersedes", source: "compozy-plugins", dangling: true, count: 2},
+		{name: "Should restore upstream when curator is disabled", source: "compozy-plugins", disabled: true, want: "claude-plugins-official", count: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			at := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+			target := "claude-plugins-official/linear"
+			if tc.dangling {
+				target = "missing/linear"
+			}
+			binding := func(name string, enabled, curated bool) SourceBinding {
+				return SourceBinding{
+					Config: ResolvedSource{
+						Name:    name,
+						Ref:     "github:team/" + name,
+						Kind:    SourceKindCustom,
+						Enabled: enabled,
+					},
+					Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
+						entry := testEntry("linear", "Linear", "Issue tracker")
+						entry.InstallSlug = name + "/linear"
+						payload := pluginEntry{Category: "productivity", SourceRef: "github:team/" + name}
+						if curated {
+							payload.Supersedes = []string{target}
+						}
+						raw, err := json.Marshal(payload)
+						if err != nil {
+							return nil, err
+						}
+						entry.Payload = raw
+						return testDocument(at, entry), nil
+					}},
+				}
+			}
+			service, err := NewService(
+				t.Context(),
+				openMarketplaceTestStore(t),
+				append(
+					marketplaceTestBindings(
+						t,
+						&recordingSource{
+							fetch: func(context.Context) (*Document, error) { return testDocument(at), nil },
+						},
+					),
+					binding(tc.source, !tc.disabled, true),
+					binding("claude-plugins-official", true, false),
+				),
+				time.Hour,
+				time.Minute,
+				WithNow(func() time.Time { return at }),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := service.Refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			filter := BrowseFilter{Query: "linear", Category: "productivity", Installed: []Origin{}}
+			if tc.installed {
+				filter.Installed = append(
+					filter.Installed,
+					Origin{SourceRef: "github:team/claude-plugins-official", EntryID: "linear"},
+				)
+			}
+			page, err := service.BrowseFiltered(t.Context(), filter, 0, 10)
+			if err != nil || page.Total != tc.count || len(page.Entries) != tc.count {
+				t.Fatalf("page=%+v err=%v", page, err)
+			}
+			if tc.want != "" && page.Entries[0].SourceName != tc.want {
+				t.Fatalf("source=%q want %q", page.Entries[0].SourceName, tc.want)
+			}
+			if page.Categories[1].Count != tc.count {
+				t.Fatalf("facets=%+v", page.Categories)
+			}
+			if _, err := service.Detail(t.Context(), "claude-plugins-official", "linear"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

@@ -86,6 +86,7 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 		updateAvailable = installation.extension.Provenance.ArchiveDigestSHA256 != entry.DigestSHA256
 	}
 	result := contract.MarketplaceListingPayload{
+		Category: string(details.Category.ID), CategoryLabel: details.Category.Label, Featured: details.Featured,
 		EntryID:          entry.EntryID,
 		Name:             entry.Name,
 		Description:      entry.Description,

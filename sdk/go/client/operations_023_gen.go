@@ -9,6 +9,53 @@ import (
 	"strings"
 )
 
+// ListSettingsMCPServersParams carries the path, query, and header parameters.
+type ListSettingsMCPServersParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListSettingsMCPServers List manual and extension-owned MCP servers
+func (c *Client) ListSettingsMCPServers(ctx context.Context, params ListSettingsMCPServersParams) (*SettingsMCPServersResponse, error) {
+	path := "/api/settings/mcp-servers"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPServersResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSettingsProviders List settings-backed providers
+func (c *Client) ListSettingsProviders(ctx context.Context) (*SettingsProvidersResponse, error) {
+	path := "/api/settings/providers"
+	var out SettingsProvidersResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSkillsParams carries the path, query, and header parameters.
+type ListSkillsParams struct {
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+	ForAgent  *string `url:"for_agent"`
+}
+
 // ListSkills List effective skills for the selected global, workspace, or agent scope
 func (c *Client) ListSkills(ctx context.Context, params ListSkillsParams) (*SkillsResponse, error) {
 	path := "/api/skills"
@@ -398,51 +445,4 @@ func (c *Client) ListToolApprovalGrants(ctx context.Context, params ListToolAppr
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListToolsParams carries the path, query, and header parameters.
-type ListToolsParams struct {
-	WorkspaceID *string `url:"workspace_id"`
-	Workspace   *string `url:"workspace"`
-	SessionID   *string `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-	Profile     *string `url:"profile"`
-}
-
-// ListTools List operator-visible registry tools
-func (c *Client) ListTools(ctx context.Context, params ListToolsParams) (*ToolsResponse, error) {
-	path := "/api/tools"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListToolsetsParams carries the path, query, and header parameters.
-type ListToolsetsParams struct {
-	WorkspaceID *string `url:"workspace_id"`
-	Workspace   *string `url:"workspace"`
-	SessionID   *string `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-	Profile     *string `url:"profile"`
 }

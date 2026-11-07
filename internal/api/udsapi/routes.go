@@ -298,6 +298,7 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace := api.Group("/marketplace")
 	{
 		marketplace.GET("", handlers.ListMarketplace)
+		marketplace.GET("/sections", handlers.ListMarketplaceSections)
 		marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 		marketplace.POST("/refresh", handlers.RefreshMarketplaceCatalog)
 		marketplace.GET("/sources", handlers.ListMarketplaceSources)

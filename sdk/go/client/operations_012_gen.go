@@ -10,6 +10,63 @@ import (
 	"strings"
 )
 
+// GetPermissionRollup Read daily permission totals by agent and decision
+func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
+	path := "/api/permissions/rollup"
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", *params.Days)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PermissionRollupResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileParams carries the path, query, and header parameters.
+type GetProfileParams struct {
+	Name string `url:"name"`
+}
+
+// GetProfile Get a profile
+func (c *Client) GetProfile(ctx context.Context, params GetProfileParams) (*Profile, error) {
+	path := "/api/profiles/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out Profile
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileSelectionsParams carries the path, query, and header parameters.
+type GetProfileSelectionsParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type GetProfileSelectionsFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
 var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
 
 var _ json.Marshaler = GetProfileSelectionsFrame{}
@@ -370,41 +427,4 @@ type GetSessionHealthParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionHealth Read metadata-only session health and wake eligibility
-func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHealthResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionHistoryParams carries the path, query, and header parameters.
-type GetSessionHistoryParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

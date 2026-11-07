@@ -283,6 +283,44 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 	return &out, nil
 }
 
+// GetMarketplaceSectionsParams carries the path, query, and header parameters.
+type GetMarketplaceSectionsParams struct {
+	Q           *string `url:"q"`
+	PerSection  *int    `url:"per_section"`
+	Scope       *string `url:"scope"`
+	Profile     *string `url:"profile"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// GetMarketplaceSections Browse Featured and category sections
+func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
+	path := "/api/marketplace/sections"
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.PerSection != nil {
+		query.Set("per_section", strconv.Itoa(*params.PerSection))
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceSectionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetObserveOverviewParams carries the path, query, and header parameters.
 type GetObserveOverviewParams struct {
 	AllWorkspaces  *bool   `url:"all_workspaces"`
@@ -389,61 +427,4 @@ type GetPermissionRollupParams struct {
 	Unattended  *bool   `url:"unattended"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetPermissionRollup Read daily permission totals by agent and decision
-func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
-	path := "/api/permissions/rollup"
-	query := url.Values{}
-	if params.Days != nil {
-		query.Set("days", *params.Days)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Unattended != nil {
-		query.Set("unattended", strconv.FormatBool(*params.Unattended))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out PermissionRollupResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProfileParams carries the path, query, and header parameters.
-type GetProfileParams struct {
-	Name string `url:"name"`
-}
-
-// GetProfile Get a profile
-func (c *Client) GetProfile(ctx context.Context, params GetProfileParams) (*Profile, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out Profile
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProfileSelectionsParams carries the path, query, and header parameters.
-type GetProfileSelectionsParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-}
-
-// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
-type GetProfileSelectionsFrame struct {
-	Raw        json.RawMessage
-	StatusCode int `json:"-"`
 }

@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// OpenAppEffect is a daemon API value.
+type OpenAppEffect struct {
+	App string `json:"app"`
+}
+
+// OpenURLEffect is a daemon API value.
+type OpenURLEffect struct {
+	URL string `json:"url"`
+}
+
 // OperatorNotificationEventPayload is a daemon API value.
 type OperatorNotificationEventPayload struct {
 	Kind           string    `json:"kind,omitempty"`
@@ -430,15 +440,4 @@ type PromptRuntimeSelectionPayload struct {
 	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-}
-
-// ProvenancePayload is a daemon API value.
-type ProvenancePayload struct {
-	Slug                   string                    `json:"slug,omitempty"`
-	Registry               string                    `json:"registry,omitempty"`
-	Version                string                    `json:"version,omitempty"`
-	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
-	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
-	PrecedenceTier         string                    `json:"precedence_tier"`
-	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
 }

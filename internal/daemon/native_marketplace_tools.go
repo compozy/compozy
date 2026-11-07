@@ -2,28 +2,32 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type marketplaceSearchInput struct {
-	Query  string `json:"query"`
-	Limit  int    `json:"limit"`
-	Cursor string `json:"cursor"`
+	Category string `json:"category"`
+	Query    string `json:"query"`
+	Limit    int    `json:"limit"`
+	Cursor   string `json:"cursor"`
 }
 
 func (n *daemonNativeTools) marketplaceToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDMarketplaceSources: {call: n.marketplaceSources, availability: availability},
+		toolspkg.ToolIDMarketplaceCategories: {call: n.marketplaceCategories, availability: availability},
+		toolspkg.ToolIDMarketplaceSources:    {call: n.marketplaceSources, availability: availability},
 		toolspkg.ToolIDMarketplaceSearch: {
 			call:         n.marketplaceSearch,
 			availability: availability,
@@ -60,13 +64,33 @@ func (n *daemonNativeTools) marketplaceSearch(
 		)
 	}
 	response, err := handlers.MarketplaceList(ctx, core.MarketplaceListRequest{
-		Query: input.Query, Limit: input.Limit, Cursor: input.Cursor, Scope: readScope,
+		Category: input.Category, Query: input.Query, Limit: input.Limit, Cursor: input.Cursor, Scope: readScope,
 		WorkspaceID: workspaceID, ProfileName: profileName, Actor: actor,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
 	}
 	return structuredResult(response, fmt.Sprintf("%d marketplace entries", len(response.Items)))
+}
+
+func (n *daemonNativeTools) marketplaceCategories(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	result, err := n.marketplaceSearch(ctx, scope, req)
+	if err != nil {
+		return result, err
+	}
+	raw := result.Structured
+	var page contract.MarketplaceListResponse
+	if err := json.Unmarshal(raw, &page); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(
+		contract.MarketplaceCategoriesResponse{Revision: page.Revision, Categories: page.Categories},
+		"Marketplace categories",
+	)
 }
 
 func (n *daemonNativeTools) marketplaceHandlers() *core.BaseHandlers {
@@ -114,7 +138,7 @@ func (n *daemonNativeTools) marketplaceToolScope(
 
 func marketplaceNativeError(id toolspkg.ToolID, err error) error {
 	switch {
-	case errors.Is(err, core.ErrMarketplaceValidation):
+	case errors.Is(err, core.ErrMarketplaceValidation), errors.Is(err, marketplace.ErrUnknownCategory):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,

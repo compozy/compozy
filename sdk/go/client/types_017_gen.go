@@ -4,6 +4,13 @@ package client
 
 import "time"
 
+// Selection is a daemon API value.
+type Selection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
+}
+
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
 	HeldReason            string                `json:"held_reason,omitempty"`

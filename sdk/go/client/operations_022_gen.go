@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// ListSessionInteractions List pending session interactions
+func (c *Client) ListSessionInteractions(ctx context.Context, params ListSessionInteractionsParams) (*SessionInteractionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Descendants != nil {
+		query.Set("descendants", strconv.FormatBool(*params.Descendants))
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInteractionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionLinkedWorkParams carries the path, query, and header parameters.
+type ListSessionLinkedWorkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionLinkedWork List session linked work
+func (c *Client) ListSessionLinkedWork(ctx context.Context, params ListSessionLinkedWorkParams) (*SessionLinkedWorkResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionLinkedWorkResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionMonitorsParams carries the path, query, and header parameters.
 type ListSessionMonitorsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -383,51 +441,4 @@ func (c *Client) ListSettingsHooks(ctx context.Context, params ListSettingsHooks
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSettingsMCPServersParams carries the path, query, and header parameters.
-type ListSettingsMCPServersParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSettingsMCPServers List manual and extension-owned MCP servers
-func (c *Client) ListSettingsMCPServers(ctx context.Context, params ListSettingsMCPServersParams) (*SettingsMCPServersResponse, error) {
-	path := "/api/settings/mcp-servers"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPServersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsProviders List settings-backed providers
-func (c *Client) ListSettingsProviders(ctx context.Context) (*SettingsProvidersResponse, error) {
-	path := "/api/settings/providers"
-	var out SettingsProvidersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSkillsParams carries the path, query, and header parameters.
-type ListSkillsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
 }

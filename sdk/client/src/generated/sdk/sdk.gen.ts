@@ -556,6 +556,9 @@ import type {
   GetMarketplaceCatalogEntryData,
   GetMarketplaceCatalogEntryErrors,
   GetMarketplaceCatalogEntryResponses,
+  GetMarketplaceSectionsData,
+  GetMarketplaceSectionsErrors,
+  GetMarketplaceSectionsResponses,
   GetObserveOverviewData,
   GetObserveOverviewErrors,
   GetObserveOverviewResponses,
@@ -5957,6 +5960,29 @@ export class marketplace extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/marketplace/refresh",
+      ...options,
+    });
+  }
+
+  /**
+   * Browse Featured and category sections
+   */
+  public getMarketplaceSections<ThrowOnError extends boolean = true>(
+    options?: Options<GetMarketplaceSectionsData, ThrowOnError>
+  ): RequestResult<
+    GetMarketplaceSectionsResponses,
+    GetMarketplaceSectionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetMarketplaceSectionsResponses,
+      GetMarketplaceSectionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/marketplace/sections",
       ...options,
     });
   }

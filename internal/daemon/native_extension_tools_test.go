@@ -73,6 +73,14 @@ type nativeExtensionCatalog struct {
 	err     error
 }
 
+func (c nativeExtensionCatalog) BrowseFiltered(
+	ctx context.Context,
+	filter marketplacepkg.BrowseFilter,
+	offset, limit int,
+) (marketplacepkg.BrowseResult, error) {
+	return c.Browse(ctx, filter.Query, offset, limit)
+}
+
 func (nativeExtensionCatalog) Close(context.Context) error { return nil }
 
 func (c nativeExtensionCatalog) Browse(
@@ -1207,4 +1215,8 @@ requires = ["sessions/list"]
 		t.Fatalf("os.WriteFile(VERSION.txt) error = %v", err)
 	}
 	return dir
+}
+
+func (nativeExtensionCatalog) Sections(context.Context, string, int) (marketplacepkg.SectionsResult, error) {
+	return marketplacepkg.SectionsResult{}, errors.New("unexpected sections read")
 }

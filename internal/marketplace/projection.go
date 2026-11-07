@@ -12,10 +12,13 @@ const CatalogSource = "compozy-catalog"
 
 // EntryDetails is the typed public projection of one validated catalog payload.
 type EntryDetails struct {
-	Author    string
-	Source    string
-	SourceRef string
-	Extension *ExtensionEntryDetails
+	Category   Category
+	Featured   bool
+	Supersedes []string
+	Author     string
+	Source     string
+	SourceRef  string
+	Extension  *ExtensionEntryDetails
 }
 
 type ExtensionEntryDetails struct {
@@ -54,7 +57,15 @@ func ProjectEntry(entry Entry) (EntryDetails, error) {
 	if sourceRef == "" {
 		sourceRef = CompozyCatalogRef
 	}
+	explicit, featured, supersedes := "", false, []string(nil)
+	if curatedSource(source) {
+		explicit, featured, supersedes = value.CompozyCategory, value.Featured, value.Supersedes
+		if value.XCompozy != nil {
+			explicit, featured, supersedes = value.XCompozy.Category, value.XCompozy.Featured, value.XCompozy.Supersedes
+		}
+	}
 	return EntryDetails{
+		Category: categoryFor(ResolveCategory(explicit, value.Category)), Featured: featured, Supersedes: supersedes,
 		Author: strings.TrimSpace(value.Author), Source: source, SourceRef: sourceRef,
 		Extension: &ExtensionEntryDetails{
 			MinCompozyVersion: value.MinCompozyVersion,

@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// ProvenancePayload is a daemon API value.
+type ProvenancePayload struct {
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
+}
+
 // ProviderAuthProbeResponse is a daemon API value.
 type ProviderAuthProbeResponse struct {
 	Provider   string                    `json:"provider"`
@@ -421,25 +432,4 @@ type Ref struct {
 	Kind   string          `json:"kind,omitempty"`
 	Script string          `json:"script,omitempty"`
 	With   json.RawMessage `json:"with,omitempty"`
-}
-
-// Reference is a daemon API value.
-type Reference struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitzero"`
-	EffectivePaused bool       `json:"effective_paused,omitzero"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// RejectPolicy is a daemon API value.
-type RejectPolicy struct {
-	Route NodeID `json:"route"`
 }

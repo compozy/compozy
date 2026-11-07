@@ -1581,6 +1581,13 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__loop_validate", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{
+			id:          "compozy__marketplace_categories",
+			risk:        toolspkg.RiskRead,
+			readOnly:    true,
+			destructive: false,
+			openWorld:   false,
+		},
 		{id: "compozy__marketplace_search", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__marketplace_sources", risk: toolspkg.RiskRead,
@@ -3495,7 +3502,11 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Equal(
 			marketplace,
-			[]toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch, toolspkg.ToolIDMarketplaceSources},
+			[]toolspkg.ToolID{
+				toolspkg.ToolIDMarketplaceCategories,
+				toolspkg.ToolIDMarketplaceSearch,
+				toolspkg.ToolIDMarketplaceSources,
+			},
 		) {
 			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search and sources", marketplace)
 		}

@@ -224,8 +224,12 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDLoops, Tools: []string{"compozy__goal_*", "compozy__loop_*"}},
 	{ID: toolspkg.ToolsetIDAutomation, Tools: []string{"compozy__automation_*"}},
 	{
-		ID:    toolspkg.ToolsetIDMarketplace,
-		Tools: []string{toolspkg.ToolIDMarketplaceSearch.String(), toolspkg.ToolIDMarketplaceSources.String()},
+		ID: toolspkg.ToolsetIDMarketplace,
+		Tools: []string{
+			toolspkg.ToolIDMarketplaceSearch.String(),
+			toolspkg.ToolIDMarketplaceSources.String(),
+			toolspkg.ToolIDMarketplaceCategories.String(),
+		},
 	},
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"compozy__extensions_*"}},
 	{ID: toolspkg.ToolsetIDResources, Tools: []string{"compozy__resources_*"}},

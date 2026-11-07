@@ -39,12 +39,12 @@ type Document struct {
 }
 
 type Plugin struct {
-	Name, Description, Version, Author, Homepage, Repository, License, Category, Icon string
-	Keywords                                                                          []string
-	Source                                                                            PluginSource
 	CompozyCategory                                                                   string
 	Featured                                                                          bool
 	Supersedes                                                                        []string
+	Name, Description, Version, Author, Homepage, Repository, License, Category, Icon string
+	Keywords                                                                          []string
+	Source                                                                            PluginSource
 }
 
 type Kind string
@@ -126,22 +126,31 @@ func decodePlugin(raw json.RawMessage) (Plugin, *Diagnostic) {
 			Message: err.Error(),
 		}
 	}
-	var curated struct {
-		Category   string   `json:"category"`
-		Featured   bool     `json:"featured"`
-		Supersedes []string `json:"supersedes"`
+	var curation map[string]json.RawMessage
+	// Optional publisher metadata never invalidates an otherwise usable plugin.
+	if rawCuration := fields["x-compozy"]; len(rawCuration) > 0 {
+		if err := json.Unmarshal(rawCuration, &curation); err != nil {
+			curation = nil
+		}
 	}
-	if err := json.Unmarshal(fields["x-compozy"], &curated); err != nil {
-		curated.Category, curated.Featured, curated.Supersedes = "", false, nil
-	}
+	featured := string(curation["featured"]) == "true"
 	return Plugin{
-		CompozyCategory: curated.Category, Featured: curated.Featured, Supersedes: curated.Supersedes,
-		Name: name, Source: source,
-		Description: optionalString(fields["description"]), Version: optionalString(fields["version"]),
-		Author: authorName(fields["author"]), Homepage: optionalString(fields["homepage"]),
-		Repository: optionalString(fields["repository"]), License: optionalString(fields["license"]),
-		Category: optionalString(fields["category"]), Icon: optionalString(fields["icon"]),
-		Keywords: optionalStrings(fields["keywords"]),
+		CompozyCategory: optionalString(
+			curation["category"],
+		),
+		Featured:    featured,
+		Supersedes:  optionalStrings(curation["supersedes"]),
+		Name:        name,
+		Source:      source,
+		Description: optionalString(fields["description"]),
+		Version:     optionalString(fields["version"]),
+		Author:      authorName(fields["author"]),
+		Homepage:    optionalString(fields["homepage"]),
+		Repository:  optionalString(fields["repository"]),
+		License:     optionalString(fields["license"]),
+		Category:    optionalString(fields["category"]),
+		Icon:        optionalString(fields["icon"]),
+		Keywords:    optionalStrings(fields["keywords"]),
 	}, nil
 }
 

@@ -9,6 +9,69 @@ import (
 	"strings"
 )
 
+// MarkSessionSeen Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused
+func (c *Client) MarkSessionSeen(ctx context.Context, params MarkSessionSeenParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MarkTaskReadParams carries the path, query, and header parameters.
+type MarkTaskReadParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// MarkTaskRead Mark one task inbox item as read
+func (c *Client) MarkTaskRead(ctx context.Context, params MarkTaskReadParams) (*TaskTriageStateResponse, error) {
+	path := "/api/tasks/{id}/triage/read"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTriageStateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MintGatewayPairing Mint a bounded one-time gateway pairing artifact
+func (c *Client) MintGatewayPairing(ctx context.Context) (*GatewayPairingArtifactPayload, error) {
+	path := "/api/gateway/pairings"
+	var out GatewayPairingArtifactPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MintGatewayStreamTicket Mint a short-lived single-use stream ticket
+func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTicketPayload, error) {
+	path := "/api/gateway/stream-tickets"
+	var out GatewayStreamTicketPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MintTerminalAttachTicketParams carries the path, query, and header parameters.
 type MintTerminalAttachTicketParams struct {
 	WorkspaceID             string  `url:"workspace_id"`
@@ -383,59 +446,4 @@ func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteC
 // PrepareProfileArchiveParams carries the path, query, and header parameters.
 type PrepareProfileArchiveParams struct {
 	Name string `url:"name"`
-}
-
-// PrepareProfileArchive Preview profile archival
-func (c *Client) PrepareProfileArchive(ctx context.Context, params PrepareProfileArchiveParams) (*ArchiveProfilePlan, error) {
-	path := "/api/profiles/{name}/archive-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ArchiveProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileDeleteParams carries the path, query, and header parameters.
-type PrepareProfileDeleteParams struct {
-	Name string `url:"name"`
-}
-
-// PrepareProfileDelete Preview profile deletion
-func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfileDeleteParams) (*DeleteProfilePlan, error) {
-	path := "/api/profiles/{name}/delete-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out DeleteProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileRenameParams carries the path, query, and header parameters.
-type PrepareProfileRenameParams struct {
-	Name    string `url:"name"`
-	NewName string `url:"new_name"`
-}
-
-// PrepareProfileRename Preview a profile rename
-func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
-	path := "/api/profiles/{name}/rename-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("new_name", params.NewName)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RenameProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareWorktreeExitPlanParams carries the path, query, and header parameters.
-type PrepareWorktreeExitPlanParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }

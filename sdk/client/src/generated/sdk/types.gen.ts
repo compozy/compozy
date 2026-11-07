@@ -4910,6 +4910,12 @@ export type ManagedExtensionUpdatePayload = {
   warnings?: Array<DiagnosticItem>;
 };
 
+export type MarketplaceCategoryCount = {
+  count: number;
+  id: string;
+  label: string;
+};
+
 export type MarketplaceCursorStalePayload = {
   code: string;
   error: string;
@@ -4949,6 +4955,7 @@ export type MarketplaceInputPayload = {
 };
 
 export type MarketplaceListResponse = {
+  categories: Array<MarketplaceCategoryCount>;
   error?: string;
   error_class?: string;
   items: Array<MarketplaceListingPayload>;
@@ -4962,9 +4969,12 @@ export type MarketplaceListResponse = {
 
 export type MarketplaceListingPayload = {
   author?: string;
+  category: string;
+  category_label: string;
   description: string;
   digest_sha256: string;
   entry_id: string;
+  featured: boolean;
   format?: string;
   icon?: string;
   install_blocker?: string;
@@ -5002,6 +5012,23 @@ export type MarketplaceRefreshSourcePayload = {
   error_class?: string;
   outcome: string;
   source: string;
+  stale: boolean;
+};
+
+export type MarketplaceSection = {
+  id: string;
+  items: Array<MarketplaceListingPayload>;
+  label: string;
+  total: number;
+};
+
+export type MarketplaceSectionsResponse = {
+  error?: string;
+  error_class?: string;
+  refreshing?: boolean;
+  revision: string;
+  sections: Array<MarketplaceSection>;
+  sources: Array<MarketplaceSourceSummary>;
   stale: boolean;
 };
 
@@ -21562,6 +21589,10 @@ export type ListMarketplaceData = {
      */
     q?: string;
     /**
+     * Optional Compozy category id
+     */
+    category?: string;
+    /**
      * Maximum results from 1 to 100
      */
     limit?: number;
@@ -21722,6 +21753,62 @@ export type RefreshMarketplaceCatalogResponses = {
 
 export type RefreshMarketplaceCatalogResponse =
   RefreshMarketplaceCatalogResponses[keyof RefreshMarketplaceCatalogResponses];
+
+export type GetMarketplaceSectionsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Optional catalog search query
+     */
+    q?: string;
+    /**
+     * Entries per section from 1 to 12; default 6
+     */
+    per_section?: number;
+    /**
+     * Installed-state projection scope
+     */
+    scope?: "global" | "profile" | "workspace";
+    /**
+     * Required for profile scope
+     */
+    profile?: string;
+    /**
+     * Required for workspace scope
+     */
+    workspace_id?: string;
+  };
+  url: "/api/marketplace/sections";
+};
+
+export type GetMarketplaceSectionsErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Catalog dependency is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type GetMarketplaceSectionsError =
+  GetMarketplaceSectionsErrors[keyof GetMarketplaceSectionsErrors];
+
+export type GetMarketplaceSectionsResponses = {
+  /**
+   * OK
+   */
+  200: MarketplaceSectionsResponse;
+};
+
+export type GetMarketplaceSectionsResponse =
+  GetMarketplaceSectionsResponses[keyof GetMarketplaceSectionsResponses];
 
 export type ListMarketplaceSourcesData = {
   body?: never;

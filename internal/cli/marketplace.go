@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +25,7 @@ func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 		Short: "Discover installable CompozyOS capabilities",
 	}
 	cmd.AddCommand(newMarketplaceSearchCommand(deps))
+	cmd.AddCommand(newMarketplaceCategoriesCommand(deps))
 	cmd.AddCommand(newMarketplaceInfoCommand(deps))
 	cmd.AddCommand(newMarketplaceRefreshCommand(deps))
 	cmd.AddCommand(newMarketplaceSourcesCommand(deps))
@@ -32,6 +34,7 @@ func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 
 func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 	var cursor string
+	var category string
 	var readScope marketplaceReadFlagValues
 	limit := marketplaceDefaultLimit
 	cmd := &cobra.Command{
@@ -54,6 +57,14 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			if len(args) > 0 {
 				query = args[0]
 			}
+			if category != "" {
+				if category != marketplace.CategoryFeatured {
+					if _, err := marketplace.ParseCategoryID(category); err != nil {
+						return unknownMarketplaceCategory(category)
+					}
+				}
+				scope.Category = category
+			}
 			response, err := client.SearchMarketplace(cmd.Context(), query, limit, cursor, scope)
 			if err != nil {
 				return err
@@ -61,6 +72,7 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, marketplaceCatalogBundle(response))
 		},
 	}
+	cmd.Flags().StringVar(&category, "category", "", "Filter by Compozy category id")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue catalog search from an opaque cursor")
 	cmd.Flags().IntVar(&limit, "limit", marketplaceDefaultLimit, "Maximum catalog results")
 	addMarketplaceReadFlags(cmd, &readScope)

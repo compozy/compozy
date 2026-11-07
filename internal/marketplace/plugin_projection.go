@@ -83,6 +83,17 @@ func NewPluginProjector(
 	return projector, nil
 }
 
+type catalogCuration struct {
+	CompozyCategory string   `json:"compozy_category,omitempty"`
+	Featured        bool     `json:"featured"`
+	Supersedes      []string `json:"supersedes,omitempty"`
+	XCompozy        *struct {
+		Category   string   `json:"category"`
+		Featured   bool     `json:"featured"`
+		Supersedes []string `json:"supersedes"`
+	} `json:"x-compozy,omitempty"`
+}
+
 type pluginEntry struct {
 	MinCompozyVersion string `json:"min_compozy_version,omitempty"`
 	InstanceName      string `json:"instance_name,omitempty"`
@@ -90,7 +101,6 @@ type pluginEntry struct {
 	SourceRef   string                          `json:"source_ref,omitempty"`
 	Homepage    string                          `json:"homepage,omitempty"`
 	License     string                          `json:"license,omitempty"`
-	Category    string                          `json:"category,omitempty"`
 	Keywords    []string                        `json:"keywords,omitempty"`
 	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitzero"`
 	Contents    PluginContents                  `json:"contents"`
@@ -270,18 +280,34 @@ func pluginPayload(plugin pluginsource.Plugin, name, sourceRef string) pluginEnt
 	if ValidateIcon(icon) != nil {
 		icon = ""
 	}
-	return pluginEntry{SourceRef: sourceRef, Homepage: plugin.Homepage, License: plugin.License,
-		Category: plugin.Category, Keywords: plugin.Keywords,
-		EntryID:     plugin.Name,
-		Name:        plugin.Name,
-		Description: plugin.Description,
-		Version:     plugin.Version,
-		Icon:        icon,
-		InstallSlug: (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
-		Tier:        extensionTierUnverified,
+	curation := catalogCuration{CompozyCategory: string(ResolveCategory("", plugin.Category))}
+	if curatedSource(name) {
+		curation = catalogCuration{
+			CompozyCategory: string(ResolveCategory(plugin.CompozyCategory, plugin.Category)),
+			Featured:        plugin.Featured,
+			Supersedes:      plugin.Supersedes,
+		}
+	}
+	return pluginEntry{
+		CompozyCategory: curation.CompozyCategory,
+		Featured:        curation.Featured,
+		Supersedes:      curation.Supersedes,
+		SourceRef:       sourceRef,
+		Homepage:        plugin.Homepage,
+		License:         plugin.License,
+		Category:        plugin.Category,
+		Keywords:        plugin.Keywords,
+		EntryID:         plugin.Name,
+		Name:            plugin.Name,
+		Description:     plugin.Description,
+		Version:         plugin.Version,
+		Icon:            icon,
+		InstallSlug:     (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
+		Tier:            extensionTierUnverified,
 		Author: strings.TrimSpace(
 			plugin.Author,
 		),
 		Repository: strings.TrimSpace(plugin.Repository),
-		Format:     ExtensionFormatAgentPlugin}
+		Format:     ExtensionFormatAgentPlugin,
+	}
 }

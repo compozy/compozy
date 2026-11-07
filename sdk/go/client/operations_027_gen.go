@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// PutSettingsHookParams carries the path, query, and header parameters.
+type PutSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PutSettingsHook Create or replace one settings-backed hook declaration
+func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookParams, body PutSettingsHookRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/hooks/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsMCPServerParams carries the path, query, and header parameters.
+type PutSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+	Target      *string `url:"target"`
+}
+
 // PutSettingsMCPServer Replace a manual MCP server or its extension override
 func (c *Client) PutSettingsMCPServer(ctx context.Context, params PutSettingsMCPServerParams, body PutSettingsMCPServerRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/mcp-servers/{name}"
@@ -399,46 +441,4 @@ func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMar
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RefreshProviderModels Refresh provider model catalog sources across providers
-func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/models/refresh"
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
-type RefreshProviderModelsByProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// RefreshProviderModelsByProvider Refresh provider model catalog sources for one provider
-func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params RefreshProviderModelsByProviderParams, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/refresh"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderUsage Refresh provider usage (experimental) Experimental: pin the exact SDK version.
-func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRefreshRequest) (*ProviderUsageEnvelope, error) {
-	path := "/api/provider-usage/refresh"
-	var out ProviderUsageEnvelope
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshSessionPullRequestParams carries the path, query, and header parameters.
-type RefreshSessionPullRequestParams struct {
-	SessionID string  `url:"session_id"`
-	Profile   *string `url:"profile"`
 }

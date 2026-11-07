@@ -60,7 +60,11 @@ func listCatalogRows(rows []storepkg.MarketplaceCatalogEntry, query string, offs
 	if offset >= total {
 		return ListResult{Entries: []Entry{}, Total: total}, nil
 	}
-	end := min(offset+normalizeListLimit(limit), total)
+	pageLimit := normalizeListLimit(limit)
+	if limit == maxCatalogEntriesPerSource {
+		pageLimit = limit
+	}
+	end := min(offset+pageLimit, total)
 	return ListResult{Entries: entries[offset:end], Total: total}, nil
 }
 

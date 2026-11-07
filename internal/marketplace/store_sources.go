@@ -74,6 +74,9 @@ func (s *SQLiteStore) BrowseSources(
 	}
 	result := BrowseResult{Entries: []Entry{}, Sources: make([]SourceState, 0, len(snapshot.Sources))}
 	remaining := normalizeListLimit(limit)
+	if limit == maxCatalogEntriesPerSource {
+		remaining = maxCatalogEntriesPerSource * len(sources)
+	}
 	type sourceRevision struct {
 		Name, Ref, Revision string
 		Generation          int64
@@ -93,7 +96,11 @@ func (s *SQLiteStore) BrowseSources(
 		if !state.Enabled {
 			continue
 		}
-		page, err := listCatalogRows(sourceSnapshot.Entries, query, offset, max(1, remaining))
+		pageLimit := max(1, remaining)
+		if limit == maxCatalogEntriesPerSource {
+			pageLimit = maxCatalogEntriesPerSource
+		}
+		page, err := listCatalogRows(sourceSnapshot.Entries, query, offset, pageLimit)
 		if err != nil {
 			return BrowseResult{}, err
 		}

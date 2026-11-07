@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -519,4 +520,71 @@ func TestMarketplaceSourceConfigPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMarketplaceCategories(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return daemon category counts and forward the filter", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				searchMarketplaceFn: func(_ context.Context, query string, _ int, _ string, scope MarketplaceReadScope) (MarketplaceListRecord, error) {
+					if query == "figma" && scope.Category != "design" {
+						t.Fatalf("filter=%+v", scope)
+					}
+					return MarketplaceListRecord{
+						Revision: "one",
+						Categories: []contract.MarketplaceCategoryCount{
+							{ID: "featured", Label: "Featured", Count: 1},
+							{ID: "design", Label: "Design", Count: 3},
+						},
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "marketplace", "categories", "-o", "json")
+		var categories contract.MarketplaceCategoriesResponse
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(stdout), &categories); err != nil {
+			t.Fatal(err)
+		}
+		if categories.Revision != "one" || len(categories.Categories) != 2 || categories.Categories[1].Count != 3 {
+			t.Fatalf("categories=%+v", categories)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"marketplace",
+			"search",
+			"figma",
+			"--category",
+			"design",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should reject unknown categories with a usage exit", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, &stubClient{}),
+			"marketplace",
+			"search",
+			"--category",
+			"apps",
+		)
+		if err == nil || !strings.Contains(err.Error(), "marketplace_category_unknown") ||
+			!strings.Contains(err.Error(), "Valid categories: productivity") {
+			t.Fatalf("error=%v", err)
+		}
+		exit, ok := errors.AsType[*commandExitError](err)
+		if !ok || exit.cliExitCode() != 2 {
+			t.Fatalf("exit error=%v", err)
+		}
+	})
 }

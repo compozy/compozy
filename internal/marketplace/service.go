@@ -101,6 +101,14 @@ func NewService(
 
 // Browse reads a complete source snapshot before scheduling any stale refreshes.
 func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit int) (BrowseResult, error) {
+	return s.BrowseFiltered(ctx, BrowseFilter{Query: query}, offset, limit)
+}
+
+func (s *CatalogService) BrowseFiltered(
+	ctx context.Context,
+	filter BrowseFilter,
+	offset, limit int,
+) (BrowseResult, error) {
 	if err := s.checkReady(ctx); err != nil {
 		return BrowseResult{}, err
 	}
@@ -113,7 +121,7 @@ func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit
 	s.flightMu.Lock()
 	completed := s.completedRefreshes
 	s.flightMu.Unlock()
-	page, err := s.store.BrowseSources(ctx, names, query, offset, limit)
+	page, err := s.store.BrowseSources(ctx, names, "", 0, maxCatalogEntriesPerSource)
 	if err != nil {
 		return BrowseResult{}, err
 	}
@@ -132,6 +140,22 @@ func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit
 				return BrowseResult{}, err
 			}
 		}
+	}
+	if offset < 0 {
+		return BrowseResult{}, errors.New("marketplace: offset must be non-negative")
+	}
+	if filter.Installed == nil && s.installedPackages != nil {
+		packages, loadErr := s.installedPackages(ctx)
+		if loadErr != nil {
+			return BrowseResult{}, loadErr
+		}
+		for _, item := range packages {
+			filter.Installed = append(filter.Installed, Origin{SourceRef: item.SourceRef, EntryID: item.EntryID})
+		}
+	}
+	page, err = FilterBrowse(page, filter, offset, limit)
+	if err != nil {
+		return BrowseResult{}, err
 	}
 	for index := range page.Entries {
 		if err := s.projectPackageAvailability(ctx, &page.Entries[index]); err != nil {

@@ -376,6 +376,13 @@ type ManagedExtensionUpdatePayload struct {
 	Error          *DiagnosticItem  `json:"error,omitzero"`
 }
 
+// MarketplaceCategoryCount is a daemon API value.
+type MarketplaceCategoryCount struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
 // MarketplaceEntryResponse is a daemon API value.
 type MarketplaceEntryResponse struct {
 	Entry     MarketplaceListingPayload          `json:"entry"`
@@ -414,6 +421,7 @@ type MarketplaceInputPayload struct {
 
 // MarketplaceListResponse is a daemon API value.
 type MarketplaceListResponse struct {
+	Categories []MarketplaceCategoryCount  `json:"categories"`
 	Refreshing bool                        `json:"refreshing,omitzero"`
 	Total      int                         `json:"total"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
