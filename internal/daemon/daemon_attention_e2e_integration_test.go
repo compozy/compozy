@@ -134,20 +134,21 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
 		assertAttentionListEmpty(t, ctx, restarted)
 
-		var approval compozycontract.SessionApprovalResponse
-		if err := restarted.CLI.RunJSONInDir(
+		_, stderr, err := restarted.CLI.RunInDir(
 			ctx,
 			restarted.WorkspaceRoot,
-			&approval,
 			"session", "approve", target.ID,
 			"--request-id", interaction.ProviderRequestID,
 			"--decision", "allow-once",
 			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI late permission approval after restart error = %v", err)
+		)
+		assertAttentionCLIExitCode(t, err, 65, stderr)
+		var refusal compozycontract.ErrorPayload
+		if err := json.Unmarshal([]byte(stderr), &refusal); err != nil {
+			t.Fatalf("decode CLI late permission refusal error = %v; stderr=%s", err, stderr)
 		}
-		if approval.Outcome != store.PendingInteractionOutcomeAlreadyResolved {
-			t.Fatalf("CLI late permission approval after restart = %#v, want already resolved", approval)
+		if !strings.Contains(refusal.Error, session.ErrPendingPermissionCanceled.Error()) {
+			t.Fatalf("CLI late permission approval after restart = %#v, want canceled refusal", refusal)
 		}
 		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
 		assertAttentionListEmpty(t, ctx, restarted)
