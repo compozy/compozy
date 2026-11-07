@@ -121,9 +121,10 @@ func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.V
 		}
 		if portable {
 			if report == nil {
-				return "", fmt.Errorf("cli: portable install report is unavailable for %q", item.Name)
+				blocks = append(blocks, "warning: validation report is unavailable for "+item.Name)
+			} else {
+				blocks = append(blocks, extensionPortableInstallReportHuman(report))
 			}
-			blocks = append(blocks, extensionPortableInstallReportHuman(report))
 		} else if report != nil && report.DualManifest {
 			blocks = append(blocks,
 				"note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension "+

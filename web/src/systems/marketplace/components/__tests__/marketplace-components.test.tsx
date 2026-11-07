@@ -6,7 +6,7 @@ import {
 // Invariant: one Marketplace surface reflects complete catalog and installed inventory truth.
 // Owner: Marketplace components; canonical suite for browse/card/logo/shelf and source install.
 // HTTP and notification boundaries are mocked; routing, query hooks, and UI primitives run normally.
-import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, Query, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   createRoute,
@@ -21,7 +21,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
 import type { ReactNode } from "react";
 import { TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
@@ -2126,6 +2136,81 @@ describe("Category browse and row actions", () => {
       );
       expect(cursors()).toEqual(["5", null, "5"]);
     } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // UT-022 [US-002.AC-2]: Load more waits for a running refetch instead of cancelling it.
+  it("Should ask for the next page only after a running category refetch settles [UT-022]", async () => {
+    let holdRefetch = false;
+    let release = () => {};
+    const refetchHeld = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const rows = [...productivity];
+    useCategoryServer(rows, 5, {
+      beforeAnswer: cursor => (holdRefetch && cursor === "" ? refetchHeld : undefined),
+    });
+    const { client } = setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    const before = mocks.readCatalog.mock.calls.length;
+    const cursors = () =>
+      mocks.readCatalog.mock.calls.slice(before).map(([params]) => params.get("cursor"));
+    holdRefetch = true;
+    void client.refetchQueries({ queryKey: marketplaceKeys.all });
+    await waitFor(() => expect(cursors()).toEqual([null]));
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(cursors()).toEqual([null]);
+    // The refetch answers with a changed first page; the next page appends to it.
+    rows[0] = { ...rows[0]!, description: "Tasks refreshed by the refetch" };
+    release();
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    expect(cursors()).toEqual([null, "5"]);
+    expect(
+      within(screen.getByTestId("marketplace-card-prod-0")).getByText(
+        "Tasks refreshed by the refetch"
+      )
+    ).toBeInTheDocument();
+  });
+
+  // UT-022 [US-002.AC-2]: the button and the sentinel firing together ask for one next page.
+  it("Should send one next-page request when the button and the sentinel fire together [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    let cancels: MockInstance<Query["cancel"]> | undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    try {
+      useCategoryServer();
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      await waitFor(() => expect(observers).toHaveLength(1));
+      const before = mocks.readCatalog.mock.calls.length;
+      // A second request would cancel the first one's read before React re-renders.
+      cancels = vi.spyOn(Query.prototype, "cancel");
+      act(() => {
+        screen.getByRole("button", { name: "Load more" }).click();
+        observers[0]!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+      });
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      expect(cancels).not.toHaveBeenCalled();
+      expect(
+        mocks.readCatalog.mock.calls.slice(before).map(([params]) => params.get("cursor"))
+      ).toEqual(["5"]);
+    } finally {
+      cancels?.mockRestore();
       vi.unstubAllGlobals();
     }
   });

@@ -275,6 +275,38 @@ func TestExtensionStatusShowsFailureSummary(t *testing.T) {
 func TestExtensionAgentPluginOutputContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve successful install output when home resolution fails", func(t *testing.T) {
+		t.Parallel()
+		deps := commandDeps{resolveHome: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{}, fmt.Errorf("home unavailable")
+		}}
+		item := ExtensionRecord{Name: "acme.tools", Format: string(extensionpkg.FormatAgentPlugin)}
+		report := extensionInstallValidationReport(deps, extensionInstallPlan{}, &item)
+		if report != nil {
+			t.Fatalf("install report = %+v, want unavailable", report)
+		}
+		bundle := extensionInstallSuccessBundle(&item, report)
+		for _, format := range []OutputFormat{OutputHuman, OutputJSON, OutputJSONL, OutputToon} {
+			output, err := renderExtensionOutput(t, bundle, format)
+			if err != nil {
+				t.Fatalf("install %s output error = %v", format, err)
+			}
+			if !strings.Contains(output, item.Name) {
+				t.Fatalf("install %s output = %q, want installed identity", format, output)
+			}
+			if format == OutputHuman {
+				for _, want := range []string{
+					"✓ install acme.tools", "warning: validation report is unavailable",
+					"next: compozy extension enable acme.tools", "Format:", "agent plugin",
+				} {
+					if !strings.Contains(output, want) {
+						t.Fatalf("install human output = %q, want %q", output, want)
+					}
+				}
+			}
+		}
+	})
+
 	// Invariant: report reloads retain the approved client identity across source directory names.
 	t.Run("Should report a root client plugin with its approved install identity", func(t *testing.T) {
 		t.Parallel()

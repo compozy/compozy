@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import {
   marketplaceCatalogOptions,
@@ -26,8 +27,10 @@ export function useMarketplaceSections(options: MarketplaceSectionsOptions = {},
  * background refetch — restarts the list from the first page silently (US-002.EC-2): the rows on
  * screen stay while every loaded page is read again with fresh cursors, and the stale answer is
  * not reported as an error. A restart that itself ends stale exposes that error, so the page offers
- * Retry instead of holding outdated rows without one. Load more waits while a restart runs; it reads
- * the query cache at call time, so a sentinel firing before React renders the restart cannot cancel it.
+ * Retry instead of holding outdated rows without one. Load more does nothing while a restart runs,
+ * waits for any other fetch of the category to settle before asking for the next page, and admits
+ * one request at a time. It reads the query cache at call time, so neither the button nor a sentinel
+ * firing before React re-renders can cancel a running fetch or append to pages it is replacing.
  *
  * Only the fields the page reads are returned, so the query keeps tracking just those and a
  * background fetch-status change does not re-render the list.
@@ -47,10 +50,25 @@ export function useMarketplaceCategory(options: MarketplaceCatalogOptions, enabl
   const queryClient = useQueryClient();
   const restartFilters = marketplaceCategoryRestartFilters(options);
   const isRestarting = useIsFetching(restartFilters) > 0;
+  const loadingMore = useRef(false);
   const loadMore = async () => {
-    if (!hasNextPage || isFetchingNextPage) return;
-    if (queryClient.isFetching(restartFilters) > 0) return;
-    await fetchNextPage();
+    if (!enabled || !hasNextPage || isFetchingNextPage || loadingMore.current) return;
+    loadingMore.current = true;
+    try {
+      const query = queryClient
+        .getQueryCache()
+        .find({ queryKey: restartFilters.queryKey, exact: true });
+      if (query?.state.fetchStatus === "fetching") {
+        // A restart shows on the control; a running next-page fetch is this same request.
+        if (queryClient.isFetching(restartFilters) > 0 || query.state.fetchMeta?.fetchMore) return;
+        await query.promise?.catch(() => undefined);
+        // A refetch that met a stale cursor hands over to a restart; Load more waits for that too.
+        if (query.state.fetchStatus === "fetching") return;
+      }
+      await fetchNextPage();
+    } finally {
+      loadingMore.current = false;
+    }
   };
   return {
     data,
