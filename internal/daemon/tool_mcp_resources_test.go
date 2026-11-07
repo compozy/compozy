@@ -1011,6 +1011,43 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		}
 	})
 
+	t.Run("Should hold an unreadable user sidecar while publishing healthy scopes", func(t *testing.T) {
+		t.Parallel()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeMCPDeclarationFile(t, filepath.Join(home.HomeDir, "mcp.json"), "{broken")
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName),
+			`[[mcp_servers]]
+name = "healthy"
+command = "workspace-server"
+`,
+		)
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-healthy": {Workspace: workspacepkg.Workspace{ID: "ws-healthy", RootDir: root}},
+		}}
+		provider := daemonConfigMCPDeclarationProvider(
+			&compozyconfig.Config{},
+			home,
+			workspaces,
+			workspaces,
+			discardLogger(),
+			nil,
+		)
+		desired, err := provider(t.Context(), nil)
+		if err != nil || len(desired.mcpServers) != 1 ||
+			desired.mcpServers[0].sourceKey != "config/workspace/ws-healthy/healthy" {
+			t.Fatalf("independent publication = %+v, %v", desired, err)
+		}
+		if !slices.Equal(desired.heldMCPScopes, []resources.ResourceScope{{Kind: resources.ResourceScopeKindUser}}) {
+			t.Fatalf("held scopes = %+v", desired.heldMCPScopes)
+		}
+	})
+
 	t.Run("Should hold an unreadable workspace and keep publishing every other scope", func(t *testing.T) {
 		t.Parallel()
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -17,10 +18,93 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should apply the active profile before workspace overrides without moving credentials", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(home),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeMCPDeclarationFile(t, home.ConfigFile, `[[mcp_servers]]
+name = "docs"
+command = "user-server"
+`)
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName),
+			`[[mcp_servers]]
+name = "docs"
+args = ["workspace"]
+`,
+		)
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home),
+			workspacepkg.WithProfileAvailabilityChecker(profiles),
+			workspacepkg.WithConfigLoader(func(root string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(home, compozyconfig.WithWorkspaceRoot(root))
+			}),
+			workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(
+					home,
+					compozyconfig.WithWorkspaceRoot(root),
+					compozyconfig.WithProfile(profile),
+				)
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace, err := resolver.ResolveOrRegister(t.Context(), root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		record := resources.Record[compozyconfig.MCPServer]{ID: "workspace-docs", Source: toolMCPSyncActor().Source,
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspace.ID},
+			Spec:  compozyconfig.MCPServer{Name: "docs", Command: "user-server", Args: []string{"workspace"}},
+		}
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{record})
+		state := &bootState{profiles: profiles, workspaceResolver: resolver, mcpServerCatalog: catalog}
+		for _, name := range []string{"marketing", "sales"} {
+			profile, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "user-server"
+			if name == "marketing" {
+				want = "profile-server"
+				writeMCPDeclarationFile(
+					t,
+					filepath.Join(home.ProfilesDir, name, compozyconfig.ConfigName),
+					`[[mcp_servers]]
+name = "docs"
+command = "profile-server"
+`,
+				)
+			}
+			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
+				Kind: toolspkg.SourceMCP, ResourceID: record.ID, RawServerName: "docs", ProfileID: profile.ID,
+			}, "")
+			if err != nil || resolved.Server.Command != want ||
+				!slices.Equal(resolved.Server.Args, []string{"workspace"}) {
+				t.Fatalf("%s server = %+v, %v", name, resolved.Server, err)
+			}
+			if resolved.Target.Scope != mcpauth.ScopeWorkspace || resolved.Target.WorkspaceID != workspace.ID {
+				t.Fatalf("credential owner moved for %s: %+v", name, resolved.Target)
+			}
+		}
+	})
 
 	// Invariant: failed publication/auth cleanup restores the persisted override even after caller cancellation, and auth calls keep the exact owner.
 	// Owner: daemon override commit boundary; canonical suite: mcp_server_resolver_test.go.

@@ -33,24 +33,7 @@ func daemonConfigMCPDeclarationProvider(
 		if active == nil {
 			return desired, nil
 		}
-		userServers, err := compozyconfig.DeclaredMCPServers(
-			homePaths,
-			"",
-			compozyconfig.WriteScopeUser,
-			"",
-			active.MCPServers,
-		)
-		if err != nil {
-			return desired, err
-		}
-		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
-		for _, server := range userServers {
-			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
-				sourceKey: "config/global/" + strings.TrimSpace(server.Name),
-				scope:     userScope,
-				spec:      cloneDaemonMCPServer(server),
-			})
-		}
+		userServers := appendUserConfigMCPDeclarations(ctx, &desired, homePaths, active.MCPServers, logger)
 		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
 		if err != nil {
 			return toolMCPDesiredResources{}, err

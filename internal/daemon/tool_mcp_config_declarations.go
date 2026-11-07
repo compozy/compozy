@@ -76,3 +76,31 @@ func appendProfileConfigMCPDeclarations(
 	}
 	return nil
 }
+
+func appendUserConfigMCPDeclarations(
+	ctx context.Context,
+	desired *toolMCPDesiredResources,
+	home compozyconfig.HomePaths,
+	base []compozyconfig.MCPServer,
+	logger *slog.Logger,
+) []compozyconfig.MCPServer {
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+	servers, err := compozyconfig.DeclaredMCPServers(home, "", compozyconfig.WriteScopeUser, "", base)
+	if err != nil {
+		desired.heldMCPScopes = append(desired.heldMCPScopes, scope)
+		if logger != nil {
+			logger.WarnContext(ctx, "daemon: user MCP declarations unavailable; keeping published servers")
+		}
+		return base
+	}
+	for _, server := range servers {
+		desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
+			sourceKey: "config/global/" + strings.TrimSpace(
+				server.Name,
+			),
+			scope: scope,
+			spec:  cloneDaemonMCPServer(server),
+		})
+	}
+	return servers
+}
