@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -126,24 +127,37 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
 
-		// The script reports each fork only after it returns, which means the child has
-		// joined the group. The later fork waits for stdin, so no fork is in flight during
-		// the call: setpriority(PRIO_PGRP) cannot reach a child that has not joined yet.
+		// The script reports each child's pid ($!) only after its fork returns, which
+		// means the child has joined the group. The later fork waits for stdin, so no
+		// fork is in flight during the call: setpriority(PRIO_PGRP) cannot reach a child
+		// that has not joined yet.
 		group := startNicenessProcessGroup(
 			t,
-			"sleep 30 & echo started; read go; sleep 30 & echo forked; wait",
+			"sleep 30 & echo $!; read go; sleep 30 & echo $!; wait",
 		)
-		group.waitLine(t, "started")
+		earlier := group.readPID(t)
 		want := max(7, testCurrentNiceness(t))
 		if err := SetProcessGroupNiceness(group.pgid, 7); err != nil {
 			t.Fatalf("SetProcessGroupNiceness() error = %v", err)
 		}
 		group.release(t)
-		group.waitLine(t, "forked")
-		// The group's reported priority is its least-niced member, so the target means
-		// the shell, its earlier background child, and the later-forked sleep all have it.
+		later := group.readPID(t)
+		// The group's reported priority is its least-niced member. Each live member is
+		// also checked by pid so a member that already exited cannot satisfy the target.
 		if got := testProcessGroupNiceness(t, group.pgid); got != want {
 			t.Fatalf("process group niceness = %d, want %d", got, want)
+		}
+		for _, member := range []struct {
+			name string
+			pid  int
+		}{
+			{name: "shell", pid: group.pgid},
+			{name: "earlier child", pid: earlier},
+			{name: "later child", pid: later},
+		} {
+			if got := testMemberNiceness(t, group.pgid, member.pid); got != want {
+				t.Fatalf("%s (pid %d) niceness = %d, want %d", member.name, member.pid, got, want)
+			}
 		}
 	})
 
@@ -181,12 +195,16 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	})
 }
 
+// nicenessProcessGroup is a shell process group whose script reports progress on
+// stdout and waits on stdin, so tests can order forks around a niceness change.
 type nicenessProcessGroup struct {
 	pgid   int
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
 }
 
+// startNicenessProcessGroup starts script as the leader of a new process group and
+// kills the whole group on cleanup.
 func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup {
 	t.Helper()
 	// This helper owns child cleanup. t.Context is canceled before Cleanup runs;
@@ -219,10 +237,11 @@ func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup
 	return nicenessProcessGroup{pgid: pgid, stdin: stdin, stdout: bufio.NewReader(stdout)}
 }
 
-// waitLine fails the subtest when the handshake line does not arrive in time, so
-// cleanup kills the group instead of the read blocking until the binary times out.
-// Cleanup closes stdout through Wait, which ends the abandoned read.
-func (g nicenessProcessGroup) waitLine(t *testing.T, want string) {
+// readPID returns the next pid the script reports. It fails the subtest when the
+// line does not arrive in time, so cleanup kills the group instead of the read
+// blocking until the binary times out. Cleanup closes stdout through Wait, which
+// ends the abandoned read.
+func (g nicenessProcessGroup) readPID(t *testing.T) int {
 	t.Helper()
 	type readResult struct {
 		line string
@@ -240,14 +259,18 @@ func (g nicenessProcessGroup) waitLine(t *testing.T, want string) {
 		if read.err != nil {
 			t.Fatalf("read process group output: %v", read.err)
 		}
-		if got := strings.TrimSpace(read.line); got != want {
-			t.Fatalf("process group output = %q, want %q", got, want)
+		pid, err := strconv.Atoi(strings.TrimSpace(read.line))
+		if err != nil || pid <= 0 {
+			t.Fatalf("process group output = %q, want a child pid", read.line)
 		}
+		return pid
 	case <-timer.C:
-		t.Fatalf("process group output %q did not arrive within 10s", want)
+		t.Fatal("process group did not report a child pid within 10s")
+		return 0
 	}
 }
 
+// release lets the script continue past its stdin gate and fork the later child.
 func (g nicenessProcessGroup) release(t *testing.T) {
 	t.Helper()
 	if _, err := io.WriteString(g.stdin, "go\n"); err != nil {
@@ -260,6 +283,24 @@ func testProcessGroupNiceness(t *testing.T, pgid int) int {
 	niceness, err := ProcessGroupNiceness(pgid)
 	if err != nil {
 		t.Fatalf("ProcessGroupNiceness(%d) error = %v", pgid, err)
+	}
+	return niceness
+}
+
+// testMemberNiceness reports the niceness of a live process after confirming it
+// still belongs to the process group.
+func testMemberNiceness(t *testing.T, pgid int, pid int) int {
+	t.Helper()
+	memberGroup, err := syscall.Getpgid(pid)
+	if err != nil {
+		t.Fatalf("Getpgid(%d) error = %v, want live process group member", pid, err)
+	}
+	if memberGroup != pgid {
+		t.Fatalf("Getpgid(%d) = %d, want %d", pid, memberGroup, pgid)
+	}
+	niceness, err := getNiceness(syscall.PRIO_PROCESS, pid)
+	if err != nil {
+		t.Fatalf("niceness of pid %d error = %v", pid, err)
 	}
 	return niceness
 }
