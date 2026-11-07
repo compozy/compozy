@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -760,17 +761,6 @@ func (s mcpDeclarationWorkspaceStub) ListWorkspaces(context.Context) ([]workspac
 	return workspaces, nil
 }
 
-func (s mcpDeclarationWorkspaceStub) Resolve(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
-	return s.resolved[id], nil
-}
-
-func (s mcpDeclarationWorkspaceStub) ResolveOrRegister(
-	ctx context.Context,
-	id string,
-) (workspacepkg.ResolvedWorkspace, error) {
-	return s.Resolve(ctx, id)
-}
-
 func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T) {
 	t.Parallel()
 	// Invariant: a workspace MCP record exists only for servers the workspace layer declares, so
@@ -796,7 +786,6 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		provider := daemonConfigMCPDeclarationProvider(
 			&compozyconfig.Config{},
 			home,
-			workspaces,
 			workspaces,
 			discardLogger(),
 			nil,
@@ -849,7 +838,6 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			&cfg,
 			home,
 			workspaces,
-			workspaces,
 			discardLogger(),
 			mcpDeclarationProfiles{{Profile: profile}},
 		)
@@ -871,6 +859,226 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			if input.scope.Kind == resources.ResourceScopeKindWorkspaceProfile &&
 				(!slices.Equal(input.spec.Args, []string{"workspace"}) || input.spec.Env["PROFILE"] != "yes" || input.spec.Env["FINAL"] != "yes") {
 				t.Fatalf("workspace-profile inheritance = %+v", input.spec)
+			}
+		}
+	})
+
+	// Invariant: a Settings rollback is not undone by observing its already-written desired file.
+	// Owner: daemon MCP publication boundary; canonical suite: declaring scopes.
+	t.Run("Should retain rollback until a subsequent external file edit", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		write := func(command string) {
+			writeMCPDeclarationFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"docs\"\ncommand = \""+command+"\"\n")
+		}
+		write("old")
+		previous := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "old"}}}
+		raw, tools, toolCodec, servers, serverCodec := toolMCPSyncStores(t)
+		syncer := newToolMCPSourceSyncerWithConfigProvider(raw, tools, toolCodec, servers, serverCodec,
+			toolMCPSyncActor(), discardLogger(), nil,
+			daemonConfigMCPDeclarationProvider(&previous, home, nil, discardLogger(), nil))
+		watcher := &mcpDeclarationWatcher{paths: mcpDeclarationPaths(home, nil, nil), sync: syncer.Sync}
+		syncer.declarationWatch = watcher
+		assertCommand := func(want string) {
+			t.Helper()
+			rows, err := servers.List(t.Context(), toolMCPSyncActor(), resources.ResourceFilter{})
+			if err != nil || len(rows) != 1 || rows[0].Spec.Command != want {
+				t.Fatalf("publication = %+v, %v, want %s", rows, err, want)
+			}
+		}
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommand("old")
+		write("rejected")
+		next := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "rejected"}}}
+		if err := syncer.SyncConfig(t.Context(), &next); err != nil {
+			t.Fatal(err)
+		}
+		if err := syncer.SyncConfig(t.Context(), &previous); err != nil {
+			t.Fatal(err)
+		}
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommand("old")
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(home.ProfilesDir, "default", compozyconfig.MCPJSONName),
+			`{"mcpServers":{"other":{"command":"other-scope"}}}`,
+		)
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommand("old") // An unrelated scope must not activate the rejected user file.
+		write("external")
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommand("external")
+	})
+
+	// Invariant: a failed file observation cannot activate a rejected user configuration.
+	// Owner: active user MCP publication; canonical suite: declaring scopes.
+	t.Run("Should retain the active user pin through a stat error and recovery", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		blocked := filepath.Join(t.TempDir(), "blocked")
+		if err := os.WriteFile(blocked, []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		home.ConfigFile = filepath.Join(blocked, compozyconfig.ConfigName)
+		provider := daemonConfigMCPDeclarationProvider(&compozyconfig.Config{}, home, nil, discardLogger(), nil)
+		active := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "active"}}}
+		desired, err := provider(t.Context(), &active)
+		if err != nil || len(desired.mcpServers) != 1 {
+			t.Fatalf("active publication = %+v, %v", desired, err)
+		}
+		if err := os.Remove(blocked); err != nil {
+			t.Fatal(err)
+		}
+		writeMCPDeclarationFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"docs\"\ncommand = \"rejected\"\n")
+		desired, err = provider(t.Context(), nil)
+		if err != nil || len(desired.mcpServers) != 1 || desired.mcpServers[0].spec.Command != "active" {
+			t.Fatalf("stat recovery activated rejected data: %+v, %v", desired, err)
+		}
+		writeMCPDeclarationFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"docs\"\ncommand = \"external\"\n")
+		desired, err = provider(t.Context(), nil)
+		if err != nil || len(desired.mcpServers) != 1 || desired.mcpServers[0].spec.Command != "external" {
+			t.Fatalf("external edit did not release pin: %+v, %v", desired, err)
+		}
+	})
+
+	t.Run("Should retire sidecar-only declarations loaded through daemon boot", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		path := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"sidecar"}}}`)
+		cfg, err := loadConfigFromHome(home, func(string) string { return "" })
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := daemonConfigMCPDeclarationProvider(&cfg, home, nil, discardLogger(), nil)
+		before, err := provider(t.Context(), nil)
+		if err != nil || len(before.mcpServers) != 1 {
+			t.Fatalf("boot publication = %+v, %v", before, err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		after, err := provider(t.Context(), nil)
+		if err != nil || len(after.mcpServers) != 0 {
+			t.Fatalf("removed sidecar resurrected: %+v, %v", after, err)
+		}
+	})
+
+	// Invariant: external profile file edits and removal republish their declaring layers.
+	// Owner: daemon declaration publication; canonical suite: declaring scopes.
+	t.Run("Should republish edited and removed personal and workspace profile sidecars", func(t *testing.T) {
+		t.Parallel()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-one": {Workspace: workspacepkg.Workspace{ID: "ws-one", RootDir: root}},
+		}}
+		profile := profilepkg.Profile{ID: "profile-one", Name: "marketing", State: profilepkg.StateActive}
+		profiles := mcpDeclarationProfiles{{Profile: profile}}
+		provider := daemonConfigMCPDeclarationProvider(
+			&compozyconfig.Config{},
+			home,
+			workspaces,
+			discardLogger(),
+			profiles,
+		)
+		var published toolMCPDesiredResources
+		watcher := mcpDeclarationWatcher{
+			paths: mcpDeclarationPaths(home, workspaces, profiles),
+			sync: func(ctx context.Context) error {
+				var err error
+				published, err = provider(ctx, nil)
+				return err
+			},
+		}
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for _, dir := range []string{home.HomeDir, filepath.Join(root, compozyconfig.DirName)} {
+			path := filepath.Join(dir, compozyconfig.ProfilesDirName, "marketing", compozyconfig.MCPJSONName)
+			writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"original"}}}`)
+			if err := watcher.poll(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(published.mcpServers) != 1 || published.mcpServers[0].spec.Command != "original" {
+				t.Fatalf("missing publication: %+v", published)
+			}
+			writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"changed"}}}`)
+			if err := watcher.poll(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(published.mcpServers) != 1 || published.mcpServers[0].spec.Command != "changed" {
+				t.Fatalf("stale publication: %+v", published)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := watcher.poll(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(published.mcpServers) != 0 {
+				t.Fatalf("removed declaration survived: %+v", published)
+			}
+		}
+	})
+
+	t.Run("Should publish default profile declarations in their own layers", func(t *testing.T) {
+		t.Parallel()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeMCPDeclarationFile(t, filepath.Join(home.ProfilesDir, "default", compozyconfig.MCPJSONName),
+			`{"mcpServers":{"personal":{"command":"profile-server"}}}`)
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(
+				root,
+				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				"default",
+				compozyconfig.MCPJSONName,
+			),
+			`{"mcpServers":{"local":{"command":"workspace-profile-server"}}}`,
+		)
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-one": {Workspace: workspacepkg.Workspace{ID: "ws-one", RootDir: root}},
+		}}
+		profile := profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}
+		profiles := mcpDeclarationProfiles{{Profile: profile}}
+		provider := daemonConfigMCPDeclarationProvider(
+			&compozyconfig.Config{},
+			home,
+			workspaces,
+			discardLogger(),
+			profiles,
+		)
+		desired, err := provider(t.Context(), nil)
+		if err != nil || len(desired.mcpServers) != 2 {
+			t.Fatalf("default profile declarations = %+v, %v", desired, err)
+		}
+		for _, input := range desired.mcpServers {
+			want := resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}
+			if input.spec.Name == "local" {
+				want = resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   "ws-one@pf:default",
+				}
+			}
+			if input.scope != want {
+				t.Fatalf("%s scope = %+v, want %+v", input.spec.Name, input.scope, want)
 			}
 		}
 	})
@@ -909,7 +1117,6 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			&compozyconfig.Config{},
 			home,
 			workspaces,
-			workspaces,
 			discardLogger(),
 			profiles,
 		)
@@ -937,7 +1144,7 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			t.Fatal(err)
 		}
 		cfg := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{Name: "remote", Command: "old"}}}
-		provider := daemonConfigMCPDeclarationProvider(&cfg, home, nil, nil, discardLogger(), nil)
+		provider := daemonConfigMCPDeclarationProvider(&cfg, home, nil, discardLogger(), nil)
 		writeMCPDeclarationFile(t, filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
 			`{"mcpServers":{"remote":{"command":"new"},"added":{"command":"added"}}}`)
 		desired, err := provider(t.Context(), nil)
@@ -951,6 +1158,11 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		if !reflect.DeepEqual(got, map[string]string{"remote": "new", "added": "added"}) {
 			t.Fatalf("published = %v", got)
 		}
+		rolledBack, err := provider(t.Context(), &cfg)
+		if err != nil || len(rolledBack.mcpServers) != 1 || rolledBack.mcpServers[0].spec.Command != "old" {
+			t.Fatalf("rollback snapshot was replaced by on-disk sidecar: %+v, %v", rolledBack, err)
+		}
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "remote", Command: "new"}, {Name: "added", Command: "added"}}
 		writeMCPDeclarationFile(t, filepath.Join(home.HomeDir, compozyconfig.MCPJSONName), `{}`)
 		desired, err = provider(t.Context(), nil)
 		if err != nil {
@@ -990,7 +1202,7 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			},
 		}}
 		cfg := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{userServer}}
-		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, workspaces, discardLogger(), nil)
+		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, discardLogger(), nil)
 
 		desired, err := provider(t.Context(), nil)
 		if err != nil {
@@ -1011,6 +1223,8 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		}
 	})
 
+	// Invariant: unreadable user config cannot block workspace publication from registered roots.
+	// Owner: daemon MCP publication; canonical suite: declaring-scope tests below.
 	t.Run("Should hold an unreadable user sidecar while publishing healthy scopes", func(t *testing.T) {
 		t.Parallel()
 		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
@@ -1033,7 +1247,6 @@ command = "workspace-server"
 		provider := daemonConfigMCPDeclarationProvider(
 			&compozyconfig.Config{},
 			home,
-			workspaces,
 			workspaces,
 			discardLogger(),
 			nil,
@@ -1073,7 +1286,7 @@ command = "workspace-server"
 		cfg := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{
 			Name: "newrelic", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://user.example/mcp",
 		}}}
-		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, workspaces, discardLogger(), nil)
+		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, discardLogger(), nil)
 
 		desired, err := provider(t.Context(), nil)
 		if err != nil {

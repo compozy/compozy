@@ -728,9 +728,10 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 				SystemPermissionMode: PermissionModeApproveAll,
 				ExternalDefault:      ExternalDefaultEnabled,
 				Session: SessionToolPolicy{
-					Enforced:   true,
-					Tools:      []ToolID{local.ID},
-					MCPServers: []string{"github"},
+					Enforced:    true,
+					Tools:       []ToolID{local.ID},
+					MCPServers:  []string{"github"},
+					MCPByServer: true, // This fixture represents a generated delegation budget.
 				},
 			}, ToolsetCatalog{}),
 		)

@@ -819,11 +819,15 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			State:        session.StateActive,
 			ACPSessionID: "acp-123",
 			Lineage: &store.SessionLineage{
-				RootSessionID:    "sess-1",
-				SpawnDepth:       0,
-				TTLExpiresAt:     &ttl,
-				SpawnBudget:      store.SessionSpawnBudget{TTLSeconds: 3600},
-				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
+				RootSessionID: "sess-1",
+				SpawnDepth:    0,
+				TTLExpiresAt:  &ttl,
+				SpawnBudget:   store.SessionSpawnBudget{TTLSeconds: 3600},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools:                  []string{"read"},
+					MaterializedTools:      true,
+					MaterializedMCPServers: true,
+				},
 			},
 
 			CreatedAt:    now,
@@ -902,6 +906,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		}
 		if _, exists := lineage["permission_policy_json"]; exists {
 			t.Fatalf("lineage JSON leaked raw policy storage: %#v", lineage)
+		}
+		// Internal grant provenance must not change the public permission-policy shape.
+		permissions, ok := lineage["permission_policy"].(map[string]any)
+		if !ok {
+			t.Fatalf("permission_policy type = %T", lineage["permission_policy"])
+		}
+		if _, leaked := permissions["materialized_tools"]; leaked {
+			t.Fatal("internal tool provenance leaked")
+		}
+		if _, leaked := permissions["materialized_mcp_servers"]; leaked {
+			t.Fatal("internal MCP provenance leaked")
 		}
 		acpCaps, ok := runtime["acp_caps"].(map[string]any)
 		if !ok {

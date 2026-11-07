@@ -15,8 +15,10 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/marketplace"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/resources"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -321,6 +323,59 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 	})
 
+	// Invariant: the first runtime rollback retains user MCP sidecars absent from the daemon's TOML-only boot seed.
+	// Owner: Settings runtime publication; canonical suite: daemon runtime applier.
+	t.Run("Should retain boot sidecars when the first live apply rolls back", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
+			`{"mcpServers":{"docs":{"command":"test-mcp"}}}`,
+		)
+		boot, err := loadConfigFromHome(home, func(string) string { return "" })
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := openDaemonTestGlobalDB(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(home),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := settingspkg.NewService(
+			home,
+			settingspkg.Dependencies{ProfileResolver: profiles, AttentionWorkspaceMutes: db},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, err := service.ActiveConfig(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(boot.MCPServers) != 0 || len(active.MCPServers) != 1 {
+			t.Fatal("fixture did not distinguish boot from active Settings projection")
+		}
+		publisher := &recordingToolMCPPublisher{errors: []error{errors.New("forced publication failure"), nil}}
+		state := &bootState{cfg: boot, toolMCPResources: publisher}
+		state.deps.Settings = service
+		failures := (daemonSettingsRuntimeApplier{daemon: &Daemon{config: boot}, state: state}).ApplyActiveConfig(
+			t.Context(),
+			&active,
+		)
+		if len(failures) != 1 || len(publisher.configs) != 2 {
+			t.Fatalf("rollback not exercised: %+v", failures)
+		}
+		restored := publisher.configs[1].MCPServers
+		if len(restored) != 1 || restored[0].Name != "docs" || restored[0].Command != "test-mcp" {
+			t.Fatalf("boot sidecar lost on rollback: %+v", restored)
+		}
+	})
+
 	t.Run("Should rollback MCP after runtime apply failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -356,6 +411,10 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		if failures[0].Subsystem != "mcp" {
 			t.Fatalf("failure subsystem = %q, want mcp", failures[0].Subsystem)
+		}
+		if failures[0].Diagnostic.Category != diagcontract.CategoryConfig ||
+			failures[0].Diagnostic.Code != diagcontract.CodeConfigPartialFailure {
+			t.Fatalf("MCP apply failure lost its typed config diagnostic: %+v", failures[0].Diagnostic)
 		}
 		if got := daemonInstance.config.Providers["codex"].Command; got != "codex acp" {
 			t.Fatalf("restored daemon config command = %q, want previous", got)

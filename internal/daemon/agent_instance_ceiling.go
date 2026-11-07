@@ -38,6 +38,7 @@ func instanceCeilingReader(repo *globaldb.InstanceRepo) session.InstanceCeilingR
 		if err := json.Unmarshal([]byte(instance.PermissionCeiling), &ceiling); err != nil {
 			return nil, err
 		}
+		ceiling.MaterializedTools, ceiling.MaterializedMCPServers = false, false
 		grant := instance.GrantCeiling
 		if caller != nil {
 			ceiling = agentinstance.IntersectPermissions(ceiling, caller.PermissionPolicy)

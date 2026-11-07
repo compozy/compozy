@@ -171,7 +171,6 @@ binding = { type = "url_query", name = "workspace" }
 				&publishedConfig,
 				compozyconfig.HomePaths{HomeDir: t.TempDir()},
 				nil,
-				nil,
 				discardLogger(),
 				nil,
 			),

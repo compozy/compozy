@@ -42,15 +42,17 @@ currently callable set, then
 
 External MCP declarations in user, personal-profile, workspace and workspace-profile config or
 `mcp.json` feed the same hosted catalog. Adding or enabling a source and completing or refreshing
-OAuth updates open hosted Claude and Codex sessions; removing a source or logging out withdraws its callable tools.
-Claude refreshes the stable proxy connection through `notifications/tools/list_changed`. Codex
-currently caches discovery, so CompozyOS releases its idle provider process and loads the same
-native session at the next turn boundary when MCP tools change. The Compozy session ID and
-transcript remain intact. A failed native load uses the existing transcript replay fallback.
-Workspace/profile isolation, source policy and delegated `mcp_servers` allowlists still apply;
-a concrete MCP tool ID also requires its server in that allowlist and never bypasses an empty server budget.
-Ready alone does not override an explicit denial. Root delegation budgets follow current server
-names on the next turn; child and instance grants stay bounded by their recorded policy.
+OAuth updates open hosted sessions; removing a source, disabling it or logging out withdraws its callable tools.
+The Claude ACP bridge refreshes the stable proxy connection through `notifications/tools/list_changed`.
+Other hosted providers, including Codex, reload the same native session at the next turn boundary
+when MCP tools change, after the old provider process exits. The Compozy session ID and transcript
+remain intact. A failed native load uses the existing transcript replay fallback. Direct stdio
+sidecars reload on launch configuration changes at the next turn as well; remote HTTP/OAuth require
+hosted MCP. Providers with session MCP disabled receive no tools.
+Workspace/profile isolation, source policy and delegated `mcp_servers` allowlists still apply.
+An explicit tool override is exhaustive: naming a server alone cannot widen that tool list.
+Ready never overrides a denial. Generated root delegation budgets follow current server names;
+authored and legacy unmarked ceilings, child grants and instance grants retain their recorded limits.
 
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 

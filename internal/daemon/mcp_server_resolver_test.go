@@ -24,6 +24,28 @@ import (
 func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: deleting a published declaration cannot resurrect its stale boot snapshot.
+	// Owner: daemon MCP identity resolver; canonical suite: resource identity.
+	t.Run("Should reject a removed published server despite stale boot config", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{
+			cfg: compozyconfig.Config{
+				MCPServers: []compozyconfig.MCPServer{{Name: "removed", Command: "old"}},
+			},
+			mcpServerCatalog: newResourceCatalog(cloneDaemonMCPServer),
+			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error { return nil }),
+		}
+		_, err := resolveDaemonMCPServer(
+			t.Context(),
+			state,
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "removed"},
+			"",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unavailable") {
+			t.Fatalf("removed source resolved: %v", err)
+		}
+	})
+
 	t.Run("Should apply the active profile before workspace overrides without moving credentials", func(t *testing.T) {
 		t.Parallel()
 		db := openDaemonTestGlobalDB(t)

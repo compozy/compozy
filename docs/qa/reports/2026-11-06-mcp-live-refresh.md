@@ -32,3 +32,59 @@ Earlier failed walks were repaired and repeated: the test client initially used 
 - Canonical `teardown-qa-env.py --manifest .../bootstrap-manifest.json`: `TEARDOWN_CLEAN=true`, `TEARDOWN_ALL_CLEAN=true`; copied provider credentials and owned runtime processes were removed.
 
 CI owns repository-wide gates and E2E. No local full gate, full suite or E2E was run. Real vendor consent, the reporter's production services and unrelated historical MCP journeys remain outside this targeted evidence.
+
+## Review corrections and final re-walk
+
+The branch was rebased onto main `59fd1fc7d`. A fresh targeted lab covered the review repairs:
+`/Users/pedronauck/dev/qa-labs/compozy-mcp-live-1334-review-20261107-022505-652874-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+
+| Mode | Provider | Existing session | Fresh session / native identity | Result |
+| --- | --- | --- | --- | --- |
+| Hosted HTTP OAuth | Claude | `sess-54bef95a19f00bc0` | `sess-e3c30ca81ce26114` | Both echo calls succeeded; logout returned ABSENT |
+| Hosted HTTP OAuth | Codex | `sess-c6b7a14802f415de` | `sess-f099ff274c5fb77e` | Both echo calls succeeded; logout returned ABSENT |
+| Direct stdio | Claude | `sess-114d5761d76f2bea` | `25c2a70e-2239-483f-8b48-1c686fa2528c` | Addition was callable; removal returned ABSENT; native ID retained |
+| Direct stdio | Codex | `sess-bac7f845b1e0fd8f` | `01a1b3dd-97dc-7d61-8c0d-1b66d72db64c` | Addition was callable; removal returned ABSENT; native ID retained |
+
+The hosted walk retained the nonresponding HTTP source. All six binds completed in 7.3–19.8 seconds.
+Codex loaded native session `01a1b3ec-3f74-75e3-99ea-685d488317e0` successfully after OAuth and logout.
+The lab retains `oauth-results.json`, `direct-results.json`, provider responses, daemon logs and the
+journey log. Intermediate OAuth attempts are retained separately rather than counted as passes.
+
+Two review walks caught a new-session Codex failure: the registry reported the tool callable,
+but its initial provider catalog lacked the callable reference. The registry repeated discovery
+while checking projection availability, so an otherwise successful discovery could disappear
+within the same initial projection. Availability now uses that request's discovered descriptors
+and still checks current authorization; call-time validation remains fresh. The canonical regression
+passes after the fix and fails under a Go overlay restoring the previous behavior, without changing
+the worktree. The real-provider walk above passed after that repair.
+
+The review repairs also preserve authored and unmarked legacy delegation ceilings, record generated
+budget provenance internally, retain explicit native-only narrowing, clear provenance on instance
+adoption, use the effective post-hook command, support lazy hosted clients and Pi, and reload direct
+stdio sidecars. Long-tail hosted adapters share the turn-boundary mechanism; only Claude and Codex
+were exercised with real providers. Direct HTTP/OAuth remain unsupported outside hosted mode.
+
+Publication checks cover default-profile ownership, external profile-file edits/removals, authoritative
+Settings rollback including sidecars present at boot, and keeping a rejected user file inactive when
+another scope changes. An explicit external edit of the user layer releases that active projection.
+No public DTO or SQLite schema changed; optional provenance stays in existing internal policy JSON.
+
+The final focused race selection passed all six affected packages (daemon, session, tools, MCP,
+store, API contract). Focused lint returned `0 issues`; the test-shape checker found no new errors
+relative to the canonical-suite baselines. The lab's strict evidence auditor passed, and the token
+scan found no stub bearer or refresh token in daemon/provider/journey artifacts.
+
+Known Settings boundary from independent review: an explicitly written workspace/profile definition
+may remain published if a different runtime subsystem rejects the broader apply. The apply record
+remains failed and scope isolation remains intact. This work preserves that partial-apply contract;
+it does not add a multi-resource transaction. User-layer rollback uses the full active snapshot and
+stays pinned through unrelated scope edits or transient file observation errors.
+
+The final real-daemon integration passed again in 42.903 seconds (`term-2798717b9c15`).
+`make codegen-check` passed with no generated drift (`term-073b185ba715`). The review lab's
+canonical teardown reported `TEARDOWN_CLEAN=true` and `TEARDOWN_ALL_CLEAN=true`
+(`term-83526ef8767b`); copied credentials and owned processes were removed.
+
+MCP publication reads registered workspace identities directly, rather than resolving inherited
+workspace configuration before reading each scoped declaration. This keeps malformed user config
+from blocking healthy workspace/profile publication; the declaring-scope suite owns that invariant.

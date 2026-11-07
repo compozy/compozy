@@ -13,6 +13,7 @@ import (
 
 type runtimeBindingSnapshot struct {
 	hostedMCPDigest         string
+	directMCPDigest         string
 	hostedMCPRequiresReload bool
 	runtimeStrategy         acp.RuntimeApplicationStrategy
 	process                 *AgentProcess
@@ -47,6 +48,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
 		hostedMCPDigest:         s.hostedMCPDigest,
+		directMCPDigest:         s.directMCPDigest,
 		hostedMCPRequiresReload: s.hostedMCPRequiresReload,
 		runtimeStrategy:         s.runtimeStrategyLocked(),
 		process:                 s.process,
@@ -280,6 +282,7 @@ func (s *Session) restoreRecoveryBinding(
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
 	s.hostedMCPDigest = snapshot.hostedMCPDigest
+	s.directMCPDigest = snapshot.directMCPDigest
 	s.hostedMCPRequiresReload = snapshot.hostedMCPRequiresReload
 	s.runtimeRelease = snapshot.runtimeRelease
 	s.Provider = snapshot.selection.Provider

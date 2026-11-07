@@ -154,3 +154,7 @@ func (l hostedMCPLauncherAdapter) ToolDigest(ctx context.Context, sessionID stri
 func (l hostedMCPLauncherAdapter) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
 	return l.service.WaitForBindToolDigest(ctx, sessionID)
 }
+
+func (l hostedMCPLauncherAdapter) InitialToolDigest(sessionID string) (string, bool) {
+	return l.service.InitialToolDigest(sessionID)
+}

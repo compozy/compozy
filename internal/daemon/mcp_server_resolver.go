@@ -54,9 +54,12 @@ func resolveDaemonMCPServer(
 		return resolveDaemonMCPResource(ctx, state, source, name, definitionOwner)
 	}
 
-	for _, server := range state.cfg.MCPServers {
-		if strings.TrimSpace(server.Name) == name {
-			return userResolvedMCPServer(server), nil
+	// The publisher owns current declarations; boot config is only a fallback without it.
+	if state.toolMCPResources == nil {
+		for _, server := range state.cfg.MCPServers {
+			if strings.TrimSpace(server.Name) == name {
+				return userResolvedMCPServer(server), nil
+			}
 		}
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))

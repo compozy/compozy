@@ -191,7 +191,6 @@ func (d *Daemon) newToolMCPPublisher(
 			&state.cfg,
 			d.homePaths,
 			state.registry,
-			state.workspaceResolver,
 			state.logger,
 			profiles,
 		),

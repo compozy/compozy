@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -76,7 +77,11 @@ func (m *Manager) dispatchSpawnPreCreate(
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
+	previousPolicy := store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
 	opts.PermissionPolicy = policyFromHookPermissionSet(result.ChildPermissions)
+	if slices.Equal(previousPolicy.Tools, store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy).Tools) {
+		opts.PermissionPolicy.MaterializedTools = previousPolicy.MaterializedTools
+	}
 	normalized, err := normalizeSpawnOpts(opts)
 	if err != nil {
 		return SpawnOpts{}, nil, err

@@ -163,6 +163,9 @@ func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
 	if _, allowed := e.sessionAllowed[d.ID]; allowed {
 		return true
 	}
+	if !e.inputs.Session.MCPByServer {
+		return false
+	}
 	owner, err := mcpOwnerFromID(d.ID)
 	if err != nil {
 		return false

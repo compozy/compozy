@@ -51,10 +51,12 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		policy := readMeta(t, created.MetaPath()).Lineage.PermissionPolicy
 		want := store.NormalizeSessionPermissionPolicy(
 			store.SessionPermissionPolicy{
-				Tools:          policy.Tools,
-				Skills:         []string{"review", "directory"},
-				MCPServers:     []string{"docs"},
-				WorkspacePaths: []string{h.workspace, additional},
+				Tools:                  policy.Tools,
+				Skills:                 []string{"review", "directory"},
+				MCPServers:             []string{"docs"},
+				WorkspacePaths:         []string{h.workspace, additional},
+				MaterializedTools:      true,
+				MaterializedMCPServers: true,
 			},
 		)
 		if !reflect.DeepEqual(policy, want) {
@@ -129,6 +131,31 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		}
 		if got := created.Info().Lineage.PermissionPolicy.MCPServers; !slices.Equal(got, []string{"old-name"}) {
 			t.Fatalf("delegated budget widened: %v", got)
+		}
+	})
+
+	// Invariant: an unmarked authored or legacy ceiling never grows with configuration.
+	// Owner: root delegation policy; canonical suite: manager lineage.
+	t.Run("Should preserve unmarked root MCP grants during refresh", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		created := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		created.mu.Lock()
+		created.Lineage.PermissionPolicy.MCPServers = []string{"fixed"}
+		created.Lineage.PermissionPolicy.MaterializedMCPServers = false
+		created.mu.Unlock()
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.Config.MCPServers = []compozyconfig.MCPServer{{Name: "new", Command: "test-mcp"}}
+		h.resolver.upsert(&resolved)
+		if err := h.manager.refreshRootMCPPolicy(t.Context(), created); err != nil {
+			t.Fatal(err)
+		}
+		if got := created.Info().Lineage.PermissionPolicy.MCPServers; !slices.Equal(got, []string{"fixed"}) {
+			t.Fatalf("explicit ceiling widened: %v", got)
 		}
 	})
 

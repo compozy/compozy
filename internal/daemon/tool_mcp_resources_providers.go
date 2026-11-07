@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"fmt"
 	"log/slog"
@@ -12,18 +14,22 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/resources"
-
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func daemonConfigMCPDeclarationProvider(
 	cfg *compozyconfig.Config,
 	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
-	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 	profiles extensionProfileCatalog,
 ) toolMCPConfigDeclarationProvider {
+	var baseline []compozyconfig.MCPServer
+	if _, err := os.Stat(homePaths.ConfigFile); errors.Is(err, os.ErrNotExist) && cfg != nil {
+		for _, server := range cfg.MCPServers {
+			baseline = append(baseline, cloneDaemonMCPServer(server))
+		}
+	}
+	user := configMCPUserDeclarations{home: homePaths, baseline: baseline}
 	return func(ctx context.Context, override *compozyconfig.Config) (toolMCPDesiredResources, error) {
 		desired := toolMCPDesiredResources{}
 		active := cfg
@@ -33,8 +39,8 @@ func daemonConfigMCPDeclarationProvider(
 		if active == nil {
 			return desired, nil
 		}
-		userServers := appendUserConfigMCPDeclarations(ctx, &desired, homePaths, active.MCPServers, logger)
-		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
+		userServers := user.append(ctx, &desired, override, logger)
+		workspaces, err := registeredMCPWorkspaces(ctx, registry)
 		if err != nil {
 			return toolMCPDesiredResources{}, err
 		}
@@ -54,7 +60,7 @@ func daemonConfigMCPDeclarationProvider(
 			if err != nil {
 				if logger != nil {
 					logger.WarnContext(ctx, "daemon: workspace MCP declarations unavailable; keeping published servers",
-						"workspace_id", scope.ID, "error", err)
+						"workspace_id", scope.ID)
 				}
 				desired.heldMCPScopes = append(desired.heldMCPScopes, scope)
 				continue

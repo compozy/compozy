@@ -7,12 +7,21 @@ description: Configure, authorize, inspect, edit, and repair local and remote MC
 personal-profile, workspace, workspace-profile, agent, and skill scopes. The profile scopes follow
 the active [profile](/docs/profiles) and merge in their owning config layer's slot.
 
-For hosted Claude and Codex sessions, changes to top-level server declarations and OAuth credentials apply without a
-daemon restart. Claude updates its tool list over the hosted MCP connection. Codex refreshes at
-the next turn boundary by reconnecting its provider runtime to the same native session; its
-CompozyOS session and transcript are preserved. New sessions receive the current MCP tools in
-their initial projection. Removing a server or signing out withdraws its tools. Workspace/profile
-isolation and configured source and session permissions continue to apply.
+Hosted sessions receive declaration and OAuth changes without a daemon restart. The Claude ACP
+bridge updates its tool list over the stable hosted MCP connection. Other providers, including
+Codex, refresh at the next turn boundary by reconnecting the provider runtime to the same native
+session. If native load is unavailable, the existing transcript replay fallback preserves the
+CompozyOS session. New sessions receive the current tools in their initial projection. Removing
+a server, disabling its source or signing out withdraws its tools. Direct edits and deletions of
+user, personal-profile, workspace and workspace-profile config files are detected automatically.
+
+With hosted MCP disabled, direct stdio sidecars also reload at the next turn after their launch
+configuration changes. Direct ACP sidecars currently support stdio only; remote HTTP and OAuth
+require hosted MCP. Providers with session MCP disabled do not receive MCP tools.
+Workspace/profile isolation and configured source and session permissions continue to apply.
+Direct delegated runtimes now receive only sidecars named in their `mcp_servers` ceiling, matching
+hosted enforcement. This also excludes skill sidecars or coordinator sidecars without an explicit
+server grant; an empty ceiling grants no servers.
 
 ## Quick Reference
 
@@ -38,7 +47,7 @@ definitions only.
 | Location                                        | Scope                       | Applies when                                                          |
 | ----------------------------------------------- | --------------------------- | --------------------------------------------------------------------- |
 | `$COMPOZY_HOME/mcp.json`                        | User top-level MCP          | General runtime config loads. Defaults to `~/.compozy/mcp.json`.      |
-| `$COMPOZY_HOME/profiles/<name>/mcp.json`        | Personal profile MCP        | `<name>` is the active non-default profile.                           |
+| `$COMPOZY_HOME/profiles/<name>/mcp.json`        | Personal profile MCP        | `<name>` is the active profile, including `default`.                  |
 | `<workspace>/.compozy/mcp.json`                 | Workspace top-level MCP     | A workspace root is resolved for the command or session.              |
 | `<workspace>/.compozy/profiles/<name>/mcp.json` | Workspace named profile MCP | The active profile has the same name; this layer is read-only to CLI. |
 | `<agent-dir>/mcp.json`                          | Agent-local MCP             | Next to `AGENT.md`.                                                   |

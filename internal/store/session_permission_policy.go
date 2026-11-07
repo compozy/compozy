@@ -13,15 +13,21 @@ type SessionPermissionPolicy struct {
 	Skills         []string `json:"skills"`
 	MCPServers     []string `json:"mcp_servers"`
 	WorkspacePaths []string `json:"workspace_paths"`
+	// Materialized fields distinguish generated delegation budgets from authored ceilings.
+	// They are internal persistence metadata and are omitted by public contract mappers.
+	MaterializedTools      bool `json:"materialized_tools,omitempty"`
+	MaterializedMCPServers bool `json:"materialized_mcp_servers,omitempty"`
 }
 
 // NormalizeSessionPermissionPolicy returns a policy with stable, trimmed atom lists.
 func NormalizeSessionPermissionPolicy(policy SessionPermissionPolicy) SessionPermissionPolicy {
 	return SessionPermissionPolicy{
-		Tools:          normalizePolicyAtoms(policy.Tools),
-		Skills:         normalizePolicyAtoms(policy.Skills),
-		MCPServers:     normalizePolicyAtoms(policy.MCPServers),
-		WorkspacePaths: normalizePolicyAtoms(policy.WorkspacePaths),
+		Tools:                  normalizePolicyAtoms(policy.Tools),
+		Skills:                 normalizePolicyAtoms(policy.Skills),
+		MCPServers:             normalizePolicyAtoms(policy.MCPServers),
+		WorkspacePaths:         normalizePolicyAtoms(policy.WorkspacePaths),
+		MaterializedTools:      policy.MaterializedTools,
+		MaterializedMCPServers: policy.MaterializedMCPServers,
 	}
 }
 

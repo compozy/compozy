@@ -1776,6 +1776,21 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a generated native delegation budget does not require hosted tools in direct mode.
+	// Owner: session MCP launch admission; canonical suite: restricted tools startup.
+	t.Run("Should allow direct sidecars alongside a generated delegation budget", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView}))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		if !active.Info().Lineage.PermissionPolicy.MaterializedTools {
+			t.Fatal("root delegation budget lacks provenance")
+		}
+		if len(h.driver.startCalls) != 1 {
+			t.Fatal("direct runtime was not started")
+		}
+	})
+
 	t.Run("Should fail before provider start when hosted launcher is unavailable", func(t *testing.T) {
 		t.Parallel()
 

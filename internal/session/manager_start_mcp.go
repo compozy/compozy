@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -49,7 +50,14 @@ func (m *Manager) sessionMCPServers(
 			"resolved_provider", strings.TrimSpace(resolved.Provider),
 			"configured_mcp_servers", len(resolved.MCPServers),
 		)
-		return m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+		servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+		if spec.sessionType == SessionTypeSpawned || spec.sessionType == SessionTypeCoordinator {
+			policy := store.NormalizeSessionLineage(spec.sessionID, spec.lineage).PermissionPolicy
+			servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
+				return !slices.Contains(policy.MCPServers, server.Name)
+			})
+		}
+		return servers, err
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
 		EagerTools:  true,
@@ -83,7 +91,7 @@ func sessionRequiresHostedMCP(spec *sessionStartSpec, resolved compozyconfig.Res
 		return false
 	}
 	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
-	return len(policy.Tools) > 0
+	return len(policy.Tools) > 0 && (!policy.MaterializedTools || !resolved.SessionMCP)
 }
 
 func (m *Manager) sessionMCPServerActivator(

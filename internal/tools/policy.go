@@ -100,9 +100,10 @@ type AgentToolPolicy struct {
 
 // SessionToolPolicy captures concrete resolved lineage atoms.
 type SessionToolPolicy struct {
-	Enforced   bool     `json:"enforced"`
-	Tools      []ToolID `json:"tools,omitempty"`
-	MCPServers []string `json:"mcp_servers,omitempty"`
+	Enforced    bool     `json:"enforced"`
+	Tools       []ToolID `json:"tools,omitempty"`
+	MCPServers  []string `json:"mcp_servers,omitempty"`
+	MCPByServer bool     `json:"mcp_by_server,omitempty"`
 }
 
 // PolicyInputs contains the config-neutral inputs for effective policy.

@@ -277,6 +277,29 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		}
 	})
 
+	// Invariant: an explicit native-only override is exhaustive even when it inherits a server grant.
+	// Owner: effective policy evaluator; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should deny MCP tools under an explicit native-only tool override", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
+			Session: SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDSkillView}, MCPServers: []string{"docs"}},
+		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decision.Callable {
+			t.Fatalf("explicit tool ceiling widened: %+v", decision)
+		}
+	})
+
 	t.Run("Should narrow MCP tools by the session server allowlist", func(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()
@@ -285,7 +308,7 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		for _, servers := range [][]string{nil, {"docs"}, {"other"}} {
 			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
 				SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
-				Session: SessionToolPolicy{Enforced: true, MCPServers: servers},
+				Session: SessionToolPolicy{Enforced: true, MCPServers: servers, MCPByServer: true},
 			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
 			if err != nil {
 				t.Fatal(err)

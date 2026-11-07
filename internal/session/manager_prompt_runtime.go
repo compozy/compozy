@@ -50,7 +50,11 @@ func (m *Manager) ensurePromptRuntime(
 	if canReusePromptRuntime(&snapshot, *selection, mcpChanged) {
 		return snapshot.process, nil
 	}
-	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
+	command, sessionEnv := "", compozyconfig.SessionEnv(nil)
+	if mcpChanged && runtimeSelectionsEqual(snapshot.selection, *selection) {
+		command, sessionEnv = snapshot.acceptedCommand, snapshot.acceptedSessionEnv
+	}
+	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, *selection, command, sessionEnv)
 	if err != nil {
 		return nil, err
 	}

@@ -44,6 +44,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if _, err := service.ToolDigest(t.Context(), "sess-eager"); !errors.Is(err, errHostedBindPending) {
+			t.Fatalf("unconfirmed bind returned a comparable catalog: %v", err)
+		}
 		if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err != nil {
 			t.Fatal(err)
 		}
@@ -56,6 +59,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		initial, err := service.WaitForBindToolDigest(t.Context(), "sess-eager")
 		if err != nil {
 			t.Fatal(err)
+		}
+		if digest, ready := service.InitialToolDigest("sess-eager"); !ready || digest != initial {
+			t.Fatal("lazy host did not receive the original bind digest")
 		}
 		registry.mu.Lock()
 		registry.err = errors.New("later refresh failed")
@@ -86,6 +92,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		receipt, err := service.WaitForBindToolDigest(t.Context(), "sess-eager")
 		if err != nil || receipt != initial {
 			t.Fatal("initial provider tools were replaced by later discovery")
+		}
+		if digest, ready := service.InitialToolDigest("sess-eager"); !ready || digest != initial {
+			t.Fatal("lazy host receipt was overwritten by the changed catalog")
 		}
 	})
 
@@ -132,14 +141,15 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		registry.mu.Lock()
-		registry.err = errors.New("private upstream error")
+		upstreamErr := errors.New("private upstream error")
+		registry.err = upstreamErr
 		registry.mu.Unlock()
 		if _, err := service.Bind(
 			t.Context(),
 			HostedBindRequest{SessionID: "sess-projection-failed", Nonce: hostedLaunchNonce(t, launch.Args)},
 			peer,
-		); err == nil {
-			t.Fatal("projection unexpectedly succeeded")
+		); !errors.Is(err, upstreamErr) {
+			t.Fatalf("Bind error = %v, want the injected registry failure", err)
 		}
 		if err := service.WaitForBind(
 			t.Context(),

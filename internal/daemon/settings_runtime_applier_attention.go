@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -23,7 +22,6 @@ func (a daemonSettingsRuntimeApplier) applyAttentionConfigChange(
 	if !ok {
 		failure := configApplyFailure(
 			"attention",
-			diagnosticcontract.CategoryConfig,
 			"Attention config sync failed",
 			errors.New("daemon: session manager does not support attention config"),
 		)
@@ -32,7 +30,6 @@ func (a daemonSettingsRuntimeApplier) applyAttentionConfigChange(
 	if err := setter.SetAttentionConfig(next.Attention); err != nil {
 		failure := configApplyFailure(
 			"attention",
-			diagnosticcontract.CategoryConfig,
 			"Attention config sync failed",
 			err,
 		)

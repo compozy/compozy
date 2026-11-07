@@ -19,6 +19,9 @@ func DeclaredMCPServers(
 	cfg := DefaultWithHome(home)
 	cfg.MCPServers = cloneMCPServers(user)
 	if scope == WriteScopeUser {
+		if err := ApplyConfigOverlayFile(home.ConfigFile, &cfg); err != nil {
+			return nil, err
+		}
 		if err := applyConfigMCPSidecarFile(globalMCPJSONFile(home), &cfg); err != nil {
 			return nil, err
 		}

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 )
@@ -130,7 +129,6 @@ func skillRegistryConfigChanged(previous *compozyconfig.Config, next *compozycon
 func skillSourceApplyFailures(err error) []settingspkg.ApplyFailure {
 	return []settingspkg.ApplyFailure{configApplyFailure(
 		"skill_sources",
-		diagnosticcontract.CategoryConfig,
 		"Skill source sync failed",
 		err,
 	)}

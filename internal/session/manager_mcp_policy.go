@@ -2,10 +2,15 @@ package session
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -14,33 +19,19 @@ import (
 func (m *Manager) refreshRootMCPPolicy(ctx context.Context, session *Session) error {
 	meta := session.Meta()
 	lineage := store.NormalizeSessionLineage(meta.ID, meta.Lineage)
-	if lineage.Kind != store.LineageKindRoot || session.Info().InstanceID != "" ||
+	if store.HierarchyParentSessionID(lineage) != "" || !lineage.PermissionPolicy.MaterializedMCPServers ||
+		session.Info().InstanceID != "" ||
 		(normalizeSessionType(Type(meta.SessionType)) != SessionTypeUser &&
 			normalizeSessionType(Type(meta.SessionType)) != SessionTypeSystem) {
 		return nil
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
-	if err != nil {
-		return fmt.Errorf("session: refresh MCP policy workspace: %w", err)
-	}
-	spec, err := sessionStartSpecFromMeta(&meta, &workspace, meta.CWD)
+	plan, err := m.currentMCPRuntimePlan(ctx, session)
 	if err != nil {
 		return err
 	}
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, false)
-	if err != nil {
-		return err
-	}
+	spec := &plan.spec
 	if spec.instancePermissionCeiling != nil {
 		return nil
-	}
-	if err := spec.materializeRootDelegationPolicy(
-		runtime.agentDef,
-		runtime.agent,
-		m.toolsetCatalog,
-		m.toolUniverse,
-	); err != nil {
-		return err
 	}
 	names := spec.lineage.PermissionPolicy.MCPServers
 	if slices.Equal(names, lineage.PermissionPolicy.MCPServers) {
@@ -53,13 +44,14 @@ func (m *Manager) refreshRootMCPPolicy(ctx context.Context, session *Session) er
 	return m.persistSessionLifecycleState(ctx, session, false)
 }
 
+// ErrHostedMCPBindMissing identifies a lost proxy binding that requires native-session recovery.
 var ErrHostedMCPBindMissing = errors.New("session: hosted MCP bind is missing")
 
-// Codex currently caches tools for the lifetime of its MCP connection (upstream
-// openai/codex#10105 and #33266). Remove this adapter once it re-lists on change.
+// Hosts that cache tools reload the existing native session at a turn boundary.
 type hostedMCPToolState interface {
 	WaitForBindToolDigest(context.Context, string) (string, error)
 	ToolDigest(context.Context, string) (string, error)
+	InitialToolDigest(string) (string, bool)
 }
 
 func (m *Manager) captureHostedMCPDigest(ctx context.Context, session *Session) error {
@@ -84,12 +76,25 @@ func (m *Manager) hostedMCPToolsChanged(ctx context.Context, session *Session) b
 	}
 	session.mu.RLock()
 	before, reload := session.hostedMCPDigest, session.hostedMCPRequiresReload
+	directBefore := session.directMCPDigest
 	session.mu.RUnlock()
-	if !reload || before == "" {
+	if m.hostedMCP == nil && directBefore != "" {
+		return m.directMCPConfigurationChanged(ctx, session, directBefore)
+	}
+	if !reload {
 		return false
 	}
 	state, ok := m.hostedMCP.(hostedMCPToolState)
 	if !ok {
+		return false
+	}
+	if initial, ready := state.InitialToolDigest(session.ID); ready {
+		before = initial
+		session.mu.Lock()
+		session.hostedMCPDigest = initial
+		session.mu.Unlock()
+	} else if before == "" {
+		// Some hosts establish MCP only during their first prompt.
 		return false
 	}
 	digest, err := state.ToolDigest(ctx, session.ID)
@@ -101,4 +106,39 @@ func (m *Manager) hostedMCPToolsChanged(ctx context.Context, session *Session) b
 		return errors.Is(err, ErrHostedMCPBindMissing)
 	}
 	return digest != before
+}
+
+func (m *Manager) directMCPConfigurationChanged(ctx context.Context, session *Session, before string) bool {
+	plan, err := m.currentMCPRuntimePlan(ctx, session)
+	if err != nil {
+		return false
+	}
+	servers, err := m.sessionMCPServers(ctx, &plan.spec, plan.runtime.agent, plan.runtime.agentDef)
+	return err == nil && ctx.Err() == nil && directMCPDigest(servers) != before
+}
+
+// Match the accepted fallback route when checking its MCP servers, rather than re-resolving the primary account.
+func (m *Manager) currentMCPRuntimePlan(ctx context.Context, session *Session) (*promptRuntimePlan, error) {
+	binding := session.runtimeBindingSnapshot()
+	return m.preparePromptRuntimePlanForRoute(
+		ctx,
+		session,
+		binding.selection,
+		binding.acceptedCommand,
+		binding.acceptedSessionEnv,
+	)
+}
+
+// The launch fingerprint stays in memory; neither it nor config secrets are logged or persisted.
+func directMCPDigest(servers []compozyconfig.MCPServer) string {
+	servers = slices.Clone(servers)
+	slices.SortFunc(servers, func(a, b compozyconfig.MCPServer) int {
+		return strings.Compare(a.EffectiveRuntimeName(), b.EffectiveRuntimeName())
+	})
+	data, err := json.Marshal(servers)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
 }

@@ -10,6 +10,8 @@ import (
 
 var ErrHostedProjectionFailed = errors.New("mcp: hosted tool projection failed")
 
+var errHostedBindPending = errors.New("mcp: hosted MCP bind is not ready")
+
 // WaitForBind confirms the initial projection before the launch window expires.
 func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error {
 	_, err := s.WaitForBindToolDigest(ctx, sessionID)
@@ -95,18 +97,38 @@ func (s *HostedService) failHostedProjection(record *hostedBindRecord) {
 	}
 }
 
+// InitialToolDigest reads an established bind without waiting for hosts that connect on first prompt.
+func (s *HostedService) InitialToolDigest(sessionID string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	launch := s.launches[sessionID]
+	if launch == nil || launch.readyBindID == "" || launch.readyBindID != launch.bindID {
+		return "", false
+	}
+	record := s.binds[launch.bindID]
+	if record == nil {
+		return "", false
+	}
+	return record.initialToolDigest, true
+}
+
 // ToolDigest is an internal turn-boundary check for providers that cache tools.
 // It hashes the projected MCP views, never credentials or native tool state.
 func (s *HostedService) ToolDigest(ctx context.Context, sessionID string) (string, error) {
 	s.mu.Lock()
 	launch := s.launches[sessionID]
 	var record *hostedBindRecord
+	ready := false
 	if launch != nil {
 		record = s.binds[launch.bindID].clone()
+		ready = launch.readyBindID == launch.bindID
 	}
 	s.mu.Unlock()
 	if record == nil {
 		return "", ErrHostedBindNotFound
+	}
+	if !ready {
+		return "", errHostedBindPending
 	}
 	registry := s.currentRegistry()
 	if registry == nil {
