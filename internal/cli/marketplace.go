@@ -72,7 +72,7 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, marketplaceCatalogBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&category, "category", "", "Filter by Compozy category id")
+	cmd.Flags().StringVar(&category, "category", "", "Filter by CompozyOS category id")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue catalog search from an opaque cursor")
 	cmd.Flags().IntVar(&limit, "limit", marketplaceDefaultLimit, "Maximum catalog results")
 	addMarketplaceReadFlags(cmd, &readScope)

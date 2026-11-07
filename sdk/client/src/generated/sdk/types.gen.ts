@@ -21784,7 +21784,7 @@ export type ListMarketplaceData = {
      */
     q?: string;
     /**
-     * Optional Compozy category id
+     * Optional CompozyOS category id
      */
     category?: string;
     /**

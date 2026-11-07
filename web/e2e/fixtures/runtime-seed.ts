@@ -110,7 +110,7 @@ interface BrowserMarketplaceEntrySeed {
 export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {
   artifact_url: string;
   author?: string;
-  /** Source category string; the daemon resolves it to a Compozy category. */
+  /** Source category string; the daemon resolves it to a CompozyOS category. */
   category?: string;
   /** Curated Featured flag; honored because the feed is a curated source. */
   featured?: boolean;

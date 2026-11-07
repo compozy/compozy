@@ -175,7 +175,7 @@ warning; if quarantine also fails, removal fails and the instance remains instal
 
 Every catalog entry has exactly one category id: `productivity`, `communication`, `design`,
 `development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`,
-`more`; `featured` is a reserved section fed only by Compozy-curated sources (`compozy-catalog`,
+`more`; `featured` is a reserved section fed only by CompozyOS-curated sources (`compozy-catalog`,
 `compozy-plugins`, which honor `x-compozy.category|featured|supersedes`). Listings carry `category`,
 `category_label`, and `featured`.
 

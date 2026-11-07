@@ -17,7 +17,7 @@ count opens [Installed](/docs/marketplace/installed), where you manage your loca
 ## Browse And Inspect
 
 The app opens the catalog at `/marketplace`. Below the installed shelf, **Featured** comes first when
-a Compozy-curated source features entries, then one section per category in a fixed order:
+a CompozyOS-curated source features entries, then one section per category in a fixed order:
 Productivity, Communication, Design, Development, Data & Analytics, Cloud & Infrastructure, Finance &
 Payments, Sales & Marketing, Research & Learning, Security, AI & Agents, and More. Empty categories
 are not shown. Each section lists up to six entries and ends with **View all · N**, where N is the
@@ -27,14 +27,14 @@ full count for that category. Entries are not grouped by source.
 search box scoped to the category and **Load more** at the end of each page. An unknown category
 shows "This category doesn't exist" with a link back to Marketplace.
 
-Every entry belongs to exactly one category. Compozy maps the source's own `category` text through a
+Every entry belongs to exactly one category. CompozyOS maps the source's own `category` text through a
 fixed alias table, so `DATA_ANALYTICS`, `analytics` and `database` all land in Data & Analytics.
 Anything it cannot map lands in More. Labels come from the daemon, so the app, CLI and API always
 agree.
 
 Typing in the top search box replaces the sections with one flat list of matches across every
 category. Each result shows its category word. Select an entry to inspect its description,
-contents, version, source ("From {source}"), and trust decision. Refresh fetches the latest catalog. If a source is unreachable, cached
+contents, version, source (`From <source>`), and trust decision. Refresh fetches the latest catalog. If a source is unreachable, cached
 entries remain visible with their stale status. An unavailable source is not an empty catalog.
 
 The refresh warning names each failed source. Healthy sources remain current, and Retry clears the
@@ -81,7 +81,7 @@ readable, and package inspection and installation always enforce the packaged mi
 ## Add An Extension
 
 Each row has one action. **Add** installs the entry and turns it on in one step; the row reads
-**Adding…** while it runs and "{name} added" confirms it. The review dialog opens only when
+**Adding…** while it runs and `<name> added` confirms it. The review dialog opens only when
 something needs your decision: consent for an unverified publisher, a name conflict, a gateway
 requirement, or a required value such as an API key or host. Otherwise Add finishes inline.
 
@@ -94,7 +94,7 @@ After Add, the row reads what the installed extension still needs:
 | **Turn on** | The extension is installed but turned off.                                                   |
 
 If the install succeeds but turning it on fails, the extension stays installed. The row reads
-"Couldn't turn on" with **Retry**, and a toast says "Added {name} but couldn't turn it on". Retry,
+"Couldn't turn on" with **Retry**, and a toast says `Added <name> but couldn't turn it on`. Retry,
 or turn it on later from [Installed](/docs/marketplace/installed).
 
 **Add ▾** also installs from GitHub or a local folder. Use the entry's `install_slug` for CLI

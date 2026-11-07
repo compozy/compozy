@@ -351,6 +351,37 @@ describe("useMarketplaceActionController", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(io.install.mock.calls[0]![0]).not.toHaveProperty("inputs");
   });
+  it("Should open review when a required input's default is empty [UT-039]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "workspace",
+          prompt: "Workspace",
+          type: "string",
+          required: true,
+          default: "",
+          binding: { type: "env", name: "WORKSPACE" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    // An empty default is no value: Add stops at review instead of skipping the install.
+    const field = await screen.findByLabelText("Workspace");
+    expect(field).toHaveValue("");
+    expect(io.install).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    await user.type(field, "acme");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install).toHaveBeenCalledWith(
+      expect.objectContaining({ inputs: { workspace: { value: "acme" } } })
+    );
+  });
   it("Should open the shared input step after an update and preserve values on failure [UT-039]", async () => {
     const definition = {
       id: "region",

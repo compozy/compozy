@@ -42,7 +42,7 @@ export interface MarketplaceDestinationScope {
 
 export interface MarketplaceCatalogOptions extends MarketplaceScopeOptions {
   q?: string | null;
-  /** Compozy category id; the daemon scopes paging, search and counts to it. */
+  /** CompozyOS category id; the daemon scopes paging, search and counts to it. */
   category?: string | null;
   limit?: number;
   profileName?: string | null;

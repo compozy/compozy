@@ -321,7 +321,12 @@ function useMarketplaceActionController(
   /** Install + enable one previewed selection; a changed package reopens review. */
   const submitInstall = async (selected: MarketplaceInstallPreview, draft: ExtensionInputDraft) => {
     const prepared = prepareExtensionInputs(selected.preview.inputs, draft);
-    if (!prepared.valid) return;
+    if (!prepared.valid) {
+      // Never drop an Add silently: the review step shows which inputs still need a value.
+      acquisition.preview.trigger.previewLoaded({ selected });
+      setAnnouncement(`${selected.entry.name} needs setup before it can be added`);
+      return;
+    }
     try {
       const { enable_error: enableError, extension } = await installExtension.mutateAsync({
         ...selected.request,

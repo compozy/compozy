@@ -11,10 +11,10 @@ reports `installable`, `install_blocker`, layout, category, and the digest of it
 
 ## Default sources
 
-CompozyOS ships with preset sources. `compozy-plugins` is the Compozy-curated plugin catalog,
+CompozyOS ships with preset sources. `compozy-plugins` is the CompozyOS-curated plugin catalog,
 published at [github.com/compozy/plugins](https://github.com/compozy/plugins) and on by default. It
 is generated from Anthropic's Apache-2.0 plugin catalogs plus verified MCP Registry apps, with pinned
-refs, Compozy categories, and Featured picks. When a curated entry replaces the same app from another
+refs, CompozyOS categories, and Featured picks. When a curated entry replaces the same app from another
 default source, Browse shows it once (see `supersedes` below).
 
 Turn it off like any preset, from Settings → Marketplace or the CLI:
@@ -130,11 +130,11 @@ policy as other sources: public HTTPS, no credentials, no query or fragment. A s
 read is reported on the source as `unsupported_source` and skipped; the rest of the document still
 lists.
 
-`category` is free text. Compozy maps it to one of its own categories and uses More when it cannot.
+`category` is free text. CompozyOS maps it to one of its own categories and uses More when it cannot.
 
 ### Curated fields
 
-Compozy-curated sources (`compozy-catalog` and `compozy-plugins`) may add an `x-compozy` object to
+CompozyOS-curated sources (`compozy-catalog` and `compozy-plugins`) may add an `x-compozy` object to
 an entry:
 
 ```json
@@ -149,7 +149,7 @@ an entry:
 }
 ```
 
-`category` sets the Compozy category directly, `featured` adds the entry to Featured, and
+`category` sets the CompozyOS category directly, `featured` adds the entry to Featured, and
 `supersedes` hides each listed `<source>/<entry_id>` row from Browse, category pages, search and
 counts while this entry is listed. If you installed the superseded row, that row stays visible and
 the curated row is hidden instead. Superseded rows remain readable through
@@ -168,7 +168,7 @@ Plugins in the Claude Code (`.claude-plugin/`), Cursor (`.cursor-plugin/`) and C
 - **Placeholders.** `${CLAUDE_PLUGIN_ROOT}` and `${CURSOR_PLUGIN_ROOT}` mean `${PLUGIN_ROOT}`, and
   `${CLAUDE_PLUGIN_DATA}` means `${PLUGIN_DATA}`. A command that starts with a root placeholder runs
   as a contained `./` path inside the plugin.
-- **Unknown server fields.** A field Compozy does not support, such as `placement`, is dropped with a
+- **Unknown server fields.** A field CompozyOS does not support, such as `placement`, is dropped with a
   `client_field_ignored` warning instead of rejecting the server.
 - **Values the plugin needs.** `${NAME}` and `${NAME:-default}` in a server's `url`, `headers`, `env`
   or `args` become plugin inputs. A name without a default is required. A name ending in `KEY`,

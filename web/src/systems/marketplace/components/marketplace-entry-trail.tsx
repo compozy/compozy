@@ -58,93 +58,14 @@ function MarketplaceCatalogTrail({
   onUpdate,
   setup,
 }: MarketplaceCatalogTrailProps) {
-  const version = formatMarketplaceVersion(entry.version);
-  const blocked = entry.trust?.decision === "blocked" || entry.installable === false;
-
-  if (pending) {
-    return (
-      <Button
-        aria-label={`${entry.update_available ? "Updating" : "Adding"} ${entry.name}`}
-        data-testid={`marketplace-action-${entry.entry_id}`}
-        disabled
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        <Spinner aria-hidden="true" className="size-3.5" />
-        {entry.update_available ? "Updating…" : "Adding…"}
-      </Button>
-    );
-  }
-
+  if (pending) return <MarketplacePendingAction entry={entry} />;
   if (entry.name_conflict) {
-    const origin = entry.name_conflict;
-    return (
-      <Pill
-        className="cursor-help"
-        data-testid={`marketplace-name-conflict-${entry.entry_id}`}
-        form="plain"
-        title={`This name is already installed from ${origin.source}/${origin.entry_id} (${origin.source_ref}).`}
-        tone="warning"
-      >
-        <Pill.Dot />
-        Name in use
-      </Pill>
-    );
+    return <MarketplaceNameConflict entry={entry} origin={entry.name_conflict} />;
   }
-
-  if (blocked) {
-    return (
-      <Pill
-        className="cursor-help"
-        data-testid={`marketplace-blocked-${entry.entry_id}`}
-        form="plain"
-        title={entry.install_blocker?.trim() || DEFAULT_INSTALL_BLOCKER}
-        tone="destructive"
-      >
-        <Pill.Dot />
-        Blocked
-      </Pill>
-    );
-  }
-
-  if (entry.update_available) {
-    return (
-      <>
-        {version ? (
-          <span className="font-mono text-mono-id text-faint tabular-nums">{version}</span>
-        ) : null}
-        <Button
-          aria-label={`Update ${entry.name}`}
-          data-testid={`marketplace-action-${entry.entry_id}`}
-          onClick={() => onUpdate(entry)}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          Update
-        </Button>
-      </>
-    );
-  }
-
-  if (entry.installed && setup) {
-    const word = <MarketplaceSetupWord entry={entry} setup={setup} />;
-    if (word) return word;
-  }
-
-  if (entry.installed) {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-muted-foreground"
-        data-testid={`marketplace-installed-${entry.entry_id}`}
-      >
-        <Check aria-hidden="true" className="size-3" />
-        Installed
-      </span>
-    );
-  }
-
+  if (isInstallBlocked(entry)) return <MarketplaceInstallBlocked entry={entry} />;
+  if (entry.update_available) return <MarketplaceUpdateAction entry={entry} onUpdate={onUpdate} />;
+  if (entry.installed && setup) return <MarketplaceSetupWord entry={entry} setup={setup} />;
+  if (entry.installed) return <MarketplaceInstalledWord entry={entry} />;
   return (
     <Button
       aria-label={`Add ${entry.name}`}
@@ -156,6 +77,102 @@ function MarketplaceCatalogTrail({
     >
       Add
     </Button>
+  );
+}
+
+function isInstallBlocked(entry: MarketplaceCatalogListing): boolean {
+  return entry.trust?.decision === "blocked" || entry.installable === false;
+}
+
+function MarketplacePendingAction({ entry }: { entry: MarketplaceCatalogListing }) {
+  const updating = Boolean(entry.update_available);
+  return (
+    <Button
+      aria-label={`${updating ? "Updating" : "Adding"} ${entry.name}`}
+      data-testid={`marketplace-action-${entry.entry_id}`}
+      disabled
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      <Spinner aria-hidden="true" className="size-3.5" />
+      {updating ? "Updating…" : "Adding…"}
+    </Button>
+  );
+}
+
+function MarketplaceNameConflict({
+  entry,
+  origin,
+}: {
+  entry: MarketplaceCatalogListing;
+  origin: NonNullable<MarketplaceCatalogListing["name_conflict"]>;
+}) {
+  return (
+    <Pill
+      className="cursor-help"
+      data-testid={`marketplace-name-conflict-${entry.entry_id}`}
+      form="plain"
+      title={`This name is already installed from ${origin.source}/${origin.entry_id} (${origin.source_ref}).`}
+      tone="warning"
+    >
+      <Pill.Dot />
+      Name in use
+    </Pill>
+  );
+}
+
+function MarketplaceInstallBlocked({ entry }: { entry: MarketplaceCatalogListing }) {
+  return (
+    <Pill
+      className="cursor-help"
+      data-testid={`marketplace-blocked-${entry.entry_id}`}
+      form="plain"
+      title={entry.install_blocker?.trim() || DEFAULT_INSTALL_BLOCKER}
+      tone="destructive"
+    >
+      <Pill.Dot />
+      Blocked
+    </Pill>
+  );
+}
+
+function MarketplaceUpdateAction({
+  entry,
+  onUpdate,
+}: {
+  entry: MarketplaceCatalogListing;
+  onUpdate: (entry: MarketplaceCatalogListing) => void;
+}) {
+  const version = formatMarketplaceVersion(entry.version);
+  return (
+    <>
+      {version ? (
+        <span className="font-mono text-mono-id text-faint tabular-nums">{version}</span>
+      ) : null}
+      <Button
+        aria-label={`Update ${entry.name}`}
+        data-testid={`marketplace-action-${entry.entry_id}`}
+        onClick={() => onUpdate(entry)}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        Update
+      </Button>
+    </>
+  );
+}
+
+function MarketplaceInstalledWord({ entry }: { entry: MarketplaceCatalogListing }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-muted-foreground"
+      data-testid={`marketplace-installed-${entry.entry_id}`}
+    >
+      <Check aria-hidden="true" className="size-3" />
+      Installed
+    </span>
   );
 }
 

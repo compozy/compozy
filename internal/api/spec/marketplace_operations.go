@@ -22,7 +22,7 @@ func marketplaceListOperation() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam("q", "Optional catalog search query", false),
-			queryParam("category", "Optional Compozy category id", false),
+			queryParam("category", "Optional CompozyOS category id", false),
 			intQueryParam("limit", "Maximum results from 1 to 100"),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			enumQueryParam(

@@ -125,7 +125,7 @@ The static resources shipped by one extension: skills, agents and their sidecars
 
 ### Marketplace category
 
-One entry of the fixed, Compozy-owned taxonomy that groups the Marketplace catalog (ADR-001 of spec `marketplace-plugin-catalog`): `productivity`, `communication`, `design`, `development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`, `more`, plus the reserved `featured` section. Every catalog entry resolves to exactly one category: a Compozy-curated source's explicit `x-compozy.category`, else the source's free-text `category` through a case-insensitive alias table, else `more`. Ids and labels come from `internal/marketplace/category.go`; labels are copy reviewed in `COPY.md`. Not a source, a kind, or a tag: Browse never groups by source, and third-party sources cannot set a category or feature their entries.
+One entry of the fixed, CompozyOS-owned taxonomy that groups the Marketplace catalog (ADR-001 of spec `marketplace-plugin-catalog`): `productivity`, `communication`, `design`, `development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`, `more`, plus the reserved `featured` section. Every catalog entry resolves to exactly one category: a CompozyOS-curated source's explicit `x-compozy.category`, else the source's free-text `category` through a case-insensitive alias table, else `more`. Ids and labels come from `internal/marketplace/category.go`; labels are copy reviewed in `COPY.md`. Not a source, a kind, or a tag: Browse never groups by source, and third-party sources cannot set a category or feature their entries.
 
 ### Extension Secret Binding
 

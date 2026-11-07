@@ -65200,7 +65200,7 @@
             }
           },
           {
-            "description": "Optional Compozy category id",
+            "description": "Optional CompozyOS category id",
             "in": "query",
             "name": "category",
             "schema": {

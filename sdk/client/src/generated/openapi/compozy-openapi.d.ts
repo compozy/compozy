@@ -33151,7 +33151,7 @@ export interface operations {
       query?: {
         /** @description Optional catalog search query */
         q?: string;
-        /** @description Optional Compozy category id */
+        /** @description Optional CompozyOS category id */
         category?: string;
         /** @description Maximum results from 1 to 100 */
         limit?: number;
