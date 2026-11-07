@@ -125,3 +125,15 @@ The real-daemon OAuth integration passed again on the final resource-name policy
 (39.948 seconds). The separate triage-cleanup CI assertion did not reproduce in three focused
 race runs; its production and test files match main and were left unchanged while CI evidence
 was investigated. This is not reported as a passed CI check.
+
+The final review also hardened catalog removal: when the policy context has a resource catalog,
+a resource-backed descriptor missing from that catalog is denied before any runtime-name fallback.
+Sources without a resource keep the established fallback. The new canonical policy regression
+failed before this guard and now passes with the focused tools/daemon race selection (1.412 and
+9.954 seconds); focused tools lint returned zero issues.
+
+The real-daemon OAuth integration passed with the final removal guard (43.376 seconds). CI issues
+observed on 893 are tracked separately in [#1343](https://github.com/compozy/compozy/issues/1343)
+(triage archive-fault assertion) and [#1344](https://github.com/compozy/compozy/issues/1344)
+(core state-update callback long hold in the paired SQLite experiment). No threshold, timeout or
+assertion was relaxed. Current-head CI remains the authority for those checks.

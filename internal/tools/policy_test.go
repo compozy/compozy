@@ -282,6 +282,33 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		}
 	})
 
+	// Invariant: a removed catalog resource cannot regain a server grant through its runtime name.
+	// Owner: effective tool policy; canonical suite: TestEffectivePolicyEvaluator.
+	t.Run("Should reject removed resource identities before runtime fallback", func(t *testing.T) {
+		t.Parallel()
+		for _, resourceID := range []string{"removed", ""} {
+			descriptor := mcpDescriptor("mcp__github__search", "github", "search")
+			descriptor.Source.ResourceID = resourceID
+			evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				MCPResourceNames:     map[string]string{},
+				Session: SessionToolPolicy{
+					Enforced:   true,
+					Tools:      []ToolID{descriptor.ID},
+					MCPServers: []string{"github"},
+				},
+			}, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+			if err != nil || decision.Callable != (resourceID == "") {
+				t.Fatalf("resource %q: %+v, %v", resourceID, decision, err)
+			}
+		}
+	})
+
 	t.Run("Should retain concrete MCP tool narrowing inside an allowed server", func(t *testing.T) {
 		t.Parallel()
 		for _, tool := range []string{"lookup", "delete"} {
