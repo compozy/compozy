@@ -88,3 +88,18 @@ canonical teardown reported `TEARDOWN_CLEAN=true` and `TEARDOWN_ALL_CLEAN=true`
 MCP publication reads registered workspace identities directly, rather than resolving inherited
 workspace configuration before reading each scoped declaration. This keeps malformed user config
 from blocking healthy workspace/profile publication; the declaring-scope suite owns that invariant.
+
+The next Greptile round found that one inaccessible workspace path could stop observation of all
+other layers. The declaring-scope suite now replaces one temporary workspace directory with an
+unreadable path, changes a healthy user declaration, verifies its update and the failed scope's
+retained records, then restores the path and verifies recovery. That regression failed before
+the production repair. File observations now continue independently; scoped declaration loading
+retains unreadable records. The CI preflight also caught one retired product-name occurrence in
+the official skill; it was corrected and the focused product-language check passed.
+
+After this repair, the focused daemon publication/rollback selection passed with race (11.852
+seconds), focused daemon lint returned zero issues, and the real-daemon OAuth integration passed
+again (43.114 seconds). The CI Settings failure was an old restart-required expectation for MCP
+repair/add: the owning canonical test now requires the approved live lifecycle, successful apply
+and no restart while retaining its auth-failure and persisted-definition assertions. That focused
+Settings race selection passed (4.108 seconds).

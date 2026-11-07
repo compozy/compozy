@@ -974,6 +974,69 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 
 	// Invariant: external profile file edits and removal republish their declaring layers.
 	// Owner: daemon declaration publication; canonical suite: declaring scopes.
+	// Invariant: an unobservable workspace retains its records without blocking healthy updates.
+	// Owner: daemon MCP declaration watcher; canonical suite: declaring-scope publication.
+	t.Run("Should continue healthy publication when a workspace cannot be observed", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		root := t.TempDir()
+		workspaceDir := filepath.Join(root, compozyconfig.DirName)
+		userFile := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+		workspaceFile := filepath.Join(workspaceDir, compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(t, userFile, `{"mcpServers":{"user":{"command":"old"}}}`)
+		writeMCPDeclarationFile(t, workspaceFile, `{"mcpServers":{"local":{"command":"retained"}}}`)
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-one": {Workspace: workspacepkg.Workspace{ID: "ws-one", RootDir: root}},
+		}}
+		raw, tools, toolCodec, servers, serverCodec := toolMCPSyncStores(t)
+		syncer := newToolMCPSourceSyncerWithConfigProvider(raw, tools, toolCodec, servers, serverCodec,
+			toolMCPSyncActor(), discardLogger(), nil,
+			daemonConfigMCPDeclarationProvider(&compozyconfig.Config{}, home, workspaces, discardLogger(), nil))
+		watcher := mcpDeclarationWatcher{paths: mcpDeclarationPaths(home, workspaces, nil), sync: syncer.Sync}
+		assertCommands := func(user, local string) {
+			t.Helper()
+			rows, err := servers.List(t.Context(), toolMCPSyncActor(), resources.ResourceFilter{})
+			if err != nil || len(rows) != 2 {
+				t.Fatalf("publication = %+v, %v", rows, err)
+			}
+			for _, row := range rows {
+				want := user
+				if row.Spec.Name == "local" {
+					want = local
+				}
+				if row.Spec.Command != want {
+					t.Fatalf("%s command = %s, want %s", row.Spec.Name, row.Spec.Command, want)
+				}
+			}
+		}
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommands("old", "retained")
+		if err := os.Rename(workspaceDir, workspaceDir+".held"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(workspaceDir, []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		writeMCPDeclarationFile(t, userFile, `{"mcpServers":{"user":{"command":"changed"}}}`)
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommands("changed", "retained")
+		if err := os.Remove(workspaceDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(workspaceDir+".held", workspaceDir); err != nil {
+			t.Fatal(err)
+		}
+		writeMCPDeclarationFile(t, workspaceFile, `{"mcpServers":{"local":{"command":"recovered"}}}`)
+		if err := watcher.poll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertCommands("changed", "recovered")
+	})
+
 	t.Run("Should republish edited and removed personal and workspace profile sidecars", func(t *testing.T) {
 		t.Parallel()
 		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())

@@ -35,6 +35,8 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: MCP repair/add applies live even when the previous definition's auth status is unavailable.
+	// Owner: Settings config-apply coordinator; canonical suite: config_apply_service_test.go.
 	t.Run("Should repair MCP definitions and add servers while existing auth status fails", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -89,12 +91,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			if err != nil {
 				t.Fatalf("apply %s with unavailable prior auth status: %v", name, err)
 			}
-			wantLifecycle := lifecycle.LiveAdd
-			if name == "repair-cloud" {
-				wantLifecycle = lifecycle.RestartRequired
-			}
-			if result.Record.Lifecycle != wantLifecycle {
-				t.Fatalf("%s lifecycle = %s, want %s", name, result.Record.Lifecycle, wantLifecycle)
+			if result.Record.Lifecycle != lifecycle.Live || !result.Applied || result.RestartRequired {
+				t.Fatalf("%s apply = %+v, want applied live without restart", name, result)
 			}
 			cfg, err := compozyconfig.LoadForHome(homePaths)
 			if err != nil {

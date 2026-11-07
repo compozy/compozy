@@ -2,8 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -48,11 +46,10 @@ func (w *mcpDeclarationWatcher) capture(ctx context.Context) (map[string]filesna
 	current := make(map[string]filesnap.Snapshot, len(paths))
 	for _, path := range paths {
 		snapshot, err := filesnap.FromPath(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
 		if err != nil {
-			return nil, err
+			// Declaration loading retains unreadable scopes. Continue observing healthy
+			// layers; recovery of this path will trigger its next reconciliation.
+			continue
 		}
 		current[path] = snapshot
 	}

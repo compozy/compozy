@@ -45,7 +45,7 @@ External MCP declarations in user, personal-profile, workspace and workspace-pro
 OAuth updates open hosted sessions; removing a source, disabling it or logging out withdraws its callable tools.
 The Claude ACP bridge refreshes the stable proxy connection through `notifications/tools/list_changed`.
 Other hosted providers, including Codex, reload the same native session at the next turn boundary
-when MCP tools change, after the old provider process exits. The Compozy session ID and transcript
+when MCP tools change, after the old provider process exits. The CompozyOS session ID and transcript
 remain intact. A failed native load uses the existing transcript replay fallback. Direct stdio
 sidecars reload on launch configuration changes at the next turn as well; remote HTTP/OAuth require
 hosted MCP. Providers with session MCP disabled receive no tools.
