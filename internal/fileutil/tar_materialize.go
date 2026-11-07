@@ -21,20 +21,54 @@ func writeMaterializedTar(
 	excluded map[string]struct{},
 	limits TarLimits,
 ) (stats TarStats, err error) {
+	directory, err := OpenDirectory(path)
+	if err != nil {
+		return stats, err
+	}
+	defer func() { err = errors.Join(err, directory.Close()) }()
+	return directory.WriteMaterializedTar(ctx, destination, path, excluded, limits)
+}
+
+// WriteMaterializedTar archives path only while it names the held directory.
+func (d *Directory) WriteMaterializedTar(
+	ctx context.Context,
+	destination io.Writer,
+	path string,
+	excluded map[string]struct{},
+	limits TarLimits,
+) (stats TarStats, err error) {
+	if ctx == nil || destination == nil || d == nil || d.file == nil {
+		return stats, ErrInvalidPath
+	}
+	if err := ctx.Err(); err != nil {
+		return stats, err
+	}
+	original, err := d.file.Stat()
+	if err != nil {
+		return stats, err
+	}
 	root, err := os.OpenRoot(path)
 	if err != nil {
 		return stats, err
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
+	current, err := root.Stat(".")
+	if err != nil {
+		return stats, err
+	}
+	if !os.SameFile(original, current) {
+		return stats, fmt.Errorf("%w: package directory identity changed", ErrSymlink)
+	}
 	bounded := newArchiveLimitWriter(destination, limits.MaxBytes, ErrTarSizeLimit)
 	writer := tar.NewWriter(bounded)
 	walk := materializedTarWalker{
-		ctx:      ctx,
-		root:     root,
-		writer:   writer,
-		limits:   limits,
-		excluded: excluded,
-		active:   make(map[string]bool),
+		ctx:       ctx,
+		directory: d,
+		root:      root,
+		writer:    writer,
+		limits:    limits,
+		excluded:  excluded,
+		active:    make(map[string]bool),
 	}
 	walkErr := walk.visit(".", ".")
 	closeErr := writer.Close()
@@ -43,13 +77,14 @@ func writeMaterializedTar(
 }
 
 type materializedTarWalker struct {
-	ctx      context.Context
-	root     *os.Root
-	writer   *tar.Writer
-	limits   TarLimits
-	excluded map[string]struct{}
-	active   map[string]bool
-	count    int
+	ctx       context.Context
+	directory *Directory
+	root      *os.Root
+	writer    *tar.Writer
+	limits    TarLimits
+	excluded  map[string]struct{}
+	active    map[string]bool
+	count     int
 }
 
 func (w *materializedTarWalker) visit(source, name string) error {
@@ -88,7 +123,7 @@ func (w *materializedTarWalker) visit(source, name string) error {
 	}
 	w.active[resolved] = true
 	defer delete(w.active, resolved)
-	directory, err := w.root.Open(resolved)
+	directory, err := w.openEntry(resolved, entryDirectory)
 	if err != nil {
 		return err
 	}
@@ -132,7 +167,7 @@ func (w *materializedTarWalker) write(source, name string, info os.FileInfo) (er
 	if info.IsDir() {
 		return nil
 	}
-	file, err := w.root.Open(source)
+	file, err := w.openEntry(source, entryRegularFile)
 	if err != nil {
 		return err
 	}
@@ -146,6 +181,44 @@ func (w *materializedTarWalker) write(source, name string, info os.FileInfo) (er
 	}
 	_, err = io.Copy(w.writer, &contextReader{ctx: w.ctx, reader: file})
 	return err
+}
+
+// Open through the held authority without following components swapped after resolution.
+func (w *materializedTarWalker) openEntry(name string, expectation entryExpectation) (_ *os.File, err error) {
+	if err := w.ctx.Err(); err != nil {
+		return nil, err
+	}
+	if name == "." {
+		return w.root.Open(".")
+	}
+	parent := w.directory.file
+	parts := strings.Split(filepath.Clean(name), string(filepath.Separator))
+	for index, part := range parts {
+		kind := entryDirectory
+		if index == len(parts)-1 {
+			kind = expectation
+		}
+		file, openErr := openNoFollowAt(parent, part, kind, openIntentRead)
+		if parent != w.directory.file {
+			openErr = errors.Join(openErr, parent.Close())
+		}
+		if openErr != nil {
+			if file != nil {
+				openErr = closeFileWithError(file, openErr)
+			}
+			return nil, openErr
+		}
+		if kind == entryDirectory {
+			err = ensureDirectory(file)
+		} else {
+			_, err = ensureRegularFile(file)
+		}
+		if err != nil {
+			return nil, closeFileWithError(file, err)
+		}
+		parent = file
+	}
+	return parent, nil
 }
 
 func resolveTarLink(root *os.Root, name string) (string, error) {

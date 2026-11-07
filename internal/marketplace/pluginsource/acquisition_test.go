@@ -871,6 +871,50 @@ func TestCapturePackage(t *testing.T) {
 
 func TestPackageSymlinks(t *testing.T) {
 	t.Parallel()
+	for _, replace := range []string{"package", "ancestor"} {
+		t.Run("Should reject a replaced "+replace+" after validation", func(t *testing.T) {
+			t.Parallel()
+			checkout := t.TempDir()
+			writeMarketplaceDocument(t, checkout, "parent/package/file", []byte("approved"))
+			outside := t.TempDir()
+			writeMarketplaceDocument(t, outside, "package/file", []byte("secret"))
+			packagePath := filepath.Join(checkout, "parent", "package")
+			directory, err := fileutil.OpenDirectory(packagePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := directory.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			swapPath, target := packagePath, filepath.Join(outside, "package")
+			if replace == "ancestor" {
+				swapPath, target = filepath.Dir(packagePath), outside
+			}
+			if err := os.Rename(swapPath, swapPath+"-held"); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, swapPath); err != nil {
+				t.Skipf("Symlink unavailable: %v", err)
+			}
+			spool := t.TempDir()
+			archive, err := capturePackageDirectory(t.Context(), directory, packagePath, 1<<20, spool)
+			if archive != nil {
+				if closeErr := archive.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+				t.Fatal("replaced package returned publishable bytes")
+			}
+			if !errors.Is(err, fileutil.ErrSymlink) {
+				t.Fatalf("capture replaced package = %v, want identity rejection", err)
+			}
+			entries, err := os.ReadDir(spool)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("failed capture left spool entries: %v, %v", entries, err)
+			}
+		})
+	}
 	for _, format := range []string{"tar", "gzip", "checkout"} {
 		for _, fixture := range []struct {
 			name   string

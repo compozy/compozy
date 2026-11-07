@@ -49,7 +49,7 @@ func capturePackage(
 	checkout, relative string,
 	capacity int64,
 	tempDir string,
-) (_ *capturedPackage, err error) {
+) (captured *capturedPackage, err error) {
 	packagePath, err := confinedPackagePath(checkout, relative)
 	if err != nil {
 		return nil, err
@@ -61,9 +61,23 @@ func capturePackage(
 		}
 		return nil, fmt.Errorf("%w: open package directory: %w", ErrSourceUnreachable, err)
 	}
-	if err := directory.Close(); err != nil {
-		return nil, err
-	}
+	defer func() {
+		err = errors.Join(err, directory.Close())
+		if err != nil && captured != nil {
+			err = errors.Join(err, captured.Close())
+			captured = nil
+		}
+	}()
+	return capturePackageDirectory(ctx, directory, packagePath, capacity, tempDir)
+}
+
+func capturePackageDirectory(
+	ctx context.Context,
+	directory *fileutil.Directory,
+	packagePath string,
+	capacity int64,
+	tempDir string,
+) (_ *capturedPackage, err error) {
 	archive, err := os.CreateTemp(tempDir, "compozy-marketplace-package-*.tar")
 	if err != nil {
 		return nil, fmt.Errorf("pluginsource: create package spool: %w", err)
@@ -75,10 +89,9 @@ func capturePackage(
 		}
 	}()
 	hash := sha256.New()
-	_, err = fileutil.WriteTarDirectory(ctx, io.MultiWriter(archive, hash), packagePath,
+	_, err = directory.WriteMaterializedTar(ctx, io.MultiWriter(archive, hash), packagePath,
 		map[string]struct{}{".git": {}}, fileutil.TarLimits{
 			MaxBytes: min(capacity, registry.DefaultMaxArchiveSize), MaxFileCount: registry.DefaultMaxFileCount,
-			MaterializeSymlinks: true,
 		})
 	if err != nil {
 		return nil, err

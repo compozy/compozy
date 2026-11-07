@@ -14,6 +14,35 @@ import (
 
 func TestWriteTarDirectory(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject a different root identity before writing any archive bytes", func(t *testing.T) {
+		t.Parallel()
+		root := writeTarGzipFixture(t)
+		directory, err := OpenDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := directory.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := os.Rename(root, root+"-held"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(root + "-held"); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := os.Mkdir(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		stats, err := directory.WriteMaterializedTar(t.Context(), &archive, root, nil, TarLimits{})
+		if !errors.Is(err, ErrSymlink) || archive.Len() != 0 || stats != (TarStats{}) {
+			t.Fatalf("replaced root = %+v, %v, bytes=%d", stats, err, archive.Len())
+		}
+	})
 	t.Run("Should share canonical package bytes with gzip archives across timestamp changes", func(t *testing.T) {
 		t.Parallel()
 		root := writeTarGzipFixture(t)
