@@ -29,6 +29,13 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	manifest, err := ReadManifest(root)
 	if err != nil {
 		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
+			if opts.Name != "" {
+				content, encodeErr := json.Marshal(map[string]string{"name": opts.Name})
+				if encodeErr != nil {
+					return nil, encodeErr
+				}
+				return (&ManifestDocument{root: root, Layout: "manifestless", content: content}).Load(opts)
+			}
 			return nil, err
 		}
 		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
@@ -52,7 +59,7 @@ func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
 			loadMCP(root, opts.DataDir, schema, pkg)
 		}
 	} else {
-		pkg, err = clientAdapters[layout](root, content, opts)
+		pkg, err = loadClientManifest(root, content, opts)
 	}
 	if err != nil {
 		return nil, err

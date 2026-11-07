@@ -2,6 +2,7 @@ package agentplugin
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -265,4 +266,92 @@ func TestClientManifestAdapter(t *testing.T) {
 			t.Fatalf("escaped resources = %#v", pkg)
 		}
 	})
+}
+
+func TestClientRootMCPDiscovery(t *testing.T) {
+	t.Parallel()
+	for _, layout := range []string{".claude-plugin", ".cursor-plugin", ".codex-plugin"} {
+		t.Run("Should discover root MCP for "+layout, func(t *testing.T) {
+			t.Parallel()
+			root := canonicalPathForTest(t, t.TempDir())
+			writeJSONFile(t, filepath.Join(root, layout, "plugin.json"), map[string]any{"name": "client"})
+			writeMCPFile(t, root, map[string]any{"local": map[string]any{"command": "node"}})
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 1 || len(pkg.Diagnostics) != 1 || pkg.Diagnostics[0].Code != ClientMCPDiscovered {
+				t.Fatalf("package = %#v", pkg)
+			}
+		})
+	}
+	t.Run("Should prefer mcp.json and name the ignored dotfile", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(t, filepath.Join(root, ".cursor-plugin", "plugin.json"), map[string]any{"name": "client"})
+		writeMCPFile(t, root, map[string]any{"chosen": map[string]any{"command": "node"}})
+		writeFile(t, filepath.Join(root, ".mcp.json"), []byte("invalid ignored JSON"))
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 1 || pkg.Servers[0].Name != "chosen" ||
+			!hasDiagnostic(pkg.Diagnostics, scopeMCP, ".mcp.json ignored") {
+			t.Fatalf("package = %#v", pkg)
+		}
+	})
+	t.Run("Should load defaults without a manifest using marketplace identity", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "skills", "a", "SKILL.md"), validSkill("a", "A skill"))
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".mcp.json"),
+			map[string]any{"mcpServers": map[string]any{"local": map[string]any{"command": "node"}}},
+		)
+		pkg, err := Load(root, LoadOptions{Name: "acme", DataDir: filepath.Join(t.TempDir(), "data")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pkg.Name != "acme" || len(pkg.Skills) != 1 || len(pkg.Servers) != 1 {
+			t.Fatalf("package = %#v", pkg)
+		}
+	})
+	for _, kind := range []string{"invalid JSON", "symlink", "directory"} {
+		t.Run("Should retain skills when root MCP is "+kind, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeJSONFile(t, filepath.Join(root, ".cursor-plugin", "plugin.json"), map[string]any{"name": "client"})
+			writeFile(t, filepath.Join(root, "skills", "a", "SKILL.md"), validSkill("a", "A skill"))
+			path := filepath.Join(root, "mcp.json")
+			switch kind {
+			case "invalid JSON":
+				writeFile(t, path, []byte("{"))
+			case "directory":
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				target := filepath.Join(t.TempDir(), "outside.json")
+				writeJSONFile(
+					t,
+					target,
+					map[string]any{"mcpServers": map[string]any{"outside": map[string]any{"command": "node"}}},
+				)
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 0 || len(pkg.Skills) != 1 || !hasDiagnostic(pkg.Diagnostics, scopeMCP, "mcp.json") {
+				t.Fatalf("package = %#v", pkg)
+			}
+			writeJSONFile(
+				t,
+				filepath.Join(root, ".cursor-plugin", "plugin.json"),
+				map[string]any{
+					"name":       "client",
+					"mcpServers": map[string]any{"declared": map[string]any{"command": "node"}},
+				},
+			)
+			pkg = loadForTest(t, root)
+			if len(pkg.Servers) != 1 || pkg.Servers[0].Name != "declared" || len(pkg.Diagnostics) != 0 {
+				t.Fatalf("declared package = %#v", pkg)
+			}
+		})
+	}
 }

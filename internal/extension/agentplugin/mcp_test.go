@@ -501,3 +501,91 @@ func TestLoadMCPDuplicateKeysAndVersion(t *testing.T) {
 		}
 	})
 }
+
+func TestClientMCPCompatibility(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expand vendor root and data placeholders in contained paths", func(t *testing.T) {
+		t.Parallel()
+		root := canonicalPathForTest(t, t.TempDir())
+		data := canonicalPathForTest(t, t.TempDir())
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".claude-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"local": map[string]any{
+					"command": "${CLAUDE_PLUGIN_ROOT}/bin/s",
+					"args":    []string{"${CURSOR_PLUGIN_ROOT}/x", "${CLAUDE_PLUGIN_DATA}/c"},
+					"env":     map[string]string{"CACHE": "${CLAUDE_PLUGIN_DATA}/cache"},
+					"cwd":     "${CURSOR_PLUGIN_ROOT}/work",
+				},
+			}},
+		)
+		pkg, err := Load(root, LoadOptions{DataDir: data})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pkg.Servers) != 1 {
+			t.Fatalf("package = %#v", pkg)
+		}
+		server := pkg.Servers[0]
+		if server.Command != filepath.Join(root, "bin", "s") || server.Args[0] != filepath.Join(root, "x") ||
+			server.Args[1] != filepath.Join(data, "c") ||
+			server.Env["CACHE"] != filepath.Join(data, "cache") ||
+			server.CWD != filepath.Join(root, "work") {
+			t.Fatalf("server = %#v", server)
+		}
+	})
+	for _, field := range []string{"command", "cwd"} {
+		t.Run("Should reject escaping vendor root in "+field, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			server := map[string]any{"command": "node", field: "${CLAUDE_PLUGIN_ROOT}/../outside"}
+			writeJSONFile(
+				t,
+				filepath.Join(root, ".cursor-plugin", "plugin.json"),
+				map[string]any{"name": "client", "mcpServers": map[string]any{"bad": server}},
+			)
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 0 || !hasDiagnostic(pkg.Diagnostics, "mcp:bad", "root") {
+				t.Fatalf("package = %#v", pkg)
+			}
+		})
+	}
+	t.Run("Should ignore unknown client fields individually on both transports", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"local": map[string]any{
+					"command":   "node",
+					"placement": "local",
+					"_meta":     map[string]any{},
+					"note":      42,
+				},
+				"remote": map[string]any{
+					"url":  "https://example.com/mcp",
+					"auth": map[string]any{"CLIENT_ID": "client"},
+				},
+			}},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 2 || len(pkg.Diagnostics) != 4 {
+			t.Fatalf("package = %#v", pkg)
+		}
+		for _, d := range pkg.Diagnostics {
+			if d.Code != ClientFieldIgnored {
+				t.Fatalf("diagnostic = %#v", d)
+			}
+		}
+		for _, field := range []string{"placement", "_meta", "note"} {
+			if !hasDiagnostic(pkg.Diagnostics, "mcp:local", field) {
+				t.Fatalf("missing field %s: %#v", field, pkg.Diagnostics)
+			}
+		}
+		if !hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth") {
+			t.Fatal("missing auth diagnostic")
+		}
+	})
+}

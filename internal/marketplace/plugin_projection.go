@@ -46,7 +46,7 @@ type PluginResolver interface {
 
 var _ PluginResolver = (*pluginsource.Resolver)(nil)
 
-type PluginInspector func(context.Context, string) (PluginInspection, error)
+type PluginInspector func(context.Context, string, string) (PluginInspection, error)
 
 type PluginProjector struct {
 	resolver PluginResolver
@@ -200,7 +200,7 @@ func (p *PluginProjector) projectOne(
 	var inspection PluginInspection
 	err = p.resolver.Inspect(ctx, record.DigestSHA256, func(ctx context.Context, root string) error {
 		var loadErr error
-		inspection, loadErr = p.inspect(ctx, root)
+		inspection, loadErr = p.inspect(ctx, root, plugin.Name)
 		return loadErr
 	})
 	result := p.projectError(plugin, name, doc.SourceRef, err)

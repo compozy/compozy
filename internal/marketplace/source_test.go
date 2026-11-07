@@ -201,9 +201,12 @@ func TestPluginProjectionBudget(t *testing.T) {
 					return projectionRecord(t, doc, plugin), nil
 				},
 			}
-			projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
-				return PluginInspection{}, nil
-			})
+			projector, err := NewPluginProjector(
+				resolver,
+				func(context.Context, string, string) (PluginInspection, error) {
+					return PluginInspection{}, nil
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -272,7 +275,7 @@ func TestPluginProjectionBudget(t *testing.T) {
 				return projectionRecord(t, doc, plugin), nil
 			},
 		}
-		projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
+		projector, err := NewPluginProjector(resolver, func(context.Context, string, string) (PluginInspection, error) {
 			return PluginInspection{Contents: PluginContents{Skills: 2}}, nil
 		})
 		if err != nil {
@@ -321,7 +324,7 @@ func TestPluginProjectionBudget(t *testing.T) {
 				return pluginsource.AcquisitionRecord{}, ctx.Err()
 			},
 		}
-		projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
+		projector, err := NewPluginProjector(resolver, func(context.Context, string, string) (PluginInspection, error) {
 			t.Error("inspected a timed-out package")
 			return PluginInspection{}, nil
 		}, WithPluginRefreshBudget(time.Millisecond))
@@ -374,12 +377,15 @@ func TestPluginProjectionBudget(t *testing.T) {
 				return inspect(ctx, digest)
 			},
 		}
-		projector, err := NewPluginProjector(resolver, func(_ context.Context, root string) (PluginInspection, error) {
-			if root == fmt.Sprintf("%064x", "broken") {
-				return PluginInspection{}, errors.New("invalid authored manifest")
-			}
-			return PluginInspection{Contents: PluginContents{MCPServers: 1}}, nil
-		})
+		projector, err := NewPluginProjector(
+			resolver,
+			func(_ context.Context, root string, _ string) (PluginInspection, error) {
+				if root == fmt.Sprintf("%064x", "broken") {
+					return PluginInspection{}, errors.New("invalid authored manifest")
+				}
+				return PluginInspection{Contents: PluginContents{MCPServers: 1}}, nil
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

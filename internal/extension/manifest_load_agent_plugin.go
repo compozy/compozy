@@ -3,12 +3,26 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 )
 
-func loadAgentPluginManifest(root, dataDir string) (*Manifest, error) {
+func loadAgentPluginManifest(root, dataDir string, pluginName ...string) (*Manifest, error) {
 	document, err := agentplugin.ReadManifest(root)
+	if missing, ok := errors.AsType[*agentplugin.NotManifestError](err); ok {
+		for _, component := range []string{"skills", "mcp.json", ".mcp.json"} {
+			if _, statErr := os.Lstat(filepath.Join(root, component)); statErr == nil {
+				name := filepath.Base(root)
+				if len(pluginName) > 0 {
+					name = pluginName[0]
+				}
+				return loadManifestlessPlugin(root, dataDir, name)
+			}
+		}
+		return nil, missing
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -45,4 +59,19 @@ func agentPluginLoadError(manifestPath string, err error) error {
 		return newAgentPluginManifestValidationError(manifestPath, manifestErr)
 	}
 	return fmt.Errorf("extension: load Agent Plugins manifest %q: %w", manifestPath, err)
+}
+
+func loadManifestlessPlugin(root, dataDir, name string) (*Manifest, error) {
+	if dataDir == "" {
+		var err error
+		dataDir, err = defaultAgentPluginDataDir(root, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	pkg, err := agentplugin.Load(root, agentplugin.LoadOptions{DataDir: dataDir, Name: name})
+	if err != nil {
+		return nil, err
+	}
+	return SynthesizeAgentPluginManifest(pkg, root)
 }

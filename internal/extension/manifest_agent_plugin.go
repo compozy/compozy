@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"cmp"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -110,13 +111,25 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 		if value.Code == agentplugin.ClientComponentIgnored {
 			code = diagnosticcontract.CodeExtensionClientComponentIgnored
 		}
+		id := "extension/" + strings.TrimSpace(name) + "/agent-plugin/" + scope
+		if value.Code == agentplugin.ClientFieldIgnored {
+			id += "/" + fmt.Sprintf("%x", sha256.Sum256([]byte(message)))[:16]
+		}
+		severity, title := diagnosticcontract.SeverityWarn, "Component skipped"
+		switch value.Code {
+		case agentplugin.ClientFieldIgnored:
+			code = diagnosticcontract.CodeExtensionClientFieldIgnored
+		case agentplugin.ClientMCPDiscovered:
+			code = diagnosticcontract.CodeExtensionClientMCPDiscovered
+			severity, title = diagnosticcontract.SeverityInfo, "MCP configuration discovered"
+		}
 		items = append(items, diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
-			ID:            "extension/" + strings.TrimSpace(name) + "/agent-plugin/" + scope,
+			ID:            id,
 			Code:          code,
 			Category:      diagnosticcontract.CategoryExtension,
-			Title:         "Component skipped",
+			Title:         title,
 			Message:       agentPluginDiagnosticMessage(component, scope, message),
-			Severity:      diagnosticcontract.SeverityWarn,
+			Severity:      severity,
 			DataFreshness: diagnosticcontract.FreshnessLive,
 		}, diagnosticspkg.WithEvidence(map[string]any{
 			diagnosticEvidenceScopeKey: scope, diagnosticEvidenceComponentKey: component,

@@ -73,6 +73,7 @@ func (e *SchemaUnsupportedError) Unwrap() error { return ErrSchemaUnsupported }
 // LoadOptions supplies the instance-specific data root used for expansion.
 type LoadOptions struct {
 	DataDir string
+	Name    string
 }
 
 // Package is the validated, portable package projection.

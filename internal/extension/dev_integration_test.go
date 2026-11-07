@@ -1926,3 +1926,79 @@ func (m *faultingSourceSessionManager) failNextActivation(err error) {
 	m.activationErr = err
 	m.mu.Unlock()
 }
+
+func TestClientRootMCPInventory(t *testing.T) {
+	t.Parallel()
+	for _, layout := range []string{"cursor", "manifestless"} {
+		t.Run("Should install "+layout+" root MCP and publish its inventory and server", func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			root := filepath.Join(t.TempDir(), "acme")
+			if err := os.MkdirAll(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if layout == "cursor" {
+				if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(root, ".cursor-plugin", "plugin.json"), `{"name":"acme","version":"1.0.0"}`)
+			}
+			writeFile(
+				t,
+				filepath.Join(root, "mcp.json"),
+				`{"mcpServers":{"remote":{"url":"https://example.com/mcp","placement":"remote"}}}`,
+			)
+			inspected, err := InspectPluginPackage(t.Context(), root, "marketplace-name")
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantName := "acme"
+			if layout == "manifestless" {
+				wantName = "marketplace-name"
+			}
+			if inspected.InstanceName != wantName || inspected.Contents.MCPServers != 1 {
+				t.Fatalf("inspection = %#v", inspected)
+			}
+			manifest, err := LoadManifest(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.Install(manifest, root, checksum); err != nil {
+				t.Fatal(err)
+			}
+			manager := NewManager(env.registry)
+			installed, err := manager.InspectPackageResources(t.Context(), "acme")
+			if err != nil {
+				t.Fatal(err)
+			}
+			contents, err := InspectPackageContents(t.Context(), installed, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if contents.MCPServers != 1 {
+				t.Fatalf("inventory = %#v", contents)
+			}
+			servers, err := ResolveManifestMCPServerResources(
+				root,
+				installed.Manifest,
+				InputState{},
+				func(string) string { return "" },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(servers) != 1 || servers[0].URL != "https://example.com/mcp" {
+				t.Fatalf("projection = %#v", servers)
+			}
+			for _, d := range installed.Manifest.IngestDiagnostics {
+				if d.Code == agentplugin.ClientMCPDiscovered && d.Severity != "info" {
+					t.Fatalf("discovery = %#v", d)
+				}
+			}
+		})
+	}
+}

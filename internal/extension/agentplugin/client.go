@@ -11,15 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-const ClientComponentIgnored = "client_component_ignored"
-
-type clientManifestAdapter func(string, []byte, LoadOptions) (*Package, error)
-
-var clientAdapters = map[string]clientManifestAdapter{
-	"claude-plugin": loadClientManifest,
-	"codex-plugin":  loadClientManifest,
-	"cursor-plugin": loadClientManifest,
-}
+const (
+	ClientComponentIgnored = "client_component_ignored"
+	ClientFieldIgnored     = "client_field_ignored"
+	ClientMCPDiscovered    = "client_mcp_discovered"
+)
 
 func loadClientManifest(root string, content []byte, opts LoadOptions) (*Package, error) {
 	var fields map[string]json.RawMessage
@@ -46,7 +42,11 @@ func loadClientManifest(root string, content []byte, opts LoadOptions) (*Package
 	}
 	discoverSkills(root, pkg)
 	loadClientSkills(root, fields["skills"], pkg)
-	loadClientMCP(root, opts.DataDir, fields[fieldMCPServers], pkg)
+	raw, declared := fields[fieldMCPServers]
+	if !declared {
+		raw = discoverClientMCP(root, pkg)
+	}
+	loadClientMCP(root, opts.DataDir, raw, pkg)
 	for _, field := range []string{"commands", "agents", "hooks"} {
 		_, declared := fields[field]
 		_, diskErr := os.Lstat(filepath.Join(root, field))
