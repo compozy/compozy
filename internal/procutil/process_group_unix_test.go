@@ -127,11 +127,6 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
 
-		// Target above the inherited niceness so the call must change every member.
-		want := testCurrentNiceness(t) + 3
-		if want > maxTestNiceness {
-			t.Skipf("current niceness %d leaves no room to lower priority", want-3)
-		}
 		// Each child prints its own pid once it runs, so it has joined the group, and then
 		// blocks reading fd 3, which only the test holds open, so it stays alive through
 		// the assertions. The later fork waits for stdin, so no fork is in flight during
@@ -139,6 +134,12 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 		const child = `sh -c 'echo $$; read hold <&3'`
 		group := startNicenessProcessGroup(t, child+" & read go; "+child+" & wait")
 		earlier := group.readPID(t)
+		// Target above the group's own niceness so the call must change every member.
+		// Linux niceness is per thread, so the group need not match the test goroutine.
+		want := testProcessGroupNiceness(t, group.pgid) + 3
+		if want > maxTestNiceness {
+			t.Skipf("group niceness %d leaves no room to lower priority", want-3)
+		}
 		if err := SetProcessGroupNiceness(group.pgid, want); err != nil {
 			t.Fatalf("SetProcessGroupNiceness() error = %v", err)
 		}
@@ -166,10 +167,14 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should leave a group already niced above the target unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		// exec keeps the group to one process: a fork in flight during the first call
-		// would keep niceness 0 and make the second call try to lower the group.
-		pgid := startNicenessProcessGroup(t, "exec sleep 30").pgid
-		higher := max(9, testCurrentNiceness(t)+2)
+		// The shell blocks on a builtin read of fd 3 until cleanup, so the group stays a
+		// single live process: a fork in flight during the first call would keep the
+		// old niceness and make the second call try to lower the group.
+		pgid := startNicenessProcessGroup(t, "read hold <&3").pgid
+		higher := max(9, testProcessGroupNiceness(t, pgid)+2)
+		if higher > maxTestNiceness {
+			t.Skipf("group niceness leaves no room above target %d", higher-2)
+		}
 		if err := SetProcessGroupNiceness(pgid, higher); err != nil {
 			t.Fatalf("SetProcessGroupNiceness(%d) error = %v", higher, err)
 		}
@@ -328,15 +333,6 @@ func testMemberNiceness(t *testing.T, pgid int, pid int) int {
 	niceness, err := getNiceness(syscall.PRIO_PROCESS, pid)
 	if err != nil {
 		t.Fatalf("niceness of pid %d error = %v", pid, err)
-	}
-	return niceness
-}
-
-func testCurrentNiceness(t *testing.T) int {
-	t.Helper()
-	niceness, err := CurrentProcessNiceness()
-	if err != nil {
-		t.Fatalf("CurrentProcessNiceness() error = %v", err)
 	}
 	return niceness
 }
