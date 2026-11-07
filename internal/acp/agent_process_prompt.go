@@ -233,7 +233,9 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) bool {
 	if event.Type == EventTypeDone {
 		active.flushDeferredToolResultsLocked()
 	}
-	active.sendEventLocked(event)
+	if !active.sendEventLocked(event) {
+		return false
+	}
 	if event.Type == EventTypeToolCall {
 		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
 		projection := active.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
@@ -390,23 +392,23 @@ func (a *activePromptState) flushDeferredToolResultsLocked() {
 	}
 }
 
-func (a *activePromptState) sendEventLocked(event AgentEvent) {
+func (a *activePromptState) sendEventLocked(event AgentEvent) bool {
 	if a == nil {
-		return
+		return false
 	}
 	event = a.stampAsyncToolResultLocked(event)
 	if event.Type == EventTypeToolResult {
 		projection := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
 		if projection.syntheticResult && projection.hasResult {
 			if !toolResultHasOutput(event) {
-				return
+				return true
 			}
 			event = event.WithToolResultUpdate()
 		}
 	}
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
-		return
+		return false
 	}
 	if event.Type == EventTypeToolResult {
 		id := strings.TrimSpace(event.ToolCallID)
@@ -418,6 +420,7 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+	return true
 }
 
 func toolResultHasOutput(event AgentEvent) bool {

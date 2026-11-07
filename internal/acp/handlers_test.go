@@ -841,9 +841,11 @@ func TestEmitPermissionEvent(t *testing.T) {
 			t.Fatal(err)
 		}
 		emit()
+		active.ingest.Close(ErrIngestSaturated)
+		emit()
 		proc.endPrompt(active)
 		emit()
-		if !slices.Equal(deliveries, []bool{false, true, false}) {
+		if !slices.Equal(deliveries, []bool{false, true, false, false}) {
 			t.Fatalf("permission deliveries = %v", deliveries)
 		}
 	})
