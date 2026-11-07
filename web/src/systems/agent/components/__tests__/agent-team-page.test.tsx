@@ -195,7 +195,7 @@ describe("AgentTeamPage", () => {
           name: "wide",
           scopes: Array.from({ length: 101 }, (_, i) => `ws-${i}`),
         },
-        { ...base, key: "empty", scopes: [] },
+        { ...base, key: "empty", name: "nowhere", scopes: [], places: [] },
       ],
     });
     // 103 always-on agents page in by 30: 30, 60, 90, then all of them.
@@ -221,11 +221,10 @@ describe("AgentTeamPage", () => {
           request.items.reduce((sum, item) => sum + item.workspaces.length, 0) <= 5000
       )
     ).toBe(true);
-    expect(
-      requests
-        .flatMap(request => request.items)
-        .some(item => item.name === base.name && item.workspaces.length === 0)
-    ).toBe(false);
+    // A member that resolves and works nowhere has no workspace to read, so it is never sent.
+    expect(requests.flatMap(request => request.items).some(item => item.name === "nowhere")).toBe(
+      false
+    );
   });
   it("Should show Always-on first, with one card per agent", () => {
     renderPage();
