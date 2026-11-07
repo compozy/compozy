@@ -17,15 +17,13 @@ An ERROR fingerprint is emitted when it is new, last raised more than 7 days
 ago, or at least 3x (and 10) its count when last raised. A WARN fingerprint is
 emitted when its hourly rate is at least 3x the previous window's with 20+
 lines. A clean window emits no items, so no model turn runs. A window with more
-candidates than `max_items` pages with `more`: `state.open` pins its end, stdio
-offset, last emitted key and emitted key prefixes until the last page.
+than `max_items` candidates pages with `more`; `state.open` pins its end, stdio
+offset, last emitted key and emitted key suffixes until the last page.
 
-`params.key` returns that one fingerprint over the window, with no dedup and no
-state: the read-only lookup a picked proposal uses.
-
-Samples carry allowlisted log fields only, never prompt or output bodies, with
-home paths replaced by `~` and secret-looking values redacted. Read-only.
-Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
+`params.key` returns that one fingerprint, with no dedup or state (picked-proposal
+lookup). Samples carry allowlisted log fields only, never prompt or output bodies,
+with home paths as `~` and secrets redacted. Read-only. Contract: CompozyOS
+check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
 """
 
 import datetime as dt
@@ -46,8 +44,7 @@ WARN_SPIKE_RATIO = 3
 WARN_SPIKE_MIN = 20
 WARN_BASELINE_LIMIT = 80
 ATTRIBUTES_BYTES = 1900
-SAMPLES = 2
-SAMPLE_CHARS = 300
+SAMPLES, SAMPLE_CHARS = 2, 300
 PRIORITY = {"panic": 0, "crash": 1, "error": 2, "warn": 3}
 SAMPLE_FIELDS = (
     "msg", "error", "error_code", "reason", "reason_code", "status", "method", "path",
@@ -64,7 +61,8 @@ GO_FRAME = re.compile(r"^(github\.com/compozy/compozy/\S+)\([^()]*\)\s*$")
 AUTH_SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[^\s,;\"']+")
 URL_SECRET = re.compile(r"(?i)(://)[^/@\s:]+:[^/@\s]+@|([?&](?:key|token|access_token|api_key|secret|sig|signature|password)=)[^&\s\"']+")
 SECRET = re.compile(
-    r"(?i)\b([A-Za-z0-9_-]*?(?:token|password|passwd|api[_-]?key|secret|authorization|bearer|cookie)[\"']?)"
+    r"(?i)\b([A-Za-z0-9_-]*?(?:token|passw(?:or)?d|passphrase|api[_-]?key|private[_-]?key|secret|credential"
+    r"|authorization|bearer|cookie)[A-Za-z0-9_-]*[\"']?)"
     r"(\s*[:=]\s*|\s+)(\"[^\"]*\"|'[^']*'|[^\s,;\"'}]+)"
 )
 SECRET_VALUE = re.compile(
@@ -258,12 +256,12 @@ def scan_daemon_logs(directory, groups, warns):
             if dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc) < groups.start:
                 continue
             with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
-                records = [record for record in map(log_record, handle) if record]
+                for record in filter(None, map(log_record, handle)):
+                    moment, level, msg, cls, sample = record
+                    target, kind = (groups, "error") if level == "ERROR" else (warns, "warn")
+                    target.add(kind, level, "daemon-log", msg, cls, moment, sample)
         except (OSError, EOFError, zlib.error):
             continue  # an unreadable or truncated file must not fail the whole check
-        for moment, level, msg, cls, sample in records:
-            target, kind = (groups, "error") if level == "ERROR" else (warns, "warn")
-            target.add(kind, level, "daemon-log", msg, cls, moment, sample)
 
 
 def scan_stdio(directory, groups, committed, end_off=None):
@@ -412,8 +410,7 @@ def bounded_state(state, budget):
 
 
 def emit(result):
-    json.dump(result, sys.stdout, separators=(",", ":"))
-    sys.stdout.write("\n")
+    sys.stdout.write(json.dumps(result, separators=(",", ":")) + "\n")
 
 
 def main():
@@ -421,16 +418,15 @@ def main():
     request = json.loads(raw) if raw.strip() else {}
     params = request.get("params") or {}
     limits = request.get("limits") or {}
-    max_items = int(limits.get("max_items") or 20)
-    budget = int(limits.get("max_state_bytes") or 16384) * 3 // 4
+    max_items, max_state = int(limits.get("max_items") or 20), int(limits.get("max_state_bytes") or 16384)
+    budget = max_state * 3 // 4
     previous = request.get("state") if isinstance(request.get("state"), dict) else {}
     lookup = params.get("key")
     if lookup:
         previous = {}
     page = previous.get("open") if isinstance(previous.get("open"), dict) else {}
 
-    home = os.environ.get("HOME", "")
-    directory = os.path.expanduser(params.get("logs_dir") or "~/.compozy/logs")
+    home, directory = os.environ.get("HOME", ""), os.path.expanduser(params.get("logs_dir") or "~/.compozy/logs")
     now = parse_time(request.get("now")) or dt.datetime.now(dt.timezone.utc)
     # Whole seconds: `end` round-trips through state exactly, so pages and the next cursor match.
     end = parse_time(page.get("end")) or now.replace(microsecond=0)
@@ -466,19 +462,25 @@ def main():
     after = page.get("after") or [-1, ""]
     remaining = sorted((pair for pair in candidates if order(pair) > after), key=order)
     emitted = remaining[:max_items]
-    sent = set(page.get("sent") or []) | {group["key"][-6:] for group, _ in emitted}
+    # Emitted key suffixes fill the state room the committed state leaves; past it
+    # (`sent: null`) every candidate up to the last emitted key counts as emitted.
+    sent = None if page and page.get("sent") is None else set(page.get("sent") or [])
+    room = max_state - len(json.dumps(previous)) - 512
+    if sent is not None:
+        sent |= {group["key"][-6:] for group, _ in emitted}
+        sent = sent if len(sent) * 9 <= room else None
 
     if len(remaining) > max_items:
         state = dict(previous)
         state["open"] = {
-            "end": iso(end), "after": order(emitted[-1]), "sent": sorted(sent),
+            "end": iso(end), "after": order(emitted[-1]), "sent": sorted(sent) if sent is not None else None,
             "stdio": stdio, "stdio_read": page.get("stdio_read", stdio.get("read", True)),
         }
-        state = bounded_state(state, budget)
+        # The committed history stays untouched while the window is open.
         return emit({"items": [to_item(g, r) for g, r in emitted], "state": state, "more": True})
 
     for group, _ in candidates:
-        if group["key"][-6:] in sent:
+        if sent is None or group["key"][-6:] in sent:
             known[group["key"]] = [end.date().isoformat(), group["count"]]
     top = sorted(warns.groups.values(), key=lambda group: -group["count"])[:WARN_BASELINE_LIMIT]
     state = {
