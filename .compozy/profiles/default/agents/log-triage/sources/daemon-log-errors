@@ -1,40 +1,38 @@
 #!/usr/bin/env python3
 """Log Triage check-in source: new error fingerprints in the CompozyOS daemon logs.
 
-Reads, for the window since the last committed check (the last 24h on a first
-run or with no state):
+Reads the window since the last committed check (the last 24h with no state):
+ERROR lines of the JSON daemon logs (`compozy.log`, rotated `compozy-*.log`
+and `compozy-*.log.gz`, plus plain-text slog lines); `panic:`, `fatal error:`,
+`error:` and ERROR lines of `daemon-stdio.log`; session crash bundles; and WARN
+lines, which only count toward a spike against the previous window.
 
-- ERROR lines of the JSON daemon logs (`compozy.log` and rotated
-  `compozy-*.log`), plus ERROR lines in the plain-text slog form;
-- `panic:`, `fatal error:`, `error:` and ERROR lines in `daemon-stdio.log`;
-- session crash bundles in `crash-bundles/`;
-- WARN lines, which only count toward a spike against the previous window.
+Each line becomes a fingerprint `<level>|<msg>|<error class>` (`error_code`,
+`reason_code`, the `error` text, or the HTTP route and status), with quoted
+values, IDs, paths, timestamps and numbers stripped. The source emits one item
+per fingerprint keyed `<kind>:<sha256 prefix>`. Key and attributes depend only
+on the fingerprint; count, first/last seen and samples go in the summary.
 
-Each line becomes a fingerprint: level, `msg`, and the error class
-(`error_code`, `reason_code`, or the `error` text; the HTTP route and status
-when there is no error), with quoted values, IDs, paths, timestamps and
-numbers stripped. Lines group by fingerprint and the source emits one item per
-fingerprint, keyed `<kind>:<sha256 prefix>`, so the same fingerprint keeps the
-same key across runs. The key and attributes depend only on the fingerprint;
-the count, first/last seen and samples go in the summary.
+An ERROR fingerprint is emitted when it is new, last raised more than 7 days
+ago, or at least 3x (and 10) its count when last raised. A WARN fingerprint is
+emitted when its hourly rate is at least 3x the previous window's with 20+
+lines. A clean window emits no items, so no model turn runs. A window with more
+candidates than `max_items` pages with `more`: its end, stdio offset and page
+position stay fixed in `state.open` until the last page, so paging never
+depends on the trimmable history.
 
-An ERROR fingerprint is emitted when it is new, when it was last emitted more
-than 7 days ago, or when its count tripled since then. A WARN fingerprint is
-emitted only when its hourly rate is at least 3x the previous window's and it
-has at least 20 lines. A clean window emits no items, so no model turn runs.
+`params.key` returns that one fingerprint over the window, with no dedup and no
+state: the read-only lookup a picked proposal uses.
 
-With `params.key` set, it emits only that fingerprint over the window, with
-no dedup and no state: the read-only lookup a picked proposal uses.
-
-Sample lines carry an allowlist of log fields, never prompt or output bodies,
-with the home directory replaced by `~` and secret-looking values redacted.
-Read-only: it reads the log directory and never writes.
+Samples carry an allowlist of log fields, never prompt or output bodies, with
+home paths replaced by `~` and secret-looking values redacted. Read-only.
 Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
 """
 
 import datetime as dt
 import functools
 import glob
+import gzip
 import hashlib
 import json
 import os
@@ -47,7 +45,7 @@ GROWTH_FACTOR = 3
 WARN_SPIKE_RATIO = 3
 WARN_SPIKE_MIN = 20
 WARN_BASELINE_LIMIT = 80
-STATE_BUDGET = 12 << 10
+ATTRIBUTES_BYTES = 1900
 SAMPLES = 2
 SAMPLE_CHARS = 300
 PRIORITY = {"panic": 0, "crash": 1, "error": 2, "warn": 3}
@@ -56,13 +54,15 @@ SAMPLE_FIELDS = (
     "provider", "agent", "agent_name", "kind", "stage", "component", "event", "outcome", "phase",
 )
 
+STAMP = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) ")
 TEXT_LINE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) (ERROR|WARN) (.*)$")
 TEXT_ATTR = re.compile(r"\s[A-Za-z_][A-Za-z0-9_.]*=")
 STDIO_ALERT = re.compile(r"^(panic: |fatal error: |error: )(.*)$")
 GO_FRAME = re.compile(r"^(github\.com/compozy/compozy/\S+)\([^()]*\)\s*$")
 
+AUTH_SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[^\s,;\"']+")
 SECRET = re.compile(
-    r"(?i)\b(token|password|passwd|api[_-]?key|secret|authorization|bearer|cookie)"
+    r"(?i)(?<![A-Za-z])(token|password|passwd|api[_-]?key|secret|authorization|cookie)"
     r"(\s*[:=]\s*|\s+)(\"[^\"]*\"|'[^']*'|[^\s,;\"']+)"
 )
 SECRET_VALUE = re.compile(
@@ -86,14 +86,14 @@ NORMALIZERS = (
 
 
 def parse_time(value):
-    """Parse RFC 3339 with up to nanosecond precision; returns aware UTC or None."""
+    """Parse RFC 3339 with any fraction length (Go trims zeros); returns aware UTC or None."""
     if not value:
         return None
     text = str(value).strip().replace("Z", "+00:00")
-    match = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?(.*)$", text)
+    match = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?(.*)$", text)
     if not match:
         return None
-    frac = (match.group(2) or "")[:7]
+    frac = "." + (match.group(2) + "000000")[:6] if match.group(2) else ""
     try:
         parsed = dt.datetime.fromisoformat(match.group(1) + frac + match.group(3))
     except ValueError:
@@ -108,6 +108,7 @@ def iso(moment):
 
 
 def redact(text):
+    text = AUTH_SCHEME.sub(lambda m: m.group(1) + " [REDACTED]", text)
     text = SECRET.sub(lambda m: m.group(1) + m.group(2) + "[REDACTED]", text)
     return SECRET_VALUE.sub("[REDACTED]", text)
 
@@ -121,13 +122,11 @@ def normalize(text, limit=160):
 
 
 def sanitize(text, home):
-    text = str(text or "")
-    text = re.sub(r"\s*stderr=.*$", " stderr=[omitted]", text, flags=re.S)
+    text = re.sub(r"\s*stderr=.*$", " stderr=[omitted]", str(text or ""), flags=re.S)
     if home:
         text = text.replace(home, "~")
     text = redact(USER_HOME.sub("~", text))
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:SAMPLE_CHARS]
+    return re.sub(r"\s+", " ", text).strip()[:SAMPLE_CHARS]
 
 
 @functools.lru_cache(maxsize=8192)
@@ -160,23 +159,20 @@ class Groups:
         self.groups = {}
 
     def add(self, kind, level, source, msg, cls, moment, sample):
-        if moment is not None and not (self.start <= moment < self.end):
+        if not self.start <= moment < self.end:
             return
         # cls arrives normalized: HTTP routes keep their shape, error text does not.
-        fingerprint = "|".join((level, normalize(str(msg), 120), cls))
-        digest = hashlib.sha256(fingerprint.encode()).hexdigest()[:16]
-        key = f"{kind}:{digest}"
+        msg = normalize(str(msg), 120)
+        fingerprint = "|".join((level, msg, cls))
+        key = f"{kind}:{hashlib.sha256(fingerprint.encode()).hexdigest()[:16]}"
         group = self.groups.get(key)
         if group is None:
             group = self.groups[key] = {
-                "key": key, "kind": kind, "level": level, "source": source,
-                "msg": normalize(str(msg), 120), "fingerprint": fingerprint,
-                "count": 0, "first": None, "last": None, "samples": [],
+                "key": key, "kind": kind, "level": level, "source": source, "msg": msg,
+                "fingerprint": fingerprint, "count": 0, "first": moment, "last": moment, "samples": [],
             }
         group["count"] += 1
-        if moment is not None:
-            group["first"] = moment if group["first"] is None else min(group["first"], moment)
-            group["last"] = moment if group["last"] is None else max(group["last"], moment)
+        group["first"], group["last"] = min(group["first"], moment), max(group["last"], moment)
         if len(group["samples"]) < SAMPLES:
             clean = sanitize(sample() if callable(sample) else sample, self.home)
             if clean and clean not in group["samples"]:
@@ -200,7 +196,7 @@ def json_class(record):
 
 
 def json_sample(record):
-    parts = [f"{record.get('level', '')}"]
+    parts = [str(record.get("level", ""))]
     for field in SAMPLE_FIELDS:
         value = record.get(field)
         if value not in (None, ""):
@@ -218,43 +214,39 @@ def local_stamp(stamp):
 
 def text_record(line):
     match = TEXT_LINE.match(line)
-    if not match:
+    moment = match and local_stamp(match.group(1))
+    if not moment:
         return None
-    stamp, level, rest = match.groups()
-    moment = local_stamp(stamp)
-    if moment is None:
-        return None
+    level, rest = match.group(2), match.group(3)
     attr = TEXT_ATTR.search(rest)
-    msg = rest[: attr.start()] if attr else rest
     err = re.search(r"\berror=(\"(?:[^\"\\]|\\.)*\"|\S+)", rest)
     cls = error_class(err.group(1).strip("\"")) if err else ""
-    return moment, level, msg, cls, f"{level} {rest}"
+    return moment, level, rest[: attr.start()] if attr else rest, cls, f"{level} {rest}"
 
 
 def scan_daemon_logs(directory, groups, warns):
+    # Rotated backups are `.log`, or `.log.gz` with `log.compress_backups = true`.
     paths = sorted(glob.glob(os.path.join(directory, "compozy-*.log")))
+    paths += sorted(glob.glob(os.path.join(directory, "compozy-*.log.gz")))
     paths.append(os.path.join(directory, "compozy.log"))
     for path in paths:
         try:
-            mtime = dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc)
+            if dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc) < groups.start:
+                continue
         except OSError:
             continue
-        if mtime < groups.start:
-            continue
-        with open(path, encoding="utf-8", errors="replace") as handle:
+        opener = gzip.open if path.endswith(".gz") else open
+        with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
             for line in handle:
                 if line.startswith("{"):
-                    if '"level":"ERROR"' in line:
-                        level = "ERROR"
-                    elif '"level":"WARN"' in line:
-                        level = "WARN"
-                    else:
+                    if '"ERROR"' not in line and '"WARN"' not in line:
                         continue
                     try:
                         record = json.loads(line)
                     except ValueError:
                         continue
-                    moment = parse_time(record.get("time"))
+                    level = record.get("level") if isinstance(record, dict) else None
+                    moment = parse_time(record.get("time")) if level in ("ERROR", "WARN") else None
                     if moment is None:
                         continue
                     msg, cls = record.get("msg") or "", json_class(record)
@@ -268,51 +260,58 @@ def scan_daemon_logs(directory, groups, warns):
                 target.add("error" if level == "ERROR" else "warn", level, "daemon-log", msg, cls, moment, sample)
 
 
-def scan_stdio(directory, groups, stdio_state):
-    """Scan daemon-stdio.log from the committed offset; returns the next offset state."""
+def scan_stdio(directory, groups, committed, end_off=None):
+    """Scan daemon-stdio.log from the committed offset to a whole-line end; returns that offset state."""
     path = os.path.join(directory, "daemon-stdio.log")
     try:
         info = os.stat(path)
     except OSError:
         return {}
     mtime = dt.datetime.fromtimestamp(info.st_mtime, dt.timezone.utc)
-    offset = 0
     # With committed state every byte past the offset is new: the same file
     # resumes at the offset, a replaced or truncated file restarts at zero.
-    resumed = bool(stdio_state)
-    if stdio_state.get("ino") == info.st_ino and 0 <= stdio_state.get("off", -1) <= info.st_size:
-        offset = stdio_state["off"]
+    resumed = bool(committed)
+    offset = 0
+    if committed.get("ino") == info.st_ino and 0 <= committed.get("off", -1) <= info.st_size:
+        offset = committed["off"]
     elif not resumed and mtime < groups.start:
         return {"ino": info.st_ino, "off": info.st_size}
+    stop = info.st_size if end_off is None else min(end_off, info.st_size)
     with open(path, "rb") as handle:
         handle.seek(offset)
-        lines = handle.read().decode("utf-8", errors="replace").splitlines()
-    # Without state, untimestamped lines (panics, CLI errors) inherit the
-    # previous slog timestamp, or the file's creation time before the first one.
-    # With state, every new byte is inside the window: times clamp into it, and
-    # lines before the first timestamp carry the file's last write time.
+        data = handle.read(max(0, stop - offset))
+    if end_off is None:
+        data = data[: data.rfind(b"\n") + 1]  # a half-written last line waits for the next window
+    lines = data.decode("utf-8", errors="replace").splitlines()
+
     def clamp(moment):
         return min(max(moment, groups.start), groups.end - dt.timedelta(microseconds=1))
 
-    born = getattr(info, "st_birthtime", None)
-    if resumed:
-        stamp = clamp(mtime)
-    else:
-        stamp = dt.datetime.fromtimestamp(born, dt.timezone.utc) if born else groups.start - dt.timedelta(seconds=1)
+    # An untimestamped alert happened before the next slog timestamp, or before
+    # the file's last write when none follows. It is dropped only when that
+    # bound proves it older than the window; with state every new byte counts.
+    pending = []
+
+    def settle(bound):
+        for kind, level, msg, cls, sample in pending:
+            if resumed or bound >= groups.start:
+                groups.add(kind, level, "daemon-stdio", msg, cls, clamp(bound), sample)
+        pending.clear()
+
     for index, line in enumerate(lines):
-        parsed = text_record(line)
-        if parsed is not None:
-            moment, level, msg, cls, sample = parsed
-            stamp = clamp(moment) if resumed else moment
-            if level == "ERROR":
-                groups.add("error", level, "daemon-stdio", msg, cls, stamp, sample)
+        stamp = STAMP.match(line)
+        if stamp and local_stamp(stamp.group(1)):
+            settle(local_stamp(stamp.group(1)))
+            parsed = text_record(line)
+            if parsed and parsed[1] == "ERROR":
+                moment, level, msg, cls, sample = parsed
+                groups.add("error", level, "daemon-stdio", msg, cls, clamp(moment) if resumed else moment, sample)
             continue
         alert = STDIO_ALERT.match(line)
         if not alert:
             continue
         prefix, message = alert.groups()
-        kind = "error" if prefix == "error: " else "panic"
-        frame = ""
+        kind, frame = ("error" if prefix == "error: " else "panic"), ""
         if kind == "panic":
             for follow in lines[index + 1 : index + 60]:
                 found = GO_FRAME.match(follow)
@@ -320,26 +319,28 @@ def scan_stdio(directory, groups, stdio_state):
                     frame = found.group(1)
                     break
         level = "ERROR" if kind == "error" else prefix.rstrip(": ").upper()
-        moment = stamp
         sample = f"{prefix}{message}" + (f" at {frame}" if frame else "")
-        groups.add(kind, level, "daemon-stdio", prefix + message, frame, moment, sample)
-    return {"ino": info.st_ino, "off": info.st_size}
+        pending.append((kind, level, prefix + message, frame, sample))
+    settle(mtime)
+    return {"ino": info.st_ino, "off": offset + len(data)}
 
 
 def scan_crash_bundles(directory, groups):
-    for path in glob.glob(os.path.join(directory, "crash-bundles", "*.json")):
+    for path in sorted(glob.glob(os.path.join(directory, "crash-bundles", "*.json"))):
         try:
-            if dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc) < groups.start:
+            mtime = dt.datetime.fromtimestamp(os.path.getmtime(path), dt.timezone.utc)
+            if mtime < groups.start:
                 continue
             with open(path, encoding="utf-8", errors="replace") as handle:
                 bundle = json.load(handle)
         except (OSError, ValueError):
             continue
-        failure = bundle.get("failure") or {}
-        kind = failure.get("kind") or "crash"
-        cls = crash_class(failure)
+        if not isinstance(bundle, dict):
+            continue
+        failure = bundle.get("failure") if isinstance(bundle.get("failure"), dict) else {}
+        kind = str(failure.get("kind") or "crash")
         sample = " ".join(
-            f"{field}={json.dumps(value)}"
+            f"{field}={json.dumps(value) if isinstance(value, str) else value}"
             for field, value in (
                 ("kind", kind),
                 ("reason_code", failure.get("reason_code")),
@@ -350,131 +351,125 @@ def scan_crash_bundles(directory, groups):
             )
             if value
         )
-        groups.add("crash", "CRASH", "crash-bundle", kind, cls, parse_time(bundle.get("created_at")), sample)
+        moment = parse_time(bundle.get("created_at")) or mtime
+        groups.add("crash", "CRASH", "crash-bundle", kind, crash_class(failure), moment, sample)
 
 
-def should_emit(group, known, now):
+def should_emit(group, known, today):
     entry = known.get(group["key"])
-    if not entry:
-        return "new"
     try:
-        emitted = dt.date.fromisoformat(entry[0])
-        last_count = int(entry[1])
-    except (ValueError, TypeError, IndexError):
+        emitted, last_count = dt.date.fromisoformat(entry[0]), int(entry[1])
+    except (ValueError, TypeError, IndexError, KeyError):
         return "new"
-    if (now.date() - emitted).days >= RECHECK_DAYS:
+    if (today - emitted).days >= RECHECK_DAYS:
         return "recurring"
     if group["count"] >= max(10, GROWTH_FACTOR * last_count):
         return "growing"
     return ""
 
 
-def warn_spikes(warns, baseline, hours, has_baseline):
+def warn_spikes(warns, baseline, hours):
     spikes = []
-    if not has_baseline:
-        return spikes
     for group in warns.groups.values():
-        rate = group["count"] / hours
         previous = float(baseline.get(group["key"], 0))
-        if group["count"] >= WARN_SPIKE_MIN and rate >= WARN_SPIKE_RATIO * max(previous, 0.01):
+        if group["count"] >= WARN_SPIKE_MIN and group["count"] / hours >= WARN_SPIKE_RATIO * max(previous, 0.01):
             spikes.append(group)
     return spikes
 
 
 def to_item(group, reason):
-    first = iso(group["first"]) if group["first"] else "unknown"
-    last = iso(group["last"]) if group["last"] else "unknown"
-    lines = [f"{group['count']}x {reason}, first {first}, last {last}."]
+    lines = [f"{group['count']}x {reason}, first {iso(group['first'])}, last {iso(group['last'])}."]
     lines += [f"sample: {sample}" for sample in group["samples"]]
-    title = f"{group['level']} {group['msg'] or group['kind']}"[:200]
+    attributes = {"fingerprint": group["fingerprint"], "kind": group["kind"], "source": group["source"]}
+    # The daemon bounds attributes by encoded bytes; escaped non-ASCII can triple them.
+    while len(json.dumps(attributes)) > ATTRIBUTES_BYTES:
+        attributes["fingerprint"] = attributes["fingerprint"][:-16]
     return {
         "key": group["key"],
-        "title": title,
+        "title": f"{group['level']} {group['msg'] or group['kind']}"[:200],
         "summary": "\n".join(lines)[:1000],
-        "attributes": {
-            "fingerprint": group["fingerprint"][:600],
-            "kind": group["kind"],
-            "source": group["source"],
-        },
+        "attributes": attributes,
     }
 
 
-def bounded_state(state):
-    known = state["known"]
-    while len(json.dumps(state, separators=(",", ":"))) > STATE_BUDGET and known:
-        oldest = min(known, key=lambda key: known[key][0])
-        del known[oldest]
+def bounded_state(state, budget):
+    """Trim the oldest history, then the lowest WARN baselines, to fit the state limit."""
+    known, warn = state["known"], state["warn"]
+    oldest = sorted(known, key=lambda key: known[key][0])
+    lowest = sorted(warn, key=warn.get)
+    while len(json.dumps(state, separators=(",", ":"))) > budget and (oldest or lowest):
+        if oldest:
+            del known[oldest.pop(0)]
+        else:
+            del warn[lowest.pop(0)]
     return state
+
+
+def emit(result):
+    json.dump(result, sys.stdout, separators=(",", ":"))
+    sys.stdout.write("\n")
 
 
 def main():
     raw = sys.stdin.read()
     request = json.loads(raw) if raw.strip() else {}
     params = request.get("params") or {}
-    max_items = int((request.get("limits") or {}).get("max_items") or 20)
+    limits = request.get("limits") or {}
+    max_items = int(limits.get("max_items") or 20)
+    budget = int(limits.get("max_state_bytes") or 16384) * 3 // 4
     previous = request.get("state") if isinstance(request.get("state"), dict) else {}
+    lookup = params.get("key")
+    if lookup:
+        previous = {}
+    page = previous.get("open") if isinstance(previous.get("open"), dict) else {}
 
     home = os.environ.get("HOME", "")
     directory = os.path.expanduser(params.get("logs_dir") or "~/.compozy/logs")
-    window_hours = float(params.get("window_hours") or DEFAULT_WINDOW_HOURS)
     now = parse_time(request.get("now")) or dt.datetime.now(dt.timezone.utc)
-    start = parse_time(previous.get("cursor")) or now - dt.timedelta(hours=window_hours)
-    start = max(start, now - dt.timedelta(days=RECHECK_DAYS))
-    hours = max((now - start).total_seconds() / 3600, 1 / 60)
+    end = parse_time(page.get("end")) or now
+    start = parse_time(previous.get("cursor")) or end - dt.timedelta(hours=float(params.get("window_hours") or DEFAULT_WINDOW_HOURS))
+    start = max(start, end - dt.timedelta(days=RECHECK_DAYS))
+    hours = max((end - start).total_seconds() / 3600, 1 / 60)
 
-    errors = Groups(start, now, home)
-    warns = Groups(start, now, home)
+    errors, warns = Groups(start, end, home), Groups(start, end, home)
     scan_daemon_logs(directory, errors, warns)
-    stdio = scan_stdio(directory, errors, previous.get("stdio") or {})
+    stdio = scan_stdio(directory, errors, previous.get("stdio") or {}, page.get("stdio_end") if page else None)
     scan_crash_bundles(directory, errors)
 
-    lookup = params.get("key")
     if lookup:
         # Manual lookup of one fingerprint (the picked-proposal step): no dedup, no state.
         found = errors.groups.get(lookup) or warns.groups.get(lookup)
-        items = [to_item(found, "in window")] if found else []
-        json.dump({"items": items}, sys.stdout, separators=(",", ":"))
-        sys.stdout.write("\n")
-        return
+        return emit({"items": [to_item(found, "in window")] if found else []})
 
+    # Candidates depend only on the pinned window and the history committed
+    # before it opened, so every page of one window sees the same ordered list.
     known = dict(previous.get("known") or {})
+    spikes = warn_spikes(warns, previous.get("warn") or {}, hours) if "warn" in previous else []
     candidates = []
-    for group in list(errors.groups.values()) + warn_spikes(
-        warns, previous.get("warn") or {}, hours, "warn" in previous
-    ):
-        reason = should_emit(group, known, now)
-        if group["kind"] == "warn" and reason == "new":
-            reason = "spike"
+    for group in list(errors.groups.values()) + spikes:
+        reason = should_emit(group, known, end.date())
         if reason:
-            candidates.append((group, reason))
+            candidates.append((group, "spike" if group["kind"] == "warn" and reason == "new" else reason))
     candidates.sort(key=lambda pair: (PRIORITY[pair[0]["kind"]], -pair[0]["count"], pair[0]["key"]))
+    done = int(page.get("done") or 0)
+    emitted = candidates[done : done + max_items]
 
-    emitted = candidates[:max_items]
-    more = len(candidates) > max_items
-    for group, _ in emitted:
-        known[group["key"]] = [now.date().isoformat(), group["count"]]
-
-    if more:
-        # Never advance past unreturned items: keep the window, record only
-        # what was emitted, and let the next page pick up the rest.
+    if done + len(emitted) < len(candidates):
         state = dict(previous)
-        state["known"] = known
-        state.setdefault("cursor", iso(start))
-    else:
-        top = sorted(warns.groups.values(), key=lambda group: -group["count"])[:WARN_BASELINE_LIMIT]
-        state = {
-            "v": 1,
-            "cursor": iso(now),
-            "stdio": stdio,
-            "known": known,
-            "warn": {group["key"]: round(group["count"] / hours, 2) for group in top},
-        }
+        state["open"] = {"end": iso(end), "done": done + len(emitted), "stdio_end": stdio.get("off", 0)}
+        return emit({"items": [to_item(g, r) for g, r in emitted], "state": state, "more": True})
 
-    result = {"items": [to_item(group, reason) for group, reason in emitted], "state": bounded_state(state)}
-    if more:
-        result["more"] = True
-    json.dump(result, sys.stdout, separators=(",", ":"))
-    sys.stdout.write("\n")
+    for group, _ in candidates:
+        known[group["key"]] = [end.date().isoformat(), group["count"]]
+    top = sorted(warns.groups.values(), key=lambda group: -group["count"])[:WARN_BASELINE_LIMIT]
+    state = {
+        "v": 1,
+        "cursor": iso(end),
+        "stdio": stdio,
+        "known": known,
+        "warn": {group["key"]: round(group["count"] / hours, 2) for group in top},
+    }
+    emit({"items": [to_item(g, r) for g, r in emitted], "state": bounded_state(state, budget)})
 
 
 if __name__ == "__main__":
