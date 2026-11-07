@@ -173,6 +173,33 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		if err := copied.requireCurrent(source.path); !errors.Is(err, errOwnerGuardSnapshotChanged) {
 			t.Fatalf("snapshot after WAL restart error = %v, want %v", err, errOwnerGuardSnapshotChanged)
 		}
+		// A restarted WAL that grows past the copied size must still be rejected.
+		for {
+			info, err := os.Stat(source.path + "-wal")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Size() > copied.wal.Size() {
+				break
+			}
+			if _, err := source.db.ExecContext(
+				ctx,
+				"INSERT INTO snapshot_fixture VALUES (?)",
+				strings.Repeat("grow", 1024),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		header, err := readOwnerGuardWALHeader(source.path+"-wal", copied.wal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Equal(header, copied.walHeader) {
+			t.Fatal("fixture did not restart the WAL header")
+		}
+		if err := copied.requireCurrent(source.path); !errors.Is(err, errOwnerGuardSnapshotChanged) {
+			t.Fatalf("snapshot after grown WAL restart error = %v, want %v", err, errOwnerGuardSnapshotChanged)
+		}
 	})
 	// Invariant: an owner-read corruption error is retried only after a successful SQLite integrity probe.
 	t.Run("Should retry an owner read only when integrity is verified", func(t *testing.T) {
