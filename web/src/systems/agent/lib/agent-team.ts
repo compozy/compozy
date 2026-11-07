@@ -45,7 +45,7 @@ export interface AgentTeamMember {
   kind: "always_on" | "on_demand";
   provider: string | null;
   appearance: AgentAvatarAppearance;
-  agent: AgentPayload | null;
+  agent: AgentPayload;
   places: readonly AgentTeamPlace[];
   /** Scope ids the definition resolves in. */
   scopes: readonly string[];
@@ -184,30 +184,11 @@ function memberFromItem(
   };
 }
 
-/** An instance whose definition is gone: the card stays, so its reason stays visible. */
-function memberFromOrphan(
-  name: string,
-  instances: readonly AgentInstancePayload[],
-  names: ReadonlyMap<string, string>
-): AgentTeamMember {
-  const first = instances[0]!;
-  return {
-    key: `${name}\u0000orphan`,
-    name,
-    label: first.label,
-    description: "",
-    kind: "always_on",
-    provider: first.provider ?? null,
-    appearance: agentAppearanceFromPayload(first.resolved_appearance, name),
-    agent: null,
-    places: instances.map(instance => agentPlaceFromInstance(instance, names)),
-    scopes: [],
-    invalid: false,
-    active: 0,
-  };
-}
-
-/** Joins the grouped catalog with live instances. Same slug, different digest: separate cards. */
+/**
+ * Joins the grouped catalog with live instances. Same slug, different digest: separate cards.
+ * An instance no definition here claims (its setup was deleted, or none resolves where it works) has no page
+ * to open, so it stays off the team; the sidebar keeps it reachable to archive.
+ */
 export function buildAgentTeam(input: {
   items: readonly AgentTeamItem[];
   instances: readonly AgentInstancePayload[];
@@ -218,26 +199,21 @@ export function buildAgentTeam(input: {
   for (const item of input.items) {
     definitions.set(item.name, (definitions.get(item.name) ?? 0) + 1);
   }
-  const placed = new Set<string>();
-  const members = input.items.map(item => {
+  // A user-level definition resolves in every project, so it claims a project's instance too,
+  // unless a definition of the same name resolves there itself.
+  const claims = (item: AgentTeamItem, scope: string) =>
+    item.scopes.includes(scope) ||
+    (item.scopes.includes(GLOBAL_SCOPE) &&
+      !input.items.some(other => other.name === item.name && other.scopes.includes(scope)));
+  return input.items.map(item => {
     const shared = (definitions.get(item.name) ?? 0) > 1;
-    const own = input.instances.filter(instance => {
-      if (instance.agent_name !== item.name) return false;
-      return item.scopes.includes(instance.workspace_id || GLOBAL_SCOPE);
-    });
-    for (const instance of own) placed.add(instance.id);
+    const own = input.instances.filter(
+      instance =>
+        instance.agent_name === item.name && claims(item, instance.workspace_id || GLOBAL_SCOPE)
+    );
     const places = own.map(instance => agentPlaceFromInstance(instance, names));
     return memberFromItem(item, places, names, shared);
   });
-  const orphans = new Map<string, AgentInstancePayload[]>();
-  for (const instance of input.instances) {
-    if (placed.has(instance.id)) continue;
-    orphans.set(instance.agent_name, [...(orphans.get(instance.agent_name) ?? []), instance]);
-  }
-  for (const [name, instances] of orphans) {
-    members.push(memberFromOrphan(name, instances, names));
-  }
-  return members;
 }
 
 const ATTENTION: Partial<Record<AgentAvatarState, number>> = {

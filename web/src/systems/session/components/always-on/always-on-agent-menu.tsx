@@ -13,6 +13,7 @@ import {
 
 import {
   agentInstanceBinding,
+  agentInstanceDefinitionGone,
   agentInstanceResumeBlocked,
   useAgentInstanceActions,
   type AgentInstancePayload,
@@ -51,14 +52,18 @@ export function AlwaysOnAgentMenu({ instance }: { instance: AgentInstancePayload
             Pause
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={openAgent}>
-          <Bot aria-hidden="true" />
-          Open agent
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={openCheckIns}>
-          <HeartPulse aria-hidden="true" />
-          Heartbeat
-        </DropdownMenuItem>
+        {agentInstanceDefinitionGone(instance) ? null : (
+          <>
+            <DropdownMenuItem onClick={openAgent}>
+              <Bot aria-hidden="true" />
+              Open agent
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={openCheckIns}>
+              <HeartPulse aria-hidden="true" />
+              Heartbeat
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => archive(instance)}>
           <Archive aria-hidden="true" />

@@ -385,6 +385,7 @@ export {
   alwaysOnMainInstance,
   agentInstanceCapacity,
   type AgentInstanceCapacity,
+  agentInstanceDefinitionGone,
   agentInstanceResumeBlocked,
   agentInstancesByUrgency,
   agentScopeLabel,

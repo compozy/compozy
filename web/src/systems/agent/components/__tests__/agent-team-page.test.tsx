@@ -10,7 +10,13 @@ import { setupServer } from "msw/node";
 import type { ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { TEAM_WORKSPACES, teamInstances, teamItems } from "../../mocks/team-fixtures";
+import { agentInstanceFixture } from "../../mocks/instance-fixtures";
+import {
+  TEAM_WORKSPACES,
+  teamInstances,
+  teamItemFixture,
+  teamItems,
+} from "../../mocks/team-fixtures";
 import { agentAlwaysOn, buildAgentTeam } from "../../lib/agent-team";
 import { AgentTeamPage } from "../agent-team/agent-team-page";
 
@@ -98,6 +104,7 @@ describe("AgentTeamPage", () => {
           key: "other-definition",
           label: "Other definition",
           scopes: ["other-project"],
+          places: [],
         },
       ];
       renderPage({ view, members: selected });
@@ -108,25 +115,56 @@ describe("AgentTeamPage", () => {
           .sort((a, b) => a.key.localeCompare(b.key))
           .map(member => ({
             name: member.name,
-            workspaces: [...member.scopes].sort(),
+            workspaces: [
+              ...new Set([...member.scopes, ...member.places.map(place => place.scope)]),
+            ].sort(),
           })),
       });
-      expect(
-        await screen.findByRole("img", {
-          name: `${alwaysOn.label}'s activity over the last 2 weeks`,
-        })
-      ).toBeVisible();
-      expect(
-        screen.queryByRole("img", { name: "Other definition's activity over the last 2 weeks" })
-      ).toBeNull();
+      const pulse = await screen.findByRole("img", {
+        name:
+          view === "cards"
+            ? `${alwaysOn.label}'s activity over the last 2 weeks: 2 reports in 2 weeks`
+            : `${alwaysOn.label}'s activity over the last 2 weeks`,
+      });
+      expect(pulse).toBeVisible();
+      expect(screen.queryByRole("img", { name: /^Other definition's activity/ })).toBeNull();
       if (view === "cards") {
-        const card = screen.getByText(alwaysOn.label).closest('[data-testid^="agent-card-"]')!;
-        expect(within(card as HTMLElement).getByText("2 reports in 2 weeks")).toBeVisible();
-        const other = screen.getByText("Other definition").closest('[data-testid^="agent-card-"]')!;
-        expect(within(other as HTMLElement).getByText("No activity yet")).toBeVisible();
+        // The compact card keeps the recap on hover too, not in a line of its own.
+        expect(pulse).toHaveAttribute("title", "2 reports in 2 weeks");
       }
     }
   );
+
+  it("Should read a user-level agent's pulse from the projects it works in [#1340]", async () => {
+    const requests: { items: { name: string; workspaces: string[] }[] }[] = [];
+    server.use(
+      http.post("*/api/agents/activity", async ({ request }) => {
+        const input = (await request.json()) as (typeof requests)[number];
+        requests.push(input);
+        return HttpResponse.json({
+          activities: input.items.map(item => ({
+            reports_by_day: item.workspaces.includes("ws-compozy")
+              ? [{ day: "2026-11-01", quiet: 0, told: 3, needed_you: 0 }]
+              : [],
+            busy_by_hour: [],
+            cost_by_project: [],
+          })),
+        });
+      })
+    );
+    const [member] = buildAgentTeam({
+      items: [teamItemFixture({}, { scopes: ["@user"] })],
+      instances: [agentInstanceFixture({ workspace_id: "ws-compozy" })],
+      workspaces: TEAM_WORKSPACES,
+    });
+    renderPage({ members: [member!] });
+    expect(
+      await screen.findByRole("img", {
+        name: `${member!.label}'s activity over the last 2 weeks: 3 reports in 2 weeks`,
+      })
+    ).toBeVisible();
+    expect(requests[0]!.items[0]!.workspaces).toEqual(["@user", "ws-compozy"]);
+  });
 
   it("Should bound batches and skip members with no resolved workspaces", async () => {
     const requests: { items: { name: string; workspaces: string[] }[] }[] = [];
@@ -157,11 +195,17 @@ describe("AgentTeamPage", () => {
           name: "wide",
           scopes: Array.from({ length: 101 }, (_, i) => `ws-${i}`),
         },
-        { ...base, key: "empty", scopes: [] },
+        { ...base, key: "empty", name: "nowhere", scopes: [], places: [] },
       ],
     });
-    for (let i = 0; i < 8; i++)
+    // 103 always-on agents page in by 30: 30, 60, 90, then all of them.
+    const shown = () => screen.getAllByTestId(/^agent-card-/).length;
+    expect(shown()).toBe(30);
+    for (const expected of [60, 90, 103]) {
       await userEvent.click(screen.getByRole("button", { name: "Load more agents" }));
+      expect(shown()).toBe(expected);
+    }
+    expect(screen.queryByRole("button", { name: "Load more agents" })).toBeNull();
     await waitFor(() =>
       expect(requests.flatMap(request => request.items).some(item => item.name === "wide")).toBe(
         true
@@ -177,11 +221,10 @@ describe("AgentTeamPage", () => {
           request.items.reduce((sum, item) => sum + item.workspaces.length, 0) <= 5000
       )
     ).toBe(true);
-    expect(
-      requests
-        .flatMap(request => request.items)
-        .some(item => item.name === base.name && item.workspaces.length === 0)
-    ).toBe(false);
+    // A member that resolves and works nowhere has no workspace to read, so it is never sent.
+    expect(requests.flatMap(request => request.items).some(item => item.name === "nowhere")).toBe(
+      false
+    );
   });
   it("Should show Always-on first, with one card per agent", () => {
     renderPage();

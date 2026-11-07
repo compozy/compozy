@@ -1,5 +1,5 @@
 import { useIntentPreload } from "@/hooks/use-intent-preload";
-/** The two ways to meet a teammate: a big always-on card and a lighter on-demand card. */
+/** The two ways to meet a teammate: a compact always-on card and a lighter on-demand card. */
 import { CatalogCard, Sparkline } from "@compozy/ui";
 
 import { agentLastCheckIn } from "../../lib/agent-profile";
@@ -26,12 +26,13 @@ export interface AgentTeamActions {
 /** The name is the card's link; its hit area stretches over the card, under the controls. */
 function CardName({
   member,
-  large = false,
+  title,
   onOpen,
   onPreload,
 }: {
   member: AgentTeamMember;
-  large?: boolean;
+  /** Shown on hover anywhere over the card, since the link covers it. */
+  title?: string;
   onOpen: (member: AgentTeamMember) => void;
   onPreload?: (member: AgentTeamMember) => void | Promise<unknown>;
 }) {
@@ -39,9 +40,10 @@ function CardName({
   return (
     <button
       {...preload}
-      className={`min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring ${large ? "text-heading" : ""}`}
+      className="min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring"
       data-testid={`agent-fleet-row-link-${member.name}`}
       onClick={() => onOpen(member)}
+      title={title || undefined}
       type="button"
     >
       <CatalogCard.Title className="line-clamp-1 whitespace-normal">
@@ -51,27 +53,23 @@ function CardName({
   );
 }
 
-function Pulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
-  const { pulse, known } = pulseRead ?? { pulse: null, known: false };
-  if (!known || !pulse) return <div className="h-7" />;
-  if (pulse.values.every(value => value === 0)) {
-    return <div className="flex h-7 items-end text-eyebrow text-subtle">No activity yet</div>;
-  }
+/** Two weeks of reports at a glance; the count is in its label and, above the card link, on hover. */
+function CardPulse({ member, pulseRead }: { member: AgentTeamMember; pulseRead?: AgentPulseRead }) {
+  const pulse = pulseRead?.pulse;
+  if (!pulse?.values.some(value => value > 0)) return null;
+  const recap = `${pulse.reports} ${pulse.reports === 1 ? "report" : "reports"} in 2 weeks`;
   return (
-    <div className="flex items-end justify-between gap-3">
-      <Sparkline
-        ariaLabel={`${member.label}'s activity over the last 2 weeks`}
-        className="w-36 shrink-0 gap-0.5"
-        height={28}
-        values={pulse.values}
-      />
-      <span className="min-w-0 truncate text-eyebrow text-subtle tabular-nums">
-        {pulse.reports} {pulse.reports === 1 ? "report" : "reports"} in 2 weeks
-      </span>
-    </div>
+    <Sparkline
+      ariaLabel={`${member.label}'s activity over the last 2 weeks: ${recap}`}
+      className="relative z-1 w-14 shrink-0 gap-px"
+      height={16}
+      title={recap}
+      values={pulse.values}
+    />
   );
 }
 
+/** Compact, so a team of dozens still fits a screen: who, what now, where. Detail lives on its page. */
 export function AgentAlwaysOnCard({
   member,
   actions,
@@ -82,33 +80,36 @@ export function AgentAlwaysOnCard({
   pulseRead?: AgentPulseRead;
 }) {
   return (
-    <CatalogCard
-      actionable
-      className="relative gap-4 p-5"
-      data-testid={`agent-card-${member.name}`}
-    >
-      <div className="flex min-w-0 items-center gap-4">
+    <CatalogCard actionable className="relative gap-3" data-testid={`agent-card-${member.name}`}>
+      <div className="flex min-w-0 items-center gap-3">
         <AgentMark
           appearance={member.appearance}
           label={member.label}
           provider={member.provider}
           quietIdle
-          size={72}
+          size={40}
           state={agentOverallState(member)}
           surfaceClassName="ring-card"
         />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 items-center gap-2">
-            <CardName large member={member} onOpen={actions.onOpen} onPreload={actions.onPreload} />
+            <CardName
+              member={member}
+              onOpen={actions.onOpen}
+              onPreload={actions.onPreload}
+              title={member.description}
+            />
             <AgentFlags member={member} />
           </div>
-          <CatalogCard.Description className="line-clamp-2">
+          <CatalogCard.Description className="truncate">
             {member.description}
           </CatalogCard.Description>
         </div>
       </div>
-      <AgentNowLine lastCheckIn={agentLastCheckIn(member.places)} member={member} />
-      <Pulse member={member} pulseRead={pulseRead} />
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <AgentNowLine lastCheckIn={agentLastCheckIn(member.places)} member={member} />
+        <CardPulse member={member} pulseRead={pulseRead} />
+      </div>
       <CatalogCard.Actions className="relative z-1 mt-auto flex-nowrap justify-between">
         <AgentPlaceChips member={member} />
         <AgentAddPlaceButton add={actions.add} member={member} />
