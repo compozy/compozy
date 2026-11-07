@@ -47,7 +47,7 @@ func (h *BaseHandlers) projectFileRoot(c *gin.Context) (projectfiles.Root, bool)
 	}
 	root := projectfiles.Root{
 		Kind:        projectfiles.RootKindWorkspace,
-		WorkspaceID: scope.ID,
+		WorkspaceID: scope.RegistryID,
 		Name:        scope.Resolved.Name,
 		AbsPath:     scope.Resolved.RootDir,
 	}

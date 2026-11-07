@@ -1,0 +1,90 @@
+---
+title: Review a session's work
+description: Follow a file from the transcript to the viewer, review the session's diff, and check the same changes from the terminal.
+---
+
+This walkthrough uses a project session whose agent edited a few files. It works in a browser tab
+and in the desktop app; step 6 needs the desktop app.
+
+## 1. Open a file from the transcript
+
+When the agent mentions a path such as `` `internal/server/handler.go:42` ``, click it. The session
+window opens the **Review panel** on the **Files** tab, reveals the file in the tree, and scrolls the
+viewer to line 42 with the line highlighted.
+
+If the context sidebar was open, the Review panel takes its place: only one of the two is open at a
+time. Toggle the Review panel from the session header, next to the context sidebar toggle. Drag its
+edge to resize it; CompozyOS remembers the width, the tab, and whether it was open, per session.
+
+A path outside the project opens **Outside this project** instead, and the path is shown as
+written. A missing file shows **File not found** with **Refresh tree**.
+
+## 2. Review the diff
+
+Select the **Changes** tab. The header shows:
+
+- the scope: **Branch** (everything since the branch left its base, including uncommitted and
+  untracked files) or **Uncommitted** (only what is not committed yet);
+- the total `+` and `−` line counts;
+- the comparison, such as `feat/login → main ▾`, which opens the base selector;
+- the linked pull request, when the session has one;
+- **Refresh**, split or unified diff, **Collapse all**, and the changed-files tree toggle.
+
+Each file has a header with its status letter, its path (or `old → new` for a rename), its line
+counts, and actions to collapse it, **Open in viewer**, and **Copy path**. Lockfiles and generated
+files start collapsed with a **Generated** label.
+
+You can also reach Changes from two other places:
+
+- the pull request chip's menu, **Review changes**, which opens the Branch scope;
+- a turn's **Changed files** row: clicking a file opens Changes at that file, or the Files tab when
+  the current scope doesn't list it.
+
+## 3. Compare against another base
+
+Open the base selector and type to filter branches. The default base is marked **default**. You can
+also type any ref Git can resolve, such as `main~1`. If the base disappears, Changes shows
+**Base not found** with **Choose base**.
+
+## 4. Watch the diff follow the agent
+
+Prompt the agent to make another edit. When its tool calls settle or the turn ends, Changes
+refreshes once and reloads only the files that moved. You can also press **Refresh**, or return to
+the window; focusing it refreshes too.
+
+## 5. Find a file and search the project
+
+Back on the **Files** tab:
+
+1. Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>P</kbd> and type part of a file name. Add `:120` to
+   open it at line 120.
+2. Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> and search for a word. Click
+   a match to open the file at that line.
+3. With the viewer focused, press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>F</kbd> to find text in the
+   open file.
+
+[Search files](/docs/files/search) covers the options.
+
+## 6. Open the file in your editor (desktop app)
+
+In the viewer header, choose **Open in** and pick an application, such as Cursor or VS Code. The file
+opens at the current line, and that application becomes the default **Open in** choice. From now on,
+
+<kbd>Cmd</kbd>-click (macOS) or <kbd>Ctrl</kbd>-click on a transcript path opens it there directly.
+See [Open in another app](/docs/files/open-in).
+
+## 7. Read the same changes from the terminal
+
+```bash
+compozy session changes sess_1234
+compozy session changes sess_1234 --scope uncommitted
+compozy session changes sess_1234 --base main --patch internal/server/handler.go
+compozy session changes sess_1234 -o json
+```
+
+The human output starts with the comparison line, such as
+`Branch · feat/login → main (merge base 1a2b3c4)`, then a table of status, `+ADD`, `−DEL`, and path,
+then the totals. `--patch` appends the patch for each listed root-relative path, up to 20. A
+sensitive file prints `<path> (sensitive)` unless you add `--reveal`.
+
+Agents read the same data with the `compozy__session_changes` native tool.

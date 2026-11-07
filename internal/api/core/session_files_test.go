@@ -362,6 +362,10 @@ func TestProjectFileContentReveal(t *testing.T) {
 					if got.Kind != tc.kind {
 						t.Fatalf("kind=%s want %s", got.Kind, tc.kind)
 					}
+					// Clients route by the root's workspace ID, so it must be the public one.
+					if got.Root.WorkspaceID != "registry-workspace" {
+						t.Fatalf("root workspace_id=%q want the public registry ID", got.Root.WorkspaceID)
+					}
 					if got.Kind == "sensitive" && got.Text != nil {
 						t.Fatal("sensitive bytes leaked")
 					}

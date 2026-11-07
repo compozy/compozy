@@ -99,25 +99,42 @@ so Settings can report a chord in use, unsupported, or blocked by macOS Accessib
 Plain browsers show these controls as requiring the desktop shell while in-app shortcuts continue to
 work.
 
-## Open transcript paths in the editor
+## Open transcript paths and Open in targets
 
-In the desktop app, file paths in assistant messages open in the operator's editor on
-Cmd/Ctrl+click. Browser and remote clients never offer this, and the daemon has no open-file API,
-CLI verb, or native tool. The shell reads `desktop.editor_command` from the daemon's
-`GET /api/settings/general` on every open and runs it as an argument vector, never through a
-shell. When the command is unset, the shell uses the system text editor without line support:
-`open -t` on macOS, `notepad.exe` on Windows, and the `xdg-mime` `text/plain` handler through
-`gtk-launch` on Linux. On macOS and Linux, a bare executable such as `code` resolves against the
-operator's login-shell PATH. On Windows, point the command at the editor's `.exe`, because
-`.cmd` and `.bat` shims are rejected.
+File paths in assistant messages are links. A plain click opens the file in the session's
+in-app viewer (the Review panel's Files tab) on every client, browser included; the daemon serves
+it through the read-only project file routes, confined to the session's worktree or project root.
+User-scope sessions have no root, so the path reads as plain code there.
 
-The shell asks for native confirmation, with the full path shown, before it opens a file outside
-the session's worktree or workspace root. Symlinks are resolved before this check. It also asks
-before opening anything under `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`, `~/.docker`,
-`~/.config/gh`, or `~/.netrc`, even inside a root. A root that is the home directory, one of its
-ancestors, or `/` never counts as inside, so User-scope sessions always ask. Network and device
-paths are refused. Agents can read the command with `compozy__config_get`. Only the operator can
-change it, through Settings or `compozy config set`.
+In the desktop app, the viewer header carries an **Open in** split button. The shell lists the
+targets it can launch: Configured editor (always first), then the installed apps it detects among
+VS Code, Cursor, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, and Xcode, then Finder
+(macOS) or File manager. Detection resolves each app's command on the operator's login-shell PATH,
+and on macOS also its application bundle. Finder/File manager only reveals the file through the
+system file manager; it never launches anything. Choosing a target remembers it in that client;
+Cmd/Ctrl+click on a transcript path then opens the file directly in the remembered target without
+opening the viewer. The remembered default is Configured editor. Browser and remote clients show
+no Open in control, and modifier clicks there open the viewer. The bridge methods
+(`files.listOpenTargets`, `files.openWith`) exist only in the desktop product window; the daemon
+has no open-file API, CLI verb, or native tool.
+
+Configured editor runs `desktop.editor_command`, read from the daemon's
+`GET /api/settings/general` on every open, as an argument vector, never through a shell. Built-in
+targets use fixed argument vectors, also without a shell. When the command is unset, the shell uses
+the system text editor without line support: `open -t` on macOS, `notepad.exe` on Windows, and the
+`xdg-mime` `text/plain` handler through `gtk-launch` on Linux. On macOS and Linux, a bare
+executable such as `code` resolves against the operator's login-shell PATH. On Windows, point the
+command at the editor's `.exe`, because `.cmd` and `.bat` shims are rejected.
+
+Every target, reveal included, asks for native confirmation, with the full path shown, before it
+opens a file outside the session's worktree or workspace root. Symlinks are resolved before this
+check. It also asks before opening credential files inside a root (`.env`, `.env.*` except
+`.env.example`, `.env.sample`, and `.env.template`, PEM/key/PKCS files, and the other sensitive
+names the viewer gates) and anything under `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`, `~/.docker`,
+`~/.config/gh`, or `~/.netrc`. A root that is the home directory, one of its ancestors, or `/` never
+counts as inside, so User-scope sessions always ask. Network and device paths are refused. Agents
+can read the command with `compozy__config_get`. Only the operator can change it, through Settings
+or `compozy config set`.
 
 ## Recovery
 

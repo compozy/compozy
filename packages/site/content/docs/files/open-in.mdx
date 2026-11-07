@@ -1,0 +1,55 @@
+---
+title: Open in another app
+description: Send a file from the viewer or the transcript to an installed editor, your configured editor command, or Finder.
+---
+
+In the desktop app, the file viewer's header has an **Open in** button. It opens the file in an
+installed editor at the line you are reading, or shows it in Finder. A browser tab has no Open in
+button: a page can't start programs on your computer.
+
+## Choose an application
+
+The button has two parts. The main part, such as **Open in Cursor**, opens the file with the current
+choice. The arrow, **Choose application**, lists every target:
+
+| Target                                                                     | When it appears                                                                                                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Configured editor**                                                      | Always. Runs your [`[desktop] editor_command`](/docs/configuration/config-toml#desktop), or the system text editor when it is empty. |
+| VS Code, Cursor, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, Xcode | When the app is installed: its command is on your login shell's `PATH`, or, on macOS, its application bundle is found.               |
+| **Finder** (macOS) or **File manager**                                     | Always. Reveals the file in its folder without opening it.                                                                           |
+
+Editors open the file at the current line.
+
+When an open succeeds, that target becomes the main choice for every file and every window.
+
+## Cmd-click a transcript path
+
+A plain click on a file path in an assistant message opens the in-app viewer. In the desktop app,
+
+<kbd>Cmd</kbd>-click (macOS) or <kbd>Ctrl</kbd>-click (Windows and Linux) skips the viewer and opens
+the path with your last-used Open in target. Until you pick one, that is **Configured editor**.
+
+In a browser tab, a modifier click opens the viewer like a plain click.
+
+## Safety checks
+
+The desktop app makes every launch decision itself; the page only supplies the path and line.
+
+- A file outside the session's project or worktree asks first: **Open file outside this
+  workspace?** with the full path and "It is outside the session's workspace."
+- A credential file inside the project, such as `.env` or a private key, asks the same question with
+  "It may contain credentials." `.env.example`, `.env.sample`, and `.env.template` open without
+  asking.
+- **Cancel** opens nothing.
+- Programs start directly with fixed arguments, never through a shell, so a file name can't inject
+  a command.
+- A missing file shows "File not found: `<path>`". If the configured editor fails to start, the
+  toast reads "Couldn't open the editor. Check the editor command in Settings." with a link to
+  Settings.
+
+## Where Open in appears
+
+- The viewer header, for the open file.
+- The **Outside this project** state, so you can still open a path the viewer won't read.
+
+Rows in the file tree don't have an Open in menu yet. Open the file first, then use the header.

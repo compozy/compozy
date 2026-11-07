@@ -55,7 +55,7 @@ func (n *daemonNativeTools) sessionChanges(
 	}
 	root := projectfiles.Root{
 		Kind:        projectfiles.RootKindWorkspace,
-		WorkspaceID: resolved.WorkspaceID,
+		WorkspaceID: workspaceID,
 		Name:        resolved.Name,
 		AbsPath:     resolved.RootDir,
 	}

@@ -16976,7 +16976,7 @@ func TestNativeSessionChanges(t *testing.T) {
 			t,
 			&daemonNativeToolsDeps{
 				Sessions:   nativeTestSessionManager("ws-1"),
-				Workspaces: nativeTestWorkspaceServiceWithRoot(t, root),
+				Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, root, "stable-ws-1"),
 			},
 			nativeApproveAllPolicyInputs(),
 		)
@@ -17006,6 +17006,9 @@ func TestNativeSessionChanges(t *testing.T) {
 			bytes.Contains(result.Structured, []byte("SECRET")) ||
 			bytes.Contains(result.Structured, []byte(root)) {
 			t.Fatalf("response: %s", result.Structured)
+		}
+		if response.Root.WorkspaceID != "ws-1" {
+			t.Fatalf("root workspace_id=%q want the public registry ID", response.Root.WorkspaceID)
 		}
 		if err := os.Symlink(filepath.Join(root, ".git", "config"), filepath.Join(root, "protected.txt")); err != nil {
 			t.Fatal(err)

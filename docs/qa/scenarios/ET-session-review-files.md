@@ -1,0 +1,77 @@
+---
+id: ET-session-review-files
+area: ET
+title: Open transcript file paths in the session Review panel viewer
+persona: Dora
+journey: J-14
+expected: A plain click on a file path in an assistant message opens the session Review panel on Files, with the file in the in-app viewer at its line and the tree revealing it; every viewer state (sensitive gate, image, binary, truncated, not found, outside this project) renders; the panel replaces the Inspector and its open state and tab persist; "Open in Files window" opens the project's Files window on the same root and file; a User-scope session renders plain code with no Review panel.
+entry_points: web session window transcript (inline code paths in assistant messages); session topbar Review panel toggle; Review panel Files tab tree and viewer header
+qa_status: pass
+bug_ids: BUG-20261107-files-root-internal-workspace-id
+fix_status: fixed
+retest_status: pass
+fix_commits: c5d1d54a6
+evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/F01–F13, F12-open-in-files-window-fixed.png)
+last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
+overlaps: APP-open-transcript-paths-in-editor; ET-session-review-changes; ET-files-app
+---
+
+Introduced by the file-explorer spec (US-001, US-003–US-005, US-012). Walk it on a real daemon with
+a git project, a session whose agent replies with file paths, and a browser tab (no desktop bridge).
+
+Seed the project with a text file of at least 12 lines, a `.env`, a PNG, a binary file, a text file
+of several thousand lines, and a home-relative path outside the project (for example
+`~/.ssh/config` under a fake `HOME`).
+
+Walk:
+
+1. Open the session at 1600 px or wider, so the Inspector sits inline. Open the Inspector, then have
+   the agent reply with `` `src/main.go:12` `` and the other paths. Each path renders as a link
+   button named "Open <name> in viewer".
+2. Plain-click `src/main.go:12`. The Review panel opens on **Files** and the Inspector closes. The
+   viewer header shows `src/main.go`, line 12 is highlighted, and the tree reveals the file with
+   its git status letters.
+3. Click `.env:1`. The viewer shows "Sensitive file" with **Show contents**. Clicking it reveals
+   the text.
+4. Click the PNG: the image renders. Click the binary file: "<size> · No preview". Click the long
+   file at `:4800`: the viewer opens at line 4800.
+5. Click a missing path: the not-found state names the path and offers to refresh the tree. Click
+   `~/.ssh/config`: "Outside this project". In a browser tab, the viewer header has no Open in
+   control and no "Choose application" button.
+6. Expand folders in the tree and click a file: it opens in the viewer.
+7. Reload. The Review panel is still open on Files: `compozy:session:review-panel:v1` keeps open,
+   tab and width per session, and the viewer target is transient.
+8. In the Files tab tree header, choose **Open in Files window**. The project's Files window opens
+   (keyed by the public `ws_…` ID) on the same root, with the same file open. A second request
+   focuses that window.
+9. Open a User-scope session whose agent cites the same paths. They render as plain inline code,
+   and there is no Review panel toggle.
+
+Owning automated coverage: web `file-path-links.test.ts` (UT-048–UT-051), `message-markdown.test.tsx`
+(UT-054), `use-session-topbar-slot.test.tsx` (UT-044), `file-viewer-pane.test.tsx` (UT-055 and the
+viewer states), `files-app-window.test.tsx` (US-002.AC-6), and `web/e2e/__tests__/files-explorer.spec.ts`
+E2E-001 and E2E-003. The root's `workspace_id` contract is owned by `TestProjectFileContentReveal`
+(core) and `TestNativeSessionChanges` (daemon).
+
+## Walk 2026-11-07
+
+Build: `feat/file-explorer-s10` on integration `410a3566e`, daemon and `web/dist` built from the
+worktree, re-walked on `c5d1d54a6` after the fix. Isolated targeted lab (`eng-qa-bootstrap`, own
+`COMPOZY_HOME`, port 52129 and socket), fake `HOME`, and the acpmock driver as the agent. Driven
+with Playwright Chromium at 1600×1000.
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| 1 Links render | pass | `F01-transcript-links.png` |
+| 2 Plain click → viewer at line 12, Inspector closed | pass | Files tab selected, `data-highlighted-line=12`, Inspector count 0 (`F02-viewer-main-go-12.png`) |
+| 3 Sensitive gate → Show contents | pass | `F03-sensitive-gate.png`, `F03b-sensitive-revealed.png` |
+| 4 Image, binary, line 4800 | pass | `F04-image.png`; "50 KB · No preview" (`F05-binary.png`); 6,000 lines, line 4800 highlighted (`F06-long-4800.png`) |
+| 5 Not found, outside, no Open in in a browser | pass | `F07-not-found.png`, `F08-outside.png`; zero Open in or Choose application controls |
+| 6 Tree expand and open | pass | `F09-tree-click.png` |
+| 7 Persistence after reload | pass | stored `{"open":true,"tab":"files"}` |
+| 8 Open in Files window | fail → fixed → pass | Before the fix, the window opened keyed by the internal project ID and read "Project not found". After `c5d1d54a6`, it is keyed `ws_e72b1865b5dccbd5` with `README.md` open (`F12-open-in-files-window-fixed.png`) |
+| 9 User scope | pass | Plain code, no visible Review toggle (`F13-user-scope.png`) |
+
+BUG-20261107-files-root-internal-workspace-id: file, search and changes responses (HTTP/UDS and
+`compozy__session_changes`) set `root.workspace_id` to the project's internal identity instead of
+the public registry ID. Fixed in `c5d1d54a6`.

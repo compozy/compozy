@@ -1,0 +1,59 @@
+---
+title: File viewer
+description: How the in-app viewer shows text, images, binary, large, sensitive, missing, and outside-the-project files.
+---
+
+The file viewer is read-only. It shows text with syntax highlighting and line numbers, previews
+images, and tells you plainly when a file can't be shown. It opens from the tree, from Go to file
+and Search, from a transcript path, and from **Open in viewer** in Changes.
+
+The header shows the path and size, **Copy path**, and in the desktop app the
+[Open in](/docs/files/open-in) button.
+
+## Open a file at a line
+
+A transcript path with a line, such as `src/main.tsx:12` or `src/main.tsx:12:4`, opens the file
+scrolled to that line with the line highlighted. The tree reveals the file. If the file is shorter,
+the viewer scrolls to the end and says **Line 420 is past the end (40 lines)**.
+
+Paths resolve against the session root. A relative path never climbs above it, and an absolute path
+or `~/` path that lands inside the root opens like a relative one. If you click several paths
+quickly, only the last one opens.
+
+## What each file shows
+
+| File                                             | What you see                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Text up to 1 MB                                  | The whole file, highlighted by language.                                                     |
+| Text over 1 MB                                   | The first 1 MB with **Showing the first 1 MB of 14.2 MB**.                                   |
+| Image up to 5 MB                                 | A preview.                                                                                   |
+| Image over 5 MB                                  | **Image too large to preview** and its size.                                                 |
+| Binary                                           | **Binary file** · "2.3 MB · No preview".                                                     |
+| Sensitive (`.env`, keys, credentials)            | **Sensitive file** · "Its contents stay hidden until you show them." with **Show contents**. |
+| A path that doesn't exist                        | **File not found** with **Refresh tree**.                                                    |
+| A path outside the project or worktree           | **Outside this project** with the path as written.                                           |
+| A folder                                         | **Not a file**.                                                                              |
+| A symlink into `.git` or another protected place | **This file can't be shown** · "It resolves into a protected location."                      |
+| A worktree that was removed                      | **This worktree is no longer on disk**.                                                      |
+| A read that failed                               | **Couldn't read this file** with the reason.                                                 |
+
+**Show contents** reveals one file for this view. The revealed text is not cached, so reopening the
+file asks again. Symlinks that stay inside the root open their target, and a symlink that points to
+a sensitive file is gated like the file itself.
+
+## Find in file
+
+With the viewer focused, <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>F</kbd> opens the find bar. It counts
+matches over the whole loaded file, such as "3 of 17", even lines that aren't on screen yet.
+
+- <kbd>Enter</kbd> or <kbd>↓</kbd> goes to the next match. <kbd>Shift</kbd>+<kbd>Enter</kbd> or
+  <kbd>↑</kbd> goes to the previous one. Both wrap around.
+- **Match case** makes the search case-sensitive.
+- <kbd>Esc</kbd> closes the bar and keeps your scroll position.
+- On a file over 1 MB, the bar notes **Searching the first 1 MB**.
+
+Find in file matches literal text. When you open a file from a regular-expression search, the bar
+starts with the text that matched, with Match case on.
+
+<kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>F</kbd> belongs to the viewer only while focus is inside it.
+Elsewhere, the browser's own find works as usual.
