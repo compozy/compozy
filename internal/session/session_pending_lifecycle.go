@@ -9,14 +9,25 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) permissionEventHandler(target *Session) func(acp.AgentEvent) {
+func (m *Manager) permissionEventHandler(target *Session) func(acp.AgentEvent, bool) {
 	if m.attentionStore == nil {
 		return nil
 	}
-	return func(event acp.AgentEvent) {
+	return func(event acp.AgentEvent, promptDelivered bool) {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(m.fallbackLifecycleContext()), defaultLifecycleTimeout)
 		defer cancel()
-		if _, err := m.applyAttentionAgentEvent(ctx, target, event); err != nil {
+		var err error
+		for range 2 {
+			if promptDelivered {
+				_, err = m.applyAttentionAgentEvent(ctx, target, event)
+			} else {
+				err = m.recordEvent(ctx, target, m.normalizeEvent(target, event.TurnID, event))
+			}
+			if err == nil {
+				return
+			}
+		}
+		if err != nil {
 			m.sessionLogger(target).ErrorContext(ctx, "session: persist permission lifecycle failed",
 				"request_id", event.RequestIDValue(), "error", err)
 		}
@@ -89,22 +100,18 @@ func (m *Manager) applyPendingPermissionEvent(
 		return store.SessionAttentionCommit{}, nil
 	}
 	if m.attentionStore != nil {
-		interactions, err := m.PendingInteractions(ctx, target.ID, []string{
-			store.PendingInteractionStatusPending,
-			store.PendingInteractionStatusOrphaned,
-			store.PendingInteractionStatusResolved,
-			store.PendingInteractionStatusTimedOut,
-			store.PendingInteractionStatusCanceled,
-		})
+		exists, err := m.attentionStore.HasPermissionOccurrence(
+			ctx,
+			target.ID,
+			requestID,
+			event.TurnID,
+			event.Timestamp,
+		)
 		if err != nil {
 			return store.SessionAttentionCommit{}, err
 		}
-		for _, existing := range interactions {
-			if existing.Kind == store.PendingInteractionKindPermission && existing.ProviderRequestID == requestID &&
-				existing.TurnID == event.TurnID &&
-				(pendingInteractionIsActionable(existing.Status) || existing.CreatedAt.Equal(event.Timestamp)) {
-				return store.SessionAttentionCommit{}, nil
-			}
+		if exists {
+			return store.SessionAttentionCommit{}, nil
 		}
 	}
 	payload, title := permissionInteractionPayload(event)

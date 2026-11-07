@@ -331,6 +331,11 @@ func (m *Manager) resolveOrphanedInteraction(
 	if commit.Interaction != nil {
 		resolved = *commit.Interaction
 	}
+	if resolved.Kind == store.PendingInteractionKindPermission {
+		if err := permissionResolutionError(resolved, m.now()); err != nil {
+			return PendingInteractionResolution{}, err
+		}
+	}
 	return PendingInteractionResolution{
 		Outcome:       commit.Outcome,
 		InteractionID: resolved.InteractionID,

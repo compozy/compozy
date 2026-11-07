@@ -5,7 +5,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { SessionApiError, type PermissionDecision } from "../adapters/session-api";
 import type { PermissionRequest } from "../types";
 
-type PermissionDecisionPhase = "idle" | "submitting" | "resolved";
+type PermissionDecisionPhase = "idle" | "submitting" | "resolved" | "unavailable";
 
 interface SessionPermissionDecisionState {
   phase: PermissionDecisionPhase;
@@ -29,6 +29,7 @@ type SessionPermissionDecisionEventPayloadMap = {
 
 type SessionPermissionDecisionEmittedPayloadMap = {
   resolutionAccepted: { decision: PermissionDecision };
+  permissionUnavailable: {};
 };
 
 interface PermissionDecisionInput {
@@ -70,6 +71,8 @@ export function createSessionPermissionDecisionLogic() {
       },
       decisionFailed: (context, event, enqueue) => {
         if (context.phase !== "submitting" || context.requestId !== event.requestId) return;
+        const terminal = terminalPermissionFailure(event.error);
+        if (terminal) enqueue.emit.permissionUnavailable({});
         enqueue.effect(() => {
           console.error("Failed to submit permission decision", event.error);
           notifyUser({
@@ -77,22 +80,31 @@ export function createSessionPermissionDecisionLogic() {
             tone: "error",
           });
         });
-        return { ...context, phase: "idle" };
+        return { ...context, decision: null, phase: terminal ? "unavailable" : "idle" };
       },
     },
   });
 }
 
 function permissionDecisionFailureMessage(error: Error): string {
+  const terminal = terminalPermissionFailure(error);
+  if (terminal === "expired")
+    return "This permission request expired. The action was not approved.";
+  if (terminal === "canceled")
+    return "This permission request was canceled. The action was not approved.";
+  return "Failed to send permission response. The agent may continue waiting.";
+}
+
+function terminalPermissionFailure(error: Error): "expired" | "canceled" | null {
   if (error instanceof SessionApiError && error.status === 409) {
     if (error.message.includes("permission request expired")) {
-      return "This permission request expired. The action was not approved.";
+      return "expired";
     }
     if (error.message.includes("permission request canceled")) {
-      return "This permission request was canceled. The action was not approved.";
+      return "canceled";
     }
   }
-  return "Failed to send permission response. The agent may continue waiting.";
+  return null;
 }
 
 function enqueueDecision(

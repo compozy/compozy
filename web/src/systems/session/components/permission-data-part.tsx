@@ -12,6 +12,7 @@ import {
 import {
   interactionExpiredByRestart,
   permissionDecisionActor,
+  permissionOccurrenceKey,
   type PermissionDecisionActor,
 } from "../lib/session-pending-interactions";
 import type { CompozyPermissionData, PermissionRequest, SessionInteractionRecord } from "../types";
@@ -140,7 +141,7 @@ export function PermissionDataPart({ data }: { data: CompozyPermissionData }) {
       />
     );
   }
-  const expired = expiredInteractions?.get(data.request_id);
+  const expired = expiredInteractions?.get(permissionOccurrenceKey(permission));
   if (expired) {
     return (
       <PermissionExpiredReceipt

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -152,6 +153,7 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 				Choices: event.Request.Choices,
 			},
 			CreatedAt: event.At,
+			ExpiresAt: clarifyDeadline(event.Request.Deadline),
 		})
 		if errors.Is(err, store.ErrPendingInteractionConflict) {
 			return store.SessionAttentionCommit{}, true, m.refreshPendingInteractions(ctx, target.ID)
@@ -185,6 +187,13 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 	}
 	commit, err := m.commitTransitionPendingInteraction(ctx, transition)
 	return commit, err == nil, err
+}
+
+func clarifyDeadline(deadline time.Time) *time.Time {
+	if deadline.IsZero() {
+		return nil
+	}
+	return new(deadline)
 }
 
 func clarifyInteractionStatus(status toolspkg.ClarifyStatus) (string, error) {

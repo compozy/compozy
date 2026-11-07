@@ -96,7 +96,7 @@ type AgentProcess struct {
 	permissionRequestSeq   uint64
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
-	permissionEventHandler func(AgentEvent)
+	permissionEventHandler func(AgentEvent, bool)
 	hostedApprovals        hostedApprovals
 	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string

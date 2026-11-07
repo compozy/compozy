@@ -108,7 +108,7 @@ type StartOpts struct {
 	ProviderName           string
 	ProviderConfig         *compozyconfig.ProviderConfig
 	ProviderAuthEnv        *authproviders.ProbeEnv
-	PermissionEventHandler func(AgentEvent)
+	PermissionEventHandler func(AgentEvent, bool)
 	ActivateMCPServers     func(context.Context) error
 	FinalizeStartup        func(context.Context) (string, StartupManifest, error)
 	Inspection             bool

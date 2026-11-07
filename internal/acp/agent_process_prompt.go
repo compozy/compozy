@@ -211,24 +211,24 @@ func (p *AgentProcess) markSystemPromptSent() {
 	p.systemPromptSent = true
 }
 
-func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
+func (p *AgentProcess) emitPromptEvent(event AgentEvent) bool {
 	p.promptMu.RLock()
 	active := p.activePrompt
 	p.promptMu.RUnlock()
 	if active == nil {
-		return
+		return false
 	}
 
 	active.sendMu.Lock()
 	defer active.sendMu.Unlock()
 	if active.closed {
-		return
+		return false
 	}
 	if active.deferToolResultLocked(event) {
-		return
+		return true
 	}
 	if active.shouldSuppressToolCallLocked(event) {
-		return
+		return true
 	}
 	if event.Type == EventTypeDone {
 		active.flushDeferredToolResultsLocked()
@@ -246,6 +246,7 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 			active.sendEventLocked(event)
 		}
 	}
+	return true
 }
 
 func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {

@@ -1,3 +1,4 @@
+import { expiredInteractionsByRequest } from "../session-pending-interactions";
 import { render, screen } from "@testing-library/react";
 import { type ComponentProps } from "react";
 import { describe, expect, it } from "vitest";
@@ -74,7 +75,11 @@ function renderWithContext(
 ) {
   render(
     <SessionRuntimeRenderProvider
-      expiredInteractions={expiredInteractions}
+      expiredInteractions={
+        expiredInteractions
+          ? expiredInteractionsByRequest([...expiredInteractions.values()])
+          : undefined
+      }
       sessionId={SESSION_ID}
       workspaceId={WORKSPACE_ID}
     >
@@ -97,7 +102,11 @@ function renderPermissionWithContext(
 ) {
   render(
     <SessionRuntimeRenderProvider
-      expiredInteractions={expiredInteractions}
+      expiredInteractions={
+        expiredInteractions
+          ? expiredInteractionsByRequest([...expiredInteractions.values()])
+          : undefined
+      }
       sessionId={SESSION_ID}
       workspaceId={WORKSPACE_ID}
     >
@@ -260,6 +269,18 @@ describe("CompozyPermissionDataRenderer", () => {
     expect(receipt.querySelector("time")).toHaveAttribute("dateTime", "2026-09-05T10:00:00Z");
     expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
   });
+
+  it.each([{ turn_id: "later-turn" }, { timestamp: "2026-09-05T10:00:01Z" }])(
+    "Should keep a reused request occurrence waiting for %j",
+    changes => {
+      renderPermissionWithContext(
+        { ...pendingTerminalPermission, ...changes },
+        new Map([["req-1", restartExpired({ status: "timed_out", resolution: "expired" })]])
+      );
+      expect(screen.queryByTestId("permission-expired-receipt")).not.toBeInTheDocument();
+      expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
+    }
+  );
 
   it("Should replace a pending transcript ask with a durable timeout receipt", () => {
     renderPermissionWithContext(

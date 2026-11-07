@@ -1,3 +1,4 @@
+import { expiredInteractionsByRequest } from "../../lib/session-pending-interactions";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -19,7 +20,7 @@ vi.mock("../../adapters/session-clarification-api", async importOriginal => ({
   answerSessionClarification: vi.fn(),
 }));
 
-import { approveSession } from "../../adapters/session-api";
+import { approveSession, SessionApiError } from "../../adapters/session-api";
 import {
   answerSessionClarification,
   fetchSessionClarifications,
@@ -51,6 +52,7 @@ function permissionMessage(
           session_id: SESSION_ID,
           turn_id: "turn-001",
           request_id: requestId,
+          timestamp: "2026-09-05T10:00:00Z",
           title: "Bash",
           action: "execute",
           resource: "rm -rf /tmp/test",
@@ -318,6 +320,23 @@ describe("SessionDecisionDock", () => {
     expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("run command?");
   });
 
+  it("Should remove terminally refused permission controls without accepting a decision", async () => {
+    vi.mocked(approveSession).mockRejectedValue(
+      new SessionApiError("permission request expired", 409)
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      renderDock({ messages: [permissionMessage("expired-on-submit")] });
+      fireEvent.click(screen.getByTestId("permission-allow-once"));
+      await waitFor(() => expect(screen.queryByTestId("permission-dock")).not.toBeInTheDocument());
+      fireEvent.keyDown(document.body, { key: "1" });
+      expect(approveSession).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("permission-allowed-receipt")).not.toBeInTheDocument();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it("Should not dock a permission the transcript already resolved", () => {
     const { container } = renderDock({
       messages: [permissionMessage("req-1", { decision: "allow-once" })],
@@ -325,6 +344,28 @@ describe("SessionDecisionDock", () => {
     });
     expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
   });
+
+  it.each([{ turn_id: "later-turn" }, { timestamp: "2026-09-05T10:00:01Z" }])(
+    "Should dock a reused request occurrence for %j",
+    changes => {
+      const expired: SessionInteractionRecord = {
+        session_id: SESSION_ID,
+        interaction_id: "old",
+        kind: "permission",
+        provider_request_id: "reused",
+        turn_id: "turn-001",
+        status: "timed_out",
+        created_at: "2026-09-05T10:00:00Z",
+        resolution: "expired",
+        resolved_by: "timeout",
+      };
+      renderDock({
+        messages: [permissionMessage("reused", changes)],
+        expiredInteractions: expiredInteractionsByRequest([expired]),
+      });
+      expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
+    }
+  );
 
   it.each(["canceled", "timed_out"] as const)(
     "Should not dock a %s permission, and count only live asks",
@@ -342,7 +383,7 @@ describe("SessionDecisionDock", () => {
       };
       const { container, rerender } = renderDock({
         messages: [permissionMessage("req-expired")],
-        expiredInteractions: new Map([["req-expired", expired]]),
+        expiredInteractions: expiredInteractionsByRequest([expired]),
       });
       await waitFor(() => expect(fetchSessionClarifications).toHaveBeenCalled());
       expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
@@ -352,7 +393,7 @@ describe("SessionDecisionDock", () => {
           client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
         >
           <SessionRuntimeRenderProvider
-            expiredInteractions={new Map([["req-expired", expired]])}
+            expiredInteractions={expiredInteractionsByRequest([expired])}
             sessionId={SESSION_ID}
             workspaceId={WORKSPACE_ID}
           >

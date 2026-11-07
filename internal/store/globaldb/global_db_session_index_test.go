@@ -2281,6 +2281,103 @@ func TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically(t *testing.
 }
 
 func TestPendingInteractionCanonicalTransactionRedactsAndRollsBackTogether(t *testing.T) {
+	t.Run("Should expire an orphan permission inside the response transaction before enqueueing", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerAttentionSession(t, db, store.SessionAttention{})
+		at := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+		expires := at.Add(time.Second)
+		db.now = func() time.Time { return expires }
+		if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+			InteractionID: "deadline", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "request", CreatedAt: at, ExpiresAt: &expires,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+			InteractionID: "deadline", Status: store.PendingInteractionStatusOrphaned, At: at,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		commit, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+			InteractionID: "deadline", Status: store.PendingInteractionStatusResolved,
+			Resolution: "allow-once", ResolvedBy: "operator", At: at,
+			OrphanInput: &store.SessionInputQueueInsert{
+				ID: "answer", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+				Text: "allow-once", QueueCap: 1, Now: at,
+			},
+		})
+		if err != nil || commit.Interaction == nil ||
+			commit.Interaction.Status != store.PendingInteractionStatusTimedOut ||
+			commit.After.PendingPermissionCount != 0 {
+			t.Fatalf("orphan response = %#v, %v", commit, err)
+		}
+		inputs, err := db.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil || len(inputs) != 0 {
+			t.Fatalf("queued expired response = %#v, %v", inputs, err)
+		}
+	})
+	t.Run("Should scope permission occurrence lookup without decoding retained payloads", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerAttentionSession(t, db, store.SessionAttention{})
+		at := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+		if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+			InteractionID: "occurrence", SessionID: sessionID, Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "request", TurnID: "turn", CreatedAt: at,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []string{
+			store.PendingInteractionStatusPending, store.PendingInteractionStatusOrphaned,
+			store.PendingInteractionStatusResolved,
+		} {
+			if status != store.PendingInteractionStatusPending {
+				transition := store.PendingInteractionTransition{
+					InteractionID: "occurrence", Status: status, At: at.Add(time.Second),
+				}
+				if status == store.PendingInteractionStatusResolved {
+					transition.Resolution, transition.ResolvedBy = "allow_once", "operator"
+				}
+				if _, err := db.TransitionPendingInteraction(ctx, transition); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, query := range []struct {
+				sessionID, requestID, turnID string
+				createdAt                    time.Time
+				want                         bool
+			}{
+				{sessionID, "request", "turn", at, true},
+				{sessionID, "request", "turn", at.Add(time.Second), status != store.PendingInteractionStatusResolved},
+				{sessionID, "other-request", "turn", at, false},
+				{sessionID, "request", "other-turn", at, false},
+				{"other-session", "request", "turn", at, false},
+			} {
+				exists, err := db.HasPermissionOccurrence(
+					ctx,
+					query.sessionID,
+					query.requestID,
+					query.turnID,
+					query.createdAt,
+				)
+				if err != nil || exists != query.want {
+					t.Fatalf("lookup %#v at status %s = %t, %v", query, status, exists, err)
+				}
+			}
+		}
+		// Valid JSON with an incompatible shape must not be decoded by this existence lookup.
+		if _, err := db.DB().ExecContext(ctx,
+			"UPDATE session_pending_interactions SET payload_json = '[]' WHERE interaction_id = 'occurrence'",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if exists, err := db.HasPermissionOccurrence(ctx, sessionID, "request", "turn", at); err != nil || !exists {
+			t.Fatalf("lookup with retained payload = %t, %v", exists, err)
+		}
+	})
 	for _, kind := range []string{store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
 		for _, actor := range []string{"operator", "operator:control", "agent:child", "policy", "timeout"} {
 			t.Run("Should count only operator engagement for "+kind+" by "+actor, func(t *testing.T) {

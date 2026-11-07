@@ -9,6 +9,7 @@ import {
   derivePendingPermissions,
 } from "../lib/pending-permissions";
 import { sessionDetailOptions } from "../lib/query-options";
+import { permissionOccurrenceKey } from "../lib/session-pending-interactions";
 import { isSessionRunning } from "../lib/session-running";
 import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
@@ -136,7 +137,7 @@ function useSessionDecisionState({
   // map decides which asks are genuinely open: those keep the read on its cadence
   // and keep blocking rewind; settled ones do neither.
   const undecidedRequestIds = new Set<string>([
-    ...pendingPermissions.map(permission => permission.requestId),
+    ...pendingPermissions.map(permissionOccurrenceKey),
     ...derivePendingClarifyRequestIds(transcript.messages),
   ]);
   const expiredInteractions = useSessionExpiredInteractions(workspaceId, sessionId, {
@@ -152,7 +153,7 @@ function useSessionDecisionState({
     decidedRequestIds,
   });
   const hasOpenPermission = pendingPermissions.some(
-    permission => !expiredInteractions.has(permission.requestId)
+    permission => !expiredInteractions.has(permissionOccurrenceKey(permission))
   );
   const rewindBlocked =
     hasOpenPermission ||

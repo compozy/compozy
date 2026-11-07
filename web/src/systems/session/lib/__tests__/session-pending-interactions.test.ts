@@ -1,3 +1,4 @@
+import { permissionOccurrenceKey } from "../session-pending-interactions";
 // Suite: session-pending-interactions
 // Invariant: the needs-you reason quotes the newest pending interaction, prefers
 // a permission over a later question, and rewrites only terminal actions with
@@ -131,7 +132,7 @@ describe("expiredInteractionsByRequest", () => {
     };
   }
 
-  it("Should key canceled and timed-out rows by the provider request id the transcript carries", () => {
+  it("Should key canceled and timed-out permissions by the occurrence the transcript carries", () => {
     const restartExpired = record({});
     const rows = [
       restartExpired,
@@ -143,9 +144,17 @@ describe("expiredInteractionsByRequest", () => {
 
     const expired = expiredInteractionsByRequest(rows);
 
-    expect([...expired.keys()]).toEqual(["req-1", "req-3"]);
-    expect(expired.get("req-3")?.status).toBe("timed_out");
-    expect(expired.get("req-1")).toBe(restartExpired);
+    expect(expired.size).toBe(2);
+    expect(
+      expired.get(
+        permissionOccurrenceKey({ requestId: "req-3", timestamp: "2026-09-05T10:00:00Z" })
+      )?.status
+    ).toBe("timed_out");
+    expect(
+      expired.get(
+        permissionOccurrenceKey({ requestId: "req-1", timestamp: "2026-09-05T10:00:00Z" })
+      )
+    ).toBe(restartExpired);
   });
 
   it("Should key only resolved rows by the provider request id for attribution", () => {

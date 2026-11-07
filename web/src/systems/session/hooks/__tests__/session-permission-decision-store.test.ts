@@ -93,6 +93,10 @@ describe("session permission decision store", () => {
     ],
   ])("Should present a safe permission failure for %s %s", async (status, cause, message) => {
     const store = createSessionPermissionDecisionLogic().createStore();
+    const accepted = vi.fn();
+    const unavailable = vi.fn();
+    store.on("resolutionAccepted", accepted);
+    store.on("permissionUnavailable", unavailable);
     const failure = new SessionApiError(`session: pending permission not found: ${cause}`, status);
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
@@ -112,7 +116,9 @@ describe("session permission decision store", () => {
         execute: vi.fn().mockRejectedValue(failure),
       });
       await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
-      expect(store.getSnapshot().context.phase).toBe("idle");
+      expect(store.getSnapshot().context.phase).toBe(status === 409 ? "unavailable" : "idle");
+      expect(accepted).not.toHaveBeenCalled();
+      expect(unavailable).toHaveBeenCalledTimes(status === 409 ? 1 : 0);
     } finally {
       consoleError.mockRestore();
     }

@@ -827,6 +827,26 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 
 func TestEmitPermissionEvent(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report whether the prompt accepted a permission event", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
+		var deliveries []bool
+		proc.permissionEventHandler = func(_ AgentEvent, delivered bool) { deliveries = append(deliveries, delivered) }
+		emit := func() {
+			proc.emitPermissionEvent("session", "turn", "request", "Approve", "tool", "file", "", "provider", nil)
+		}
+		emit()
+		active, err := proc.beginPrompt("turn", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		emit()
+		proc.endPrompt(active)
+		emit()
+		if !slices.Equal(deliveries, []bool{false, true, false}) {
+			t.Fatalf("permission deliveries = %v", deliveries)
+		}
+	})
 
 	tests := []struct {
 		name     string

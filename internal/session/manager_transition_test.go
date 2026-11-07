@@ -441,9 +441,88 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 }
 
+type permissionTransitionFailOnce struct {
+	store.SessionAttentionStore
+	failed atomic.Bool
+}
+
+func (s *permissionTransitionFailOnce) TransitionPendingInteraction(
+	ctx context.Context, req store.PendingInteractionTransition,
+) (store.SessionAttentionCommit, error) {
+	if req.Status == store.PendingInteractionStatusTimedOut && !s.failed.Swap(true) {
+		return store.SessionAttentionCommit{}, errors.New("injected transient terminal write failure")
+	}
+	return s.SessionAttentionStore.TransitionPendingInteraction(ctx, req)
+}
+
 // TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+	t.Run("Should classify retained clarification deadlines during stop cleanup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		for _, id := range []string{"finite", "unbounded"} {
+			request := toolspkg.ClarifyPending{RequestID: id, Question: "Continue?"}
+			if id == "finite" {
+				request.Deadline = h.manager.now().Add(-time.Minute)
+			}
+			if _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
+				Status: toolspkg.ClarifyStatusPending, Request: request, At: h.manager.now().Add(-time.Hour),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.cancelSessionInteractions(t.Context(), target.ID, "stopped"); err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled} {
+			rows, err := catalog.ListPendingInteractions(t.Context(), target.ID, []string{status})
+			if err != nil || len(rows) != 1 || (rows[0].ProviderRequestID == "finite") != (status == "timed_out") {
+				t.Fatalf("clarification %s = %#v, %v", status, rows, err)
+			}
+		}
+	})
+	t.Run("Should retry a failed terminal permission write and record each callback event once", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		h.manager.attentionStore = &permissionTransitionFailOnce{SessionAttentionStore: h.manager.attentionStore}
+		callback := h.manager.permissionEventHandler(target)
+		pending := acp.AgentEvent{Type: acp.EventTypePermission, TurnID: "turn", Timestamp: h.manager.now()}.
+			WithRequestID("request").WithEventID("pending-event")
+		callback(pending, false)
+		if err := h.manager.recordEvent(t.Context(), target, pending); err != nil {
+			t.Fatal(err)
+		}
+		terminal := pending.WithEventID("terminal-event").WithResolvedBy("timeout")
+		terminal.Decision = string(acp.PermissionDecisionCanceled)
+		callback(terminal, false)
+		if err := h.manager.recordEvent(t.Context(), target, terminal); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(
+			t.Context(),
+			target.ID,
+			[]string{store.PendingInteractionStatusTimedOut},
+		)
+		if err != nil || len(rows) != 1 || target.Info().PendingPermissionCount != 0 {
+			t.Fatalf("settled after retry = %#v, %v", rows, err)
+		}
+		events, err := target.recorderHandle().
+			Query(t.Context(), store.EventQuery{Types: []string{acp.EventTypePermission}})
+		if err != nil || len(events) != 2 {
+			t.Fatalf("permission events = %#v, %v", events, err)
+		}
+	})
 
 	t.Run("Should retain the creation witness across initial binding and provider replacement", func(t *testing.T) {
 		t.Parallel()

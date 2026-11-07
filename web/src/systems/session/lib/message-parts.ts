@@ -58,6 +58,7 @@ export function toPermissionRequest(data: CompozyPermissionData): PermissionRequ
   const toolId = typeof raw?.tool_id === "string" ? raw.tool_id.trim() : "";
   return {
     requestId: data.request_id,
+    timestamp: data.timestamp,
     ...(toolId ? { toolId } : {}),
     toolName: data.title ?? "unknown",
     toolInput: permissionToolInput(raw),
