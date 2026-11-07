@@ -7114,6 +7114,7 @@ func TestManagerBoundarySteer(t *testing.T) {
 			registerManagerInputQueueWorkspace(t, database, h)
 			completion := make(chan error, 1)
 			if tc.lateFailure {
+				queueStore.settled = make(chan store.SessionInputQueueEntry, 1)
 				h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 					proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "boundary-native")
 					proc.handle.caps.SteerCapability = compozyconfig.SteerCapabilityConcurrentPrompt
@@ -7235,10 +7236,19 @@ func TestManagerBoundarySteer(t *testing.T) {
 			if tc.lateFailure {
 				completion <- errors.New("late native refusal")
 				close(completion)
-				waitForCondition(t, "delayed refusal settled", func() bool {
-					entry, err := database.GetSessionInputQueueEntry(ctx, sess.ID, result.QueueEntryID)
-					return err == nil && entry.SteerDelivery == tc.want
-				})
+				select {
+				case settled := <-queueStore.settled:
+					if settled.ID != result.QueueEntryID || settled.SteerDelivery != tc.want {
+						t.Fatalf(
+							"delayed refusal settlement = %#v, want %s for %s",
+							settled,
+							tc.want,
+							result.QueueEntryID,
+						)
+					}
+				case <-ctx.Done():
+					t.Fatalf("delayed refusal did not settle: %v", ctx.Err())
+				}
 			}
 			if tc.want == store.SteerDeliveryAfterTurn || tc.boundary {
 				sess.mu.RLock()
@@ -7337,6 +7347,7 @@ type boundaryInputQueueFaultStore struct {
 	failGet       atomic.Bool
 	failSettle    atomic.Bool
 	failed        chan struct{}
+	settled       chan store.SessionInputQueueEntry
 }
 
 func (s *boundaryInputQueueFaultStore) ReserveSessionSteer(
@@ -7380,5 +7391,13 @@ func (s *boundaryInputQueueFaultStore) SettlePendingSessionSteer(
 	if s.failSettle.Swap(false) {
 		return store.SessionInputQueueEntry{}, false, errors.New("transient boundary settlement failure")
 	}
-	return s.GlobalDB.SettlePendingSessionSteer(ctx, sessionID, entryID, delivery, now)
+	entry, changed, err := s.GlobalDB.SettlePendingSessionSteer(ctx, sessionID, entryID, delivery, now)
+	if err == nil && changed {
+		// Retain the first committed transition even if its timeout wins before the observer runs.
+		select {
+		case s.settled <- entry:
+		default:
+		}
+	}
+	return entry, changed, err
 }
