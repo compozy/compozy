@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -19,80 +21,99 @@ func TestPermissionDispatchOrdering(t *testing.T) {
 	t.Parallel()
 	t.Run("Should deliver preceding prose before permission without blocking later updates", func(t *testing.T) {
 		t.Parallel()
-		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-		active := beginACPTestRun(t, proc, "turn-order")
-		handle := newFakeHandle(proc.Cwd)
-		t.Cleanup(func() {
-			if err := handle.finish(); err != nil {
-				t.Error(err)
+		synctest.Test(t, func(t *testing.T) {
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			active := beginACPTestRun(t, proc, "turn-order")
+			handle := newFakeHandle(proc.Cwd)
+			t.Cleanup(func() {
+				if err := handle.finish(); err != nil {
+					t.Error(err)
+				}
+				if err := handle.stdoutReader.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			// Block the first notification at diagnostic I/O so synctest can settle request dispatch.
+			logReader, logWriter := io.Pipe()
+			unblock := sync.OnceFunc(func() {
+				go func() {
+					if _, err := io.Copy(io.Discard, logReader); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+						t.Error(err)
+					}
+				}()
+			})
+			t.Cleanup(func() {
+				unblock()
+				if err := logWriter.Close(); err != nil {
+					t.Error(err)
+				}
+				if err := logReader.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			permission := make(chan struct{}, 1)
+			proc.permissionEventHandler = func(event AgentEvent, _ bool) {
+				if event.Decision == "" {
+					permission <- struct{}{}
+				}
 			}
-			if err := handle.stdoutReader.Close(); err != nil {
-				t.Error(err)
+			New(WithLogger(slog.New(slog.NewTextHandler(logWriter, nil)))).configureAgentConnection(proc, handle, nil)
+			write := func(message string) {
+				t.Helper()
+				if _, err := io.WriteString(handle.stdoutWriter, message+"\n"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(
+				`{"jsonrpc":"2.0","method":"test/hold","params":{"sessionId":"sess-direct"}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess-direct","toolCall":{"toolCallId":"edit","kind":"edit","title":"Edit file"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}`,
+			)
+			synctest.Wait()
+			select {
+			case <-permission:
+				t.Fatal("permission overtook a preceding notification still being delivered")
+			default:
+			}
+			unblock()
+			var prose strings.Builder
+			for {
+				select {
+				case event := <-active.events:
+					if event.Type == EventTypeAgentMessage {
+						prose.WriteString(event.Text)
+					}
+					if event.Type == EventTypePermission {
+						if prose.String() != "Streaming response started. " {
+							t.Fatalf("pre-permission prose = %q", prose.String())
+						}
+						write(
+							`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"while pending"}}}}`,
+						)
+						select {
+						case later := <-active.events:
+							if later.Text != "while pending" {
+								t.Fatalf("later event = %+v", later)
+							}
+						case <-ctx.Done():
+							t.Fatal("unanswered permission blocked notifications")
+						}
+						return
+					}
+				case <-ctx.Done():
+					t.Fatal("permission was not delivered")
+				}
 			}
 		})
-		// Hold a real config notification so the following prose stays queued in the SDK.
-		proc.capsMu.Lock()
-		unblock := sync.OnceFunc(proc.capsMu.Unlock)
-		t.Cleanup(unblock)
-		permission := make(chan struct{}, 1)
-		proc.permissionEventHandler = func(event AgentEvent, _ bool) {
-			if event.Decision == "" {
-				permission <- struct{}{}
-			}
-		}
-		New().configureAgentConnection(proc, handle, nil)
-		write := func(message string) {
-			t.Helper()
-			if _, err := io.WriteString(handle.stdoutWriter, message+"\n"); err != nil {
-				t.Fatal(err)
-			}
-		}
-		write(
-			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"config_option_update","configOptions":[]}}}`,
-		)
-		write(
-			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
-		)
-		write(
-			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
-		)
-		write(
-			`{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess-direct","toolCall":{"toolCallId":"edit","kind":"edit","title":"Edit file"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}`,
-		)
-		select {
-		case <-permission:
-			t.Fatal("permission overtook a preceding notification still being delivered")
-		case <-time.After(100 * time.Millisecond):
-		}
-		unblock()
-		var prose strings.Builder
-		for {
-			select {
-			case event := <-active.events:
-				if event.Type == EventTypeAgentMessage {
-					prose.WriteString(event.Text)
-				}
-				if event.Type == EventTypePermission {
-					if prose.String() != "Streaming response started. " {
-						t.Fatalf("pre-permission prose = %q", prose.String())
-					}
-					write(
-						`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"while pending"}}}}`,
-					)
-					select {
-					case later := <-active.events:
-						if later.Text != "while pending" {
-							t.Fatalf("later event = %+v", later)
-						}
-					case <-t.Context().Done():
-						t.Fatal("unanswered permission blocked notifications")
-					}
-					return
-				}
-			case <-t.Context().Done():
-				t.Fatal("permission was not delivered")
-			}
-		}
 	})
 }
 
