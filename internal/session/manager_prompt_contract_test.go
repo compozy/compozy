@@ -315,9 +315,14 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{acp.EventTypeRuntimeWarning, acp.EventTypeAgentMessage} {
-			if event := receivePromptEvent(t, delivery.events); event.Type != want {
-				t.Fatalf("event before persistence completion = %#v, want %s", event, want)
+		for _, want := range []struct{ eventType, text string }{
+			{acp.EventTypeRuntimeWarning, "setup race"},
+			{acp.EventTypeAgentMessage, "live reply"},
+		} {
+			if event := receivePromptEvent(t, delivery.events); event.Type != want.eventType ||
+				event.TurnID != "subscription-turn" || event.Text != want.text {
+				t.Fatalf("event before persistence completion = %#v, want %s with turn subscription-turn and text %q",
+					event, want.eventType, want.text)
 			}
 		}
 		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
@@ -326,7 +331,8 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatal(err)
 		}
 		close(delivery.persistenceDone)
-		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone {
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "subscription-turn" {
 			t.Fatalf("remaining events = %#v, want one terminal", events)
 		}
 	})
@@ -407,7 +413,9 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		events := collectEvents(t, output)
 		if len(events) != 3 || events[0].Type != acp.EventTypeRuntimeWarning ||
 			events[0].Text != "Pi native tools are unavailable; using CLI guidance." ||
-			events[0].TurnID == "" || events[0].TurnID != events[2].TurnID ||
+			events[0].TurnID == "" || events[0].TurnID != events[1].TurnID || events[0].TurnID != events[2].TurnID ||
+			events[0].ProviderError == nil || events[0].ProviderError.Provider != "pi" ||
+			events[0].ProviderError.Code != "pi_native_tools_materialization_failed" ||
 			events[1].Type != acp.EventTypeAgentMessage || events[2].Type != acp.EventTypeDone {
 			t.Fatalf("setup output = %#v, want current warning, message and terminal in order", events)
 		}
