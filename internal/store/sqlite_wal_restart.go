@@ -9,52 +9,111 @@ import (
 )
 
 type walRestartGuard struct {
-	readDB   *sql.DB
-	snapshot *sql.Tx
-	lifetime context.Context
+	readDB       *sql.DB
+	snapshot     *sql.Tx
+	lifetime     context.Context
+	pinnedFrames int
+	misses       int
+	primed       bool
 }
 
+const walRestartFrames = 1000
+
+// openWALRestartGuard keeps read marks independent of the database-open request's lifetime.
 func openWALRestartGuard(ctx, lifetime context.Context, db *sql.DB, path string) (*walRestartGuard, error) {
 	readDB, err := OpenSQLiteReadPool(ctx, path)
 	if err != nil {
 		return nil, err
 	}
-	readDB.SetMaxOpenConns(1)
-	readDB.SetMaxIdleConns(1)
+	readDB.SetMaxOpenConns(2)
+	readDB.SetMaxIdleConns(2)
 	guard := &walRestartGuard{readDB: readDB, lifetime: lifetime}
-	if err := guard.checkpoint(ctx, db); err != nil {
+	if err := guard.checkpoint(ctx, db); err != nil && !IsSQLiteBusy(err) {
 		return nil, errors.Join(err, guard.close())
 	}
 	return guard, nil
 }
 
-func (g *walRestartGuard) checkpoint(ctx context.Context, db *sql.DB) (retErr error) {
-	admission, unregister := registerWriteAdmission(db)
-	defer unregister()
+// checkpoint advances the read mark so ongoing writes cannot pin old WAL frames indefinitely.
+func (g *walRestartGuard) checkpoint(ctx context.Context, db *sql.DB) error {
+	frames, copied, err := walCheckpointProgress(ctx, db)
+	if err != nil {
+		return err
+	}
+	if copied < frames {
+		if g.snapshot == nil || frames > g.pinnedFrames {
+			if err := g.pin(ctx, frames); err != nil {
+				return err
+			}
+		}
+		if err := CheckpointPassive(ctx, db); err != nil {
+			return err
+		}
+	}
+	if g.primed && frames < walRestartFrames {
+		return nil
+	}
+	return g.restart(ctx, db)
+}
+
+// walCheckpointProgress inspects the WAL without triggering checkpoint I/O.
+func walCheckpointProgress(ctx context.Context, db interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}) (frames, copied int, err error) {
+	var busy int
+	err = db.QueryRowContext(ctx, "PRAGMA wal_checkpoint(NOOP)").Scan(&busy, &frames, &copied)
+	return frames, copied, err
+}
+
+// admit reserves an eventual writer slot so the retained reader cannot starve WAL reuse.
+func (g *walRestartGuard) admit(ctx context.Context, admission *writeAdmission) (func(), error) {
+	if g.misses >= 3 {
+		return admission.acquireMaintenance(ctx)
+	}
 	admitCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
-	release, err := admission.acquire(admitCtx, true)
+	return admission.acquire(admitCtx, true)
+}
+
+// restart excludes application writers until the WAL header is safe to append.
+func (g *walRestartGuard) restart(ctx context.Context, db *sql.DB) (retErr error) {
+	admission, unregister := registerWriteAdmission(db)
+	defer unregister()
+	release, err := g.admit(ctx, admission)
 	if err != nil {
-		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) && g.snapshot != nil {
-			return CheckpointPassive(ctx, db)
+		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+			g.misses++
+			return nil
 		}
 		return err
 	}
 	defer release()
-	// Admission queues application writes before BEGIN while maintenance owns the sync.
-	if err := g.releaseSnapshot(); err != nil {
-		return err
-	}
-	if err := CheckpointPassive(ctx, db); err != nil {
-		return err
-	}
+	g.misses = 0
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: acquire WAL restart connection: %w", err)
 	}
 	defer func() { retErr = errors.Join(retErr, conn.Close()) }()
-	if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
+	// Probe external contention before releasing the snapshot that protects writers.
+	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
+		return err
+	}); err != nil {
 		return fmt.Errorf("store: begin WAL restart: %w", err)
+	}
+	if err := rollbackWriteTx(context.WithoutCancel(ctx), conn); err != nil {
+		return discardSQLiteConnection(conn, err)
+	}
+	g.primed = false
+	// Admission queues application writes before BEGIN while maintenance owns the sync.
+	if err := g.releaseSnapshot(); err != nil {
+		return err
+	}
+	if err := CheckpointPassiveConnection(ctx, conn); err != nil {
+		return err
+	}
+	if err := beginWALRestart(ctx, conn); err != nil {
+		return err
 	}
 	active := true
 	defer func() {
@@ -80,14 +139,47 @@ func (g *walRestartGuard) checkpoint(ctx context.Context, db *sql.DB) (retErr er
 	}
 	active = false
 	// The new frame prevents another restart until a checkpoint; pin it before the next one.
-	g.snapshot, err = g.readDB.BeginTx(g.lifetime, &sql.TxOptions{ReadOnly: true})
+	frames, _, err := walCheckpointProgress(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if err := g.pin(ctx, frames); err != nil {
+		return err
+	}
+	g.primed = true
+	return nil
+}
+
+// beginWALRestart retains admission across external-writer races after backfill.
+func beginWALRestart(ctx context.Context, conn *sql.Conn) error {
+	for {
+		err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+			_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
+			return err
+		})
+		if !IsSQLiteBusy(err) {
+			return err
+		}
+		// Once backfilled, keep admission until priming is safe or the worker stops.
+		if err := waitForWriteRetry(ctx, defaultWriteMinRetryDelay); err != nil {
+			return err
+		}
+	}
+}
+
+// pin overlaps snapshots so advancing a read mark never exposes a backfilled WAL to writers.
+func (g *walRestartGuard) pin(ctx context.Context, frames int) error {
+	snapshot, err := g.readDB.BeginTx(g.lifetime, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return fmt.Errorf("store: begin WAL restart snapshot: %w", err)
 	}
-	if err := g.snapshot.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
-		return errors.Join(fmt.Errorf("store: pin WAL restart snapshot: %w", err), g.releaseSnapshot())
+	var version int
+	if err := snapshot.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		return errors.Join(fmt.Errorf("store: pin WAL restart snapshot: %w", err), snapshot.Rollback())
 	}
-	return nil
+	err = g.releaseSnapshot()
+	g.snapshot, g.pinnedFrames = snapshot, frames
+	return err
 }
 
 func (g *walRestartGuard) releaseSnapshot() error {

@@ -111,20 +111,26 @@ records shared-runner fsync evidence and residual attribution limits.
 
 The core database's checkpoint worker also owns WAL restart. A retained read
 transaction prevents foreground commits from reusing a fully backfilled WAL.
-Each maintenance tick obtains background writer admission (at most 200 ms),
-releases that read mark, completes PASSIVE backfill, and commits the existing
-`user_version` value unchanged. This writes one header page and synchronizes the
-new WAL header on the maintenance connection before pinning a new read mark.
-Application writes queue before `BEGIN IMMEDIATE` during that maintenance I/O;
-existing reads use their independent pool. If admission is occupied, the worker
-still performs PASSIVE backfill with the read mark retained and retries restart
-on the next tick. Long-lived external readers can defer reuse as usual.
+Each maintenance tick advances that read mark with overlapping snapshots before
+running PASSIVE outside writer admission. Backfill keeps advancing during busy
+application writes. Restart is attempted at 1000 WAL frames, rather than every
+tick, and idle maintenance never adds a frame. The restart obtains background
+writer admission (at most 200 ms per attempt); after three deferrals it reserves
+the next writer slot, cancelable by worker shutdown. It releases its read mark,
+completes any remaining PASSIVE tail, and commits the existing `user_version`
+unchanged. This writes one header page and synchronizes the new WAL header on
+the maintenance connection before pinning a new read mark. Application writes
+queue before `BEGIN IMMEDIATE` during restart I/O; existing reads use their
+independent pool. Admission and SQLite BUSY during startup defer priming to the
+worker instead of failing database open. Long-lived external readers can defer
+reuse as usual.
 
 `synchronous=NORMAL`, the one-second maintenance cadence, shutdown backfill,
 and every acceptance threshold remain unchanged. This moves the filesystem
 pause out of application transactions; it does not guarantee a wall-clock
 deadline for writes queued behind slow storage. The extra unchanged header-page
-write and one retained reader are the cost. No persisted version, schema,
+write per size-triggered restart and two read connections during snapshot
+handover are the cost. No persisted version, schema,
 application row, migration, or public contract changes. Session and telemetry
 durability policies are unchanged. WAL salts in `TestStoreSQLiteHelpers` prove
 the old foreground-restart control and maintenance-owned reuse over repeated
