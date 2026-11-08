@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -188,7 +189,7 @@ func normalizeAuthStartOpts(req SessionInspectionRequest) (StartOpts, error) {
 		AgentName:  strings.TrimSpace(req.AgentName),
 		Command:    strings.TrimSpace(req.Command),
 		Cwd:        strings.TrimSpace(req.Cwd),
-		Env:        append([]string(nil), req.Env...),
+		Env:        slices.Clone(req.Env),
 		Inspection: true,
 		ToolHost:   authRefusingToolHost{},
 	})

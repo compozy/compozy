@@ -437,3 +437,63 @@ func writeExecutableShell(t *testing.T, contents string) string {
 	}
 	return path
 }
+
+func TestDaemonEnvironmentInheritance(t *testing.T) {
+	t.Setenv("COMPOZY_EMPTY_ENV_MARKER", "parent")
+	for name, filter := range map[string]func([]string) []string{
+		"filtered": FilteredDaemonEnv, "isolated": IsolatedDaemonEnv, "detached": launchSandbox,
+	} {
+		t.Run("Should preserve explicit empty environment for "+name, func(t *testing.T) {
+			got := filter([]string{})
+			if got == nil || len(got) != 0 {
+				t.Fatalf("explicit empty environment = %#v", got)
+			}
+		})
+	}
+	t.Run("Should retain filtered inheritance for unspecified environments", func(t *testing.T) {
+		if !containsEnvEntry(FilteredDaemonEnv(nil), "COMPOZY_EMPTY_ENV_MARKER=parent") {
+			t.Fatal("unspecified environment lost inheritance")
+		}
+	})
+}
+
+func TestDetachedEmptyEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("DETACHED_ENV_MARKER", "parent")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit filtered environment when unspecified", want: "parent"},
+		{name: "Should inherit nothing when explicitly empty", env: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logPath := filepath.Join(t.TempDir(), "child.log")
+			child, err := SpawnDetachedLoggedProcess(
+				t.Context(),
+				DetachedLaunchRequest{
+					Binary:  "/bin/sh",
+					Args:    []string{"-c", `printf %s "${DETACHED_ENV_MARKER:-}"`},
+					Sandbox: tc.env,
+					LogPath: logPath,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := child.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			output, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(output) != tc.want {
+				t.Fatalf("child environment=%q,want %q", output, tc.want)
+			}
+		})
+	}
+}

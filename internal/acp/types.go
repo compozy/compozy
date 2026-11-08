@@ -80,15 +80,16 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	PermissionPolicy       *StartPermissionPolicy
-	AgentName              string
-	CompozySessionID       string
-	WorkspaceID            string
-	ProfileID              string
-	RuntimeGeneration      int64
-	Command                string
-	Cwd                    string
-	AdditionalDirs         []string
+	PermissionPolicy  *StartPermissionPolicy
+	AgentName         string
+	CompozySessionID  string
+	WorkspaceID       string
+	ProfileID         string
+	RuntimeGeneration int64
+	Command           string
+	Cwd               string
+	AdditionalDirs    []string
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
 	Env                    []string
 	MCPServers             []compozyconfig.MCPServer
 	Permissions            compozyconfig.PermissionMode

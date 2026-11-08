@@ -37,8 +37,8 @@ func InternalHandoffEnvName(name string) bool {
 // filterDaemonEnv keeps internal handoff variables only for detached launches, whose callers set
 // them explicitly for the process they target.
 func filterDaemonEnv(base []string, keepInternalHandoff bool) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
+	env := base
+	if env == nil {
 		env = os.Environ()
 	}
 
@@ -108,8 +108,8 @@ func appImageLibraryPath(value, appDir string) string {
 // needed to launch local subprocesses. It intentionally drops all non-allowlisted
 // daemon variables, including provider CLI credentials.
 func IsolatedDaemonEnv(base []string) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
+	env := base
+	if env == nil {
 		env = os.Environ()
 	}
 

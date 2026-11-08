@@ -18,7 +18,8 @@ type LaunchSpec struct {
 	Args               []string
 	Cwd                string
 	AdditionalDirs     []string
-	Env                []string
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
+	Env []string
 }
 
 // Launcher starts an ACP-capable agent process locally.

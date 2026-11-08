@@ -62,3 +62,23 @@ boundary: no replacement may start at or after it.
 Follow-up verification: focused Go suites cover these invariants. The previous live lab evidence
 above predates this follow-up; a new scenario walk and broad gates are deferred under the host-load
 restriction.
+
+Environment isolation regression (#1368): use synthetic parent credentials only. Run
+`go test ./internal/session -run TestProviderEmptyEnvironmentLaunch -count=1`
+and `go test ./internal/acp ./internal/subprocess ./internal/procutil -run 'TestLocalLauncherEnvironmentInheritance|TestManagedCommandDropsInternalHandoffEnv|TestDaemonEnvironmentInheritance' -count=1`.
+Both filtered and isolated policies can yield a non-nil empty environment when their
+input contains only excluded variables. Removing the final optional `PATH` target also
+leaves a non-nil empty environment; the real child must report no parent credential.
+Ordinary session starts inject session/profile/workspace/agent identity entries, so filtering
+alone does not normally empty the final session environment. Reserved `COMPOZY_` targets cannot be declared, so optional credentials cannot remove
+those identity entries. The focused assembly test omits session identity deliberately;
+the lower-level launch boundary must remain safe for explicit empty callers.
+ACP executable discovery failure after internal-only filtering is covered with an injected
+executable lookup failure and a real child. Nil inherits ordinary parent variables;
+explicit empty and internal-only environments never restore them. Internal handoff variables
+remain absent in ordinary children. Terminal maps remain overlays on filtered inheritance.
+This focused subprocess evidence does not re-walk the OAuth recovery scenario above.
+
+Model-discovery follow-up: `go test ./internal/modelcatalog -run TestLiveDiscoveryEnvironmentInheritance -count=1` verifies explicit empty `BaseEnv` through source construction and filtering, plus direct executor launches, using real children. Only unspecified discovery input inherits the parent sentinel.
+
+Discovery coverage also checks direct nil-environment inheritance and a real ACP inspection with the canonical fixture driver. Windows retains Go's documented critical `SYSTEMROOT` addition; empty-environment isolation does not disable required OS startup variables.

@@ -156,7 +156,7 @@ func resolveLaunchBinary(binary string) (string, error) {
 // the handoff channel and callers set those variables for the process they start. The inherited
 // fallback environment never carries them.
 func launchSandbox(sandbox []string) []string {
-	if len(sandbox) == 0 {
+	if sandbox == nil {
 		return FilteredDaemonEnv(nil)
 	}
 	return filterDaemonEnv(sandbox, true)

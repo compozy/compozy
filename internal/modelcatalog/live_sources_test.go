@@ -25,7 +25,9 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/vault"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 // TestLiveProviderSources verifies discovery at provider I/O boundaries and source-specific capability ownership.
@@ -3313,4 +3315,134 @@ type fixedCodexProbe struct{ models []CodexModelMetadata }
 
 func (p fixedCodexProbe) InspectCodexModels(context.Context, DiscoveryCommandRequest) ([]CodexModelMetadata, error) {
 	return p.models, nil
+}
+
+func TestLiveDiscoveryEnvironmentInheritance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	driver := acpmock.RequireDriver(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("DISCOVERY_PARENT_MARKER", "parent")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit only when unspecified", want: "parent"},
+		{name: "Should retain explicit empty through source preparation", env: []string{}, want: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := compozyconfig.BuiltinProviders()["cursor"]
+			source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{BaseEnv: tc.env})
+			env, err := source.discoveryEnv(t.Context(), provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.env != nil {
+				for _, entry := range env {
+					if strings.HasPrefix(entry, "HOME=") {
+						t.Fatal("explicit empty source inherited HOME")
+					}
+				}
+			}
+			result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+				t.Context(),
+				DiscoveryCommandRequest{
+					Command: "/bin/sh",
+					Args:    []string{"-c", `printf %s "${DISCOVERY_PARENT_MARKER:-absent}"`},
+					Env:     env,
+					Dir:     t.TempDir(),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ExitCode != 0 || result.Stdout != tc.want {
+				t.Fatalf("child marker=%q exit=%d, want %q", result.Stdout, result.ExitCode, tc.want)
+			}
+		})
+	}
+	t.Run("Should inherit unspecified environment in direct discovery executor", func(t *testing.T) {
+		result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+			t.Context(),
+			DiscoveryCommandRequest{
+				Command: "/bin/sh",
+				Args:    []string{"-c", `printf %s "${DISCOVERY_PARENT_MARKER:-absent}"`},
+				Dir:     t.TempDir(),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ExitCode != 0 || result.Stdout != "parent" {
+			t.Fatalf("direct inherited marker=%q exit=%d", result.Stdout, result.ExitCode)
+		}
+	})
+	t.Run("Should keep parent variables out of ACP inspection from an empty source", func(t *testing.T) {
+		root := t.TempDir()
+		fixture := filepath.Join(root, "fixture.json")
+		if err := os.WriteFile(
+			fixture,
+			[]byte(
+				`{"version":2,"agents":[{"name":"inspection","provider":"cursor","config_options":[{"id":"model","name":"Model","category":"model","current":"test-model","values":[{"value":"test-model","label":"Test model"}]}],"turns":[{"match":{"turn_source":"user","user_text":"unused"},"steps":[{"kind":"assistant","text":"unused"}]}]}]}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		capture := filepath.Join(root, "environment.txt")
+		script := filepath.Join(root, "inspect.sh")
+		command := acpmock.BuildCommand(driver, fixture, "inspection", "")
+		scriptBody := "#!/bin/sh\nprintf %s \"${DISCOVERY_PARENT_MARKER:-absent}\" > " + shellquote.Join(
+			capture,
+		) + "\nexec " + command + "\n"
+		if err := os.WriteFile(script, []byte(scriptBody), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		provider := compozyconfig.BuiltinProviders()["cursor"]
+		provider.Command = script
+		source := newLiveSourceForTest(
+			t,
+			"cursor",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{}, WorkingDir: root},
+		)
+		env, err := source.discoveryEnv(t.Context(), provider)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err := source.listACP(t.Context(), provider, env, time.Second, testTime(0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].ModelID != "test-model" {
+			t.Fatalf("ACP models=%#v", rows)
+		}
+		output, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(output) != "absent" {
+			t.Fatalf("ACP child marker=%q", output)
+		}
+	})
+
+	t.Run("Should retain explicit empty in direct discovery executor", func(t *testing.T) {
+		result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+			t.Context(),
+			DiscoveryCommandRequest{
+				Command: "/bin/sh",
+				Args:    []string{"-c", `printf %s "${DISCOVERY_PARENT_MARKER:-absent}"`},
+				Env:     []string{},
+				Dir:     t.TempDir(),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ExitCode != 0 || result.Stdout != "absent" {
+			t.Fatalf("direct child marker=%q exit=%d", result.Stdout, result.ExitCode)
+		}
+	})
 }

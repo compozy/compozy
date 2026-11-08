@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -159,7 +160,7 @@ func providerProbeEnvForStart(
 		PreStartScope: providerPreStartScopeForSession(session, env),
 		LookupEnv:     providerLookupEnv(env),
 		Vault:         providerSecretMetadataResolver{resolver: m.providerSecrets},
-		CommandEnv:    append([]string(nil), env...),
+		CommandEnv:    slices.Clone(env),
 		CommandDir:    cwd,
 	}
 	probe.LookPath = providerLookPath(probe.CommandEnv, probe.CommandDir)
