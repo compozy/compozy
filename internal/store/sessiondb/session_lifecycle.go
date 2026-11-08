@@ -8,6 +8,28 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// CleanupComplete reports whether close has finished releasing all owned resources.
+// A completed cleanup can still report an earlier drain timeout through Close.
+func (s *SessionDB) CleanupComplete() bool {
+	return s == nil || s.state.Load() == sessionStateClosed
+}
+
+// WaitForCleanup joins resource release independently of an earlier caller's drain error.
+func (s *SessionDB) WaitForCleanup(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("store: wait for session cleanup context is required")
+	}
+	select {
+	case <-s.closeDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Close drains queued writes, checkpoints the WAL, and closes the database.
 // If its deadline expires, cleanup retains ownership until active I/O stops;
 // another Close can join that cleanup with its own waiting deadline.
@@ -64,22 +86,41 @@ func (s *SessionDB) close(drainCtx context.Context) {
 	if s.checkpointDone != nil {
 		<-s.checkpointDone
 	}
+	databaseCloseErr := s.closeDatabases(drainCtx)
+
+	s.closeErr = errors.Join(writerErr, writerExitErr, checkpointExitErr, databaseCloseErr)
+	s.state.Store(sessionStateClosed)
+}
+
+// closeDatabases retains the family guard through final backfill even after caller expiry.
+func (s *SessionDB) closeDatabases(ctx context.Context) error {
+	// Opening a pool connection takes the family lease itself. Acquire it before
+	// guarding final backfill and last-connection close, which can also checkpoint.
+	// Caller expiry bounds Close's wait; owned cleanup still joins physical opens.
+	cleanupCtx := context.WithoutCancel(ctx)
+	connection, connectionErr := s.db.Conn(cleanupCtx)
+	lease, leaseErr := AcquireFamilyLease(cleanupCtx, s.path)
+	defer lease.Release()
+
 	var readerCloseErr error
 	if s.readDB != nil {
 		readerCloseErr = s.readDB.Close()
 	}
 	// A retained reader must not turn optional WAL truncation into a shutdown failure.
-	checkpointErr := store.CheckpointPassive(drainCtx, s.db)
+	checkpointErr := store.CheckpointPassiveConnection(cleanupCtx, connection)
 	var maintenanceCloseErr error
 	if s.checkpointDB != nil {
 		maintenanceCloseErr = s.checkpointDB.Close()
 	}
+	var connectionCloseErr error
+	if connection != nil {
+		connectionCloseErr = connection.Close()
+	}
 	closeErr := s.db.Close()
 
-	s.closeErr = errors.Join(
-		writerErr, writerExitErr, checkpointExitErr, readerCloseErr, checkpointErr, maintenanceCloseErr, closeErr,
+	return errors.Join(
+		connectionErr, leaseErr, readerCloseErr, checkpointErr, maintenanceCloseErr, connectionCloseErr, closeErr,
 	)
-	s.state.Store(sessionStateClosed)
 }
 
 func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) error {

@@ -195,10 +195,7 @@ func executeWriteAttempt(
 		}
 	}()
 
-	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
-		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
-		return err
-	}); err != nil {
+	if err := beginSQLiteImmediate(ctx, conn); err != nil {
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
 	}
 	releaseOwner := trackWriteOwner(db, operation)

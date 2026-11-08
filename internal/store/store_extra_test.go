@@ -1,11 +1,13 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -128,6 +130,397 @@ func TestStoreSQLHelpers(t *testing.T) {
 
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: checkpointing leaves WAL-header restarts to maintenance, preserving
+	// backfill and user state. Owner: SQLite lifecycle; suite: TestStoreSQLiteHelpers.
+	t.Run("Should keep WAL restarts off foreground commits", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "restart.db")
+		db, err := OpenSQLiteDatabaseWithPragmas(ctx, path, []string{"wal_autocheckpoint(0)"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(ctx, "CREATE TABLE items (value INTEGER); PRAGMA user_version = 42"); err != nil {
+			t.Fatal(err)
+		}
+		checkpointDB, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checkpointDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		salt := func() string {
+			t.Helper()
+			data, err := os.ReadFile(path + "-wal")
+			if err != nil || len(data) < 32 {
+				t.Fatalf("read WAL header: bytes=%d, error=%v", len(data), err)
+			}
+			return string(data[16:24])
+		}
+		before := salt()
+		if err := CheckpointPassive(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (0)"); err != nil {
+			t.Fatal(err)
+		}
+		if salt() == before {
+			t.Fatal("control: full passive backfill did not restart the next foreground WAL")
+		}
+		guard, err := openWALRestartGuard(ctx, ctx, checkpointDB, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := guard.close(); err != nil {
+				t.Error(err)
+			}
+		})
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		startupWriter, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := startupWriter.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := startupWriter.ExecContext(ctx, "INSERT INTO items VALUES (3)"); err != nil {
+			t.Fatal(err)
+		}
+		startupGuard, err := openWALRestartGuard(ctx, ctx, checkpointDB, path)
+		if err != nil {
+			t.Fatalf("open while an external writer holds SQLite BUSY = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := startupGuard.close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := startupGuard.close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := startupWriter.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		releaseOnce := sync.OnceFunc(release)
+		defer releaseOnce()
+		before = salt()
+		copiedBefore := 0
+		for range 3 {
+			if _, err := db.ExecContext(
+				ctx,
+				strings.Repeat("INSERT INTO items VALUES (1);", walRestartFrames),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+			frames, copied, err := walCheckpointProgress(ctx, checkpointDB)
+			if err != nil || copied <= copiedBefore || copied != frames {
+				t.Fatalf("contended backfill = %d/%d, previous=%d, error=%v", copied, frames, copiedBefore, err)
+			}
+			copiedBefore = copied
+		}
+		if salt() != before {
+			t.Fatal("maintenance restarted while another writer owned admission")
+		}
+		releaseOnce()
+		for range 5 {
+			if _, err := db.ExecContext(
+				ctx,
+				strings.Repeat("INSERT INTO items VALUES (1);", walRestartFrames),
+			); err != nil {
+				t.Fatal(err)
+			}
+			before = salt()
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+			if salt() == before {
+				t.Fatal("maintenance did not restart the WAL; continuous writes would grow it indefinitely")
+			}
+			before = salt()
+			// A full backfill with the guard held must still not let the writer restart.
+			if err := CheckpointPassive(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+			var busy, frames, copied int
+			if err := checkpointDB.QueryRowContext(ctx, "PRAGMA wal_checkpoint(NOOP)").
+				Scan(&busy, &frames, &copied); err != nil {
+				t.Fatal(err)
+			}
+			if frames == 0 || copied != frames {
+				t.Fatalf("checkpoint copied %d/%d frames, want complete backfill", copied, frames)
+			}
+			if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+				t.Fatal(err)
+			}
+			if salt() != before {
+				t.Fatal("foreground commit restarted the WAL after maintenance")
+			}
+		}
+		before = salt()
+		framesBefore, _, err := walCheckpointProgress(ctx, checkpointDB)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 3 {
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+		}
+		framesAfter, _, err := walCheckpointProgress(ctx, checkpointDB)
+		if err != nil || framesAfter != framesBefore || salt() != before {
+			t.Fatalf("idle maintenance changed WAL: frames %d -> %d, error=%v", framesBefore, framesAfter, err)
+		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var readCount int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&readCount); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			strings.Repeat("INSERT INTO items VALUES (1);", walRestartFrames),
+		); err != nil {
+			t.Fatal(err)
+		}
+		framesBefore, _, err = walCheckpointProgress(ctx, checkpointDB)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before = salt()
+		for range 3 {
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+		}
+		framesAfter, _, err = walCheckpointProgress(ctx, checkpointDB)
+		if err != nil || framesAfter != framesBefore || salt() != before {
+			t.Fatalf(
+				"reader-blocked idle maintenance added WAL frames: %d -> %d, error=%v",
+				framesBefore,
+				framesAfter,
+				err,
+			)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		if salt() == before {
+			t.Fatal("maintenance did not restart after the old reader released its snapshot")
+		}
+		var count, version int
+		wantCount := 7 + 9*walRestartFrames
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != wantCount {
+			t.Fatalf("rows = %d, error = %v, want %d", count, err, wantCount)
+		}
+		if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 42 {
+			t.Fatalf("user_version = %d, error = %v, want 42", version, err)
+		}
+	})
+
+	t.Run("Should recover WAL maintenance from busy startup and an external writer", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "restart-retry.db")
+		db := openExecuteWriteTestDB(t, path)
+		if _, err := db.ExecContext(ctx, "CREATE TABLE items (value INTEGER)"); err != nil {
+			t.Fatal(err)
+		}
+		checkpointDB, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checkpointDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release = sync.OnceFunc(release)
+		defer release()
+		guard, err := openWALRestartGuard(ctx, ctx, checkpointDB, path)
+		if err != nil {
+			t.Fatalf("open during admission contention = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := guard.close(); err != nil {
+				t.Error(err)
+			}
+		})
+		release()
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+			t.Fatal(err)
+		}
+		if err := guard.restart(ctx, checkpointDB); !IsSQLiteBusy(err) {
+			t.Fatalf("maintenance during external writer = %v, want SQLite BUSY", err)
+		}
+		if err := writer.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path + "-wal")
+		if err != nil {
+			t.Fatal(err)
+		}
+		releaseRetry, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		releaseRetry = sync.OnceFunc(releaseRetry)
+		defer releaseRetry()
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (2)"); err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path + "-wal")
+		if err != nil || len(before) < 32 || len(after) < 32 || !bytes.Equal(before[16:24], after[16:24]) {
+			t.Fatalf("foreground restarted the WAL after external contention: %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			strings.Repeat(
+				"INSERT INTO items VALUES (2);",
+				walRestartFrames,
+			)+"DELETE FROM items WHERE rowid > 1;",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatalf("backfill after failed restart while admission is occupied = %v", err)
+		}
+		frames, copied, err := walCheckpointProgress(ctx, checkpointDB)
+		if err != nil || frames == 0 || copied != frames {
+			t.Fatalf("recovered backfill = %d/%d, error=%v", copied, frames, err)
+		}
+		releaseRetry()
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatalf("retry after contention = %v", err)
+		}
+		after, err = os.ReadFile(path + "-wal")
+		if err != nil || len(after) < 32 || bytes.Equal(before[16:24], after[16:24]) {
+			t.Fatalf("maintenance did not restart after external contention: %v", err)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("rows after retry = %d, error=%v, want 1", count, err)
+		}
+	})
+
+	t.Run("Should queue foreground writes before BEGIN during maintenance sync", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "restart-blocked.db")
+		seed := openExecuteWriteTestDB(t, path)
+		identity := seed.Driver()
+		if err := seed.Close(); err != nil {
+			t.Fatal(err)
+		}
+		io := &blockedStoreCheckpointConnector{
+			sqliteDriver: identity,
+			path:         path,
+			entered:      make(chan struct{}),
+			released:     make(chan struct{}),
+			closed:       make(chan struct{}),
+		}
+		db := sql.OpenDB(io)
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		writerDB := openExecuteWriteTestDB(t, path)
+		readDB, err := OpenSQLiteReadPool(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		guard := &walRestartGuard{readDB: readDB, lifetime: ctx}
+		done := make(chan struct{})
+		var checkpointErr error
+		var release sync.Once
+		t.Cleanup(func() {
+			release.Do(func() { close(io.released) })
+			<-done
+			if checkpointErr != nil {
+				t.Error(checkpointErr)
+			}
+			if err := errors.Join(guard.close(), db.Close()); err != nil {
+				t.Error(err)
+			}
+		})
+		go func() {
+			checkpointErr = guard.restart(ctx, db)
+			close(done)
+		}()
+		select {
+		case <-io.entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer cancel()
+		called := false
+		err = ExecuteWrite(writeCtx, writerDB, func(context.Context, *WriteTx) error {
+			called = true
+			return nil
+		})
+		if !errors.Is(err, context.DeadlineExceeded) || called {
+			t.Fatalf("write during maintenance sync = %v, callback called=%t, want deadline before BEGIN", err, called)
+		}
+		contention, ok := errors.AsType[*WriteContentionError](err)
+		if !ok || contention.Phase != "admission" || contention.Attempts != 0 {
+			t.Fatalf("write waited outside admission: %#v", err)
+		}
+		release.Do(func() { close(io.released) })
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	})
 
 	// Invariant: WAL maintenance progresses without reserving writer capacity or
 	// waiting for a live write, and its owner joins it on close. Owner: SQLite
@@ -299,6 +692,45 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		}
 		if err := db.PingContext(ctx); err == nil {
 			t.Fatal("database remains open after cleanup")
+		}
+	})
+
+	// Invariant: canceled non-transactional checkpoint I/O preserves the connection's
+	// configured busy timeout. Owner: SQLite helpers; this canonical suite.
+	t.Run("Should restore the checkpoint timeout when the driver reports cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		dsn, err := url.Parse(sqliteDSN(filepath.Join(t.TempDir(), "checkpoint-cancel.db")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := dsn.Query()
+		for index, pragma := range query["_pragma"] {
+			if strings.HasPrefix(pragma, "busy_timeout(") {
+				query["_pragma"][index] = "busy_timeout(1)"
+			}
+		}
+		dsn.RawQuery = query.Encode()
+		db := sql.OpenDB(&writeCleanupFailureConnector{
+			dsn:       dsn.String(),
+			statement: "PRAGMA wal_checkpoint(TRUNCATE)", queryCancel: cancel,
+		})
+		db.SetMaxOpenConns(1)
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(t.Context(), "PRAGMA busy_timeout = 5000"); err != nil {
+			t.Fatal(err)
+		}
+		if err := Checkpoint(ctx, db); !errors.Is(err, context.Canceled) {
+			t.Fatalf("checkpoint = %v, want canceled driver operation", err)
+		}
+		var timeout int
+		if err := db.QueryRowContext(t.Context(), "PRAGMA busy_timeout").Scan(&timeout); err != nil || timeout != 5000 {
+			t.Fatalf("restored timeout = %d, %v, want 5000", timeout, err)
 		}
 	})
 
@@ -530,14 +962,20 @@ func TestSQLiteDSNAppendsExtraPragmas(t *testing.T) {
 
 // Block only the driver I/O boundary; database queries still execute on real SQLite.
 type blockedStoreCheckpointConnector struct {
-	path     string
-	entered  chan struct{}
-	released chan struct{}
-	closed   chan struct{}
-	once     sync.Once
+	sqliteDriver driver.Driver
+	path         string
+	entered      chan struct{}
+	released     chan struct{}
+	closed       chan struct{}
+	once         sync.Once
 }
 
-func (c *blockedStoreCheckpointConnector) Driver() driver.Driver { return &sqlite.Driver{} }
+func (c *blockedStoreCheckpointConnector) Driver() driver.Driver {
+	if c.sqliteDriver != nil {
+		return c.sqliteDriver
+	}
+	return &sqlite.Driver{}
+}
 
 func (c *blockedStoreCheckpointConnector) Connect(context.Context) (driver.Conn, error) {
 	conn, err := c.Driver().Open(sqliteCheckpointDSN(c.path))

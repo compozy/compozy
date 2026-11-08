@@ -96,6 +96,88 @@ Verify that successful settlement removes the receipt. A crash before this recei
 uses interrupted-stop classification and fresh process-identity verification; it need not retain
 an outcome that had not yet been journaled. Include that branch in the final boot journey.
 
+Storage overlap regression (#1369): pause a physical events-database open while
+the old recorder closes. Final backfill and last-connection close must respect
+the database family guard, preserving its identity check. A close caller may
+reach its existing deadline while owned cleanup waits; after the open releases
+its guard, cleanup must finish and reopening must retain the terminal event.
+The canonical passive-checkpoint suite owns this ordering; the shared-stop
+integration suite owns terminal event/notification uniqueness across recovery.
+
+Reject a temporary triage start and verify its recorder closes before deletion
+acquires the family guard: no writer-drain timeout or durable artifacts may remain.
+Repeat with catalog deletion failing. Rollback must restore the directory and
+retain one startup diagnostic and one terminal event, without clearing history.
+Also fail the first recorder close, then let cleanup finish. Join that cleanup
+before reopening; preserve the close error, prior history and both failure events.
+Keep cleanup blocked across both bounded close attempts: the start must remain
+pending, with its existing lifecycle owner tracked. Release I/O and require failure
+history and stopped state to settle. Repeat after a stop has detached the session's
+recorder; deletion must still join the recorder captured by startup.
+Request stop while that cleanup waits. After release, require the requested stop
+cause, one post-stop hook, one stopped notification and one terminal event; the
+old startup failure must not replace the stop outcome. Repeat with stop committed
+inside a synchronously completed Close, and with its catalog projection holding
+the launch gate beyond the old cleanup deadline: no recorder may reopen before
+the gate releases, and the same stop effects must complete once. Cancel the manager
+lifetime while cleanup waits, and repeat with a recorder exposing only the base
+EventRecorder methods. Both must retain their cleanup owner until I/O releases.
+Finally fail reopening after deletion rollback: keep Starting and its start run
+tracked until storage recovers, then append the diagnostic and terminal event once.
+Hold deletion in its catalog transaction, then request Stop or manager Shutdown.
+After deletion completes, neither caller may recreate a directory or catalog row.
+Also refuse catalog deletion and block the real rollback rename: preserve the
+staged directory for existing tombstone recovery, return ErrRecoveryPersistence,
+and release the active start owner without publishing stopped history at a missing
+original path. A transient reopen failure must still retain its owner and recover.
+Fail the retained diagnostic append before and after commit. Keep the start owner
+tracked until writes recover, then require exactly one diagnostic and terminal row.
+Repeat with the stopped append failing before and after commit, and the marker
+append failing before commit. Request Stop or shutdown between retries: preserve
+the startup-failure classification, complete its marker and keep one terminal row.
+Block final Close of the reopened recorder and verify Shutdown still joins it.
+Request Stop during that final Close: neither the public state nor AwaitStopped
+may report completed cleanup early. Repeat a committed append error through an
+EventRecorder-only wrapper; require one row, one publication and one post-record
+hook per retained event. A joining Stop receives one post-stop hook/notification.
+Fail attention hydration after retained catalog registration; final cleanup must
+still wake the public catalog. Fail process termination while leaving it alive;
+the existing start run must remain tracked until exit is verified.
+Repeat that process-stop failure with catalog deletion succeeding as well as
+failing: neither route may stage/delete storage before exit verification.
+Repeat with CleanupComplete exposed without WaitForCleanup: a historical close
+error must not prevent settlement after resources release. Also fail logical
+activation persistence and request Stop during deletion; it must respect the same
+launch gate and report the vanished session without another lookup or writes.
+For successful logical and ACP activation, block the post-create hook and request
+Stop. Releasing the hook must leave a verified stopped session with one terminal
+event, one post-stop hook and one notification; it must not remain stopping.
+Complete Stop before releasing that hook, then release it: creation must never be
+published after the terminal notification. While a public retained start's final
+recorder Close is blocked, Status and paginated catalog filters must both report
+Starting. An earlier verified Stop receipt cannot let AwaitStopped or blocking
+Stop return before the current start owner finishes. Hold the launch gate while
+final recorder cleanup completes: retained finalization must stay pending behind
+that gate and observe any Stop that committed ahead of it. Check post-record
+callbacks separately for diagnostic, terminal and marker events, exactly once each.
+Repeat activation-persistence failure through the asynchronous accepted-start path
+with a process that refuses Stop; resources remain owned until exit is verified.
+If shutdown loses a session to concurrent deletion, it still joins the captured
+start run within its context; a completed discarded startup error is not a new
+shutdown failure.
+If session-manager shutdown is incomplete, a competing foreground daemon must
+still fail to acquire the singleton lock, and the old cleanup must retain access
+to its shared database. Complete cleanup and retry Shutdown: only then may the
+database close and a replacement acquire the lock. The daemon shutdown suite
+owns this process-exclusivity check.
+Discovery remains available during a retryable Shutdown failure. If Run ends
+without a retry, its discovery record is removed while the lock remains owned
+until cleanup joins or the process exits.
+After a completed Shutdown releases its singleton, let a replacement acquire the
+real lock and write discovery during the old logger close. The old Run must leave
+that replacement record intact, including when logger close returns an error.
+The canonical triage dispatcher suite owns these failed-start cleanup cases.
+
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence
 fails. Boot must recover the original verified outcome and complete the terminal event before
 admitting new work; a direct resume against a fresh manager must respect the same pending fence.

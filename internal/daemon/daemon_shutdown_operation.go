@@ -12,6 +12,8 @@ import (
 type daemonShutdownOperation struct {
 	done   chan struct{}
 	result error
+	// Published with done: terminal Run may withdraw discovery only while this attempt retains the singleton.
+	sessionShutdownIncomplete bool
 }
 
 func (d *Daemon) beginShutdownOperation(
@@ -58,6 +60,7 @@ func (d *Daemon) runShutdownOperation(
 	drainErr := d.Drain(context.WithoutCancel(shutdownCtx))
 	checkpointErr := d.prepareShutdownSessions(shutdownCtx, targets.sessions)
 	shutdownErr := d.shutdownDetached(shutdownCtx, targets)
+	operation.sessionShutdownIncomplete = targets.sessionShutdownIncomplete
 	d.completeShutdownOperation(operation, errors.Join(drainErr, checkpointErr, shutdownErr))
 }
 

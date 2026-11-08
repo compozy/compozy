@@ -140,9 +140,7 @@ func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
 		}
 		info := target.infoLocked()
 		target.mu.RUnlock()
-		if info.State == StateActive && m.sessionStartRun(info.ID) != nil {
-			info.State = StateStarting
-		}
+		m.projectPendingSessionStart(info)
 		infos = append(infos, info)
 	}
 	return infos, excludedIDs

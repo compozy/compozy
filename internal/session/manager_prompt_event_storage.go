@@ -95,14 +95,14 @@ func (m *Manager) recordEventWithAuthoredText(
 ) error {
 	if event.Type == acp.EventTypePermission && event.EventIDValue() != "" {
 		event = m.normalizeEvent(session, event.TurnID, event)
-		return m.recordEventWithWriter(ctx, session, event, authoredText, recordPermissionEventIfAbsent)
+		return m.recordEventWithWriter(ctx, session, event, authoredText, recordIdentifiedSessionEventIfAbsent)
 	}
 	return m.recordEventWithWriter(ctx, session, event, authoredText, recordPersistedSessionEvent)
 }
 
-var errPermissionEventRecorded = errors.New("session: permission event already recorded")
+var errIdentifiedEventRecorded = errors.New("session: identified event already recorded")
 
-func recordPermissionEventIfAbsent(
+func recordIdentifiedSessionEventIfAbsent(
 	ctx context.Context,
 	recorder EventRecorder,
 	event store.SessionEvent,
@@ -113,7 +113,7 @@ func recordPermissionEventIfAbsent(
 	}
 	persisted, inserted, err := appender.AppendEventIfAbsent(ctx, event)
 	if err == nil && !inserted {
-		return persisted, errPermissionEventRecorded
+		return persisted, errIdentifiedEventRecorded
 	}
 	return persisted, err
 }
@@ -166,7 +166,7 @@ func (m *Manager) recordEventWithWriter(
 		Content:   payload,
 		Timestamp: event.Timestamp,
 	})
-	if errors.Is(err, errPermissionEventRecorded) {
+	if errors.Is(err, errIdentifiedEventRecorded) {
 		return nil
 	}
 	if err != nil {

@@ -110,7 +110,7 @@ func (m *Manager) guardedStopWithCauseReceipt(
 			m.logger.ErrorContext(ctx, "subagent.stop_cascade", "session_id", id, "error", cascadeErr)
 		}
 	}
-	outcome, err := waitSessionStopRun(ctx, run)
+	outcome, err := m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
 	if previousRun == run && outcome.Verified && outcome.FinalState == StateStopped {
 		err = nil
 	}

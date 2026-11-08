@@ -140,6 +140,7 @@ type Info struct {
 type Session struct {
 	checkInToolsStatus           string
 	interactionLifecycleMu       sync.Mutex
+	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
 	hostedMCPRequiresReload      bool
 	hostedMCPDigest              string
 	directMCPDigest              string

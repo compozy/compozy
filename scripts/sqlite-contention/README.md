@@ -41,7 +41,66 @@ Shutdown cancels and joins it; non-deadline I/O errors remain warnings. The fami
 physical connection opens with checkpoint I/O, so a cold pool open can wait on a
 slow sync until its own request deadline. A short SQLite deadline cannot interrupt
 a filesystem sync already in progress; interrupting backfill does not provide
-that cold-open guarantee. Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
+that cold-open guarantee. Final session shutdown also retains the family lease
+through backfill and last-connection close, which can itself checkpoint. Caller
+expiry bounds the close wait while owned cleanup finishes after an in-flight
+physical open releases the lease; reopening must preserve the committed events.
+Failed temporary-session starts close their recorder before acquiring the deletion
+lease. If catalog deletion fails, restore the directory and reopen the recorder
+without clearing history before persisting the startup diagnostic and terminal event.
+A failed first close is joined with a fresh cleanup budget before reopening;
+reopening depends on cleanup completion rather than a historical drain error.
+Incomplete cleanup retains its resources and every close error remains explicit.
+The existing start run stays tracked until that cleanup finishes, then reopens the
+recorder and settles failure history. A concurrent stop detaching the session's
+handle does not discard startup's captured recorder or bypass its cleanup.
+Both synchronous and deferred settlement acquire the existing launch gate before
+reopening or deleting storage, then honor any accepted stop through normal
+canceled-start finalization. A stalled stop projection cannot expire the cleanup
+owner or leave a reopened recorder behind. Cleanup survives manager cancellation,
+joins recorders without optional wait methods through bounded Close attempts, and
+retries an unavailable reopen before publishing stopped state or failure events.
+The existing start run owns these retries and shutdown still bounds its wait.
+A Stop that waited behind successful deletion revalidates the live session before
+persistence, so it cannot recreate deleted metadata or catalog rows. If rollback
+leaves the original directory missing, cleanup ends with ErrRecoveryPersistence
+and leaves the staged directory to existing tombstone recovery instead of retrying
+an impossible reopen. Retained failure persistence reserves stable event identities and retries unfinished
+appends and metadata before releasing its owner. A write error reported after commit
+cannot duplicate the diagnostic or terminal event. Once the batch is prepared,
+a later Stop or shutdown joins its original failure outcome instead of appending
+another terminal event or replacing its classification. The same owner joins the reopened
+recorder through final cleanup, honoring completion even without an optional waiter.
+Retained retries confirm committed event identities through the recorder's existing
+query capability, including wrappers without an optional idempotent appender. The
+batch completes its pending publication and post-record hooks once. A joining Stop
+waits for persistence and cleanup, then receives its post-stop hook and notification.
+Final settlement wakes the catalog even if attention hydration failed after commit.
+Process exit is verified separately from recorder completion; a failed Stop keeps
+the tracked start owner until the process can be stopped and verified.
+Plain discard verifies that same process exit before staging, even when catalog
+deletion would succeed.
+Activation remains startup-owned until its durable commit. The existing launch
+gate transfers Stop to normal finalization before post-create hooks run. Failed
+activation still shares the discard gate; successful logical and ACP activation
+can finalize a concurrent Stop while those hooks are pending. This preserves the terminal event, post-stop hook
+and notification. Creation callbacks are serialized against terminal callbacks,
+so a completed Stop cannot be followed by a delayed creation notification.
+Status and paginated catalog filtering share the same pending-start projection;
+cached verified stop results wait for any newer startup cleanup owner. Deferred
+retained finalization takes the launch gate before removing its active projection.
+Asynchronous failed activation also verifies process exit before final settlement.
+Incomplete session-manager shutdown retains the daemon lock
+and shared persistence until cleanup joins on retry or the old process exits,
+including the foreground-start replacement path.
+Shutdown retries retain daemon discovery; a terminal return from Run removes it
+without releasing persistence or the singleton before owned cleanup finishes.
+That extra withdrawal belongs only to the exact incomplete Shutdown attempt while
+it still owns the singleton; an old Run never removes replacement discovery after
+successful teardown has released the lock.
+Canceled checkpoints restore their connection's busy timeout. Only canceled BEGIN
+operations discard an ambiguous transaction connection.
+Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
 A below-limit idle PASSIVE deferred by a family guard retries on the next activity
@@ -108,6 +167,38 @@ so the common transcript workload controls shared-storage variance rather than
 comparing unlike telemetry transactions. Core holds, background callback holds
 and checkpoint errors are not exempted. The [eight-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#paired-transcript-commit-tail-investigation-2026-11-06)
 records shared-runner fsync evidence and residual attribution limits.
+
+The core database's checkpoint worker also owns WAL restart. A retained read
+transaction prevents foreground commits from reusing a fully backfilled WAL.
+Each maintenance tick advances that read mark with overlapping snapshots before
+running PASSIVE outside writer admission. Backfill keeps advancing during busy
+application writes. Restart is attempted at 1000 WAL frames, rather than every
+tick, and idle maintenance never adds a frame. The restart obtains background
+writer admission (at most 200 ms per attempt); after three deferrals it reserves
+the next writer slot, cancelable by worker shutdown. It releases its read mark,
+completes any remaining PASSIVE tail, and commits the existing `user_version`
+unchanged. This writes one header page and synchronizes the new WAL header on
+the maintenance connection before pinning a new read mark. Application writes
+queue before `BEGIN IMMEDIATE` during restart I/O; existing reads use their
+independent pool. Startup admission timeouts and a BUSY initial writer probe
+defer priming to the worker. If an external writer takes the lock after that
+probe, restart retains admission while retrying; cancellation of the startup
+context can then abort database open. Long-lived external readers can defer
+reuse as usual.
+
+`synchronous=NORMAL`, the one-second maintenance cadence, shutdown backfill,
+and every acceptance threshold remain unchanged. This moves the filesystem
+pause out of application transactions; it does not guarantee a wall-clock
+deadline for writes queued behind slow storage. The extra unchanged header-page
+write per size-triggered restart and two read connections during snapshot
+handover are the cost. A restart's remaining PASSIVE tail can also synchronize
+the WAL and database while admission is held, before the new header sync;
+queued writers can therefore span up to three sync barriers per restart.
+No persisted version, schema,
+application row, migration, or public contract changes. Session and telemetry
+durability policies are unchanged. WAL salts in `TestStoreSQLiteHelpers` prove
+the old foreground-restart control and maintenance-owned reuse over repeated
+cycles; CI owns repeated paired-load and public daemon validation.
 
 The runner's decision suite is `python3 -m unittest discover -s
 scripts/sqlite-contention -p '*_test.py' -v`, also run by the workflow before the

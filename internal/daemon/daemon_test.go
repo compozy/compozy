@@ -1756,6 +1756,160 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: failed session shutdown retains singleton and persistence ownership
+	// until a retry joins cleanup. Owner: daemon teardown; canonical shutdown suite.
+	t.Run("Should retain the daemon lock and database until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		db := openDaemonTestGlobalDB(t)
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.lock, d.registry, d.sessions = lock, db, manager
+		if err := d.Shutdown(testutil.Context(t)); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("incomplete session shutdown = %v, want deadline", err)
+		}
+		if _, err := ReadInfo(home.DaemonInfo); err != nil {
+			t.Fatalf("failed shutdown removed discovery info: %v", err)
+		}
+		competitor, acquireErr := AcquireLock(home.DaemonLock, os.Getpid())
+		if competitor != nil {
+			if err := competitor.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+		if !errors.Is(acquireErr, ErrAlreadyRunning) {
+			t.Fatalf("replacement acquired singleton before cleanup joined: %v", acquireErr)
+		}
+		if err := db.DB().PingContext(t.Context()); err != nil {
+			t.Fatalf("pending cleanup lost its database: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("joined retry: %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("joined shutdown left discovery info: %v", err)
+		}
+		if err := db.DB().
+			PingContext(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "sql: database is closed") {
+			t.Fatalf("database after joined cleanup = %v, want closed", err)
+		}
+		replacement, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatalf("replacement after joined cleanup: %v", err)
+		}
+		if err := replacement.Release(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: Run's terminal path withdraws discovery even if session cleanup
+	// prevents successful shutdown. Owner: daemon lifecycle; canonical shutdown suite.
+	t.Run("Should withdraw daemon info when Run ends after incomplete shutdown", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.sessions = manager
+		if err := d.shutdownAfterRunTrigger(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run shutdown = %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Run exit retained discovery record: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: the old Run must not delete discovery written after singleton
+	// release. Owner: daemon process replacement; canonical shutdown suite.
+	for _, loggerFailure := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should preserve replacement discovery after lock release with logger failure %t",
+				loggerFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := lock.Release(); err != nil {
+						t.Error(err)
+					}
+				}()
+				d.lock = lock
+				var replacementLock *Lock
+				defer func() {
+					if replacementLock != nil {
+						if err := replacementLock.Release(); err != nil {
+							t.Error(err)
+						}
+					}
+				}()
+				replacement := Info{PID: os.Getpid(), StartedAt: time.Now().UTC().Add(time.Second)}
+				loggerErr := errors.New("logger close unavailable")
+				d.closeLogger = func() error {
+					var err error
+					replacementLock, err = AcquireLock(home.DaemonLock, os.Getpid())
+					if err != nil {
+						return err
+					}
+					if err := WriteInfo(home.DaemonInfo, replacement); err != nil {
+						return err
+					}
+					if loggerFailure {
+						return loggerErr
+					}
+					return nil
+				}
+				err = d.shutdownAfterRunTrigger(t.Context())
+				if loggerFailure && !errors.Is(err, loggerErr) || !loggerFailure && err != nil {
+					t.Fatalf("Run shutdown = %v", err)
+				}
+				info, err := ReadInfo(home.DaemonInfo)
+				if err != nil || info != replacement {
+					t.Fatalf("replacement discovery = %+v, %v, want %+v", info, err, replacement)
+				}
+			},
+		)
+	}
+
 	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
 		t.Parallel()
 

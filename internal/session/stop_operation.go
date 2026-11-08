@@ -41,7 +41,7 @@ func (m *Manager) AwaitStopped(ctx context.Context, id string) (StopOutcome, err
 	if run == nil || (active != nil && run.session != active) {
 		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
 	}
-	return waitSessionStopRun(ctx, run)
+	return m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
 }
 
 func waitSessionStopRun(ctx context.Context, run *sessionStopRun) (StopOutcome, error) {
@@ -121,11 +121,14 @@ func (m *Manager) claimSessionStopRun(id string) (*sessionStopRun, bool) {
 		(!signalClosed(previous.ready) || active == nil || previous.session == active) {
 		select {
 		case <-previous.done:
+			start := m.sessionStartRun(id)
+			pendingStart := start != nil && !start.activationCommitted.Load()
 			if previous.outcome.Verified && previous.outcome.FinalState == StateStopped &&
-				previous.recoveredSettlement == nil && !errors.Is(previous.err, ErrRecoveryPersistence) {
+				(!pendingStart || active == nil) && previous.recoveredSettlement == nil &&
+				!errors.Is(previous.err, ErrRecoveryPersistence) {
 				return previous, false
 			}
-			if previous.outcome.Verified {
+			if previous.outcome.Verified && !pendingStart {
 				verifiedOutcome = previous.outcome
 			}
 			settlement = previous.recoveredSettlement

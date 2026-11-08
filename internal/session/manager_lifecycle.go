@@ -328,6 +328,8 @@ func (m *Manager) notifyFailedStart(ctx context.Context, session *Session) {
 	if m.notifier == nil {
 		return
 	}
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
 	m.notifier.OnSessionCreated(ctx, session)
 	m.notifier.OnSessionStopped(ctx, session)
 }
@@ -340,31 +342,10 @@ func (m *Manager) recordFailedStartEvents(
 	startErr error,
 	stopReason store.StopReason,
 ) error {
-	turnID, err := m.newPromptTurnID()
+	errorEvent, stopEvent, err := m.prepareFailedStartEvents(session, failure, startErr, stopReason)
 	if err != nil {
 		return err
 	}
-	stopTurnID, err := m.newPromptTurnID()
-	if err != nil {
-		return err
-	}
-	summary := failureSummary(failure, startErr.Error())
-	now := m.now()
-	errorEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
-		Type:      acp.EventTypeError,
-		TurnID:    turnID,
-		Timestamp: now,
-		Error:     summary,
-		Failure:   store.CloneSessionFailure(failure),
-	})
-	stopEvent := m.normalizeEvent(session, stopTurnID, acp.AgentEvent{
-		Type:       EventTypeSessionStopped,
-		TurnID:     stopTurnID,
-		Timestamp:  now,
-		StopReason: string(stopReason),
-		Error:      summary,
-		Failure:    store.CloneSessionFailure(failure),
-	})
 	if err := errors.Join(
 		m.recordEvent(ctx, session, errorEvent),
 		m.recordEvent(ctx, session, stopEvent),
@@ -375,7 +356,7 @@ func (m *Manager) recordFailedStartEvents(
 		return nil
 	}
 	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
-		return m.recordTranscriptMarker(ctx, session, stopTurnID, transcriptMarkerInput{
+		return m.recordTranscriptMarker(ctx, session, stopEvent.TurnID, transcriptMarkerInput{
 			Kind: kind, Summary: summary, Evidence: evidence,
 		})
 	}

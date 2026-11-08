@@ -685,6 +685,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			if blocked.closed.Load() {
 				t.Fatal("checkpoint connection closed while I/O was still active")
 			}
+			if db.CleanupComplete() {
+				t.Fatal("cleanup reported complete while checkpoint I/O was still active")
+			}
 			unblock()
 			if expire {
 				if err := db.Close(testutil.Context(t)); err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -695,6 +698,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}
 			if !blocked.closed.Load() {
 				t.Fatal("checkpoint connection remains open after cleanup joined")
+			}
+			if !db.CleanupComplete() {
+				t.Fatal("cleanup remained pending after its resources closed")
 			}
 		})
 	}
@@ -757,6 +763,133 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 
 	// Invariant: physical checkpoint writes serialize with guarded connection opens.
 	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
+	for _, expire := range []bool{false, true} {
+		name := "Should keep final close checkpoint behind a physical open"
+		if expire {
+			name = "Should retain close ownership while a physical open holds the family guard"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openTestSessionDB(t, "sess-close-family-guard")
+			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+			reader, err := OpenSessionDBReadOnly(ctx, db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reader.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			lease, err := AcquireFamilyLease(ctx, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lease.Release()
+			const marker = "terminal-event-awaiting-final-backfill"
+			if err := db.Record(ctx, SessionEvent{
+				ID: "before-close", TurnID: "turn-close", Type: "session_stopped", AgentName: "coder",
+				Content: `{"text":"` + marker + `"}`,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Pin the latest frame: PASSIVE can backfill it, but last-connection
+			// cleanup cannot replace the explicit checkpoint while this reader lives.
+			snapshot, err := reader.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := snapshot.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+					t.Error(err)
+				}
+			})
+			var count int
+			if err := snapshot.QueryRowContext(ctx, "SELECT count(*) FROM events").
+				Scan(&count); err != nil ||
+				count != 1 {
+				t.Fatalf("retained reader = %d events, %v", count, err)
+			}
+			before, err := os.ReadFile(db.path)
+			if err != nil || bytes.Contains(before, []byte(marker)) {
+				t.Fatalf("fixture was already backfilled: %v", err)
+			}
+			closeCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			closed := make(chan error, 1)
+			go func() { closed <- db.Close(closeCtx) }()
+			for _, done := range []<-chan struct{}{db.writerDone, db.checkpointDone} {
+				select {
+				case <-done:
+				case <-ctx.Done():
+					t.Fatal("workers did not join before final cleanup")
+				}
+			}
+			// Only cleanup can now be waiting on this lease. Reach that boundary
+			// before comparing bytes, including while the non-expired context is live.
+			for {
+				sessionDBFamilyLeaseRegistry.Lock()
+				waiting := lease.entry.refs > 1
+				sessionDBFamilyLeaseRegistry.Unlock()
+				if waiting {
+					break
+				}
+				select {
+				case <-db.closeDone:
+					t.Fatal("cleanup finished without respecting the physical open")
+				case <-ctx.Done():
+					t.Fatal("cleanup did not reach the family guard")
+				case <-time.After(time.Millisecond):
+				}
+			}
+			after, err := os.ReadFile(db.path)
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatalf("close changed the main database during guarded open: %v", err)
+			}
+			if expire {
+				cancel()
+				if err := <-closed; !errors.Is(err, store.ErrDrainTimeout) ||
+					!errors.Is(err, context.Canceled) {
+					t.Fatalf("close during guarded open = %v, want drain cancellation", err)
+				}
+			} else if err := closeCtx.Err(); err != nil {
+				t.Fatalf("checkpoint context expired before the ordering check: %v", err)
+			}
+			lease.Release()
+			select {
+			case <-db.closeDone:
+			case <-ctx.Done():
+				t.Fatal("close did not finish after the physical open released its guard")
+			}
+			if !expire {
+				if err := <-closed; err != nil {
+					t.Fatal(err)
+				}
+			}
+			if db.closeErr != nil {
+				t.Fatalf("owned cleanup failed after the lease released: %v", db.closeErr)
+			}
+			after, err = os.ReadFile(db.path)
+			if err != nil || !bytes.Contains(after, []byte(marker)) {
+				t.Fatalf("final cleanup did not backfill with the independent reader retained: %v", err)
+			}
+			reopened, err := OpenSessionDB(t.Context(), db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			events, err := reopened.Query(t.Context(), EventQuery{})
+			if err != nil || len(events) != 1 || events[0].ID != "before-close" {
+				t.Fatalf("durable event after guarded close = %#v, %v", events, err)
+			}
+		})
+	}
+
 	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {
 		t.Parallel()
 		db := openTestSessionDB(t, "sess-checkpoint-guard")

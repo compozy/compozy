@@ -28,7 +28,7 @@ func (m *Manager) prepareStartingStopRun(
 		run.err = m.finishStartingSessionStop(context.WithoutCancel(ctx), session, start)
 		info := session.Info()
 		run.outcome = StopOutcome{
-			FinalState: info.State, Verified: info.State == StateStopped,
+			FinalState: info.State, Verified: info.State == StateStopped && (start == nil || signalClosed(start.done)),
 			Cause: cause, Phase: StopPhaseCooperative, Elapsed: m.now().Sub(started),
 		}
 		if start != nil && signalClosed(start.done) && start.stopOutcome != nil {
@@ -74,4 +74,14 @@ func canceledStartWaitErr(runCtx context.Context) error {
 		return nil
 	}
 	return cause
+}
+
+// waitSessionStopRun fences cached receipts against a newer startup cleanup owner.
+func (m *Manager) waitSessionStopRun(ctx context.Context, id string, run *sessionStopRun) (StopOutcome, error) {
+	if start := m.sessionStartRun(id); signalClosed(run.done) && start != nil && !start.activationCommitted.Load() {
+		if err := waitForSessionStartRun(ctx, start); err != nil {
+			return StopOutcome{}, err
+		}
+	}
+	return waitSessionStopRun(ctx, run)
 }

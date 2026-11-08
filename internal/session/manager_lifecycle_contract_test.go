@@ -1046,6 +1046,122 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: a previous verified stop cannot prove that a later start owner
+	// has released its resources. Owner: Manager Stop; canonical shared operation suite.
+	t.Run("Should fence a cached stop receipt behind current startup cleanup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		start, err := h.manager.newSessionStartRun(h.manager.lifecycleCtx, active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer h.manager.finishSessionStartRun(active.ID, start, nil)
+		if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		waitCtx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		outcome, err := h.manager.AwaitStopped(waitCtx, active.ID)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) || outcome.Verified {
+			t.Fatalf("cached receipt escaped pending cleanup: %+v, %v", outcome, err)
+		}
+		waitCtx, cancel = context.WithTimeout(t.Context(), 20*time.Millisecond)
+		err = h.manager.Stop(waitCtx, active.ID)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("blocking Stop escaped pending cleanup: %v", err)
+		}
+	})
+
+	// Invariant: a durably activated session uses normal stop finalization even
+	// while its post-create hook is pending. Owner/canonical suite: shared Manager Stop.
+	for _, tc := range []struct {
+		name    string
+		logical bool
+	}{
+		{"Should finalize stop during successful logical post-create", true},
+		{"Should finalize stop during successful ACP post-create", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entered, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			defer unblock()
+			var postStops atomic.Int32
+			hooks := &spyHookDispatcher{
+				dispatchSessionPostCreateFn: func(_ context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
+					close(entered)
+					<-release
+					return payload, nil
+				},
+				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+					postStops.Add(1)
+					return payload, nil
+				},
+			}
+			h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+			created := make(chan error, 1)
+			go func() {
+				opts := CreateOpts{AgentName: "coder", Workspace: h.workspaceID}
+				var err error
+				if tc.logical {
+					_, err = h.manager.CreateAccepted(t.Context(), &CreateAcceptedOpts{Session: opts})
+				} else {
+					_, err = h.manager.Create(t.Context(), &opts)
+				}
+				created <- err
+			}()
+			select {
+			case <-entered:
+			case <-t.Context().Done():
+				t.Fatal(t.Context().Err())
+			}
+			active, ok := h.manager.Get("sess-1")
+			if !ok {
+				t.Fatal("accepted activation missing")
+			}
+			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			outcome, err := h.manager.AwaitStopped(testutil.Context(t), active.ID)
+			if err != nil || !outcome.Verified || outcome.FinalState != StateStopped ||
+				outcome.Cause != CauseUserRequested {
+				t.Fatalf("stop during successful activation = %+v, %v", outcome, err)
+			}
+			unblock()
+			if err := <-created; err != nil {
+				t.Fatalf("successful activation: %v", err)
+			}
+			h.notifier.mu.Lock()
+			order := append([]string(nil), h.notifier.order...)
+			h.notifier.mu.Unlock()
+			stopped := false
+			for _, event := range order {
+				if event == "stopped:"+active.ID {
+					stopped = true
+				}
+				if stopped && event == "created:"+active.ID {
+					t.Fatalf("creation followed terminal notification: %v", order)
+				}
+			}
+			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 || postStops.Load() != 1 ||
+				h.notifier.stoppedCount() != 1 {
+				t.Fatalf(
+					"stop effects = hook %d, notifications %d; want one terminal and one each",
+					postStops.Load(),
+					h.notifier.stoppedCount(),
+				)
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		reason store.StopReason
 		detail string
@@ -1177,6 +1293,14 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			if !h.manager.hasPendingStopSettlement(active.ID) || h.notifier.stoppedCount() != 0 {
 				t.Fatal("uncommitted history lost its recovery obligation or published a terminal event")
+			}
+			if action == "restart" {
+				// The old daemon cannot retry settlement after the replacement boots.
+				shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				if err := h.manager.Shutdown(shutdownCtx); err != nil {
+					t.Fatal(err)
+				}
 			}
 			fail.Store(false)
 			switch action {
@@ -1516,6 +1640,13 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			if !errors.Is(err, ErrRecoveryPersistence) || !first.Verified {
 				t.Fatalf("pending stop = %#v, %v", first, err)
 			}
+			// Join the old daemon's watchers while persistence still fails, so only
+			// the replacement manager can complete the durable receipt after restart.
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if err := h.manager.Shutdown(shutdownCtx); err != nil {
+				t.Fatal(err)
+			}
 			fail.Store(false)
 			if err := h.manager.closeSessionRecorder(active); err != nil {
 				t.Fatal(err)
@@ -1531,9 +1662,11 @@ func TestSharedSessionStopOperation(t *testing.T) {
 				settled.Cause != first.Cause || settled.Elapsed != first.Elapsed {
 				t.Fatalf("restarted settlement = %#v, %v", settled, err)
 			}
-			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 ||
-				h.notifier.stoppedCount() != 1 {
-				t.Fatal("restart duplicated or omitted terminal settlement")
+			stoppedEvents := countEventType(readStoredEvents(t, active), EventTypeSessionStopped)
+			stoppedNotifications := h.notifier.stoppedCount()
+			if stoppedEvents != 1 || stoppedNotifications != 1 {
+				t.Fatalf("restart terminal settlement: events = %d, notifications = %d; want 1 each",
+					stoppedEvents, stoppedNotifications)
 			}
 			if _, err := os.Stat(manager.recoveredStopReceiptPath(active.ID)); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("settled receipt retained: %v", err)
@@ -2808,10 +2941,12 @@ func TestSharedSessionStopOperation(t *testing.T) {
 
 type terminalCloseFailingRecorder struct {
 	EventRecorder
-	fail        *atomic.Bool
-	closeErr    error
-	terminal    bool
-	beforeClose func()
+	fail               *atomic.Bool
+	closeErr           error
+	terminal           bool
+	beforeClose        func()
+	persistentCloseErr bool
+	closeContext       context.Context
 }
 
 type terminalWriteFailingRecorder struct {
@@ -2852,11 +2987,23 @@ func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {
 	if r.terminal && r.fail.Load() && r.beforeClose != nil {
 		r.beforeClose()
 	}
+	if r.closeContext != nil {
+		ctx = r.closeContext
+	}
 	err := r.EventRecorder.Close(ctx)
-	if r.terminal && r.fail.CompareAndSwap(true, false) {
+	if r.terminal && (r.persistentCloseErr || r.fail.CompareAndSwap(true, false)) {
 		return errors.Join(err, r.closeErr)
 	}
 	return err
+}
+
+func (r *terminalCloseFailingRecorder) CleanupComplete() bool {
+	cleanup, ok := r.EventRecorder.(interface{ CleanupComplete() bool })
+	return ok && cleanup.CleanupComplete()
+}
+
+func (r *terminalCloseFailingRecorder) WaitForCleanup(ctx context.Context) error {
+	return r.EventRecorder.(interface{ WaitForCleanup(context.Context) error }).WaitForCleanup(ctx)
 }
 
 func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
