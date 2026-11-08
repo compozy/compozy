@@ -414,6 +414,84 @@ func TestManagerAttentionCommitOrdering(t *testing.T) {
 		},
 	)
 
+	t.Run("Should not recreate a removed publication baseline from captured lifecycle info", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+			SessionID:         sess.ID,
+			InteractionID:     "removal",
+			ProviderRequestID: "removal",
+			Kind:              store.PendingInteractionKindClarify,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reportSessionStop(t, h, sess.ID)
+		captured := sess.Info()
+		h.manager.remove(sess.ID)
+		h.manager.publishLifecycleAttentionTransition(t.Context(), captured, captured)
+		h.manager.attentionCommitMu.Lock()
+		_, retained := h.manager.attentionPublished[sess.ID]
+		h.manager.attentionCommitMu.Unlock()
+		if retained {
+			t.Fatal("publication recreated removed baseline")
+		}
+	})
+	t.Run("Should finish dismissal publication before a newer permission publishes", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		h.manager.setEndedEarly(t.Context(), sess, "dismissed-turn")
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				if p.To == string(BadgeIdle) {
+					close(entered)
+					<-release
+				}
+				return p, nil
+			},
+		)
+		wrapped := &pausedDismissStore{SessionAttentionStore: h.manager.attentionStore,
+			committed: make(chan struct{}), release: make(chan struct{}), entered: make(chan struct{}, 1)}
+		close(wrapped.release)
+		h.manager.attentionStore = wrapped
+		dismissed := make(chan error, 1)
+		go func() { _, err := h.manager.MarkAttentionSeen(t.Context(), sess.ID); dismissed <- err }()
+		<-entered
+		created := make(chan error, 1)
+		go func() {
+			_, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+				SessionID:         sess.ID,
+				InteractionID:     "after-dismiss",
+				ProviderRequestID: "after-dismiss",
+				Kind:              store.PendingInteractionKindPermission,
+			})
+			created <- err
+		}()
+		select {
+		case <-wrapped.entered:
+			once.Do(func() { close(release) })
+			<-dismissed
+			<-created
+			t.Fatal("permission overtook dismissal publication")
+		case <-time.After(100 * time.Millisecond):
+		}
+		once.Do(func() { close(release) })
+		if err := <-dismissed; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-created; err != nil {
+			t.Fatal(err)
+		}
+		if got := BadgeForInfo(sess.Info()); got != BadgeWaitingForAuth {
+			t.Fatalf("new permission badge = %s", got)
+		}
+	})
+
 	t.Run("Should cancel a same-session lock waiter with Manager shutdown", func(t *testing.T) {
 		t.Parallel()
 		manager, err := NewManager(WithHomePaths(testHomePaths(t)))

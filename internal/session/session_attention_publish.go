@@ -20,7 +20,7 @@ func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, 
 			commit.After, err = m.attentionStore.GetSessionAttention(readCtx, sessionID)
 		}
 		if err == nil {
-			wake, err = m.emitAttentionCommit(readCtx, sessionID, commit)
+			wake, err = m.emitAttentionCommit(readCtx, sessionID, commit, false)
 		}
 		unlock()
 	}
@@ -50,18 +50,39 @@ func (m *Manager) emitAttentionCommit(
 	ctx context.Context,
 	sessionID string,
 	commit store.SessionAttentionCommit,
+	refreshCatalog bool,
 ) (func(), error) {
 	m.attentionCommitMu.Lock()
-	if previous, ok := m.attentionPublished[sessionID]; ok {
+	if m.attentionPublished == nil {
+		m.attentionPublished = make(map[string]store.SessionAttention)
+	}
+	previous, published := m.attentionPublished[sessionID]
+	if published {
 		commit.Before = previous
+	} else if sessionAttentionProjectionEqual(commit.Before, commit.After) && !refreshCatalog {
+		m.attentionCommitMu.Unlock()
+		return nil, nil
+	} else {
+		// Reserve before capturing Info so removal can invalidate this publication's baseline.
+		m.attentionPublished[sessionID] = commit.Before
 	}
 	m.attentionCommitMu.Unlock()
-	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
+	unchanged := sessionAttentionProjectionEqual(commit.Before, commit.After)
+	if unchanged && !refreshCatalog {
 		return nil, nil
 	}
 	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
 	if err != nil {
+		if !published {
+			m.attentionCommitMu.Lock()
+			delete(m.attentionPublished, sessionID)
+			m.attentionCommitMu.Unlock()
+		}
 		return nil, err
+	}
+	if unchanged {
+		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+		return nil, nil
 	}
 	before := *info
 	after := *info
@@ -105,11 +126,12 @@ func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after 
 	return to, true
 }
 
+// rememberPublishedAttention updates reserved baselines without reviving removed sessions.
 func (m *Manager) rememberPublishedAttention(after *Info) {
-	// Keep the baseline aligned with direct lifecycle edges as well as interaction publications.
 	m.attentionCommitMu.Lock()
-	if m.attentionPublished == nil {
-		m.attentionPublished = make(map[string]store.SessionAttention)
+	if _, registered := m.attentionPublished[after.ID]; !registered {
+		m.attentionCommitMu.Unlock()
+		return
 	}
 	m.attentionPublished[after.ID] = store.SessionAttention{
 		PendingPermissionCount: after.PendingPermissionCount,

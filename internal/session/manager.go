@@ -400,6 +400,7 @@ func (m *Manager) releaseReservation(id string) {
 	delete(m.pending, id)
 }
 
+// remove retires runtime bookkeeping and invalidates reserved publication baselines.
 func (m *Manager) remove(id string) {
 	target := strings.TrimSpace(id)
 	m.mu.Lock()
