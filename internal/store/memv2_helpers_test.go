@@ -1,11 +1,25 @@
 package store
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestSessionFailureHelpers(t *testing.T) {
+	t.Run("Should validate unreadable prompt delivery as a transport failure", func(t *testing.T) {
+		t.Parallel()
+		failure := SessionFailure{Kind: FailureTransport, ReasonCode: FailureReasonPromptDeliveryReadFailed}
+		if err := failure.Validate(); err != nil {
+			t.Fatalf("Validate(prompt delivery read failure) = %v", err)
+		}
+		failure.Kind = FailurePrompt
+		if err := failure.Validate(); err == nil || !strings.Contains(
+			err.Error(), `reason code "prompt_delivery_read_failed" requires kind "transport_failure"`,
+		) {
+			t.Fatalf("Validate(non-transport read failure) = %v, want incompatible kind diagnostic", err)
+		}
+	})
 	t.Run("Should normalize validate and clone supported failures", func(t *testing.T) {
 		t.Parallel()
 

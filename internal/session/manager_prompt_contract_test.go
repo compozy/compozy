@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"strings"
@@ -203,8 +204,355 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 	})
 }
 
+// TestPromptStreamsToRecorderAndNotifier verifies ordered durable output and live delivery across replay boundaries.
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		readError   error
+		permanent   bool
+		wantType    string
+		wantReason  store.FailureReasonCode
+		wantQueries int64
+	}{
+		{"Should retry a catch-up read failure after persistence completes", errors.New("transient read failure"), false, acp.EventTypeDone, "", 2},
+		{"Should end catch-up when its recorder closes", store.ErrClosed, false, "", "", 1},
+		{"Should end catch-up after persistent completed read failures", errors.New("persistent read failure"), true, acp.EventTypeError, store.FailureReasonPromptDeliveryReadFailed, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: "turn-read-retry",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			recorder := &promptDeliveryQueryRecorder{
+				EventRecorder: session.recorderHandle(), readError: tc.readError, failAlways: tc.permanent,
+			}
+			recorder.failNext.Store(true)
+			session.setRecorder(recorder)
+			out := make(chan acp.AgentEvent, 2)
+			h.manager.catchUpDurablePromptDelivery(ctx, session, "turn-read-retry", 0, 0,
+				&transcript.SessionMessageCards{}, nil, true, out)
+			close(out)
+			events := collectEvents(t, out)
+			if tc.wantType != "" {
+				if len(events) != 1 || events[0].Type != tc.wantType {
+					t.Fatalf("catch-up events = %#v, want %s", events, tc.wantType)
+				}
+				if tc.wantReason != "" && (events[0].Failure == nil || events[0].Failure.ReasonCode != tc.wantReason) {
+					t.Fatalf("catch-up failure = %#v, want %s", events[0].Failure, tc.wantReason)
+				}
+			} else if len(events) != 0 {
+				t.Fatalf("closed recorder emitted events: %#v", events)
+			}
+			queries := recorder.queries.Load()
+			if queries < 1 || (tc.wantQueries > 0 && queries != tc.wantQueries) || ctx.Err() != nil {
+				t.Fatalf("catch-up queries = %d, context = %v", queries, ctx.Err())
+			}
+		})
+	}
+	t.Run("Should deliver a contiguous live terminal without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		cursor, err := recorder.MaxEventSequence(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, unsubscribe, err := h.manager.subscribePersistedSessionEvents(ctx, session.ID, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, "turn-live-terminal", cursor, live, unsubscribe, nil, out)
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: eventType, TurnID: "turn-live-terminal",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := collectEvents(t, out)
+		if len(events) != 2 || events[0].Type != acp.EventTypeAgentMessage || events[1].Type != acp.EventTypeDone {
+			t.Fatalf("live events = %#v", events)
+		}
+		if queries := recorder.queries.Load(); queries != 0 {
+			t.Fatalf("contiguous terminal delivery made %d catch-up queries", queries)
+		}
+	})
+	t.Run("Should recover an event recorded between cursor capture and subscription", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterCursorRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeRuntimeWarning, TurnID: "subscription-turn", Text: "setup race",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "subscription-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "subscription-turn", Text: "live reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []struct{ eventType, text string }{
+			{acp.EventTypeRuntimeWarning, "setup race"},
+			{acp.EventTypeAgentMessage, "live reply"},
+		} {
+			if event := receivePromptEvent(t, delivery.events); event.Type != want.eventType ||
+				event.TurnID != "subscription-turn" || event.Text != want.text {
+				t.Fatalf("event before persistence completion = %#v, want %s with turn subscription-turn and text %q",
+					event, want.eventType, want.text)
+			}
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "subscription-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "subscription-turn" {
+			t.Fatalf("remaining events = %#v, want one terminal", events)
+		}
+	})
+	t.Run("Should recover a terminal recorded after setup without a later publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterQueryRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: "terminal-window",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "terminal-window")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		// No later publication wakes delivery; completing persistence must recover the saved terminal.
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "terminal-window" {
+			t.Fatalf("completion recovery = %#v, want exactly the saved terminal and stream closure", events)
+		}
+	})
+	for _, tc := range []struct {
+		name        string
+		failMaximum bool
+	}{
+		{name: "Should release prompt ownership after the maximum sequence read fails", failMaximum: true},
+		{name: "Should release prompt ownership after the setup query fails"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			readErr := errors.New("initial delivery read failed")
+			recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+			if tc.failMaximum {
+				recorder.maxReadError = readErr
+			} else {
+				recorder.readError, recorder.failAlways = readErr, true
+			}
+			session.setRecorder(recorder)
+			if _, err := h.manager.Prompt(t.Context(), session.ID, "first attempt"); !errors.Is(err, readErr) {
+				t.Fatalf("Prompt() error = %v, want initial delivery read error", err)
+			}
+			session.setRecorder(recorder.EventRecorder)
+			next, err := h.manager.Prompt(t.Context(), session.ID, "next attempt")
+			if err != nil {
+				t.Fatalf("Prompt() after recorder recovery = %v", err)
+			}
+			if events := collectEvents(t, next); countAgentEvents(events, acp.EventTypeDone) != 1 {
+				t.Fatalf("recovered prompt events = %#v, want one terminal", events)
+			}
+		})
+	}
+	t.Run("Should preserve current turn warnings recorded during setup", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "pi", Model: "test-model"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		session, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("accepted session is not available")
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeRuntimeWarning, TurnID: "prior-turn", Text: "prior warning",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(session.sessionDir, "provider-runtime"),
+			[]byte("block materialization"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.FinalizeStartup == nil {
+				return nil, errors.New("Pi startup finalizer is missing")
+			}
+			if _, _, err := opts.FinalizeStartup(ctx); err != nil {
+				return nil, err
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-pi-%d", sequence)), nil
+		}
+		output, err := h.manager.Prompt(ctx, session.ID, "reply with unavailable native tools")
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, output)
+		if len(events) != 3 || events[0].Type != acp.EventTypeRuntimeWarning ||
+			events[0].Text != "Pi native tools are unavailable; using CLI guidance." ||
+			events[0].TurnID == "" || events[0].TurnID != events[1].TurnID || events[0].TurnID != events[2].TurnID ||
+			events[0].ProviderError == nil || events[0].ProviderError.Provider != "pi" ||
+			events[0].ProviderError.Code != "pi_native_tools_materialization_failed" ||
+			events[1].Type != acp.EventTypeAgentMessage || events[2].Type != acp.EventTypeDone {
+			t.Fatalf("setup output = %#v, want current warning, message and terminal in order", events)
+		}
+	})
+	t.Run("Should keep later prompts on live delivery without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "prior-turn", Text: "prior reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "later-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		setupQueries := recorder.queries.Load()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: "reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		first := receivePromptEvent(t, delivery.events)
+		if first.Type != acp.EventTypeAgentMessage || first.Text != "reply" {
+			t.Fatalf("live event = %#v", first)
+		}
+		if queries := recorder.queries.Load() - setupQueries; queries != 0 {
+			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
+		}
+		if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
+			TurnID: "later-turn", Type: "hook.dispatch.started", Content: "{}",
+			AgentName: session.Info().AgentName, Timestamp: time.Now().UTC(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for index, text := range []string{"after unpublished row", "live again"} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: text,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			event := receivePromptEvent(t, delivery.events)
+			if event.Type != acp.EventTypeAgentMessage || event.Text != text ||
+				recorder.queries.Load()-setupQueries != 1 {
+				t.Fatalf(
+					"delivery %d = %#v, queries = %d; want resumed live delivery",
+					index,
+					event,
+					recorder.queries.Load()-setupQueries,
+				)
+			}
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "later-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		events := collectEvents(t, delivery.events)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want persisted terminal", events)
+		}
+	})
+	t.Run("Should replay a terminal event overtaken by a concurrent publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		turnID := "turn-publication-order"
+		var later store.SessionEvent
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeSystem} {
+			payload, err := json.Marshal(acp.AgentEvent{Type: eventType, TurnID: turnID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			later, err = recordPersistedSessionEvent(ctx, session.recorderHandle(), store.SessionEvent{
+				TurnID: turnID, Type: eventType, Content: string(payload), Timestamp: time.Now().UTC(),
+				AgentName: session.Info().AgentName,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Publish the later marker while the terminal's post-append work is still running.
+		live := make(chan store.SessionEvent, 1)
+		live <- later
+		persisted := make(chan struct{})
+		finish := sync.OnceFunc(func() { close(persisted) })
+		defer finish()
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, turnID, 0, live, func() {}, persisted, out)
+		first := receivePromptEvent(t, out)
+		close(live)
+		finish()
+		if first.Type != acp.EventTypeAgentMessage {
+			t.Fatalf("first event = %q, want persisted agent message before terminal", first.Type)
+		}
+		events := collectEvents(t, out)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want the persisted terminal", events)
+		}
+	})
 	t.Run("Should label batch persistence when capture starts during an active turn", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -4443,4 +4791,47 @@ var _ context.Context = (*profileStartedContext)(nil)
 func (c *profileStartedContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.started) })
 	return c.Context.Done()
+}
+
+// promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
+type promptDeliveryQueryRecorder struct {
+	EventRecorder
+	queries         atomic.Int64
+	failNext        atomic.Bool
+	readError       error
+	failAlways      bool
+	maxReadError    error
+	afterCursorRead func(context.Context) error
+	cursorRead      sync.Once
+	afterQueryRead  func(context.Context) error
+	queryRead       sync.Once
+}
+
+func (r *promptDeliveryQueryRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
+	if r.maxReadError != nil {
+		return 0, r.maxReadError
+	}
+	sequence, err := r.EventRecorder.MaxEventSequence(ctx)
+	if err == nil && r.afterCursorRead != nil {
+		r.cursorRead.Do(func() { err = r.afterCursorRead(ctx) })
+	}
+	return sequence, err
+}
+
+func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+	r.queries.Add(1)
+	if r.failAlways || r.failNext.Swap(false) {
+		return nil, r.readError
+	}
+	events, err := r.EventRecorder.Query(ctx, query)
+	if err == nil && r.afterQueryRead != nil {
+		r.queryRead.Do(func() { err = r.afterQueryRead(ctx) })
+	}
+	return events, err
+}
+
+func (r *promptDeliveryQueryRecorder) RecordPersisted(
+	ctx context.Context, event store.SessionEvent,
+) (store.SessionEvent, error) {
+	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
 }

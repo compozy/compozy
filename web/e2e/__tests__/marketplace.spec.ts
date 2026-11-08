@@ -449,6 +449,7 @@ test.describe("Marketplace plugin catalog by category", () => {
 
   test("marketplace-plugin-catalog E2E-003: Add ends in Ready, or Set up until sign-in completes", async ({
     appPage,
+    browserArtifacts,
     runtime,
   }) => {
     const authServer = await startMCPAuthServer();
@@ -529,9 +530,12 @@ test.describe("Marketplace plugin catalog by category", () => {
         await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();
         popup = await popupPromise;
         await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("POST /token");
+        expect(authServer.requests).toContain("GET /.well-known/oauth-protected-resource/mcp");
         await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
           timeout: 15_000,
         });
+        await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
+        await browserArtifacts.captureScreenshot("marketplace-catalog-sign-in-confirmed", appPage);
         await appPage.getByTestId("settings-page-mcp-authorize-done").click();
         await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
       });
@@ -1947,6 +1951,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await marketplace.extensionTrustConfirm.click();
       const install = await installResponse;
       expect(install.status()).toBe(201);
+      await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
       const installedInstance = await install.json();
       const installedScope = new URLSearchParams({
         workspace: installedInstance.extension.workspace_id,
@@ -2042,18 +2047,19 @@ test.describe("Agent Plugins marketplace journeys", () => {
       });
       await expect(marketplace.card(driftedEntryID)).toBeVisible({ timeout: 20_000 });
 
-      await marketplace.action(driftedEntryID).click();
-      const trustDialog = marketplace.extensionTrustDialog;
-      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       const installResponse = appPage.waitForResponse(
         response =>
           response.request().method() === "POST" &&
           new URL(response.url()).pathname === "/api/extensions"
       );
-      // Consent is the only gate here, so Add finishes inline without the review dialog.
+      await marketplace.action(driftedEntryID).click();
+      const trustDialog = marketplace.extensionTrustDialog;
+      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await marketplace.extensionTrustConfirm.click();
+
       const response = await installResponse;
       expect(response.status()).toBe(201);
+      await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
       const installed = await response.json();
       expect(installed.extension).toMatchObject({
         name: driftedName,
