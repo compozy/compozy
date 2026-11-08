@@ -35,7 +35,7 @@ export function SessionPanelToggle({
             variant="quiet"
             size="icon-sm"
             aria-label={name}
-            // Pressed reads as the held hover plate (`surface-2` + `fg`), from the variant.
+            // Pressed reads as the glyph in brand ink with no plate, from the quiet variant.
             aria-pressed={open}
             data-state={open ? "open" : "closed"}
             data-testid={testId}
