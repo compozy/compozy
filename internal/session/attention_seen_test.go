@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -184,8 +185,8 @@ func TestAttentionBlockerForInfo(t *testing.T) {
 	}
 }
 
-// Invariant: a newer attention write cannot overtake a dismissal's resident apply.
-// Owner: session manager; canonical suite: TestManagerMarkAttentionSeen.
+// Invariant: resident applies and published attention edges preserve canonical session ordering.
+// Owner: session manager; canonical suite: TestManagerAttentionCommitOrdering.
 func TestManagerAttentionCommitOrdering(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"early", store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
@@ -309,6 +310,110 @@ func TestManagerAttentionCommitOrdering(t *testing.T) {
 			t.Fatalf("resident=%+v durable=%+v", info, durable)
 		}
 	})
+	t.Run("Should suppress an older ordinary publication after acknowledgement cleanup", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		if err := db.RegisterSession(t.Context(), &store.SessionInfo{
+			ID: "ordered", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+			AgentName: "coder", SessionType: string(SessionTypeUser), State: string(StateStopped),
+			RuntimeStatus: store.SessionRuntimeReady,
+			CreatedAt:     h.manager.now(), UpdatedAt: h.manager.now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ctx := t.Context()
+		permission, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+			SessionID: "ordered", InteractionID: "permission", ProviderRequestID: "permission",
+			Kind: store.PendingInteractionKindPermission,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		clarify, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+			SessionID: "ordered", InteractionID: "clarify", ProviderRequestID: "clarify",
+			Kind: store.PendingInteractionKindClarify,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Pause at the existing store boundary after the ordinary commit, before publication.
+		older, err := h.manager.commitTransitionPendingInteraction(ctx, "ordered", store.PendingInteractionTransition{
+			InteractionID: permission.Interaction.InteractionID,
+			Status:        store.PendingInteractionStatusCanceled,
+			At:            h.manager.now(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleared, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+			InteractionID: clarify.Interaction.InteractionID,
+			Status:        store.PendingInteractionStatusCanceled,
+			At:            h.manager.now(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{cleared})
+		h.manager.publishAttentionCommit(ctx, "ordered", older)
+		if len(edges) != 1 || edges[0].From != string(BadgeWaitingForAuth) || edges[0].To != string(BadgeStopped) {
+			t.Fatalf("late ordinary publication regressed attention: %+v", edges)
+		}
+	})
+	t.Run(
+		"Should avoid duplicate hooks when a new permission publishes before reconciliation locks",
+		func(t *testing.T) {
+			t.Parallel()
+			h, db := newMentionHarness(t)
+			registerMentionCatalogSession(t, db, "newer-first", h.workspaceID)
+			ctx := t.Context()
+			old, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+				SessionID:         "newer-first",
+				InteractionID:     "old",
+				ProviderRequestID: "old",
+				Kind:              store.PendingInteractionKindClarify,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleared, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+				InteractionID: old.Interaction.InteractionID,
+				Status:        store.PendingInteractionStatusCanceled,
+				At:            h.manager.now(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var edges []hookspkg.SessionAttentionChangedPayload
+			h.manager.hooks.Attention = attentionHookFunc(
+				func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					edges = append(edges, p)
+					return p, nil
+				},
+			)
+			_, err = h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+				SessionID:         "newer-first",
+				InteractionID:     "new",
+				ProviderRequestID: "new",
+				Kind:              store.PendingInteractionKindPermission,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{cleared})
+			if len(edges) != 1 || edges[0].From != string(BadgeWaitingForInput) ||
+				edges[0].To != string(BadgeWaitingForAuth) {
+				t.Fatalf("reconciliation duplicated or invented transition: %+v", edges)
+			}
+		},
+	)
+
 	t.Run("Should cancel a same-session lock waiter with Manager shutdown", func(t *testing.T) {
 		t.Parallel()
 		manager, err := NewManager(WithHomePaths(testHomePaths(t)))

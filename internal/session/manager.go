@@ -416,6 +416,9 @@ func (m *Manager) remove(id string) {
 	m.soulLocksMu.Unlock()
 
 	m.forgetSpawnWakeEvents(target)
+	m.attentionCommitMu.Lock()
+	delete(m.attentionPublished, target)
+	m.attentionCommitMu.Unlock()
 }
 
 func (m *Manager) removeActive(id string) {

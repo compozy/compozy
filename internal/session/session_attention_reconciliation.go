@@ -126,8 +126,12 @@ func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit st
 			return commit, nil
 		})
 		if err == nil {
-			err = m.emitAttentionCommit(attemptCtx, id, refreshed)
+			wake, publishErr := m.emitAttentionCommit(attemptCtx, id, refreshed)
+			err = publishErr
 			unlock()
+			if wake != nil {
+				wake()
+			}
 			cancel()
 			if err == nil {
 				return nil
