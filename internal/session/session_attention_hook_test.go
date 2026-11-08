@@ -106,6 +106,58 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		if !ok || target.Info().PendingClarifyCount != 0 || len(target.Info().PendingInteractions) != 0 {
 			t.Fatal("external cancellation left resident pending attention")
 		}
+		attentionStore.snapshot = store.SessionAttention{PendingClarifyCount: 1, AttentionRevision: 3}
+		attentionStore.pending = []store.PendingInteraction{
+			{
+				InteractionID: "newer",
+				SessionID:     "sess-hook",
+				Kind:          store.PendingInteractionKindClarify,
+				Status:        store.PendingInteractionStatusPending,
+			},
+		}
+		manager.PublishPendingInteractionCommits(disconnected, []store.SessionAttentionCommit{commit, next})
+		current := target.Info()
+		if BadgeForInfo(current) != BadgeWaitingForInput || len(current.PendingInteractions) != 1 ||
+			current.PendingInteractions[0].InteractionID != "newer" {
+			t.Fatalf("newer interaction lost: %+v", current)
+		}
+	})
+
+	t.Run("Should give later sessions a fresh budget after an earlier refresh times out", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		manager.attentionStore = &committingAttentionStore{blockedSessionID: "slow", requireBoundedRead: true}
+		manager.mu.Lock()
+		manager.sessions["slow"] = &Session{ID: "slow", State: StateStopped, PendingClarifyCount: 1}
+		manager.sessions["next"] = &Session{ID: "next", State: StateStopped, PendingClarifyCount: 1}
+		manager.mu.Unlock()
+		manager.PublishPendingInteractionCommits(ctx, []store.SessionAttentionCommit{
+			{
+				Before: store.SessionAttention{PendingClarifyCount: 1},
+				Interaction: &store.PendingInteraction{
+					InteractionID: "old-slow",
+					SessionID:     "slow",
+					Status:        store.PendingInteractionStatusCanceled,
+				},
+			},
+			{
+				Before: store.SessionAttention{PendingClarifyCount: 1},
+				Interaction: &store.PendingInteraction{
+					InteractionID: "old-next",
+					SessionID:     "next",
+					Status:        store.PendingInteractionStatusCanceled,
+				},
+			},
+		})
+		next, ok := manager.Get("next")
+		if !ok || next.Info().PendingClarifyCount != 0 {
+			t.Fatal("earlier timeout suppressed the next session refresh")
+		}
 	})
 
 	t.Run("Should preserve and publish canonical attention when transcript append fails", func(t *testing.T) {
@@ -196,6 +248,9 @@ func (f attentionHookFunc) DispatchSessionAttentionChanged(
 }
 
 type committingAttentionStore struct {
+	snapshot           store.SessionAttention
+	pending            []store.PendingInteraction
+	blockedSessionID   string
 	requireBoundedRead bool
 	readFailures       int
 	mu                 sync.Mutex
@@ -206,8 +261,12 @@ type committingAttentionStore struct {
 
 func (s *committingAttentionStore) GetSessionAttention(
 	ctx context.Context,
-	_ string,
+	id string,
 ) (store.SessionAttention, error) {
+	if id == s.blockedSessionID && id != "" {
+		<-ctx.Done()
+		return store.SessionAttention{}, ctx.Err()
+	}
 	if s.requireBoundedRead {
 		if _, bounded := ctx.Deadline(); !bounded {
 			return store.SessionAttention{}, errors.New("post-commit read has no deadline")
@@ -217,7 +276,7 @@ func (s *committingAttentionStore) GetSessionAttention(
 		s.readFailures--
 		return store.SessionAttention{}, errors.New("transient attention read failure")
 	}
-	return store.SessionAttention{}, ctx.Err()
+	return s.snapshot, ctx.Err()
 }
 
 func (s *committingAttentionStore) CreatePendingInteraction(
@@ -262,7 +321,7 @@ func (s *committingAttentionStore) ListPendingInteractions(
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return []store.PendingInteraction{}, nil
+	return s.pending, nil
 }
 
 func (s *committingAttentionStore) HasPermissionOccurrence(

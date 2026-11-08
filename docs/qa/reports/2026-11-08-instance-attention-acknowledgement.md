@@ -76,3 +76,9 @@ The hook suite injects a failed first read and verifies recovery. Both embedded 
 applied: individual live interaction statuses remain unchanged, and the non-dismissible menu test
 first proves an existing action is visible. The two new public query/API methods now explain their
 non-obvious acknowledgement boundaries in one-line comments.
+
+CodeRabbit review `5819118895` / thread `discussion_r4507325904` requested an independent budget
+for each session. Each refresh now gets its own detached lifecycle timeout; a timed-out earlier
+session cannot consume a later session's deadline. The canonical session suite exercises that
+failure and preserves a newer pending interaction returned with current attention from the store
+(embedded nitpick `cr-comment:v1:9a0da8c64b51765e3c9c375f`).

@@ -323,8 +323,6 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 
 // PublishPendingInteractionCommits reconciles each session once after an instance acknowledgement.
 func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits []store.SessionAttentionCommit) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
 	seen := make(map[string]bool)
 	for _, commit := range commits {
 		if commit.Interaction == nil {
@@ -335,25 +333,7 @@ func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits 
 			continue
 		}
 		seen[id] = true
-		var refreshed store.SessionAttentionCommit
-		var err error
-		for range 2 {
-			refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
-				current, err := m.attentionStore.GetSessionAttention(ctx, id)
-				if err != nil {
-					return commit, err
-				}
-				if err := m.refreshPendingInteractions(ctx, id); err != nil {
-					return commit, err
-				}
-				commit.After = current
-				return commit, nil
-			})
-			if err == nil {
-				break
-			}
-		}
-		if err != nil {
+		if err := m.publishPendingInteractionCommit(ctx, commit); err != nil {
 			m.logger.WarnContext(
 				ctx,
 				"session: refresh acknowledged interaction failed",
@@ -362,8 +342,33 @@ func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits 
 				"error",
 				err,
 			)
-			continue
 		}
-		m.publishAttentionCommit(ctx, id, refreshed)
 	}
+}
+
+// publishPendingInteractionCommit gives each session a fresh budget so slow siblings cannot suppress it.
+func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit store.SessionAttentionCommit) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	id := commit.Interaction.SessionID
+	var refreshed store.SessionAttentionCommit
+	var err error
+	for range 2 {
+		refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
+			current, err := m.attentionStore.GetSessionAttention(ctx, id)
+			if err != nil {
+				return commit, err
+			}
+			if err := m.refreshPendingInteractions(ctx, id); err != nil {
+				return commit, err
+			}
+			commit.After = current
+			return commit, nil
+		})
+		if err == nil {
+			m.publishAttentionCommit(ctx, id, refreshed)
+			return nil
+		}
+	}
+	return err
 }
