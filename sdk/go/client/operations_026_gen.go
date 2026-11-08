@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// MintGatewayStreamTicket Mint a short-lived single-use stream ticket
+func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTicketPayload, error) {
+	path := "/api/gateway/stream-tickets"
+	var out GatewayStreamTicketPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MintTerminalAttachTicketParams carries the path, query, and header parameters.
 type MintTerminalAttachTicketParams struct {
 	WorkspaceID             string  `url:"workspace_id"`
@@ -432,10 +442,4 @@ func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfile
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PrepareWorktreeExitPlanParams carries the path, query, and header parameters.
-type PrepareWorktreeExitPlanParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }
