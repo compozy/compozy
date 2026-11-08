@@ -36,16 +36,10 @@ func (m *Service) launchTerminal(
 			release()
 		}
 	}()
-	if launch.origin.Kind == ActorKindAgent {
-		launch.spec.Niceness = m.agentNiceness
-	}
-	proc, err := m.pty.Start(ctx, launch.spec)
+	proc, err := m.startTerminalProcess(ctx, launch.origin, launch.spec)
 	if err != nil {
 		releaseWorktreeNow(launch.worktreeRelease)
 		return nil, terminalKey{}, fmt.Errorf("terminal: start %s: %w", launch.startLabel, err)
-	}
-	if launch.origin.Kind == ActorKindAgent {
-		subprocess.ApplyLaunchNiceness(m.logger, proc.ProcessGroupID(), m.agentNiceness)
 	}
 	profileName := m.eventProfileName(ctx, launch.info.ProfileID)
 	item := newSession(
@@ -82,4 +76,20 @@ func (m *Service) launchTerminal(
 	}
 	transferred = true
 	return item, key, nil
+}
+
+// startTerminalProcess keeps open and exec launches on the same actor-bound priority policy.
+func (m *Service) startTerminalProcess(ctx context.Context, actor Actor, spec ProcSpec) (Proc, error) {
+	spec.Logger = m.logger
+	if actor.Kind == ActorKindAgent {
+		spec.Niceness = m.agentNiceness
+	}
+	proc, err := m.pty.Start(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	if actor.Kind == ActorKindAgent {
+		subprocess.ApplyLaunchNiceness(m.logger, proc.ProcessGroupID(), m.agentNiceness)
+	}
+	return proc, nil
 }

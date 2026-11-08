@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 )
 
+// TestLaunchAppliesNiceness exercises startup inheritance and best-effort launch failure handling.
 func TestLaunchAppliesNiceness(t *testing.T) {
 	// Invariant: the managed command starts niced before Launch can adjust its group.
 	// Owner/canonical suite: subprocess launch priority with real shell descendants.

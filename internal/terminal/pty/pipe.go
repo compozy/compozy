@@ -80,7 +80,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 		interp.Params(append([]string{"--"}, argv...)...),
 		interp.StdIO(inputReader, outputWriter, outputWriter),
 		interp.ExecHandlers(func(interp.ExecHandlerFunc) interp.ExecHandlerFunc {
-			return proc.execHandler(spec.Env, spec.UnsetEnv, spec.Niceness)
+			return proc.execHandler(spec.Env, spec.UnsetEnv, spec.Niceness, spec.Logger)
 		}),
 	)
 	if err != nil {
@@ -115,7 +115,13 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 	return proc, nil
 }
 
-func (p *pipeProc) execHandler(env map[string]string, unset []string, niceness int) interp.ExecHandlerFunc {
+// execHandler starts the payload at its actor-bound priority before reporting readiness.
+func (p *pipeProc) execHandler(
+	env map[string]string,
+	unset []string,
+	niceness int,
+	logger *slog.Logger,
+) interp.ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		handler := interp.HandlerCtx(ctx)
 		path, err := interp.LookPathDir(handler.Dir, handler.Env, args[0])
@@ -129,7 +135,7 @@ func (p *pipeProc) execHandler(env map[string]string, unset []string, niceness i
 		command.Stdout = handler.Stdout
 		command.Stderr = handler.Stderr
 		configurePipeCommand(command)
-		if err := subprocess.StartWithLaunchNiceness(slog.Default(), niceness, command.Start); err != nil {
+		if err := subprocess.StartWithLaunchNiceness(logger, niceness, command, command.Start); err != nil {
 			return fmt.Errorf("terminal pipe: start %q: %w", args[0], err)
 		}
 		startedAt, err := procutil.StartedAt(command.Process.Pid)

@@ -249,6 +249,7 @@ func resolveLaunchRuntime(cfg LaunchConfig) launchRuntimeConfig {
 	}
 }
 
+// startManagedCommand binds executable resolution, priority inheritance, and process ownership.
 func startManagedCommand(
 	cfg LaunchConfig,
 ) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *boundedBuffer, *stderrPipeline, error) {
@@ -284,7 +285,7 @@ func startManagedCommand(
 	stderr := &boundedBuffer{limit: 128 * 1024}
 	stderrPipeline := newStderrPipeline(stderr, cfg.StderrSink, cfg.StderrTransform)
 	cmd.Stderr = stderrPipeline
-	if err := StartWithLaunchNiceness(resolveLaunchRuntime(cfg).logger, cfg.Niceness, cmd.Start); err != nil {
+	if err := StartWithLaunchNiceness(resolveLaunchRuntime(cfg).logger, cfg.Niceness, cmd, cmd.Start); err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
 	}
 	if err := registerManagedCommand(cmd); err != nil {

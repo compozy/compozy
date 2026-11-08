@@ -138,10 +138,10 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := max(7, inherited+3)
-		if want > maxTestNiceness {
+		if inherited >= maxTestNiceness {
 			t.Skip("inherited priority leaves no room to lower priority")
 		}
+		want := min(maxTestNiceness, max(7, inherited+3))
 		const child = `sh -c 'echo $$; read hold <&3'`
 		group := startNicenessProcessGroup(t, child+" & "+child+" & wait", want)
 		first, second := group.readPID(t), group.readPID(t)

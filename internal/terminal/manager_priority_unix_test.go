@@ -3,7 +3,9 @@
 package terminal
 
 import (
+	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,40 @@ import (
 // Invariant: only agent-owned terminal groups receive configured POSIX niceness.
 // Owner and canonical suite: terminal manager lifecycle; platform-specific process assertions.
 func TestManagerProcessPriority(t *testing.T) {
+	// Invariant: exec applies agent priority for both visible and hidden commands.
+	// Owner/canonical suite: terminal manager process priority through real exec requests.
+	for _, visible := range []bool{false, true} {
+		for _, kind := range []ActorKind{ActorKindAgent, ActorKindHuman, ActorKindSystem} {
+			name := fmt.Sprintf("Should preserve exec priority ownership for %s visible=%t", kind, visible)
+			t.Run(name, func(t *testing.T) {
+				manager, _, _ := newTestManager(t, DefaultSettings(), WithPTY(terminalpty.New()), WithAgentNiceness(19))
+				actor := Actor{Kind: kind, ID: "priority-owner", ProfileID: "profile-a"}
+				if kind == ActorKindAgent {
+					actor.SessionID, actor.RunID, actor.Generation = "session-a", "run-a", 1
+				}
+				inherited, err := procutil.CurrentProcessNiceness()
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := manager.Exec(t.Context(), ExecRequest{
+					WS: "workspace-a", Command: "sh", Args: []string{"-c", `ps -o ni= -p $$; sleep 0.1`},
+					Visible: visible, Actor: actor, Approval: "allowlisted", YieldMs: 1000,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := strconv.Atoi(strings.TrimSpace(result.Output))
+				want := inherited
+				if kind == ActorKindAgent {
+					want = max(19, inherited)
+				}
+				if err != nil || got != want {
+					t.Fatalf("exec priority = %q, error = %v, want %d", result.Output, err, want)
+				}
+			})
+		}
+	}
+
 	t.Run("Should lower only agent terminal process groups to the configured priority", func(t *testing.T) {
 		inherited, err := procutil.CurrentProcessNiceness()
 		if err != nil {

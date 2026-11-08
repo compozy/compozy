@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// TestUnixPTYHardening exercises live terminal lifetime and launch inheritance.
 func TestUnixPTYHardening(t *testing.T) {
 	// Invariant: each Linux terminal mode applies priority before the payload can fork.
 	// Owner/canonical suite: Unix terminal substrate, using real PTY and pipe processes.

@@ -69,7 +69,10 @@ Launch inheritance (#1374): on Linux, inspect a command that forks children imme
 startup through managed subprocesses and both agent terminal modes. The launch thread and all
 children must already have at least the configured niceness before any post-start adjustment;
 the daemon's launching thread remains unchanged. Repeat `TestSetProcessGroupNiceness` under
-`-count` stress in Linux CI. Human/system terminals retain inherited priority. macOS retains
+`-count` stress in Linux CI. Include visible and hidden `terminal.exec` requests for agent, human, and system actors;
+only agent requests receive the configured priority. Priority failure diagnostics must use
+the service logger and identify the child PID when launch succeeds. Human/system terminals
+retain inherited priority. macOS retains
 best-effort post-start group adjustment (including its in-flight fork limitation); Windows
 continues to ignore niceness. The canonical procutil suite owns the deterministic pre-exec
 boundary; subprocess and terminal suites own launch-path wiring. Full host saturation remains

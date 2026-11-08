@@ -2,6 +2,7 @@ package subprocess
 
 import (
 	"log/slog"
+	"os/exec"
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -15,10 +16,14 @@ var nicenessFailureWarned atomic.Bool
 var setProcessGroupNiceness = procutil.SetProcessGroupNiceness
 
 // StartWithLaunchNiceness applies Linux priority before exec, without changing executable identity.
-func StartWithLaunchNiceness(logger *slog.Logger, niceness int, start func() error) error {
+func StartWithLaunchNiceness(logger *slog.Logger, niceness int, cmd *exec.Cmd, start func() error) error {
 	priorityErr, startErr := procutil.StartWithNiceness(niceness, start)
 	if priorityErr != nil {
-		logNicenessFailure(logger, 0, niceness, priorityErr)
+		pid := 0
+		if cmd.Process != nil {
+			pid = cmd.Process.Pid
+		}
+		logNicenessFailure(logger, pid, niceness, priorityErr)
 	}
 	return startErr
 }
@@ -40,7 +45,11 @@ func ApplyLaunchNiceness(logger *slog.Logger, pid int, niceness int) {
 	logNicenessFailure(logger, pid, niceness, err)
 }
 
+// logNicenessFailure keeps priority diagnostics on the owning service logger.
 func logNicenessFailure(logger *slog.Logger, pid, niceness int, err error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if nicenessFailureWarned.CompareAndSwap(false, true) {
 		logger.Warn("subprocess: lower process group priority failed; continuing at default priority",
 			"pid", pid, "niceness", niceness, "error", err)

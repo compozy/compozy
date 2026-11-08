@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
@@ -39,6 +38,7 @@ type unixProc struct {
 	shimCleanup func() error
 }
 
+// startInteractive binds priority inheritance to the controlling-terminal process start.
 func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if len(spec.Argv) == 0 || spec.Argv[0] == "" {
 		return nil, errors.New("terminal pty: command is required")
@@ -83,7 +83,7 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 		)
 	}
 	start := func() error { return device.Start(command) }
-	if err := subprocess.StartWithLaunchNiceness(slog.Default(), spec.Niceness, start); err != nil {
+	if err := subprocess.StartWithLaunchNiceness(spec.Logger, spec.Niceness, command, start); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
 			setup.cleanup(), closeUnixFiles(writer, reader.File, device),
