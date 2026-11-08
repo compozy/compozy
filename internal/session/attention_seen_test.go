@@ -243,6 +243,104 @@ func TestManagerAttentionCommitOrdering(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should preserve newer presence after a committed permission transition", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		original := h.manager.attentionStore
+		created, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+			SessionID: sess.ID, InteractionID: "resolve-presence", Kind: store.PendingInteractionKindPermission,
+			ProviderRequestID: "resolve-presence",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := original.MarkSessionSettled(t.Context(), sess.ID, false, h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		wrapped := &pausedTransitionStore{
+			SessionAttentionStore: original,
+			committed:             make(chan struct{}),
+			release:               make(chan struct{}),
+			entered:               make(chan struct{}, 1),
+		}
+		h.manager.attentionStore = wrapped
+		t.Cleanup(func() { h.manager.attentionStore = original })
+		transitioned := make(chan error, 1)
+		go func() {
+			_, err := h.manager.commitTransitionPendingInteraction(
+				t.Context(),
+				sess.ID,
+				store.PendingInteractionTransition{
+					InteractionID: created.Interaction.InteractionID,
+					Status:        store.PendingInteractionStatusResolved,
+					Resolution:    "allow",
+					ResolvedBy:    "operator",
+				},
+			)
+			transitioned <- err
+		}()
+		<-wrapped.committed
+		seen := make(chan error, 1)
+		go func() { _, err := h.manager.SessionPresence(t.Context(), sess.ID, "", true); seen <- err }()
+		select {
+		case <-wrapped.entered:
+			close(wrapped.release)
+			<-transitioned
+			<-seen
+			t.Fatal("presence overtook transition resident apply")
+		case <-time.After(100 * time.Millisecond):
+		}
+		close(wrapped.release)
+		if err := <-transitioned; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-seen; err != nil {
+			t.Fatal(err)
+		}
+		durable, err := original.GetSessionAttention(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := sess.Info()
+		if durable.LastSeenRevision == 0 || info.AttentionRevision != durable.AttentionRevision ||
+			info.LastSeenRevision != durable.LastSeenRevision {
+			t.Fatalf("resident=%+v durable=%+v", info, durable)
+		}
+	})
+	t.Run("Should cancel a same-session lock waiter with Manager shutdown", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		unlock, err := manager.lockAttentionCommit(t.Context(), "locked")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unlock()
+		waiting := make(chan error, 1)
+		go func() {
+			release, err := manager.lockAttentionCommit(manager.attentionReconciliation.ctx, "locked")
+			if err == nil {
+				release()
+			}
+			waiting <- err
+		}()
+		if err := manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-waiting:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled lock wait=%v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("shutdown did not release lock waiter")
+		}
+	})
 }
 
 type pausedDismissStore struct {
@@ -275,4 +373,29 @@ func (s *pausedDismissStore) CreatePendingInteraction(
 ) (store.SessionAttentionCommit, error) {
 	s.entered <- struct{}{}
 	return s.SessionAttentionStore.CreatePendingInteraction(ctx, req)
+}
+
+// pausedTransitionStore holds the I/O completion before the Manager applies its resident projection.
+type pausedTransitionStore struct {
+	store.SessionAttentionStore
+	committed, release, entered chan struct{}
+}
+
+func (s *pausedTransitionStore) TransitionPendingInteraction(
+	ctx context.Context,
+	req store.PendingInteractionTransition,
+) (store.SessionAttentionCommit, error) {
+	commit, err := s.SessionAttentionStore.TransitionPendingInteraction(ctx, req)
+	close(s.committed)
+	<-s.release
+	return commit, err
+}
+
+func (s *pausedTransitionStore) MarkSessionSeen(
+	ctx context.Context,
+	id string,
+	at time.Time,
+) (store.SessionAttentionCommit, error) {
+	s.entered <- struct{}{}
+	return s.SessionAttentionStore.MarkSessionSeen(ctx, id, at)
 }

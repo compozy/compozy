@@ -84,7 +84,7 @@ func (m *Manager) commitApplyAttentionAgentEvent(
 			resolution = "expired-by-provider"
 		}
 	}
-	commit, err := m.commitTransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+	commit, err := m.commitTransitionPendingInteraction(ctx, interaction.SessionID, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
 		Status:        status,
 		Resolution:    resolution,
@@ -185,7 +185,7 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 		transition.Resolution = event.Answer.Resolution(question)
 		transition.ResolvedBy = event.ResolvedBy
 	}
-	commit, err := m.commitTransitionPendingInteraction(ctx, transition)
+	commit, err := m.commitTransitionPendingInteraction(ctx, interaction.SessionID, transition)
 	return commit, err == nil, err
 }
 

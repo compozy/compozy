@@ -79,6 +79,7 @@ func (m *Manager) commitCanceledSessionInteractions(
 	for _, interaction := range interactions {
 		commit, err := m.commitTransitionPendingInteraction(
 			ctx,
+			interaction.SessionID,
 			terminalInteractionTransition(interaction, m.now().UTC(), reason),
 		)
 		if err != nil {

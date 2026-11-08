@@ -9,23 +9,32 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) publishAttentionCommit(
-	ctx context.Context,
-	sessionID string,
-	commit store.SessionAttentionCommit,
-) {
-	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
-		return
-	}
-	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
-	if err != nil {
+// publishAttentionCommit keeps observer failures from failing an already committed mutation.
+func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, commit store.SessionAttentionCommit) {
+	if err := m.emitAttentionCommit(ctx, sessionID, commit); err != nil {
 		m.logger.WarnContext(
 			ctx,
 			"session: load attention event snapshot failed",
-			"session_id", sessionID,
-			"error", err,
+			"session_id",
+			sessionID,
+			"error",
+			err,
 		)
-		return
+	}
+}
+
+// emitAttentionCommit returns snapshot errors before any session event is published.
+func (m *Manager) emitAttentionCommit(
+	ctx context.Context,
+	sessionID string,
+	commit store.SessionAttentionCommit,
+) error {
+	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
+		return nil
+	}
+	info, err := m.sessionInfoForAttentionEvent(sessionID)
+	if err != nil {
+		return err
 	}
 	before := *info
 	after := *info
@@ -34,6 +43,7 @@ func (m *Manager) publishAttentionCommit(
 	if to, changed := m.publishAttentionEdge(ctx, &before, &after); changed {
 		m.dispatchSpawnWake(ctx, &after, to)
 	}
+	return nil
 }
 
 // publishAttentionEdge publishes the catalog row and, when the badge changed, the
@@ -85,19 +95,20 @@ func timePointersEqual(left, right *time.Time) bool {
 	return left.Equal(*right)
 }
 
-func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID string) (*Info, error) {
+// sessionInfoForAttentionEvent keeps durable publication reads in the Manager lifetime.
+func (m *Manager) sessionInfoForAttentionEvent(sessionID string) (*Info, error) {
 	if active, ok := m.Get(sessionID); ok {
 		return active.Info(), nil
 	}
 	if m.sessionCatalog == nil {
-		return nil, errorsForAttentionSnapshot(sessionID)
+		return nil, fmt.Errorf("session: attention event catalog unavailable for %q", sessionID)
 	}
-	queryCtx := ctx
-	if queryCtx == nil {
-		queryCtx = context.Background()
-	} else {
-		queryCtx = context.WithoutCancel(queryCtx)
+	base := m.attentionReconciliation.ctx
+	if base == nil {
+		base = m.fallbackLifecycleContext()
 	}
+	queryCtx, cancel := context.WithTimeout(base, defaultLifecycleTimeout)
+	defer cancel()
 	rows, err := m.sessionCatalog.ListSessions(queryCtx, store.SessionListQuery{
 		ReadScope: store.ReadScope{AllProfiles: true},
 		ID:        strings.TrimSpace(sessionID),
@@ -132,7 +143,11 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 }
 
 func errorsForAttentionSnapshot(sessionID string) error {
-	return fmt.Errorf("session: attention event snapshot not found for %q", strings.TrimSpace(sessionID))
+	return fmt.Errorf(
+		"%w: attention event snapshot not found for %q",
+		store.ErrSessionNotFound,
+		strings.TrimSpace(sessionID),
+	)
 }
 
 func isInternalVerificationSession(info *Info) bool {

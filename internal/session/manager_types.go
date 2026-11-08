@@ -198,6 +198,8 @@ type Manager struct {
 	catalogEventsMu         sync.Mutex
 	catalogEvents           *sessionCatalogBroadcaster
 	attentionCommitMu       sync.Mutex
+	attentionCommitLocks    map[string]*attentionCommitLock
+	attentionReconciliation attentionReconciliationLifecycle
 	presenceMu              sync.Mutex
 	presenceLeases          map[sessionPresenceKey]sessionPresenceLease
 	notifyMu                sync.Mutex

@@ -117,6 +117,7 @@ func (m *Manager) approveStoredPermission(
 		if interaction.Status == store.PendingInteractionStatusOrphaned && errors.Is(err, ErrPendingPermissionExpired) {
 			commit, settleErr := m.transitionPendingInteraction(
 				ctx,
+				interaction.SessionID,
 				terminalInteractionTransition(interaction, m.now().UTC(), "expired"),
 			)
 			if settleErr != nil {
@@ -316,7 +317,7 @@ func (m *Manager) resolveOrphanedInteraction(
 		}
 		transition.OrphanInput = &insert
 	}
-	commit, err := m.transitionPendingInteraction(ctx, transition)
+	commit, err := m.transitionPendingInteraction(ctx, interaction.SessionID, transition)
 	if errors.Is(err, store.ErrSessionInputQueueFull) {
 		return PendingInteractionResolution{
 			Outcome:       store.PendingInteractionOutcomeQueueFull,

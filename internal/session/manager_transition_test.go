@@ -749,10 +749,14 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 					rows[0].ResolvedAt == nil {
 					t.Fatalf("restart attribution: %#v", rows[0])
 				}
-				late, err := restarted.transitionPendingInteraction(t.Context(), store.PendingInteractionTransition{
-					InteractionID: rows[0].InteractionID, Status: store.PendingInteractionStatusResolved,
-					Resolution: "allow", ResolvedBy: "operator", At: restarted.now(),
-				})
+				late, err := restarted.transitionPendingInteraction(
+					t.Context(),
+					rows[0].SessionID,
+					store.PendingInteractionTransition{
+						InteractionID: rows[0].InteractionID, Status: store.PendingInteractionStatusResolved,
+						Resolution: "allow", ResolvedBy: "operator", At: restarted.now(),
+					},
+				)
 				if err != nil || late.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
 					late.Interaction.Status != store.PendingInteractionStatusCanceled {
 					t.Fatalf("late answer changed restart expiry: %#v, %v", late, err)

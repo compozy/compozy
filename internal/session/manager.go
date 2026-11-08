@@ -124,7 +124,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 		return nil, err
 	}
 	manager.windowReconciliationCtx, manager.windowReconciliationCancel = context.WithCancel(manager.lifecycleCtx)
+	manager.attentionReconciliation.ctx, manager.attentionReconciliation.cancel = context.WithCancel(
+		manager.lifecycleCtx,
+	)
 	if err := manager.initializeRuntime(); err != nil {
+		manager.stopAttentionReconciliation()
 		manager.stopDeletedSessionWindowReconciliation()
 		manager.waitForDeletedSessionWindowReconciliation()
 		return nil, err

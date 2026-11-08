@@ -253,6 +253,7 @@ func nativeInstanceOccurrence(
 	)
 }
 
+// nativeInstanceMarkSeen delegates acknowledgement to the shared operator API.
 func nativeInstanceMarkSeen(ctx context.Context, api *core.AgentInstanceAPI, id string) (toolspkg.ToolResult, error) {
 	at, err := api.MarkSeen(ctx, id, time.Now())
 	if err != nil {
