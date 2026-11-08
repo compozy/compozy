@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -198,7 +199,9 @@ func (r *nativeToolPolicyResolver) applyAgentMCPReadAuthority(
 		for _, name := range names {
 			id, err := toolspkg.Canonicalize(server, name)
 			if err != nil {
-				return err
+				slog.WarnContext(ctx, "mcp_read_only_override_invalid", "agent_name", info.AgentName,
+					"session_id", info.ID, "server", server, "tool", name, "error", err)
+				continue
 			}
 			inputs.MCPReadOnlyTools[string(id)] = approved
 		}

@@ -33,11 +33,12 @@ type Tool struct {
 
 // Descriptor is the normalized runtime metadata used for indexing and dispatch.
 type Descriptor struct {
-	mcpReadOnlyOverride bool
-	CheckInWritable     bool       `json:"check_in_writable"`
-	Access              Access     `json:"access"`
-	ID                  ToolID     `json:"id"`
-	Backend             BackendRef `json:"backend"`
+	mcpReadOnlyOverrideOrigin MCPReadOnlyOverrideOrigin
+	mcpReadOnlyOverride       bool
+	CheckInWritable           bool       `json:"check_in_writable"`
+	Access                    Access     `json:"access"`
+	ID                        ToolID     `json:"id"`
+	Backend                   BackendRef `json:"backend"`
 	*ToolPresentation
 	*ToolExecutionMetadata
 	Description         string          `json:"description"`

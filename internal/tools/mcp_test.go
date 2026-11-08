@@ -1467,12 +1467,17 @@ func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([
 func TestMCPCheckInAccess(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
+		origin    MCPReadOnlyOverrideOrigin
 		authority map[string]bool
 		read      bool
 	}{
-		{name: "Should apply operator config override", read: true},
-		{name: "Should withhold unapproved agent override", authority: map[string]bool{"mcp__linear__write": false}},
-		{name: "Should apply approved agent override", authority: map[string]bool{"mcp__linear__write": true}, read: true},
+		{name: "Should apply operator config override", origin: MCPReadOnlyOverrideOperatorConfig, read: true},
+		{name: "Should preserve operator override despite unrelated agent denial", origin: MCPReadOnlyOverrideOperatorConfig, authority: map[string]bool{"mcp__linear__write": false}, read: true},
+		{name: "Should withhold override with unknown origin"},
+		{name: "Should withhold agent override without scope authority", origin: MCPReadOnlyOverrideAgentDefinition},
+		{name: "Should withhold agent override with empty scope authority", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{}},
+		{name: "Should withhold unapproved agent override", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{"mcp__linear__write": false}},
+		{name: "Should apply approved agent override", origin: MCPReadOnlyOverrideAgentDefinition, authority: map[string]bool{"mcp__linear__write": true}, read: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1480,10 +1485,11 @@ func TestMCPCheckInAccess(t *testing.T) {
 			executor := newFakeMCPExecutor(
 				[]MCPToolDescriptor{
 					{
-						RawName:          "write",
-						Source:           source,
-						ReadOnlyOverride: true,
-						InputSchema:      json.RawMessage(`{"type":"object"}`),
+						RawName:                "write",
+						Source:                 source,
+						ReadOnlyOverride:       true,
+						ReadOnlyOverrideOrigin: tc.origin,
+						InputSchema:            json.RawMessage(`{"type":"object"}`),
 					},
 				},
 			)

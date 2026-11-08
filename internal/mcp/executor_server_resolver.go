@@ -11,9 +11,10 @@ import (
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.
 type ResolvedServer struct {
-	Server    compozyconfig.MCPServer
-	Target    mcpauth.Target
-	HealthKey RuntimeHealthKey
+	ReadOnlyOverrideOrigin toolspkg.MCPReadOnlyOverrideOrigin
+	Server                 compozyconfig.MCPServer
+	Target                 mcpauth.Target
+	HealthKey              RuntimeHealthKey
 }
 
 // ServerResolver returns the daemon-visible MCP server selected by one source.

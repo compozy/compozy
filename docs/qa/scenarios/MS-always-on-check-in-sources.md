@@ -205,7 +205,12 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
    write; the main session still treats it as a write. Approve with
    `heartbeat authority approve issue-watch`: the next check-in reads it as `read`, allowed.
    The same override in an extension-shipped declaration is ignored with
-   `mcp_read_only_override_untrusted`.
+   `mcp_read_only_override_untrusted`. An agent-definition override stays a write in
+   agentless and daemon-actor tool listings when no scope approval is present; an
+   operator `config.toml` override still applies. Add an invalid raw name such as
+   `invalid name` to the agent override list: resolution and annotated read calls
+   still succeed, the invalid entry grants no read access, and the daemon warns
+   `mcp_read_only_override_invalid`.
 4. **Approved write (US-002).** Write `check_ins.allow_writes: [mcp__fixture__add_comment]`
    with `heartbeat write`; it prints the block and asks to approve; answer `y`. Set the main
    session to `approve-all`. A check-in that calls `add_comment` records it `allowed`,

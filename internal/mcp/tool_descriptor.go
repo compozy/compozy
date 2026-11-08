@@ -49,6 +49,7 @@ func (e *CallExecutor) descriptorFromTool(
 		Scope:           source.Scope,
 	}
 	readOnlyOverride := false
+	var overrideOrigin toolspkg.MCPReadOnlyOverrideOrigin
 	readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
 	destructive := tool.Annotations != nil && tool.Annotations.DestructiveHint != nil &&
 		*tool.Annotations.DestructiveHint
@@ -60,6 +61,7 @@ func (e *CallExecutor) descriptorFromTool(
 				slog.Warn("mcp_read_only_override_destructive", "server", server.Name, "tool", tool.Name)
 			} else {
 				readOnlyOverride = true
+				overrideOrigin = toolspkg.MCPReadOnlyOverrideAgentDefinition
 			}
 		}
 	}
@@ -68,18 +70,19 @@ func (e *CallExecutor) descriptorFromTool(
 		return toolspkg.MCPToolDescriptor{}, err
 	}
 	descriptor := toolspkg.MCPToolDescriptor{
-		ID:               id,
-		RawName:          strings.TrimSpace(tool.Name),
-		Title:            mcpToolTitle(tool),
-		FriendlyVerb:     friendlyVerb,
-		Preview:          preview,
-		Description:      strings.TrimSpace(tool.Description),
-		InputSchema:      inputSchema,
-		OutputSchema:     outputSchema,
-		Source:           mcpSource,
-		ReadOnly:         readOnly,
-		ReadOnlyOverride: readOnlyOverride,
-		Destructive:      destructive,
+		ID:                     id,
+		RawName:                strings.TrimSpace(tool.Name),
+		Title:                  mcpToolTitle(tool),
+		FriendlyVerb:           friendlyVerb,
+		Preview:                preview,
+		Description:            strings.TrimSpace(tool.Description),
+		InputSchema:            inputSchema,
+		OutputSchema:           outputSchema,
+		Source:                 mcpSource,
+		ReadOnly:               readOnly,
+		ReadOnlyOverride:       readOnlyOverride,
+		ReadOnlyOverrideOrigin: overrideOrigin,
+		Destructive:            destructive,
 	}
 	return redactMCPToolDescriptor(descriptor)
 }

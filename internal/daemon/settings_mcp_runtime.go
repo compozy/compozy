@@ -108,7 +108,11 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			ctx context.Context,
 			_ toolspkg.SourceRef, _ string,
 		) (mcppkg.ResolvedServer, error) {
-			resolved := mcppkg.ResolvedServer{Server: server, Target: target}
+			resolved := mcppkg.ResolvedServer{
+				Server:                 server,
+				Target:                 target,
+				ReadOnlyOverrideOrigin: toolspkg.MCPReadOnlyOverrideOperatorConfig,
+			}
 			if s.mcpHealthKey != nil {
 				key, err := s.mcpHealthKey(ctx, target)
 				if err != nil {

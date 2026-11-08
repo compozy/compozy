@@ -123,7 +123,7 @@ func (e *CallExecutor) listToolsFromClient(
 	if err != nil {
 		return nil, err, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	descriptors, err = e.descriptorsFromTools(source, resolved.Server, tools)
+	descriptors, err = e.descriptorsFromTools(source, resolved, tools)
 	if err != nil {
 		return nil, err, err
 	}

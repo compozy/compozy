@@ -2764,7 +2764,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 		}
 	})
 
-	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved", "override-invalid"} {
+	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved", "override-invalid", "override-malformed"} {
 		t.Run("Should enforce current main authority and project MCP audit for "+mode+" [IT-006]", func(t *testing.T) {
 			permission := compozyconfig.PermissionModeApproveAll
 			if mode == "narrowed" {
@@ -2796,14 +2796,18 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			}
 			remote := remoteFixture.StartHTTP(t)
 			overrideNames := []string(nil)
-			if mode == "override-unapproved" || mode == "override-invalid" {
+			if strings.HasPrefix(mode, "override-") {
 				overrideNames = []string{"unannotated"}
+				if mode == "override-malformed" {
+					overrideNames = append(overrideNames, "invalid name")
+				}
 			}
 			executor, err := mcppkg.NewMCPCallExecutor(
 				mcppkg.ServerResolverFunc(
 					func(context.Context, toolspkg.SourceRef, string) (mcppkg.ResolvedServer, error) {
 						return mcppkg.ResolvedServer{
-							Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
+							Target:                 mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
+							ReadOnlyOverrideOrigin: toolspkg.MCPReadOnlyOverrideAgentDefinition,
 							Server: compozyconfig.MCPServer{
 								Name:          "fixture",
 								ReadOnlyTools: overrideNames,
@@ -2909,8 +2913,8 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if mode == "override-unapproved" || mode == "override-invalid" {
-				def.MCPServers[0].ReadOnlyTools = []string{"unannotated"}
+			if strings.HasPrefix(mode, "override-") {
+				def.MCPServers[0].ReadOnlyTools = overrideNames
 			}
 			if mode == "override-invalid" {
 				if err := os.WriteFile(
@@ -2947,7 +2951,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if mode == "override-unapproved" || mode == "override-invalid" {
+			if strings.HasPrefix(mode, "override-") {
 				views, err := registry.DiagnosticProjection(
 					t.Context(),
 					toolspkg.Scope{
@@ -2973,7 +2977,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					t.Fatal("main tool missing")
 				}
 			}
-			if mode == "override-invalid" {
+			if mode == "override-invalid" || mode == "override-malformed" {
 				result, err := registry.Call(
 					t.Context(),
 					toolspkg.Scope{
@@ -2985,7 +2989,10 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
 				)
 				if err != nil {
-					t.Fatalf("main call with invalid heartbeat: %+v %v", result, err)
+					t.Fatalf("main call with invalid authority: %+v %v", result, err)
+				}
+				if mode == "override-malformed" {
+					return
 				}
 				repaired := []byte("---\nversion: 1\ncheck_ins:\n  max_tool_calls: 2\n---\n")
 				if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), repaired, 0600); err != nil {
