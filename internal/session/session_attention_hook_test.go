@@ -33,6 +33,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			listErr: errors.New("post-commit projection read must not run"),
 		}
 		var captured hookspkg.SessionAttentionChangedPayload
+		edges := 0
 		hook := attentionHookFunc(func(
 			_ context.Context,
 			payload hookspkg.SessionAttentionChangedPayload,
@@ -41,6 +42,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 				t.Fatal("attention hook ran before the canonical store commit")
 			}
 			captured = payload
+			edges++
 			return payload, errors.New("injected observer failure")
 		})
 		manager, err := NewManager(
@@ -80,7 +82,14 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		}
 		commit.Before = commit.After
 		commit.Interaction.Status = store.PendingInteractionStatusCanceled
-		manager.PublishPendingInteractionCommit(t.Context(), commit)
+		attentionStore.listErr = nil
+		next := commit
+		next.Interaction = new(*commit.Interaction)
+		next.Interaction.InteractionID = "interaction-hook-other"
+		manager.PublishPendingInteractionCommits(t.Context(), []store.SessionAttentionCommit{commit, next})
+		if edges != 2 {
+			t.Fatalf("attention edges=%d, want one creation and one acknowledgement", edges)
+		}
 		if captured.From != string(BadgeWaitingForInput) || captured.To != string(BadgeIdle) {
 			t.Fatalf("external attention hook payload = %#v, want cleared request", captured)
 		}

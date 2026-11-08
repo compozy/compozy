@@ -321,20 +321,40 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 	return result
 }
 
-// PublishPendingInteractionCommit reconciles attention changed by an instance acknowledgement.
-func (m *Manager) PublishPendingInteractionCommit(ctx context.Context, commit store.SessionAttentionCommit) {
-	if commit.Interaction == nil {
-		return
+// PublishPendingInteractionCommits reconciles each session once after an instance acknowledgement.
+func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits []store.SessionAttentionCommit) {
+	seen := make(map[string]bool)
+	for _, commit := range commits {
+		if commit.Interaction == nil {
+			continue
+		}
+		id := commit.Interaction.SessionID
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		refreshed, err := m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
+			current, err := m.attentionStore.GetSessionAttention(ctx, id)
+			if err != nil {
+				return commit, err
+			}
+			if err := m.refreshPendingInteractions(ctx, id); err != nil {
+				return commit, err
+			}
+			commit.After = current
+			return commit, nil
+		})
+		if err != nil {
+			m.logger.WarnContext(
+				ctx,
+				"session: refresh acknowledged interaction failed",
+				"session_id",
+				id,
+				"error",
+				err,
+			)
+			continue
+		}
+		m.publishAttentionCommit(ctx, id, refreshed)
 	}
-	id := commit.Interaction.SessionID
-	refreshed, err := m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
-		current, err := m.attentionStore.GetSessionAttention(ctx, id)
-		commit.After = current
-		return commit, err
-	})
-	if err != nil {
-		m.logger.WarnContext(ctx, "session: refresh acknowledged interaction failed", "session_id", id, "error", err)
-		return
-	}
-	m.publishAttentionCommit(ctx, id, refreshed)
 }

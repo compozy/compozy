@@ -203,9 +203,7 @@ func instanceSeenPublisher(
 	manager *session.Manager,
 ) func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit) {
 	return func(ctx context.Context, instance agentinstance.Instance, commits []store.SessionAttentionCommit) {
-		for _, commit := range commits {
-			manager.PublishPendingInteractionCommit(ctx, commit)
-		}
+		manager.PublishPendingInteractionCommits(ctx, commits)
 		manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 	}
 }
