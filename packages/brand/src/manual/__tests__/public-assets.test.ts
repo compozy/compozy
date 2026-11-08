@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { atmosphereSrcSet, HI_TIER } from "../art/visuals";
+import { groups } from "../library/files";
 
 // Asset policy (ADR-003, US-009): only web-size files ship in git; masters and exports live in
 // ~/Dev/compozy/_rebranding.
@@ -51,5 +52,21 @@ describe("Atmosphere srcset", () => {
     expect(atmosphereSrcSet("swarm-portrait", "port", new Set(["swarm-portrait"]))).toBe(
       "/brand/visuals/swarm-portrait-1280.jpg 1024w, /brand/visuals/swarm-portrait.jpg 2049w, /brand/visuals/hi/swarm-portrait.jpg 4488w"
     );
+  });
+});
+
+describe("Library downloads", () => {
+  it("lists exactly the files published in each folder, with their sizes", () => {
+    for (const g of groups.filter(x => x.files.length > 0)) {
+      const dir = join(PUBLIC_DIR, "brand", g.dir);
+      const onDisk = readdirSync(dir)
+        .filter(n => !n.startsWith("."))
+        .map(n => ({ name: n, size: statSync(join(dir, n)).size }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const listed = g.files
+        .map(f => ({ name: f.name, size: f.size }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      expect(listed, g.dir).toEqual(onDisk);
+    }
   });
 });

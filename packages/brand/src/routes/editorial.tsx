@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Blog } from "../manual/editorial/blog";
+import { Changelog } from "../manual/editorial/changelog";
+import { Code } from "../manual/editorial/code";
+import { Docs } from "../manual/editorial/docs";
+import { Newsletter } from "../manual/editorial/newsletter";
+import { Og } from "../manual/editorial/og";
+import { Slides } from "../manual/editorial/slides";
 import { chapterHead } from "../manual/head";
 import { ChapterPage } from "../manual/parts/chapter-page";
 
@@ -11,7 +18,6 @@ export const Route = createFileRoute("/editorial")({
   component: EditorialChapter,
 });
 
-// Cover and intro are ported; the sections arrive with slice S4.
 function EditorialChapter() {
   return (
     <ChapterPage
@@ -22,6 +28,14 @@ function EditorialChapter() {
         </>
       }
       intro="Link previews, docs, posts, release notes, email and talks. The places where Compozy explains itself at length, with templates for every image they need."
-    />
+    >
+      <Og />
+      <Docs />
+      <Blog />
+      <Changelog />
+      <Newsletter />
+      <Slides />
+      <Code />
+    </ChapterPage>
   );
 }

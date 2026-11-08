@@ -1,5 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Copy } from "../manual/ads/copy";
+import { Models } from "../manual/ads/models";
+import { Principles } from "../manual/ads/principles";
+import { Review } from "../manual/ads/review";
+import { Specs } from "../manual/ads/specs";
+import { Structure } from "../manual/ads/structure";
 import { chapterHead } from "../manual/head";
 import { ChapterPage } from "../manual/parts/chapter-page";
 
@@ -11,7 +17,6 @@ export const Route = createFileRoute("/ads")({
   component: AdsChapter,
 });
 
-// Cover and intro are ported; the sections arrive with slice S4.
 function AdsChapter() {
   return (
     <ChapterPage
@@ -22,6 +27,13 @@ function AdsChapter() {
         </>
       }
       intro="No price, no offer, no customers to quote. A Compozy ad either plants the name or shows our own UI doing its job, never a terminal, and it is honest that the product is in beta."
-    />
+    >
+      <Principles />
+      <Structure />
+      <Models />
+      <Copy />
+      <Specs />
+      <Review />
+    </ChapterPage>
   );
 }

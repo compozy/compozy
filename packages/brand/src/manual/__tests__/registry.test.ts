@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { EDITION, pages, VERSION } from "../chapters";
+import { kitSpecs } from "../kit-specs";
 
 const ROUTES_DIR = fileURLToPath(new URL("../../routes", import.meta.url));
 /** route files that are not chapters: the document shell and the static not-found page */
@@ -43,6 +44,20 @@ describe("chapter registry", () => {
       const ids = p.sections.map(([id]) => id);
       expect(ids.length, p.title).toBeGreaterThan(0);
       expect(new Set(ids).size, p.title).toBe(ids.length);
+    }
+  });
+});
+
+describe("kit spec table", () => {
+  it("parses the 57 v1.2.0 templates with unique ids and in-range insets", () => {
+    expect(kitSpecs).toHaveLength(57);
+    expect(new Set(kitSpecs.map(t => t.id)).size).toBe(kitSpecs.length);
+    for (const t of kitSpecs) {
+      expect(t.w > 0 && t.h > 0, t.id).toBe(true);
+      for (const box of [t.margin, t.unsafe].filter(b => b !== undefined)) {
+        expect(box.l + box.r, t.id).toBeLessThan(100);
+        expect(box.t + box.b, t.id).toBeLessThan(100);
+      }
     }
   });
 });

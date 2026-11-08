@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Badges } from "../manual/offline/badges";
+import { Merch } from "../manual/offline/merch";
+import { Print } from "../manual/offline/print";
+import { Signage } from "../manual/offline/signage";
+import { Stationery } from "../manual/offline/stationery";
+import { Stickers } from "../manual/offline/stickers";
+import { World } from "../manual/offline/world";
 import { chapterHead } from "../manual/head";
 import { ChapterPage } from "../manual/parts/chapter-page";
 
@@ -11,7 +18,6 @@ export const Route = createFileRoute("/offline")({
   component: OfflineChapter,
 });
 
-// Cover and intro are ported; the sections arrive with slice S4.
 function OfflineChapter() {
   return (
     <ChapterPage
@@ -22,6 +28,14 @@ function OfflineChapter() {
         </>
       }
       intro="Everything that leaves the screen: how the gradient survives on paper, badges for four roles, stickers, merch, event signage and stationery, each with a print-ready template."
-    />
+    >
+      <Print />
+      <Badges />
+      <Stickers />
+      <Merch />
+      <Signage />
+      <Stationery />
+      <World />
+    </ChapterPage>
   );
 }

@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Checklist } from "../manual/library/checklist";
+import { Downloads } from "../manual/library/downloads";
+import { Governance } from "../manual/library/governance";
+import { Kit } from "../manual/library/kit";
+import { References } from "../manual/library/references";
 import { chapterHead } from "../manual/head";
 import { ChapterPage } from "../manual/parts/chapter-page";
 
@@ -10,7 +15,6 @@ export const Route = createFileRoute("/library")({
   component: LibraryChapter,
 });
 
-// Cover and intro are ported; the sections arrive with slice S4.
 function LibraryChapter() {
   return (
     <ChapterPage
@@ -21,6 +25,12 @@ function LibraryChapter() {
         </>
       }
       intro="Official files, the template kit with native export, the pre-publish checklist, and how this manual changes."
-    />
+    >
+      <Downloads />
+      <Kit />
+      <Checklist />
+      <Governance />
+      <References />
+    </ChapterPage>
   );
 }
