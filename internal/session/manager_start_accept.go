@@ -15,7 +15,7 @@ type acceptedSessionStart struct {
 	storage sessionStartStorage
 	run     *sessionStartRun
 	proc    *AgentProcess
-	// processStopPending retains a bounded wait on the same owned driver call across retries.
+	// processStopPending retains the owned call result; each attempt cancels its cleanup context.
 	processStopPending <-chan error
 	async              bool
 	persistFailure     bool

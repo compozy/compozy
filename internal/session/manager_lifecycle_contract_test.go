@@ -1239,11 +1239,18 @@ func TestSharedSessionStopOperation(t *testing.T) {
 	})
 
 	// Invariant: missing metadata cannot release an unverified process, with or without accepted Stop.
-	for _, stopAccepted := range []bool{false, true} {
+	for _, tc := range []struct {
+		stopAccepted bool
+		captured     string
+	}{
+		{false, "live"}, {true, "live"}, {false, "nil"}, {true, "nil"}, {false, "verified"}, {true, "verified"},
+	} {
+		stopAccepted := tc.stopAccepted
 		t.Run(
 			fmt.Sprintf(
-				"Should retain canceled non-stop cleanup until process exit despite missing metadata and Stop %t",
+				"Should retain canceled non-stop cleanup until process exit despite missing metadata and Stop %t captured %s",
 				stopAccepted,
+				tc.captured,
 			),
 			func(t *testing.T) {
 				t.Parallel()
@@ -1252,6 +1259,18 @@ func TestSharedSessionStopOperation(t *testing.T) {
 				proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-missing-meta")
 				h.driver.processes[proc.handle] = proc
 				accepted.proc = proc.handle
+				if tc.captured != "live" {
+					accepted.session.mu.Lock()
+					accepted.session.process = proc.handle
+					accepted.session.mu.Unlock()
+					accepted.proc = nil
+					if tc.captured == "verified" {
+						old := newFakeProcess("coder", "fake-agent", h.workspace, "acp-old-missing-meta")
+						old.exit()
+						accepted.proc = old.handle
+						accepted.session.retainVerifiedStopOutcome(old.handle, StopOutcome{Verified: true})
+					}
+				}
 				if stopAccepted {
 					if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
 						t.Fatal(err)
@@ -1352,30 +1371,41 @@ func TestSharedSessionStopOperation(t *testing.T) {
 	})
 
 	// Invariant: a cached receipt cannot certify a replacement target selected after Stop was claimed.
-	t.Run("Should verify a retargeted stop despite a cached old-session receipt", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		accepted := prepareLifecycleStart(t, h)
-		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-retarget-receipt")
-		defer proc.exit()
-		h.driver.processes[proc.handle] = proc
-		if err := accepted.session.activateWithProcess(proc.handle, h.manager.now(), true, false); err != nil {
-			t.Fatal(err)
-		}
-		accepted.run.activationCommitted.Store(true)
-		h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
-		run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
-		if !owned {
-			t.Fatal("stop admission was not owned")
-		}
-		run.session = &Session{ID: accepted.session.ID}
-		run.outcome = StopOutcome{FinalState: StateStopped, Verified: true}
-		h.manager.prepareSessionStopRun(testutil.Context(t), run, CauseUserRequested, "")
-		outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
-		if err != nil || !outcome.Verified || !isProcessDone(proc.handle) {
-			t.Fatalf("old receipt certified a live replacement target: %+v, %v", outcome, err)
-		}
-	})
+	for _, sameSession := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should verify a retargeted stop despite a cached receipt with same session %t", sameSession),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				accepted := prepareLifecycleStart(t, h)
+				proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-retarget-receipt")
+				defer proc.exit()
+				h.driver.processes[proc.handle] = proc
+				if err := accepted.session.activateWithProcess(proc.handle, h.manager.now(), true, false); err != nil {
+					t.Fatal(err)
+				}
+				accepted.run.activationCommitted.Store(true)
+				h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
+				run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
+				if !owned {
+					t.Fatal("stop admission was not owned")
+				}
+				if sameSession {
+					old := newFakeProcess("coder", "fake-agent", h.workspace, "acp-old-receipt")
+					old.exit()
+					accepted.session.retainVerifiedStopOutcome(old.handle, StopOutcome{Verified: true})
+				} else {
+					run.session = &Session{ID: accepted.session.ID}
+				}
+				run.outcome = StopOutcome{FinalState: StateStopped, Verified: true}
+				h.manager.prepareSessionStopRun(testutil.Context(t), run, CauseUserRequested, "")
+				outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
+				if err != nil || !outcome.Verified || !isProcessDone(proc.handle) {
+					t.Fatalf("old receipt certified a live replacement target: %+v, %v", outcome, err)
+				}
+			},
+		)
+	}
 
 	// Invariant: accepted Stop retries the bounded termination ladder rather than a blocking independent join.
 	t.Run("Should yield already canceled startup cleanup to the bounded stop ladder", func(t *testing.T) {
@@ -1421,26 +1451,49 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 	})
 
-	// Invariant: asynchronous failure persistence retains an idempotent owner across ambiguous writes.
-	for _, afterCommit := range []bool{false, true} {
+	// Invariant: ambiguous failure writes retain one owner and publish their persisted sequences.
+	for _, tc := range []struct{ afterCommit, recordOnly bool }{
+		{false, false}, {true, false}, {false, true}, {true, true},
+	} {
+		afterCommit := tc.afterCommit
+		name := fmt.Sprintf("Should retry failed startup terminal persistence after commit %t", afterCommit)
+		if tc.recordOnly {
+			name += " using mandatory recorder methods"
+		}
 		t.Run(
-			fmt.Sprintf("Should retry failed startup terminal persistence after commit %t", afterCommit),
+			name,
 			func(t *testing.T) {
 				t.Parallel()
 				h := newHarness(t)
 				accepted := prepareLifecycleStart(t, h)
 				accepted.persistFailure = true
+				stream, unsubscribe, err := h.manager.SubscribeSessionEvents(t.Context(), accepted.session.ID, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer unsubscribe()
 				var fail atomic.Bool
 				fail.Store(true)
 				defer fail.Store(false)
-				accepted.storage.recorder = &terminalWriteFailingRecorder{
-					EventRecorder: accepted.storage.recorder,
-					fail:          &fail,
-					writeErr:      syscall.ENOSPC,
-					afterCommit:   afterCommit,
+				var writesAllowed atomic.Bool
+				defer writesAllowed.Store(true)
+				if tc.recordOnly {
+					accepted.storage.recorder = &struct{ EventRecorder }{&retainedEventFailingRecorder{
+						EventRecorder: accepted.storage.recorder,
+						allowed:       &writesAllowed, err: syscall.ENOSPC, afterCommit: afterCommit,
+						eventType: EventTypeSessionStopped,
+					}}
+				} else {
+					accepted.storage.recorder = &terminalWriteFailingRecorder{
+						EventRecorder: accepted.storage.recorder,
+						fail:          &fail,
+						writeErr:      syscall.ENOSPC,
+						afterCommit:   afterCommit,
+					}
 				}
 				accepted.session.setRecorder(accepted.storage.recorder)
-				err := h.manager.settleAcceptedSessionStartFailure(accepted, errors.New("asynchronous startup failed"))
+				startupErr := errors.New("asynchronous startup failed")
+				err = h.manager.settleAcceptedSessionStartFailure(accepted, startupErr)
 				if !accepted.cleanupPending {
 					h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
 				}
@@ -1448,13 +1501,40 @@ func TestSharedSessionStopOperation(t *testing.T) {
 					t.Fatalf("failed terminal write released startup ownership: %v", err)
 				}
 				fail.Store(false)
-				if err := waitForSessionStartRun(testutil.Context(t), accepted.run); err == nil {
-					t.Fatal("startup failure diagnostic was lost")
+				writesAllowed.Store(true)
+				if err := waitForSessionStartRun(testutil.Context(t), accepted.run); !errors.Is(err, startupErr) {
+					t.Fatalf("startup failure diagnostic was lost: %v", err)
 				}
 				events := readStoredEvents(t, accepted.session)
 				if countEventType(events, acp.EventTypeError) != 1 ||
 					countEventType(events, EventTypeSessionStopped) != 1 {
 					t.Fatal("failed-start persistence duplicated or lost terminal events")
+				}
+				var streamed []store.SessionEvent
+			drain:
+				for {
+					select {
+					case event, open := <-stream:
+						if !open {
+							break drain
+						}
+						streamed = append(streamed, event)
+					default:
+						break drain
+					}
+				}
+				if countEventType(streamed, acp.EventTypeError) != 1 ||
+					countEventType(streamed, EventTypeSessionStopped) != 1 {
+					t.Fatalf("persisted failure events lost from sequence stream: %#v", streamed)
+				}
+				for _, event := range streamed {
+					if event.Type != acp.EventTypeError && event.Type != EventTypeSessionStopped {
+						continue
+					}
+					index := slices.IndexFunc(events, func(row store.SessionEvent) bool { return row.ID == event.ID })
+					if index < 0 || event.Sequence <= 0 || events[index].Sequence != event.Sequence {
+						t.Fatalf("streamed terminal event does not match its persisted sequence: %+v", event)
+					}
 				}
 				if _, active := h.manager.Get(accepted.session.ID); active {
 					t.Fatal("settled failed start retained active ownership")
@@ -1702,6 +1782,37 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 		if countEventType(readStoredEvents(t, accepted.session), acp.EventTypeError) != 0 {
 			t.Fatal("canceled startup published a failure event")
+		}
+	})
+
+	// Invariant: unregistered derived cleanup keeps its cooperative stop budget after Stop is requested.
+	t.Run("Should keep the bounded stop attempt for uncommitted derived cleanup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		accepted.spec.deriveReceipt = &store.SessionDerivationReceipt{}
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-derived-cleanup")
+		defer proc.exit()
+		h.driver.processes[proc.handle] = proc
+		accepted.proc = proc.handle
+		accepted.run.markStopRequested()
+		h.driver.stopWithContextHook = func(ctx context.Context, proc *fakeProcess) error {
+			<-ctx.Done()
+			proc.exit()
+			return ctx.Err()
+		}
+		failure := errors.New("derived registration failed")
+		err := h.manager.discardUncommittedSessionStart(accepted, failure)
+		if accepted.cleanupPending {
+			err = waitForSessionStartRun(testutil.Context(t), accepted.run)
+		} else {
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}
+		if !errors.Is(err, failure) || !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			t.Fatalf("derived stop lost its cleanup budget or original failure: %v", err)
+		}
+		if !isProcessDone(proc.handle) {
+			t.Fatal("derived cleanup released a live process")
 		}
 	})
 
