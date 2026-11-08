@@ -303,6 +303,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatal(err)
 		}
 		session.setCurrentTurnID("setup-turn")
+		t.Cleanup(func() { clearPromptState(session, "setup-turn") })
 		if err := h.manager.recordPiBridgeWarning(
 			ctx,
 			session,
@@ -311,7 +312,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		session.setCurrentTurnID("")
+		clearPromptState(session, "setup-turn")
 		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "setup-turn")
 		if err != nil {
 			t.Fatal(err)
