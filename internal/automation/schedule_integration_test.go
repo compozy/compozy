@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -816,77 +817,118 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 }
 
 func TestSchedulerIntegrationStartupShutdown(t *testing.T) {
-	t.Run("Should preserve a fire cancelled during typed ACP startup failure", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t)
-		db := openAutomationIntegrationDB(t, ctx)
-		clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC))
-		dispatchCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		creator := &shutdownStartupCreator{recordingSessionCreator: newRecordingSessionCreator(), cancel: cancel}
-		dispatcher := newTestDispatcher(t, creator, db, WithDispatcherNow(clock.Now))
-		job := testJob(AutomationScopeGlobal, "shutdown-startup", "")
-		fireAt := clock.Now().Add(time.Minute)
-		job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
-		job, err := db.CreateJob(ctx, job)
-		if err != nil {
-			t.Fatal(err)
-		}
-		scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
-		if _, err := scheduler.Register(ctx, job); err != nil {
-			t.Fatal(err)
-		}
-		clock.Advance(time.Minute)
-		if err := scheduler.executeScheduledJob(dispatchCtx, job.ID); err != nil {
-			t.Fatal(err)
-		}
-		id := scheduledRunID(job.ID, fireAt)
-		run, err := db.GetRun(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if run.Status != RunScheduled || run.EndedAt != nil {
-			t.Fatalf("shutdown consumed fire: %+v", run)
-		}
-		state, err := db.GetSchedulerState(ctx, job.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if state.DeferredUntil == nil {
-			t.Fatal("shutdown did not defer fire")
-		}
-		if err := scheduler.Stop(ctx); err != nil {
-			t.Fatal(err)
-		}
-		recovered := newTestDispatcher(t, newRecordingSessionCreator(), db, WithDispatcherNow(clock.Now))
-		restarted := newTestScheduler(t, recovered, WithSchedulerStore(db), WithSchedulerClock(clock))
-		if _, err := restarted.Register(ctx, job); err != nil {
-			t.Fatal(err)
-		}
-		clock.Advance(time.Second)
-		if err := restarted.executeScheduledJob(ctx, job.ID); err != nil {
-			t.Fatal(err)
-		}
-		run, err = db.GetRun(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if run.Status != RunCompleted || run.Attempt != 1 {
-			t.Fatalf("recovered fire = %+v", run)
-		}
-		runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(runs) != 1 {
-			t.Fatalf("recovered runs = %d, want 1", len(runs))
-		}
-	})
+	for _, tc := range []struct {
+		name        string
+		startupErr  error
+		reservation bool
+	}{
+		{name: "Should preserve a fire cancelled during typed ACP startup failure"},
+		{name: "Should settle an unrelated startup failure during shutdown", startupErr: errors.New("invalid provider configuration")},
+		{name: "Should retain reservation delivery diagnostics during shutdown", startupErr: errors.New("reservation store unavailable"), reservation: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openAutomationIntegrationDB(t, ctx)
+			clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC))
+			dispatchCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			creator := &shutdownStartupCreator{
+				recordingSessionCreator: newRecordingSessionCreator(),
+				cancel:                  cancel,
+				startupErr:              tc.startupErr,
+			}
+			var runStore RunStore = db
+			if tc.reservation {
+				runStore = &shutdownReservationStore{RunStore: db, cancel: cancel, err: tc.startupErr}
+			}
+			dispatcher := newTestDispatcher(t, creator, runStore, WithDispatcherNow(clock.Now))
+			job := testJob(AutomationScopeGlobal, "shutdown-startup", "")
+			fireAt := clock.Now().Add(time.Minute)
+			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
+			if _, err := scheduler.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(time.Minute)
+			dispatchErr := scheduler.executeScheduledJob(dispatchCtx, job.ID)
+			if tc.startupErr == nil && dispatchErr != nil {
+				t.Fatal(dispatchErr)
+			}
+			if tc.startupErr != nil && !errors.Is(dispatchErr, tc.startupErr) {
+				t.Fatalf("startup error lost: %v", dispatchErr)
+			}
+			id := scheduledRunID(job.ID, fireAt)
+			run, err := db.GetRun(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.startupErr != nil {
+				wantStatus := RunFailed
+				if tc.reservation {
+					wantStatus = RunScheduled
+				}
+				if run.Status != wantStatus || !strings.Contains(run.DeliveryError, tc.startupErr.Error()) ||
+					run.DeliveryErrorAt == nil {
+					t.Fatalf("unrelated failure was deferred or lost: %+v", run)
+				}
+				state, err := db.GetSchedulerState(ctx, job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.DeferredUntil != nil {
+					t.Fatal("unrelated failure remains deferred")
+				}
+				return
+			}
+			if run.Status != RunScheduled || run.EndedAt != nil {
+				t.Fatalf("shutdown consumed fire: %+v", run)
+			}
+			state, err := db.GetSchedulerState(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.DeferredUntil == nil {
+				t.Fatal("shutdown did not defer fire")
+			}
+			if err := scheduler.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			recovered := newTestDispatcher(t, newRecordingSessionCreator(), db, WithDispatcherNow(clock.Now))
+			restarted := newTestScheduler(t, recovered, WithSchedulerStore(db), WithSchedulerClock(clock))
+			if _, err := restarted.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(time.Second)
+			if err := restarted.executeScheduledJob(ctx, job.ID); err != nil {
+				t.Fatal(err)
+			}
+			run, err = db.GetRun(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if run.Status != RunCompleted || run.Attempt != 1 {
+				t.Fatalf("recovered fire = %+v", run)
+			}
+			runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(runs) != 1 {
+				t.Fatalf("recovered runs = %d, want 1", len(runs))
+			}
+		})
+	}
 }
 
 type shutdownStartupCreator struct {
 	*recordingSessionCreator
-	cancel context.CancelFunc
+	cancel     context.CancelFunc
+	startupErr error
 }
 
 func (c *shutdownStartupCreator) Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error) {
@@ -894,5 +936,20 @@ func (c *shutdownStartupCreator) Create(ctx context.Context, opts *session.Creat
 		return nil, err
 	}
 	c.cancel()
-	return nil, acp.WrapFailure(store.FailureHandshake, "startup interrupted by shutdown", ctx.Err())
+	err := c.startupErr
+	if err == nil {
+		err = ctx.Err()
+	}
+	return nil, acp.WrapFailure(store.FailureHandshake, "ACP startup failed", err)
+}
+
+type shutdownReservationStore struct {
+	RunStore
+	cancel context.CancelFunc
+	err    error
+}
+
+func (s *shutdownReservationStore) ReserveRun(context.Context, RunReservation) (RunReservationResult, error) {
+	s.cancel()
+	return RunReservationResult{}, s.err
 }

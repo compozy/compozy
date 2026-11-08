@@ -53,6 +53,8 @@ QA impact 2026-11-08 — automation startup failure settlement:
   then emits one terminal failure hook. Provider timeouts must not become admission deferrals.
 - A genuine admission interruption (draining, cancellation or deadline), including shutdown
   cancellation during ACP initialization, still preserves the original reservation for restart recovery.
+  An unrelated startup failure concurrent with shutdown settles as failed; an unrelated reservation
+  error retains its delivery diagnostic without rolling back the schedule cursor.
 
 Focused verification: `go test -tags integration ./internal/automation -count=1` exercises the
 production scheduler and dispatcher against real SQLite, with session I/O injected at its boundary.

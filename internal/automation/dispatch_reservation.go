@@ -127,7 +127,8 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 
 // scheduledAdmissionInterrupted preserves the fire when dispatch itself was interrupted.
 func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err error) bool {
-	if req.Kind == DispatchKindSchedule && req.ReservedRun != nil && ctx.Err() != nil {
+	if req.Kind == DispatchKindSchedule && req.ReservedRun != nil && ctx.Err() != nil &&
+		errors.Is(err, ctx.Err()) {
 		return true
 	}
 	// Accepted startup failures retain wrapped timeout errors but must consume the fire.
