@@ -16,7 +16,7 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-import { filesAppPlace, filesAppPlaceStore } from "@/systems/files/hooks/use-files-app-place";
+import { filesAppPlace, filesAppRequestTarget } from "@/systems/files";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { CompozyShellBridge, OpenInEditorResult } from "@/systems/os/lib/desktop-shell-bridge";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
@@ -219,7 +219,7 @@ function renderTranscript(
 
 /** What the last plain click asked the project's Files window to show. */
 function viewerTarget() {
-  return filesAppPlaceStore.getSnapshot().context.targets[WS] ?? null;
+  return filesAppRequestTarget(WS);
 }
 
 function blockedSpans(container: HTMLElement) {

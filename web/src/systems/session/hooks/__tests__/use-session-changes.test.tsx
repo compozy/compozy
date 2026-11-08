@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiffViewerHandle } from "@compozy/ui";
 
 import { SessionChangedFilesRowView } from "@/components/assistant-ui/session-changed-files-row";
-import { filesAppPlaceStore } from "@/systems/files/hooks/use-files-app-place";
+import { filesAppRequestTarget } from "@/systems/files";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 
 import type { SessionChangesSummary } from "../../adapters/session-changes-api";
@@ -410,7 +410,7 @@ describe("changed-file routing", () => {
         expect.objectContaining({ app: "files", instanceKey: WORKSPACE_ID })
       )
     );
-    expect(filesAppPlaceStore.getSnapshot().context.targets[WORKSPACE_ID]).toMatchObject({
+    expect(filesAppRequestTarget(WORKSPACE_ID)).toMatchObject({
       kind: "file",
       path: "missing.go",
     });

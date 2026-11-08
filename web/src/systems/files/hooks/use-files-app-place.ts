@@ -86,6 +86,11 @@ export function filesAppPlace(workspaceId: string): FilesAppPlace {
   return known ?? readStoredPlace(workspaceId);
 }
 
+/** What the last open request asked a project's Files window to show, until it moves elsewhere. */
+export function filesAppRequestTarget(workspaceId: string): FileViewerTarget | null {
+  return filesAppPlaceStore.getSnapshot().context.targets[workspaceId] ?? null;
+}
+
 function placeFiles(workspaceId: string, patch: Partial<FilesAppPlace>): void {
   const place = { ...filesAppPlace(workspaceId), ...patch };
   writeStoredPlace(workspaceId, place);
