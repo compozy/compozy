@@ -63,6 +63,14 @@ this tab: it stays open, read-only; Unarchive there and archive it again from el
 window clears. Move to Later does not clear the window: a parked session stays readable and its
 composer is one way back (RT-session-later).
 
+Request-ownership regression (#1384): delay the local archive HTTP response after
+its catalog wake reports the session archived. The initiating window must remain
+mounted until the response settles, so its request is not aborted by automatic
+window retirement. Then retire the archived window without a missing-session
+toast. An archive from another surface still retires windows normally. The
+canonical SessionWindow and session-actions suites cover this ordering and keep
+cancellation on genuine hook unmount; E2E-PROC-002 owns the real browser receipt.
+
 ## Native error parity — 2026-10-28
 
 Native archival refusals (#1012): a subagent child returns `subagent_archive_follows_parent` through both CLI and native tools. A runtime-detached but lifecycle-active session returns `session_archive_requires_stopped`. After stopping, native archive succeeds. Verify retained state after each refusal.

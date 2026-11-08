@@ -138,9 +138,21 @@ export function useStopSession() {
 
 /** Keep remote disappearance recovery from racing an operator-owned deletion. */
 export function useSessionDeletionPending(sessionId: string | null): boolean {
+  return useSessionMutationPending(sessionId, sessionKeys.deletions());
+}
+
+/** Catalog delivery can precede the local archive response; keep its request owner mounted. */
+export function useSessionArchivePending(sessionId: string | null): boolean {
+  return useSessionMutationPending(sessionId, sessionKeys.archives());
+}
+
+function useSessionMutationPending(
+  sessionId: string | null,
+  mutationKey: readonly unknown[]
+): boolean {
   return (
     useIsMutating({
-      mutationKey: sessionKeys.deletions(),
+      mutationKey,
       predicate: mutation => {
         const variables = mutation.state.variables;
         return (
@@ -267,6 +279,7 @@ export function useArchiveSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
+    mutationKey: sessionKeys.archives(),
     mutationFn: ({
       id,
       workspace_id,

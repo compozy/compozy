@@ -114,6 +114,7 @@ export {
   useDeleteSession,
   useSessionDeletedByOperator,
   useSessionDeletionPending,
+  useSessionArchivePending,
   useRepairSession,
   useRenameSession,
   useStopSession,

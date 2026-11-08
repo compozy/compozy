@@ -58,6 +58,7 @@ const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
 const profileScope = { aggregate: false };
 let deletionPending = false;
+let archivePending = false;
 let deletedByOperator = false;
 const toastError = vi.hoisted(() => vi.fn());
 const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
@@ -73,6 +74,7 @@ vi.mock("@/systems/session", async importOriginal => {
     sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
     useForeignProfileSession: () => foreignState.current,
     useSessionDeletionPending: () => deletionPending,
+    useSessionArchivePending: () => archivePending,
     useSessionDeletedByOperator: () => deletedByOperator,
   };
 });
@@ -163,6 +165,7 @@ describe("SessionWindow", () => {
     queryState.isFetching = false;
     profileScope.aggregate = false;
     deletionPending = false;
+    archivePending = false;
     deletedByOperator = false;
     toastError.mockClear();
     userRetireSession.mockClear();
@@ -385,6 +388,25 @@ describe("SessionWindow", () => {
     queryState.data = { ...session, archived_at: "2026-10-31T12:00:00Z" };
     rerender(<SessionWindow windowId="session:sess-1" />);
 
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  // Invariant: a catalog archive wake cannot unmount the local request owner before its HTTP receipt.
+  // Owner: OS session-window retirement; canonical suite: SessionWindow.
+  it("Should keep an archive request owner until its HTTP response settles", async () => {
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    archivePending = true;
+    queryState.data = { ...session, archived_at: "2026-11-08T16:29:12Z" };
+    rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ session: queryState.data })
+    );
+    archivePending = false;
+    rerender(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() =>
       expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
     );

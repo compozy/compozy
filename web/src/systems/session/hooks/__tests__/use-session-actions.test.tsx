@@ -17,6 +17,7 @@ import {
   useDeleteSession,
   useSessionDeletedByOperator,
   useSessionDeletionPending,
+  useSessionArchivePending,
   useRepairSession,
   useRenameSession,
   useStopSession,
@@ -985,6 +986,43 @@ describe("session actions", () => {
       target.profile_name,
       expect.any(AbortSignal)
     );
+  });
+
+  // Invariant: a local archive keeps its target mounted through the HTTP receipt, even after a catalog wake.
+  // Owner: session mutation lifetime; canonical suite: use-session-actions.
+  it("tracks the archive owner until the response settles without blocking another session", async () => {
+    let resolveResponse!: (session: SessionPayload) => void;
+    const response = new Promise<SessionPayload>(resolve => {
+      resolveResponse = resolve;
+    });
+    vi.mocked(archiveSession).mockReturnValue(response);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(
+      () => ({
+        archive: useArchiveSession(),
+        pending: useSessionArchivePending(createdSession.id),
+        otherPending: useSessionArchivePending("other-session"),
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    let mutation!: Promise<unknown>;
+    act(() => {
+      mutation = result.current.archive.mutateAsync(createdSession);
+    });
+    await waitFor(() => expect(result.current.pending).toBe(true));
+    const archived = { ...createdSession, archived_at: "2026-11-08T16:29:12Z" };
+    act(() =>
+      queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), archived)
+    );
+    expect(result.current.pending).toBe(true);
+    expect(result.current.otherPending).toBe(false);
+    await act(async () => {
+      resolveResponse(archived);
+      await mutation;
+    });
+    await waitFor(() => expect(result.current.pending).toBe(false));
   });
 
   it("aborts an in-flight archive request when its hook unmounts", async () => {
