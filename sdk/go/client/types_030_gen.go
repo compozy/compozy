@@ -176,26 +176,6 @@ type WorkCandidate struct {
 	State          string `json:"state,omitempty"`
 }
 
-// WindowmanagerClientID is a daemon API value.
-type WindowmanagerClientID string
-
-// WindowmanagerNodeID is a daemon API value.
-type WindowmanagerNodeID string
-
-// WindowmanagerWorkspaceID is a daemon API value.
-type WindowmanagerWorkspaceID string
-
-// WorkCandidate is a daemon API value.
-type WorkCandidate struct {
-	Repository     string `json:"repository"`
-	HeadRepository string `json:"head_repository,omitempty"`
-	Branch         string `json:"branch"`
-	PRNumber       int    `json:"pr_number,omitempty"`
-	Title          string `json:"title,omitempty"`
-	URL            string `json:"url,omitempty"`
-	State          string `json:"state,omitempty"`
-}
-
 // WorkCandidates is a daemon API value.
 type WorkCandidates struct {
 	Items               []WorkCandidate `json:"items"`
