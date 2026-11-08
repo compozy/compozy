@@ -57,12 +57,13 @@ func (m *Manager) emitAttentionCommit(
 		m.attentionPublished = make(map[string]store.SessionAttention)
 	}
 	previous, published := m.attentionPublished[sessionID]
-	if published {
+	switch {
+	case published:
 		commit.Before = previous
-	} else if sessionAttentionProjectionEqual(commit.Before, commit.After) && !refreshCatalog {
+	case sessionAttentionProjectionEqual(commit.Before, commit.After) && !refreshCatalog:
 		m.attentionCommitMu.Unlock()
 		return nil, nil
-	} else {
+	default:
 		// Reserve before capturing Info so removal can invalidate this publication's baseline.
 		m.attentionPublished[sessionID] = commit.Before
 	}
