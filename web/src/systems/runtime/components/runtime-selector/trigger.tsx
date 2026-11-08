@@ -108,6 +108,16 @@ function TriggerWarningMark({ label }: { label: string }) {
   );
 }
 
+/** Marks a pinned value whose provider is turned off; the aria summary already names it. */
+function TriggerDisabledMark({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <Pill aria-hidden="true" data-slot="runtime-selector-disabled" tone="neutral">
+      Disabled
+    </Pill>
+  );
+}
+
 /**
  * One click surface: the whole closed selector is a single button that opens
  * (or closes) the popup — no per-segment deep links, no divider chrome. It
@@ -191,11 +201,7 @@ export function RuntimeSelectorTrigger({
           className="shrink-0"
         />
       ) : null}
-      {view.providerDisabled && !view.compact ? (
-        <Pill aria-hidden="true" data-slot="runtime-selector-disabled" tone="neutral">
-          Disabled
-        </Pill>
-      ) : null}
+      <TriggerDisabledMark show={view.showDisabledMark} />
       {view.showFast ? <TriggerFastMark /> : null}
       {view.warningLabel ? <TriggerWarningMark label={view.warningLabel} /> : null}
       <ChevronDown

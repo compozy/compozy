@@ -34,8 +34,8 @@ export interface RuntimeTriggerView {
   showFast: boolean;
   /** Sign-in or availability problem; provider-managed settings are a normal state. */
   warningLabel: string | null;
-  /** The value pins a provider turned off in Settings. */
-  providerDisabled: boolean;
+  /** The value pins a provider turned off in Settings and the variant has room for the mark. */
+  showDisabledMark: boolean;
   /** Spoken value: provider/model, reasoning, speed, and warning, in reading order. */
   valueSummary: string;
 }
@@ -99,7 +99,7 @@ export function runtimeTriggerView(input: RuntimeTriggerInput): RuntimeTriggerVi
     meter,
     showFast,
     warningLabel,
-    providerDisabled,
+    showDisabledMark: providerDisabled && !compact,
     valueSummary: summaryParts.join(", "),
   };
 }

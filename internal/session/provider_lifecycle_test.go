@@ -754,6 +754,65 @@ func TestDisabledProviderGate(t *testing.T) {
 		}
 	})
 
+	// IT-007/UT-041: a hosted MCP tool change releases and rebinds the running session on its
+	// accepted route; that rebind is recovery, so a provider disabled meanwhile does not refuse it.
+	t.Run("Should rebind a running session on its disabled route after hosted MCP tools change", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		codex := h.cfg.Providers["codex"]
+		codex.Command = "codex-acp"
+		h.cfg.Providers["codex"] = codex
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Config.Providers["codex"] = codex
+		h.resolver.upsert(&workspace)
+		active, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "codex"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		previous := active.processHandle()
+		nativeID := active.Info().ACPSessionID
+		hosted := h.manager.hostedMCP.(*recordingHostedMCPLauncher)
+		hosted.mu.Lock()
+		hosted.initialToolDigest, hosted.toolDigest = "initial", "initial"
+		hosted.mu.Unlock()
+		if err := h.manager.captureHostedMCPDigest(t.Context(), active); err != nil {
+			t.Fatal(err)
+		}
+		setHarnessProviderEnabled(t, h, "codex", false)
+		hosted.mu.Lock()
+		hosted.toolDigest = "changed"
+		hosted.mu.Unlock()
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if !isProcessDone(previous) {
+				return nil, errors.New("native session still has a writer")
+			}
+			if opts.FinalizeStartup != nil {
+				if _, _, err := opts.FinalizeStartup(t.Context()); err != nil {
+					return nil, err
+				}
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+		}
+		events, err := h.manager.Prompt(t.Context(), active.ID, "use the changed MCP catalog")
+		if err != nil {
+			t.Fatalf("Prompt() after MCP change on disabled codex error = %v, want the same-route rebind", err)
+		}
+		collectEvents(t, events)
+		if active.processHandle() == previous || active.Info().ACPSessionID != nativeID {
+			t.Fatal("MCP change did not rebind the same native session on its accepted route")
+		}
+		if got := active.Info().Provider; got != "codex" {
+			t.Fatalf("rebound provider = %q, want codex", got)
+		}
+	})
+
 	t.Run("Should exempt recovery of the accepted route but gate another disabled route", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

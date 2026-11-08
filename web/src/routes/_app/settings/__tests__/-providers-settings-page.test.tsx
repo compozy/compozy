@@ -251,10 +251,11 @@ describe("ProvidersSettingsPage", () => {
     expect(toggle).toHaveAttribute("data-disabled");
     expect(toggle).toBeChecked();
 
+    const reason = "Choose another default provider before disabling this one";
+    expect(toggle).toHaveAccessibleDescription(reason);
+    expect(screen.getAllByText(reason)).toHaveLength(1);
     await user.hover(screen.getByTestId("settings-providers-enabled-claude-locked"));
-    expect(
-      await screen.findByText("Choose another default provider before disabling this one")
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(reason)).toHaveLength(2));
     expect(await patchRequests()).toEqual([]);
   });
 });

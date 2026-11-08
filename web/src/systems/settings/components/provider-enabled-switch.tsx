@@ -30,6 +30,7 @@ export function ProviderEnabledSwitch({
 }: ProviderEnabledSwitchProps) {
   const mutation = useSetProviderEnabled();
   const errorId = useId();
+  const lockId = useId();
   const saved = isProviderEnabled(provider.settings);
   const checked = mutation.isPending ? mutation.variables.enabled : saved;
   const locked = provider.default && saved;
@@ -40,7 +41,9 @@ export function ProviderEnabledSwitch({
       <span className={showLabel ? undefined : "sr-only"}>Enabled</span>
       <Switch
         aria-busy={mutation.isPending || undefined}
-        aria-describedby={mutation.isError ? errorId : undefined}
+        aria-describedby={
+          [mutation.isError && errorId, locked && lockId].filter(Boolean).join(" ") || undefined
+        }
         checked={checked}
         data-testid={testId}
         disabled={locked || mutation.isPending}
@@ -54,7 +57,7 @@ export function ProviderEnabledSwitch({
     <span className={cn("flex flex-col items-end gap-1", className)}>
       {locked ? (
         <Tooltip>
-          <TooltipTrigger render={<span data-testid={`${testId}-locked`} tabIndex={0} />}>
+          <TooltipTrigger render={<span data-testid={`${testId}-locked`} />}>
             {control}
           </TooltipTrigger>
           <TooltipContent>{DEFAULT_PROVIDER_LOCK_COPY}</TooltipContent>
@@ -62,6 +65,11 @@ export function ProviderEnabledSwitch({
       ) : (
         control
       )}
+      {locked ? (
+        <span className="sr-only" id={lockId}>
+          {DEFAULT_PROVIDER_LOCK_COPY}
+        </span>
+      ) : null}
       {mutation.isError ? (
         <span className="text-meta text-destructive" data-testid={`${testId}-error`} id={errorId}>
           {mutation.error.message}
