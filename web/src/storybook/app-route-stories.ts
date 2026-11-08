@@ -52,6 +52,13 @@ export const appRouteStories = [
   },
   {
     system: "marketplace",
+    routePath: "/marketplace/categories/$category",
+    storybookPath: "/marketplace/categories/development",
+    title: "systems/marketplace/routes/Marketplace",
+    storyName: "CategoryPage",
+  },
+  {
+    system: "marketplace",
     routePath: "/marketplace/$entryId",
     storybookPath: "/marketplace/slack-notify",
     title: "systems/marketplace/routes/MarketplaceDetail",

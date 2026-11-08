@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// ExtensionSecretsPayload is a daemon API value.
+type ExtensionSecretsPayload struct {
+	DeclaredEnv  []string                        `json:"declared_env"`
+	BoundEnvKeys []string                        `json:"bound_env_keys"`
+	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
+}
+
 // ExtensionTrustReportPayload is a daemon API value.
 type ExtensionTrustReportPayload struct {
 	Decision         string           `json:"decision"`
@@ -434,15 +441,4 @@ type GatewayProviderEnableRequest struct {
 	InstallSource      string `json:"install_source"`
 	DigestConfirmed    string `json:"digest_confirmed,omitempty"`
 	ExpectedGeneration uint64 `json:"expected_generation"`
-}
-
-// GatewayProviderPayload is a daemon API value.
-type GatewayProviderPayload struct {
-	Name       string `json:"name"`
-	Tier       string `json:"tier"`
-	Desired    string `json:"desired"`
-	Observed   string `json:"observed"`
-	Generation uint64 `json:"generation"`
-	Health     string `json:"health"`
-	Cause      string `json:"cause,omitempty"`
 }

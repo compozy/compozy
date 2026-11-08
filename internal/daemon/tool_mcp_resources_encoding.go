@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"maps"
 	"slices"
 	"strings"
 
@@ -130,6 +131,7 @@ func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 		URL:            src.URL,
 		Headers:        cloneStringMap(src.Headers),
 		SecretHeaders:  cloneStringMap(src.SecretHeaders),
+		InputValues:    maps.Clone(src.InputValues),
 		Auth: compozyconfig.MCPAuthConfig{
 			Registration:    src.Auth.Registration,
 			IssuerURL:       src.Auth.IssuerURL,

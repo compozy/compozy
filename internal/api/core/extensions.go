@@ -199,7 +199,7 @@ func (h *BaseHandlers) InstallExtension(c *gin.Context) {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
-	c.JSON(http.StatusCreated, contract.ExtensionResponse{Extension: item})
+	c.JSON(http.StatusCreated, contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError})
 }
 
 // UpdateExtension updates one marketplace-installed extension via the daemon.

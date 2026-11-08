@@ -32,6 +32,7 @@ func (h *BaseHandlers) GetSettingsMCPServer(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewSettingsValidationError(err))
 		return
 	}
+	req.SkipRuntimeStatus = true
 	envelope, err := h.Settings.ListCollection(c.Request.Context(), req)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)

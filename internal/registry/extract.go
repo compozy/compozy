@@ -43,6 +43,8 @@ var (
 
 // ExtractionLimits bounds archive expansion; nonpositive fields use package defaults.
 type ExtractionLimits struct {
+	// Symlinks collects deferred repository links; extraction never creates or follows them.
+	Symlinks map[string]string
 	// MaxBytes counts decompressed TAR bytes, including metadata and padding.
 	MaxBytes int64
 	// MaxFiles counts files and directories, including implicit parents.
@@ -117,6 +119,15 @@ func extractTar(reader io.Reader, root *fileutil.Directory, limits ExtractionLim
 			return fmt.Errorf("%w: %q", ErrArchiveDuplicateEntry, header.Name)
 		}
 		seenEntries[entryName] = struct{}{}
+		if header.Typeflag == tar.TypeSymlink && limits.Symlinks != nil {
+			if err := collectArchiveSymlink(root, entryName, header.Linkname, limits.Symlinks, treeBudget); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := rejectArchiveLinkParent(entryName, limits.Symlinks); err != nil {
+			return err
+		}
 		if typeErr := validateArchiveEntryType(header.Typeflag); typeErr != nil {
 			return fmt.Errorf("extract archive entry %q: %w", header.Name, typeErr)
 		}

@@ -174,9 +174,22 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (mcpauth.ServerConfig, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, s.secretResolver)
+	rendered, secrets, err := server.RenderInputs(func(ref string) (string, error) {
+		if s.secretResolver == nil {
+			return "", errors.New("daemon: secret resolver is unavailable")
+		}
+		return s.secretResolver(ctx, ref)
+	})
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth inputs: %w", err)
+	}
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
+	}
+	cfg.DisplayRemoteURL = rendered.URL
+	if len(secrets) > 0 {
+		cfg.DisplayRemoteURL = server.URL
 	}
 	return cfg, nil
 }
@@ -188,7 +201,7 @@ func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,
 		Status:      mcpauth.StatusNeedsLogin,
-		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		RemoteURL:   strings.TrimSpace(cfg.DisplayRemoteURL),
 		AuthType:    strings.TrimSpace(cfg.Type),
 		ClientID:    strings.TrimSpace(cfg.ClientID),
 		Scopes:      append([]string(nil), cfg.Scopes...),

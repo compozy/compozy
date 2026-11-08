@@ -137,6 +137,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	var version string
 	var asset string
 	var allowUnverified bool
+	var enable bool
 	var yes bool
 	var confirmGatewayDigest string
 
@@ -154,6 +155,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			for index := range plan.Attempts {
+				plan.Attempts[index].Enable = enable
 				plan.Attempts[index].Scope = selected.scope
 				plan.Attempts[index].WorkspaceID = selected.workspaceID
 				plan.Attempts[index].Profile = selected.profile
@@ -184,9 +186,10 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			report := extensionInstallValidationReport(deps, plan, &item)
-			return writeCommandOutput(cmd, extensionInstallSuccessBundle(&item, report))
+			return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, enable))
 		},
 	}
+	cmd.Flags().BoolVar(&enable, "enable", false, "Enable after install; activation failures retain the package")
 	inputs.register(cmd)
 	cmd.Flags().StringVar(&scope, "scope", "", "Install globally or in one workspace: global, workspace")
 	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")

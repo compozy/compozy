@@ -51,7 +51,15 @@ func (s *Service) beginPreRegisteredOAuth(
 func (s *Service) preRegisteredMetadata(ctx context.Context, cfg ServerConfig) (Metadata, error) {
 	issuer := strings.TrimSpace(cfg.IssuerURL)
 	if issuer == "" {
-		return Metadata{}, errors.New("mcp auth: pre-registered issuer is required")
+		resourceURL := firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL)
+		prm, err := s.protectedResourceMetadata(ctx, cfg, resourceURL)
+		if err != nil {
+			return Metadata{}, err
+		}
+		issuer, err = hostedAuthorizationServer(cfg, prm.AuthorizationServers)
+		if err != nil {
+			return Metadata{}, err
+		}
 	}
 	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {

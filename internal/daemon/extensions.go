@@ -203,7 +203,7 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 		return
 	}
 
-	manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(ext.Info.ManifestPath))
+	manifest, err := extensionpkg.LoadInstalledManifest(&ext.Info)
 	if err != nil {
 		if logger != nil {
 			logger.Debug(

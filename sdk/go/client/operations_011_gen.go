@@ -4,8 +4,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -343,6 +341,44 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 	return &out, nil
 }
 
+// GetMarketplaceSectionsParams carries the path, query, and header parameters.
+type GetMarketplaceSectionsParams struct {
+	Q           *string `url:"q"`
+	PerSection  *int    `url:"per_section"`
+	Scope       *string `url:"scope"`
+	Profile     *string `url:"profile"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// GetMarketplaceSections Browse Featured and category sections
+func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
+	path := "/api/marketplace/sections"
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.PerSection != nil {
+		query.Set("per_section", strconv.Itoa(*params.PerSection))
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceSectionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetObserveOverviewParams carries the path, query, and header parameters.
 type GetObserveOverviewParams struct {
 	AllWorkspaces  *bool   `url:"all_workspaces"`
@@ -399,45 +435,4 @@ func (c *Client) GetOnboardingStatus(ctx context.Context) (*OnboardingStatusResp
 type GetOpenAPIDocumentParams struct {
 	IfNoneMatch    *string `url:"If-None-Match"`
 	AcceptEncoding *string `url:"Accept-Encoding"`
-}
-
-// GetOpenAPIDocument Get the running daemon's OpenAPI document
-func (c *Client) GetOpenAPIDocument(ctx context.Context, params GetOpenAPIDocumentParams) (*json.RawMessage, error) {
-	path := "/api/openapi.json"
-	headers := http.Header{}
-	if params.IfNoneMatch != nil {
-		headers.Set("If-None-Match", *params.IfNoneMatch)
-	}
-	if params.AcceptEncoding != nil {
-		headers.Set("Accept-Encoding", *params.AcceptEncoding)
-	}
-	var out json.RawMessage
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetPendingToolApprovalParams carries the path, query, and header parameters.
-type GetPendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// GetPendingToolApproval Get one pending tool approval lifecycle
-func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

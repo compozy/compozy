@@ -15,6 +15,7 @@ type mcpCollectionItem struct {
 func (s *service) populateMCPCollectionStatuses(
 	ctx context.Context,
 	items []mcpCollectionItem,
+	skipRuntimeStatus bool,
 ) error {
 	if len(items) == 0 {
 		return nil
@@ -40,6 +41,7 @@ func (s *service) populateMCPCollectionStatuses(
 						probeCtx,
 						&items[index].item,
 						items[index].entry,
+						skipRuntimeStatus,
 					); err != nil {
 						select {
 						case errs <- err:

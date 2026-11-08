@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcppolicy"
 )
 
 const (
@@ -176,6 +177,10 @@ func (i EntryInput) validateGrammar(prefix string) error {
 			i.Type == mcpInputTypeSecret,
 		); err != nil {
 			return err
+		}
+	case "template":
+		if !mcppolicy.ValidInputName(name) {
+			return fmt.Errorf("%s.binding.name must be a placeholder name", prefix)
 		}
 	case mcpInputBindingQuery:
 		if i.Type == mcpInputTypeSecret {

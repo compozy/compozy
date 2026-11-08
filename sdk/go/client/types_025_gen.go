@@ -7,6 +7,61 @@ import (
 	"time"
 )
 
+// TaskDashboardFailedCardPayload is a daemon API value.
+type TaskDashboardFailedCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	FailedRuns   int    `json:"failed_runs"`
+	ForcedStops  int    `json:"forced_stops"`
+	HealthStatus string `json:"health_status"`
+}
+
+// TaskDashboardFreshnessPayload is a daemon API value.
+type TaskDashboardFreshnessPayload struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
+// TaskDashboardHealthPayload is a daemon API value.
+type TaskDashboardHealthPayload struct {
+	Status           string `json:"status"`
+	StuckRuns        int    `json:"stuck_runs"`
+	ActiveOrphanRuns int    `json:"active_orphan_runs"`
+	QueueBacklog     bool   `json:"queue_backlog"`
+}
+
+// TaskDashboardInProgressCardPayload is a daemon API value.
+type TaskDashboardInProgressCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	ActiveRuns   int    `json:"active_runs"`
+	RunningRuns  int    `json:"running_runs"`
+	StartingRuns int    `json:"starting_runs"`
+	ClaimedRuns  int    `json:"claimed_runs"`
+	QueuedRuns   int    `json:"queued_runs"`
+	HealthStatus string `json:"health_status"`
+}
+
+// TaskDashboardLatencyCardPayload is a daemon API value.
+type TaskDashboardLatencyCardPayload struct {
+	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
+	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
+}
+
+// TaskDashboardPayload is a daemon API value.
+type TaskDashboardPayload struct {
+	Totals          TaskDashboardTotalsPayload            `json:"totals"`
+	Cards           TaskDashboardCardsPayload             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueuePayload             `json:"queue"`
+	Health          TaskDashboardHealthPayload            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
+	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+}
+
 // TaskDashboardQueueDepthPayload is a daemon API value.
 type TaskDashboardQueueDepthPayload struct {
 	Count               int       `json:"count"`
@@ -387,44 +442,4 @@ type TaskReferencePayload struct {
 // TaskResponse is a daemon API value.
 type TaskResponse struct {
 	Task TaskPayload `json:"task"`
-}
-
-// TaskRunDetailPayload is a daemon API value.
-type TaskRunDetailPayload struct {
-	Run     TaskRunPayload                   `json:"run"`
-	Task    *TaskReferencePayload            `json:"task,omitempty"`
-	Session *TaskRunSessionPayload           `json:"session,omitempty"`
-	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-}
-
-// TaskRunDetailResponse is a daemon API value.
-type TaskRunDetailResponse struct {
-	Run TaskRunDetailPayload `json:"run"`
-}
-
-// TaskRunLeaseSummaryPayload is a daemon API value.
-type TaskRunLeaseSummaryPayload struct {
-	TaskID         string         `json:"task_id"`
-	RunID          string         `json:"run_id"`
-	Status         TaskRunStatus  `json:"status"`
-	SessionID      string         `json:"session_id,omitempty"`
-	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
-	ClaimTokenHash string         `json:"claim_token_hash,omitempty"`
-	LeaseUntil     *time.Time     `json:"lease_until,omitempty"`
-	HeartbeatAt    *time.Time     `json:"heartbeat_at,omitempty"`
-}
-
-// TaskRunOperationalSummaryPayload is a daemon API value.
-type TaskRunOperationalSummaryPayload struct {
-	LastActivityAt time.Time  `json:"last_activity_at"`
-	LastEventType  string     `json:"last_event_type,omitempty"`
-	ToolCallCount  *int64     `json:"tool_call_count,omitempty"`
-	TurnCount      *int64     `json:"turn_count,omitempty"`
-	InputTokens    *int64     `json:"input_tokens,omitempty"`
-	OutputTokens   *int64     `json:"output_tokens,omitempty"`
-	TotalTokens    *int64     `json:"total_tokens,omitempty"`
-	TotalCost      *float64   `json:"total_cost,omitempty"`
-	CostCurrency   *string    `json:"cost_currency,omitempty"`
-	CostStatus     CostStatus `json:"cost_status,omitempty"`
-	CostSource     CostSource `json:"cost_source,omitempty"`
 }

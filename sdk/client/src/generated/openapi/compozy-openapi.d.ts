@@ -2075,6 +2075,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/marketplace/sections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Browse Featured and category sections */
+    get: operations["getMarketplaceSections"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/marketplace/sources": {
     parameters: {
       query?: never;
@@ -10138,6 +10155,10 @@ export interface components {
       name: string;
       needs_setup: boolean;
     };
+    ExtensionEnableError: {
+      code: string;
+      error: string;
+    };
     ExtensionEnablePreviewPayload: {
       agent_conflicts: string[];
       automation_starting: string[];
@@ -10351,6 +10372,7 @@ export interface components {
     ExtensionValidatePayload: {
       consent_areas?: components["schemas"]["ConsentArea"][];
       format: string;
+      inputs?: components["schemas"]["MarketplaceInputPayload"][];
       issues: components["schemas"]["ValidationIssue"][];
       manifest?: components["schemas"]["ExtensionManifestSummary"] | null;
       name?: string;
@@ -11891,6 +11913,11 @@ export interface components {
       allow_unverified?: boolean;
       asset?: string;
       confirm_gateway_digest?: string;
+      /**
+       * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
+       * @default false
+       */
+      enable: boolean;
       expected_digest?: string;
       inputs?: {
         [key: string]: components["schemas"]["Value"];
@@ -11912,8 +11939,12 @@ export interface components {
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
     };
+    InstallExtensionResponse: {
+      enable_error?: components["schemas"]["ExtensionEnableError"] | null;
+      extension: components["schemas"]["ExtensionPayload"];
+    };
     /** @enum {string} */
-    IssueSeverity: "error" | "warning" | "warn";
+    IssueSeverity: "error" | "warning" | "warn" | "info";
     JobPayload: {
       agent_name: string;
       /** Format: date-time */
@@ -13075,6 +13106,11 @@ export interface components {
       status: string;
       warnings?: components["schemas"]["DiagnosticItem"][];
     };
+    MarketplaceCategoryCount: {
+      count: number;
+      id: string;
+      label: string;
+    };
     MarketplaceCursorStalePayload: {
       code: string;
       error: string;
@@ -13109,6 +13145,7 @@ export interface components {
       type: string;
     };
     MarketplaceListResponse: {
+      categories: components["schemas"]["MarketplaceCategoryCount"][];
       error?: string;
       error_class?: string;
       items: components["schemas"]["MarketplaceListingPayload"][];
@@ -13121,9 +13158,12 @@ export interface components {
     };
     MarketplaceListingPayload: {
       author?: string;
+      category: string;
+      category_label: string;
       description: string;
       digest_sha256: string;
       entry_id: string;
+      featured: boolean;
       format?: string;
       icon?: string;
       install_blocker?: string;
@@ -13160,6 +13200,21 @@ export interface components {
       error_class?: string;
       outcome: string;
       source: string;
+      stale: boolean;
+    };
+    MarketplaceSection: {
+      id: string;
+      items: components["schemas"]["MarketplaceListingPayload"][];
+      label: string;
+      total: number;
+    };
+    MarketplaceSectionsResponse: {
+      error?: string;
+      error_class?: string;
+      refreshing?: boolean;
+      revision: string;
+      sections: components["schemas"]["MarketplaceSection"][];
+      sources: components["schemas"]["MarketplaceSourceSummary"][];
       stale: boolean;
     };
     MarketplaceServerPayload: {
@@ -20866,6 +20921,7 @@ export interface components {
       definition: components["schemas"]["LoopDefinitionDocument"];
     };
     ValidationIssue: {
+      code?: string;
       column?: number;
       field?: string;
       line?: number;
@@ -20873,7 +20929,7 @@ export interface components {
       path: string;
       scope?: string;
       /** @enum {string} */
-      severity: "error" | "warning" | "warn";
+      severity: "error" | "warning" | "warn" | "info";
     };
     Value:
       | {
@@ -30605,7 +30661,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionResponse"];
+          "application/json": components["schemas"]["InstallExtensionResponse"];
         };
       };
       /** @description Invalid install request */
@@ -33098,6 +33154,8 @@ export interface operations {
       query?: {
         /** @description Optional catalog search query */
         q?: string;
+        /** @description Optional CompozyOS category id */
+        category?: string;
         /** @description Maximum results from 1 to 100 */
         limit?: number;
         /** @description Opaque next_cursor from the previous page */
@@ -33287,6 +33345,64 @@ export interface operations {
         };
       };
       /** @description Marketplace catalog is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getMarketplaceSections: {
+    parameters: {
+      query?: {
+        /** @description Optional catalog search query */
+        q?: string;
+        /** @description Entries per section from 1 to 12; default 6 */
+        per_section?: number;
+        /** @description Installed-state projection scope */
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile scope */
+        profile?: string;
+        /** @description Required for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MarketplaceSectionsResponse"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Catalog dependency is not configured */
       503: {
         headers: {
           [name: string]: unknown;

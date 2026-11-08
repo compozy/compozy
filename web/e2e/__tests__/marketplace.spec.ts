@@ -33,7 +33,10 @@ import {
   runBrowserRuntimeCLIJSON,
   sensitiveArtifactPattern,
 } from "../fixtures/scenario-contracts";
-import { createPluginMarketplaceFixture } from "../fixtures/marketplace-server";
+import {
+  createPluginMarketplaceFixture,
+  verifiedCatalogFixture,
+} from "../fixtures/marketplace-server";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
@@ -166,7 +169,7 @@ test.describe("Marketplace source catalog", () => {
     }
   });
 
-  test("E2E-001 / E2E-005: operator browses independent sources and retains installed packages across source recovery", async ({
+  test("E2E-001 / E2E-005: operator browses several sources by category and retains installed packages across source recovery", async ({
     appPage,
     runtime,
   }) => {
@@ -183,31 +186,29 @@ test.describe("Marketplace source catalog", () => {
         });
       }
       await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
-      await test.step("E2E-001: browse independent sources and recover an empty query", async () => {
+      await test.step("E2E-001: browse several sources by category and recover an empty query", async () => {
         await ensureProjectWorkspace(appPage, runtime);
         await completeOnboardingIfPrompted(appPage);
         await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
         const win = appWindow(appPage, "marketplace");
-        for (const name of ["compozy-catalog", "team", "partner"]) {
-          await expect(win.getByTestId(`marketplace-section-${name}`)).toBeVisible();
-        }
-        const teamCard = win
-          .getByTestId("marketplace-section-team")
-          .getByTestId("marketplace-card-tool");
-        const partnerCard = win
-          .getByTestId("marketplace-section-partner")
-          .getByTestId("marketplace-card-tool");
-        await expect(teamCard).toBeVisible();
-        await expect(partnerCard).toBeVisible();
+        // Sources no longer head sections: both copies of `tool` list under their category.
+        const more = win.getByRole("region", { name: "More" });
+        await expect(more.getByTestId("marketplace-card-tool")).toHaveCount(2);
+        await expect(win.getByTestId(/^marketplace-section-/)).toHaveCount(0);
+        const teamCard = more
+          .getByTestId("marketplace-card-tool")
+          .filter({ has: appPage.locator('a[href*="source=team"]') });
+        await expect(teamCard).toHaveCount(1);
         await teamCard.getByRole("link", { name: /View .* details/ }).click();
         await expect.poll(() => new URL(appPage.url()).searchParams.get("source")).toBe("team");
         await expect(win.getByTestId("marketplace-detail")).toContainText("Loop");
+        await expect(win.getByTestId("marketplace-detail-source")).toContainText("From team");
         await appPage.goto(runtime.url("/marketplace?q=does-not-match-any-plugin"), {
           waitUntil: "domcontentloaded",
         });
         await expect(win.getByTestId("marketplace-query-empty")).toBeVisible();
         await win.getByRole("button", { name: "Clear search", exact: true }).click();
-        await expect(win.getByTestId("marketplace-section-team")).toBeVisible();
+        await expect(more).toBeVisible();
       });
       await test.step("E2E-005: retain diagnostics and installed packages across remove/re-add", async () => {
         const listing = await runtime.requestJSON<{
@@ -283,7 +284,7 @@ test.describe("Marketplace source catalog", () => {
     }
   });
   // Invariant: a checked source can be added, but changed package bytes require fresh consent.
-  test("E2E-004: Add marketplace installs client-layout plugins only after approving current bytes", async ({
+  test("E2E-004: Add marketplace adds client-layout plugins only after approving current bytes", async ({
     appPage,
     runtime,
   }) => {
@@ -303,22 +304,19 @@ test.describe("Marketplace source catalog", () => {
       await expect(appPage.getByTestId("add-marketplace-found")).toContainText("1");
       await appPage.getByTestId("add-marketplace-submit").click();
       await expect(appPage.getByTestId("add-marketplace-dialog")).not.toBeVisible();
-      const card = win
-        .getByTestId("marketplace-section-source")
-        .getByTestId("marketplace-card-tool");
-      await card.getByTestId("marketplace-action-tool").click();
-      await appPage.getByTestId("extension-trust-confirm").click();
-      await expect(appPage.getByTestId("extension-install-summary-dialog")).toBeVisible();
+      const card = win.getByTestId("marketplace-card-tool");
+      await expect(card).toBeVisible();
+      // The listing on screen was read before the package changed. Refresh publishes the changed
+      // bytes, so Add's preview carries the old approved digest and meets the listing fence.
       await fixture.changePackage();
-      // A cached approved package is immutable and remains installable. Refresh publishes the
-      // changed package before submitting the old approval, exercising the listing digest fence.
       await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
       const rejected = appPage.waitForResponse(
         response =>
           response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/api/extensions"
+          new URL(response.url()).pathname === "/api/extensions/preview-install"
       );
-      await appPage.getByTestId("extension-install-summary-confirm").click();
+      await card.getByTestId("marketplace-action-tool").click();
+      await appPage.getByTestId("extension-trust-confirm").click();
       const conflict = await rejected;
       expect(conflict.status()).toBe(409);
       expect(await conflict.json()).toMatchObject({ code: "extension_source_changed" });
@@ -326,15 +324,18 @@ test.describe("Marketplace source catalog", () => {
         `/api/extensions?${scopeQuery}`
       );
       expect(before.extensions.some(item => item.name === fixture.instanceName)).toBe(false);
+      // The current bytes need fresh consent; with no other gate, Add then finishes inline.
       await expect(appPage.getByTestId("extension-trust-dialog")).toBeVisible();
-      await appPage.getByTestId("extension-trust-confirm").click();
       const installed = appPage.waitForResponse(
         response =>
           response.request().method() === "POST" &&
           new URL(response.url()).pathname === "/api/extensions"
       );
-      await appPage.getByTestId("extension-install-summary-confirm").click();
-      expect((await installed).status()).toBe(201);
+      await appPage.getByTestId("extension-trust-confirm").click();
+      const added = await installed;
+      expect(added.status()).toBe(201);
+      expect(added.request().postDataJSON()).toMatchObject({ enable: true });
+      await expect(appPage.getByTestId("extension-install-summary-dialog")).not.toBeVisible();
       const detail = await runtime.requestJSON<{ extension: { name: string; format: string } }>(
         `/api/extensions/${fixture.instanceName}?${scopeQuery}`
       );
@@ -348,6 +349,196 @@ test.describe("Marketplace source catalog", () => {
       ).toBeVisible();
     } finally {
       await fixture.cleanup();
+    }
+  });
+});
+
+// Invariant: Browse is grouped by daemon category with View all, and Add ends in Ready or Set up.
+// Owner: Marketplace window against a real daemon; spec marketplace-plugin-catalog E2E-001–003.
+test.describe("Marketplace plugin catalog by category", () => {
+  const productivity = [
+    "Notion",
+    "Notes Sync",
+    "Asana",
+    "Linear Boards",
+    "Todoist",
+    "Trello",
+    "ClickUp",
+    "Calendar",
+    "Airtable",
+  ].map((name, index) => ({
+    entry_id: `prod-${index}`,
+    name,
+    description: "Productivity fixture entry",
+    version: "1.0.0",
+    install_slug: `compozy/prod-${index}`,
+    artifact_url: "https://example.test/prod.tar.gz",
+    digest_sha256: "a".repeat(64),
+    tier: "unverified" as const,
+    category: "productivity",
+    featured: index < 2,
+  }));
+  test.use({
+    runtimeOptions: {
+      extensionsAllowUnverified: true,
+      seed: {
+        extensionRegistry: verifiedCatalogFixture.extensionRegistry,
+        marketplaceCatalog: {
+          extensions: [
+            ...productivity,
+            verifiedCatalogFixture.entry,
+            {
+              entry_id: "canvas",
+              name: "Canvas",
+              description: "Design fixture entry",
+              version: "1.0.0",
+              install_slug: "compozy/canvas",
+              artifact_url: "https://example.test/canvas.tar.gz",
+              digest_sha256: "a".repeat(64),
+              tier: "unverified",
+              category: "design",
+            },
+          ],
+        },
+      },
+    },
+  });
+
+  test("marketplace-plugin-catalog E2E-001 / E2E-002: browse Featured and categories, then View all one category", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
+    const win = appWindow(appPage, "marketplace");
+
+    await test.step("E2E-001: Featured, then categories in taxonomy order, no source headings", async () => {
+      const featured = win.getByRole("region", { name: "Featured" });
+      const section = win.getByRole("region", { name: "Productivity" });
+      await expect(featured).toBeVisible();
+      await expect(section).toBeVisible();
+      await expect(win.getByRole("region", { name: "Design" })).toBeVisible();
+      const order = await win
+        .locator('[data-testid^="marketplace-category-"]')
+        .evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-label")));
+      expect(order.slice(0, 3)).toEqual(["Featured", "Productivity", "Design"]);
+      await expect(win.getByTestId(/^marketplace-section-/)).toHaveCount(0);
+      await expect(featured.getByTestId(/^marketplace-card-/)).toHaveCount(2);
+      await expect(section.getByTestId(/^marketplace-card-/)).toHaveCount(6);
+      await expect(section.getByRole("link", { name: "View all Productivity" })).toContainText("9");
+    });
+
+    await test.step("E2E-002: View all pages the category, scopes search, and goes back", async () => {
+      await win.getByRole("link", { name: "View all Productivity" }).click();
+      await expect
+        .poll(() => new URL(appPage.url()).pathname)
+        .toBe("/marketplace/categories/productivity");
+      const grid = win.getByTestId("marketplace-category-grid-productivity");
+      await expect(grid.getByTestId(/^marketplace-card-/)).toHaveCount(9);
+      await win.getByRole("searchbox", { name: "Search Productivity" }).fill("no");
+      await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("no");
+      await expect(grid.getByTestId(/^marketplace-card-/)).toHaveCount(2);
+      await expect(win.getByTestId("marketplace-card-canvas")).toHaveCount(0);
+      // The scoped search replaces its history entry, so one Back returns to Browse.
+      await appPage.goBack();
+      await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace");
+      await expect(win.getByRole("region", { name: "Productivity" })).toBeVisible();
+    });
+  });
+
+  test("marketplace-plugin-catalog E2E-003: Add ends in Ready, or Set up until sign-in completes", async ({
+    appPage,
+    runtime,
+  }) => {
+    const authServer = await startMCPAuthServer();
+    const fixture = await createPluginMarketplaceFixture({ oauthServerURL: authServer.baseURL });
+    let popup: Page | undefined;
+    try {
+      await runtime.requestJSON("/api/marketplace/sources", {
+        method: "POST",
+        body: JSON.stringify({ name: "team", ref: fixture.source }),
+      });
+      await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(appPage);
+      await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
+      const win = appWindow(appPage, "marketplace");
+      const addAndConsent = async (entryId: string) => {
+        const added = appPage.waitForResponse(
+          response =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/api/extensions"
+        );
+        await win
+          .getByTestId(`marketplace-card-${entryId}`)
+          .getByRole("button", { name: /^Add / })
+          .click();
+        // A third-party source is unverified: consent is the gate, then Add finishes inline.
+        await appPage.getByTestId("extension-trust-confirm").click();
+        const summary = appPage.getByTestId("extension-install-summary-dialog");
+        const settled = await Promise.race([
+          added.then(() => "added" as const),
+          summary.waitFor({ state: "visible" }).then(() => "review" as const),
+        ]);
+        // A remote server published through the gateway is a gate of its own.
+        if (settled === "review")
+          await appPage.getByTestId("extension-install-summary-confirm").click();
+        const response = await added;
+        expect(response.status()).toBe(201);
+        expect(response.request().postDataJSON()).toMatchObject({ enable: true });
+      };
+
+      await test.step("a verified plugin with no gate adds inline and reads Ready, no dialog", async () => {
+        const { entryId } = verifiedCatalogFixture;
+        const added = appPage.waitForResponse(
+          response =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/api/extensions"
+        );
+        await win
+          .getByTestId(`marketplace-card-${entryId}`)
+          .getByRole("button", { name: /^Add / })
+          .click();
+        const response = await added;
+        expect(response.status()).toBe(201);
+        expect(response.request().postDataJSON()).toMatchObject({
+          enable: true,
+          source: "curated",
+          allow_unverified: false,
+        });
+        await expect(win.getByTestId(`marketplace-ready-${entryId}`)).toBeVisible();
+        // Nothing to decide: neither consent nor the review dialog ever opened.
+        await expect(appPage.getByTestId("extension-trust-confirm")).toHaveCount(0);
+        await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
+      });
+
+      await test.step("a gated (unverified) plugin with nothing left to do reads Ready", async () => {
+        await addAndConsent("tool");
+        await expect(win.getByTestId("marketplace-ready-tool")).toBeVisible();
+      });
+
+      await test.step("a plugin whose server needs sign-in reads Set up until it completes", async () => {
+        await addAndConsent("linear");
+        const setUp = win.getByTestId("marketplace-setup-linear");
+        await expect(setUp).toBeVisible();
+        await expect(win.getByTestId("marketplace-ready-linear")).toHaveCount(0);
+        await expect(setUp).toBeEnabled();
+        await setUp.click();
+        const popupPromise = appPage.context().waitForEvent("page");
+        await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();
+        popup = await popupPromise;
+        await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("POST /token");
+        await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
+          timeout: 15_000,
+        });
+        await appPage.getByTestId("settings-page-mcp-authorize-done").click();
+        await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
+      });
+    } finally {
+      if (popup && !popup.isClosed()) await popup.close();
+      await fixture.cleanup();
+      await closeMCPAuthServer(authServer.server);
     }
   });
 });

@@ -3,10 +3,10 @@ title: Marketplace
 description: Browse the extension catalog, inspect an entry, and install its capabilities.
 ---
 
-Open Marketplace to browse one catalog of extensions. An extension can provide MCP servers,
-skills, tools, profiles, or other capabilities; its contents describe what you are installing.
-Search narrows the catalog. Installed entries stay marked in place, and the installed count opens
-[Installed](/docs/marketplace/installed), where you manage your local extensions.
+Open Marketplace to browse one catalog of extensions and plugins, grouped by category. An extension
+can provide MCP servers, skills, tools, profiles, or other capabilities; its contents describe what
+you are adding. Search narrows the catalog. Installed entries stay marked in place, and the installed
+count opens [Installed](/docs/marketplace/installed), where you manage your local extensions.
 
 <OperatorNote>
   Start the daemon before using Marketplace in the app or through the CLI and API. The public
@@ -16,9 +16,25 @@ Search narrows the catalog. Installed entries stay marked in place, and the inst
 
 ## Browse And Inspect
 
-The app opens the catalog at `/marketplace`. Select an entry to inspect its description, contents,
-version, source, and trust decision. With one source, entries appear in a flat grid; multiple sources
-have separate sections. Refresh fetches the latest catalog. If a source is unreachable, cached
+The app opens the catalog at `/marketplace`. Below the installed shelf, **Featured** comes first when
+a CompozyOS-curated source features entries, then one section per category in a fixed order:
+Productivity, Communication, Design, Development, Data & Analytics, Cloud & Infrastructure, Finance &
+Payments, Sales & Marketing, Research & Learning, Security, AI & Agents, and More. Empty categories
+are not shown. Each section lists up to six entries and ends with **View all · N**, where N is the
+full count for that category. Entries are not grouped by source.
+
+**View all** opens `/marketplace/categories/<id>`, which lists every entry in that category, with a
+search box scoped to the category and **Load more** at the end of each page. An unknown category
+shows "This category doesn't exist" with a link back to Marketplace.
+
+Every entry belongs to exactly one category. CompozyOS maps the source's own `category` text through a
+fixed alias table, so `DATA_ANALYTICS`, `analytics` and `database` all land in Data & Analytics.
+Anything it cannot map lands in More. Labels come from the daemon, so the app, CLI and API always
+agree.
+
+Typing in the top search box replaces the sections with one flat list of matches across every
+category. Each result shows its category word. Select an entry to inspect its description,
+contents, version, source (`From <source>`), and trust decision. Refresh fetches the latest catalog. If a source is unreachable, cached
 entries remain visible with their stale status. An unavailable source is not an empty catalog.
 
 The refresh warning names each failed source. Healthy sources remain current, and Retry clears the
@@ -31,11 +47,22 @@ The HTTP and UDS interfaces expose the same catalog:
 
 ```http
 GET /api/marketplace?q=herdr&limit=20
+GET /api/marketplace?category=design&limit=50
+GET /api/marketplace/sections?per_section=6
 GET /api/marketplace/entries/herdr-bridge?source=compozy-catalog
 ```
 
+Every listing carries `category`, `category_label` and `featured`. A list page also returns
+`categories`, the count of every category within the current `q` (ignoring `category`), so a client
+can show sibling counts. `GET /api/marketplace/sections` returns the whole Browse home in one call:
+Featured and each non-empty category with its `total` and first `per_section` entries (1–12,
+default 6). An unknown category returns `400 marketplace_category_unknown`, and `per_section`
+outside 1–12 returns `400 invalid_request`.
+
 A page contains `items`, the filtered `total`, `sources`, `revision`, and `stale`, plus `next_cursor`
-when more entries remain. Pass the cursor unchanged with the same query, profile, and workspace.
+when more entries remain. Pass the cursor unchanged with the same query, category, profile, and
+workspace.
+Installing a package also invalidates a cursor because installed origins affect which rows are shown.
 If the server returns `marketplace_cursor_stale` with `restart: true`, discard the earlier pages and
 start again. Identical refreshes retain the content revision. While `refreshing` is true,
 read the complete catalog again to observe pending source work; one failed source does not
@@ -51,16 +78,40 @@ remain readable with `installable: false` and an `install_blocker` reason; the a
 Refresh after the publisher corrects a package. Older catalogs without these requirements are still
 readable, and package inspection and installation always enforce the packaged minimum version.
 
-## Install An Extension
+## Add An Extension
 
-Choose Install on an entry whose trust decision allows installation. Entries that need configuration
-request their declared inputs before completing installation. Add also supports installation from
-GitHub or a local folder. Use the entry's `install_slug` for CLI installation:
+Each row has one action. **Add** installs the entry and turns it on in one step; the row reads
+**Adding…** while it runs and `<name> added` confirms it. The review dialog opens only when
+something needs your decision: consent for an unverified publisher, a name conflict, a gateway
+requirement, or a required value such as an API key or host. Otherwise Add finishes inline.
+
+After Add, the row reads what the installed extension still needs:
+
+| Row         | Meaning                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| **Set up**  | A required value is missing or an MCP server is waiting for sign-in. Set up opens that step. |
+| **Ready**   | Nothing is left to do.                                                                       |
+| **Turn on** | The extension is installed but turned off.                                                   |
+
+If the install succeeds but turning it on fails, the extension stays installed. The row reads
+"Couldn't turn on" with **Retry**, and a toast says `Added <name> but couldn't turn it on`. Retry,
+or turn it on later from [Installed](/docs/marketplace/installed).
+
+**Add ▾** also installs from GitHub or a local folder. Use the entry's `install_slug` for CLI
+installation, and `--enable` to turn it on in the same operation:
 
 ```bash
-compozy extension install compozy/herdr-bridge -o json
+compozy extension install compozy/herdr-bridge --enable -o json
 compozy extension provenance herdr-bridge -o json
 ```
+
+New installations are enabled by default, including native extensions and client/plugin packages.
+Use `--enable` to explicitly attempt activation in the same operation. The command exits 0 even
+when turning on fails after a successful install: the JSON response carries `enable_error` with
+its `code`, and the human output names the retry command (`compozy extension enable <name>`).
+Over HTTP and UDS, send `"enable": true` in the `POST /api/extensions` body; an enable failure
+returns `201` with `extension.enabled: false` and `enable_error`. Install failures, including
+`extension_inputs_required` for a missing required value, keep their existing responses.
 
 For curated entries, the daemon downloads the exact HTTPS `artifact_url`, verifies `digest_sha256`
 before extraction, and records provenance. A mismatch returns `extension_archive_digest_mismatch`
@@ -77,17 +128,26 @@ compozy extension install acme/private-extension --allow-unverified --yes -o jso
 
 If policy blocks the request, inspect `extension_unverified_policy_blocked` and its repair action.
 Do not infer runtime readiness from successful installation: a capability may still require inputs
-or authorization. MCP configuration and authorization are described in [MCP catalog operations](/docs/marketplace/mcp-catalog).
+or authorization. Read that setup state with `compozy extension status <name> -o json` and
+`compozy mcp auth status`. MCP configuration and authorization are described in [MCP catalog operations](/docs/marketplace/mcp-catalog).
 
 ## CLI Discovery
 
 The existing CLI verbs remain available. Inspect their structured output before choosing an install target:
 
 ```bash
+compozy marketplace categories -o json
+compozy marketplace search --category productivity -o json
 compozy marketplace search "herdr" -o json
 compozy marketplace info herdr-bridge --source compozy-catalog -o json
 compozy marketplace refresh -o json
 ```
+
+`marketplace categories` lists Featured and each non-empty category with its count. The JSON
+output also keeps categories with zero entries. An optional query counts within that search. `search --category <id>`
+lists one category, and an unknown id exits with status 2 and the list of valid ids
+(`marketplace_category_unknown`). Agents use the native tools `compozy__marketplace_categories`,
+`compozy__marketplace_search` with `category`, and `compozy__extensions_install` with `enable`.
 
 CLI discovery uses the same catalog as the app. Continue with the returned cursor and the same
 query and scope; obsolete kind selectors and two-argument info requests fail validation.

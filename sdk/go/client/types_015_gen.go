@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// ProviderUsageWindow is a daemon API value.
+type ProviderUsageWindow struct {
+	ID              string               `json:"id"`
+	Label           string               `json:"label"`
+	Kind            string               `json:"kind"`
+	DurationSeconds *int64               `json:"duration_seconds"`
+	UsedPercent     *float64             `json:"used_percent"`
+	Used            *ProviderUsageAmount `json:"used"`
+	Limit           *ProviderUsageAmount `json:"limit"`
+	ResetsAt        *time.Time           `json:"resets_at"`
+	ResetText       string               `json:"reset_text"`
+}
+
+// PullRequestState is a daemon API value.
+type PullRequestState string
+
+// PutLoopAnnotationsRequest is a daemon API value.
+type PutLoopAnnotationsRequest struct {
+	Annotations []LoopAnnotationPayload `json:"annotations"`
+}
+
+// PutLoopConfigRequest is a daemon API value.
+type PutLoopConfigRequest struct {
+	Config LoopConfig `json:"config"`
+}
+
+// PutLoopInputDefaultRequest is a daemon API value.
+type PutLoopInputDefaultRequest struct {
+	Scope LoopInputDefaultsScope `json:"scope"`
+	Value any                    `json:"value"`
+}
+
+// PutLoopInputDefaultsRequest is a daemon API value.
+type PutLoopInputDefaultsRequest struct {
+	Scope  LoopInputDefaultsScope `json:"scope"`
+	Values map[string]any         `json:"values"`
+}
+
+// PutResourceRequest is a daemon API value.
+type PutResourceRequest struct {
+	Scope           ResourceScope   `json:"scope"`
+	ExpectedVersion int64           `json:"expected_version,omitzero"`
+	Spec            json.RawMessage `json:"spec"`
+}
+
 // PutSettingsHookRequest is a daemon API value.
 type PutSettingsHookRequest struct {
 	Declaration SettingsHookDeclarationPayload `json:"declaration"`
@@ -398,49 +443,3 @@ type ResumeSessionFromLaterRequest struct {
 type ResumeTaskRequest struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
-
-// RetryConfig is a daemon API value.
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
-}
-
-// RetrySpec is a daemon API value.
-type RetrySpec struct {
-	MaxAttempts  int          `json:"max_attempts,omitzero"`
-	OnFailure    string       `json:"on_failure,omitempty"`
-	Backoff      *BackoffSpec `json:"backoff,omitzero"`
-	NonRetryable []string     `json:"non_retryable,omitempty"`
-}
-
-// RetryStrategy is a daemon API value.
-type RetryStrategy string
-
-// RetryTaskRunRequest is a daemon API value.
-type RetryTaskRunRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryTaskRunResponse is a daemon API value.
-type RetryTaskRunResponse struct {
-	PreviousRun TaskRunPayload `json:"previous_run"`
-	Run         TaskRunPayload `json:"run"`
-}
-
-// ReviewContinuation is a daemon API value.
-type ReviewContinuation struct {
-	ReviewID          string   `json:"review_id"`
-	ReviewedRunID     string   `json:"reviewed_run_id"`
-	ReviewRound       int      `json:"review_round"`
-	Outcome           string   `json:"outcome"`
-	Reason            string   `json:"reason"`
-	MissingWork       []string `json:"missing_work"`
-	NextRoundGuidance string   `json:"next_round_guidance"`
-}
-
-// ReviewDecision is a daemon API value.
-type ReviewDecision string
-
-// ReviewPolicy is a daemon API value.
-type ReviewPolicy string

@@ -9,6 +9,56 @@ import (
 	"strings"
 )
 
+// GetSessionChangeContents Read session changes
+func (c *Client) GetSessionChangeContents(ctx context.Context, params GetSessionChangeContentsParams) (*SessionChangeContentsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Base != nil {
+		query.Set("base", *params.Base)
+	}
+	query.Set("revision", params.Revision)
+	query.Set("path", params.Path)
+	if params.OldPath != nil {
+		query.Set("old_path", *params.OldPath)
+	}
+	if params.Reveal != nil {
+		query.Set("reveal", strconv.FormatBool(*params.Reveal))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionChangeContentsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionChangePatchesParams carries the path, query, and header parameters.
+type GetSessionChangePatchesParams struct {
+	WorkspaceID string    `url:"workspace_id"`
+	SessionID   string    `url:"session_id"`
+	Scope       *string   `url:"scope"`
+	Base        *string   `url:"base"`
+	Revision    string    `url:"revision"`
+	Path        []string  `url:"path"`
+	OldPath     *[]string `url:"old_path"`
+	Reveal      *bool     `url:"reveal"`
+	Profile     *string   `url:"profile"`
+	AllProfiles *bool     `url:"all_profiles"`
+}
+
 // GetSessionChangePatches Read session changes
 func (c *Client) GetSessionChangePatches(ctx context.Context, params GetSessionChangePatchesParams) (*SessionChangePatchesResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches"
@@ -393,42 +443,4 @@ func (c *Client) GetSessionTranscriptOutline(ctx context.Context, params GetSess
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionUsageParams carries the path, query, and header parameters.
-type GetSessionUsageParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionUsage Get aggregated token usage for a session
-func (c *Client) GetSessionUsage(ctx context.Context, params GetSessionUsageParams) (*SessionUsageResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/usage"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionUsageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionUsageTurnsParams carries the path, query, and header parameters.
-type GetSessionUsageTurnsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -13,6 +13,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
+	"github.com/compozy/compozy/internal/mcppolicy"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
@@ -35,6 +36,22 @@ func (e *CallExecutor) openClient(
 	authorizationHeader string,
 ) (*managedMCPClient, error) {
 	server := resolved.Server
+	if server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
+		rendered, secrets, err := server.RenderInputs(
+			func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
+			return nil, errors.New("mcp: invalid rendered endpoint")
+		}
+		for _, secret := range secrets {
+			registerMCPRequestSecret(ctx, secret)
+		}
+		server = rendered
+		resolved.Server = server
+	}
 	transport := server.EffectiveTransport()
 	switch transport {
 	case compozyconfig.MCPServerTransportStdio:

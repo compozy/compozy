@@ -49,7 +49,11 @@ const extensionPayloadOutputSchema = `{
 const extensionSingleOutputSchema = `{
 	"type":"object",
 	"required":["extension"],
-	"properties":{"extension":` + extensionPayloadOutputSchema + `},
+	"properties":{
+		"enable_error":{"type":"object","required":["error","code"],
+			"properties":{"error":{"type":"string"},"code":{"type":"string"}},"additionalProperties":false},
+		"extension":` + extensionPayloadOutputSchema + `
+	},
 	"additionalProperties":false
 }`
 

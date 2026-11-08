@@ -237,6 +237,12 @@ type ExtensionDeclaredProfilePayload struct {
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
+// ExtensionEnableError is a daemon API value.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
 	MissingInputs               []string                    `json:"missing_inputs"`
@@ -437,11 +443,4 @@ type ExtensionSecretBindingPayload struct {
 	Stale      bool   `json:"stale"`
 	MCPServer  string `json:"mcp_server,omitempty"`
 	HeaderName string `json:"header_name,omitempty"`
-}
-
-// ExtensionSecretsPayload is a daemon API value.
-type ExtensionSecretsPayload struct {
-	DeclaredEnv  []string                        `json:"declared_env"`
-	BoundEnvKeys []string                        `json:"bound_env_keys"`
-	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
 }

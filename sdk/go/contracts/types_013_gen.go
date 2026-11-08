@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type ModelCatalogSourceRefPayload struct {
+	SourceID    string `json:"source_id"`
+	SourceKind  string `json:"source_kind"`
+	Priority    int    `json:"priority"`
+	RefreshedAt string `json:"refreshed_at,omitempty"`
+	Stale       bool   `json:"stale"`
+	LastError   string `json:"last_error,omitempty"`
+}
+
+type ModelCatalogSourceStatusPayload struct {
+	FailureReason string `json:"failure_reason,omitempty"`
+	SourceID      string `json:"source_id"`
+	SourceKind    string `json:"source_kind"`
+	ProviderID    string `json:"provider_id"`
+	Priority      int    `json:"priority"`
+	LastRefresh   string `json:"last_refresh,omitempty"`
+	NextRefresh   string `json:"next_refresh,omitempty"`
+	LastSuccess   string `json:"last_success,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	RefreshState  string `json:"refresh_state"`
+	RowCount      int    `json:"row_count"`
+	Stale         bool   `json:"stale"`
+}
+
 type ModelSourceListParams struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	Refresh      bool   `json:"refresh,omitempty"`
@@ -174,32 +198,4 @@ type PendingInteractionPayload struct {
 	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
 	Resolution        string     `json:"resolution,omitempty"`
 	ResolvedBy        string     `json:"resolved_by,omitempty"`
-}
-
-type PermissionDeniedPatch struct{}
-
-type PermissionDeniedPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	ProfileID      string             `json:"profile_id,omitempty"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
 }

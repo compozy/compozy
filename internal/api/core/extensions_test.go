@@ -24,6 +24,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	"github.com/compozy/compozy/internal/resources"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -827,6 +828,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map blocked unverified policy to unprocessable", err: extensionpkg.ErrExtensionUnverifiedPolicyBlocked, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid Git repository URL to bad request", err: registrygit.ErrInvalidRepositoryRef, want: http.StatusBadRequest},
 		{name: "Should map a blocked Git repository destination to forbidden", err: registrygit.ErrRepositoryDestinationBlocked, want: http.StatusForbidden},
+		{name: "Should map resource publication validation to bad request", err: resources.ErrValidation, want: http.StatusBadRequest},
 		{name: "Should map manifest validation to bad request", err: extensionpkg.ErrManifestInvalid, want: http.StatusBadRequest},
 
 		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},
@@ -1974,6 +1976,52 @@ func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 				payload.Diagnostic.SuggestedCommand != "git --version" ||
 				!strings.Contains(payload.Diagnostic.Message, testCase.wantMessage) {
 				t.Fatalf("diagnostic = %#v, want registered Git recovery diagnostic", payload.Diagnostic)
+			}
+		})
+	}
+}
+
+func TestInstallExtensionEnableOutcome(t *testing.T) {
+	t.Parallel()
+	for _, failEnable := range []bool{false, true} {
+		name := "Should return enabled extension with created status"
+		if failEnable {
+			name = "Should return enable error with created status"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(_ context.Context, request contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					if !request.Enable {
+						t.Fatal("enable was not forwarded")
+					}
+					item := contract.ExtensionPayload{Name: "added", Enabled: !failEnable}
+					if failEnable {
+						item.InstallEnableError = &contract.ExtensionEnableError{
+							Error: "couldn't turn on added",
+							Code:  "extension_enable_failed",
+						}
+					}
+					return item, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"local_path","ref":"/tmp/added","enable":true}`),
+			)
+			var payload contract.InstallExtensionResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusCreated || payload.Extension.Enabled == failEnable ||
+				(payload.EnableError != nil) != failEnable {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
 		})
 	}

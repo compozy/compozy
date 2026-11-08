@@ -11,7 +11,12 @@
             "tier": "community",
             "format": "compozy",
             "author": "Alexandre Akira",
-            "repository": "https://github.com/AlexandreAkao/herdr-bridge-compozy"
+            "repository": "https://github.com/AlexandreAkao/herdr-bridge-compozy",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": []
+            }
         },
         {
             "entry_id": "context7",
@@ -22,7 +27,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/context7",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/context7.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/context7.png",
+            "x-compozy": {
+                "category": "development",
+                "featured": true,
+                "supersedes": ["compozy-plugins/context7", "claude-plugins-official/context7"]
+            }
         },
         {
             "entry_id": "github",
@@ -33,7 +43,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/github",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/github.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/github.svg",
+            "x-compozy": {
+                "category": "development",
+                "featured": true,
+                "supersedes": ["compozy-plugins/github", "claude-plugins-official/github"]
+            }
         },
         {
             "entry_id": "linear",
@@ -44,7 +59,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/linear",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/linear.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/linear.svg",
+            "x-compozy": {
+                "category": "productivity",
+                "featured": true,
+                "supersedes": ["compozy-plugins/linear", "claude-plugins-official/linear"]
+            }
         },
         {
             "entry_id": "notion",
@@ -55,7 +75,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/notion",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/notion.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/notion.png",
+            "x-compozy": {
+                "category": "productivity",
+                "featured": true,
+                "supersedes": ["compozy-plugins/notion", "claude-plugins-official/notion"]
+            }
         },
         {
             "entry_id": "sentry",
@@ -66,7 +91,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/sentry",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/sentry.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/sentry.svg",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": ["compozy-plugins/sentry", "claude-plugins-official/sentry"]
+            }
         },
         {
             "entry_id": "postgres",
@@ -77,7 +107,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/postgres",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/postgres.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/postgres.png",
+            "x-compozy": {
+                "category": "data",
+                "featured": false,
+                "supersedes": []
+            }
         },
         {
             "entry_id": "supabase",
@@ -88,7 +123,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/supabase",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/supabase.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/supabase.png",
+            "x-compozy": {
+                "category": "data",
+                "featured": false,
+                "supersedes": ["claude-plugins-official/supabase"]
+            }
         },
         {
             "entry_id": "brave-search",
@@ -99,7 +139,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/brave-search",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/brave-search.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/brave-search.png",
+            "x-compozy": {
+                "category": "research",
+                "featured": false,
+                "supersedes": []
+            }
         },
         {
             "entry_id": "playwright",
@@ -110,7 +155,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/playwright",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/playwright.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/playwright.png",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": ["compozy-plugins/playwright", "claude-plugins-official/playwright"]
+            }
         },
         {
             "entry_id": "stripe",
@@ -121,7 +171,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/stripe",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/stripe.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/stripe.svg",
+            "x-compozy": {
+                "category": "finance",
+                "featured": true,
+                "supersedes": ["compozy-plugins/stripe", "claude-plugins-official/stripe"]
+            }
         },
         {
             "entry_id": "posthog",
@@ -132,7 +187,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/posthog",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/posthog.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/posthog.svg",
+            "x-compozy": {
+                "category": "data",
+                "featured": false,
+                "supersedes": ["compozy-plugins/posthog", "claude-plugins-official/posthog"]
+            }
         },
         {
             "entry_id": "airtable",
@@ -143,7 +203,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/airtable",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/airtable.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/airtable.png",
+            "x-compozy": {
+                "category": "productivity",
+                "featured": false,
+                "supersedes": ["compozy-plugins/airtable", "claude-plugins-official/airtable"]
+            }
         },
         {
             "entry_id": "gitlab",
@@ -154,7 +219,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/gitlab",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/gitlab.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/gitlab.png",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": ["compozy-plugins/gitlab", "claude-plugins-official/gitlab"]
+            }
         },
         {
             "entry_id": "atlassian",
@@ -165,7 +235,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/atlassian",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/atlassian.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/atlassian.svg",
+            "x-compozy": {
+                "category": "productivity",
+                "featured": false,
+                "supersedes": ["compozy-plugins/atlassian", "claude-plugins-official/atlassian"]
+            }
         },
         {
             "entry_id": "grafana",
@@ -176,7 +251,17 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/grafana",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/grafana.svg"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/grafana.svg",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": [
+                    "compozy-plugins/grafana-mcp",
+                    "compozy-plugins/grafana-cloud-mcp",
+                    "claude-plugins-official/grafana-mcp",
+                    "claude-plugins-official/grafana-cloud-mcp"
+                ]
+            }
         },
         {
             "entry_id": "calcom",
@@ -187,7 +272,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/calcom",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/calcom.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/calcom.png",
+            "x-compozy": {
+                "category": "productivity",
+                "featured": false,
+                "supersedes": []
+            }
         },
         {
             "entry_id": "cloudflare",
@@ -198,7 +288,12 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/cloudflare",
-            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/cloudflare.png"
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/cloudflare.png",
+            "x-compozy": {
+                "category": "development",
+                "featured": false,
+                "supersedes": ["compozy-plugins/cloudflare", "claude-plugins-official/cloudflare"]
+            }
         }
     ]
 }

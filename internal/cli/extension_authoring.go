@@ -281,8 +281,18 @@ func extensionPortableValidationHuman(report *extensionpkg.ValidationReport) str
 			renderHumanTable("Would ingest", []string{cliKindValue, cliNameValue, "Transport", cliDetailValue}, rows),
 		)
 	}
+	if len(report.Inputs) > 0 {
+		rows := make([][]string, 0, len(report.Inputs))
+		for _, input := range report.Inputs {
+			rows = append(rows, []string{input.ID, input.Type, strconv.FormatBool(input.Required)})
+		}
+		blocks = append(blocks, renderHumanTable("Inputs", []string{"Name", "Type", "Required"}, rows))
+	}
 	for _, issue := range report.Issues {
 		scope := cmp.Or(strings.TrimSpace(issue.Scope), strings.TrimSpace(issue.Path))
+		if issue.Code != "" {
+			scope += " [" + issue.Code + "]"
+		}
 		blocks = append(blocks, fmt.Sprintf(
 			"%s %s:  %s",
 			strings.ToUpper(string(issue.Severity)),

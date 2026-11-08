@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -22,6 +23,9 @@ func installExtension(
 	}
 	if running {
 		return client.InstallExtension(ctx, request)
+	}
+	if request.Enable {
+		return ExtensionRecord{}, errors.New("cli: extension install --enable requires a running daemon")
 	}
 	if request.Profile != "" || request.WorkspaceID != "" || request.Scope == workspaceFlagName {
 		return ExtensionRecord{}, errors.New("cli: scoped extension installation requires a running daemon")
@@ -75,6 +79,19 @@ func extensionInstallValidationReport(
 	plan extensionInstallPlan,
 	item *ExtensionRecord,
 ) *extensionpkg.ValidationReport {
+	var homePaths compozyconfig.HomePaths
+	dataDir := ""
+	if strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin) {
+		var err error
+		homePaths, err = deps.resolveHome()
+		if err != nil {
+			return nil
+		}
+		dataDir, err = homePaths.ExtensionDataPath(item.Name, "", "")
+		if err != nil {
+			return nil
+		}
+	}
 	for _, request := range plan.Attempts {
 		if request.Source != contract.InstallExtensionSourceLocalPath {
 			continue
@@ -87,7 +104,7 @@ func extensionInstallValidationReport(
 		if !info.IsDir() {
 			continue
 		}
-		report, err := extensionpkg.ValidateBundleReport(path)
+		report, err := extensionpkg.ValidateBundleReportWithAgentPluginDataDir(path, dataDir, item.Name)
 		if err != nil {
 			continue
 		}
@@ -98,12 +115,8 @@ func extensionInstallValidationReport(
 	if strings.TrimSpace(item.Format) != string(extensionpkg.FormatAgentPlugin) {
 		return nil
 	}
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		return nil
-	}
 	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
-	report, err := extensionpkg.ValidateBundleReport(path)
+	report, err := extensionpkg.ValidateBundleReportWithAgentPluginDataDir(path, dataDir, item.Name)
 	if err != nil {
 		return nil
 	}
