@@ -35,11 +35,16 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		var captured hookspkg.SessionAttentionChangedPayload
 		edges := 0
 		hook := attentionHookFunc(func(
-			_ context.Context,
+			ctx context.Context,
 			payload hookspkg.SessionAttentionChangedPayload,
 		) (hookspkg.SessionAttentionChangedPayload, error) {
 			if !attentionStore.wasCommitted() {
 				t.Fatal("attention hook ran before the canonical store commit")
+			}
+			if edges > 0 {
+				if ctx.Err() != nil {
+					t.Fatal("committed acknowledgement inherited request cancellation")
+				}
 			}
 			captured = payload
 			edges++
@@ -83,10 +88,13 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		commit.Before = commit.After
 		commit.Interaction.Status = store.PendingInteractionStatusCanceled
 		attentionStore.listErr = nil
+		attentionStore.requireBoundedRead = true
 		next := commit
 		next.Interaction = new(*commit.Interaction)
 		next.Interaction.InteractionID = "interaction-hook-other"
-		manager.PublishPendingInteractionCommits(t.Context(), []store.SessionAttentionCommit{commit, next})
+		disconnected, cancel := context.WithCancel(t.Context())
+		cancel()
+		manager.PublishPendingInteractionCommits(disconnected, []store.SessionAttentionCommit{commit, next})
 		if edges != 2 {
 			t.Fatalf("attention edges=%d, want one creation and one acknowledgement", edges)
 		}
@@ -187,17 +195,23 @@ func (f attentionHookFunc) DispatchSessionAttentionChanged(
 }
 
 type committingAttentionStore struct {
-	mu        sync.Mutex
-	at        time.Time
-	committed bool
-	listErr   error
+	requireBoundedRead bool
+	mu                 sync.Mutex
+	at                 time.Time
+	committed          bool
+	listErr            error
 }
 
 func (s *committingAttentionStore) GetSessionAttention(
-	context.Context,
-	string,
+	ctx context.Context,
+	_ string,
 ) (store.SessionAttention, error) {
-	return store.SessionAttention{}, nil
+	if s.requireBoundedRead {
+		if _, bounded := ctx.Deadline(); !bounded {
+			return store.SessionAttention{}, errors.New("post-commit read has no deadline")
+		}
+	}
+	return store.SessionAttention{}, ctx.Err()
 }
 
 func (s *committingAttentionStore) CreatePendingInteraction(

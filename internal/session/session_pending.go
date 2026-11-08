@@ -323,6 +323,8 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 
 // PublishPendingInteractionCommits reconciles each session once after an instance acknowledgement.
 func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits []store.SessionAttentionCommit) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	seen := make(map[string]bool)
 	for _, commit := range commits {
 		if commit.Interaction == nil {
