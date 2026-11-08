@@ -4,8 +4,6 @@ import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
-import { useMCPDefinitionAuthorization } from "@/systems/settings";
-
 import {
   extensionTrustFacts,
   extensionUpdateScope,
@@ -16,6 +14,7 @@ import {
   type ExtensionInstanceScope,
   useToggleExtension,
 } from "@/systems/extensions";
+import { useMCPDefinitionAuthorization, type UseMCPAuthorizeReturn } from "@/systems/settings";
 
 import {
   useInstallMarketplaceExtension,
@@ -60,8 +59,6 @@ import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery"
 const ENABLE_FAILURE_TOAST_MS = 10_000;
 
 interface MarketplaceActionController {
-  /** Catalog sign-in survives inventory changes and removal of the initiating row. */
-  authorizeMCP: ReturnType<typeof useMCPDefinitionAuthorization>["authorize"]["requestAuthorize"];
   dialogs: React.ReactNode;
   /** The latest Add / Ready / Couldn't-turn-on transition, for the page's polite live region. */
   announcement: string;
@@ -75,6 +72,11 @@ interface MarketplaceActionController {
   isEntryEnabling: (entry: MarketplaceCatalogListing) => boolean;
   retryEnable: (entry: MarketplaceCatalogListing) => void;
   turnOn: (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => void;
+  /**
+   * Set up's sign-in. The page owns its dialog, so a confirmed sign-in that turns the row Ready,
+   * or a refresh that drops the row, cannot unmount it before the operator presses Done.
+   */
+  requestAuthorize: UseMCPAuthorizeReturn["requestAuthorize"];
   /** Catalog row Update, addressed by the daemon-joined installed name. */
   update: (entry: MarketplaceCatalogListing) => void;
   /** Installed row Update, addressed by the local installed name. */
@@ -108,12 +110,12 @@ function useMarketplaceActionController(
   };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const authorization = useMCPDefinitionAuthorization();
   const entryActions = useRef(new Set<string>());
   const installExtension = useInstallMarketplaceExtension();
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
+  const authorization = useMCPDefinitionAuthorization();
   const [announcement, setAnnouncement] = useState("");
   const enableRecovery = useMarketplaceEnableRecovery(destination, setAnnouncement);
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
@@ -426,7 +428,6 @@ function useMarketplaceActionController(
   );
 
   return {
-    authorizeMCP: authorization.authorize.requestAuthorize,
     announcement,
     dialogs,
     enableFailureFor: enableRecovery.failureFor,
@@ -441,6 +442,7 @@ function useMarketplaceActionController(
     isEntryPending: pending.isEntryPending,
     isItemFlashing: pending.isItemFlashing,
     isItemPending: pending.isItemPending,
+    requestAuthorize: authorization.authorize.requestAuthorize,
     toggleEnabled,
     trackInstalledItems: pending.trackItems,
     update,

@@ -1115,7 +1115,9 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await product.goto(new URL(`/session/${id}`, product.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  const link = product.getByRole("button", { name: "Open fixture.txt in Files" }).first();
+  const link = sessionWindow(product, id)
+    .getByRole("button", { name: "Open fixture.txt in Files" })
+    .first();
   const sessionTabID = await windowID(sessionWindow(product, id));
   await link.click();
   const files = appWindow(product, "files");
@@ -1133,9 +1135,7 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await expect
     .poll(async () => readFile(recorded, "utf8").catch(() => ""))
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
-  await expect(
-    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
-  ).toBeVisible();
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
   await writeFile(recorded, "");
   await product
     .getByTestId(`os-window-tab-${sessionTabID}`)

@@ -526,9 +526,10 @@ func TestNativeExtensionToolsPortableContract(t *testing.T) {
 
 	t.Run("Should reject an unrelated plugin manifest", func(t *testing.T) {
 		unrelated := t.TempDir()
+		// A schema-less root plugin.json is a client-root plugin; only a foreign $schema is unrelated.
 		if err := os.WriteFile(
 			filepath.Join(unrelated, "plugin.json"),
-			[]byte(`{"$schema":"https://example.com/npm-package.schema.json","name":"npm-package"}`),
+			[]byte(`{"$schema":"https://example.com/other/plugin.schema.json","name":"npm-package"}`),
 			0o600,
 		); err != nil {
 			t.Fatalf("os.WriteFile(unrelated plugin.json) error = %v", err)

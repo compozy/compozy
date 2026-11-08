@@ -24,19 +24,6 @@ export async function startMCPAuthServer(): Promise<MCPAuthTestServer> {
     const url = new URL(request.url ?? "/", `http://${DEFAULT_HOST}`);
     requests.push(`${request.method} ${url.pathname}`);
 
-    if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
-      response.statusCode = 200;
-      response.setHeader("content-type", "application/json");
-      response.end(
-        JSON.stringify({
-          resource: `${baseURL}/mcp`,
-          authorization_servers: [baseURL],
-          scopes_supported: ["read", "write"],
-        })
-      );
-      return;
-    }
-
     if (request.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
       response.statusCode = 200;
       response.setHeader("content-type", "application/json");
@@ -49,6 +36,21 @@ export async function startMCPAuthServer(): Promise<MCPAuthTestServer> {
           code_challenge_methods_supported: ["S256"],
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code", "refresh_token"],
+        })
+      );
+      return;
+    }
+
+    // RFC 9728 protected resource metadata for the `/mcp` resource, so a server definition without
+    // an explicit issuer (a plugin's `.mcp.json`) discovers this authorization server.
+    if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/json");
+      response.end(
+        JSON.stringify({
+          resource: `${baseURL}/mcp`,
+          authorization_servers: [baseURL],
+          scopes_supported: ["read", "write"],
         })
       );
       return;

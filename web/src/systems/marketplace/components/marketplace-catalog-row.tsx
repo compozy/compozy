@@ -124,7 +124,7 @@ function MarketplaceCatalogRow({
                   detailSearch={detailSearch}
                   entry={entry}
                   item={item}
-                  onAuthorize={actions.authorizeMCP}
+                  requestAuthorize={actions.requestAuthorize}
                 />
               ) : null,
           }}
@@ -144,12 +144,12 @@ function MarketplaceSetUpAction({
   entry,
   item,
   detailSearch,
-  onAuthorize,
+  requestAuthorize,
 }: {
   entry: MarketplaceCatalogListing;
   item: InstalledExtensionView;
-  onAuthorize: MarketplaceActionController["authorizeMCP"];
   detailSearch: ReturnType<typeof catalogDetailSearch> & { q?: string; category?: string };
+  requestAuthorize: MarketplaceActionController["requestAuthorize"];
 }) {
   const navigate = useNavigate();
   const needs = installedSetupNeeds(item);
@@ -164,7 +164,7 @@ function MarketplaceSetUpAction({
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
     if (target && server && filter) {
-      onAuthorize(filter, server);
+      requestAuthorize(filter, server);
       return;
     }
     void navigate({
@@ -173,6 +173,7 @@ function MarketplaceSetUpAction({
       to: "/marketplace/$entryId",
     });
   };
+  // The sign-in dialog belongs to the page's action dialogs, which outlive this row.
   return (
     <Button
       aria-label={`Set up ${entry.name}`}

@@ -1,5 +1,4 @@
 import { ExtensionGatewayConfirmDialog, type InstalledExtensionView } from "@/systems/extensions";
-
 import { MCPAuthorizeDialog, type useMCPDefinitionAuthorization } from "@/systems/settings";
 
 import type { MarketplaceCatalogListing } from "../types";
@@ -10,6 +9,7 @@ import type { MarketplaceInstallPreview } from "./marketplace-action-controller-
 import type { useMarketplaceUpdateRecovery } from "./use-marketplace-update-recovery";
 
 interface MarketplaceActionDialogsProps {
+  /** Set up's MCP sign-in, closed until a row requests it. */
   authorization: ReturnType<typeof useMCPDefinitionAuthorization>;
   /** Installed-row update waiting for unverified consent. */
   installedTrust: {
@@ -36,7 +36,7 @@ interface MarketplaceActionDialogsProps {
   } | null;
 }
 
-/** Page-owned sign-in, consent, gateway and review dialogs, independent of catalog row lifetime. */
+/** The consent, gateway and review dialogs the marketplace action controller drives. */
 function MarketplaceActionDialogs({
   authorization,
   installedTrust,

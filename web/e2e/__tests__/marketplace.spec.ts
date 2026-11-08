@@ -1947,6 +1947,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       const trustDialog = marketplace.extensionTrustDialog;
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await expect(trustDialog).not.toContainText(/permission/i);
+      // Consent is the only gate here, so Add finishes inline without the review dialog.
       await marketplace.extensionTrustConfirm.click();
       const install = await installResponse;
       expect(install.status()).toBe(201);
