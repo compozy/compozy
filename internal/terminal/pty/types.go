@@ -32,6 +32,7 @@ const (
 )
 
 type ProcSpec struct {
+	Niceness         int
 	Argv             []string
 	Cwd              string
 	Env              map[string]string

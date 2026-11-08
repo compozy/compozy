@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/charmbracelet/x/xpty"
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/subprocess"
 	"golang.org/x/sys/unix"
 )
 
@@ -80,7 +82,8 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 			setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 		)
 	}
-	if err := device.Start(command); err != nil {
+	start := func() error { return device.Start(command) }
+	if err := subprocess.StartWithLaunchNiceness(slog.Default(), spec.Niceness, start); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
 			setup.cleanup(), closeUnixFiles(writer, reader.File, device),

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/subprocess"
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
@@ -78,7 +80,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 		interp.Params(append([]string{"--"}, argv...)...),
 		interp.StdIO(inputReader, outputWriter, outputWriter),
 		interp.ExecHandlers(func(interp.ExecHandlerFunc) interp.ExecHandlerFunc {
-			return proc.execHandler(spec.Env, spec.UnsetEnv)
+			return proc.execHandler(spec.Env, spec.UnsetEnv, spec.Niceness)
 		}),
 	)
 	if err != nil {
@@ -113,7 +115,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 	return proc, nil
 }
 
-func (p *pipeProc) execHandler(env map[string]string, unset []string) interp.ExecHandlerFunc {
+func (p *pipeProc) execHandler(env map[string]string, unset []string, niceness int) interp.ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		handler := interp.HandlerCtx(ctx)
 		path, err := interp.LookPathDir(handler.Dir, handler.Env, args[0])
@@ -127,7 +129,7 @@ func (p *pipeProc) execHandler(env map[string]string, unset []string) interp.Exe
 		command.Stdout = handler.Stdout
 		command.Stderr = handler.Stderr
 		configurePipeCommand(command)
-		if err := command.Start(); err != nil {
+		if err := subprocess.StartWithLaunchNiceness(slog.Default(), niceness, command.Start); err != nil {
 			return fmt.Errorf("terminal pipe: start %q: %w", args[0], err)
 		}
 		startedAt, err := procutil.StartedAt(command.Process.Pid)

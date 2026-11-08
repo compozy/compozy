@@ -899,12 +899,13 @@ These fields keep many concurrent agents from saturating the host and starving t
 | `admission_threshold` | float    | `1.5`   | `0` to disable, or a positive number.                              | Normalized load (1-minute load average divided by logical CPUs) above which background work waits. |
 | `admission_max_wait`  | duration | `2m`    | `1s` through `30m` when the threshold is enabled; otherwise `0s`+. | Longest one background session start or prompt waits for load to drop before it proceeds anyway.   |
 
-CompozyOS starts each agent in its own process group and applies `agent_niceness` to that group right
-after launch, so every tool, test runner, linter, and build the agent starts inherits the lower
-priority. On an idle machine the agent still gets all available CPU; the niceness only matters when
-processes compete. Raising priority back requires root, so the value is fixed for the lifetime of the
-agent process. If the operating system refuses the change, the session still starts and the daemon logs
-one warning.
+CompozyOS starts each agent in its own process group. On Linux, it applies `agent_niceness` on a
+disposable launch thread before exec, so even children forked immediately at startup inherit the
+priority. The launch thread is discarded without changing the daemon's other threads. Agent-owned
+PTY and pipe terminals use the same launch policy. On macOS, priority is applied to the process
+group after startup; a fork in flight during that adjustment can retain the previous priority.
+Windows ignores this setting. Priority failures are logged and do not prevent launch. On an idle
+machine the agent still gets all available CPU; niceness matters when processes compete for CPU.
 
 When `admission_threshold` is above zero, the daemon samples the load average every five seconds.
 While normalized load exceeds the threshold, new sessions and prompts started by scheduled or

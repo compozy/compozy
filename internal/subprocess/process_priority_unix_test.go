@@ -5,12 +5,44 @@ package subprocess
 import (
 	"errors"
 	"io"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/procutil"
 )
 
 func TestLaunchAppliesNiceness(t *testing.T) {
+	// Invariant: the managed command starts niced before Launch can adjust its group.
+	// Owner/canonical suite: subprocess launch priority with real shell descendants.
+	t.Run("Should apply priority before a managed command executes", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("before-exec priority is Linux-specific")
+		}
+		cmd, stdin, stdout, _, _, err := startManagedCommand(LaunchConfig{
+			Command: "sh", Args: []string{"-c", `ps -o ni= -p $$; sh -c 'ps -o ni= -p $$'`}, Niceness: 19,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := stdin.Close(); err != nil {
+				t.Errorf("close stdin: %v", err)
+			}
+			if err := cmd.Wait(); err != nil {
+				t.Errorf("wait: %v", err)
+			}
+		})
+		output, err := io.ReadAll(stdout)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Fields(string(output)); len(got) != 2 || got[0] != "19" || got[1] != "19" {
+			t.Fatalf("startup niceness = %q, want parent and immediate child at 19", output)
+		}
+	})
+
 	t.Run("Should lower the launched process group to the configured niceness", func(t *testing.T) {
 		process := launchHelperProcess(t, "raw_echo", LaunchConfig{DisableTransport: true, Niceness: 6})
 		defer shutdownProcess(t, process)

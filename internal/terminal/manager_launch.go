@@ -36,6 +36,9 @@ func (m *Service) launchTerminal(
 			release()
 		}
 	}()
+	if launch.origin.Kind == ActorKindAgent {
+		launch.spec.Niceness = m.agentNiceness
+	}
 	proc, err := m.pty.Start(ctx, launch.spec)
 	if err != nil {
 		releaseWorktreeNow(launch.worktreeRelease)

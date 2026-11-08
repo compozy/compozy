@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -121,8 +122,38 @@ func TestSignalProcessGroupIDStrict(t *testing.T) {
 	})
 }
 
+// Invariant: Linux launches inherit priority before exec and immediate forks inherit it.
+// Owner/canonical suite: procutil real-process group niceness.
 func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should inherit launch priority before exec and through immediate forks", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("before-exec thread priority is Linux-specific")
+		}
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		inherited, err := CurrentProcessNiceness()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := max(7, inherited+3)
+		if want > maxTestNiceness {
+			t.Skip("inherited priority leaves no room to lower priority")
+		}
+		const child = `sh -c 'echo $$; read hold <&3'`
+		group := startNicenessProcessGroup(t, child+" & "+child+" & wait", want)
+		first, second := group.readPID(t), group.readPID(t)
+		for _, pid := range []int{group.pgid, first, second} {
+			if got := testMemberNiceness(t, group.pgid, pid); got != want {
+				t.Fatalf("pid %d niceness = %d, want %d", pid, got, want)
+			}
+		}
+		if got, err := CurrentProcessNiceness(); err != nil || got != inherited {
+			t.Fatalf("caller niceness = %d, error = %v, want unchanged %d", got, err, inherited)
+		}
+	})
 
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
@@ -217,7 +248,7 @@ type nicenessProcessGroup struct {
 
 // startNicenessProcessGroup starts script as the leader of a new process group and
 // kills the whole group on cleanup.
-func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup {
+func startNicenessProcessGroup(t *testing.T, script string, niceness ...int) nicenessProcessGroup {
 	t.Helper()
 	// This helper owns child cleanup. t.Context is canceled before Cleanup runs;
 	// racing that implicit kill with the group signal can return EPERM during exec on Darwin.
@@ -237,7 +268,24 @@ func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup
 		t.Fatalf("Pipe() error = %v", err)
 	}
 	command.ExtraFiles = []*os.File{holdRead}
-	if err := command.Start(); err != nil {
+	target := 0
+	if len(niceness) > 0 {
+		target = niceness[0]
+	}
+	priorityErr, startErr := StartWithNiceness(target, func() error {
+		// This observation precedes Start, so a post-start adjustment cannot pass the test.
+		if runtime.GOOS == "linux" && target > 0 {
+			current, err := CurrentProcessNiceness()
+			if err != nil {
+				return err
+			}
+			if current < target {
+				return fmt.Errorf("pre-exec thread niceness = %d, want at least %d", current, target)
+			}
+		}
+		return command.Start()
+	})
+	if err := errors.Join(priorityErr, startErr); err != nil {
 		closeHoldPipe(t, holdRead, holdWrite)
 		t.Fatalf("Start() error = %v", err)
 	}
