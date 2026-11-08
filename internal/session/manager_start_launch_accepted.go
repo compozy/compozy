@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -174,38 +175,67 @@ func (m *Manager) discardAcceptedSessionStart(
 	accepted *acceptedSessionStart,
 	startErr error,
 ) error {
-	if accepted.spec.deriveReceipt != nil {
-		if !accepted.session.isDeriveCommitted() {
-			return m.discardUncommittedSessionStart(accepted, startErr)
-		}
-		// A committed derived child is named by its receipt: keep its files and catalog
-		// row so a retry with the same key, or a restart, recovers it.
-		return errors.Join(startErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
+	if accepted.spec.deriveReceipt != nil && !accepted.session.isDeriveCommitted() {
+		return m.discardUncommittedSessionStart(accepted, startErr)
 	}
-	session := accepted.session
-	// Staging retains the database-family lease. Close the recorder before
-	// acquiring it, so final backfill cannot wait on our own deletion capability.
+	// Staging retains the family lease. Final close must finish before staging,
+	// and a committed derived child must retain its receipt and history.
+	retain := accepted.spec.deriveReceipt != nil
 	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
-	session.setRecorder(nil)
+	accepted.session.setRecorder(nil)
+	failure := errors.Join(startErr, closeErr)
 	if closeErr != nil {
-		// Join a timed-out close before reopening; the old writer still owns cleanup.
 		joinErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+		failure = errors.Join(failure, joinErr)
 		complete := joinErr == nil
 		if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
 			complete = cleanup.CleanupComplete()
 		}
-		if complete {
-			accepted.storage.recorder = nil
-		} else {
-			failure := errors.Join(startErr, closeErr, joinErr)
+		if !complete {
 			return m.deferFailedStartCleanup(accepted, failure)
 		}
-		retainCtx, cancel := m.lifecycleCleanupContext()
-		defer cancel()
-		return errors.Join(startErr, closeErr, joinErr,
-			m.retainAcceptedSessionAfterDiscardFailure(retainCtx, accepted, startErr))
+		retain = true
 	}
 	accepted.storage.recorder = nil
+	pending, result := m.settleClosedSessionStart(ctx, accepted, failure, retain)
+	if pending {
+		return m.deferFailedStartCleanup(accepted, errors.Join(failure, result))
+	}
+	return result
+}
+
+// settleClosedSessionStart arbitrates failure retention, deletion and requested stop
+// only after cleanup releases the captured recorder. No recorder is reopened before the gate.
+func (m *Manager) settleClosedSessionStart(
+	ctx context.Context, accepted *acceptedSessionStart, failure error, retain bool,
+) (bool, error) {
+	releaseCommit, err := acquireSessionStartLaunchCommit(ctx, accepted.run)
+	if err != nil {
+		return true, err
+	}
+	defer releaseCommit()
+	settleCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	if retain || accepted.session.stopWasRequested() {
+		if err := m.reopenAcceptedSessionRecorder(settleCtx, accepted); err != nil {
+			return true, err
+		}
+	}
+	if accepted.session.stopWasRequested() {
+		releaseCommit()
+		return false, m.settleCanceledSessionStart(settleCtx, accepted)
+	}
+	if retain {
+		return false, errors.Join(failure, m.retainAcceptedSessionAfterDiscardFailure(settleCtx, accepted, failure))
+	}
+	return m.discardClosedSessionStart(settleCtx, accepted, failure)
+}
+
+// discardClosedSessionStart holds launchCommit while staging and deleting a failed start.
+func (m *Manager) discardClosedSessionStart(
+	ctx context.Context, accepted *acceptedSessionStart, startErr error,
+) (bool, error) {
+	session := accepted.session
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
 		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
@@ -215,7 +245,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, stageErr),
 			)
-			return errors.Join(startErr, stageErr, retainErr)
+			return accepted.storage.recorder == nil, errors.Join(startErr, stageErr, retainErr)
 		}
 		staged = &entry
 	}
@@ -230,7 +260,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, catalogErr, rollbackErr),
 			)
-			return errors.Join(startErr, catalogErr, rollbackErr, retainErr)
+			return accepted.storage.recorder == nil, errors.Join(startErr, catalogErr, rollbackErr, retainErr)
 		}
 	}
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -244,58 +274,61 @@ func (m *Manager) discardAcceptedSessionStart(
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, cleanupErr, directoryErr)
+	return false, errors.Join(startErr, cleanupErr, directoryErr)
 }
 
 // deferFailedStartCleanup keeps the existing start run pending until its recorder releases ownership.
 func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failure error) error {
-	waiter, ok := accepted.storage.recorder.(interface{ WaitForCleanup(context.Context) error })
-	if !ok || accepted.run == nil {
-		return errors.Join(failure, ErrRecoveryPersistence)
+	if accepted.run == nil {
+		return errors.Join(failure, ErrRecoveryPersistence, m.cleanupFailedStart("", nil, accepted.proc))
 	}
 	accepted.cleanupPending = true
 	go func() {
-		var settlementErr error
-		runErr := failure
-		defer func() {
-			m.finishSessionStartRun(accepted.session.ID, accepted.run, errors.Join(runErr, settlementErr))
-		}()
+		// Caller expiry and manager cancellation cannot release this resource owner.
+		// Shutdown still bounds its wait through the existing tracked start run.
+		ctx := context.WithoutCancel(m.lifecycleCtx)
 		processErr := m.cleanupFailedStart("", nil, accepted.proc)
 		if processErr == nil {
 			accepted.proc = nil
 		}
-		if waitErr := waiter.WaitForCleanup(m.lifecycleCtx); waitErr != nil {
-			settlementErr = errors.Join(processErr, waitErr)
-			return
-		}
+		m.joinFailedStartRecorder(ctx, accepted.storage.recorder)
 		accepted.storage.recorder = nil
-		ctx, cancel := m.lifecycleCleanupContext()
-		defer cancel()
-		if recorderErr := m.reopenAcceptedSessionRecorder(ctx, accepted); recorderErr != nil {
-			settlementErr = errors.Join(processErr, recorderErr)
-		} else {
-			releaseCommit, commitErr := acquireSessionStartLaunchCommit(ctx, accepted.run)
-			switch {
-			case commitErr != nil:
-				settlementErr = errors.Join(processErr, commitErr)
-			case accepted.session.stopWasRequested():
-				releaseCommit()
-				runErr = nil
-				settlementErr = errors.Join(processErr, m.settleCanceledSessionStart(ctx, accepted))
-			default:
-				settlementErr = errors.Join(
-					processErr,
-					m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, failure),
-				)
-				releaseCommit()
+		var result error
+		for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+			var pending bool
+			pending, result = m.settleClosedSessionStart(ctx, accepted, failure, true)
+			if !pending {
+				break
 			}
+			m.sessionLogger(accepted.session).Error("session: failed start settlement pending", "error", result)
+			// Reopening has not succeeded: preserve Starting/Stopping and its owner
+			// until storage becomes available, without duplicating lifecycle events.
+			timer := time.NewTimer(delay)
+			<-timer.C
 		}
-		if settlementErr != nil {
-			m.sessionLogger(accepted.session).
-				Error("session: settle failed start after recorder cleanup", "error", settlementErr)
-		}
+		m.finishSessionStartRun(accepted.session.ID, accepted.run, errors.Join(processErr, result))
 	}()
 	return failure
+}
+
+// joinFailedStartRecorder also joins EventRecorder-only implementations through Close.
+// An error without a completion signal keeps ownership and retries the bounded close.
+func (m *Manager) joinFailedStartRecorder(ctx context.Context, recorder EventRecorder) {
+	if recorder == nil {
+		return
+	}
+	if waiter, ok := recorder.(interface{ WaitForCleanup(context.Context) error }); ok {
+		if waiter.WaitForCleanup(ctx) == nil {
+			return
+		}
+	}
+	for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+		if m.cleanupFailedStart("", recorder, nil) == nil {
+			return
+		}
+		timer := time.NewTimer(delay)
+		<-timer.C
+	}
 }
 
 // discardUncommittedSessionStart sweeps a start whose catalog registration never
@@ -319,7 +352,9 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	failure error,
 ) error {
 	session := accepted.session
-	recorderErr := m.reopenAcceptedSessionRecorder(ctx, accepted)
+	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
+		return err
+	}
 	persistErr := m.persistFailedStart(ctx, session, failure, false)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
@@ -327,7 +362,7 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(recorderErr, persistErr, cleanupErr)
+	return errors.Join(persistErr, cleanupErr)
 }
 
 // reopenAcceptedSessionRecorder restores the retained owner without clearing prior history.

@@ -54,9 +54,14 @@ Incomplete cleanup retains its resources and every close error remains explicit.
 The existing start run stays tracked until that cleanup finishes, then reopens the
 recorder and settles failure history. A concurrent stop detaching the session's
 handle does not discard startup's captured recorder or bypass its cleanup.
-After reopening, deferred settlement rechecks stop intent through the existing
-launch gate and uses normal canceled-start finalization when stop was requested,
-preserving the terminal event, post-stop hook and notification.
+Both synchronous and deferred settlement acquire the existing launch gate before
+reopening or deleting storage, then honor any accepted stop through normal
+canceled-start finalization. A stalled stop projection cannot expire the cleanup
+owner or leave a reopened recorder behind. Cleanup survives manager cancellation,
+joins recorders without optional wait methods through bounded Close attempts, and
+retries an unavailable reopen before publishing stopped state or failure events.
+The existing start run owns these retries and shutdown still bounds its wait.
+This preserves the terminal event, post-stop hook and notification.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.

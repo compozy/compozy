@@ -808,14 +808,20 @@ func TestTriageDispatcher(t *testing.T) {
 	// Invariant: discard rollback retains failed-start history after closing the original recorder.
 	// Owner: temporary triage lifecycle; canonical triage dispatcher suite.
 	for _, tc := range []struct {
-		name                                                        string
-		catalogFailure, pendingCleanup, detached, stopDuringCleanup bool
+		name                                                                         string
+		catalogFailure, pendingCleanup, detached, stopDuringCleanup, synchronousStop bool
+		noWaiter, cancelLifetime, blockedStop, reopenFailure                         bool
 	}{
-		{"Should retain failed triage history when catalog deletion fails", true, false, false, false},
-		{"Should retain failed triage history after joining a failed recorder close", false, false, false, false},
-		{"Should defer failed triage settlement until recorder cleanup completes", false, true, false, false},
-		{"Should join a detached recorder before failed triage deletion", false, true, true, false},
-		{"Should complete stop hooks and notification after deferred triage cleanup", false, true, false, true},
+		{name: "Should retain failed triage history when catalog deletion fails", catalogFailure: true},
+		{name: "Should retain failed triage history after joining a failed recorder close"},
+		{name: "Should defer failed triage settlement until recorder cleanup completes", pendingCleanup: true},
+		{name: "Should join a detached recorder before failed triage deletion", pendingCleanup: true, detached: true},
+		{name: "Should complete stop hooks and notification after deferred triage cleanup", pendingCleanup: true, stopDuringCleanup: true},
+		{name: "Should honor stop committed during synchronous recorder close", stopDuringCleanup: true, synchronousStop: true},
+		{name: "Should join cleanup for a recorder without optional wait methods", pendingCleanup: true, noWaiter: true},
+		{name: "Should settle failed triage after its manager lifetime is canceled", pendingCleanup: true, cancelLifetime: true},
+		{name: "Should retain the start owner while stop catalog persistence holds the launch gate", pendingCleanup: true, stopDuringCleanup: true, blockedStop: true},
+		{name: "Should retain failed triage ownership until recorder reopening recovers", catalogFailure: true, reopenFailure: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -827,6 +833,10 @@ func TestTriageDispatcher(t *testing.T) {
 				catalog.deleteErr = deleteErr
 				wantErr = deleteErr
 			}
+			stopEntered, stopRelease := make(chan struct{}), make(chan struct{})
+			unblockStop := sync.OnceFunc(func() { close(stopRelease) })
+			defer unblockStop()
+			blockStop := sync.OnceFunc(func() { close(stopEntered); <-stopRelease })
 			var postStops atomic.Int32
 			hooks := &spyHookDispatcher{
 				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
@@ -842,7 +852,21 @@ func TestTriageDispatcher(t *testing.T) {
 				return WithSessionCatalog(catalog)
 			}, func(*globaldb.GlobalDB) Option {
 				return WithHookSet(fullHookSet(hooks))
+			}, func(db *globaldb.GlobalDB) Option {
+				return WithSessionCreationStore(&triageCreationStore{
+					SessionCreationStore: db,
+					beforeRegister: func(info *store.SessionInfo) {
+						if tc.blockedStop && info.State == string(StateStopping) {
+							blockStop()
+						}
+					},
+				})
 			}).harness
+			lifetime, cancelLifetime := context.WithCancel(h.manager.lifecycleCtx)
+			h.manager.lifecycleCtx = lifetime
+			defer cancelLifetime()
+			var reopenAllowed atomic.Bool
+			reopenAllowed.Store(!tc.reopenFailure)
 			opener := h.manager.openStore
 			var opened atomic.Int32
 			var fail atomic.Bool
@@ -850,11 +874,15 @@ func TestTriageDispatcher(t *testing.T) {
 			var lease *sessiondb.FamilyLease
 			defer func() { lease.Release() }()
 			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+				attempt := opened.Add(1)
+				if attempt > 1 && !reopenAllowed.Load() {
+					return nil, errors.New("recorder reopen unavailable")
+				}
 				recorder, err := opener(ctx, owner, path)
 				if err != nil {
 					return nil, err
 				}
-				if opened.Add(1) == 1 {
+				if attempt == 1 {
 					if err := recorder.Record(ctx, store.SessionEvent{
 						TurnID:    "failed-start-history",
 						Type:      acp.EventTypeUserMessage,
@@ -874,11 +902,23 @@ func TestTriageDispatcher(t *testing.T) {
 							closeContext, cancel = context.WithCancel(ctx)
 							cancel()
 						}
-						return &terminalCloseFailingRecorder{
+						var beforeClose func()
+						if tc.synchronousStop {
+							beforeClose = sync.OnceFunc(func() {
+								if err := h.manager.RequestStop(t.Context(), "sess-1", CauseUserRequested); err != nil {
+									t.Error(err)
+								}
+							})
+						}
+						wrapped := &terminalCloseFailingRecorder{
 							EventRecorder: recorder, fail: &fail, closeErr: closeErr, terminal: true,
-							persistentCloseErr: true,
-							closeContext:       closeContext,
-						}, nil
+							persistentCloseErr: !tc.noWaiter, beforeClose: beforeClose,
+							closeContext: closeContext,
+						}
+						if tc.noWaiter {
+							return &struct{ EventRecorder }{wrapped}, nil
+						}
+						return wrapped, nil
 					}
 				}
 				return recorder, nil
@@ -895,19 +935,30 @@ func TestTriageDispatcher(t *testing.T) {
 				}
 				return nil, errors.New("provider start unavailable")
 			}
-			dispatcher := &TriageDispatcher{
-				Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+			if tc.synchronousStop {
+				_, err := h.manager.Create(t.Context(), &CreateOpts{
+					Origin:     workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "failed-instance"},
+					InstanceID: "failed-instance", AgentName: "coder", Workspace: h.workspaceID,
+					DiscardStartFailure: true, Type: SessionTypeTriage,
+				})
+				if err != nil {
+					t.Fatalf("stop during close returned startup failure: %v", err)
+				}
+			} else {
+				dispatcher := &TriageDispatcher{
+					Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+				}
+				_, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
+					ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+				}}, heartbeat.CheckDigest{}, func(string) error {
+					t.Error("failed start bound a session")
+					return nil
+				})
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("discard error = %v, want %v", err, wantErr)
+				}
 			}
-			_, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
-				ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
-			}}, heartbeat.CheckDigest{}, func(string) error {
-				t.Error("failed start bound a session")
-				return nil
-			})
-			if !errors.Is(err, wantErr) {
-				t.Fatalf("discard error = %v, want %v", err, wantErr)
-			}
-			if tc.pendingCleanup {
+			if tc.pendingCleanup || tc.reopenFailure {
 				infos, err := h.manager.ListAll(t.Context())
 				if err != nil || len(infos) != 1 || infos[0].State == StateStopped {
 					t.Fatalf("cleanup settled before releasing its recorder: %#v, %v", infos, err)
@@ -916,26 +967,62 @@ func TestTriageDispatcher(t *testing.T) {
 				if run == nil {
 					t.Fatal("failed start lost its cleanup owner")
 				}
+				var stopDone chan error
+				var opensBeforeSettlement int32
 				if tc.stopDuringCleanup {
-					if err := h.manager.RequestStop(t.Context(), infos[0].ID, CauseUserRequested); err != nil {
+					if tc.blockedStop {
+						stopDone = make(chan error, 1)
+						go func() { stopDone <- h.manager.RequestStop(t.Context(), infos[0].ID, CauseUserRequested) }()
+						select {
+						case <-stopEntered:
+							opensBeforeSettlement = opened.Load()
+						case <-t.Context().Done():
+							t.Fatal(t.Context().Err())
+						}
+					} else if err := h.manager.RequestStop(t.Context(), infos[0].ID, CauseUserRequested); err != nil {
 						t.Fatal(err)
 					}
 				}
+				if tc.cancelLifetime {
+					cancelLifetime()
+				}
 				lease.Release()
-				if tc.stopDuringCleanup {
-					outcome, err := h.manager.AwaitStopped(testutil.Context(t), infos[0].ID)
-					if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
-						t.Fatalf("stop after cleanup = %+v, %v", outcome, err)
+				reopenAllowed.Store(true)
+				if tc.blockedStop {
+					// Exceed the former recovery deadline while the real stop projection
+					// owns launchCommit. Cleanup must not open another recorder or finish.
+					timer := time.NewTimer(defaultLifecycleTimeout + 250*time.Millisecond)
+					select {
+					case <-run.done:
+						timer.Stop()
+						t.Fatal("start owner finished before stop projection released")
+					case <-timer.C:
 					}
-					if postStops.Load() != 1 || h.notifier.stoppedCount() != 1 {
-						t.Fatalf(
-							"stop hook=%d notifications=%d, want one each",
-							postStops.Load(),
-							h.notifier.stoppedCount(),
-						)
+					if opened.Load() != opensBeforeSettlement {
+						t.Fatal("cleanup reopened its recorder before launch gate ownership")
 					}
-				} else if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, closeErr) {
-					t.Fatalf("deferred settlement = %v, want original close error", err)
+					unblockStop()
+					if err := <-stopDone; err != nil {
+						t.Fatal(err)
+					}
+				}
+				if !tc.stopDuringCleanup {
+					if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, wantErr) {
+						t.Fatalf("deferred settlement = %v, want original failure %v", err, wantErr)
+					}
+				}
+			}
+			if tc.stopDuringCleanup {
+				outcome, err := h.manager.AwaitStopped(testutil.Context(t), "sess-1")
+				if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+					t.Fatalf("stop after cleanup = %+v, %v", outcome, err)
+				}
+				if postStops.Load() != 1 || h.notifier.stoppedCount() != 1 {
+					t.Fatalf(
+						"stop hook=%d notifications=%d, want one each",
+						postStops.Load(),
+						h.notifier.stoppedCount(),
+					)
 				}
 			}
 			infos, err := h.manager.ListAll(t.Context())
@@ -1654,4 +1741,17 @@ func TestHumanPromptClearsExpiredPermissionState(t *testing.T) {
 			t.Fatal("session replaced denial state during dispatch")
 		}
 	})
+}
+
+// triageCreationStore injects a catalog I/O delay while retaining the real creation transaction.
+type triageCreationStore struct {
+	store.SessionCreationStore
+	beforeRegister func(*store.SessionInfo)
+}
+
+func (s *triageCreationStore) RegisterSessionWithCreationIdentity(
+	ctx context.Context, info *store.SessionInfo, identity store.SessionCreationIdentity,
+) (store.SessionCreationRegistration, error) {
+	s.beforeRegister(info)
+	return s.SessionCreationStore.RegisterSessionWithCreationIdentity(ctx, info, identity)
 }

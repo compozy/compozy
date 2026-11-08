@@ -116,7 +116,14 @@ history and stopped state to settle. Repeat after a stop has detached the sessio
 recorder; deletion must still join the recorder captured by startup.
 Request stop while that cleanup waits. After release, require the requested stop
 cause, one post-stop hook, one stopped notification and one terminal event; the
-old startup failure must not replace the stop outcome.
+old startup failure must not replace the stop outcome. Repeat with stop committed
+inside a synchronously completed Close, and with its catalog projection holding
+the launch gate beyond the old cleanup deadline: no recorder may reopen before
+the gate releases, and the same stop effects must complete once. Cancel the manager
+lifetime while cleanup waits, and repeat with a recorder exposing only the base
+EventRecorder methods. Both must retain their cleanup owner until I/O releases.
+Finally fail reopening after deletion rollback: keep Starting and its start run
+tracked until storage recovers, then append the diagnostic and terminal event once.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence
