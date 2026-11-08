@@ -336,6 +336,32 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatalf("remaining events = %#v, want one terminal", events)
 		}
 	})
+	t.Run("Should recover a terminal recorded after setup without a later publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterQueryRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: "terminal-window",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "terminal-window")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		// No later publication wakes delivery; completing persistence must recover the saved terminal.
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone ||
+			events[0].TurnID != "terminal-window" {
+			t.Fatalf("completion recovery = %#v, want exactly the saved terminal and stream closure", events)
+		}
+	})
 	for _, tc := range []struct {
 		name        string
 		failMaximum bool
@@ -4777,6 +4803,8 @@ type promptDeliveryQueryRecorder struct {
 	maxReadError    error
 	afterCursorRead func(context.Context) error
 	cursorRead      sync.Once
+	afterQueryRead  func(context.Context) error
+	queryRead       sync.Once
 }
 
 func (r *promptDeliveryQueryRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
@@ -4795,7 +4823,11 @@ func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.Eve
 	if r.failAlways || r.failNext.Swap(false) {
 		return nil, r.readError
 	}
-	return r.EventRecorder.Query(ctx, query)
+	events, err := r.EventRecorder.Query(ctx, query)
+	if err == nil && r.afterQueryRead != nil {
+		r.queryRead.Do(func() { err = r.afterQueryRead(ctx) })
+	}
+	return events, err
 }
 
 func (r *promptDeliveryQueryRecorder) RecordPersisted(
