@@ -1178,6 +1178,12 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			if !h.manager.hasPendingStopSettlement(active.ID) || h.notifier.stoppedCount() != 0 {
 				t.Fatal("uncommitted history lost its recovery obligation or published a terminal event")
 			}
+			if action == "restart" {
+				// The old daemon cannot retry settlement after the replacement boots.
+				if err := h.manager.shutdownProcessWatchers(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
 			fail.Store(false)
 			switch action {
 			case "stop":
@@ -1515,6 +1521,11 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			first, err := h.manager.AwaitStopped(t.Context(), active.ID)
 			if !errors.Is(err, ErrRecoveryPersistence) || !first.Verified {
 				t.Fatalf("pending stop = %#v, %v", first, err)
+			}
+			// Join the old daemon's watchers while persistence still fails, so only
+			// the replacement manager can complete the durable receipt after restart.
+			if err := h.manager.shutdownProcessWatchers(t.Context()); err != nil {
+				t.Fatal(err)
 			}
 			fail.Store(false)
 			if err := h.manager.closeSessionRecorder(active); err != nil {
