@@ -37,37 +37,45 @@ Runtime truth beats copy preference. Generated API/CLI references beat paraphras
 
 ### Canonical One-Liner
 
-CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
+CompozyOS is the autonomous control plane for your agents: it keeps every agent session visible and steerable and lets always-on agents check in on their own, without anyone watching each terminal.
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, Codex, and Cursor) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
+The bottleneck stopped being the model. It became managing the sessions. Someone running Claude Code, Codex, and Cursor in parallel ends up with five terminals, a prompt typed into the wrong one, and no clear view of which agent is waiting on them. CompozyOS gives those agents one control plane: sessions side by side, always-on agents that check in on their own, handoffs between sessions, and approvals in the desktop app, with the same state available through CLI, HTTP/SSE, UDS, and tools. Loops, triggers, permissions, and automation come built in, so there is no stack to assemble around it.
 
 ### Product Category
 
-Use `operating system for AI agents` (or `agent operating system`) as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The category is a supporting label, never the headline claim: the promise is the system around the agent delivered already built, and the category explains what kind of product delivers it. The OS claim rests on the assembled, integrated system, not on a desktop metaphor or a feature count.
+Use `operating system for AI agents` (or `agent operating system`) as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The category is a supporting label, never the headline claim: the promise is the control plane (every agent session visible and steerable), and the category explains what kind of product delivers it. The OS claim rests on the assembled, integrated system, not on a desktop metaphor or a feature count.
 
 ### Hero Lock
 
-> **The system around the agent, already built.**
+> **The autonomous control plane for your agents.**
 >
-> One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.
+> See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you.
 
-Use the headline and subhead together, verbatim, on the landing hero, with `An operating system for AI agents` as a small category label near them. The retired hero ("The only true OS for AI agents" and its OS-test definition) must not reappear on any evergreen surface: it led with architecture and category purity, which are mechanisms, never the promise. Dated launch posts that already shipped it stay as history.
+Use the headline and subhead together, verbatim, on the landing hero, with `An operating system for AI agents` as a small category label near them. The product UI is the hero image. A terminal appears only as the "before" picture or on docs surfaces.
+
+Two retired heroes must not reappear on any evergreen surface:
+
+- "The system around the agent, already built." It sold the absence of assembly work, while the problem people feel is keeping track of many sessions at once. "Already built" stays available in prose as proof that nothing needs assembling; it is never the headline.
+- "The only true OS for AI agents" and its OS-test definition. It led with architecture and category purity, which are mechanisms, never the promise.
+
+Dated launch posts that already shipped either line stay as history.
 
 ### Primary Promise
 
-People get advanced, continuous agent work (loops, scheduled automation, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
+People see and steer every agent session they run, and get advanced, continuous agent work (loops, scheduled automation, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
 
 ### Differentiator Ladder
 
-Lead with compression, then prove it through the connected parts:
+Lead with the control plane, then prove it through the connected parts:
 
-1. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
-2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
-3. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
-4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
-5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
+1. **A control plane for every session:** sessions from different agent CLIs, always-on agents, handoffs, and approvals share the product UI, so the person knows which agent needs them without checking each terminal.
+2. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
+3. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
+4. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
+5. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
+6. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
 
 ### What CompozyOS Is Not
 
@@ -83,9 +91,9 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 
 ### Primary Narrative
 
-The system around the agent, already built.
+The autonomous control plane for your agents.
 
-Anyone can prompt an agent; making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
+The bottleneck stopped being the model. It became managing the sessions. CompozyOS keeps every agent session visible, lets always-on agents check in without being asked, and calls the person only when a decision is theirs. Underneath that view, making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
 
 The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + cron and webhooks + permissions + approvals + observability + glue scripts), never a named rival. Architecture ("one runtime, one state model") explains why the system holds; it never leads.
 
@@ -110,7 +118,7 @@ Every major copy surface should draw from one or more proof pillars.
 
 ### Feature Priority by Surface
 
-- **Homepage:** the compression promise first (advanced agent work, no stack to assemble), built-in capability proof second (create, automate, supervise), agent neutrality and extensibility third. Architecture appears only as a why-it-holds caption.
+- **Homepage:** the control plane promise first (every agent session visible and steerable, shown through the product UI), built-in capability proof second (create, automate, supervise, nothing to assemble), agent neutrality and extensibility third. Architecture appears only as a why-it-holds caption.
 - **Runtime docs:** the reader's problem first, architecture second.
 - **Web UI:** truthful state and the person's next action first, marketing language last.
 - **CLI help:** exact verb behavior first, product narrative only when it clarifies intent.
@@ -686,7 +694,7 @@ CompozyOS is <the promise as a noun phrase>: <what it keeps doing for the person
 Approved:
 
 ```text
-CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
+CompozyOS is the autonomous control plane for your agents: it keeps every agent session visible and steerable and lets always-on agents check in on their own, without anyone watching each terminal.
 ```
 
 ### Hero
@@ -896,7 +904,7 @@ Before shipping copy or product-facing text, verify:
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, Codex, and Cursor) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
-- The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
+- The promise leads: the autonomous control plane for your agents. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
 - No `wedge`, no `full-feature`, and no `simple`/`easy` claims without a metric behind them.
 - No centralization promise (`one workspace`, `all your agents in one place`).
 - Register and audience are checked separately: every end-user surface reads plainly today, and present-tense audience claims stay within developers and technical operators — people who don't write code stay future-framed.

@@ -11,7 +11,7 @@ const meta: Meta<typeof CodeBlock> = {
     docs: {
       description: {
         component:
-          "Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback. Plain code by default; `showPrompt` opts into the accent `$ ` shell prompt for real terminal transcripts.",
+          "Code block per DESIGN.md §4. Canvas-deep container, Geist Mono body at 14px/1.6, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback. Plain code by default; `showPrompt` opts into the accent `$ ` shell prompt for real terminal transcripts.",
       },
     },
   },

@@ -146,7 +146,7 @@ function CodeBlockLine({
 }
 
 /**
- * Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body on
+ * Code block per DESIGN.md §4. Canvas-deep container, `--font-mono` body on
  * the shared block-code tier (`--text-code-block`, same as JsonViewer),
  * Vitesse syntax highlighting, optional language eyebrow, and a ghost copy
  * button. `showPrompt` opts into the accent `$ ` shell prompt — reach for it

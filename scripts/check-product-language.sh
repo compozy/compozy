@@ -209,6 +209,54 @@ if ((${#kind_findings[@]} > 0)); then
   failed=1
 fi
 
+# Retired built-in identity (brand identity v1.2, business rule 8, UT-012): the orange accent and the
+# Inter/Playfair/JetBrains Mono default stacks. Explicit user-chosen fonts stay legal: the Appearance
+# catalog, its loaders and their tests are allowlisted, as are the identity palette and the tests
+# that assert the retired values are gone.
+identity_roots=(packages/ui packages/site packages/launch-video packages/brand web/src desktop/src README.md)
+retired_color='(?i:e8572a|rgba\(\s*232\s*,\s*87\s*,\s*42\b)'
+retired_font='(?:Inter[\t ]+Variable|Playfair|JetBrains[\t ]+Mono)'
+retired_stack="(?:--font-[\\w-]+\\s*:|font-family\\s*:|fontFamily\\s*[:=])[^;{}\\[\\]]*?${retired_font}|\\bDEFAULT_FONT_\\w*[^=\\n]*=\\s*\\{[^}]*?${retired_font}"
+
+rule_c_in_scope() {
+  local rel="$1" root
+  for root in "${identity_roots[@]}"; do
+    [[ "$rel" == "$root" || "$rel" == "$root"/* ]] && return 0
+  done
+  return 1
+}
+
+rule_c_allowed() {
+  case "$1" in
+    web/src/systems/theme/lib/font-appearance.ts | web/src/systems/theme/__tests__/theme-runtime.test.ts) return 0 ;;
+    web/src/systems/os/apps/settings/__tests__/appearance-settings-pane.test.tsx) return 0 ;;
+    packages/ui/src/lib/identity-palette.ts | packages/ui/src/lib/__tests__/identity-palette.test.ts) return 0 ;;
+    packages/site/lib/__tests__/opengraph-image.test.tsx | packages/ui/src/components/custom/__tests__/logo.test.tsx) return 0 ;;
+  esac
+  return 1
+}
+
+if ((explicit)); then
+  rule_c_paths=("${paths[@]}")
+else
+  rule_c_paths=("${identity_roots[@]}")
+fi
+identity_findings=()
+rule_c_files="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_stack}" -- "${rule_c_paths[@]}")"
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  rel="$(relative_path "$file")"
+  rule_c_in_scope "$rel" || continue
+  rule_c_allowed "$rel" && continue
+  identity_findings+=("Rule C: $file ($rel) keeps the retired orange accent or a retired default font stack")
+done <<<"$rule_c_files"
+
+if ((${#identity_findings[@]} > 0)); then
+  printf '%s\n' "${identity_findings[@]}" >&2
+  echo "Retired brand identity found. Use the volt brand tokens and the Figtree / Instrument Sans / Geist Mono defaults." >&2
+  failed=1
+fi
+
 if ((failed)); then
   exit 1
 fi

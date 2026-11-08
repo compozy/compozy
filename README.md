@@ -1,10 +1,10 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="imgs/compozy-lockup-light.png">
-    <img src="imgs/compozy-lockup-dark.png" alt="Compozy" height="64">
+    <img src="imgs/compozy-lockup-dark.png" alt="CompozyOS" height="64">
   </picture>
   <h1>CompozyOS</h1>
-  <p><strong>The system around the agent, already built.</strong></p>
+  <p><strong>The autonomous control plane for your agents.</strong></p>
   <p>An operating system for AI agents.</p>
   <p>
     <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
