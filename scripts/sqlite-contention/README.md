@@ -125,8 +125,10 @@ completes any remaining PASSIVE tail, and commits the existing `user_version`
 unchanged. This writes one header page and synchronizes the new WAL header on
 the maintenance connection before pinning a new read mark. Application writes
 queue before `BEGIN IMMEDIATE` during restart I/O; existing reads use their
-independent pool. Admission and SQLite BUSY during startup defer priming to the
-worker instead of failing database open. Long-lived external readers can defer
+independent pool. Startup admission timeouts and a BUSY initial writer probe
+defer priming to the worker. If an external writer takes the lock after that
+probe, restart retains admission while retrying; cancellation of the startup
+context can then abort database open. Long-lived external readers can defer
 reuse as usual.
 
 `synchronous=NORMAL`, the one-second maintenance cadence, shutdown backfill,
