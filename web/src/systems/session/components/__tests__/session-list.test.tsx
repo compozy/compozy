@@ -306,6 +306,29 @@ describe("SessionList agent identity", () => {
   });
 });
 
+// Invariant: an operator's untitled session reads "New session", while a session an automation or
+// an always-on agent started names its origin even when that name is its agent's (#1388).
+// Owner: SessionList row title; canonical suite: this file.
+describe("SessionList row title", () => {
+  const base = { ...sessions[0]!, agent_name: "issue-triage", instance_id: undefined };
+
+  it("Should name automation and always-on rows by origin and keep operator rows untitled", () => {
+    renderList({
+      sessions: [
+        { ...base, id: "automation-row", type: "system", name: "issue-triage" },
+        { ...base, id: "always-on-row", type: "user", instance_id: "ainst-1", name: undefined },
+        { ...base, id: "operator-row", type: "user", name: "issue-triage" },
+      ],
+    });
+
+    const title = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
+    expect(title("automation-row")).toHaveTextContent("issue-triage");
+    expect(title("always-on-row")).toHaveTextContent("issue-triage");
+    expect(title("operator-row")).toHaveTextContent("New session");
+    expect(title("operator-row")).not.toHaveTextContent("issue-triage");
+  });
+});
+
 // Invariant: catalog intent warms one scoped session head before selection, without crossing a
 // workspace/profile boundary or rereading retained history. Owner: SessionList entry + Query cache.
 describe("SessionList entry preloading", () => {

@@ -36,12 +36,16 @@ function Time({
   className,
   ...props
 }: TimeProps) {
-  useRelativeTick(mode !== "absolute", refreshMs);
+  const now = useRelativeTick(mode !== "absolute", refreshMs);
 
-  const relative = formatRelativeTime(iso);
+  const relative = formatRelativeTime(iso, now);
   const absolute = formatAbsoluteTime(iso);
   const primary =
-    mode === "absolute" ? absolute : mode === "compact" ? formatCompactRelativeTime(iso) : relative;
+    mode === "absolute"
+      ? absolute
+      : mode === "compact"
+        ? formatCompactRelativeTime(iso, now)
+        : relative;
   const title = mode === "absolute" ? relative : absolute;
 
   return (
