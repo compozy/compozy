@@ -11,7 +11,8 @@
         "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit",
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src scripts vite.config.ts vitest.config.ts",
         "test": "vitest run",
-        "logos": "bun scripts/build-logos.ts"
+        "logos": "bun scripts/build-logos.ts",
+        "export:product-shots": "bun scripts/product-shots.ts"
     },
     "dependencies": {
         "@compozy/ui": "workspace:*",
@@ -31,6 +32,7 @@
         "@types/react-dom": "19.3.0",
         "@vitejs/plugin-react": "6.1.2",
         "jsdom": "30.1.3",
+        "playwright": "1.64.1",
         "sharp": "0.35.5",
         "tailwindcss": "4.3.3",
         "vite": "8.3.5",

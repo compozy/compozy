@@ -2,7 +2,6 @@
 // Atmosphere = approved generated key visuals (raster, landscape + portrait crops).
 // Product shots = captures of real web/ Storybook stories in the new theme (ADR-005, slice S3).
 // Diagrams = bars/lanes/stack rebuilt from @compozy/ui tokens (ADR-005, slice S3).
-// Until S3 lands, product shots and diagrams render a marked placeholder slot in <Visual>.
 
 export type AtmosphereName =
   | "swarm"
@@ -12,7 +11,7 @@ export type AtmosphereName =
   | "cone"
   | "block"
   | "terrain";
-/** Captured from web/ Storybook in the new theme; ids pinned in product-shots.ts (S3). */
+/** Captured from web/ Storybook in the new theme; stories pinned in art/product-pins.ts. */
 export type ProductShotName =
   | "desktop"
   | "sessions"
@@ -20,7 +19,7 @@ export type ProductShotName =
   | "agents"
   | "orchestrate"
   | "approval";
-/** Not product screens: rebuilt as token diagrams in S3 (ADR-005 §3). */
+/** Not product screens: token diagrams in art/diagrams/ (ADR-005 §3). */
 export type DiagramName = "stack" | "lanes" | "bars";
 export type VisualName = AtmosphereName | ProductShotName | DiagramName;
 
@@ -164,6 +163,23 @@ export const visualByName = (n: VisualName): VisualInfo => {
 };
 
 export const VISUALS_BASE = "/brand/visuals";
+
+export type VisualTheme = "dark" | "light";
+const VISUAL_THEMES: readonly VisualTheme[] = ["dark", "light"];
+
+/** Every export id the /visual/$id route serves: `<visual>-<dark|light>`. */
+export const visualExportIds = (): string[] =>
+  visuals.flatMap(v => VISUAL_THEMES.map(t => `${v.name}-${t}`));
+
+/** `<visual>-<dark|light>` → its parts, or null for an unknown visual or theme. */
+export function parseVisualExportId(id: string): { name: VisualName; theme: VisualTheme } | null {
+  const cut = id.lastIndexOf("-");
+  const name = id.slice(0, cut);
+  const theme = id.slice(cut + 1);
+  const v = visuals.find(x => x.name === name);
+  if (cut < 1 || !v || !VISUAL_THEMES.includes(theme as VisualTheme)) return null;
+  return { name: v.name, theme: theme as VisualTheme };
+}
 
 /**
  * Files published under public/brand/visuals/hi/ (the 4x tier). Hi-res masters live outside git

@@ -21,7 +21,6 @@
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
-        "noUncheckedIndexedAccess": true,
         "paths": {
             "@/*": ["./src/*"]
         }

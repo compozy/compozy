@@ -2,10 +2,23 @@
 //   <Visual name="swarm" />                   atmosphere, picks the portrait crop when the box is portrait
 //   <Visual name="swarm" x={0.8} y={0.4} />   focal point (object-position), 0..1
 //   <Visual name="desktop" inline ratio="16/10" />  block flow with an aspect ratio
-// Product shots and diagrams arrive with slice S3 (ADR-005); until then they render a marked slot.
+//   <Visual name="desktop" />                 product capture in perspective (cover, background)
+//   <Visual name="desktop" inline />          product capture as a flat crop
+//   <Visual name="lanes" theme="light" />     token diagram, on paper
 import { cn } from "@compozy/ui/utils";
 
-import { atmosphereSrcSet, visualByName, VISUALS_BASE, type VisualName } from "./visuals";
+import { BarsDiagram } from "./diagrams/bars-diagram";
+import { LanesDiagram } from "./diagrams/lanes-diagram";
+import { StackDiagram } from "./diagrams/stack-diagram";
+import { ProductShot } from "./product-shot";
+import {
+  atmosphereSrcSet,
+  visualByName,
+  VISUALS_BASE,
+  type DiagramName,
+  type ProductShotName,
+  type VisualName,
+} from "./visuals";
 
 interface VisualProps {
   name: VisualName;
@@ -67,31 +80,24 @@ export function Visual({
             />
           )}
         </>
+      ) : v.family === "product" ? (
+        <ProductShot
+          name={name as ProductShotName}
+          theme={theme}
+          x={x ?? v.focus[0]}
+          y={y ?? v.focus[1]}
+          mode={inline ? "flat" : "perspective"}
+          alt={inline ? `${v.title}: ${v.idea}` : ""}
+        />
       ) : (
-        <PendingVisualSlot title={v.title} family={v.family} name={name} />
+        <Diagram name={name as DiagramName} x={x ?? v.focus[0]} y={y ?? v.focus[1]} />
       )}
     </div>
   );
 }
 
-/** Marked slot for a product shot or diagram that slice S3 fills (ADR-005). */
-function PendingVisualSlot({
-  title,
-  family,
-  name,
-}: {
-  title: string;
-  family: string;
-  name: string;
-}) {
-  return (
-    <div
-      data-visual-pending="S3"
-      className="absolute inset-0 grid place-items-end justify-end bg-[radial-gradient(circle_at_75%_45%,color-mix(in_oklab,var(--color-brand-volt)_18%,transparent),transparent_62%)] p-[4%]"
-    >
-      <p className="m-0 rounded-md border border-dashed border-(--b-line) bg-(--b-surface) px-3 py-1.5 mono-label text-[11px] text-(--b-muted)">
-        {family === "product" ? "Product shot" : "Diagram"} · {title} · {name}
-      </p>
-    </div>
-  );
+function Diagram({ name, x, y }: { name: DiagramName; x: number; y: number }) {
+  if (name === "stack") return <StackDiagram x={x} y={y} />;
+  if (name === "lanes") return <LanesDiagram />;
+  return <BarsDiagram />;
 }

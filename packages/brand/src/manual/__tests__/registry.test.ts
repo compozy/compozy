@@ -7,7 +7,8 @@ import { EDITION, pages, VERSION } from "../chapters";
 
 const ROUTES_DIR = fileURLToPath(new URL("../../routes", import.meta.url));
 /** route files that are not chapters: the document shell and the static not-found page */
-const NON_CHAPTER_ROUTES = new Set(["__root", "404"]);
+// Export surfaces from _dx.md Routes are not chapters.
+const NON_CHAPTER_ROUTES = new Set(["__root", "404", "visual.$id"]);
 
 const routeFileOf = (slug: string) => (slug === "" ? "index" : slug);
 

@@ -22,6 +22,7 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as ProductRouteImport } from './routes/product'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as VisualsRouteImport } from './routes/visuals'
+import { Route as VisualIdRouteImport } from './routes/visual.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,11 @@ const VisualsRoute = VisualsRouteImport.update({
   path: '/visuals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VisualIdRoute = VisualIdRouteImport.update({
+  id: '/visual/$id',
+  path: '/visual/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/visual/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/visual/$id'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/visual/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   ProductRoute: typeof ProductRoute
   SocialRoute: typeof SocialRoute
   VisualsRoute: typeof VisualsRoute
+  VisualIdRoute: typeof VisualIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisualsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/visual/$id': {
+      id: '/visual/$id'
+      path: '/visual/$id'
+      fullPath: '/visual/$id'
+      preLoaderRoute: typeof VisualIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductRoute: ProductRoute,
   SocialRoute: SocialRoute,
   VisualsRoute: VisualsRoute,
+  VisualIdRoute: VisualIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

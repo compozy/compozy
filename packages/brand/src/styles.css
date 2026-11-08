@@ -7,6 +7,8 @@
 /* @compozy/ui owns every brand colour, font stack and gradient (ADR-002). The manual reads
    them by name and never redefines a value. */
 @import "@compozy/ui/tokens.css";
+/* Live product pieces render @compozy/ui components (ADR-005); their utilities live there. */
+@source "../../ui/src/**/*.{ts,tsx}";
 
 /* Manual layout scale only: no colour lives here. */
 @theme {

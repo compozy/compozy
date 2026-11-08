@@ -3,6 +3,8 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import { visualExportIds } from "./src/manual/art/visuals.ts";
+
 // Static manual: every route prerenders to .output/public. crawlLinks follows the chapter nav,
 // failOnError keeps a broken page from shipping silently (ADR-001).
 export default defineConfig({
@@ -24,7 +26,11 @@ export default defineConfig({
         // Downloads under /brand/ are static files, not pages.
         filter: ({ path }) => !path.startsWith("/brand/"),
       },
-      pages: [{ path: "/404", prerender: { enabled: true, outputPath: "/404.html" } }],
+      pages: [
+        { path: "/404", prerender: { enabled: true, outputPath: "/404.html" } },
+        // Export surfaces are not linked from the manual, so crawlLinks never reaches them.
+        ...visualExportIds().map(id => ({ path: `/visual/${id}` })),
+      ],
     }),
     viteReact(),
   ],
