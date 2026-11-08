@@ -130,6 +130,18 @@ Also refuse catalog deletion and block the real rollback rename: preserve the
 staged directory for existing tombstone recovery, return ErrRecoveryPersistence,
 and release the active start owner without publishing stopped history at a missing
 original path. A transient reopen failure must still retain its owner and recover.
+Fail the retained diagnostic append before and after commit. Keep the start owner
+tracked until writes recover, then require exactly one diagnostic and terminal row.
+Block final Close of the reopened recorder and verify Shutdown still joins it.
+Repeat with CleanupComplete exposed without WaitForCleanup: a historical close
+error must not prevent settlement after resources release. Also fail logical
+activation persistence and request Stop during deletion; it must respect the same
+launch gate and report the vanished session without another lookup or writes.
+If session-manager shutdown is incomplete, a competing foreground daemon must
+still fail to acquire the singleton lock, and the old cleanup must retain access
+to its shared database. Complete cleanup and retry Shutdown: only then may the
+database close and a replacement acquire the lock. The daemon shutdown suite
+owns this process-exclusivity check.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -62,6 +63,23 @@ func (m *Manager) recordTranscriptMarker(
 	turnID string,
 	in transcriptMarkerInput,
 ) error {
+	normalized, err := m.prepareTranscriptMarkerEvent(session, turnID, in)
+	if err != nil {
+		return err
+	}
+	if err := m.recordEvent(ctx, session, normalized); err != nil {
+		return fmt.Errorf("session: record transcript marker %q: %w", in.Kind, err)
+	}
+	m.notifyAgentEvent(ctx, session, normalized)
+	return nil
+}
+
+// prepareTranscriptMarkerEvent preserves one marker identity across a retried append.
+func (m *Manager) prepareTranscriptMarkerEvent(
+	session *Session,
+	turnID string,
+	in transcriptMarkerInput,
+) (acp.AgentEvent, error) {
 	kind, summary, evidence := in.Kind, in.Summary, in.Evidence
 	if kind == transcript.MarkerProviderFailure && (session != nil || in.Route != nil) {
 		evidence = maps.Clone(evidence)
@@ -72,19 +90,15 @@ func (m *Manager) recordTranscriptMarker(
 	}
 	marker, err := transcript.NewMarker(kind, summary, m.now(), evidence)
 	if err != nil {
-		return fmt.Errorf("session: build transcript marker %q: %w", kind, err)
+		return acp.AgentEvent{}, fmt.Errorf("session: build transcript marker %q: %w", kind, err)
 	}
 	event, err := marker.AgentEvent("", turnID)
 	if err != nil {
-		return fmt.Errorf("session: convert transcript marker %q: %w", kind, err)
+		return acp.AgentEvent{}, fmt.Errorf("session: convert transcript marker %q: %w", kind, err)
 	}
 	event = event.WithEventID(in.EventID)
 	normalized := transcript.RedactAgentEvent(m.normalizeEvent(session, turnID, event))
-	if err := m.recordEvent(ctx, session, normalized); err != nil {
-		return fmt.Errorf("session: record transcript marker %q: %w", kind, err)
-	}
-	m.notifyAgentEvent(ctx, session, normalized)
-	return nil
+	return normalized, nil
 }
 
 func (m *Manager) persistResumeReplayMarker(

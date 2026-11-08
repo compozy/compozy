@@ -811,6 +811,7 @@ func TestTriageDispatcher(t *testing.T) {
 		name                                                                         string
 		catalogFailure, pendingCleanup, detached, stopDuringCleanup, synchronousStop bool
 		noWaiter, cancelLifetime, blockedStop, reopenFailure                         bool
+		completionOnly, reopenedClose, persistFailure, afterCommit                   bool
 	}{
 		{name: "Should retain failed triage history when catalog deletion fails", catalogFailure: true},
 		{name: "Should retain failed triage history after joining a failed recorder close"},
@@ -822,6 +823,10 @@ func TestTriageDispatcher(t *testing.T) {
 		{name: "Should settle failed triage after its manager lifetime is canceled", pendingCleanup: true, cancelLifetime: true},
 		{name: "Should retain the start owner while stop catalog persistence holds the launch gate", pendingCleanup: true, stopDuringCleanup: true, blockedStop: true},
 		{name: "Should retain failed triage ownership until recorder reopening recovers", catalogFailure: true, reopenFailure: true},
+		{name: "Should accept cleanup completion without an optional waiter", pendingCleanup: true, completionOnly: true},
+		{name: "Should track cleanup of the reopened failed triage recorder", catalogFailure: true, reopenedClose: true},
+		{name: "Should retry failed triage event persistence before releasing ownership", catalogFailure: true, persistFailure: true},
+		{name: "Should retry a committed triage event without duplicating history", catalogFailure: true, persistFailure: true, afterCommit: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -869,6 +874,9 @@ func TestTriageDispatcher(t *testing.T) {
 			reopenAllowed.Store(!tc.reopenFailure)
 			opener := h.manager.openStore
 			var opened atomic.Int32
+			var writesAllowed atomic.Bool
+			writesAllowed.Store(!tc.persistFailure)
+			writeErr := errors.New("retained event write unavailable")
 			var fail atomic.Bool
 			fail.Store(!tc.catalogFailure)
 			var lease *sessiondb.FamilyLease
@@ -915,11 +923,37 @@ func TestTriageDispatcher(t *testing.T) {
 							persistentCloseErr: !tc.noWaiter, beforeClose: beforeClose,
 							closeContext: closeContext,
 						}
+						if tc.completionOnly {
+							return &struct {
+								EventRecorder
+								interfaceCleanupComplete
+							}{wrapped, wrapped}, nil
+						}
 						if tc.noWaiter {
 							return &struct{ EventRecorder }{wrapped}, nil
 						}
 						return wrapped, nil
 					}
+				}
+				if attempt == 2 && tc.reopenedClose {
+					lease, err = sessiondb.AcquireFamilyLease(ctx, path)
+					if err != nil {
+						return nil, errors.Join(err, recorder.Close(ctx))
+					}
+					closeCtx, cancel := context.WithCancel(ctx)
+					cancel()
+					return &terminalCloseFailingRecorder{
+						EventRecorder: recorder, fail: &fail, closeErr: closeErr, terminal: true,
+						persistentCloseErr: true, closeContext: closeCtx,
+					}, nil
+				}
+				if tc.persistFailure {
+					return &retainedEventFailingRecorder{
+						EventRecorder: recorder,
+						allowed:       &writesAllowed,
+						err:           writeErr,
+						afterCommit:   tc.afterCommit,
+					}, nil
 				}
 				return recorder, nil
 			}
@@ -956,6 +990,20 @@ func TestTriageDispatcher(t *testing.T) {
 				})
 				if !errors.Is(err, wantErr) {
 					t.Fatalf("discard error = %v, want %v", err, wantErr)
+				}
+			}
+			if tc.reopenedClose || tc.persistFailure {
+				run := h.manager.sessionStartRun("sess-1")
+				if run == nil {
+					t.Fatal("retained settlement released its owner before persistence or cleanup completed")
+				}
+				if _, active := h.manager.Get("sess-1"); !active {
+					t.Fatal("pending retained settlement lost its active owner")
+				}
+				lease.Release()
+				writesAllowed.Store(true)
+				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, wantErr) {
+					t.Fatalf("retained settlement = %v, want original failure %v", err, wantErr)
 				}
 			}
 			if tc.pendingCleanup || tc.reopenFailure {
@@ -1051,12 +1099,13 @@ func TestTriageDispatcher(t *testing.T) {
 	// transfers ownership to the existing tombstone recovery instead of retrying forever.
 	// Owner: temporary session lifecycle; canonical triage dispatcher suite.
 	for _, tc := range []struct {
-		name                      string
-		shutdown, rollbackFailure bool
+		name                                     string
+		shutdown, rollbackFailure, logicalActive bool
 	}{
 		{name: "Should not recreate a discarded triage session for a waiting stop"},
 		{name: "Should not recreate a discarded triage session during shutdown", shutdown: true},
 		{name: "Should hand a failed triage rollback to tombstone recovery", rollbackFailure: true},
+		{name: "Should serialize a stop behind failed logical activation deletion", logicalActive: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1065,6 +1114,7 @@ func TestTriageDispatcher(t *testing.T) {
 			unblockDelete := sync.OnceFunc(func() { close(releaseDelete) })
 			defer unblockDelete()
 			deleteErr := errors.New("catalog deletion refused")
+			startErr := errors.New("provider or logical activation unavailable")
 			var h *deriveHarness
 			h = newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
 				return WithSessionCatalog(&triageDeleteCatalog{
@@ -1083,17 +1133,33 @@ func TestTriageDispatcher(t *testing.T) {
 						return nil
 					},
 				})
+			}, func(db *globaldb.GlobalDB) Option {
+				return WithSessionCreationStore(&triageCreationStore{
+					SessionCreationStore: db, beforeRegister: func(*store.SessionInfo) {},
+					registerErr: func(info *store.SessionInfo) error {
+						if tc.logicalActive && info.State == string(StateActive) {
+							return startErr
+						}
+						return nil
+					},
+				})
 			})
 			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
-				return nil, errors.New("provider start unavailable")
+				return nil, startErr
 			}
 			createDone := make(chan error, 1)
 			go func() {
-				_, err := h.manager.Create(t.Context(), &CreateOpts{
+				opts := CreateOpts{
 					Origin:     workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "failed-instance"},
 					InstanceID: "failed-instance", AgentName: "coder", Workspace: h.workspaceID,
 					DiscardStartFailure: true, Type: SessionTypeTriage,
-				})
+				}
+				var err error
+				if tc.logicalActive {
+					_, err = h.manager.CreateAccepted(t.Context(), &CreateAcceptedOpts{Session: opts})
+				} else {
+					_, err = h.manager.Create(t.Context(), &opts)
+				}
 				createDone <- err
 			}()
 			var start *sessionStartRun
@@ -1110,6 +1176,20 @@ func TestTriageDispatcher(t *testing.T) {
 						return
 					}
 					h.manager.cleanupDeleteTombstones()
+					meta, err := store.ReadSessionMeta(store.SessionMetaFile(original))
+					if err != nil || meta.ID != "sess-1" {
+						t.Errorf("restored failed-start metadata = %s, %v", meta.ID, err)
+					}
+					entries, err := os.ReadDir(h.homePaths.SessionsDir)
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					for _, entry := range entries {
+						if strings.HasPrefix(entry.Name(), sessionDeleteStagedPrefix) {
+							t.Errorf("recovered tombstone remains: %s", entry.Name())
+						}
+					}
 				}()
 				createErr := <-createDone
 				joinCtx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -1154,8 +1234,8 @@ func TestTriageDispatcher(t *testing.T) {
 				t.Fatal(t.Context().Err())
 			}
 			unblockDelete()
-			if err := <-createDone; err == nil {
-				t.Fatal("failed start unexpectedly succeeded")
+			if err := <-createDone; !errors.Is(err, startErr) {
+				t.Fatalf("failed start = %v, want injected %v", err, startErr)
 			}
 			stopErr := <-stopDone
 			if tc.shutdown && stopErr != nil || !tc.shutdown && !errors.Is(stopErr, ErrSessionNotFound) {
@@ -1872,12 +1952,18 @@ func TestHumanPromptClearsExpiredPermissionState(t *testing.T) {
 type triageCreationStore struct {
 	store.SessionCreationStore
 	beforeRegister func(*store.SessionInfo)
+	registerErr    func(*store.SessionInfo) error
 }
 
 func (s *triageCreationStore) RegisterSessionWithCreationIdentity(
 	ctx context.Context, info *store.SessionInfo, identity store.SessionCreationIdentity,
 ) (store.SessionCreationRegistration, error) {
 	s.beforeRegister(info)
+	if s.registerErr != nil {
+		if err := s.registerErr(info); err != nil {
+			return store.SessionCreationRegistration{}, err
+		}
+	}
 	return s.SessionCreationStore.RegisterSessionWithCreationIdentity(ctx, info, identity)
 }
 
@@ -1892,4 +1978,42 @@ func (c *triageDeleteCatalog) DeleteSession(ctx context.Context, id string) erro
 		return err
 	}
 	return c.GlobalDB.DeleteSession(ctx, id)
+}
+
+// interfaceCleanupComplete exposes completion independently of optional waiting.
+type interfaceCleanupComplete interface{ CleanupComplete() bool }
+
+// retainedEventFailingRecorder injects write failure on either side of SQLite commit.
+type retainedEventFailingRecorder struct {
+	EventRecorder
+	allowed     *atomic.Bool
+	err         error
+	afterCommit bool
+}
+
+func (r *retainedEventFailingRecorder) Record(ctx context.Context, event store.SessionEvent) error {
+	blocked := !r.allowed.Load() && event.Type == acp.EventTypeError
+	if blocked && !r.afterCommit {
+		return r.err
+	}
+	err := r.EventRecorder.Record(ctx, event)
+	if blocked {
+		return errors.Join(err, r.err)
+	}
+	return err
+}
+
+func (r *retainedEventFailingRecorder) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, bool, error) {
+	blocked := !r.allowed.Load() && event.Type == acp.EventTypeError
+	if blocked && !r.afterCommit {
+		return store.SessionEvent{}, false, r.err
+	}
+	row, inserted, err := r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
+	if blocked {
+		return row, inserted, errors.Join(err, r.err)
+	}
+	return row, inserted, err
 }

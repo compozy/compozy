@@ -5,6 +5,8 @@ type shutdownTargets struct {
 	closeLogger func() error
 	infoPath    string
 	retention   observerRetentionStopper
+	// A failed manager shutdown still owns the shared database and singleton.
+	sessionShutdownIncomplete bool
 }
 
 // snapshotShutdownTargetsLocked captures the current runtime generation.

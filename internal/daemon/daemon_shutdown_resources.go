@@ -6,6 +6,11 @@ import (
 )
 
 func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Caller expiry is not resource release. Keep persistence and the singleton
+	// available to owned cleanup until a retry joins it or this process exits.
+	if targets.sessionShutdownIncomplete {
+		return
+	}
 	if targets.viewPatches != nil {
 		targets.viewPatches.CloseViewPatches()
 	}

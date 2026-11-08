@@ -74,12 +74,18 @@ func (m *Manager) prepareStartingSessionStop(
 		// Failed-start deletion may have completed while this stop waited on
 		// launchCommit. Never persist through a stale pointer after removal.
 		if current, ok := m.Get(id); !ok || current != session {
-			return nil, nil, false, nil
+			return session, run, true, ErrSessionNotFound
 		}
 		state := session.Info().State
-		if state != StateStarting && state != StateStopping {
+		if state != StateStarting && state != StateStopping &&
+			(state != StateActive || m.sessionStartRun(id) != run) {
 			releaseLaunchCommit()
 			return nil, nil, false, nil
+		}
+		if state == StateActive {
+			if err := m.dispatchSessionPreStop(ctx, session); err != nil {
+				return session, run, true, err
+			}
 		}
 	}
 
@@ -120,10 +126,10 @@ func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 		return nil, nil
 	}
 	state := session.Info().State
-	if state != StateStarting && state != StateStopping {
+	run := m.sessionStartRun(id)
+	if state != StateStarting && state != StateStopping && (state != StateActive || run == nil) {
 		return nil, nil
 	}
-	run := m.sessionStartRun(id)
 	if run == nil && session.processHandle() != nil {
 		return nil, nil
 	}
@@ -147,6 +153,9 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 			state := session.Info().State
 			if state == StateStarting || state == StateStopping {
 				_, stopErr := m.stopStartingSession(ctx, id, CauseShutdown, "manager shutdown")
+				if errors.Is(stopErr, ErrSessionNotFound) {
+					continue
+				}
 				shutdownErr = errors.Join(shutdownErr, stopErr)
 				continue
 			}

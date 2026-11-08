@@ -113,6 +113,7 @@ func (d *Daemon) shutdownRuntimeSessions(ctx context.Context, targets *shutdownT
 	}
 
 	if err := d.shutdownSessionManager(ctx, targets.sessions); err != nil {
+		targets.sessionShutdownIncomplete = true
 		*errs = append(*errs, err)
 	}
 }

@@ -192,6 +192,7 @@ func (m *Manager) discardAcceptedSessionStart(
 			complete = cleanup.CleanupComplete()
 		}
 		if !complete {
+			accepted.recorderClosing = true
 			return m.deferFailedStartCleanup(accepted, failure)
 		}
 		retain = true
@@ -229,7 +230,8 @@ func (m *Manager) settleClosedSessionStart(
 		return false, m.settleCanceledSessionStart(settleCtx, accepted)
 	}
 	if retain {
-		return false, errors.Join(failure, m.retainAcceptedSessionAfterDiscardFailure(settleCtx, accepted, failure))
+		pending, retainErr := m.retainAcceptedSessionAfterDiscardFailure(settleCtx, accepted, failure)
+		return pending, errors.Join(failure, retainErr)
 	}
 	return m.discardClosedSessionStart(settleCtx, accepted, failure)
 }
@@ -243,12 +245,12 @@ func (m *Manager) discardClosedSessionStart(
 	if accepted.spec.cleanupSessionDir {
 		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
 		if stageErr != nil {
-			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
+			pending, retainErr := m.retainAcceptedSessionAfterDiscardFailure(
 				ctx,
 				accepted,
 				errors.Join(startErr, stageErr),
 			)
-			return accepted.storage.recorder == nil && !errors.Is(retainErr, ErrRecoveryPersistence),
+			return pending,
 				errors.Join(startErr, stageErr, retainErr)
 		}
 		staged = &entry
@@ -259,12 +261,12 @@ func (m *Manager) discardClosedSessionStart(
 			if staged != nil {
 				rollbackErr = m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{*staged})
 			}
-			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
+			pending, retainErr := m.retainAcceptedSessionAfterDiscardFailure(
 				ctx,
 				accepted,
 				errors.Join(startErr, catalogErr, rollbackErr),
 			)
-			return accepted.storage.recorder == nil && !errors.Is(retainErr, ErrRecoveryPersistence),
+			return pending,
 				errors.Join(startErr, catalogErr, rollbackErr, retainErr)
 		}
 	}
@@ -296,10 +298,18 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 		if processErr == nil {
 			accepted.proc = nil
 		}
-		m.joinFailedStartRecorder(ctx, accepted.storage.recorder)
-		accepted.storage.recorder = nil
 		var result error
 		for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+			if accepted.recorderClosing {
+				m.joinFailedStartRecorder(ctx, accepted.storage.recorder)
+				accepted.storage.recorder = nil
+				accepted.recorderClosing = false
+			}
+			if accepted.retainedFailure != nil && accepted.retainedFailure.committed {
+				m.finishRetainedSessionStart(accepted)
+				result = errors.Join(failure, result, accepted.retainedFailure.diagnosticErr)
+				break
+			}
 			var pending bool
 			pending, result = m.settleClosedSessionStart(ctx, accepted, failure, true)
 			if !pending {
@@ -328,7 +338,11 @@ func (m *Manager) joinFailedStartRecorder(ctx context.Context, recorder EventRec
 		}
 	}
 	for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
-		if m.cleanupFailedStart("", recorder, nil) == nil {
+		closeErr := m.cleanupFailedStart("", recorder, nil)
+		if closeErr == nil {
+			return
+		}
+		if cleanup, ok := recorder.(interface{ CleanupComplete() bool }); ok && cleanup.CleanupComplete() {
 			return
 		}
 		timer := time.NewTimer(delay)
@@ -352,25 +366,38 @@ func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart,
 
 // retainAcceptedSessionAfterDiscardFailure preserves history when deletion rolls back.
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
-	ctx context.Context,
-	accepted *acceptedSessionStart,
-	failure error,
-) error {
-	session := accepted.session
+	ctx context.Context, accepted *acceptedSessionStart, failure error,
+) (bool, error) {
 	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
-			return m.releaseMissingSessionStart(accepted, err)
+			return false, m.releaseMissingSessionStart(accepted, err)
 		}
-		return err
+		return true, err
 	}
-	persistErr := m.persistFailedStart(ctx, session, failure, false)
+	if err := m.persistRetainedFailedStart(ctx, accepted, failure); err != nil {
+		return true, err
+	}
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
-	m.removeActive(session.ID)
-	if m.hostedMCP != nil {
-		m.hostedMCP.CancelLaunch(session.ID)
+	complete := cleanupErr == nil
+	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
+		complete = cleanup.CleanupComplete()
 	}
-	session.clearProviderSecretRedactions()
-	return errors.Join(persistErr, cleanupErr)
+	if !complete {
+		accepted.recorderClosing = true
+		return true, errors.Join(cleanupErr, accepted.retainedFailure.diagnosticErr)
+	}
+	accepted.storage.recorder = nil
+	m.finishRetainedSessionStart(accepted)
+	return false, errors.Join(cleanupErr, accepted.retainedFailure.diagnosticErr)
+}
+
+// finishRetainedSessionStart releases the active projection after writes and cleanup finish.
+func (m *Manager) finishRetainedSessionStart(accepted *acceptedSessionStart) {
+	m.removeActive(accepted.session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(accepted.session.ID)
+	}
+	accepted.session.clearProviderSecretRedactions()
 }
 
 // releaseMissingSessionStart leaves a failed rollback's tombstone to existing boot

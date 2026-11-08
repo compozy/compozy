@@ -1756,6 +1756,62 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: failed session shutdown retains singleton and persistence ownership
+	// until a retry joins cleanup. Owner: daemon teardown; canonical shutdown suite.
+	t.Run("Should retain the daemon lock and database until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		}()
+		db := openDaemonTestGlobalDB(t)
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.lock, d.registry, d.sessions = lock, db, manager
+		if err := d.Shutdown(testutil.Context(t)); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("incomplete session shutdown = %v, want deadline", err)
+		}
+		competitor, acquireErr := AcquireLock(home.DaemonLock, os.Getpid())
+		if competitor != nil {
+			if err := competitor.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+		if !errors.Is(acquireErr, ErrAlreadyRunning) {
+			t.Fatalf("replacement acquired singleton before cleanup joined: %v", acquireErr)
+		}
+		if err := db.DB().PingContext(t.Context()); err != nil {
+			t.Fatalf("pending cleanup lost its database: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("joined retry: %v", err)
+		}
+		if err := db.DB().
+			PingContext(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "sql: database is closed") {
+			t.Fatalf("database after joined cleanup = %v, want closed", err)
+		}
+		replacement, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatalf("replacement after joined cleanup: %v", err)
+		}
+		if err := replacement.Release(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
 		t.Parallel()
 
