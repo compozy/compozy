@@ -215,8 +215,13 @@ func (r *InstanceRepo) CheckInOccurrence(
 		return agentinstance.CheckIn{}, err
 	}
 	calls, err := r.CheckInToolCalls(ctx, instance, occurrence)
+	if err != nil {
+		return agentinstance.CheckIn{}, err
+	}
+	proposals, err := r.checkInProposals(ctx, instance, occurrence)
 	return agentinstance.CheckIn{
 		ID:           row.ID,
+		Proposals:    proposals,
 		OccurrenceID: row.OccurrenceID,
 		Result:       row.Result,
 		Reason:       row.Reason,

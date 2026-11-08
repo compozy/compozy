@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: A report lands in the transcript without starting a turn. Picking a proposal records the pick through the daemon (`POST /api/agent-instances/{id}/reports/{report_id}/pick`), which queues one prompt to the main session, and folds to "You picked"; auto-accepted proposals show "Auto-accepted" with the action title and no Pick button, and limit, queue-full, unapproved and failed picks say why in plain words. A report shows "Check-in used N tools · M changes · K blocked" with the call list, an activity report says what the check-in changed, and reports published before pick tracking keep the transcript inference. After an absence with enough heartbeats, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
 entry_points: web Sessions window; main session opened from the avatar row; POST /api/agent-instances/{id}/reports/{report_id}/pick; GET /api/agent-instances/{id}/reports|check-ins?occurrence=
-qa_status: pending
-bug_ids:
+qa_status: partial
+bug_ids: BUG-20261108-aocit-web-change-count, BUG-20261108-aocit-away-activity, BUG-20261108-aocit-history-told
 fix_status: fixed
-retest_status: pending
-fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
-evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+retest_status: pass
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981, 0f89127b3, a0c7e5b44, 12400691f
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk); .compozy/tasks/always-on-check-in-tools/qa-walk/ (gitignored, aocit/qa worktree; 2026-11-08 #1357 Web walk)
+last_report: docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md
 overlaps: MS-web-stays-on-placement, ET-native-tool-approval-grants, MS-always-on-check-in-sources
 ---
 
@@ -457,5 +457,15 @@ action, a fixture MCP server, and a real provider.
    can still send.
 
 Focused automation: `session-report-part.test.tsx` (UT-040–UT-042),
-`use-session-catalog-streams.test.tsx`, `agent-editor-files.test.ts` (U5) and the S3 Storybook
-evidence under the S3 worktree. Not walked.
+`use-session-catalog-streams.test.tsx`, `agent-editor-files.test.ts` (U5), `session-away.test.ts`
+(activity reports in the away digest) and the S3 Storybook evidence under the S3 worktree.
+
+QA walk 2026-11-08 (`aocit/qa`, real browser against the lab, Claude): steps 1, 2 (chip and
+action title), 3 (`limit`), 4 (`instance_not_active`), 5, 6 and 7 pass after three Web fixes.
+The Heartbeat history counted reads as changes (`0f89127b3`). The away digest filed activity
+reports as "went wrong" and folded them as "Still in the same conversation" (`a0c7e5b44`). The
+history called a check-in that wrote "All quiet" (`12400691f`). An activity report is a card only
+when the away digest does not fold it: mark the instance seen first. A CLI pick refreshes an open
+tab within a second, so step 1's stale-tab `proposal_already_picked` was not reachable by hand.
+Not walked: step 3's `queue_full`/`unapproved`, the all-auto-accepted footer, and step 8. Report:
+`docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md`.

@@ -43,6 +43,10 @@ func newAgentInstancePickCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&options.global, "global", false, "Use the global scope")
 	cmd.MarkFlagsMutuallyExclusive("global", workspaceSkillSource)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		// The daemon client sends no agent credentials, so an agent session must be refused here.
+		if agentIdentityEnvironmentPresent(deps) {
+			return errors.New("proposal_pick_operator_only: only the operator can pick a proposal")
+		}
 		index, err := strconv.Atoi(args[2])
 		if err != nil || index < 1 {
 			return errors.New("proposal_out_of_range: use a positive 1-based index")

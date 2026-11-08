@@ -109,6 +109,26 @@ describe("deriveAwayDigest", () => {
     expect(title("r1")).toBe("Some work stopped");
   });
 
+  it("Should tell a check-in that changed something as worth knowing, not as gone wrong", () => {
+    const activity = {
+      ...report("a1", "activity", "2026-11-01T05:10:00Z"),
+      tool_calls: { total: 2, writes_done: 1, writes_maybe: 1, denied: 0 },
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, activity] },
+      "Triage Lead",
+      NOW
+    );
+    expect(digest?.foldedIds.has("a1")).toBe(true);
+    expect(digest?.key.find(item => item.beat === "reported")?.count).toBe(1);
+    expect(digest?.key.find(item => item.beat === "failed")?.count).toBe(2);
+    expect(digest?.events.find(event => event.id === "a1")).toMatchObject({
+      tone: "reported",
+      title: "A check-in made 1 change",
+      description: "1 call may have changed something.",
+    });
+  });
+
   it("Should stay away after a short absence", () => {
     expect(
       deriveAwayDigest(

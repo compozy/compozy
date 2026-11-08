@@ -2865,11 +2865,10 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			h.env.definitions.agents = agents
 			h.manager.SetInstanceCeilingReader(instanceCeilingReader(h.db.Instances()))
 			ceiling, err := json.Marshal(
+				// Admission records MCP servers by name and never their tool IDs or materialized flags.
 				store.SessionPermissionPolicy{
-					Tools:             def.Tools,
-					MCPServers:        []string{"fixture"},
-					WorkspacePaths:    []string{workspace.RootDir, h.dir},
-					MaterializedTools: true,
+					MCPServers:     []string{"fixture"},
+					WorkspacePaths: []string{workspace.RootDir, h.dir},
 				},
 			)
 			if err != nil {

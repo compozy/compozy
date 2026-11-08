@@ -1,5 +1,5 @@
 import type { AgentInstanceCheckIn, AgentInstancePayload } from "../types";
-import { toolsStatusLabel } from "./agent-check-in-tool-calls";
+import { summarizeToolCalls, toolsStatusLabel } from "./agent-check-in-tool-calls";
 
 export type DayCell = "quiet" | "told" | "failed" | "next" | "later";
 
@@ -68,8 +68,14 @@ export function checkInReason(reason: string | null | undefined) {
   return REASON[reason ?? ""] ?? "It skipped this one.";
 }
 
+/** A check-in whose approved writes ran published an activity report, whatever its outcome. */
+function changedSomething(checkIn: AgentInstanceCheckIn) {
+  const summary = summarizeToolCalls(checkIn.tool_calls ?? []);
+  return summary.writes_done + summary.writes_maybe > 0;
+}
+
 function isTold(checkIn: AgentInstanceCheckIn) {
-  return checkIn.result === "reported" || checkIn.result === "sent";
+  return checkIn.result === "reported" || checkIn.result === "sent" || changedSomething(checkIn);
 }
 
 function cellOf(checkIn: AgentInstanceCheckIn): DayCell {
@@ -122,7 +128,9 @@ function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
     return { ...base, title: "Couldn't finish", description, failed: true };
   }
   if (isTold(checkIn)) {
-    return { ...base, title: "Told you something", description: checkIn.detail, told: true };
+    const description =
+      checkIn.detail || (changedSomething(checkIn) ? "It told you what it changed." : undefined);
+    return { ...base, title: "Told you something", description, told: true };
   }
   const title = checkIn.result === "skipped" ? "Skipped" : "All quiet";
   return { ...base, title, description: checkIn.detail || sentence };

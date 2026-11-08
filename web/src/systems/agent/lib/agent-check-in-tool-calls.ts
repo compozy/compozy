@@ -43,12 +43,13 @@ export function toolCallLine(summary: CheckInToolSummary | null | undefined) {
     .join(" · ");
 }
 
-/** The same counts, read from an occurrence's rows. */
+/** The same counts, read from an occurrence's rows; like the daemon, only allowed writes are changes. */
 export function summarizeToolCalls(calls: readonly CheckInToolCall[]): CheckInToolSummary {
+  const writes = calls.filter(call => call.access === "write" && call.decision === "allowed");
   return {
     total: calls.length,
-    writes_done: calls.filter(call => call.effect === "done").length,
-    writes_maybe: calls.filter(call => call.effect === "maybe").length,
+    writes_done: writes.filter(call => call.effect === "done").length,
+    writes_maybe: writes.filter(call => call.effect === "maybe").length,
     denied: calls.filter(call => call.decision === "denied").length,
   };
 }

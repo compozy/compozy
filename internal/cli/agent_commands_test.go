@@ -1259,6 +1259,29 @@ func TestAgentInstanceCommands(t *testing.T) {
 		})
 	}
 
+	t.Run("Should refuse a pick from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent pick reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent", "instance", "pick", "ainst-test", "report-test", "1", "--global",
+		)
+		if err == nil || !strings.Contains(err.Error(), "proposal_pick_operator_only") {
+			t.Fatalf("agent pick err=%v", err)
+		}
+	})
+
 	for _, command := range []string{"check", "occurrence"} {
 		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
 			t.Parallel()

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: Dora declares an approved script source and the bundled New GitHub issues kind in HEARTBEAT.md. Try it now shows each source's outcome without moving any cursor. Quiet hours start no model turn, even with standing guidance. A new script or an edited one waits for operator approval and never runs before it. A source that keeps failing reaches Dora as one report. A real check during a running poll says a check is already running and starts nothing. The Check-ins page lists, adds, edits, removes and approves sources, and report proposals say which source found the item. Check-ins that reach the model call the agent's read tools, native and MCP, through the gateway: unannotated MCP tools are writes and denied unless an approved operator `read_only_tools` lists them; writes run only from the approved `allow_writes` and only when the main session would not ask; caps, interaction tools and a missing main session deny with stable codes; every attempt is audited per occurrence, and a check-in that wrote always reports. Declared actions tag proposals; approved `auto_accept` actions are picked by the daemon under the daily cap and queue cap, while every other proposal waits for an operator pick (1-based CLI, once, operator credentials only). An agent-edited authority block grants nothing until the operator approves it, and `check_in_tools = "disabled"` restores tool-less check-ins.
 entry_points: compozy agent heartbeat sources|validate|write|authority show|approve|revoke; compozy agent instance check [--dry-run]|show|check-ins [--occurrence]|reports|pick -o json; POST /api/agent-instances/{id}/reports/{report_id}/pick; POST|DELETE /api/agents/:name/heartbeat/authority/approve; compozy__tool_info|tool_list (access); web agent Check-ins page; main session reports
-qa_status: pending
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: partial
+bug_ids: BUG-20261108-aocit-destructive-index, BUG-20261108-aocit-instance-mcp, BUG-20261108-aocit-occurrence-proposals, BUG-20261108-aocit-policy-actions, BUG-20261108-aocit-cli-pick-agent, BUG-20261108-aocit-selector-workspace
+fix_status: fixed
+retest_status: pass
+fix_commits: 4da259aef, c3e755717, cab3cda15, c15a927c1, ee9ff2851, 32628460c, 2a49860ec
+evidence: .compozy/tasks/always-on-check-in-tools/qa-walk/ (gitignored, aocit/qa worktree; 2026-11-08 §8 walk)
+last_report: docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md
 overlaps: ET-heartbeat-extension-sources, MS-web-stays-on-reports, MS-web-stays-on-placement, ET-native-tool-approval-grants
 ---
 
@@ -178,7 +178,9 @@ E2E decodes that envelope before checking the persisted source's `ok` status.
 
 ## 8. Check-in tools and actions (#1357, US-001–US-013)
 
-Spec: `.compozy/tasks/always-on-check-in-tools/`. Add a fixture MCP server `fixture` to the
+Spec: `.compozy/tasks/always-on-check-in-tools/`. Set `[tools.policy] external_default =
+"enabled"` (or grant the source): with the default `disabled`, MCP sources are `source_disabled`
+for every session and a check-in sees no MCP tool. Add a fixture MCP server `fixture` to the
 agent's `AGENT.md` (operator-authored, `transport: http`) with four tools: `list_items`
 (`readOnlyHint: true`), `get_item` (no annotations), `add_comment` (no annotations) and
 `delete_item` (`readOnlyHint: true`, `destructiveHint: true`). Use a real provider for the
@@ -195,10 +197,12 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
    `check_in_writable: false`. With no new
    item, the next check-in is `skipped` (`digest_empty`/`digest_unchanged`) and its occurrence
    has no tool calls.
-2. **Unannotated and destructive tools (US-002, ADR-002).** Guidance asks for `get_item`: the
-   row reads `access: write`, `decision: denied`, `deny_reason: check_in_write_not_allowed`,
-   `effect: none`. `delete_item` is `write` despite `readOnlyHint`, and the main session
-   asks before running it too.
+2. **Unannotated and destructive tools (US-002, ADR-002).** Guidance asks for `get_item` and
+   `delete_item`. Both read `access: write` (`delete_item` despite `readOnlyHint`, with
+   `destructive: true`). The check-in's tool list leaves them out
+   (`tool list --session <check-in>` shows `check_in_write_not_allowed`), so the model cannot call
+   them and no row is written. A direct dispatch is denied `check_in_write_not_allowed`,
+   `effect: none` (IT-006). The main session lists both as `approval_required`.
 3. **`read_only_tools` override and its approval (US-011, US-013).** Add
    `read_only_tools: [get_item]` to the operator-authored declaration. `heartbeat authority show`
    reads `unapproved` with a new digest, and the next check-in still denies `get_item` as a
@@ -213,12 +217,14 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
    `mcp_read_only_override_invalid`.
 4. **Approved write (US-002).** Write `check_ins.allow_writes: [mcp__fixture__add_comment]`
    with `heartbeat write`; it prints the block and asks to approve; answer `y`. Set the main
-   session to `approve-all`. A check-in that calls `add_comment` records it `allowed`,
-   `outcome: ok`, `effect: done`, and the fixture received exactly one call.
+   session to `approve-all` (or grant `add_comment` "always allow" for the agent). A check-in
+   that calls `add_comment` records it `allowed`, `outcome: ok`, `effect: done`, and the fixture
+   received exactly one call. Walk this on Codex (`read-only`): Claude check-ins run in `plan` and
+   usually decline approved writes (open finding F-1 in the 2026-11-08 report).
 5. **Needs approval (US-002).** Put the main session back to `approve-edits` (or let it degrade
-   to a narrower level). The same call is denied `check_in_write_needs_approval`; no approval
-   request appears anywhere (`session pending-interactions` on main and check-in sessions are
-   empty).
+   to a narrower level). The check-in is no longer offered `add_comment`; a direct dispatch is
+   denied `check_in_write_needs_approval`. No approval request appears anywhere
+   (`session interactions` on main and check-in sessions are empty).
 6. **Writable set and interaction tools (US-002).** List `compozy__session_prompt`,
    `compozy__terminal_exec` and `compozy__notify` in `allow_writes` and approve. A check-in that
    tries all three denies the first two `check_in_tool_not_writable` and runs `compozy__notify`.
@@ -276,6 +282,13 @@ Focused automation: `_tests.md` UT/IT ids in the S1/S2/F1 Go suites
 (`internal/tools`, `internal/store/globaldb`, `internal/daemon` `heartbeat_wake_runtime_test.go`
 with acpmock and a fixture MCP server) and the S3 Vitest suites. Steps 1–14 are walked with a
 real provider and the fixture MCP server; the live Linear search is an operator follow-up.
+
+QA walk 2026-11-08 (`aocit/qa`, `88adc0207` → `2a49860ec`, Claude and Codex, fixture MCP):
+steps 1, 2, 4, 5, 9, 10, 11, 13 and 14 pass, and step 12 passes for `limit`. Seven product
+defects were fixed and re-walked, each with a focused regression test. Not walked: steps 3, 6, 7
+and 8, step 12's `queue_full`/`no_main`/cancelled parts, and the live Linear search (blocked: needs
+the operator's Linear MCP sign-in). Open: F-1, Claude `plan` check-ins decline approved writes.
+Report: `docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md`.
 
 ## Corrective boundary checks
 

@@ -157,9 +157,10 @@ func (h *BaseHandlers) heartbeatSelectorWarnings(
 	views, err := h.Tools.List(
 		c.Request.Context(),
 		toolspkg.Scope{
-			Operator:    true,
-			ProfileID:   target.profileID,
-			WorkspaceID: target.workspaceID,
+			Operator:  true,
+			ProfileID: target.profileID,
+			// The registry keys MCP sources by the registered workspace, not the identity ID.
+			WorkspaceID: target.storageWorkspaceID(),
 			AgentName:   target.agentName,
 		},
 	)

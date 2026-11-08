@@ -127,18 +127,7 @@ func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
 		c.JSON(
 			200,
 			contract.AgentInstanceCheckInsResponse{
-				CheckIns: []contract.AgentInstanceCheckInPayload{
-					{
-						ID:           row.ID,
-						OccurrenceID: row.OccurrenceID,
-						Result:       row.Result,
-						Reason:       row.Reason,
-						Detail:       row.Detail,
-						CreatedAt:    row.CreatedAt,
-						ToolsStatus:  row.ToolsStatus,
-						ToolCalls:    row.ToolCalls,
-					},
-				},
+				CheckIns: []contract.AgentInstanceCheckInPayload{checkInPayload(row)},
 			},
 		)
 		return
@@ -185,20 +174,21 @@ func (api *AgentInstanceAPI) CheckIns(
 		response.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
-		response.CheckIns = append(
-			response.CheckIns,
-			contract.AgentInstanceCheckInPayload{
-				ID:           row.ID,
-				OccurrenceID: row.OccurrenceID,
-				ToolsStatus:  row.ToolsStatus,
-				ToolCalls:    row.ToolCalls,
-				Proposals:    row.Proposals,
-				Result:       row.Result,
-				Reason:       row.Reason,
-				Detail:       row.Detail,
-				CreatedAt:    row.CreatedAt,
-			},
-		)
+		response.CheckIns = append(response.CheckIns, checkInPayload(row))
 	}
 	return response, nil
+}
+
+func checkInPayload(row agentinstance.CheckIn) contract.AgentInstanceCheckInPayload {
+	return contract.AgentInstanceCheckInPayload{
+		ID:           row.ID,
+		OccurrenceID: row.OccurrenceID,
+		ToolsStatus:  row.ToolsStatus,
+		ToolCalls:    row.ToolCalls,
+		Proposals:    row.Proposals,
+		Result:       row.Result,
+		Reason:       row.Reason,
+		Detail:       row.Detail,
+		CreatedAt:    row.CreatedAt,
+	}
 }

@@ -1049,7 +1049,7 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 }
 
 func TestAgentInstanceCheckIns(t *testing.T) {
-	t.Run("Should return persisted check-ins and a usable next cursor", func(t *testing.T) {
+	t.Run("Should return check-ins, a next cursor and one occurrence with proposals", func(t *testing.T) {
 		t.Parallel()
 		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
 		if err != nil {
@@ -1107,6 +1107,37 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 		}
 		if cursor != "" {
 			t.Fatalf("terminal cursor = %s", cursor)
+		}
+		if _, err := db.DB().ExecContext(
+			t.Context(),
+			`UPDATE agent_heartbeat_wake_events SET occurrence_id='occ-b' WHERE id='event-b'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(
+			t.Context(),
+			`INSERT INTO agent_instance_reports (id,instance_id,source_key,kind,payload,created_at) VALUES ('arpt-b',?,'occ:occ-b','proposal','{"proposals":[{"title":"a"},{"title":"b"}]}','2026-11-01T00:00:00Z')`,
+			instance.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				"GET",
+				"/instances/"+instance.ID+"/check-ins?occurrence=occ-b",
+				nil,
+			),
+		)
+		var body contract.AgentInstanceCheckInsResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != 200 || len(body.CheckIns) != 1 || body.CheckIns[0].ID != "event-b" ||
+			body.CheckIns[0].Proposals.Waiting != 2 {
+			t.Fatalf("occurrence response = %d %s", response.Code, response.Body.String())
 		}
 	})
 }

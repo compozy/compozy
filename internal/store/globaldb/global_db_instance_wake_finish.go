@@ -324,11 +324,7 @@ func finalizeCheckInActivity(
 		payload, err := json.Marshal(
 			map[string]any{
 				"reason": "check_in_activity",
-				"detail": fmt.Sprintf(
-					"Made %d changes; %d calls may have changed something.",
-					summary.WritesDone,
-					summary.WritesMaybe,
-				),
+				"detail": checkInActivityDetail(summary.WritesDone, summary.WritesMaybe),
 			},
 		)
 		if err != nil {
@@ -363,4 +359,16 @@ func finishInstanceOccurrence(
 	}
 	count, err := finishInstanceWakeState(ctx, q, req, completed, quiet, failures)
 	return count == 1, err
+}
+
+func checkInActivityDetail(done, maybe int64) string {
+	return fmt.Sprintf("Made %d %s; %d %s may have changed something.",
+		done, pluralWord(done, "change", "changes"), maybe, pluralWord(maybe, "call", "calls"))
+}
+
+func pluralWord(n int64, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }

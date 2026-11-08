@@ -492,6 +492,9 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
 				return err
 			}
+			// The instance ceiling names the agent's MCP servers, never their dynamic tool IDs, so a
+			// listed server admits its tools unless the ceiling lists specific tools of that server.
+			inputs.Session.MCPByServer = true
 		}
 	}
 	return nil

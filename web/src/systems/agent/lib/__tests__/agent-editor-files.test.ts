@@ -11,6 +11,7 @@ import {
   countAuthorityChanges,
   isCheckInWritableTool,
 } from "../agent-check-in-authority";
+import { summarizeToolCalls, toolCallLine } from "../agent-check-in-tool-calls";
 import { agentAuthorityCopy } from "../agent-instance";
 import {
   LOOK_AT_IDS,
@@ -575,7 +576,12 @@ describe("check-in activity", () => {
     expect(recent.map(item => item.key)).toEqual(["c4", "c3", "c2", "c1"]);
     expect(recent[1]?.tools).toBe("Tools unavailable");
     expect(recent[2]?.toolCalls).toEqual([call]);
+    // Its approved write published an activity report, so it told you something.
+    expect(recent[2]).toMatchObject({ title: "Told you something", told: true });
     expect(recent[0]?.tools ?? recent[0]?.toolCalls).toBeUndefined();
+    const read = { ...call, tool_id: "mcp__github__list_issues", access: "read" };
+    expect(toolCallLine(summarizeToolCalls([read]))).toBe("Check-in used 1 tool");
+    expect(toolCallLine(summarizeToolCalls([read, call]))).toBe("Check-in used 2 tools · 1 change");
   });
 
   it("Should turn every reason into a sentence, and an unknown one into a safe default", () => {

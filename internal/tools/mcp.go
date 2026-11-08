@@ -374,10 +374,11 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		mcpSource.Scope = source.Scope
 	}
 
-	readOnly := desc.ReadOnly
+	// destructiveHint wins over readOnlyHint: the tool is a write and must index as one.
+	readOnly := desc.ReadOnly && !desc.Destructive
 	risk := RiskOpenWorld
 	openWorld := true
-	if readOnly && !desc.Destructive {
+	if readOnly {
 		risk = RiskRead
 		openWorld = false
 	}
@@ -402,7 +403,7 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		ReadOnly:                  readOnly,
 		Destructive:               desc.Destructive,
 		OpenWorld:                 openWorld,
-		ConcurrencySafe:           readOnly && !desc.Destructive,
+		ConcurrencySafe:           readOnly,
 		mcpReadOnlyOverride:       desc.ReadOnlyOverride,
 		mcpReadOnlyOverrideOrigin: desc.ReadOnlyOverrideOrigin,
 	}

@@ -1647,6 +1647,13 @@ func TestInstanceProposalPicks(t *testing.T) {
 				var autoCount int64
 				for _, check := range checks {
 					autoCount += check.Proposals.AutoAccepted
+					if check.OccurrenceID == "" {
+						continue
+					}
+					one, err := repo.CheckInOccurrence(t.Context(), instance.ID, check.OccurrenceID)
+					if err != nil || one.Proposals != check.Proposals {
+						t.Fatalf("occurrence read=%+v list=%+v err=%v", one.Proposals, check.Proposals, err)
+					}
 				}
 				if autoCount != 1 {
 					t.Fatalf("check-in proposals=%+v", checks)

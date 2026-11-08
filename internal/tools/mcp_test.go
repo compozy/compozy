@@ -1510,7 +1510,7 @@ func TestMCPCheckInAccess(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Should give destructive annotations precedence [UT-002]", func(t *testing.T) {
+	t.Run("Should give destructive annotations precedence and stay indexable [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		for _, readOnly := range []bool{false, true} {
 			for _, destructive := range []bool{false, true} {
@@ -1527,6 +1527,9 @@ func TestMCPCheckInAccess(t *testing.T) {
 				)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if err := d.Validate(); err != nil {
+					t.Fatalf("read=%v destructive=%v: registry rejects descriptor: %v", readOnly, destructive, err)
 				}
 				want := AccessWrite
 				if readOnly && !destructive {

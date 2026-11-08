@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/storeseed"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -2345,9 +2346,10 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 				}
 			})
 			resolve := func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				// The registered ID keys the tool registry; the identity ID differs, as in production.
 				return workspacepkg.ResolvedWorkspace{
 					ID:          "ws",
-					WorkspaceID: "ws",
+					WorkspaceID: "ws-identity",
 					RootDir:     root,
 					Config:      cfg,
 					Agents: []compozyconfig.AgentDef{
@@ -2376,6 +2378,7 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 					AgentInstances: &core.AgentInstanceAPI{Store: db.Instances()},
 				},
 			)
+			handlers.Tools = selectorToolRegistry{workspaceID: "ws", tool: "mcp__fixture__write"}
 			handlers.HeartbeatAuthoring, err = heartbeat.NewManagedHeartbeatAuthoringService(db)
 			if err != nil {
 				t.Fatal(err)
@@ -2468,6 +2471,7 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 			if authority.Status != "approved" {
 				t.Fatalf("explicit approval: %s", shown.Body)
 			}
+
 			// The Web validates a candidate before saving; its workspace rides in the body.
 			engine.POST("/agents/:name/heartbeat/validate", handlers.ValidateAgentHeartbeat)
 			validate := func(content string) contract.HeartbeatAuthorityPayload {
@@ -2484,6 +2488,14 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 				}
 				return policy.Authority
 			}
+			selectorData, err := json.Marshal(map[string]string{"body": unrelated, "workspace_id": "ws"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			checked := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", selectorData)
+			if checked.Code != 200 || strings.Contains(checked.Body.String(), "heartbeat_allow_writes_unknown_tool") {
+				t.Fatalf("selector warning for a current write tool: %d %s", checked.Code, checked.Body)
+			}
 			if candidate := validate(unrelated); candidate.Status != "approved" ||
 				candidate.Digest != authority.Digest {
 				t.Fatalf("validated approved block: %#v", candidate)
@@ -2494,7 +2506,50 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 				candidate.Digest == authority.Digest {
 				t.Fatalf("validated changed block: %#v", candidate)
 			}
-
+			withAction := strings.Replace(
+				unrelated,
+				"---\nWatch",
+				"actions:\n  - id: open-ticket\n    title: Open a ticket\n    instructions: Draft it.\n---\nWatch",
+				1,
+			)
+			data, err := json.Marshal(map[string]string{"body": withAction, "workspace_id": "ws"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			validated := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", data)
+			var policy contract.HeartbeatPolicyPayload
+			decodeJSON(t, validated.Body.Bytes(), &policy)
+			if validated.Code != 200 || len(policy.Actions) != 1 || policy.Actions[0].ID != "open-ticket" ||
+				len(policy.Authority.Actions) != 1 {
+				t.Fatalf("policy actions projection=%d %s", validated.Code, validated.Body)
+			}
 		})
 	}
+}
+
+// selectorToolRegistry lists one write tool, only for the registered workspace ID.
+type selectorToolRegistry struct {
+	workspaceID string
+	tool        toolspkg.ToolID
+}
+
+func (r selectorToolRegistry) List(_ context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	if scope.WorkspaceID != r.workspaceID {
+		return nil, nil
+	}
+	return []toolspkg.ToolView{
+		{Descriptor: toolspkg.Descriptor{ID: r.tool, Risk: toolspkg.RiskOpenWorld, OpenWorld: true}},
+	}, nil
+}
+
+func (selectorToolRegistry) Search(context.Context, toolspkg.Scope, toolspkg.SearchQuery) ([]toolspkg.ToolView, error) {
+	return nil, nil
+}
+
+func (selectorToolRegistry) Get(context.Context, toolspkg.Scope, toolspkg.ToolID) (toolspkg.ToolView, error) {
+	return toolspkg.ToolView{}, nil
+}
+
+func (selectorToolRegistry) Call(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+	return toolspkg.ToolResult{}, nil
 }
