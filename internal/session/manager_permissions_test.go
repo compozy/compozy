@@ -805,46 +805,86 @@ func TestTriageDispatcher(t *testing.T) {
 	})
 	// Invariant: discard rollback retains failed-start history after closing the original recorder.
 	// Owner: temporary triage lifecycle; canonical triage dispatcher suite.
-	t.Run("Should retain failed triage history when catalog deletion fails", func(t *testing.T) {
-		t.Parallel()
-		catalog := newRecordingSessionCatalog()
-		deleteErr := errors.New("catalog delete unavailable")
-		catalog.deleteErr = deleteErr
-		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
-			catalog.registerHook = db.RegisterSession
-			catalog.updateHook = func(update store.SessionStateUpdate) error {
-				return db.UpdateSessionState(t.Context(), update)
+	for _, catalogFailure := range []bool{true, false} {
+		name := "Should retain failed triage history when catalog deletion fails"
+		if !catalogFailure {
+			name = "Should retain failed triage history after joining a failed recorder close"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newRecordingSessionCatalog()
+			deleteErr := errors.New("catalog delete unavailable")
+			closeErr := errors.New("recorder close interrupted")
+			wantErr := closeErr
+			if catalogFailure {
+				catalog.deleteErr = deleteErr
+				wantErr = deleteErr
 			}
-			return WithSessionCatalog(catalog)
-		}).harness
-		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
-			return nil, errors.New("provider start unavailable")
-		}
-		dispatcher := &TriageDispatcher{
-			Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
-		}
-		_, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
-			ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
-		}}, heartbeat.CheckDigest{}, func(string) error {
-			t.Error("failed start bound a session")
-			return nil
+			h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				catalog.registerHook = db.RegisterSession
+				catalog.updateHook = func(update store.SessionStateUpdate) error {
+					return db.UpdateSessionState(t.Context(), update)
+				}
+				return WithSessionCatalog(catalog)
+			}).harness
+			opener := h.manager.openStore
+			var opened atomic.Int32
+			var fail atomic.Bool
+			fail.Store(!catalogFailure)
+			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+				recorder, err := opener(ctx, owner, path)
+				if err != nil {
+					return nil, err
+				}
+				if opened.Add(1) == 1 {
+					if err := recorder.Record(ctx, store.SessionEvent{
+						TurnID:    "failed-start-history",
+						Type:      acp.EventTypeUserMessage,
+						AgentName: "coder",
+						Content:   `{"schema":"compozy.session.event.v1","type":"user_message","text":"retained history"}`,
+					}); err != nil {
+						return nil, errors.Join(err, recorder.Close(ctx))
+					}
+					if !catalogFailure {
+						return &terminalCloseFailingRecorder{
+							EventRecorder: recorder, fail: &fail, closeErr: closeErr, terminal: true,
+						}, nil
+					}
+				}
+				return recorder, nil
+			}
+			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+				return nil, errors.New("provider start unavailable")
+			}
+			dispatcher := &TriageDispatcher{
+				Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+			}
+			_, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
+				ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+			}}, heartbeat.CheckDigest{}, func(string) error {
+				t.Error("failed start bound a session")
+				return nil
+			})
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("discard error = %v, want %v", err, wantErr)
+			}
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil || len(infos) != 1 || infos[0].State != StateStopped {
+				t.Fatalf("retained failed session = %#v, %v", infos, err)
+			}
+			retained := &Session{
+				ID: infos[0].ID, WorkspaceID: h.workspaceID,
+				dbPath: store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, infos[0].ID)),
+			}
+			events := readStoredEvents(t, retained)
+			if countEventType(events, acp.EventTypeError) != 1 || countEventType(events, EventTypeSessionStopped) != 1 {
+				t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
+			}
+			if countEventType(events, acp.EventTypeUserMessage) != 1 || events[0].TurnID != "failed-start-history" {
+				t.Fatalf("original history was cleared: %#v", events)
+			}
 		})
-		if !errors.Is(err, deleteErr) {
-			t.Fatalf("discard error = %v, want catalog failure", err)
-		}
-		infos, err := h.manager.ListAll(t.Context())
-		if err != nil || len(infos) != 1 || infos[0].State != StateStopped {
-			t.Fatalf("retained failed session = %#v, %v", infos, err)
-		}
-		retained := &Session{
-			ID: infos[0].ID, WorkspaceID: h.workspaceID,
-			dbPath: store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, infos[0].ID)),
-		}
-		events := readStoredEvents(t, retained)
-		if countEventType(events, acp.EventTypeError) != 1 || countEventType(events, EventTypeSessionStopped) != 1 {
-			t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
-		}
-	})
+	}
 	// Invariant: a rejected triage model is a configuration diagnostic; request failures stay ordinary.
 	for _, tc := range []struct {
 		name, reason string

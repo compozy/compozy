@@ -48,6 +48,8 @@ physical open releases the lease; reopening must preserve the committed events.
 Failed temporary-session starts close their recorder before acquiring the deletion
 lease. If catalog deletion fails, restore the directory and reopen the recorder
 without clearing history before persisting the startup diagnostic and terminal event.
+A failed first close is joined with a fresh cleanup budget before reopening;
+persistent cleanup failures remain explicit and retain the existing resources.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.

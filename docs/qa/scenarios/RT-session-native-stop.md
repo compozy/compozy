@@ -108,6 +108,8 @@ Reject a temporary triage start and verify its recorder closes before deletion
 acquires the family guard: no writer-drain timeout or durable artifacts may remain.
 Repeat with catalog deletion failing. Rollback must restore the directory and
 retain one startup diagnostic and one terminal event, without clearing history.
+Also fail the first recorder close, then let cleanup finish. Join that cleanup
+before reopening; preserve the close error, prior history and both failure events.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

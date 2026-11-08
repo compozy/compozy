@@ -183,7 +183,15 @@ func (m *Manager) discardAcceptedSessionStart(
 	// Staging retains the database-family lease. Close the recorder before
 	// acquiring it, so final backfill cannot wait on our own deletion capability.
 	if err := m.closeSessionRecorder(session); err != nil {
-		return errors.Join(startErr, err, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
+		// Join a timed-out close before reopening; the old writer still owns cleanup.
+		joinErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+		if joinErr == nil {
+			accepted.storage.recorder = nil
+		}
+		retainCtx, cancel := m.lifecycleCleanupContext()
+		defer cancel()
+		return errors.Join(startErr, err, joinErr,
+			m.retainAcceptedSessionAfterDiscardFailure(retainCtx, accepted, startErr))
 	}
 	accepted.storage.recorder = nil
 	var staged *stagedSessionDelete
