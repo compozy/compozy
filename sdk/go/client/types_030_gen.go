@@ -4,6 +4,44 @@ package client
 
 import "time"
 
+// WorkCandidates is a daemon API value.
+type WorkCandidates struct {
+	Items               []WorkCandidate `json:"items"`
+	HasMore             bool            `json:"has_more"`
+	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
+	Repository          string          `json:"repository,omitempty"`
+}
+
+// WorkSignal is a daemon API value.
+type WorkSignal struct {
+	HeldReason     string         `json:"held_reason,omitempty"`
+	HeldInstanceID string         `json:"held_instance_id,omitempty"`
+	Kind           WorkSignalKind `json:"kind"`
+	Since          time.Time      `json:"since"`
+	Ref            string         `json:"ref,omitempty"`
+}
+
+// WorkSignalKind is a daemon API value.
+type WorkSignalKind string
+
+// WorkerMode is a daemon API value.
+type WorkerMode string
+
+// WorkerProfile is a daemon API value.
+type WorkerProfile struct {
+	Mode                  WorkerMode           `json:"mode"`
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 Speed                `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
+}
+
 // WorkspaceArchiveBlocker is a daemon API value.
 type WorkspaceArchiveBlocker struct {
 	Kind string `json:"kind"`

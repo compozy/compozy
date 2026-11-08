@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+type TaskCatalogStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
+type TaskContext struct {
+	ProfileID      string `json:"profile_id,omitempty"`
+	TaskID         string `json:"task_id,omitempty"`
+	ParentTaskID   string `json:"parent_task_id,omitempty"`
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	WorkflowID     string `json:"workflow_id,omitempty"`
+	AgentName      string `json:"agent_name,omitempty"`
+	ActorKind      string `json:"actor_kind,omitempty"`
+	ActorID        string `json:"actor_id,omitempty"`
+	OriginKind     string `json:"origin_kind,omitempty"`
+	OriginRef      string `json:"origin_ref,omitempty"`
+	TaskStatus     string `json:"task_status,omitempty"`
+	RunID          string `json:"run_id,omitempty"`
+	ReleaseReason  string `json:"release_reason,omitempty"`
+	ClaimTokenHash string `json:"claim_token_hash,omitempty"`
+}
+
 type TaskCreateParams struct {
 	ID                 string          `json:"id,omitempty"`
 	Identifier         string          `json:"identifier,omitempty"`
@@ -231,17 +253,4 @@ type TaskHealth struct {
 	OwnerTotals           []TaskOwnerTotal   `json:"owner_totals,omitempty"`
 	ForcedStopsSinceStart int                `json:"forced_stops_since_start"`
 	RecoverySinceStart    TaskRecoveryTotals `json:"recovery_since_start"`
-}
-
-type TaskInbox struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
-}
-
-type TaskInboxFacetsPayload struct {
-	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
-	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
 }

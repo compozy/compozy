@@ -4,7 +4,7 @@ area: ET
 title: Go to file, search file contents, and find in the open file
 persona: Dora
 journey: J-14
-expected: In any files explorer (Review panel Files tab or Files app), Cmd/Ctrl+P opens Go to file with daemon-ranked fuzzy matches and `name:line`; Cmd/Ctrl+Shift+F opens the Search pane with grouped results, options, globs, a sensitive-files note and an inline invalid-regex error; a match opens the viewer at its line with Find in file seeded; Cmd/Ctrl+F finds over the whole loaded file only while focus is in the viewer; ↑/↓ in the results keeps stepping matches without moving focus into the find bar.
+expected: In the Files app explorer, Cmd/Ctrl+P opens Go to file with daemon-ranked fuzzy matches and `name:line`; Cmd/Ctrl+Shift+F opens the Search pane with grouped results, options, globs, a sensitive-files note and an inline invalid-regex error; a match opens the viewer at its line with Find in file seeded; Cmd/Ctrl+F finds over the whole loaded file only while focus is in the viewer; ↑/↓ in the results keeps stepping matches without moving focus into the find bar.
 entry_points: files explorer Go to file button and Cmd/Ctrl+P; Files ↔ Search pane switch and Cmd/Ctrl+Shift+F; viewer Cmd/Ctrl+F find bar
 qa_status: pass
 bug_ids:
@@ -13,11 +13,11 @@ retest_status:
 fix_commits:
 evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/S01–S08, notes/api-edges.txt)
 last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
-overlaps: ET-files-app; ET-session-review-files
+overlaps: ET-files-app; ET-transcript-paths-files-app
 ---
 
 Introduced by the file-explorer spec (US-013–US-015; `_uiux.md` S11–S13). Walk it in a Files window
-(the Review panel's Files tab hosts the same explorer, covered by E2E-009–E2E-011) on a git project with a long file holding one unique word deep
+(E2E-009–E2E-011 reach the same explorer through a transcript path's Files tab) on a git project with a long file holding one unique word deep
 inside, a file with repeated matches, a `.env` and a public `.env.example`.
 
 Walk:
@@ -49,7 +49,7 @@ Owning automated coverage: web `use-files-search.test.tsx` (UT-091, UT-092), `se
 
 ## Walk 2026-11-07
 
-Same lab and build as `ET-session-review-files` (integration `410a3566e`, fix `c5d1d54a6`), walked in
+Same lab and build as `ET-transcript-paths-files-app` (integration `410a3566e`, fix `c5d1d54a6`), walked in
 the `lab-project` Files window.
 
 | Step | Result | Evidence |

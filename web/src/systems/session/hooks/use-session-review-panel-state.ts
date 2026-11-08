@@ -2,20 +2,18 @@ import { createStoreLogic } from "@xstate/store";
 import { persist, rehydrateStore } from "@xstate/store/persist";
 import { useSelector } from "@xstate/store-react";
 
-import type { FileViewerTarget } from "@/systems/files";
-
 import type { SessionChangesScope } from "../adapters/session-changes-api";
 
 import { sessionInspectorStore } from "./use-session-inspector-state";
 
-/** The Review panel's tabs. */
-export type SessionReviewTab = "changes" | "files";
-
 export type SessionDiffMode = "split" | "unified";
 
+/**
+ * One session's Review panel (Changes only). A stored `tab` from before Files moved to the Files
+ * window is ignored on read.
+ */
 export interface SessionReviewPanelPreference {
   open: boolean;
-  tab: SessionReviewTab;
   /** Panel width as a percentage of the session window ("45%"). */
   size?: string;
   /** Changes: split or unified diffs (US-007.AC-5). */
@@ -36,8 +34,6 @@ export interface SessionChangeFocus {
 
 interface SessionReviewPanelContext {
   bySession: Record<string, SessionReviewPanelPreference>;
-  /** Transient: the file a link click asked for, per session. Never persisted. */
-  targets: Record<string, FileViewerTarget>;
   /** Transient: the changed file a click asked Changes to show, per session. */
   focusedChanges: Record<string, SessionChangeFocus>;
   /** Transient: bumps when the session's checkout changes, remounting root-bound panel state. */
@@ -47,7 +43,7 @@ interface SessionReviewPanelContext {
 export const SESSION_REVIEW_PANEL_STORAGE_KEY = "compozy:session:review-panel:v1";
 export const SESSION_REVIEW_PANEL_DEFAULT_SIZE = "45%";
 
-const CLOSED: SessionReviewPanelPreference = { open: false, tab: "files" };
+const CLOSED: SessionReviewPanelPreference = { open: false };
 
 function normalizedPreference(value: unknown): SessionReviewPanelPreference | null {
   if (typeof value !== "object" || value === null) return null;
@@ -62,7 +58,6 @@ function normalizedPreference(value: unknown): SessionReviewPanelPreference | nu
   const base = typeof record.base === "string" && record.base !== "" ? record.base : undefined;
   return {
     open: record.open,
-    tab: record.tab === "changes" ? "changes" : "files",
     ...(size ? { size } : {}),
     ...(diffMode ? { diffMode } : {}),
     ...(scope ? { scope } : {}),
@@ -85,7 +80,6 @@ function mergeReviewPanelPreferences(
   }
   return {
     bySession,
-    targets: current.targets,
     focusedChanges: current.focusedChanges,
     rootGenerations: current.rootGenerations,
   };
@@ -109,22 +103,14 @@ function nextFocusNonce(): number {
 export const sessionReviewPanelLogic = createStoreLogic({
   context: (): SessionReviewPanelContext => ({
     bySession: {},
-    targets: {},
     focusedChanges: {},
     rootGenerations: {},
   }),
   on: {
     visibilityChanged: (context, event: { sessionId: string; open: boolean }) =>
       event.sessionId ? withPreference(context, event.sessionId, { open: event.open }) : context,
-    tabSelected: (context, event: { sessionId: string; tab: SessionReviewTab }) =>
-      event.sessionId ? withPreference(context, event.sessionId, { tab: event.tab }) : context,
     resized: (context, event: { sessionId: string; size: string }) =>
       event.sessionId ? withPreference(context, event.sessionId, { size: event.size }) : context,
-    fileRequested: (context, event: { sessionId: string; target: FileViewerTarget }) => {
-      if (!event.sessionId) return context;
-      const next = withPreference(context, event.sessionId, { open: true, tab: "files" });
-      return { ...next, targets: { ...next.targets, [event.sessionId]: event.target } };
-    },
     changesPreferenceChanged: (
       context,
       event: {
@@ -133,12 +119,11 @@ export const sessionReviewPanelLogic = createStoreLogic({
       }
     ) => (event.sessionId ? withPreference(context, event.sessionId, event.patch) : context),
     /**
-     * The session now runs in another checkout: nothing chosen in the old one (the viewer target,
-     * a focused change, the Changes base) carries over, and root-bound panel state remounts.
+     * The session now runs in another checkout: nothing chosen in the old one (a focused change,
+     * the Changes base) carries over, and root-bound panel state remounts.
      */
     rootChanged: (context, event: { sessionId: string }) => {
       if (!event.sessionId) return context;
-      const { [event.sessionId]: _target, ...targets } = context.targets;
       const { [event.sessionId]: _focus, ...focusedChanges } = context.focusedChanges;
       const current = context.bySession[event.sessionId];
       let bySession = context.bySession;
@@ -149,7 +134,6 @@ export const sessionReviewPanelLogic = createStoreLogic({
       const generation = (context.rootGenerations[event.sessionId] ?? 0) + 1;
       return {
         bySession,
-        targets,
         focusedChanges,
         rootGenerations: { ...context.rootGenerations, [event.sessionId]: generation },
       };
@@ -161,7 +145,6 @@ export const sessionReviewPanelLogic = createStoreLogic({
       if (!event.sessionId) return context;
       const next = withPreference(context, event.sessionId, {
         open: true,
-        tab: "changes",
         ...(event.scope ? { scope: event.scope } : {}),
       });
       if (!event.path) return next;
@@ -212,13 +195,6 @@ if (typeof window !== "undefined") {
   });
 }
 
-/** Opens the session's Review panel on Files at `target` (a transcript link click). */
-export function requestSessionReviewFile(sessionId: string, target: FileViewerTarget): void {
-  if (!sessionId) return;
-  closeInspector(sessionId);
-  sessionReviewPanelStore.trigger.fileRequested({ sessionId, target });
-}
-
 /** The session's checkout changed; see the `rootChanged` transition. */
 export function resetSessionReviewRoot(sessionId: string): void {
   if (sessionId) sessionReviewPanelStore.trigger.rootChanged({ sessionId });
@@ -226,7 +202,7 @@ export function resetSessionReviewRoot(sessionId: string): void {
 
 /**
  * Opens the session's Review panel on Changes (the PR chip's **Review changes**, a turn's
- * changed-file row). With `path`, the tab focuses that file, or falls back to Files when the
+ * changed-file row). With `path`, Changes focuses that file, or opens the Files window when the
  * summary doesn't list it (US-005.AC-6).
  */
 export function requestSessionReviewChanges(
@@ -240,9 +216,7 @@ export function requestSessionReviewChanges(
 
 export interface UseSessionReviewPanelStateResult {
   open: boolean;
-  tab: SessionReviewTab;
   size: string;
-  target: FileViewerTarget | null;
   diffMode: SessionDiffMode;
   scope: SessionChangesScope | undefined;
   base: string | undefined;
@@ -255,20 +229,14 @@ export interface UseSessionReviewPanelStateResult {
   ) => void;
   toggle: () => void;
   close: () => void;
-  setTab: (tab: SessionReviewTab) => void;
   setSize: (size: string) => void;
-  openFile: (target: FileViewerTarget) => void;
 }
 
-/** Per-session Review panel preference (open, tab, width) plus the transient viewer target. */
+/** Per-session Review panel preference (open, width, Changes options) plus a focused change. */
 export function useSessionReviewPanelState(sessionId: string): UseSessionReviewPanelStateResult {
   const preference = useSelector(
     sessionReviewPanelStore,
     snapshot => snapshot.context.bySession[sessionId] ?? CLOSED
-  );
-  const target = useSelector(
-    sessionReviewPanelStore,
-    snapshot => snapshot.context.targets[sessionId] ?? null
   );
   const focusedChange = useSelector(
     sessionReviewPanelStore,
@@ -285,9 +253,7 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
   };
   return {
     open: sessionId ? preference.open : false,
-    tab: preference.tab,
     size: preference.size ?? SESSION_REVIEW_PANEL_DEFAULT_SIZE,
-    target,
     diffMode: preference.diffMode ?? "unified",
     scope: preference.scope,
     base: preference.base,
@@ -298,8 +264,6 @@ export function useSessionReviewPanelState(sessionId: string): UseSessionReviewP
       sessionReviewPanelStore.trigger.changesPreferenceChanged({ sessionId, patch }),
     toggle: () => setOpen(!preference.open),
     close: () => setOpen(false),
-    setTab: tab => sessionReviewPanelStore.trigger.tabSelected({ sessionId, tab }),
     setSize: size => sessionReviewPanelStore.trigger.resized({ sessionId, size }),
-    openFile: next => requestSessionReviewFile(sessionId, next),
   };
 }

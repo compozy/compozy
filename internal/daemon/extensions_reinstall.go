@@ -54,9 +54,12 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 				return err
 			}
 		}
+		if request.Enable {
+			return nil
+		}
 		return s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
 			Type: eventspkg.ExtensionInstallCompleted, ExtensionName: installed.Name,
-			SourceKind: string(request.Source), DigestMatched: item.DigestMatched,
+			SourceKind: string(request.Source), DigestMatched: item.DigestMatched, Enabled: item.Enabled,
 		})
 	}
 	if prepared.published.MatchesInstalled(installed) && !needsConfirmation {

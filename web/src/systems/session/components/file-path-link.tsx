@@ -37,9 +37,10 @@ function selectedWithin(element: Element): boolean {
 }
 
 /**
- * A transcript path (US-005): a plain click opens it in the session's viewer, and in the desktop
- * app Cmd/Ctrl-click opens it in the editor. Without a session root (user scope) only the
- * desktop modifier click remains, and the path otherwise reads as plain code.
+ * A transcript path (US-005): a plain click opens it in the project's Files window, as a tab
+ * beside the session, and in the desktop app Cmd/Ctrl-click opens it in the editor. Without a
+ * session root (user scope) only the desktop modifier click remains, and the path otherwise
+ * reads as plain code.
  */
 function FilePathAffordance({
   links,
@@ -78,7 +79,7 @@ function FilePathAffordance({
         render={
           <button
             type="button"
-            aria-label={`Open ${name} in viewer`}
+            aria-label={`Open ${name} in Files`}
             className={PATH_LINK_CLASS}
             data-file-path={token.raw}
             data-testid="file-path-link"
@@ -89,7 +90,7 @@ function FilePathAffordance({
         {content}
       </TooltipTrigger>
       <TooltipContent className="gap-1.5">
-        Open in viewer
+        Open in Files
         {editor ? <ModifierClickHint modifier={editor.modifier} /> : null}
       </TooltipContent>
     </Tooltip>

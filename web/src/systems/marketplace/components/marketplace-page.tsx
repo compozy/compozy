@@ -111,10 +111,13 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
       {install.dialogs}
       {addMarketplace.dialog}
       <MCPServersManagementDialogs management={mcp} />
-      <span aria-live="polite" className="sr-only">
-        {query
-          ? `Search updated · ${kind === "mcps" ? mcp.filteredServers.length : page.catalogItems.length} results`
-          : ""}
+      <span aria-live="polite" className="sr-only" data-testid="marketplace-live-region">
+        <span>
+          {query
+            ? `Search updated · ${kind === "mcps" ? mcp.filteredServers.length : page.catalogItems.length} results`
+            : ""}
+        </span>
+        <span>{kind === "mcps" ? "" : actions.announcement}</span>
       </span>
     </ListingPage>
   );

@@ -179,6 +179,7 @@ describe("marketplace catalog", () => {
   it("Should preserve preset order and reject duplicate or reserved names", () => {
     expect(marketplacePresets.map(entry => [entry.name, entry.default])).toEqual([
       ["claude-plugins-official", "on"],
+      ["compozy-plugins", "on"],
       ["openai-codex", "off"],
     ]);
     const feed = {
@@ -217,6 +218,32 @@ describe("marketplace catalog", () => {
     expect(() => extensionEntrySchema.parse({ ...entry, format: "client-specific" })).toThrow(
       /format/
     );
+  });
+
+  it("Should accept curated x-compozy metadata and reject unknown curation fields", () => {
+    const curated = {
+      category: "development",
+      featured: true,
+      supersedes: ["compozy-plugins/context7", "claude-plugins-official/context7"],
+    };
+    const entry = extensionEntrySchema.parse({ ...extensionEntries[0], "x-compozy": curated });
+    expect(entry["x-compozy"]).toEqual(curated);
+    expect(findEntry("context7")?.["x-compozy"]?.supersedes).toContain(
+      "claude-plugins-official/context7"
+    );
+
+    for (const invalid of [
+      { category: "invented" },
+      { category: "development", rating: 5 },
+      { category: "development", featured: "yes" },
+      { category: "development", supersedes: ["context7"] },
+      { category: "development", supersedes: ["a/b/c"] },
+      { featured: true },
+    ]) {
+      expect(() =>
+        extensionEntrySchema.parse({ ...extensionEntries[0], "x-compozy": invalid })
+      ).toThrow();
+    }
   });
 });
 

@@ -32,13 +32,13 @@ export function FilesAppWindow({ workspaceId, onSwitchProject }: FilesAppWindowP
   const { status, projects, workspaceName, rootOptions, place, target, openFile } =
     useFilesAppWindow(workspaceId);
 
-  // The window and its tab read the open file, else the project (the dock still says "Files").
+  // The head keeps the app's identity ("Files"); only the tab names the open file, else the project.
   const named = status === "ready" || status === "archived";
   useTopbarSlot({
     glyph: FILES_GLYPH,
-    crumb: named ? (target ? fileBaseName(target.path) : workspaceName) : undefined,
-    // The project and root are the window's host context, in the head row before the title.
-    leading: named ? (
+    tabLabel: named ? (target ? fileBaseName(target.path) : workspaceName) : undefined,
+    // The project and root follow the app identity in the head row.
+    context: named ? (
       <div className="flex min-w-0 items-center gap-1.5" data-testid="files-app-pickers">
         <FilesProjectSwitcher
           workspaceId={workspaceId}

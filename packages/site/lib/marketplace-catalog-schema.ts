@@ -92,9 +92,45 @@ const entryCommon = {
   updated_at: rfc3339.optional(),
 };
 
+export const MARKETPLACE_CATEGORY_IDS = [
+  "productivity",
+  "communication",
+  "design",
+  "development",
+  "data",
+  "cloud",
+  "finance",
+  "sales-marketing",
+  "research",
+  "security",
+  "ai-agents",
+  "more",
+] as const;
+
+/** Curated `<source>/<entry_id>` reference to a plugin entry this extension replaces. */
+const supersededEntry = z.string().refine(
+  value => {
+    const segments = value.split("/");
+    return (
+      segments.length === 2 &&
+      segments.every(
+        segment => segment !== "." && segment !== ".." && ENTRY_ID_PATTERN.test(segment)
+      )
+    );
+  },
+  { message: "must be <source>/<entry_id>" }
+);
+
+const curationSchema = z.strictObject({
+  category: z.enum(MARKETPLACE_CATEGORY_IDS),
+  featured: z.boolean().optional(),
+  supersedes: z.array(supersededEntry).optional(),
+});
+
 const baseExtensionEntrySchema = z
   .strictObject({
     ...entryCommon,
+    "x-compozy": curationSchema.optional(),
     version: nonBlankString,
     install_slug: nonBlankString,
     artifact_url: nonBlankString,

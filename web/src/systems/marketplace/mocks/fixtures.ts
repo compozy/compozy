@@ -1,4 +1,6 @@
 import type {
+  MarketplaceCategoryCount,
+  MarketplaceSectionsResponse,
   MarketplaceCatalogResponse,
   MarketplaceCatalogEntryResponse,
   MarketplaceCatalogListing,
@@ -35,6 +37,9 @@ const entries: MarketplaceCatalogListing[] = [
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "otel-bridge",
+    category: "development",
+    category_label: "Development",
+    featured: true,
     install_slug: "compozy/otel-bridge",
     installed: false,
     name: "otel-bridge",
@@ -58,6 +63,9 @@ const entries: MarketplaceCatalogListing[] = [
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "slack-notify",
+    category: "communication",
+    category_label: "Communication",
+    featured: false,
     install_slug: "compozy/slack-notify",
     installed: false,
     name: "slack-notify",
@@ -81,6 +89,9 @@ const entries: MarketplaceCatalogListing[] = [
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "policy-blocked",
+    category: "security",
+    category_label: "Security",
+    featured: false,
     install_slug: "compozy/policy-blocked",
     installed: false,
     name: "policy-blocked",
@@ -105,6 +116,9 @@ const entries: MarketplaceCatalogListing[] = [
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "acme-tools",
+    category: "development",
+    category_label: "Development",
+    featured: false,
     format: "agent-plugin",
     install_slug: "compozy/acme-tools",
     installed: false,
@@ -125,11 +139,80 @@ const entries: MarketplaceCatalogListing[] = [
   },
 ];
 
+/** The daemon taxonomy as `categories` reports it (labels are daemon copy), Featured first. */
+export const marketplaceCategoryFixtures: readonly Omit<MarketplaceCategoryCount, "count">[] = [
+  { id: "featured", label: "Featured" },
+  { id: "productivity", label: "Productivity" },
+  { id: "communication", label: "Communication" },
+  { id: "design", label: "Design" },
+  { id: "development", label: "Development" },
+  { id: "data", label: "Data & Analytics" },
+  { id: "cloud", label: "Cloud & Infrastructure" },
+  { id: "finance", label: "Finance & Payments" },
+  { id: "sales-marketing", label: "Sales & Marketing" },
+  { id: "research", label: "Research & Learning" },
+  { id: "security", label: "Security" },
+  { id: "ai-agents", label: "AI & Agents" },
+  { id: "more", label: "More" },
+];
+
+function inCategory(item: MarketplaceCatalogListing, category: string): boolean {
+  return category === "featured" ? item.featured : item.category === category;
+}
+
+/** `categories` counts over the given rows, in taxonomy order, the way the daemon reports them. */
+export function marketplaceCategoryCounts(
+  items: readonly MarketplaceCatalogListing[]
+): MarketplaceCategoryCount[] {
+  return marketplaceCategoryFixtures.map(category => ({
+    ...category,
+    count: items.filter(item => inCategory(item, category.id)).length,
+  }));
+}
+
+/** Featured-then-name order the daemon applies inside a section and a category page. */
+function categoryOrder(left: MarketplaceCatalogListing, right: MarketplaceCatalogListing) {
+  if (left.featured !== right.featured) return left.featured ? -1 : 1;
+  return left.name.localeCompare(right.name) || left.entry_id.localeCompare(right.entry_id);
+}
+
+/** The rows of one category, sorted as the daemon sorts them. */
+export function marketplaceCategoryItems(
+  items: readonly MarketplaceCatalogListing[],
+  category: string
+): MarketplaceCatalogListing[] {
+  return items.filter(item => inCategory(item, category)).sort(categoryOrder);
+}
+
+/** `GET /api/marketplace/sections` over a list envelope: non-empty sections, ≤ perSection rows. */
+export function marketplaceSectionsFromCatalog(
+  catalog: MarketplaceCatalogResponse,
+  perSection = 6
+): MarketplaceSectionsResponse {
+  return {
+    error: catalog.error,
+    error_class: catalog.error_class,
+    refreshing: catalog.refreshing,
+    revision: catalog.revision,
+    sources: catalog.sources,
+    stale: catalog.stale,
+    sections: marketplaceCategoryCounts(catalog.items)
+      .filter(category => category.count > 0)
+      .map(category => ({
+        id: category.id,
+        label: category.label,
+        total: category.count,
+        items: marketplaceCategoryItems(catalog.items, category.id).slice(0, perSection),
+      })),
+  };
+}
+
 export const marketplaceCatalogFixture: MarketplaceCatalogResponse = {
   total: entries.length,
   revision: "catalog-fixture-v1",
   stale: false,
   sources: [{ name: "compozy-catalog", kind: "feed", state: "ok", count: entries.length }],
+  categories: marketplaceCategoryCounts(entries),
   items: entries,
 };
 

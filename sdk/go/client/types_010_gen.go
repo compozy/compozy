@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// LoopBudgetExceeded is a daemon API value.
+type LoopBudgetExceeded string
+
+// LoopCatalogAggregateEntryPayload is a daemon API value.
+type LoopCatalogAggregateEntryPayload struct {
+	WorkspaceID   string                      `json:"workspace_id,omitempty"`
+	Name          string                      `json:"name"`
+	Version       int                         `json:"version"`
+	Description   string                      `json:"description,omitempty"`
+	Source        LoopCatalogSourcePayload    `json:"source"`
+	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
+	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
+	Start         []LoopStartBinding          `json:"start,omitempty"`
+	Contract      LoopContract                `json:"contract"`
+	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
+	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
+	SuccessRate30 float64                     `json:"success_rate_30d"`
+}
+
 // LoopCatalogAggregatePayload is a daemon API value.
 type LoopCatalogAggregatePayload struct {
 	Runs      int `json:"runs"`
@@ -428,23 +447,4 @@ type LoopInputOrigin string
 // LoopInputRef is a daemon API value.
 type LoopInputRef struct {
 	Kind InputRefKind `json:"kind"`
-}
-
-// LoopInputValidationErrorPayload is a daemon API value.
-type LoopInputValidationErrorPayload struct {
-	Loop   string `json:"loop"`
-	Field  string `json:"field"`
-	Kind   string `json:"kind,omitempty"`
-	Value  string `json:"value,omitempty"`
-	Origin string `json:"origin"`
-	Reason string `json:"reason"`
-}
-
-// LoopLintErrorPayload is a daemon API value.
-type LoopLintErrorPayload struct {
-	NodeID   string           `json:"node_id,omitempty"`
-	Path     string           `json:"path,omitempty"`
-	Code     string           `json:"code"`
-	Message  string           `json:"message"`
-	Severity LoopLintSeverity `json:"severity"`
 }

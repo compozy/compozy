@@ -7,6 +7,49 @@ import (
 	"time"
 )
 
+// SessionConfigOptionPayload is a daemon API value.
+type SessionConfigOptionPayload struct {
+	ID             string                            `json:"id"`
+	Label          string                            `json:"label,omitempty"`
+	Description    string                            `json:"description,omitempty"`
+	Category       string                            `json:"category,omitempty"`
+	Kind           string                            `json:"kind"`
+	CurrentValueID string                            `json:"current_value_id,omitempty"`
+	CurrentBool    *bool                             `json:"current_bool,omitempty"`
+	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
+}
+
+// SessionConfigOptionValuePayload is a daemon API value.
+type SessionConfigOptionValuePayload struct {
+	Value       string `json:"value"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+}
+
+// SessionConsumerDegradedPayload is a daemon API value.
+type SessionConsumerDegradedPayload struct {
+	SessionID       string `json:"session_id"`
+	AfterSequence   int64  `json:"after_sequence"`
+	ThroughSequence int64  `json:"through_sequence"`
+	Refresh         bool   `json:"refresh"`
+}
+
+// SessionContextClearedByPayload is a daemon API value.
+type SessionContextClearedByPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Sequence     int64  `json:"sequence"`
+}
+
+// SessionContextInjectedPayload is a daemon API value.
+type SessionContextInjectedPayload struct {
+	Estimate string                     `json:"estimate"`
+	Tokens   int64                      `json:"tokens"`
+	Stale    bool                       `json:"stale"`
+	Rows     []SessionContextRowPayload `json:"rows"`
+}
+
 // SessionContextPayload is a daemon API value.
 type SessionContextPayload struct {
 	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
@@ -403,35 +446,3 @@ type SessionLineagePayload struct {
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }
-
-// SessionLinkedWorkItem is a daemon API value.
-type SessionLinkedWorkItem struct {
-	Repository         string                           `json:"repository"`
-	Branch             string                           `json:"branch"`
-	PRNumber           int                              `json:"pr_number,omitempty"`
-	WorktreeID         string                           `json:"worktree_id,omitempty"`
-	WorktreeName       string                           `json:"worktree_name,omitempty"`
-	WorktreeRemoved    bool                             `json:"worktree_removed"`
-	Provenance         string                           `json:"provenance"`
-	RunsHere           bool                             `json:"runs_here"`
-	SourceSessionID    string                           `json:"source_session_id,omitempty"`
-	SourceSessionTitle string                           `json:"source_session_title,omitempty"`
-	PullRequest        *SessionPullRequestPayload       `json:"pull_request"`
-	PullRequestLookup  *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
-}
-
-// SessionLinkedWorkResponse is a daemon API value.
-type SessionLinkedWorkResponse struct {
-	Items []SessionLinkedWorkItem `json:"items"`
-}
-
-// SessionLinkedWorkSummary is a daemon API value.
-type SessionLinkedWorkSummary struct {
-	PullRequests int                    `json:"pull_requests"`
-	Total        int                    `json:"total"`
-	NeedsYou     int                    `json:"needs_you"`
-	Lead         *SessionLinkedWorkItem `json:"lead,omitempty"`
-}
-
-// SessionMentionKind is a daemon API value.
-type SessionMentionKind string

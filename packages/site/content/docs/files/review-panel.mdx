@@ -1,29 +1,30 @@
 ---
 title: Review panel
-description: The session window's Changes and Files tabs, their scopes, base selection, refresh, and limits.
+description: The session window's Changes panel, its scopes, base selection, refresh, and limits.
 ---
 
-The Review panel sits on the right of a session window. It has two tabs:
+The Review panel sits on the right of a session window and shows the session's **Changes**: its
+diff. Files themselves open in the [Files app](/docs/files/files-app).
 
-- **Changes** shows the session's diff.
-- **Files** shows the project tree and the [file viewer](/docs/files/file-viewer).
-
-Both read the **session root**: the session's worktree when it is bound to one, otherwise the
-project folder. They never use the agent's current directory. A session in User scope has no root,
+Changes reads the **session root**: the session's worktree when it is bound to one, otherwise the
+project folder. It never uses the agent's current directory. A session in User scope has no root,
 so the panel and its toggle are absent.
 
 ## Open and arrange the panel
 
-- Toggle it from the session header, just before the context sidebar toggle. Opening the Review
-  panel closes the context sidebar, and opening the context sidebar closes the Review panel.
-- A plain click on a file path in an assistant message opens the Files tab at that file.
+- Toggle it with **Changes** in the session header, just before the context sidebar toggle.
+  Opening the Review panel closes the context sidebar, and opening the context sidebar closes the
+  Review panel.
 - **Review changes** in the pull request chip's menu opens Changes on the Branch scope.
 - A turn's **Changed files** row opens Changes at the clicked file. If the current scope doesn't
-  list that file, the Files tab opens instead.
+  list that file, the project's Files window opens at it instead.
+
+A plain click on a file path in an assistant message opens the file in the project's Files window,
+as a tab beside the session, not in this panel.
 
 The panel starts at 45% of the window and can be resized from 360 px up to 75%. CompozyOS remembers,
-per session, whether it is open, the selected tab, the width, and the Changes preferences (scope,
-base, diff mode, and the changed-files tree). With no saved choice, the panel opens on Files.
+per session, whether it is open, the width, and the Changes preferences (scope, base, diff mode, and
+the changed-files tree).
 
 ## Changes
 
@@ -51,14 +52,14 @@ changes against the default base."
   **Refresh**, the split or unified toggle, **Collapse all**, and **Show files** for the
   changed-files tree. The tree has its own filter and shows each file's status and counts.
 - Each file shows its status letter, its path (`old → new` for a rename), its counts, collapse,
-  **Open in viewer**, and **Copy path**. Context between hunks expands on demand. A file too large
+  **Open in Files**, and **Copy path**. Context between hunks expands on demand. A file too large
   to expand loses the expand control and its header says **File too large to expand**; a sensitive
   file's context says **Sensitive file · context stays hidden**.
 - Lockfiles and generated files (such as `bun.lock`, `go.sum`, `*.gen.*`, and `routeTree.gen.ts`)
   start collapsed with a **Generated** label.
 - Sensitive files show **Sensitive file · contents hidden** with **Show contents**.
 - Binary files show **Binary file changed**. A patch over the size limit shows **Diff too large to
-  display** with **Open in viewer**. A file whose patch has no text, such as a mode-only change, shows
+  display** with **Open in Files**. A file whose patch has no text, such as a mode-only change, shows
   **No content changes**.
 - Use <kbd>[</kbd> and <kbd>]</kbd> to step between files, and <kbd>Alt</kbd>+<kbd>S</kbd> to switch
   between split and unified (not while typing in a field).
@@ -95,20 +96,5 @@ date, the panel shows **Couldn't refresh · Retry** and keeps the last good diff
 | The summary could not be read    | **Couldn't read changes** with **Retry**                                        |
 | A single file's patch failed     | **Couldn't load this diff** with **Retry** on that file                         |
 
-## Files
-
-The Files tab is the same explorer as the [Files app](/docs/files/files-app), rooted at the session
-root:
-
-- The tree lists folders first in natural order and loads each folder when you expand it. Changed
-  files carry their Git status, and a folder with changes inside shows a dot, even before you
-  expand it. **Filter files…** narrows the loaded rows, **Show ignored** includes
-  Git-ignored files, and **Refresh** reloads the tree.
-- **Open in Files window** opens (or focuses) the project's Files window on the same root and file.
-- The Files ↔ Search switch at the top of the tree opens the [Search pane](/docs/files/search), and
-  **Go to file** opens the file finder.
-- If the session's worktree was removed, the tab shows **This worktree is no longer on disk**.
-
-A folder with more than 5,000 entries shows the first 5,000, with a note under the tree. Right-click a
-row, or press <kbd>Shift</kbd>+<kbd>F10</kbd> on it, for **Copy path** and, in the desktop app,
-[Open in](/docs/files/open-in) targets for that file or folder.
+**Open in Files** opens the file in the project's [Files app](/docs/files/files-app), as a tab beside
+the session, on the session root and at the file's first changed line.

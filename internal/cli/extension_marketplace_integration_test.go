@@ -198,76 +198,115 @@ func extensionArchive(t *testing.T, files map[string]string) []byte {
 
 func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
 	t.Parallel()
-	t.Run("Should detect a marker-less portable source identically through web and CLI installs", func(t *testing.T) {
-		t.Parallel()
+	for _, layout := range []string{"standard", "client-root"} {
+		t.Run("Should install and validate a "+layout+" portable source through web and CLI", func(t *testing.T) {
+			t.Parallel()
 
-		const (
-			name    = "portable-marketplace-ext"
-			version = "1.2.0"
-		)
-		env := newExtensionRegistryTestEnv(
-			t,
-			extensionRegistryTestOptions{allowUnverified: true},
-			&extensionRegistrySourceStub{
-				name: "github",
-				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-					return &registrypkg.Detail{Slug: slug, Name: name, Version: version, Source: "github"}, nil
-				},
-				downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
-					return newExtensionDownloadResult(
-						t,
-						slug,
-						version,
-						portableExtensionArchiveFiles(name, version),
-					), nil
-				},
-			},
-		)
-
-		request := contract.InstallExtensionRequest{
-			Source:          contract.InstallExtensionSourceGitHub,
-			Ref:             "acme/portable-marketplace-ext",
-			AllowUnverified: true,
-		}
-		webInstalled := installExtensionOverLoopback(t, env.httpBaseURL, request)
-		assertPortableMarketplaceInstall(t, webInstalled)
-
-		client, err := clientFromDeps(env.deps)
-		if err != nil {
-			t.Fatalf("NewClient(portable marketplace parity) error = %v", err)
-		}
-		if _, err := client.RemoveExtension(t.Context(), name); err != nil {
-			t.Fatalf("RemoveExtension(before CLI parity install) error = %v", err)
-		}
-
-		stdout, stderr, err := executeRootCommand(
-			t,
-			env.deps,
-			"extension",
-			"install",
-			"github:acme/portable-marketplace-ext",
-			"--allow-unverified",
-			"--yes",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("CLI portable marketplace install error = %v; stderr=%s", err, stderr)
-		}
-		var cliInstalled ExtensionRecord
-		if err := json.Unmarshal([]byte(stdout), &cliInstalled); err != nil {
-			t.Fatalf("json.Unmarshal(CLI portable marketplace install) error = %v; stdout=%s", err, stdout)
-		}
-		assertPortableMarketplaceInstall(t, cliInstalled)
-
-		if !reflect.DeepEqual(portableInstallParityView(webInstalled), portableInstallParityView(cliInstalled)) {
-			t.Fatalf(
-				"portable install payload mismatch: web=%#v CLI=%#v",
-				portableInstallParityView(webInstalled),
-				portableInstallParityView(cliInstalled),
+			const (
+				name    = "portable-marketplace-ext"
+				version = "1.2.0"
 			)
-		}
-	})
+			files := portableExtensionArchiveFiles(name, version)
+			if layout == "client-root" {
+				files[filepath.Join(name, "plugin.json")] = `{"name":"Display Name","version":"1.2.0"}`
+			}
+			env := newExtensionRegistryTestEnv(
+				t,
+				extensionRegistryTestOptions{allowUnverified: true},
+				&extensionRegistrySourceStub{
+					name: "github",
+					infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+						return &registrypkg.Detail{Slug: slug, Name: name, Version: version, Source: "github"}, nil
+					},
+					downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+						return newExtensionDownloadResult(
+							t,
+							slug,
+							version,
+							files,
+						), nil
+					},
+				},
+			)
+
+			request := contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceGitHub,
+				Ref:             "acme/portable-marketplace-ext",
+				AllowUnverified: true,
+			}
+			webInstalled := installExtensionOverLoopback(t, env.httpBaseURL, request)
+			assertPortableMarketplaceInstall(t, webInstalled)
+
+			client, err := clientFromDeps(env.deps)
+			if err != nil {
+				t.Fatalf("NewClient(portable marketplace parity) error = %v", err)
+			}
+			if _, err := client.RemoveExtension(t.Context(), name); err != nil {
+				t.Fatalf("RemoveExtension(before CLI parity install) error = %v", err)
+			}
+
+			stdout, stderr, err := executeRootCommand(
+				t,
+				env.deps,
+				"extension",
+				"install",
+				"github:acme/portable-marketplace-ext",
+				"--allow-unverified",
+				"--yes",
+				"-o",
+				"json",
+			)
+			if err != nil {
+				t.Fatalf("CLI portable marketplace install error = %v; stderr=%s", err, stderr)
+			}
+			var cliInstalled ExtensionRecord
+			if err := json.Unmarshal([]byte(stdout), &cliInstalled); err != nil {
+				t.Fatalf("json.Unmarshal(CLI portable marketplace install) error = %v; stdout=%s", err, stdout)
+			}
+			assertPortableMarketplaceInstall(t, cliInstalled)
+
+			if !reflect.DeepEqual(portableInstallParityView(webInstalled), portableInstallParityView(cliInstalled)) {
+				t.Fatalf(
+					"portable install payload mismatch: web=%#v CLI=%#v",
+					portableInstallParityView(webInstalled),
+					portableInstallParityView(cliInstalled),
+				)
+			}
+			if _, err := client.RemoveExtension(t.Context(), name); err != nil {
+				t.Fatal(err)
+			}
+			stdout, stderr, err = executeRootCommand(t, env.deps,
+				"extension", "install", "github:acme/portable-marketplace-ext", "--allow-unverified", "--yes")
+			if err != nil {
+				t.Fatalf("human install failed: %v; stdout=%s; stderr=%s", err, stdout, stderr)
+			}
+			for _, want := range []string{
+				"✓ install " + name, "Format: agent plugin", "Ingested", "deploy-check", "Skipped", "legacy-events",
+			} {
+				if !strings.Contains(stdout, want) {
+					t.Fatalf("human install output = %q, want %q", stdout, want)
+				}
+			}
+			for _, format := range []string{"human", "json"} {
+				stdout, _, err = executeRootCommand(t, env.deps, "extension", "validate",
+					extensionpkg.ManagedInstallPath(env.homePaths, name), "-o", format)
+				if err != nil {
+					t.Fatalf("validate %s failed: %v; stdout=%s", format, err, stdout)
+				}
+				if format == "json" {
+					var report contract.ExtensionValidatePayload
+					if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+						t.Fatal(err)
+					}
+					if report.Status != "valid" || report.Name != name || len(report.WouldIngest) != 1 {
+						t.Fatalf("validate report = %+v", report)
+					}
+				} else if !strings.Contains(stdout, "valid") || !strings.Contains(stdout, "deploy-check") {
+					t.Fatalf("validate human output = %q", stdout)
+				}
+			}
+		})
+	}
 }
 
 func installExtensionOverLoopback(

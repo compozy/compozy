@@ -1,6 +1,10 @@
 export {
   marketplaceCatalogFixture,
   marketplaceCatalogDetailFixture,
+  marketplaceCategoryCounts,
+  marketplaceCategoryFixtures,
+  marketplaceCategoryItems,
+  marketplaceSectionsFromCatalog,
   marketplaceSourceAddedFixture,
   marketplaceSourceFixtures,
   marketplaceSourcePreviewFixture,

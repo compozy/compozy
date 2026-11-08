@@ -76,7 +76,7 @@ interface UseSessionTopbarSlotInput {
   isStopping: boolean;
   isUnarchiving: boolean;
   inspectorOpen: boolean;
-  /** The Review panel (Files); its toggle is absent for a session without a file root. */
+  /** The Review panel (Changes); its toggle is absent for a session without a file root. */
   reviewOpen: boolean;
   onReviewToggle: () => void;
   sidebarOpen: boolean;

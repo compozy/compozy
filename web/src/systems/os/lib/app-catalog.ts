@@ -29,6 +29,11 @@ export interface OsAppDescriptor {
   /** Dock strip group, sessions launcher, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
   badge?: "sessions" | "tasks" | "terminal";
+  /**
+   * The window names its project in its own head (Files' project picker), so the chrome's
+   * All projects badge would repeat it ahead of the app identity.
+   */
+  hidesProjectBadge?: true;
   /** Extracts the multi-instance key from a pathname (session, terminal, and Files windows). */
   matchInstance?: (pathname: string) => string | null;
 }
@@ -113,6 +118,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     icon: FolderTree,
     paths: [FILES_APP_PATH],
     dock: { group: 2 },
+    hidesProjectBadge: true,
     matchInstance: matchFilesInstance,
   },
   tasks: {

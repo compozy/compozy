@@ -9,6 +9,101 @@ import (
 	"strings"
 )
 
+// PutSettingsMCPServer Replace a manual MCP server or its extension override
+func (c *Client) PutSettingsMCPServer(ctx context.Context, params PutSettingsMCPServerParams, body PutSettingsMCPServerRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/mcp-servers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Target != nil {
+		query.Set("target", *params.Target)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsProviderParams carries the path, query, and header parameters.
+type PutSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsProvider Create or replace one settings-backed provider overlay
+func (c *Client) PutSettingsProvider(ctx context.Context, params PutSettingsProviderParams, body PutSettingsProviderRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutVaultSecret Create or update one write-only vault secret
+func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets"
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
+type PutWindowManagerLayoutProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ProfileID   string  `url:"profile_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
+func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// QueryTerminalJournalParams carries the path, query, and header parameters.
+type QueryTerminalJournalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Actor       *string `url:"actor"`
+	Since       *string `url:"since"`
+	Failed      *bool   `url:"failed"`
+	TerminalID  *string `url:"terminal_id"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // QueryTerminalJournal Query terminal command history
 func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/journal"
@@ -352,97 +447,4 @@ func (c *Client) RedeemGatewayPairing(ctx context.Context, body GatewayPairingRe
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RefreshMarketplaceCatalog Refresh the extension catalog
-func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
-	path := "/api/marketplace/refresh"
-	var out MarketplaceRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshMarketplaceSourceParams carries the path, query, and header parameters.
-type RefreshMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// RefreshMarketplaceSource Refresh one enabled marketplace source Experimental: pin the exact SDK version.
-func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMarketplaceSourceParams) (*MarketplaceSourceResponse, error) {
-	path := "/api/marketplace/sources/{name}/refresh"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out MarketplaceSourceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModels Refresh provider model catalog sources across providers
-func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/models/refresh"
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
-type RefreshProviderModelsByProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// RefreshProviderModelsByProvider Refresh provider model catalog sources for one provider
-func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params RefreshProviderModelsByProviderParams, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/refresh"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderUsage Refresh provider usage (experimental) Experimental: pin the exact SDK version.
-func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRefreshRequest) (*ProviderUsageEnvelope, error) {
-	path := "/api/provider-usage/refresh"
-	var out ProviderUsageEnvelope
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshSessionPullRequestParams carries the path, query, and header parameters.
-type RefreshSessionPullRequestParams struct {
-	SessionID string  `url:"session_id"`
-	Profile   *string `url:"profile"`
-}
-
-// RefreshSessionPullRequest Refresh a session pull request
-func (c *Client) RefreshSessionPullRequest(ctx context.Context, params RefreshSessionPullRequestParams) (*SessionPullRequestResponse, error) {
-	path := "/api/sessions/{session_id}/pull-request/refresh"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionPullRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshSessionSoulParams carries the path, query, and header parameters.
-type RefreshSessionSoulParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

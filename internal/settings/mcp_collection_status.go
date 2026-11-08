@@ -11,6 +11,7 @@ func (s *service) populateMCPServerStatuses(
 	ctx context.Context,
 	item *MCPServerItem,
 	entry mcpSourceEntry,
+	skipRuntimeStatus bool,
 ) error {
 	target, err := mcpAuthTargetForSource(entry)
 	if err != nil {
@@ -24,7 +25,7 @@ func (s *service) populateMCPServerStatuses(
 		}
 		item.AuthStatus = &status
 	}
-	if s.mcpRuntime != nil {
+	if s.mcpRuntime != nil && !skipRuntimeStatus {
 		status, statusErr := s.mcpRuntime.MCPServerRuntimeStatus(ctx, target, entry.Server)
 		if statusErr != nil {
 			return fmt.Errorf("settings: load MCP runtime status for %q: %w", name, statusErr)

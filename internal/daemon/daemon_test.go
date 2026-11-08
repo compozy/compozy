@@ -3295,6 +3295,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 			"extension_name": "service-ext",
 			"source_kind":    "local_path",
 			"digest_matched": false,
+			"enabled":        true,
 		}
 		if !reflect.DeepEqual(installFields, wantInstallFields) {
 			t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
@@ -3303,6 +3304,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
 			t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
 		}
+		wantInstallFields["enabled"] = false
 		if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
 			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 		}
@@ -3660,11 +3662,15 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 }
 
 type daemonExtensionEventStoreStub struct {
+	failType   string
 	writeErr   error
 	writeCalls int
 }
 
-func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store.EventSummary) error {
+func (s *daemonExtensionEventStoreStub) WriteEventSummary(_ context.Context, event store.EventSummary) error {
+	if s.failType != "" && event.Type != s.failType {
+		return nil
+	}
 	s.writeCalls++
 	return s.writeErr
 }

@@ -19,6 +19,31 @@ import (
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Parallel()
+	// Invariant: definition reads return local auth state without executing remote runtime probes.
+	// Owner: settings collection service; canonical suite: mcp_runtime_status_test.go.
+	t.Run("Should read local definitions without runtime probes", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(
+			t,
+			home.ConfigFile,
+			"[[mcp_servers]]\nname = \"remote\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n",
+		)
+		runtime := &fakeMCPRuntimeProvider{targets: map[string]mcpauth.Target{}}
+		auth := &recordingMCPAuthRuntime{}
+		service := testService(t, home, Dependencies{MCPRuntime: runtime, MCPAuth: auth})
+		result, err := service.ListCollection(
+			t.Context(),
+			CollectionRequest{Collection: CollectionMCPServers, Scope: ScopeUser, SkipRuntimeStatus: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := findMCPItem(t, result.MCPServers, "remote")
+		if item.AuthStatus == nil || item.RuntimeStatus != nil || len(runtime.targets) != 0 {
+			t.Fatalf("local read = %#v, probes = %v", item, runtime.targets)
+		}
+	})
 	t.Run("Should retain invalid remote rows without probing OAuth", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

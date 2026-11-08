@@ -4038,7 +4038,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 			t.Run("Should decode the shared request", func(t *testing.T) {
 				t.Parallel()
 				service := &stubSettingsService{
-					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+					ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+						if !req.SkipRuntimeStatus {
+							t.Fatal("definition GET requested a runtime probe")
+						}
 						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
 							{
 								Name:        "github",

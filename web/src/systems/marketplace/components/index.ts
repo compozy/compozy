@@ -21,8 +21,12 @@ export type { AddMarketplaceDialogController } from "./use-add-marketplace-dialo
 export { useExtensionInstallDialog } from "./use-extension-install-dialog";
 export { MarketplaceAddMenu } from "./marketplace-add-menu";
 export type { MarketplaceAddMenuProps } from "./marketplace-add-menu";
-export { MarketplaceCatalogSection } from "./marketplace-catalog-section";
-export type { MarketplaceCatalogSectionProps } from "./marketplace-catalog-section";
+export { MarketplaceCategoryPage } from "./marketplace-category-page";
+export type { MarketplaceCategoryPageProps } from "./marketplace-category-page";
+export { MarketplaceCategorySection } from "./marketplace-category-section";
+export type { MarketplaceCategorySectionProps } from "./marketplace-category-section";
+export { MarketplaceCatalogRow } from "./marketplace-catalog-row";
+export type { MarketplaceCatalogRowProps } from "./marketplace-catalog-row";
 export { MarketplaceDetail, MarketplaceDetailNotFound } from "./marketplace-detail";
 export { MarketplaceDetailSkeleton } from "./marketplace-detail-skeleton";
 export type { MarketplaceDetailProps } from "./marketplace-detail";

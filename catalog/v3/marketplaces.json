@@ -9,6 +9,12 @@
             "default": "on"
         },
         {
+            "name": "compozy-plugins",
+            "source": "https://github.com/compozy/plugins",
+            "description": "Curated app plugins with CompozyOS categories",
+            "default": "on"
+        },
+        {
             "name": "openai-codex",
             "source": "github:openai/codex",
             "description": "OpenAI's Codex plugin marketplace",

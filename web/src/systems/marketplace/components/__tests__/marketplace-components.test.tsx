@@ -6,7 +6,7 @@ import {
 // Invariant: one Marketplace surface reflects complete catalog and installed inventory truth.
 // Owner: Marketplace components; canonical suite for browse/card/logo/shelf and source install.
 // HTTP and notification boundaries are mocked; routing, query hooks, and UI primitives run normally.
-import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, Query, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   createRoute,
@@ -21,7 +21,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
 import type { ReactNode } from "react";
 import { TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
@@ -29,7 +39,12 @@ import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers, statusFixture } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
 import type { ExtensionEntry, InstalledExtensionView } from "@/systems/extensions";
-import { marketplaceCatalogFixture } from "../../mocks";
+import {
+  marketplaceCatalogDetailFixture,
+  marketplaceCatalogFixture,
+  marketplaceCategoryCounts,
+  marketplaceSectionsFromCatalog,
+} from "../../mocks";
 import type { MarketplaceCatalogResponse } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
@@ -43,6 +58,7 @@ import {
 } from "@/systems/settings/mocks/fixtures";
 import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { settingsKeys } from "@/systems/settings/lib/query-keys";
+import { marketplaceKeys } from "../../lib/query-keys";
 import { MarketplaceExtensionServerSection } from "../marketplace-detail-extension-server";
 import {
   mcpServerRowTestId,
@@ -52,9 +68,11 @@ import {
 import { AddMarketplaceDialog } from "../add-marketplace-dialog";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
+import { MarketplaceCategoryPage } from "../marketplace-category-page";
 import { MarketplaceEntryLogo } from "../marketplace-entry-logo";
 import { MarketplaceEntryCard } from "../marketplace-entry-card";
 import { MarketplaceCatalogTrail } from "../marketplace-entry-trail";
+import type { MarketplaceSetupState } from "../../lib/marketplace-setup-state";
 import { MarketplaceInstalledShelf } from "../marketplace-installed-shelf";
 import { useExtensionInstallDialog } from "../use-extension-install-dialog";
 import { MarketplaceDetailLocation } from "@/systems/os/apps/marketplace/marketplace-detail-location";
@@ -71,6 +89,7 @@ const mocks = vi.hoisted(() => ({
   previewExtensionInstall: vi.fn(),
   toast: vi.fn(),
   readCatalog: vi.fn(),
+  readSections: vi.fn(),
   readExtensions: vi.fn(),
   readMCPServers: vi.fn(),
   putMCPServer: vi.fn(),
@@ -110,6 +129,11 @@ const server = setupServer(
     mocks.readCatalog(new URL(request.url).searchParams);
     return HttpResponse.json(catalog);
   }),
+  // Browse home: the daemon groups the same rows the list returns into category sections.
+  http.get("*/api/marketplace/sections", ({ request }) => {
+    mocks.readSections(new URL(request.url).searchParams);
+    return HttpResponse.json(marketplaceSectionsFromCatalog(catalog));
+  }),
   http.get("*/api/marketplace/entries/:entryId", () =>
     HttpResponse.json(
       { error: { code: "marketplace_entry_not_found", message: "Entry not found" } },
@@ -139,7 +163,11 @@ afterEach(() => {
 });
 beforeEach(() => {
   vi.clearAllMocks();
-  catalog = { ...marketplaceCatalogFixture };
+  // One row per entry on Browse: Featured is exercised by its own case (UT-020).
+  catalog = {
+    ...marketplaceCatalogFixture,
+    items: marketplaceCatalogFixture.items.map(item => ({ ...item, featured: false })),
+  };
   extensions = [];
   mcpServers = [...mcpManagementServerFixtures];
   mocks.installExtension.mockReset().mockResolvedValue({ extension: extensionFixtures[0] });
@@ -185,6 +213,15 @@ function Installed() {
     />
   );
 }
+function Category() {
+  const { category } = useParams({ strict: false });
+  return (
+    <MarketplaceCategoryPage
+      category={category!}
+      search={validateMarketplaceSearch(useSearch({ strict: false, structuralSharing: false }))}
+    />
+  );
+}
 function Detail() {
   const { entryId } = useParams({ strict: false });
   return (
@@ -220,8 +257,14 @@ function setup(node?: ReactNode, path = "/marketplace") {
     path: "/marketplace/$entryId",
     component: node === undefined ? Detail : () => node,
   });
+  const category = createRoute({
+    getParentRoute: () => root,
+    path: "/marketplace/categories/$category",
+    validateSearch: validateMarketplaceSearch,
+    component: Category,
+  });
   const router = createRouter({
-    routeTree: root.addChildren([browse, installed, detail]),
+    routeTree: root.addChildren([browse, installed, detail, category]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
@@ -551,17 +594,20 @@ describe("Marketplace page and cards", () => {
         await inventory;
         return HttpResponse.json({ extensions });
       }),
-      http.get("*/api/marketplace", async () => {
+      http.get("*/api/marketplace/sections", async () => {
         await catalogRead;
-        return HttpResponse.json(catalog);
+        return HttpResponse.json(marketplaceSectionsFromCatalog(catalog));
       })
     );
     setup();
 
-    // Both reads are pending: one busy region per area, in the real grid, with the shelf's line
-    // reserved so the grid does not drop when the installed shelf arrives.
-    const grid = await screen.findByTestId("marketplace-grid-skeleton");
-    expect(grid.closest('[aria-busy="true"]')).toHaveTextContent("Loading marketplace entries");
+    // Both reads are pending: one busy region per area — three placeholder sections of six rows —
+    // with the shelf's line reserved so the sections do not drop when the installed shelf arrives.
+    const grids = await screen.findAllByTestId("marketplace-grid-skeleton");
+    expect(grids).toHaveLength(3);
+    expect(grids[0]!.closest('[aria-busy="true"]')).toHaveTextContent(
+      "Loading marketplace entries"
+    );
     expect(screen.getByTestId("marketplace-installed-shelf-skeleton")).toHaveAttribute(
       "aria-busy",
       "true"
@@ -594,33 +640,94 @@ describe("Marketplace page and cards", () => {
     await userEvent.type(input, "foo/");
     expect(input).toHaveValue("foo/");
   });
-  it("Should keep sources in daemon order and expose source sections only when there are several", async () => {
+  // UT-020 [US-001.AC-1, US-004.AC-1]: sections follow the daemon response, never the sources.
+  it("Should render Featured then category sections in response order with daemon labels [UT-020]", async () => {
     catalog = {
       ...catalog,
       sources: [
-        { name: "compozy-catalog", kind: "feed", state: "ok", count: 1 },
-        { name: "team-z", kind: "plugin", state: "ok", count: 1 },
+        { name: "compozy-catalog", kind: "feed", state: "ok", count: 2 },
         { name: "team-a", kind: "plugin", state: "ok", count: 1 },
       ],
       items: [
-        entry,
-        { ...entry, entry_id: "z", source: "team-z", source_ref: "git:z" },
-        { ...entry, entry_id: "a", source: "team-a", source_ref: "git:a" },
+        { ...entry, featured: true, category: "development", category_label: "Development" },
+        {
+          ...entry,
+          entry_id: "notes",
+          name: "notes",
+          category: "productivity",
+          category_label: "Productivity",
+          source: "team-a",
+          source_ref: "git:a",
+        },
       ],
     };
     setup();
-    await screen.findByTestId("marketplace-section-team-a");
-    expect(
-      screen.getAllByTestId(/^marketplace-section-/).map(section => section.dataset.testid)
-    ).toEqual([
-      "marketplace-section-compozy-catalog",
-      "marketplace-section-team-z",
-      "marketplace-section-team-a",
+    await screen.findByTestId("marketplace-category-productivity");
+    const regions = screen.getAllByRole("region");
+    expect(regions.map(region => region.getAttribute("aria-label"))).toEqual([
+      "Featured",
+      "Productivity",
+      "Development",
     ]);
+    expect(within(regions[0]!).getByRole("heading", { name: "Featured" })).toBeVisible();
+    expect(within(regions[0]!).getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+    expect(within(regions[2]!).getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+    // Compact rows drop the word their category heading already says; Featured mixes categories.
+    expect(
+      within(within(regions[0]!).getByTestId(`marketplace-card-${entry.entry_id}`)).getByText(
+        "Development"
+      )
+    ).toBeVisible();
+    expect(
+      within(within(regions[2]!).getByTestId(`marketplace-card-${entry.entry_id}`)).queryByText(
+        "Development"
+      )
+    ).toBeNull();
+    expect(screen.queryByTestId(/^marketplace-section-/)).toBeNull();
+    expect(screen.queryByText("team-a")).toBeNull();
+    // The topbar counts entries once each, even when Featured repeats one.
+    expect(screen.getByRole("status", { name: "Catalog count" })).toHaveTextContent("2");
   });
-  it("Should preserve degraded source rows and identify their failed refresh", async () => {
+  // UT-021 [US-001.AC-2]: six rows, and View all names the category with the daemon's full count.
+  it("Should cut a section at six rows and link View all with the full count [UT-021]", async () => {
+    const productivity = Array.from({ length: 7 }, (_, index) => ({
+      ...entry,
+      entry_id: `p-${index}`,
+      name: `p-${index}`,
+      category: "productivity",
+      category_label: "Productivity",
+    }));
+    catalog = { ...catalog, items: productivity };
+    server.use(
+      http.get("*/api/marketplace/sections", ({ request }) => {
+        mocks.readSections(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          ...marketplaceSectionsFromCatalog(catalog),
+          sections: [
+            {
+              id: "productivity",
+              label: "Productivity",
+              total: 58,
+              items: productivity.slice(0, 6),
+            },
+          ],
+        });
+      })
+    );
+    const { router } = setup();
+    const section = await screen.findByRole("region", { name: "Productivity" });
+    expect(within(section).getAllByTestId(/^marketplace-card-/)).toHaveLength(6);
+    const viewAll = within(section).getByRole("link", { name: "View all Productivity" });
+    expect(viewAll).toHaveTextContent("58");
+    expect(viewAll).toHaveAttribute("href", "/marketplace/categories/productivity");
+    expect(mocks.readSections.mock.calls.at(-1)?.[0].get("per_section")).toBe("6");
+    expect(mocks.readCatalog).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/marketplace");
+  });
+  it("Should keep a degraded source's cached rows in their category and name its failed refresh", async () => {
     catalog = {
       ...catalog,
+      stale: true,
       sources: [
         { name: "compozy-catalog", kind: "feed", state: "ok", count: 1 },
         {
@@ -634,12 +741,11 @@ describe("Marketplace page and cards", () => {
       items: [entry, { ...entry, entry_id: "cached-team", source: "team", source_ref: "git:team" }],
     };
     setup();
-    const degraded = await screen.findByTestId("marketplace-section-team");
-    expect(degraded).toHaveTextContent(/last read.*could not refresh/);
-    expect(within(degraded).getByTestId("marketplace-card-cached-team")).toBeVisible();
-    expect(screen.getByTestId("marketplace-section-compozy-catalog")).not.toHaveTextContent(
-      "could not refresh"
-    );
+    const stale = await screen.findByTestId("marketplace-stale");
+    expect(stale).toHaveTextContent("Could not refresh team. Showing cached entries from");
+    expect(stale).not.toHaveTextContent("compozy-catalog");
+    const section = screen.getByRole("region", { name: entry.category_label });
+    expect(within(section).getByTestId("marketplace-card-cached-team")).toBeVisible();
   });
   // Invariant: an empty catalog offers working source acquisition, independent of search recovery.
   // Owner: Marketplace page integration; canonical suite: marketplace-components.test.tsx.
@@ -731,16 +837,45 @@ describe("Marketplace page and cards", () => {
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
     expect(screen.getByTestId("marketplace-stale")).toBeVisible();
   });
-  it("Should show unreachable rather than an empty catalog when no projection could be read", async () => {
+  // Invariant: a failed daemon read is a load failure with Retry, never blamed on the sources.
+  it("Should show a load failure, not unreachable, when the daemon read fails", async () => {
+    let reads = 0;
     server.use(
-      http.get("*/api/marketplace", () =>
-        HttpResponse.json({ error: "feed unavailable" }, { status: 400 })
-      )
+      http.get("*/api/marketplace/sections", () => {
+        reads++;
+        return HttpResponse.json({ error: "Internal Server Error" }, { status: 500 });
+      })
     );
     setup();
-    expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
-    expect(screen.getByTestId("marketplace-retry")).toBeVisible();
+    // A 5xx is retried twice with backoff before the failure shows.
+    expect(
+      await screen.findByText("Couldn't load the marketplace", {}, { timeout: 6_000 })
+    ).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
     expect(screen.queryByText("No extensions yet")).not.toBeInTheDocument();
+    const before = reads;
+    await userEvent.click(screen.getByTestId("marketplace-retry"));
+    await waitFor(() => expect(reads).toBeGreaterThan(before));
+  });
+  // A failed read after an empty refreshing answer shows its failure, not an endless skeleton.
+  it("Should show a failed Browse read instead of the refreshing skeleton", async () => {
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace/sections", () => {
+        reads++;
+        return reads === 1
+          ? HttpResponse.json({
+              ...marketplaceSectionsFromCatalog(catalog),
+              sections: [],
+              refreshing: true,
+            })
+          : HttpResponse.json({ error: "bad request" }, { status: 400 });
+      })
+    );
+    setup();
+    expect(
+      await screen.findByText("Couldn't load the marketplace", {}, { timeout: 3_000 })
+    ).toBeVisible();
   });
   it("Should expose a daemon diagnostic on a successful empty envelope as unreachable", async () => {
     catalog = {
@@ -750,6 +885,8 @@ describe("Marketplace page and cards", () => {
       stale: true,
       error_class: "network",
       error: "feed unavailable",
+      // No enabled source answered or holds cached rows: the catalog is unreachable as a whole.
+      sources: catalog.sources.map(source => ({ ...source, state: "degraded", count: 0 })),
     };
     setup();
     expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
@@ -806,7 +943,8 @@ describe("Marketplace page and cards", () => {
         />
       </>
     );
-    const install = await screen.findByRole("button", { name: `Install ${entry.name}` });
+    const install = await screen.findByRole("button", { name: `Add ${entry.name}` });
+    expect(install).toHaveTextContent("Add");
     expect(install.closest("a")).toBeNull();
     await userEvent.click(install);
     expect(onInstall).toHaveBeenCalledWith(entry);
@@ -826,6 +964,75 @@ describe("Marketplace page and cards", () => {
     expect(screen.getByTestId("marketplace-action-busy")).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: `Update ${entry.name}` }));
     expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+  it("Should keep the Installed fallback and installed actions beside catalog status", async () => {
+    const onTurnOn = vi.fn();
+    const setupOf = (state: MarketplaceSetupState) => ({
+      state,
+      onTurnOn,
+      onRetry: vi.fn(),
+    });
+    const installed = { ...entry, installed: true };
+    setup(
+      <>
+        {/* Installed in another scope: no inventory match, so the honest Installed word. */}
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "elsewhere" }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={setupOf("installed")}
+        />
+        {/* Set up without its control falls back to Installed rather than an empty trail. */}
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "no-control" }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={setupOf("setup")}
+        />
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "off-update", update_available: true }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={setupOf("turn-on")}
+        />
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "off-blocked", installable: false }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={setupOf("turn-on")}
+        />
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "broken" }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={{ ...setupOf("server-failed"), serverFailure: "connection refused" }}
+        />
+        <MarketplaceCatalogTrail
+          entry={{ ...installed, entry_id: "ready-update", update_available: true }}
+          onInstall={vi.fn()}
+          onUpdate={vi.fn()}
+          setup={setupOf("ready")}
+        />
+      </>
+    );
+    expect(await screen.findByTestId("marketplace-installed-elsewhere")).toHaveTextContent(
+      "Installed"
+    );
+    expect(screen.getByTestId("marketplace-installed-no-control")).toHaveTextContent("Installed");
+    expect(screen.getByTestId("marketplace-action-off-update")).toHaveTextContent("Update");
+    await userEvent.click(screen.getByTestId("marketplace-turn-on-off-update"));
+    expect(screen.getByTestId("marketplace-blocked-off-blocked")).toBeVisible();
+    await userEvent.click(screen.getByTestId("marketplace-turn-on-off-blocked"));
+    expect(onTurnOn).toHaveBeenCalledTimes(2);
+    // A recorded server failure reads as one, with the daemon's cause, never as Ready.
+    expect(screen.getByTestId("marketplace-server-failed-broken")).toHaveTextContent("Unavailable");
+    expect(screen.getByTestId("marketplace-server-failed-broken")).toHaveAttribute(
+      "title",
+      "connection refused"
+    );
+    // Ready needs nothing from the user, so the Update stays the row's one action.
+    expect(screen.getByTestId("marketplace-action-ready-update")).toHaveTextContent("Update");
+    expect(screen.queryByTestId("marketplace-ready-ready-update")).toBeNull();
   });
   it.each([0, 5, 9])(
     "Should render the Installed shelf count and bounded logos for %i installations",
@@ -915,7 +1122,7 @@ describe("Marketplace page and cards", () => {
   it("Should fall through a failed feed image to a brand mark", async () => {
     const view = setup(
       <MarketplaceEntryLogo
-        entry={{ entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" }}
+        entry={{ entry_id: "slack", name: "Slack", icon: "data:image/png;base64,AAAA" }}
       />
     );
     await waitFor(() => expect(view.container.querySelector("img")).not.toBeNull());
@@ -939,8 +1146,22 @@ describe("Marketplace page and cards", () => {
     expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
     expect(view.container.querySelector('[data-rung="marble"]')).toBeNull();
   });
+  // Invariant: a monochrome brand's feed image has a fixed ink that vanishes on one theme, so its
+  // theme-following mark (currentColor) wins over the image in both themes.
+  it.each(["github", "linear"])(
+    "Should draw the theme-following %s mark instead of its fixed-ink feed image",
+    entryId => {
+      const view = render(
+        <MarketplaceEntryLogo
+          entry={{ entry_id: entryId, name: entryId, icon: "data:image/svg+xml;base64,AAAA" }}
+        />
+      );
+      expect(view.container.querySelector("img")).toBeNull();
+      expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
+    }
+  );
   it("Should retry a new icon URL after the previous image failed", () => {
-    const item = { entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" };
+    const item = { entry_id: "slack", name: "Slack", icon: "data:image/png;base64,AAAA" };
     const view = render(<MarketplaceEntryLogo entry={item} />);
     fireEvent.error(view.container.querySelector("img")!);
     expect(view.container.querySelector("img")).toBeNull();
@@ -1289,6 +1510,7 @@ describe("Extension source installation", () => {
 
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
+        enable: false,
         allow_unverified: true,
         expected_digest: "a".repeat(64),
         confirm_gateway_digest: "sha256:local-network",
@@ -1412,6 +1634,7 @@ describe("Extension source installation", () => {
     await user.click(screen.getByTestId("extension-install-submit"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
+        enable: false,
         ref: "https://git.example.com/acme/hello.git@v1.2.3",
         source: "git",
       })
@@ -1439,6 +1662,7 @@ describe("Extension source installation", () => {
 
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
     expect(mocks.installExtension).toHaveBeenCalledWith({
+      enable: false,
       ref: "/srv/hello/dist/gen-a1b2c3",
       source: "local_path",
     });
@@ -1446,6 +1670,7 @@ describe("Extension source installation", () => {
     await user.click(screen.getByTestId("extension-trust-confirm"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenLastCalledWith({
+        enable: false,
         allow_unverified: true,
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
@@ -1694,6 +1919,621 @@ describe("Marketplace extension MCP controls", () => {
     expect(
       screen.queryByRole("button", { name: "Authorize github for github" })
     ).not.toBeInTheDocument();
+  });
+});
+
+// Invariant: Browse groups by daemon category, a category page pages the daemon list, and each row
+// shows the one action the installed inventory supports (US-001–US-007, US-013).
+// Owner: Marketplace page integration; canonical suite: marketplace-components.test.tsx.
+describe("Category browse and row actions", () => {
+  const productivity = Array.from({ length: 9 }, (_, index) => ({
+    ...entry,
+    entry_id: `prod-${index}`,
+    name: `prod-${index}`,
+    description: index === 8 ? "Notes that sync" : "Tasks and docs",
+    category: "productivity",
+    category_label: "Productivity",
+    featured: false,
+  }));
+  /** `GET /api/marketplace?category=` the way the daemon pages it, cursor = next offset. */
+  function useCategoryServer(
+    rows = productivity,
+    pageSize = 5,
+    {
+      staleCursors = [],
+      refreshingReads = 0,
+      beforeAnswer,
+    }: {
+      /** Cursors the daemon rejects as stale (409, restart), once per listed occurrence. */
+      staleCursors?: string[];
+      /** How many first reads answer an empty, still-refreshing page. */
+      refreshingReads?: number;
+      /** Holds a read (by cursor, "" for page one) until the returned promise settles. */
+      beforeAnswer?: (cursor: string) => Promise<void> | undefined;
+    } = {}
+  ) {
+    let reads = 0;
+    // Stale answers already given per cursor; callers may list more cursors after setup.
+    const rejectedCursors = new Map<string, number>();
+    server.use(
+      http.get("*/api/marketplace", async ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        mocks.readCatalog(params);
+        reads += 1;
+        const cursor = params.get("cursor") ?? "";
+        await beforeAnswer?.(cursor);
+        const rejected = rejectedCursors.get(cursor) ?? 0;
+        if (staleCursors.filter(stale => stale === cursor).length > rejected) {
+          rejectedCursors.set(cursor, rejected + 1);
+          return HttpResponse.json(
+            { code: "marketplace_cursor_stale", error: "cursor is stale", restart: true },
+            { status: 409 }
+          );
+        }
+        if (reads <= refreshingReads) {
+          return HttpResponse.json({
+            ...catalog,
+            categories: [],
+            items: [],
+            refreshing: true,
+            total: 0,
+          });
+        }
+        const category = params.get("category") ?? "";
+        if (category === "apps") {
+          return HttpResponse.json(
+            { code: "marketplace_category_unknown", error: 'unknown category "apps"' },
+            { status: 400 }
+          );
+        }
+        const q = params.get("q")?.toLowerCase() ?? "";
+        const matches = rows.filter(row =>
+          `${row.name} ${row.description}`.toLowerCase().includes(q)
+        );
+        const scoped = matches.filter(row => !category || row.category === category);
+        const offset = Number(params.get("cursor") ?? "0");
+        const items = scoped.slice(offset, offset + pageSize);
+        const next = offset + pageSize < scoped.length ? String(offset + pageSize) : undefined;
+        return HttpResponse.json({
+          ...catalog,
+          categories: marketplaceCategoryCounts(matches),
+          items,
+          next_cursor: next,
+          total: scoped.length,
+        });
+      })
+    );
+  }
+
+  // UT-022 [US-002.AC-1, AC-2]: daemon label as title, the next page appended without duplicates.
+  it("Should title the category from the response and load the next page at the end [UT-022]", async () => {
+    useCategoryServer();
+    setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+    expect(within(screen.getByRole("banner")).getByText("Productivity")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Catalog count" })).toHaveTextContent("9");
+    expect(mocks.readCatalog.mock.calls.at(-1)?.[0].get("category")).toBe("productivity");
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    expect(mocks.readCatalog.mock.calls.at(-1)?.[0].get("cursor")).toBe("5");
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  // UT-022 [US-002.AC-2]: the end of the list coming into view asks for the next page by itself.
+  it("Should load the next page when the end of the category comes into view [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    try {
+      useCategoryServer();
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      await waitFor(() => expect(observers).toHaveLength(1));
+      act(() =>
+        observers[0]!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      // One observer for the sentinel's lifetime, not one per render.
+      expect(observers).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // UT-022 [US-002.EC-2]: a stale cursor restarts from page one silently, keeping the rows shown.
+  it("Should restart a stale category cursor from the first page without an error [UT-022]", async () => {
+    useCategoryServer(productivity, 5, { staleCursors: ["5"] });
+    setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    const firstReads = mocks.readCatalog.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() =>
+      expect(
+        mocks.readCatalog.mock.calls.slice(firstReads).map(([params]) => params.get("cursor"))
+      ).toEqual(["5", null])
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled());
+    expect(grid).toBeInTheDocument();
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("marketplace-category-error")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+  });
+
+  // UT-022 [US-002.EC-2]: Load more waits for a running restart instead of cancelling it.
+  it("Should hold Load more until the stale-cursor restart finishes [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const reachEnd = () =>
+      act(() =>
+        observers.at(-1)!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
+    try {
+      let holdRestart = false;
+      let release = () => {};
+      const restartHeld = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      // A test-local copy, so a row can change while the restart is held.
+      const rows = [...productivity];
+      useCategoryServer(rows, 5, {
+        staleCursors: ["5"],
+        beforeAnswer: cursor => (holdRestart && cursor === "" ? restartHeld : undefined),
+      });
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      const firstReads = mocks.readCatalog.mock.calls.length;
+      const cursors = () =>
+        mocks.readCatalog.mock.calls.slice(firstReads).map(([params]) => params.get("cursor"));
+      holdRestart = true;
+      await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+      await waitFor(() => expect(cursors()).toEqual(["5", null]));
+      // The restart is in flight: the control shows it and the end of the list asks nothing.
+      await waitFor(() => expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled());
+      reachEnd();
+      expect(cursors()).toEqual(["5", null]);
+      // The daemon changes a first-page row while the restart is held; the restart shows it.
+      rows[0] = { ...rows[0]!, description: "Tasks refreshed by the restart" };
+      release();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled());
+      expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+      expect(
+        within(screen.getByTestId("marketplace-card-prod-0")).getByText(
+          "Tasks refreshed by the restart"
+        )
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).toBeNull();
+      reachEnd();
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      expect(cursors()).toEqual(["5", null, "5"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // UT-022 [US-002.AC-2]: Load more waits for a running refetch instead of cancelling it.
+  it("Should ask for the next page only after a running category refetch settles [UT-022]", async () => {
+    let holdRefetch = false;
+    let release = () => {};
+    const refetchHeld = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const rows = [...productivity];
+    useCategoryServer(rows, 5, {
+      beforeAnswer: cursor => (holdRefetch && cursor === "" ? refetchHeld : undefined),
+    });
+    const { client } = setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    const before = mocks.readCatalog.mock.calls.length;
+    const cursors = () =>
+      mocks.readCatalog.mock.calls.slice(before).map(([params]) => params.get("cursor"));
+    holdRefetch = true;
+    void client.refetchQueries({ queryKey: marketplaceKeys.all });
+    await waitFor(() => expect(cursors()).toEqual([null]));
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(cursors()).toEqual([null]);
+    // The refetch answers with a changed first page; the next page appends to it.
+    rows[0] = { ...rows[0]!, description: "Tasks refreshed by the refetch" };
+    release();
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    expect(cursors()).toEqual([null, "5"]);
+    expect(
+      within(screen.getByTestId("marketplace-card-prod-0")).getByText(
+        "Tasks refreshed by the refetch"
+      )
+    ).toBeInTheDocument();
+  });
+
+  // UT-022 [US-002.AC-2]: the button and the sentinel firing together ask for one next page.
+  it("Should send one next-page request when the button and the sentinel fire together [UT-022]", async () => {
+    const observers: IntersectionObserverCallback[] = [];
+    let cancels: MockInstance<Query["cancel"]> | undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    try {
+      useCategoryServer();
+      setup(undefined, "/marketplace/categories/productivity");
+      const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+      await waitFor(() => expect(observers).toHaveLength(1));
+      const before = mocks.readCatalog.mock.calls.length;
+      // A second request would cancel the first one's read before React re-renders.
+      cancels = vi.spyOn(Query.prototype, "cancel");
+      act(() => {
+        screen.getByRole("button", { name: "Load more" }).click();
+        observers[0]!(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+      });
+      await waitFor(() =>
+        expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9)
+      );
+      expect(cancels).not.toHaveBeenCalled();
+      expect(
+        mocks.readCatalog.mock.calls.slice(before).map(([params]) => params.get("cursor"))
+      ).toEqual(["5"]);
+    } finally {
+      cancels?.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // UT-022 [US-002.EC-2]: a background refetch that meets a stale cursor restarts silently too.
+  it("Should restart a stale cursor met by a background category refetch", async () => {
+    const staleCursors: string[] = [];
+    useCategoryServer(productivity, 5, { staleCursors });
+    const { client } = setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    const before = mocks.readCatalog.mock.calls.length;
+    staleCursors.push("5");
+    await act(() => client.refetchQueries({ queryKey: marketplaceKeys.all }));
+    // The refetch meets the stale cursor, then the restart reads both pages again.
+    await waitFor(() =>
+      expect(
+        mocks.readCatalog.mock.calls.slice(before).map(([params]) => params.get("cursor"))
+      ).toEqual([null, "5", null, "5"])
+    );
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // A restart that meets a stale cursor again stops and offers Retry instead of hiding the error.
+  it("Should offer Retry when the stale-cursor restart cannot recover", async () => {
+    const staleCursors: string[] = [];
+    useCategoryServer(productivity, 5, { staleCursors });
+    const { client } = setup(undefined, "/marketplace/categories/productivity");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9));
+    const before = mocks.readCatalog.mock.calls.length;
+    staleCursors.push("5", "5");
+    await act(() => client.refetchQueries({ queryKey: marketplaceKeys.all }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The next entries could not be loaded.");
+    expect(mocks.readCatalog.mock.calls.length - before).toBe(4);
+    await userEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(9);
+  });
+
+  // A failed read after an empty refreshing answer shows its failure, not an endless skeleton.
+  it("Should show a failed category read instead of the refreshing skeleton", async () => {
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace", () => {
+        reads++;
+        return reads === 1
+          ? HttpResponse.json({ ...catalog, categories: [], items: [], refreshing: true, total: 0 })
+          : HttpResponse.json({ error: "bad request" }, { status: 400 });
+      })
+    );
+    setup(undefined, "/marketplace/categories/productivity");
+    const failure = await screen.findByTestId("marketplace-category-error", {}, { timeout: 3_000 });
+    expect(within(failure).getByText("Couldn't load the marketplace")).toBeVisible();
+  });
+
+  // F3 / _uiux S2: a category read while the catalog refreshes is loading, then fills in by itself.
+  it("Should keep loading while the catalog refreshes and follow the refresh", async () => {
+    useCategoryServer(productivity, 5, { refreshingReads: 1 });
+    setup(undefined, "/marketplace/categories/productivity");
+    await waitFor(() => expect(mocks.readCatalog).toHaveBeenCalled());
+    expect(screen.queryByTestId("marketplace-category-empty")).toBeNull();
+    const grid = await screen.findByTestId(
+      "marketplace-category-grid-productivity",
+      {},
+      { timeout: 3_000 }
+    );
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(5);
+  });
+
+  // UT-023 [US-002.AC-3, EC-3]: the search stays inside the category and clearing restores it.
+  it("Should scope the category search and restore the full list when cleared [UT-023]", async () => {
+    useCategoryServer();
+    const { router } = setup(undefined, "/marketplace/categories/productivity?q=sync");
+    const grid = await screen.findByTestId("marketplace-category-grid-productivity");
+    expect(within(grid).getAllByTestId(/^marketplace-card-/)).toHaveLength(1);
+    const read = mocks.readCatalog.mock.calls.at(-1)?.[0];
+    expect(read.get("q")).toBe("sync");
+    expect(read.get("category")).toBe("productivity");
+    const input = screen.getByRole("searchbox", { name: "Search Productivity" });
+    await userEvent.click(input);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(router.state.location.pathname).toBe("/marketplace/categories/productivity");
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("marketplace-category-grid-productivity")).getAllByTestId(
+          /^marketplace-card-/
+        )
+      ).toHaveLength(5)
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search Productivity" }), "zzz");
+    expect(await screen.findByText('No results for "zzz" in Productivity')).toBeVisible();
+  });
+
+  // Invariant: a 5xx category read is a load failure with Retry; only a daemon envelope that
+  // reports its sources unreachable says the marketplace is unreachable.
+  it("Should separate a failed category read from unreachable sources", async () => {
+    let failing = true;
+    server.use(
+      http.get("*/api/marketplace", () =>
+        failing
+          ? HttpResponse.json({ error: "Internal Server Error" }, { status: 500 })
+          : HttpResponse.json({
+              ...catalog,
+              items: [],
+              total: 0,
+              error_class: "source_unreachable",
+              error: "feed unavailable",
+              sources: catalog.sources.map(source => ({ ...source, state: "degraded", count: 0 })),
+            })
+      )
+    );
+    setup(undefined, "/marketplace/categories/productivity");
+    // A 5xx is retried twice with backoff before the failure shows.
+    const failure = await screen.findByTestId("marketplace-category-error", {}, { timeout: 6_000 });
+    expect(within(failure).getByText("Couldn't load the marketplace")).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
+    failing = false;
+    await userEvent.click(within(failure).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("The marketplace is unreachable")).toBeVisible();
+    expect(screen.queryByText("Couldn't load the marketplace")).not.toBeInTheDocument();
+  });
+
+  // Invariant: one degraded source beside a healthy one is a partial failure; a category search
+  // with no matches is "No results", never "The marketplace is unreachable".
+  it("Should show no results, not unreachable, when only one source is degraded", async () => {
+    server.use(
+      http.get("*/api/marketplace", () =>
+        HttpResponse.json({
+          ...catalog,
+          items: [],
+          total: 0,
+          stale: true,
+          error_class: "rate_limited",
+          error: "GitHub rate limit",
+          sources: [
+            { ...catalog.sources[0]!, state: "ok" },
+            { ...catalog.sources[0]!, name: "team-plugins", state: "degraded", count: 0 },
+          ],
+        })
+      )
+    );
+    setup(undefined, "/marketplace/categories/productivity?q=zzz");
+    expect(await screen.findByText('No results for "zzz" in Productivity')).toBeVisible();
+    expect(screen.queryByText("The marketplace is unreachable")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-category-error")).toBeNull();
+  });
+
+  // UT-024 [US-002.EC-1]: an unknown id is a not-found state with a way back to Browse.
+  it("Should show the not-found state for an unknown category [UT-024]", async () => {
+    useCategoryServer();
+    const { router } = setup(undefined, "/marketplace/categories/apps");
+    expect(await screen.findByText("This category doesn't exist")).toBeVisible();
+    const back = screen.getByRole("link", { name: "Back to Marketplace" });
+    expect(back).toHaveAttribute("href", "/marketplace");
+    await userEvent.click(back);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/marketplace"));
+  });
+
+  // UT-024: a blank id never reaches the daemon, so it is not-found instead of loading forever.
+  it("Should show the not-found state for a whitespace-only category", async () => {
+    useCategoryServer();
+    setup(undefined, "/marketplace/categories/%09");
+    expect(await screen.findByText("This category doesn't exist")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back to Marketplace" })).toBeVisible();
+  });
+
+  // UT-026 [US-003.AC-1]: search replaces sections with flat results that name their category.
+  it("Should show flat search results with each result's category word [UT-026]", async () => {
+    setup(undefined, "/marketplace?q=otel");
+    const results = await screen.findByTestId("marketplace-search-results");
+    const card = within(results).getByTestId(`marketplace-card-${entry.entry_id}`);
+    expect(within(card).getByText(entry.category_label)).toBeVisible();
+    expect(screen.queryByRole("region", { name: entry.category_label })).toBeNull();
+    expect(mocks.readSections).not.toHaveBeenCalled();
+  });
+
+  const signInServer = {
+    name: "github",
+    owner: "extension:github",
+    runtime_name: "github.github",
+    scope: "global",
+    transport: "http",
+    launch: "https://api.githubcopilot.com",
+    status: "needs_authorization",
+    auth: { method: "oauth", registration: "dynamic", scopes: ["repo"] },
+  };
+  function installedRow(extension: Partial<ExtensionEntry>) {
+    catalog = {
+      ...catalog,
+      items: [{ ...entry, featured: false, installed: true, installed_name: "github" }],
+    };
+    extensions = [
+      {
+        ...extensionFixtures[0]!,
+        name: "github",
+        enabled: true,
+        marketplace: null,
+        origin: null,
+        missing_inputs: [],
+        mcp_servers: [],
+        ...extension,
+      },
+    ];
+  }
+
+  // UT-032 [US-006.AC-1]: one server waiting for sign-in starts that sign-in from the row.
+  it("Should start the server sign-in from Set up [UT-032]", async () => {
+    const begins: URL[] = [];
+    installedRow({ mcp_servers: [signInServer] });
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", () =>
+        HttpResponse.json({ server: mcpExtensionServerFixtures[1]! })
+      ),
+      http.post("*/api/settings/mcp-servers/:name/auth/begin", ({ request }) => {
+        begins.push(new URL(request.url));
+        return HttpResponse.json(mcpAuthBeginFixture);
+      })
+    );
+    setup();
+    const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
+    // The live server read has answered, so the press starts that server's sign-in in place.
+    await waitFor(() => expect(clients.at(-1)!.isFetching()).toBe(0));
+    await userEvent.click(setUp);
+    await screen.findByRole("dialog", { name: "Authorize github" });
+    await waitFor(() => expect(begins).toHaveLength(1));
+    expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
+  });
+
+  // Invariant: Set up is usable from the inventory alone; a slow live server read never disables
+  // it, and a press before that read answers opens the detail's setup instead of waiting.
+  it("Should keep Set up usable while the live server read is pending [UT-032]", async () => {
+    installedRow({ mcp_servers: [signInServer] });
+    let reads = 0;
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", () => {
+        reads += 1;
+        return new Promise<never>(() => {});
+      })
+    );
+    const { router } = setup();
+    const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
+    await waitFor(() => expect(reads).toBe(1));
+    expect(setUp).toBeEnabled();
+    await userEvent.click(setUp);
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/marketplace/${entry.entry_id}`)
+    );
+    expect(router.state.location.search).toMatchObject({ setup: 1, source: entry.source });
+  });
+
+  // UT-032 [US-006.AC-2]: a missing input opens the detail asking it to focus setup.
+  it("Should open the detail with setup=1 when an input is missing [UT-032]", async () => {
+    installedRow({ missing_inputs: ["GITHUB_TOKEN"], mcp_servers: [signInServer] });
+    const { router } = setup();
+    await userEvent.click(await screen.findByRole("button", { name: `Set up ${entry.name}` }));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/marketplace/${entry.entry_id}`)
+    );
+    expect(router.state.location.search).toMatchObject({ setup: 1, source: entry.source });
+  });
+
+  // UT-033 [US-007.AC-1, AC-2, EC-1]: one action per row; unknown inventory never reads Ready.
+  it("Should read Ready, Turn on, or a skeleton from the installed inventory [UT-033]", async () => {
+    installedRow({});
+    let releaseInventory!: () => void;
+    const inventory = new Promise<void>(resolve => (releaseInventory = resolve));
+    server.use(
+      http.get("*/api/extensions", async () => {
+        await inventory;
+        return HttpResponse.json({ extensions });
+      })
+    );
+    setup();
+    expect(
+      await screen.findByTestId(`marketplace-setup-unknown-${entry.entry_id}`)
+    ).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText("Ready")).toBeNull();
+    releaseInventory();
+    expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toHaveTextContent(
+      "Ready"
+    );
+    expect(screen.queryByRole("button", { name: `Add ${entry.name}` })).toBeNull();
+  });
+
+  it("Should offer Turn on for an installed extension that is off [UT-033]", async () => {
+    installedRow({ enabled: false });
+    const enabled: unknown[] = [];
+    server.use(
+      http.put("*/api/extensions/:name/enablement", async ({ params, request }) => {
+        enabled.push({ name: params.name, ...((await request.json()) as object) });
+        return HttpResponse.json({ name: "github", enabled: true, profile: "default" });
+      })
+    );
+    setup();
+    const turnOn = await screen.findByRole("button", { name: `Turn on ${entry.name}` });
+    expect(screen.queryByText("Ready")).toBeNull();
+    await userEvent.click(turnOn);
+    await waitFor(() =>
+      expect(enabled).toEqual([expect.objectContaining({ name: "github", enabled: true })])
+    );
+  });
+
+  // UT-034 [US-013.AC-2]: the detail names the source the plugin comes from.
+  it("Should attribute the detail to its source [UT-034]", async () => {
+    const detail = marketplaceCatalogDetailFixture(entry.entry_id)!;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () =>
+        HttpResponse.json({
+          ...detail,
+          entry: { ...detail.entry, source: "claude-plugins-official" },
+        })
+      )
+    );
+    setup(undefined, `/marketplace/${entry.entry_id}?source=claude-plugins-official`);
+    expect(await screen.findByTestId("marketplace-detail-source")).toHaveTextContent(
+      "From Claude plugins"
+    );
   });
 });
 

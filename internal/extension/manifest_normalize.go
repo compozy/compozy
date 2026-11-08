@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcppolicy"
+
 	"strings"
 
 	"github.com/compozy/compozy/internal/vault"
@@ -284,12 +287,26 @@ func validateManifestMCPServerEnv(manifest *Manifest) error {
 		server := servers[name]
 		secretEnv := normalizeStringMap(server.SecretEnv)
 		for _, input := range manifest.Inputs {
-			if input.Type == "secret" && input.Binding.Type == manifestEnvKey &&
+			if input.Type == manifestInputTypeSecret && input.Binding.Type == manifestEnvKey &&
 				secretEnv[input.Binding.Name] == input.ID {
 				delete(secretEnv, input.Binding.Name)
 			}
 		}
-		if err := validateManifestEnvMaps(field, "mcp", server.Env, secretEnv); err != nil {
+		fixed, bound := mcppolicy.InputHeaders(server.Env, func(id string) bool {
+			for _, input := range manifest.Inputs {
+				if input.ID == id && input.Type == manifestInputTypeSecret &&
+					input.Binding.Type == manifestInputBindingTemplate {
+					return true
+				}
+			}
+			return false
+		})
+		for key := range bound {
+			if err := compozyconfig.ValidateMCPStdioEnvName(field, key, true); err != nil {
+				return err
+			}
+		}
+		if err := validateManifestEnvMaps(field, "mcp", fixed, secretEnv); err != nil {
 			return err
 		}
 	}

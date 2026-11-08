@@ -6,9 +6,101 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// RefreshMarketplaceCatalog Refresh the extension catalog
+func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
+	path := "/api/marketplace/refresh"
+	var out MarketplaceRefreshResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshMarketplaceSourceParams carries the path, query, and header parameters.
+type RefreshMarketplaceSourceParams struct {
+	Name string `url:"name"`
+}
+
+// RefreshMarketplaceSource Refresh one enabled marketplace source Experimental: pin the exact SDK version.
+func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMarketplaceSourceParams) (*MarketplaceSourceResponse, error) {
+	path := "/api/marketplace/sources/{name}/refresh"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out MarketplaceSourceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshProviderModels Refresh provider model catalog sources across providers
+func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
+	path := "/api/model-catalog/models/refresh"
+	var out ProviderModelRefreshResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
+type RefreshProviderModelsByProviderParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// RefreshProviderModelsByProvider Refresh provider model catalog sources for one provider
+func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params RefreshProviderModelsByProviderParams, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models/refresh"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderModelRefreshResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshProviderUsage Refresh provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRefreshRequest) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage/refresh"
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshSessionPullRequestParams carries the path, query, and header parameters.
+type RefreshSessionPullRequestParams struct {
+	SessionID string  `url:"session_id"`
+	Profile   *string `url:"profile"`
+}
+
+// RefreshSessionPullRequest Refresh a session pull request
+func (c *Client) RefreshSessionPullRequest(ctx context.Context, params RefreshSessionPullRequestParams) (*SessionPullRequestResponse, error) {
+	path := "/api/sessions/{session_id}/pull-request/refresh"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionPullRequestResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshSessionSoulParams carries the path, query, and header parameters.
+type RefreshSessionSoulParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
 
 // RefreshSessionSoul Refresh an idle session's Soul snapshot through body-level CAS
 func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSoulParams, body SessionSoulRefreshRequest) (*AgentSoulPayload, error) {
@@ -349,98 +441,6 @@ func (c *Client) RemoveTaskDependency(ctx context.Context, params RemoveTaskDepe
 	}
 	var out TaskDetailResponse
 	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RemoveWorktreeParams carries the path, query, and header parameters.
-type RemoveWorktreeParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	WorktreeID   string  `url:"worktree_id"`
-	Force        *bool   `url:"force"`
-	DeleteBranch *bool   `url:"delete_branch"`
-	Profile      *string `url:"profile"`
-}
-
-// RemoveWorktree Remove a worktree
-func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams) (*WorktreeCleanupResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Force != nil {
-		query.Set("force", strconv.FormatBool(*params.Force))
-	}
-	if params.DeleteBranch != nil {
-		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeCleanupResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameGatewayDeviceParams carries the path, query, and header parameters.
-type RenameGatewayDeviceParams struct {
-	ID string `url:"id"`
-}
-
-// RenameGatewayDevice Rename one paired gateway device
-func (c *Client) RenameGatewayDevice(ctx context.Context, params RenameGatewayDeviceParams, body GatewayDeviceRenameRequest) (*GatewayDevicePayload, error) {
-	path := "/api/gateway/devices/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayDevicePayload
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameProfileParams carries the path, query, and header parameters.
-type RenameProfileParams struct {
-	Name string `url:"name"`
-}
-
-// RenameProfile Rename a profile
-func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
-	path := "/api/profiles/{name}/rename"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out RenameProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameSessionParams carries the path, query, and header parameters.
-type RenameSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RenameSession Rename one user session
-func (c *Client) RenameSession(ctx context.Context, params RenameSessionParams, body RenameSessionRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

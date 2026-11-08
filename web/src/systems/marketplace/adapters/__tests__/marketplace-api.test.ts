@@ -44,6 +44,7 @@ describe("marketplace acquisition transport", () => {
 
   it("Should install extensions through the source-union mutation", async () => {
     const extensionBody: Parameters<typeof installMarketplaceExtension>[0] = {
+      enable: false,
       allow_unverified: true,
       ref: "review-pack",
       source: "curated",
@@ -58,11 +59,34 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
+  // ADR-003: an install that succeeds while its enable fails answers 201 with both fields.
+  it("Should keep the enable failure beside the installed extension when enabling fails", async () => {
+    const extensionBody: Parameters<typeof installMarketplaceExtension>[0] = {
+      enable: true,
+      ref: "review-pack",
+      source: "curated",
+    };
+    mockJsonResponse(
+      {
+        extension: { name: "review-pack", enabled: false },
+        enable_error: { code: "extension_start_failed", error: "binary missing" },
+      },
+      { status: 201 }
+    );
+    const response = await installMarketplaceExtension(extensionBody);
+    await expectFetchRequest({ body: extensionBody, method: "POST", path: "/api/extensions" });
+    expect(response.extension).toMatchObject({ name: "review-pack", enabled: false });
+    expect(response.enable_error).toEqual({
+      code: "extension_start_failed",
+      error: "binary missing",
+    });
+  });
+
   it.each([
     ["refresh", () => refreshMarketplaceCatalog()],
     [
       "extension install",
-      () => installMarketplaceExtension({ ref: "review-pack", source: "curated" }),
+      () => installMarketplaceExtension({ enable: false, ref: "review-pack", source: "curated" }),
     ],
   ])("Should preserve typed daemon errors for %s failures", async (_label, request) => {
     mockJsonResponse({ error: "catalog mutation rejected" }, { status: 409 });
@@ -88,7 +112,7 @@ describe("marketplace acquisition transport", () => {
       { status: 409 }
     );
     await expect(
-      installMarketplaceExtension({ ref: "review-pack", source: "curated" })
+      installMarketplaceExtension({ enable: false, ref: "review-pack", source: "curated" })
     ).rejects.toMatchObject({
       status: 409,
       diagnosticCode: "extension_name_conflict",
@@ -106,7 +130,7 @@ describe("marketplace acquisition transport", () => {
     );
 
     await expect(
-      installMarketplaceExtension({ ref: "/srv/hello", source: "local_path" })
+      installMarketplaceExtension({ enable: false, ref: "/srv/hello", source: "local_path" })
     ).rejects.toMatchObject({
       diagnosticCode: "extension_checksum_unverified",
       status: 422,
@@ -118,6 +142,7 @@ describe("marketplace acquisition transport", () => {
     const listedDigest = "a".repeat(64);
     const fetchedDigest = "b".repeat(64);
     const body = {
+      enable: false,
       source: "curated" as const,
       ref: "compozy/sentry",
       expected_digest: listedDigest,
@@ -159,7 +184,7 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ source: "curated", ref: "compozy/kit" })
+      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/kit" })
     ).rejects.toHaveProperty("inputDefinitions", [definition]);
   });
 
@@ -192,7 +217,7 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ source: "curated", ref: "compozy/kit" })
+      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/kit" })
     ).rejects.toMatchObject({ inputDefinitions: undefined, requiredInputs: [definition.id] });
   });
 
@@ -202,7 +227,7 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ source: "curated", ref: "compozy/sentry" })
+      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/sentry" })
     ).rejects.toMatchObject({ inputId: "region", requiredInputs: undefined, status: 422 });
   });
 });

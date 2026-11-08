@@ -19,6 +19,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1925,4 +1926,198 @@ func (m *faultingSourceSessionManager) failNextActivation(err error) {
 	m.mu.Lock()
 	m.activationErr = err
 	m.mu.Unlock()
+}
+
+func TestClientRootMCPInventory(t *testing.T) {
+	t.Parallel()
+	for _, manifestPath := range []string{"tool/.cursor-plugin/plugin.json", "tool/plugin.json"} {
+		t.Run("Should install and reload the approved identity from "+manifestPath, func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := newLifecycleSourceNamed(t, "tool", "github", "1.0.0")
+			source.archives["1.0.0"] = lifecycleTarGzFiles(t, map[string]string{
+				manifestPath:    `{"name":"Foo Bar","version":"1.0.0"}`,
+				"tool/mcp.json": `{"mcpServers":{"remote":{"url":"https://example.com/mcp"}}}`,
+			})
+			info, err := InstallMarketplaceManaged(
+				t.Context(),
+				paths,
+				env.registry,
+				func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+				MarketplaceInstallRequest{
+					Slug:                   "acme/tool",
+					SourceFilter:           "github",
+					PolicyAllowsUnverified: true,
+					AllowUnverified:        true,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Name != "tool" {
+				t.Fatalf("identity = %q", info.Name)
+			}
+			manager := NewManager(env.registry)
+			t.Cleanup(func() {
+				if err := manager.Stop(t.Context()); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := manager.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Reload(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Stop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			manager = NewManager(env.registry)
+			if err := manager.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+
+			loaded, err := manager.InspectPackageResources(t.Context(), "tool")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if loaded.Manifest.Name != "tool" || len(loaded.Manifest.Resources.MCPServers) != 1 {
+				t.Fatalf("reloaded package = %+v", loaded)
+			}
+			current, err := manager.Get("tool")
+			if err != nil || !current.Status.Active {
+				t.Fatalf("runtime = %+v, error = %v", current, err)
+			}
+		})
+
+	}
+
+	for _, layout := range []string{"cursor", "manifestless", "servicenow", "secret-env"} {
+		t.Run("Should install "+layout+" root MCP and publish its inventory and server", func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			root := filepath.Join(t.TempDir(), "acme")
+			if err := os.MkdirAll(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if layout != "manifestless" {
+				if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(root, ".cursor-plugin", "plugin.json"), `{"name":"acme","version":"1.0.0"}`)
+			}
+			writeFile(
+				t,
+				filepath.Join(root, "mcp.json"),
+				`{"mcpServers":{"remote":{"url":"https://example.com/mcp","placement":"remote"}}}`,
+			)
+
+			state := InputState{}
+			if layout == "servicenow" {
+				writeFile(
+					t,
+					filepath.Join(root, "mcp.json"),
+					`{"mcpServers":{"remote":{"url":"https://example.com/mcp","auth":{"CLIENT_ID":"${CLIENT_ID}","CLIENT_SECRET":"${CLIENT_SECRET}","scopes":["mcp_server"]}}}}`,
+				)
+				state.Values = map[string]InputValueRecord{
+					"CLIENT_ID": {Type: "string", Value: json.RawMessage(`"registered-client"`), Active: true},
+					"CLIENT_SECRET": {
+						Type:      "secret",
+						SecretRef: "vault:extensions/global/acme/env/CLIENT_SECRET",
+						Active:    true,
+					},
+				}
+			}
+
+			if layout == "secret-env" {
+				writeFile(
+					t,
+					filepath.Join(root, "mcp.json"),
+					`{"mcpServers":{"remote":{"command":"node","env":{"DEMO_API_KEY":"${DEMO_API_KEY}"}}}}`,
+				)
+				state.Values = map[string]InputValueRecord{
+					"DEMO_API_KEY": {
+						Type:      "secret",
+						SecretRef: "vault:extensions/global/acme/env/DEMO_API_KEY",
+						Active:    true,
+					},
+				}
+			}
+			inspected, err := InspectPluginPackage(t.Context(), root, "marketplace-name")
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantName := "acme"
+			if layout == "manifestless" {
+				wantName = "marketplace-name"
+			}
+			if inspected.InstanceName != wantName || inspected.Contents.MCPServers != 1 {
+				t.Fatalf("inspection = %#v", inspected)
+			}
+			manifest, err := LoadManifest(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.Install(manifest, root, checksum); err != nil {
+				t.Fatal(err)
+			}
+			manager := NewManager(env.registry)
+			installed, err := manager.InspectPackageResources(t.Context(), "acme")
+			if err != nil {
+				t.Fatal(err)
+			}
+			contents, err := InspectPackageContents(t.Context(), installed, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if contents.MCPServers != 1 {
+				t.Fatalf("inventory = %#v", contents)
+			}
+			servers, err := ResolveManifestMCPServerResources(
+				root,
+				installed.Manifest,
+				state,
+				func(string) string { return "" },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(servers) != 1 || (layout != "secret-env" && servers[0].URL != "https://example.com/mcp") {
+				t.Fatalf("projection = %#v", servers)
+			}
+
+			if layout == "secret-env" {
+				if servers[0].Env["DEMO_API_KEY"] != "" ||
+					servers[0].SecretEnv["DEMO_API_KEY"] != state.Values["DEMO_API_KEY"].SecretRef {
+					t.Fatalf("secret binding = %+v", servers[0])
+				}
+				if err := env.registry.SetEnabledForProfile("acme", "default", true); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if layout == "servicenow" {
+				if servers[0].Auth.ClientID != "registered-client" ||
+					servers[0].Auth.ClientSecretRef != state.Values["CLIENT_SECRET"].SecretRef {
+					t.Fatalf("bound auth = %+v", servers[0].Auth)
+				}
+				if err := servers[0].Auth.Validate("auth"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, d := range installed.Manifest.IngestDiagnostics {
+				if d.Code == agentplugin.ClientMCPDiscovered && d.Severity != "info" {
+					t.Fatalf("discovery = %#v", d)
+				}
+			}
+		})
+	}
 }

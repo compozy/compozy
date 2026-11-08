@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// LoopInputValidationErrorPayload is a daemon API value.
+type LoopInputValidationErrorPayload struct {
+	Loop   string `json:"loop"`
+	Field  string `json:"field"`
+	Kind   string `json:"kind,omitempty"`
+	Value  string `json:"value,omitempty"`
+	Origin string `json:"origin"`
+	Reason string `json:"reason"`
+}
+
+// LoopLintErrorPayload is a daemon API value.
+type LoopLintErrorPayload struct {
+	NodeID   string           `json:"node_id,omitempty"`
+	Path     string           `json:"path,omitempty"`
+	Code     string           `json:"code"`
+	Message  string           `json:"message"`
+	Severity LoopLintSeverity `json:"severity"`
+}
+
 // LoopLintSeverity is a daemon API value.
 type LoopLintSeverity string
 
@@ -428,18 +447,3 @@ type LoopRuntimeValidationItemPayload struct {
 
 // LoopSource is a daemon API value.
 type LoopSource string
-
-// LoopStartBinding is a daemon API value.
-type LoopStartBinding struct {
-	Kind         string            `json:"kind"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-// LoopTarget is a daemon API value.
-type LoopTarget struct {
-	WorkspaceID  string            `json:"workspace_id"`
-	LoopName     string            `json:"loop_name"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}

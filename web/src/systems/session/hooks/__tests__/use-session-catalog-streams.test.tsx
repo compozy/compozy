@@ -13,12 +13,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
-import { fileViewerTarget, filesKeys } from "@/systems/files";
+import { filesKeys } from "@/systems/files";
 
 import { sessionKeys } from "../../lib/query-keys";
 import { sessionChangesKeys } from "../../lib/session-changes-query";
 import {
-  requestSessionReviewFile,
+  requestSessionReviewChanges,
   sessionReviewPanelStore,
   useSessionReviewPanelState,
 } from "../use-session-review-panel-state";
@@ -1432,8 +1432,7 @@ describe("useSessionCatalogStreams", () => {
 
   it("Should drop the old checkout's files and Changes and reset the Review panel on a location transition", async () => {
     // Invariant: after the session's checkout changes, the Review panel never shows the previous
-    // checkout's files, search or diffs, and nothing chosen there (viewer target, focused change,
-    // Changes base) carries over. Other sessions keep theirs. Owner: catalog reconciliation.
+    // checkout's files, search or diffs, and nothing chosen there (focused change, Changes base) carries over. Other sessions keep theirs. Owner: catalog reconciliation.
     const queryClient = createQueryClient();
     const root = { kind: "session" as const, workspaceId: WORKSPACE_ID, sessionId: SESSION_ID };
     const entriesKey = filesKeys.entries(root, "", true);
@@ -1447,7 +1446,7 @@ describe("useSessionCatalogStreams", () => {
       queryClient.setQueryData(key, { from: "old-checkout" });
     }
     vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
-    requestSessionReviewFile(SESSION_ID, fileViewerTarget("a.ts", 3));
+    requestSessionReviewChanges(SESSION_ID, { path: "a.ts" });
     sessionReviewPanelStore.trigger.changesPreferenceChanged({
       sessionId: SESSION_ID,
       patch: { base: "origin/old" },
@@ -1465,7 +1464,7 @@ describe("useSessionCatalogStreams", () => {
       },
       { wrapper: wrapper(queryClient) }
     );
-    expect(result.current.target?.path).toBe("a.ts");
+    expect(result.current.focusedChange?.path).toBe("a.ts");
     const rootKey = result.current.rootKey;
 
     act(() => {
@@ -1482,7 +1481,7 @@ describe("useSessionCatalogStreams", () => {
     expect(queryClient.getQueryData(contentKey)).toBeUndefined();
     expect(queryClient.getQueryData(changesKey)).toBeUndefined();
     expect(queryClient.getQueryData(otherKey)).toEqual({ from: "old-checkout" });
-    expect(result.current.target).toBeNull();
+    expect(result.current.focusedChange).toBeNull();
     expect(result.current.base).toBeUndefined();
     expect(result.current.rootKey).toBe(rootKey + 1);
   });
