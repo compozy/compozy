@@ -23,7 +23,7 @@ export function BlogEmptyState({
 }: BlogEmptyStateProps) {
   return (
     <section className="rounded-xl border border-line bg-canvas-soft p-6">
-      <Eyebrow className="text-brand">{eyebrow}</Eyebrow>
+      <Eyebrow className="text-brand-strong">{eyebrow}</Eyebrow>
       <h2 className="mt-4 max-w-[26ch] font-sans text-site-card-title font-semibold leading-tight tracking-tight text-fg">
         {title}
       </h2>

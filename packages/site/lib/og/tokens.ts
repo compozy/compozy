@@ -1,20 +1,23 @@
 export const SIZE = { width: 1200, height: 630 } as const;
 
+// Identity v1.2 values, mirrored from @compozy/ui tokens.css (Satori takes literal colours).
+// Neutral ink ladder; volt is a fill/mark colour, so brand used as text takes `brandText`.
 export const COLORS = {
-  canvas: "#141312",
-  surface: "#1E1C1B",
-  border: "#3C3A39",
-  brand: "#E8572A",
-  textPrimary: "#E5E5E7",
-  textSecondary: "#8E8E93",
-  textTertiary: "#636366",
-  textLabel: "#98989D",
+  canvas: "#0a0a0a",
+  surface: "#1b1b1b",
+  border: "#383838",
+  brand: "#2f5bff",
+  brandText: "#5b7fff",
+  textPrimary: "#ececec",
+  textSecondary: "#989898",
+  textTertiary: "#5e5e5e",
+  textLabel: "#8e8e8e",
 } as const;
 
 export const FONTS = {
-  sans: "Geist",
-  display: "Playfair Display",
-  mono: "JetBrains Mono",
+  sans: "Figtree",
+  display: "Instrument Sans",
+  mono: "Geist Mono",
 } as const;
 
 export function truncate(value: string | undefined, max: number): string {

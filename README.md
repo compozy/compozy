@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="packages/site/public/icon-512.png" alt="CompozyOS" width="96" height="96">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="imgs/compozy-lockup-light.png">
+    <img src="imgs/compozy-lockup-dark.png" alt="Compozy" height="64">
+  </picture>
   <h1>CompozyOS</h1>
   <p><strong>The system around the agent, already built.</strong></p>
   <p>An operating system for AI agents.</p>

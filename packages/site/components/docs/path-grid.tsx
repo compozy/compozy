@@ -45,7 +45,7 @@ export function PathLink({ href, icon, children, cta = false }: PathLinkProps) {
       href={href}
       className={
         cta
-          ? "flex h-[30px] items-center gap-2 text-small-body font-medium text-brand transition-colors hover:text-brand-hover"
+          ? "flex h-[30px] items-center gap-2 text-small-body font-medium text-brand-strong transition-colors hover:text-fg"
           : "flex h-[30px] items-center gap-2 text-small-body text-muted-foreground transition-colors hover:text-fg"
       }
     >

@@ -41,7 +41,7 @@ export function BundledExtensionCard({
           <CatalogCard.Title className="flex flex-wrap items-baseline gap-2">
             <Link
               href={href}
-              className="transition-colors hover:text-brand focus-visible:text-brand"
+              className="transition-colors hover:text-brand-strong focus-visible:text-brand-strong"
             >
               {name}
             </Link>
@@ -60,7 +60,7 @@ export function BundledExtensionCard({
         <MarketplaceInstallCommand command={statusCommand} className="min-w-0 flex-1 basis-64" />
         <Link
           href={href}
-          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
+          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand-strong"
         >
           View details
           <ArrowRight aria-hidden className="size-3.5" />
@@ -88,7 +88,7 @@ export function BundledSkillCard({ name, description }: { name: string; descript
       <CatalogCard.Actions className="mt-1 flex flex-wrap items-center gap-3">
         <Link
           href="/docs/skills/bundled"
-          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
+          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand-strong"
         >
           How bundled skills load
           <ArrowRight aria-hidden className="size-3.5" />

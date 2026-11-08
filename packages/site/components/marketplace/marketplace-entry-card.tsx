@@ -49,7 +49,7 @@ export function MarketplaceEntryCard({ entry }: { entry: ExtensionEntry }) {
           <CatalogCard.Title className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-card-title">
             <Link
               href={detailHref}
-              className="truncate transition-colors hover:text-brand focus-visible:text-brand"
+              className="truncate transition-colors hover:text-brand-strong focus-visible:text-brand-strong"
             >
               {entry.name}
             </Link>
@@ -88,7 +88,7 @@ export function MarketplaceEntryCard({ entry }: { entry: ExtensionEntry }) {
         />
         <Link
           href={detailHref}
-          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
+          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand-strong"
         >
           View details
           <ArrowRight aria-hidden className="size-3.5" />

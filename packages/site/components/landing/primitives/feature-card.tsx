@@ -33,13 +33,13 @@ export function FeatureCard({
           {icon}
         </div>
       ) : null}
-      {eyebrow ? <Eyebrow className="text-brand">{eyebrow}</Eyebrow> : null}
+      {eyebrow ? <Eyebrow className="text-brand-strong">{eyebrow}</Eyebrow> : null}
       <h3 className="text-base font-medium leading-snug text-fg">{title}</h3>
       <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
       {cite ? (
         <Link
           href={cite.href}
-          className="eyebrow mt-auto inline-flex items-center gap-1 pt-2 text-subtle transition-colors hover:text-brand"
+          className="eyebrow mt-auto inline-flex items-center gap-1 pt-2 text-subtle transition-colors hover:text-brand-strong"
         >
           {cite.label ?? "source"}
           <ArrowUpRight aria-hidden className="size-3" />

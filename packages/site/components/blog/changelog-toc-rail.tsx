@@ -22,7 +22,7 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
                   aria-current={isActive ? "location" : undefined}
                   className={cn(
                     "block font-mono text-small-body tracking-mono",
-                    isActive ? "text-brand" : "text-muted-foreground hover:text-fg"
+                    isActive ? "text-brand-strong" : "text-muted-foreground hover:text-fg"
                   )}
                 >
                   {release.version}
@@ -33,13 +33,13 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
         </ul>
       </div>
       <div className="rounded-xl border border-line bg-canvas-soft p-5">
-        <Eyebrow className="text-brand tracking-badge!">Upgrade</Eyebrow>
+        <Eyebrow className="text-brand-strong tracking-badge!">Upgrade</Eyebrow>
         <p className="mt-3 text-small-body leading-6 text-muted-foreground">
           One binary, one daemon. Pull the latest from Go and restart the process.
         </p>
         <Link
           href="/docs/getting-started/installation"
-          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand"
+          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong"
         >
           Install instructions →
         </Link>

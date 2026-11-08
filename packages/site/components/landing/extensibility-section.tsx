@@ -77,7 +77,7 @@ export function ExtensibilitySection() {
           </p>
           <Link
             href={EXTENSIONS_DOCS_HREF}
-            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-brand before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-brand-strong before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             Read extensions docs
             <ArrowUpRight

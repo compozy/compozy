@@ -146,7 +146,7 @@ export function InstallSection({ goInstallCommand }: { goInstallCommand: string 
                   size: "sm",
                 }),
                 "flex-1 font-mono text-xs tracking-mono",
-                t.id === tab && "bg-brand-tint text-brand hover:bg-brand-tint"
+                t.id === tab && "bg-brand-tint text-brand-strong hover:bg-brand-tint"
               )}
             >
               {t.label}
@@ -176,7 +176,7 @@ export function InstallSection({ goInstallCommand }: { goInstallCommand: string 
               className="flex flex-col gap-4 rounded-diagram border border-line bg-canvas p-6"
             >
               <div className="flex items-start gap-4">
-                <span className="mt-0.5 font-mono text-lg font-medium text-brand">
+                <span className="mt-0.5 font-mono text-lg font-medium text-brand-strong">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1">

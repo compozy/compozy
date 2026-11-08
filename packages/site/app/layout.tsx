@@ -1,5 +1,5 @@
 import "./global.css";
-import { Geist, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Figtree, Geist_Mono, Instrument_Sans } from "next/font/google";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
@@ -15,22 +15,22 @@ const SITE_TOASTER_STYLE = {
   "--normal-border": "var(--color-line-soft)",
 } as CSSProperties;
 
-const geist = Geist({
+const figtree = Figtree({
   subsets: ["latin"],
-  variable: "--font-geist",
+  variable: "--font-figtree",
   display: "swap",
 });
 
-const playfairDisplay = Playfair_Display({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-playfair",
+  variable: "--font-instrument-sans",
   display: "swap",
   weight: ["400"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -82,14 +82,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#E8572A",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`dark ${geist.variable} ${playfairDisplay.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${figtree.variable} ${instrumentSans.variable} ${geistMono.variable}`}
     >
       <body className="flex min-h-dvh flex-col bg-fd-background font-sans text-fd-foreground antialiased">
         <a

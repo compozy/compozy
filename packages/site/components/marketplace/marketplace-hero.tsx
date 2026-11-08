@@ -44,7 +44,7 @@ export function MarketplaceHero() {
       <div className="relative mx-auto w-full max-w-site-layout-width px-4 pt-14 pb-11">
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-18">
           <div>
-            <Eyebrow className="text-brand">Marketplace</Eyebrow>
+            <Eyebrow className="text-brand-strong">Marketplace</Eyebrow>
             <h1 className="mt-3.5 font-display text-site-doc-title leading-tight font-normal tracking-tight text-fg">
               Install what your agents <em>need</em>
             </h1>

@@ -104,7 +104,7 @@ export function LandingCodeBlock({
           {displayLines.map(({ id, line }) => (
             <div key={id} className={line === "" ? "h-[1.1em]" : undefined}>
               {shell && line !== "" && !line.startsWith("#") ? (
-                <span className="select-none text-brand">$ </span>
+                <span className="select-none text-brand-strong">$ </span>
               ) : null}
               {line.startsWith("#") ? <span className="text-subtle">{line}</span> : line}
             </div>

@@ -12,7 +12,7 @@ export default function ChangelogReleaseNotFound() {
         <p className="mt-4 text-muted-foreground">
           The site lists published GitHub releases from v0.3.0-beta.1 onward.
         </p>
-        <Link href="/changelog" className="mt-7 inline-flex text-sm font-medium text-brand">
+        <Link href="/changelog" className="mt-7 inline-flex text-sm font-medium text-brand-strong">
           Browse all releases →
         </Link>
       </div>

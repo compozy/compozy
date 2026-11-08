@@ -25,7 +25,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
       </div>
       <div>
         <h2 className="font-sans text-site-release-title font-semibold leading-tight tracking-tight text-fg">
-          <Link href={detailPath} className="hover:text-brand">
+          <Link href={detailPath} className="hover:text-brand-strong">
             {release.version}
           </Link>
         </h2>
@@ -40,7 +40,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
           ))}
         </div>
         <div className="mt-7 flex flex-wrap items-center gap-5 text-sm font-medium">
-          <Link href={detailPath} className="text-brand hover:text-brand-hover">
+          <Link href={detailPath} className="text-brand-strong hover:text-fg">
             Read full release notes →
           </Link>
           <a

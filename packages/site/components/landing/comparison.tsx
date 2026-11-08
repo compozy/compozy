@@ -53,7 +53,7 @@ export function Comparison() {
         <div className={cn("hidden border-b border-line px-5 py-4 md:grid md:gap-4", COLUMNS)}>
           <Eyebrow className="text-subtle">Piece</Eyebrow>
           <Eyebrow className="text-subtle">What you assemble yourself</Eyebrow>
-          <Eyebrow className="text-brand">What comes built in</Eyebrow>
+          <Eyebrow className="text-brand-strong">What comes built in</Eyebrow>
         </div>
 
         {STACK_ROWS.map(row => (
@@ -70,7 +70,7 @@ export function Comparison() {
               <p className="text-small-body leading-6 text-muted-foreground">{row.diy}</p>
             </div>
             <div>
-              <Eyebrow className="text-brand md:hidden">What comes built in</Eyebrow>
+              <Eyebrow className="text-brand-strong md:hidden">What comes built in</Eyebrow>
               <p className="text-small-body leading-6 text-fg">{row.builtIn}</p>
             </div>
           </article>

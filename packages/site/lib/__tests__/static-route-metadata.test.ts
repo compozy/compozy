@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { siteConfig } from "../site-config";
 
 vi.mock("next/font/google", () => ({
-  Geist: () => ({ variable: "--font-geist" }),
-  JetBrains_Mono: () => ({ variable: "--font-jetbrains-mono" }),
-  Playfair_Display: () => ({ variable: "--font-playfair" }),
+  Figtree: () => ({ variable: "--font-figtree" }),
+  Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+  Instrument_Sans: () => ({ variable: "--font-instrument-sans" }),
 }));
 
 describe("static public route metadata", () => {
@@ -82,7 +82,7 @@ describe("static public route metadata", () => {
       });
       expect(metadata.robots).toEqual({ index: true, follow: true });
       expect(metadata.manifest).toBe("/site.webmanifest");
-      expect(viewport.themeColor).toBe("#E8572A");
+      expect(viewport.themeColor).toBe("#0a0a0a");
     }
   );
 });

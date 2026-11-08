@@ -61,7 +61,7 @@ export function FeaturesSection() {
                 />
               </div>
               <div className="flex flex-1 flex-col pt-5">
-                <Eyebrow className="text-brand">{feature.eyebrow}</Eyebrow>
+                <Eyebrow className="text-brand-strong">{feature.eyebrow}</Eyebrow>
                 <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-fg">
                   {feature.title}
                 </h3>

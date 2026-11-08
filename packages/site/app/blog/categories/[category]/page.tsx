@@ -52,7 +52,7 @@ export default async function CategoryArchivePage({ params }: PageProps) {
       <section className="border-b border-line px-4 pt-14 pb-12">
         <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
-            <Eyebrow className="text-brand">CATEGORY</Eyebrow>
+            <Eyebrow className="text-brand-strong">CATEGORY</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <Eyebrow className="text-muted-foreground">{categoryLabel(category)}</Eyebrow>
           </div>

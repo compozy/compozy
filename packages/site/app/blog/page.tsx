@@ -27,7 +27,7 @@ export default async function BlogIndexPage() {
       <section className="border-b border-line px-4 pt-14 pb-14">
         <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
-            <Eyebrow className="text-brand">BLOG</Eyebrow>
+            <Eyebrow className="text-brand-strong">BLOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <Eyebrow className="text-muted-foreground">Field notes from CompozyOS</Eyebrow>
           </div>

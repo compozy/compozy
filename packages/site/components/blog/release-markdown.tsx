@@ -57,7 +57,7 @@ export function ReleaseMarkdown({
               <a
                 {...props}
                 href={href}
-                className="font-medium text-brand underline decoration-brand/35 underline-offset-4 hover:decoration-brand"
+                className="font-medium text-brand-strong underline decoration-brand/35 underline-offset-4 hover:decoration-brand"
                 target={external ? "_blank" : undefined}
                 rel={external ? "noreferrer noopener" : undefined}
               />

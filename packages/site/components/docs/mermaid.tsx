@@ -118,7 +118,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : state.error ? (
         <div>
-          <Eyebrow className="text-brand">Diagram source</Eyebrow>
+          <Eyebrow className="text-brand-strong">Diagram source</Eyebrow>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Mermaid could not render this diagram in the current browser session.
           </p>

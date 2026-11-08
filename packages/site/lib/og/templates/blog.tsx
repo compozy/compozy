@@ -60,7 +60,9 @@ export async function renderBlogOG({
       >
         <LogoLockup height={48} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.brand, textTransform: "uppercase" }}>COMPOZYOS BLOG</span>
+          <span style={{ color: COLORS.brandText, textTransform: "uppercase" }}>
+            COMPOZYOS BLOG
+          </span>
           {formattedDate ? (
             <>
               <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
@@ -83,7 +85,7 @@ export async function renderBlogOG({
             fontFamily: FONTS.display,
             fontSize: "76px",
             lineHeight: 1.0,
-            letterSpacing: "-0.02em",
+            letterSpacing: "-0.025em",
             color: COLORS.textPrimary,
             fontWeight: 400,
             maxWidth: "940px",

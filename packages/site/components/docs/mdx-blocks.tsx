@@ -36,7 +36,7 @@ export function OperatorNote({
       role="note"
       className="not-prose rounded-xl border border-line bg-canvas-soft p-5 md:px-6"
     >
-      <Eyebrow className="text-brand">{label}</Eyebrow>
+      <Eyebrow className="text-brand-strong">{label}</Eyebrow>
       <div className="mt-3 text-base leading-7 text-muted-foreground">{children}</div>
     </aside>
   );
@@ -90,7 +90,7 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <Eyebrow className="text-brand">{label}</Eyebrow>
+          <Eyebrow className="text-brand-strong">{label}</Eyebrow>
           {meta ? (
             <Eyebrow className="rounded-md border border-line bg-elevated px-2 py-1 text-subtle">
               {meta}

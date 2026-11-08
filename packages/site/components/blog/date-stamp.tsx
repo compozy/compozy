@@ -13,7 +13,7 @@ export interface DateStampProps extends Omit<ComponentProps<"time">, "children" 
 
 const toneClass: Record<DateStampTone, string> = {
   neutral: "text-muted-foreground",
-  brand: "text-brand",
+  brand: "text-brand-strong",
   success: "text-success",
   destructive: "text-destructive",
   warning: "text-warning",

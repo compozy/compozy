@@ -17,7 +17,7 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
     >
       <DateStamp date={post.date} format="compact" className="sm:pt-1" />
       <div className="min-w-0">
-        <p className="font-sans text-site-lead font-medium leading-snug tracking-tight text-fg group-hover:text-brand">
+        <p className="font-sans text-site-lead font-medium leading-snug tracking-tight text-fg group-hover:text-brand-strong">
           {post.title}
         </p>
         <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{post.description}</p>

@@ -156,7 +156,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
                 {walkthroughUrl ? (
                   <Link
                     href={walkthroughUrl}
-                    className="mt-3.5 inline-flex text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
+                    className="mt-3.5 inline-flex text-small-body font-medium text-muted-foreground transition-colors hover:text-brand-strong"
                   >
                     Read the walkthrough
                   </Link>
@@ -248,7 +248,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
                 href={extension.repositoryUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
+                className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand-strong"
               >
                 {extension.repositoryUrl.replace(/^https:\/\//, "")}
               </a>
@@ -267,7 +267,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
         How bundled and installed extensions differ is covered in the{" "}
         <Link
           href="/docs/extensions/install"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand-strong"
         >
           extension install docs
         </Link>

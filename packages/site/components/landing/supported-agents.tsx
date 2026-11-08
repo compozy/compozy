@@ -99,14 +99,14 @@ export function SupportedAgents() {
     <SectionFrame background="canvas" padY="md" className="border-b border-line">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         <div className="max-w-[40ch]">
-          <Eyebrow className="text-brand">Bring the agents you use</Eyebrow>
+          <Eyebrow className="text-brand-strong">Bring the agents you use</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
             CompozyOS launches built-in CLI and provider integrations as durable sessions, with
             shared tools, explicit permissions, and history that stays on your machine.
           </p>
           <Link
             href="/docs/agents/providers"
-            className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-brand"
+            className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-brand-strong"
           >
             Read more about providers
             <ArrowUpRight aria-hidden className="size-3" />

@@ -25,7 +25,7 @@ export function Chip({ children, brand = false }: ChipProps) {
       style={{
         ...chipBaseStyle,
         border: `1px solid ${brand ? COLORS.brand : COLORS.border}`,
-        color: brand ? COLORS.brand : COLORS.textSecondary,
+        color: brand ? COLORS.brandText : COLORS.textSecondary,
       }}
     >
       {children}

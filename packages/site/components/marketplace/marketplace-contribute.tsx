@@ -26,7 +26,7 @@ export function MarketplaceContribute() {
         href={CONTRIBUTION_GUIDE_URL}
         target="_blank"
         rel="noreferrer noopener"
-        className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-brand/35 hover:text-brand"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-brand/35 hover:text-brand-strong"
       >
         <GitPullRequest aria-hidden className="size-4" />
         Read the contribution guide

@@ -46,7 +46,7 @@ export function AutonomyKernelSection() {
       <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
         <div className="flex min-w-0 flex-col gap-6">
           <div className="min-w-0 rounded-diagram border border-line bg-canvas-soft p-5 sm:p-7">
-            <Eyebrow className="text-brand">Token-fenced ownership</Eyebrow>
+            <Eyebrow className="text-brand-strong">Token-fenced ownership</Eyebrow>
             <h3 className="mt-3 font-display text-2xl leading-tight tracking-tight text-fg">
               No double-execution, ever.
             </h3>
@@ -61,7 +61,7 @@ export function AutonomyKernelSection() {
 
         <ul className="flex min-w-0 flex-col divide-y divide-line border-y border-line">
           <li className="py-6">
-            <Eyebrow className="text-brand">Lease recovery</Eyebrow>
+            <Eyebrow className="text-brand-strong">Lease recovery</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Daemon crashes don&apos;t orphan work.
             </h4>
@@ -71,7 +71,7 @@ export function AutonomyKernelSection() {
             </p>
           </li>
           <li className="py-6">
-            <Eyebrow className="text-brand">One shared queue</Eyebrow>
+            <Eyebrow className="text-brand-strong">One shared queue</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Operators and agents hit task_runs.
             </h4>
@@ -82,7 +82,7 @@ export function AutonomyKernelSection() {
             </p>
           </li>
           <li className="py-6">
-            <Eyebrow className="text-brand">Permission narrowing</Eyebrow>
+            <Eyebrow className="text-brand-strong">Permission narrowing</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Children cannot widen parents.
             </h4>
@@ -97,7 +97,7 @@ export function AutonomyKernelSection() {
       <div className="mt-10">
         <Link
           href="/docs/autonomy"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-hover"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-strong transition-colors hover:text-fg"
         >
           Read the autonomy kernel guide
           <ArrowUpRight aria-hidden className="size-4" />

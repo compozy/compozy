@@ -75,7 +75,9 @@ export async function renderDocsOG({
       >
         <LogoLockup height={42} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.brand, textTransform: "uppercase" }}>{labels.eyebrow}</span>
+          <span style={{ color: COLORS.brandText, textTransform: "uppercase" }}>
+            {labels.eyebrow}
+          </span>
           <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
           <span style={{ color: COLORS.textTertiary }}>{path}</span>
         </div>

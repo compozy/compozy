@@ -116,7 +116,7 @@ export function PrimaryDownload({ release }: { release: DesktopRelease }) {
             {alternate.prompt}{" "}
             <a
               href={alternateOffer.href}
-              className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand hover:decoration-brand"
+              className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand-strong hover:decoration-brand"
             >
               {ALTERNATE_LABEL[alternate.id]}
             </a>
@@ -124,7 +124,7 @@ export function PrimaryDownload({ release }: { release: DesktopRelease }) {
         ) : (
           <a
             href="#all-downloads"
-            className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand hover:decoration-brand"
+            className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand-strong hover:decoration-brand"
           >
             Other platforms and packages
           </a>

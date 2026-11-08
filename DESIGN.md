@@ -895,8 +895,9 @@ never a legal color for UI copy.
 
 Figtree Variable (wght) is the runtime typeface. Geist Mono Variable is reserved
 for ids, code, paths, the terminal, and fixed-width operational values. The
-site keeps its own families (Geist + JetBrains Mono via `next/font`) and
-binds `--font-display` to Playfair Display for landing (`.site-home`) and docs
+site loads the same families through `next/font` (Figtree, Instrument Sans,
+Geist Mono) and binds `--font-display` to Instrument Sans for landing
+(`.site-home`) and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
 below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
 alias, not a type-ramp utility: it resolves to Instrument Sans Variable 400 at
@@ -927,7 +928,7 @@ Reach for `caps` only where a label is a true typographic kicker. Eyebrow is for
 such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
 because they are small. Docs-shell labels are the exception: they keep the
-`<Eyebrow>` wrapper but speak JetBrains Mono via `--text-badge` (section /
+`<Eyebrow>` wrapper but speak Geist Mono via `--text-badge` (section /
 crumbs) or `--text-group-label` (in-folder groups) — not marketing
 `--text-eyebrow`.
 
@@ -1413,10 +1414,10 @@ is listed.
 shadow vocabulary. It extends the system with site-only font binding,
 responsive type clamps, layout widths, doc body classes, and bento overlays.
 
-Playfair Display is allowed on the site for landing display roles and docs
+Instrument Sans (`--font-display`) is allowed on the site for landing display roles and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only. Runtime
 UI, shared UI primitives, blog bodies, changelog bodies, marketplace catalog
-chrome, and all other docs chrome (sidebar, TOC, actions, `h3`+) stay on Geist.
+chrome, and all other docs chrome (sidebar, TOC, actions, `h3`+) stay on Figtree.
 Docs mono labels bind `--text-badge` / `--text-group-label`, not
 `--text-eyebrow`.
 
@@ -1424,7 +1425,7 @@ Outside the two docs roles above, a heading declares its own face with the
 `font-display` utility — always paired with `font-normal` and a site clamp
 token. No element selector may assign a face to a bare `h1`/`h2`: a blanket
 rule outranks the utility and silently overrides every heading that asked for
-Geist.
+Figtree.
 
 ### Site typography clamps
 
@@ -1483,7 +1484,7 @@ Geist.
 Site classes are intentionally narrow:
 
 - `.site-home` gates landing layout width and canvas, never typography.
-- `.site-doc-masthead__title` and `.site-doc-body h2` are the docs Playfair roles.
+- `.site-doc-masthead__title` and `.site-doc-body h2` are the docs display roles.
 - `.site-doc-body` owns docs prose rhythm and MDX article width.
 - `.site-bento-overlay-*` fades illustration assets into the dark ramp.
 - `.compozy-mermaid` owns Mermaid diagram theming for docs.

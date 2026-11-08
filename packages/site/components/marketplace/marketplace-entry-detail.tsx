@@ -57,7 +57,7 @@ function ExternalLink({ href, children }: { href: string; children: string }) {
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
+      className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand-strong"
     >
       {children}
     </a>
@@ -221,7 +221,7 @@ export function MarketplaceEntryDetail({ entry }: { entry: ExtensionEntry }) {
         New to the marketplace? The{" "}
         <Link
           href="/docs/marketplace"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand-strong"
         >
           concept docs
         </Link>{" "}

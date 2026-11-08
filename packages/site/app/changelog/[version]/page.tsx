@@ -90,7 +90,7 @@ export default async function ChangelogReleasePage({ params }: PageProps) {
             <ArrowLeft className="size-3.5" aria-hidden /> All releases
           </Link>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Eyebrow className="text-brand">CHANGELOG</Eyebrow>
+            <Eyebrow className="text-brand-strong">CHANGELOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <DateStamp date={release.publishedAt} tracking="wide" />
           </div>

@@ -43,11 +43,11 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
                 className="group rounded-xl border border-line bg-canvas p-5"
               >
                 <div className="flex items-center gap-2.5">
-                  <Eyebrow className="text-brand">{categoryLabel(post.category)}</Eyebrow>
+                  <Eyebrow className="text-brand-strong">{categoryLabel(post.category)}</Eyebrow>
                   <BulletDivider />
                   <DateStamp date={post.date} format="compact" />
                 </div>
-                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-fg group-hover:text-brand">
+                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-fg group-hover:text-brand-strong">
                   <Link href={post.permalink}>{post.title}</Link>
                 </h3>
                 <div className="mt-5 flex items-center justify-between">
@@ -58,7 +58,7 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
                   <Link
                     href={post.permalink}
                     aria-label={`Read ${post.title}`}
-                    className="text-brand"
+                    className="text-brand-strong"
                   >
                     <ArrowUpRight size={14} aria-hidden />
                   </Link>

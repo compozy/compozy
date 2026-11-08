@@ -15,7 +15,7 @@ export function DownloadHero({ release }: { release: DesktopRelease }) {
       <div className="relative mx-auto grid max-w-site-layout-width gap-12 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:items-center lg:gap-10">
         <div className="lg:pr-2">
           <Eyebrow className="flex items-center gap-3 text-muted-foreground">
-            <span className="text-brand">Desktop app</span>
+            <span className="text-brand-strong">Desktop app</span>
             <span className="h-px w-10 bg-line" />
             <span>{release.status === "ready" ? release.tag : "Latest release"}</span>
           </Eyebrow>

@@ -63,7 +63,7 @@ export function TocRail({ items }: TocRailProps) {
                 aria-current={isActive ? "location" : undefined}
                 className={cn(
                   "block text-small-body leading-5 transition-colors",
-                  isActive ? "text-brand" : "text-muted-foreground hover:text-fg",
+                  isActive ? "text-brand-strong" : "text-muted-foreground hover:text-fg",
                   item.depth >= 3 && "pl-3"
                 )}
               >

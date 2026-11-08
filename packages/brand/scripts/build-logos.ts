@@ -4,7 +4,12 @@
 // Outputs:
 //   packages/ui/src/components/custom/logo-symbol.generated.ts    symbol data: URIs (64 / 256 px)
 //   packages/ui/src/components/custom/logo-wordmark.generated.ts  wordmark path + lockup geometry
-//   web/public/       favicon.svg/.ico, apple-touch-icon, icon-192/512, icon-maskable-512, manifest
+//   web/public/, packages/site/public/
+//                     favicon.svg/.ico, apple-touch-icon, icon-192/512, icon-maskable-512, manifest
+//   packages/site/lib/og/logo-assets.generated.ts, packages/launch-video/src/brand/logo-assets.generated.ts
+//                     symbol data: URI + wordmark/lockup geometry for renderers that cannot import
+//                     @compozy/ui (next/og Satori, the Remotion bundle)
+//   imgs/             README hero lockups (dark default, light <picture> source)
 //   desktop/build/    icon.icns (macOS iconutil), icon.png (512, also the Linux icon), icon.ico,
 //                     tray/ menu-bar templates (idle / working / attention, @2x)
 //
@@ -32,6 +37,12 @@ const SVG = join(BRAND, "svg");
 const TRAY = join(BRAND, "product", "tray");
 const UI_CUSTOM = join(ROOT, "packages", "ui", "src", "components", "custom");
 const WEB_PUBLIC = join(ROOT, "web", "public");
+const SITE_PUBLIC = join(ROOT, "packages", "site", "public");
+const LOGO_ASSET_MODULES = [
+  join(ROOT, "packages", "site", "lib", "og", "logo-assets.generated.ts"),
+  join(ROOT, "packages", "launch-video", "src", "brand", "logo-assets.generated.ts"),
+];
+const README_IMGS = join(ROOT, "imgs");
 const DESKTOP_BUILD = join(ROOT, "desktop", "build");
 
 const SYMBOL_SOURCE = join(PNG, "compozy-symbol-618.png");
@@ -177,16 +188,41 @@ export const LOGO_WORDMARK = ${JSON.stringify(wordmark)} as const;
 export const LOGO_LOCKUP = ${JSON.stringify(lockup)} as const;
 `
   );
-  return png64;
+  return { png64, png256, wordmark, lockup };
 }
 
-async function buildWebIcons(symbol64: Buffer) {
+type LogoAssets = Awaited<ReturnType<typeof buildUiModules>>;
+
+// Package-local copies of the @compozy/ui logo data for renderers that cannot resolve that
+// package's generated modules (no runtime dependency on packages/brand or packages/ui).
+function buildLogoAssetModules({ png256, wordmark, lockup }: LogoAssets) {
+  for (const path of LOGO_ASSET_MODULES) {
+    write(
+      path,
+      `${header([SYMBOL_SOURCE, WORDMARK_SOURCE, LOCKUP_SOURCE])}
+// Interim raster symbol (ADR-004), 256 px with the source's 4% transparent padding.
+export const LOGO_SYMBOL_PNG = "${dataUri(png256)}";
+
+export const LOGO_WORDMARK = ${JSON.stringify(wordmark)} as const;
+
+export const LOGO_LOCKUP = ${JSON.stringify(lockup)} as const;
+`
+    );
+  }
+}
+
+function buildReadmeLockups() {
+  copy(join(PNG, "compozy-lockup-dark-256h.png"), join(README_IMGS, "compozy-lockup-dark.png"));
+  copy(join(PNG, "compozy-lockup-light-256h.png"), join(README_IMGS, "compozy-lockup-light.png"));
+}
+
+async function buildWebIcons(out: string, symbol64: Buffer) {
   write(
-    join(WEB_PUBLIC, "favicon.svg"),
+    join(out, "favicon.svg"),
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><image href="${dataUri(symbol64)}" width="64" height="64"/></svg>\n`
   );
   write(
-    join(WEB_PUBLIC, "favicon.ico"),
+    join(out, "favicon.ico"),
     encodeIco(
       [16, 32, 48].map(size => ({
         size,
@@ -194,10 +230,10 @@ async function buildWebIcons(symbol64: Buffer) {
       }))
     )
   );
-  copy(join(PNG, "compozy-app-icon-180.png"), join(WEB_PUBLIC, "apple-touch-icon.png"));
-  copy(join(PNG, "compozy-app-icon-192.png"), join(WEB_PUBLIC, "icon-192.png"));
-  copy(join(PNG, "compozy-app-icon-512.png"), join(WEB_PUBLIC, "icon-512.png"));
-  copy(join(PNG, "compozy-maskable-512.png"), join(WEB_PUBLIC, "icon-maskable-512.png"));
+  copy(join(PNG, "compozy-app-icon-180.png"), join(out, "apple-touch-icon.png"));
+  copy(join(PNG, "compozy-app-icon-192.png"), join(out, "icon-192.png"));
+  copy(join(PNG, "compozy-app-icon-512.png"), join(out, "icon-512.png"));
+  copy(join(PNG, "compozy-maskable-512.png"), join(out, "icon-maskable-512.png"));
   const manifest = {
     name: "CompozyOS",
     short_name: "CompozyOS",
@@ -210,7 +246,7 @@ async function buildWebIcons(symbol64: Buffer) {
     background_color: MANIFEST_COLOR,
     display: "standalone",
   };
-  write(join(WEB_PUBLIC, "site.webmanifest"), `${JSON.stringify(manifest, null, 2)}\n`);
+  write(join(out, "site.webmanifest"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 const ICONSET: [name: string, size: number][] = [
@@ -268,8 +304,11 @@ async function buildDesktopIcons() {
   }
 }
 
-const symbol64 = await buildUiModules();
-await buildWebIcons(symbol64);
+const assets = await buildUiModules();
+await buildWebIcons(WEB_PUBLIC, assets.png64);
+await buildWebIcons(SITE_PUBLIC, assets.png64);
+buildLogoAssetModules(assets);
+buildReadmeLockups();
 await buildDesktopIcons();
 execFileSync(
   "bunx",
@@ -277,6 +316,7 @@ execFileSync(
     "oxfmt",
     join(UI_CUSTOM, "logo-symbol.generated.ts"),
     join(UI_CUSTOM, "logo-wordmark.generated.ts"),
+    ...LOGO_ASSET_MODULES,
   ],
   { cwd: ROOT, stdio: "inherit" }
 );

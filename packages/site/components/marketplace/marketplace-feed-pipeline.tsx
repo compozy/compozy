@@ -58,7 +58,7 @@ function Output({
       <span className="font-mono text-small-body whitespace-nowrap text-fg">{label}</span>
       {here ? (
         <span className="inline-flex h-4.5 items-center rounded-full bg-brand-tint px-1.5">
-          <Eyebrow className="text-brand">You are here</Eyebrow>
+          <Eyebrow className="text-brand-strong">You are here</Eyebrow>
         </span>
       ) : null}
       {note ? <span className="text-small-body text-subtle">{note}</span> : null}

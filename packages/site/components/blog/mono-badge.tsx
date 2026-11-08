@@ -5,7 +5,7 @@ export type MonoBadgeTone = "neutral" | "brand" | "success" | "destructive" | "w
 
 const toneClass: Record<MonoBadgeTone, string> = {
   neutral: "border-line text-muted-foreground",
-  brand: "border-transparent bg-brand-tint text-brand",
+  brand: "border-transparent bg-brand-tint text-brand-strong",
   success: "border-transparent bg-success-tint text-success",
   destructive: "border-transparent bg-destructive-tint text-destructive",
   warning: "border-transparent bg-warning-tint text-warning",

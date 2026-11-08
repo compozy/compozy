@@ -43,7 +43,7 @@ export function ReleaseDetailRail({ release }: { release: ChangelogRelease }) {
           href={release.url}
           target="_blank"
           rel="noreferrer noopener"
-          className="mt-5 inline-flex text-sm font-medium text-brand"
+          className="mt-5 inline-flex text-sm font-medium text-brand-strong"
         >
           View release on GitHub →
         </a>

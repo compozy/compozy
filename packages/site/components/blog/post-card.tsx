@@ -30,11 +30,11 @@ export function PostCard({ post }: PostCardProps) {
       )}
       <div className="flex flex-1 flex-col p-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <Eyebrow className="text-brand">{categoryLabel(post.category)}</Eyebrow>
+          <Eyebrow className="text-brand-strong">{categoryLabel(post.category)}</Eyebrow>
           <BulletDivider />
           <DateStamp date={post.date} />
         </div>
-        <h3 className="mt-4 font-sans text-xl font-medium leading-tight tracking-tight text-fg transition-colors group-hover:text-brand">
+        <h3 className="mt-4 font-sans text-xl font-medium leading-tight tracking-tight text-fg transition-colors group-hover:text-brand-strong">
           <Link href={post.permalink}>{post.title}</Link>
         </h3>
         <p className="mt-3 mb-5 text-sm leading-7 text-muted-foreground">{post.description}</p>

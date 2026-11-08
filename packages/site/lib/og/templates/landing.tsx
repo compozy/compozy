@@ -10,7 +10,7 @@ const SUBHEAD =
 const EYEBROW = "COMPOZYOS";
 
 const FOOTER_RAIL = [
-  { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.brand, lowercase: false },
+  { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.brandText, lowercase: false },
   { label: "compozy.com", color: COLORS.textSecondary, lowercase: true },
   { label: "CREATE · AUTOMATE · SUPERVISE", color: COLORS.textSecondary, lowercase: false },
 ] as const;
@@ -79,7 +79,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
           </div>
         </div>
         <div style={symbolTileStyle}>
-          <SymbolGlyph size={72} radius={20} />
+          <SymbolGlyph size={72} />
         </div>
       </div>
 

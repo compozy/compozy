@@ -79,7 +79,7 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
         URL query parameter shown under its id. See{" "}
         <Link
           href="/docs/extensions/install#supply-package-inputs"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand-strong"
         >
           Supply package inputs
         </Link>

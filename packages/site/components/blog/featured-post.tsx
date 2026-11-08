@@ -32,7 +32,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           <DateStamp date={post.date} />
         </div>
         <h2 className="mt-6 max-w-[20ch] font-display text-site-feature-title font-normal leading-none tracking-tight text-fg">
-          <Link href={post.permalink} className="transition-colors hover:text-brand">
+          <Link href={post.permalink} className="transition-colors hover:text-brand-strong">
             {post.title}
           </Link>
         </h2>
@@ -48,7 +48,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           </span>
           <Link
             href={post.permalink}
-            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand"
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand-strong"
           >
             Read post <ArrowUpRight size={14} aria-hidden />
           </Link>

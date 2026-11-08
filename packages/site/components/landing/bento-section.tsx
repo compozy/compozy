@@ -4,7 +4,7 @@ import Image from "next/image";
 const cardBase =
   "group relative isolate min-w-0 overflow-hidden rounded-diagram border border-line bg-rail p-7 transition-colors hover:border-brand/40 sm:p-8 xl:p-10";
 
-const labelBase = "eyebrow font-semibold! mb-5 flex items-center gap-3 text-brand";
+const labelBase = "eyebrow font-semibold! mb-5 flex items-center gap-3 text-brand-strong";
 
 const imageBase = "h-full w-full select-none opacity-95";
 
@@ -54,7 +54,7 @@ function RuntimeCard() {
         >
           Batteries included.
           <br />
-          <span className="text-brand">Every window managed.</span>
+          <span className="text-brand-strong">Every window managed.</span>
         </h2>
         <span className="mt-5 block h-px w-8 bg-brand" aria-hidden="true" />
       </div>
@@ -89,7 +89,7 @@ function ExtensibilityCard() {
         >
           Every layer.
           <br />
-          <span className="text-brand">Pluggable.</span>
+          <span className="text-brand-strong">Pluggable.</span>
         </h2>
       </div>
     </article>

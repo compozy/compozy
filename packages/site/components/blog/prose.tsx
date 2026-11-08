@@ -73,7 +73,7 @@ export function ProseLink({ className, ...props }: ComponentProps<"a">) {
     <a
       {...props}
       className={cn(
-        "font-medium text-brand underline decoration-brand/35 underline-offset-4 hover:decoration-brand",
+        "font-medium text-brand-strong underline decoration-brand/35 underline-offset-4 hover:decoration-brand",
         className
       )}
     />
@@ -195,7 +195,7 @@ const calloutBorderClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
 };
 
 const calloutEyebrowToneClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
-  brand: "text-brand",
+  brand: "text-brand-strong",
   success: "text-success",
   destructive: "text-destructive",
   warning: "text-warning",
@@ -230,7 +230,7 @@ export interface BlogWireCardRow {
 
 const wireValueToneClass: Record<NonNullable<BlogWireCardRow["tone"]>, string> = {
   neutral: "text-fg",
-  brand: "text-brand",
+  brand: "text-brand-strong",
   success: "text-success",
   destructive: "text-destructive",
   warning: "text-warning",

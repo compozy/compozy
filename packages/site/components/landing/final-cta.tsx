@@ -9,7 +9,7 @@ export function FinalCta() {
     <SectionFrame background="surface" padY="lg" className="border-b border-line">
       <div className="grid gap-8 rounded-diagram border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
-          <Eyebrow className="text-brand">CompozyOS</Eyebrow>
+          <Eyebrow className="text-brand-strong">CompozyOS</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] font-display text-site-cta-title leading-none font-normal tracking-tight text-fg">
             Install CompozyOS. Put agents to work continuously.
           </h2>
@@ -35,7 +35,7 @@ export function FinalCta() {
             href={baseOptions.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
+            className="mt-1 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand-strong"
           >
             <Star aria-hidden className="size-3" />
             <Eyebrow>Star on GitHub</Eyebrow>

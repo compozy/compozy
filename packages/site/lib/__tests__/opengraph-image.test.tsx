@@ -80,7 +80,8 @@ function asMockImageResponse(value: unknown): MockedImageResponse {
   return value as MockedImageResponse;
 }
 
-const PALETTE_HEXES = ["#141312", "#1E1C1B", "#3C3A39", "#E5E5E7", "#8E8E93", "#E8572A"];
+const PALETTE_HEXES = ["#0a0a0a", "#1b1b1b", "#383838", "#ececec", "#989898", "#5b7fff"];
+const RETIRED_HEXES = ["#E8572A", "#141312"];
 
 describe("Landing OpenGraph image (root)", () => {
   it("publishes a static 1200x630 PNG response with embedded fonts", async () => {
@@ -94,7 +95,7 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders the locked hero pair and footer rail with the warm-dark palette", async () => {
+  it("renders the locked hero pair and footer rail with the ink palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
@@ -114,20 +115,23 @@ describe("Landing OpenGraph image (root)", () => {
     for (const hex of PALETTE_HEXES) {
       expect(styleValues).toContain(hex);
     }
-    expect(styleValues).not.toContain("#E8572B");
+    for (const hex of RETIRED_HEXES) {
+      expect(styleValues).not.toContain(hex);
+    }
 
     expect(types).toContain(LogoLockup);
     expect(types).toContain(SymbolGlyph);
 
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(true);
-    const usesMono = styleValues.some(value => value.includes("JetBrains Mono"));
-    expect(usesMono).toBe(true);
+    expect(styleValues).toContain("Instrument Sans");
+    expect(styleValues).toContain("Figtree");
+    expect(styleValues).toContain("Geist Mono");
+    expect(styleValues).not.toContain("Playfair Display");
+    expect(styleValues).not.toContain("JetBrains Mono");
   });
 });
 
 describe("Docs OpenGraph template", () => {
-  it("renders the docs eyebrow, technical path, and Geist title", async () => {
+  it("renders the docs eyebrow, technical path, and Figtree title", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({
@@ -150,11 +154,10 @@ describe("Docs OpenGraph template", () => {
     expect(copy).toContain("compozy.com");
 
     expect(types).toContain(LogoLockup);
-    expect(styleValues).toContain("#E8572A");
-    expect(styleValues).toContain("#141312");
-
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(false);
+    expect(styleValues).toContain("#5b7fff");
+    expect(styleValues).toContain("#0a0a0a");
+    expect(styleValues).toContain("Figtree");
+    expect(styleValues).not.toContain("Instrument Sans");
   });
 });
 
@@ -182,9 +185,8 @@ describe("Blog OpenGraph template", () => {
     expect(copy).toContain("BY pnauck");
 
     expect(types).toContain(LogoLockup);
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(true);
-    expect(styleValues).toContain("#E8572A");
+    expect(styleValues).toContain("Instrument Sans");
+    expect(styleValues).toContain("#5b7fff");
   });
 
   it("hides date and author bits when not provided", async () => {

@@ -116,7 +116,7 @@ export default async function BlogPostPage({ params }: PageProps) {
               <span>Back to blog</span>
             </Link>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Eyebrow className="text-brand">BLOG</Eyebrow>
+              <Eyebrow className="text-brand-strong">BLOG</Eyebrow>
               <BulletDivider />
               <Eyebrow className="text-muted-foreground">{categoryLabel(post.category)}</Eyebrow>
               <BulletDivider />

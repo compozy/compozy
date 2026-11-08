@@ -11,7 +11,7 @@ import {
 } from "@/lib/release/desktop-downloads";
 
 const LINK_CLASS =
-  "inline-flex items-center gap-1.5 text-sm text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand hover:decoration-brand";
+  "inline-flex items-center gap-1.5 text-sm text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:text-brand-strong hover:decoration-brand";
 
 interface Row {
   target: DesktopTarget;

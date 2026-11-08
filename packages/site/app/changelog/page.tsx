@@ -25,7 +25,7 @@ function UnavailableChangelog() {
         href="https://github.com/compozy/compozy/releases"
         target="_blank"
         rel="noreferrer noopener"
-        className="mt-6 inline-flex text-sm font-medium text-brand"
+        className="mt-6 inline-flex text-sm font-medium text-brand-strong"
       >
         Open GitHub Releases →
       </a>
@@ -43,7 +43,7 @@ export default async function ChangelogPage() {
       <section className="border-b border-line px-4 pt-14 pb-12">
         <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
-            <Eyebrow className="text-brand">CHANGELOG</Eyebrow>
+            <Eyebrow className="text-brand-strong">CHANGELOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <Eyebrow className="text-muted-foreground">Published GitHub releases</Eyebrow>
           </div>
