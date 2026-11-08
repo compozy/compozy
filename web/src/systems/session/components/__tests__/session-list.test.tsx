@@ -322,12 +322,13 @@ describe("SessionList row title", () => {
       ],
     });
 
-    const title = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
-    expect(title("automation-row")).toHaveTextContent("issue-triage");
-    expect(title("job-row")).toHaveTextContent("nightly-checkout");
-    expect(title("always-on-row")).toHaveTextContent("issue-triage");
-    expect(title("operator-row")).toHaveTextContent("New session");
-    expect(title("operator-row")).not.toHaveTextContent("issue-triage");
+    // getByText matches a whole element's text, so a prefixed or combined title fails.
+    const row = (id: string) => within(screen.getByTestId(`session-sidebar-session-${id}`));
+    expect(row("automation-row").getByText("issue-triage")).toBeInTheDocument();
+    expect(row("job-row").getByText("nightly-checkout")).toBeInTheDocument();
+    expect(row("always-on-row").getByText("issue-triage")).toBeInTheDocument();
+    expect(row("operator-row").getByText("New session")).toBeInTheDocument();
+    expect(row("operator-row").queryByText("issue-triage")).not.toBeInTheDocument();
   });
 });
 
