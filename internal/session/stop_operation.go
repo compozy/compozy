@@ -223,11 +223,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		m.failStopPreparation(run, err)
 		return
 	}
-	stopProc := proc
-	if stopProc == nil && session != nil {
-		stopProc = session.releasedProcessForStop()
-	}
-	m.bindSessionStopRun(run, session, stopProc)
+	m.bindSessionStopRun(run, session, proc)
 
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
@@ -246,6 +242,11 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 	promptDone := session.currentPromptCompletion()
 	m.startTrackedPromptTask(func() {
 		defer close(run.done)
+		stopProc := proc
+		if stopProc == nil {
+			stopProc = session.releasedProcessForStop()
+			m.bindSessionStopRun(run, session, stopProc)
+		}
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
 		if !result.Verified {
