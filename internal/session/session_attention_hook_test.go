@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,230 @@ import (
 
 func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should invalidate the catalog after refreshing an already published acknowledgement", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		old, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+			SessionID:         sess.ID,
+			InteractionID:     "old-question",
+			ProviderRequestID: "old-question",
+			Kind:              store.PendingInteractionKindClarify,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleared, err := db.TransitionPendingInteraction(t.Context(), store.PendingInteractionTransition{
+			InteractionID: old.Interaction.InteractionID,
+			Status:        store.PendingInteractionStatusCanceled,
+			At:            h.manager.now(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.publishAttentionCommit(t.Context(), sess.ID, cleared)
+		if len(sess.Info().PendingInteractions) != 1 {
+			t.Fatal("schedule did not retain the pre-refresh interaction list")
+		}
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{cleared})
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		if len(sess.Info().PendingInteractions) != 0 {
+			t.Fatal("catalog invalidation preceded the canonical list refresh")
+		}
+		select {
+		case extra := <-events:
+			t.Fatalf("unchanged projection emitted extra edge: %+v", extra)
+		default:
+		}
+	})
+
+	t.Run("Should clear an unseen completed turn after an earlier permission publication", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		ctx := t.Context()
+		created, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+			SessionID: sess.ID, InteractionID: "first-permission", ProviderRequestID: "first-permission",
+			Kind: store.PendingInteractionKindPermission,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.transitionPendingInteraction(ctx, sess.ID, store.PendingInteractionTransition{
+			InteractionID: created.Interaction.InteractionID, Status: store.PendingInteractionStatusResolved,
+			Resolution: "allow", ResolvedBy: "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		if err := h.manager.settleSessionAttention(ctx, sess.ID, h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.publishLifecycleAttentionTransitionWake(ctx, before, sess.Info(), true, "first-turn")
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		if _, err := h.manager.SessionPresence(ctx, sess.ID, "", true); err != nil {
+			t.Fatal(err)
+		}
+		if len(edges) != 1 || edges[0].From != string(BadgeDone) || edges[0].To != string(BadgeIdle) {
+			t.Fatalf("lost completion clearing edge: %+v", edges)
+		}
+	})
+	t.Run("Should retry ordinary publication read failure without losing the creator wake", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		registerMentionCatalogSession(t, db, "retry-child", h.workspaceID)
+		h.manager.sessions["retry-child"] = &Session{ID: "retry-child", ProfileID: store.DefaultProfileID,
+			State: StateActive, Lineage: &store.SessionLineage{ParentSessionID: "creator", NotifyCreator: true}}
+		wrapped := &failingPublicationReadStore{SessionAttentionStore: h.manager.attentionStore}
+		h.manager.attentionStore = wrapped
+		wakes := make(chan SpawnWakeEvent, 2)
+		h.manager.spawnWakeNotifier = attentionWakeFunc(func(_ context.Context, _ string, event SpawnWakeEvent) error {
+			wakes <- event
+			return nil
+		})
+		hooks := make(chan hookspkg.SessionAttentionChangedPayload, 2)
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				hooks <- p
+				return p, nil
+			},
+		)
+		wrapped.fail.Store(true)
+		commit, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+			SessionID: "retry-child", InteractionID: "retry-permission", ProviderRequestID: "retry-permission",
+			Kind: store.PendingInteractionKindPermission,
+		})
+		if err != nil || commit.Interaction == nil {
+			t.Fatalf("committed creation: %+v, %v", commit, err)
+		}
+		select {
+		case event := <-hooks:
+			if event.From != string(BadgeIdle) || event.To != string(BadgeWaitingForAuth) {
+				t.Fatalf("retry hook: %+v", event)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("committed permission lost its hook")
+		}
+		select {
+		case event := <-wakes:
+			if event.Badge != BadgeWaitingForAuth {
+				t.Fatalf("retry wake: %+v", event)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("committed permission lost its wake")
+		}
+		h.manager.stopAttentionReconciliation()
+		select {
+		case event := <-hooks:
+			t.Fatalf("duplicate retry hook: %+v", event)
+		default:
+		}
+		select {
+		case event := <-wakes:
+			t.Fatalf("duplicate retry wake: %+v", event)
+		default:
+		}
+	})
+
+	for _, ordinary := range []bool{false, true} {
+		name := "Should let a synchronous creator wake call child presence after reconciliation publication"
+		if ordinary {
+			name = "Should let a synchronous creator wake call child presence after ordinary publication"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, db := newMentionHarness(t)
+			registerMentionCatalogSession(t, db, "wake-child", h.workspaceID)
+			ctx := t.Context()
+			old, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+				SessionID:         "wake-child",
+				InteractionID:     "old",
+				ProviderRequestID: "old",
+				Kind:              store.PendingInteractionKindClarify,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// A stopped child emits a creator wake when its last question clears.
+			h.manager.sessions["wake-child"] = &Session{ID: "wake-child", State: StateStopped,
+				Lineage: &store.SessionLineage{ParentSessionID: "creator", NotifyCreator: true}}
+			called := make(chan error, 1)
+			h.manager.spawnWakeNotifier = attentionWakeFunc(
+				func(ctx context.Context, _ string, _ SpawnWakeEvent) error {
+					bounded, cancel := context.WithTimeout(ctx, time.Second)
+					defer cancel()
+					_, err := h.manager.SessionPresence(bounded, "wake-child", "", true)
+					called <- err
+					return err
+				},
+			)
+			transition := store.PendingInteractionTransition{
+				InteractionID: old.Interaction.InteractionID,
+				Status:        store.PendingInteractionStatusCanceled,
+				At:            h.manager.now(),
+			}
+			if ordinary {
+				if _, err := h.manager.transitionPendingInteraction(ctx, "wake-child", transition); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				cleared, err := db.TransitionPendingInteraction(ctx, transition)
+				if err != nil {
+					t.Fatal(err)
+				}
+				publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{cleared})
+			}
+			select {
+			case err := <-called:
+				if err != nil {
+					t.Fatalf("creator wake child presence: %v", err)
+				}
+			default:
+				t.Fatal("creator wake was suppressed")
+			}
+		})
+	}
+
+	t.Run("Should publish nonresident synchronous presence after worker shutdown", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		registerMentionCatalogSession(t, db, "sync-presence", h.workspaceID)
+		ctx := t.Context()
+		if _, err := db.MarkSessionSettled(ctx, "sync-presence", false, h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.stopAttentionReconciliation()
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		if _, err := h.manager.SessionPresence(ctx, "sync-presence", "", true); err != nil {
+			t.Fatal(err)
+		}
+		if len(edges) != 1 || edges[0].From != string(BadgeDone) || edges[0].To != string(BadgeIdle) {
+			t.Fatalf("synchronous publication lost after worker shutdown: %+v", edges)
+		}
+	})
 
 	t.Run("Should dispatch the committed edge without failing the owning mutation", func(t *testing.T) {
 		t.Parallel()
@@ -88,6 +313,9 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		commit.Before = commit.After
 		commit.Interaction.Status = store.PendingInteractionStatusCanceled
 		attentionStore.listErr = nil
+		attentionStore.mu.Lock()
+		delete(attentionStore.createdSnapshots, "sess-hook")
+		attentionStore.mu.Unlock()
 		attentionStore.requireBoundedRead = true
 		attentionStore.readFailures = 1
 		next := commit
@@ -507,6 +735,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 				entered:                 make(chan struct{}, 2),
 				release:                 release,
 				readFailures:            1,
+				emptyRead:               make(chan struct{}),
 			}
 			if !deleted {
 				if err := catalog.RegisterSession(
@@ -554,6 +783,13 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			)
 			select {
 			case edge := <-published:
+				if deleted {
+					select {
+					case <-catalog.emptyRead:
+					default:
+						t.Fatal("completion preceded successful empty catalog read")
+					}
+				}
 				if deleted && edge != nil {
 					t.Fatalf("deleted session published attention=%+v", edge)
 				}
@@ -656,6 +892,7 @@ func (f attentionHookFunc) DispatchSessionAttentionChanged(
 
 type committingAttentionStore struct {
 	snapshot           store.SessionAttention
+	createdSnapshots   map[string]store.SessionAttention
 	pending            []store.PendingInteraction
 	blockedSessionID   string
 	blockedReads       int
@@ -697,6 +934,12 @@ func (s *committingAttentionStore) GetSessionAttention(
 		s.readFailures--
 		return store.SessionAttention{}, errors.New("transient attention read failure")
 	}
+	s.mu.Lock()
+	snapshot, ok := s.createdSnapshots[id]
+	s.mu.Unlock()
+	if ok {
+		return snapshot, ctx.Err()
+	}
 	return s.snapshot, ctx.Err()
 }
 
@@ -722,6 +965,12 @@ func (s *committingAttentionStore) CreatePendingInteraction(
 	} else {
 		after.PendingClarifyCount = 1
 	}
+	s.mu.Lock()
+	if s.createdSnapshots == nil {
+		s.createdSnapshots = make(map[string]store.SessionAttention)
+	}
+	s.createdSnapshots[req.SessionID] = after
+	s.mu.Unlock()
 	return store.SessionAttentionCommit{
 		Before:      store.SessionAttention{},
 		After:       after,
@@ -821,6 +1070,7 @@ type attentionReadCatalog struct {
 	entered      chan struct{}
 	release      <-chan struct{}
 	readFailures int
+	emptyRead    chan struct{}
 }
 
 func (c *attentionReadCatalog) ListSessions(
@@ -843,6 +1093,32 @@ func (c *attentionReadCatalog) ListSessions(
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-c.release:
-		return c.recordingSessionCatalog.ListSessions(ctx, query)
+		rows, err := c.recordingSessionCatalog.ListSessions(ctx, query)
+		if err == nil && len(rows) == 0 && c.emptyRead != nil {
+			close(c.emptyRead)
+		}
+		return rows, err
 	}
+}
+
+// attentionWakeFunc models the synchronous daemon bridge at its I/O boundary.
+type attentionWakeFunc func(context.Context, string, SpawnWakeEvent) error
+
+func (f attentionWakeFunc) WakeSpawnCreator(ctx context.Context, creator string, event SpawnWakeEvent) error {
+	return f(ctx, creator, event)
+}
+
+type failingPublicationReadStore struct {
+	store.SessionAttentionStore
+	fail atomic.Bool
+}
+
+func (s *failingPublicationReadStore) GetSessionAttention(
+	ctx context.Context,
+	id string,
+) (store.SessionAttention, error) {
+	if s.fail.Swap(false) {
+		return store.SessionAttention{}, errors.New("transient publication read failure")
+	}
+	return s.SessionAttentionStore.GetSessionAttention(ctx, id)
 }

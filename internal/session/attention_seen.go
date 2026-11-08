@@ -131,7 +131,12 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if blocker := AttentionBlockerForInfo(before); blocker != AttentionBlockerNone {
 		return nil, &AttentionRequiresActionError{SessionID: target, Blocker: blocker}
 	}
-	commit, err := m.commitAttention(ctx, target, func() (store.SessionAttentionCommit, error) {
+	unlock, err := m.lockAttentionCommit(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	commit, err := m.commitAttentionLocked(target, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.DismissSessionAttention(ctx, target, observed.Fence(), m.now().UTC())
 	})
 	if errors.Is(err, store.ErrSessionAttentionChanged) {
