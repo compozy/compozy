@@ -9,6 +9,7 @@ import {
   createAgentInstance,
   ensureAgentInstanceMain,
   pauseAgentInstance,
+  markAgentInstanceSeen,
   resumeAgentInstance,
   type AgentInstancesRead,
 } from "../adapters/agent-instance-api";
@@ -200,4 +201,19 @@ export function useAgentInstanceInScope(name: string, workspace: string | null) 
       instance.profile_name === destination &&
       instance.workspace_id === (workspace === "@user" ? "" : (workspace ?? ""))
   );
+}
+
+export function useMarkAgentInstanceSeen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: markAgentInstanceSeen,
+    onError: error => notifyUser({ message: error.message, tone: "error" }),
+    onSuccess: async (_, instance) => {
+      invalidateAgentInstanceReads(queryClient, instance.id);
+      await Promise.all([
+        invalidateAgentInstances(queryClient),
+        queryClient.invalidateQueries({ queryKey: agentKeys.instanceAway(instance.id) }),
+      ]);
+    },
+  });
 }

@@ -1238,6 +1238,22 @@ func TestInstanceCallerLineage(t *testing.T) {
 		if err != nil || !attention {
 			t.Fatalf("failure report attention=%v, %v", attention, err)
 		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE session_pending_interactions SET status='orphaned' WHERE interaction_id='instance-attention'"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET state='stopped' WHERE id=?", parent); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().
+			MarkSeen(t.Context(), instance.ID, agentinstance.LocalOperator, instance.CreatedAt.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		attention, err = db.Instances().NeedsAttention(t.Context(), instance.ID)
+		if err != nil || attention {
+			t.Fatalf("acknowledged descendant attention=%v, %v", attention, err)
+		}
 	})
 }
 
@@ -4977,6 +4993,92 @@ func TestInstanceActivity(t *testing.T) {
 }
 
 func TestInstanceSeen(t *testing.T) {
+	t.Run(
+		"Should acknowledge old failures and stopped interactions while preserving live requests",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "seen-attention", "sess-seen-attention")
+			repo := db.Instances()
+			instance, err := repo.Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := instance.CreatedAt.Add(time.Hour)
+			stamp := store.FormatTimestamp(instance.CreatedAt)
+			for _, status := range []string{"pending", "orphaned"} {
+				if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+					InteractionID: status, SessionID: main, Kind: store.PendingInteractionKindPermission,
+					ProviderRequestID: status, CreatedAt: instance.CreatedAt,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if status == "orphaned" {
+					if _, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+						InteractionID: status, Status: store.PendingInteractionStatusOrphaned, At: instance.CreatedAt,
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+
+			if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_reports
+		(id,instance_id,source_key,kind,payload,created_at) VALUES ('seen-failure',?,'seen-failure','failure','{}',?)`, instance.ID, stamp); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.MarkSeen(ctx, instance.ID, agentinstance.LocalOperator, at); err != nil {
+				t.Fatal(err)
+			}
+			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
+				t.Fatalf("live attention=%v, %v", attention, err)
+			}
+			if live, err := repo.HasLiveInteractions(ctx, instance.ID); err != nil || !live {
+				t.Fatalf("live requests=%v, %v", live, err)
+			}
+			if _, err := db.DB().ExecContext(ctx, "UPDATE sessions SET state='stopped' WHERE id=?", main); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.MarkSeen(ctx, instance.ID, agentinstance.LocalOperator, at); err != nil {
+				t.Fatal(err)
+			}
+			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || attention {
+				t.Fatalf("acknowledged attention=%v, %v", attention, err)
+			}
+			if live, err := repo.HasLiveInteractions(ctx, instance.ID); err != nil || live {
+				t.Fatalf("stopped requests=%v, %v", live, err)
+			}
+			projection, err := db.GetSessionAttention(ctx, main)
+			if err != nil || projection.PendingPermissionCount != 0 || projection.AttentionRevision != 5 {
+				t.Fatalf("acknowledged session projection=%+v, %v", projection, err)
+			}
+			var canceled int
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT count(*) FROM session_pending_interactions WHERE session_id=? AND status='canceled' AND resolved_by=?", main, agentinstance.LocalOperator).
+				Scan(&canceled); err != nil ||
+				canceled != 2 {
+				t.Fatalf("canceled=%d, %v", canceled, err)
+			}
+			var reportState string
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT state FROM agent_instance_reports WHERE id='seen-failure'").
+				Scan(&reportState); err != nil ||
+				reportState != "pending" {
+				t.Fatalf("report delivery state=%q, %v", reportState, err)
+			}
+			if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_reports
+		(id,instance_id,source_key,kind,payload,created_at) VALUES ('new-failure',?,'new-failure','failure','{}',?)`, instance.ID, store.FormatTimestamp(at.Add(time.Second))); err != nil {
+				t.Fatal(err)
+			}
+			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
+				t.Fatalf("new attention=%v, %v", attention, err)
+			}
+		},
+	)
+
 	t.Run("Should reset unattended turns without resuming a paused instance", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

@@ -254,11 +254,7 @@ func nativeInstanceOccurrence(
 }
 
 func nativeInstanceMarkSeen(ctx context.Context, api *core.AgentInstanceAPI, id string) (toolspkg.ToolResult, error) {
-	reader, ok := api.Store.(agentinstance.SeenStore)
-	if !ok {
-		return toolspkg.ToolResult{}, errors.New("instance seen storage unavailable")
-	}
-	at, err := reader.MarkSeen(ctx, id, agentinstance.LocalOperator, time.Now())
+	at, err := api.MarkSeen(ctx, id, time.Now())
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

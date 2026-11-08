@@ -17,6 +17,7 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
+  useMarkAgentInstanceSeen,
   agentPauseCopy,
   agentAuthorityCopy,
   agentAvatarAppearance,
@@ -54,6 +55,7 @@ function SeatMenu({
   instance: AgentInstancePayload;
   actions: AlwaysOnRowActions;
 }) {
+  const markSeen = useMarkAgentInstanceSeen();
   const paused = instance.state === "paused";
   const reason = agentPauseCopy(instance);
   return (
@@ -68,6 +70,11 @@ function SeatMenu({
         ) : null}
       </ContextMenuGroup>
       <ContextMenuSeparator />
+      {instance.attention_dismissible ? (
+        <ContextMenuItem disabled={markSeen.isPending} onClick={() => markSeen.mutate(instance)}>
+          Mark as seen
+        </ContextMenuItem>
+      ) : null}
       <ContextMenuItem
         disabled={paused && agentInstanceResumeBlocked(instance)}
         onClick={() => actions.togglePause(instance)}

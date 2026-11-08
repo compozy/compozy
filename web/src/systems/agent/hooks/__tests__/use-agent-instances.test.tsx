@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -14,6 +14,7 @@ import {
 } from "../../adapters/agent-instance-api";
 import { useTryCheck } from "../use-agent-instance-checks";
 import { agentKeys } from "../../lib/query-keys";
+import { agentInstancesOptions } from "../../lib/query-options";
 import { agentPayloadFixture, teamItemFixture } from "../../mocks/team-fixtures";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import {
@@ -23,6 +24,7 @@ import {
   useAgentInstances,
   useAgentDefinitionInstances,
   useResumeAgentInstances,
+  useMarkAgentInstanceSeen,
 } from "../use-agent-instances";
 
 const server = setupServer(...profileHandlers);
@@ -99,6 +101,56 @@ describe("instance routes and the selected profile", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
+
+  // Invariant: acknowledgement refreshes server attention in the owning profile; failures propagate.
+  // Owner: instance mutation hooks; canonical HTTP boundary suite.
+  it("Should refresh attention after marking seen in the instance profile", async () => {
+    let attention = true;
+    const profiles: string[] = [];
+    server.use(
+      http.get("*/api/agent-instances", () =>
+        HttpResponse.json({
+          instances: [agentInstanceFixture({ id: "seen", needs_attention: attention })],
+          next_cursor: "",
+          max_active_instances: 10,
+          active_count: 1,
+        })
+      ),
+      http.post("*/api/agent-instances/:id/away", ({ request }) => {
+        profiles.push(new URL(request.url).searchParams.get("profile") ?? "");
+        attention = false;
+        return HttpResponse.json({ last_seen_at: "2026-11-08T00:00:00Z" });
+      })
+    );
+    const { result } = renderHook(
+      () => ({
+        instances: useQuery(agentInstancesOptions("work", ["work"])).data?.instances ?? [],
+        seen: useMarkAgentInstanceSeen(),
+      }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.instances[0]?.needs_attention).toBe(true));
+    await act(async () => {
+      await result.current.seen.mutateAsync(result.current.instances[0]!);
+    });
+    expect(result.current.instances[0]?.needs_attention).toBe(false);
+    expect(profiles).toEqual(["work"]);
+  });
+
+  it("Should reject an explicit acknowledgement when the instance disappeared", async () => {
+    server.use(
+      http.post("*/api/agent-instances/:id/away", () =>
+        HttpResponse.json({ error: "Instance no longer exists" }, { status: 404 })
+      )
+    );
+    const { result } = renderHook(() => useMarkAgentInstanceSeen(), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync(agentInstanceFixture())).rejects.toThrow(
+        "Instance no longer exists"
+      );
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
 
   // Invariant: a late check response cannot replace a newer request or another instance.
   // Owner and canonical suite: agent instance interaction hooks, HTTP I/O boundary.

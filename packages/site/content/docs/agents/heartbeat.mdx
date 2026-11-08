@@ -558,3 +558,14 @@ HTTP and UDS use `POST /api/agent-instances/{id}/reports/{report_id}/pick` with
 `{"proposal":0}` (0-based). Agent credentials cannot pick. Repeating a pick fails
 with `proposal_already_picked`. Report reads expose recorded picks and their queue
 state (`queued`, `delivered`, `cancelled`, or `failed`).
+
+## Acknowledge attention
+
+Choose **Mark as seen** in an always-on avatar's hover card to acknowledge old failure attention.
+The avatar updates immediately after the server refreshes its state. Pending requests in live
+sessions keep the indicator until answered; pending or orphaned requests in stopped sessions
+are canceled. A new failure raises attention again.
+
+The local operator can use `compozy agent instance mark-seen <id>` or
+`POST /api/agent-instances/{id}/away` for the same acknowledgement. Reports remain in history
+and keep their provider delivery state: reading them does not send them to the agent.

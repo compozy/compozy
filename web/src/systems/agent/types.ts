@@ -117,6 +117,10 @@ export interface AgentInstancePayload {
   activity: AgentInstanceActivity;
   now: string;
   needs_attention: boolean;
+  attention_dismissible?: OperationResponse<
+    "listAgentInstances",
+    200
+  >["instances"][number]["attention_dismissible"];
   pause_reason: AgentInstancePauseReason;
   /** Empty until the main session exists. */
   main_session_id: string;

@@ -519,6 +519,28 @@ func (q *Queries) InsertAgentInstance(ctx context.Context, arg InsertAgentInstan
 	return err
 }
 
+const instanceHasLiveInteractions = `-- name: InstanceHasLiveInteractions :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = ?1 AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ JOIN sessions live ON live.id = s.id
+ WHERE p.status IN ('pending', 'orphaned') AND live.state <> 'stopped'
+)
+`
+
+func (q *Queries) InstanceHasLiveInteractions(ctx context.Context, instanceID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, instanceHasLiveInteractions, instanceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const instanceNeedsAttention = `-- name: InstanceNeedsAttention :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -532,6 +554,8 @@ SELECT EXISTS (
  WHERE p.status IN ('pending', 'orphaned')
 ) OR EXISTS (
  SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = ?1 AND r.state = 'pending' AND r.kind = 'failure'
+ AND r.created_at > COALESCE((SELECT last_seen_at FROM agent_instance_seen
+ WHERE instance_id = r.instance_id AND operator_id = 'local-operator'), '')
 )
 `
 

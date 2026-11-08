@@ -502,6 +502,13 @@ func TestAgentInstanceAway(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		updates := 0
+		fixture.Handlers.AgentInstances.AfterSeen = func(_ context.Context, got agentinstance.Instance, _ []store.SessionAttentionCommit) {
+			if got.ID != instance.ID {
+				t.Errorf("updated instance=%q", got.ID)
+			}
+			updates++
+		}
 		fixture.Engine.GET("/instances/:id/away", fixture.Handlers.GetAgentInstanceAway)
 		fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
 		for _, method := range []string{"GET", "POST", "GET"} {
@@ -533,6 +540,12 @@ func TestAgentInstanceAway(t *testing.T) {
 					t.Fatalf("seen body = %+v", body)
 				}
 			}
+		}
+		if updates != 1 {
+			t.Fatalf("catalog updates=%d", updates)
+		}
+		if attention, err := db.Instances().NeedsAttention(t.Context(), instance.ID); err != nil || attention {
+			t.Fatalf("attention after HTTP acknowledgement=%v, %v", attention, err)
 		}
 	})
 }

@@ -320,3 +320,21 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 	}
 	return result
 }
+
+// PublishPendingInteractionCommit reconciles attention changed by an instance acknowledgement.
+func (m *Manager) PublishPendingInteractionCommit(ctx context.Context, commit store.SessionAttentionCommit) {
+	if commit.Interaction == nil {
+		return
+	}
+	id := commit.Interaction.SessionID
+	refreshed, err := m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
+		current, err := m.attentionStore.GetSessionAttention(ctx, id)
+		commit.After = current
+		return commit, err
+	})
+	if err != nil {
+		m.logger.WarnContext(ctx, "session: refresh acknowledged interaction failed", "session_id", id, "error", err)
+		return
+	}
+	m.publishAttentionCommit(ctx, id, refreshed)
+}

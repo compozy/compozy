@@ -78,6 +78,16 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			!captured.At.Equal(at) {
 			t.Fatalf("attention hook payload = %#v, want complete committed edge", captured)
 		}
+		commit.Before = commit.After
+		commit.Interaction.Status = store.PendingInteractionStatusCanceled
+		manager.PublishPendingInteractionCommit(t.Context(), commit)
+		if captured.From != string(BadgeWaitingForInput) || captured.To != string(BadgeIdle) {
+			t.Fatalf("external attention hook payload = %#v, want cleared request", captured)
+		}
+		target, ok := manager.Get("sess-hook")
+		if !ok || target.Info().PendingClarifyCount != 0 || len(target.Info().PendingInteractions) != 0 {
+			t.Fatal("external cancellation left resident pending attention")
+		}
 	})
 
 	t.Run("Should preserve and publish canonical attention when transcript append fails", func(t *testing.T) {

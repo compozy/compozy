@@ -91,8 +91,7 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if !ok {
 		return
 	}
-	reader, ok := h.AgentInstances.Store.(agentinstance.SeenStore)
-	if !ok {
+	if _, ok := h.AgentInstances.Store.(agentinstance.SeenStore); !ok {
 		h.respondError(c, 503, errors.New("instance seen storage unavailable"))
 		return
 	}
@@ -100,12 +99,31 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if h.Now != nil {
 		now = h.Now()
 	}
-	at, err := reader.MarkSeen(c.Request.Context(), instance.ID, agentinstance.LocalOperator, now)
+	at, err := h.AgentInstances.MarkSeen(c.Request.Context(), instance.ID, now)
 	if err != nil {
 		h.instanceError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.AgentInstanceSeenResponse{LastSeenAt: at})
+}
+
+func (api *AgentInstanceAPI) MarkSeen(ctx context.Context, id string, now time.Time) (time.Time, error) {
+	reader, ok := api.Store.(agentinstance.SeenStore)
+	if !ok {
+		return time.Time{}, errors.New("instance seen storage unavailable")
+	}
+	instance, err := api.Store.Get(ctx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+	at, err := reader.MarkSeen(ctx, id, agentinstance.LocalOperator, now)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if api.AfterSeen != nil {
+		api.AfterSeen(ctx, instance, at.Interactions)
+	}
+	return at.LastSeenAt, nil
 }
 
 func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {

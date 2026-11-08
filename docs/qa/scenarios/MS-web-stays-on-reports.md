@@ -471,3 +471,17 @@ when the away digest does not fold it: mark the instance seen first. A CLI pick 
 tab within a second, so step 1's stale-tab `proposal_already_picked` was not reachable by hand.
 Not walked: step 3's `queue_full`/`unapproved`, the all-auto-accepted footer, and step 8. Report:
 `docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md`.
+
+## Acknowledge instance attention
+
+1. Start with an instance showing failure attention and a stopped main or descendant with an
+   unanswered permission or orphaned clarification. Keep another instance untouched as a control.
+2. Open the avatar hover card and choose **Mark as seen**. Verify the triangle clears without reload,
+   stopped interactions become canceled, and failure reports remain readable with unchanged
+   provider delivery state. Check another open client receives the catalog update.
+3. With a live pending request in the current main or a live child, mark seen again. The request
+   remains answerable and attention remains until the operator answers it.
+4. Publish a newer failure. Attention returns. Repeat acknowledgement through CLI and HTTP;
+   their results agree with the UI. Native tool calls still require operator authority.
+5. Verify a failed acknowledgement shows an error and keeps the attention mark. Check keyboard
+   access to the hover card action and a narrow viewport. Other instances/profiles remain untouched.

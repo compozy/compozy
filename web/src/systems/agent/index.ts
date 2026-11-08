@@ -416,3 +416,5 @@ export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-i
 
 export { AgentIdentityScopeContext } from "./lib/agent-identity-context";
 export { InlineCodeText } from "./components/inline-code-text";
+
+export { useMarkAgentInstanceSeen } from "./hooks/use-agent-instances";
