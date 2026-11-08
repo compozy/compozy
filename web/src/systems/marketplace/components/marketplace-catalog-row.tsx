@@ -4,12 +4,7 @@ import { CircleAlert } from "@compozy/ui/icons";
 import { Button } from "@compozy/ui";
 
 import type { InstalledExtensionView } from "@/systems/extensions";
-import {
-  deriveMCPAuthFilter,
-  MCPAuthorizeDialog,
-  useMCPDefinitionAuthorization,
-  type UseMCPAuthorizeReturn,
-} from "@/systems/settings";
+import { deriveMCPAuthFilter } from "@/systems/settings";
 
 import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
 import { catalogDetailSearch } from "../lib/marketplace-installed-view";
@@ -88,66 +83,56 @@ function MarketplaceCatalogRow({
     q: query || undefined,
     ...(category ? { category } : {}),
   };
-  // Owned by the row, not by Set up: a confirmed sign-in refreshes the inventory and turns Set up
-  // into Ready, which must not unmount the dialog before the operator reads it and presses Done.
-  const authorization = useMCPDefinitionAuthorization();
   return (
-    <>
-      <MarketplaceEntryCard
-        compact={compact}
-        data-testid={`marketplace-card-${entry.entry_id}`}
-        description={entry.description}
-        entry={entry}
-        flashing={actions.isEntryFlashing(entry)}
-        link={{
-          params: { entryId: entry.entry_id },
-          search: detailSearch,
-          to: "/marketplace/$entryId",
-        }}
-        onFlashEnd={() => actions.endEntryFlash(entry)}
-        pending={pending}
-        query={query}
-        trail={
-          <MarketplaceCatalogTrail
-            entry={entry}
-            onInstall={actions.install}
-            onUpdate={actions.update}
-            pending={pending}
-            setup={{
-              state,
-              enableCause: failure?.cause.error ?? null,
-              enabling: actions.isEntryEnabling(entry),
-              onRetry: () => actions.retryEnable(entry),
-              serverFailure: item ? installedServerFailure(item) : null,
-              onTurnOn: () => {
-                if (!item) return;
-                actions.turnOn(entry, {
-                  name: item.extension.name,
-                  profileName: item.extension.profile,
-                  workspaceId: item.extension.workspace_id ?? null,
-                });
-              },
-              setUpAction:
-                state === "setup" && item ? (
-                  <MarketplaceSetUpAction
-                    authorize={authorization.authorize}
-                    detailSearch={detailSearch}
-                    entry={entry}
-                    item={item}
-                  />
-                ) : null,
-            }}
-          />
-        }
-        unverified={entry.trust?.registry_tier === "unverified"}
-        words={rowWords(entry, listCategory)}
-      />
-      <MCPAuthorizeDialog
-        authorize={authorization.authorize}
-        scope={authorization.scope}
-        server={authorization.server}
-      />
-    </>
+    <MarketplaceEntryCard
+      compact={compact}
+      data-testid={`marketplace-card-${entry.entry_id}`}
+      description={entry.description}
+      entry={entry}
+      flashing={actions.isEntryFlashing(entry)}
+      link={{
+        params: { entryId: entry.entry_id },
+        search: detailSearch,
+        to: "/marketplace/$entryId",
+      }}
+      onFlashEnd={() => actions.endEntryFlash(entry)}
+      pending={pending}
+      query={query}
+      trail={
+        <MarketplaceCatalogTrail
+          entry={entry}
+          onInstall={actions.install}
+          onUpdate={actions.update}
+          pending={pending}
+          setup={{
+            state,
+            enableCause: failure?.cause.error ?? null,
+            enabling: actions.isEntryEnabling(entry),
+            onRetry: () => actions.retryEnable(entry),
+            serverFailure: item ? installedServerFailure(item) : null,
+            onTurnOn: () => {
+              if (!item) return;
+              actions.turnOn(entry, {
+                name: item.extension.name,
+                profileName: item.extension.profile,
+                workspaceId: item.extension.workspace_id ?? null,
+              });
+            },
+            setUpAction:
+              state === "setup" && item ? (
+                <MarketplaceSetUpAction
+                  detailSearch={detailSearch}
+                  entry={entry}
+                  item={item}
+                  requestAuthorize={actions.requestAuthorize}
+                />
+              ) : null,
+          }}
+        />
+      }
+      unverified={entry.trust?.registry_tier === "unverified"}
+      words={rowWords(entry, listCategory)}
+    />
   );
 }
 
@@ -156,15 +141,15 @@ function MarketplaceCatalogRow({
  * several servers open the detail with `?setup=1`, which focuses what is left.
  */
 function MarketplaceSetUpAction({
-  authorize,
   entry,
   item,
   detailSearch,
+  requestAuthorize,
 }: {
-  authorize: Pick<UseMCPAuthorizeReturn, "requestAuthorize">;
   entry: MarketplaceCatalogListing;
   item: InstalledExtensionView;
   detailSearch: ReturnType<typeof catalogDetailSearch> & { q?: string; category?: string };
+  requestAuthorize: MarketplaceActionController["requestAuthorize"];
 }) {
   const navigate = useNavigate();
   const needs = installedSetupNeeds(item);
@@ -179,7 +164,7 @@ function MarketplaceSetUpAction({
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
     if (target && server && filter) {
-      authorize.requestAuthorize(filter, server);
+      requestAuthorize(filter, server);
       return;
     }
     void navigate({
@@ -188,6 +173,7 @@ function MarketplaceSetUpAction({
       to: "/marketplace/$entryId",
     });
   };
+  // The sign-in dialog belongs to the page's action dialogs, which outlive this row.
   return (
     <Button
       aria-label={`Set up ${entry.name}`}
