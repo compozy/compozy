@@ -54,12 +54,11 @@ the transcript is checked in `MS-web-stays-on-reports`.
 
 ### Fresh executable contention
 
-The source runner retries only `ETXTBSY` start failures, for at most six attempts with
-10/20/40/80/160 ms waits within the existing poll timeout. Other start errors fail immediately;
-exhausted retries remain `source_exit_nonzero`, and cancellation remains `source_timeout`.
-The existing `TestScriptRunner` suite exercises a real Linux executable held open for writing,
-then closes the writer and verifies successful execution, plus retry exhaustion and cancellation.
-Run `CGO_ENABLED=1 go test -race -count=50 -run '^TestScriptRunner$' ./internal/heartbeat/source`
+The source runner holds the Go fork read lock while writing and closing its private verified
+executable copy. Concurrent Go child launches wait until the write descriptor closes, so a child
+cannot retain that descriptor before exec and cause `ETXTBSY` on a subsequent source poll.
+The lock is released on write failure as well as success; timeout and output-limit behavior remain
+unchanged. Run `CGO_ENABLED=1 go test -race -count=50 -run '^TestScriptRunner$' ./internal/heartbeat/source`
 on Linux. Its output-limit case must still return `source_output_too_large` under parallel starts.
 
 ## 2. Extension kind source (US-002, US-009, US-013)
