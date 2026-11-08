@@ -116,7 +116,10 @@ After prompt admission, the daemon owns the turn lifetime. Closing a browser tab
 
 If an accepted prompt stream closes before a terminal result, its error frame carries
 `failure.reason_code=prompt_stream_incomplete`. Branch on that code, then inspect session status and
-events before deciding whether to submit another prompt.
+events before deciding whether to submit another prompt. If durable history remains unreadable after
+bounded delivery retries, the frame carries `failure.reason_code=prompt_delivery_read_failed` instead.
+Inspect session status and retry reading its events; do not assume the accepted turn failed or resend
+its input solely because that viewer could not read the transcript.
 
 Use `interrupt` with replacement text to cancel the expected active turn and submit that replacement
 as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the

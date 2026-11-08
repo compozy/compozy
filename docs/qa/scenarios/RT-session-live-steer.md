@@ -78,3 +78,6 @@ If a catch-up read fails after persistence completes, retain the cursor and retr
 transient read failure must not be reported as a missing terminal in the durable transcript.
 Stopping the session closes its recorder and must end catch-up immediately, without a recurring
 read-error warning or a stream held open until manager shutdown.
+Persistent read failures after persistence completes must end after bounded retries with
+`prompt_delivery_read_failed`, rather than leaving the stream open or claiming a verified missing
+terminal. The response contains no raw storage error details.

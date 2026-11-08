@@ -14,6 +14,7 @@ import (
 const (
 	promptDeliveryCatchUpInterval = 25 * time.Millisecond
 	promptDeliveryPageSize        = 200
+	promptDeliveryReadAttempts    = 3
 )
 
 type durablePromptDelivery struct {
@@ -137,6 +138,7 @@ func (m *Manager) catchUpDurablePromptDelivery(
 		return
 	}
 
+	completedReadFailures := 0
 	for {
 		persisted, err := recorder.Query(ctx, store.EventQuery{
 			TurnID:        turnID,
@@ -149,7 +151,15 @@ func (m *Manager) catchUpDurablePromptDelivery(
 		}
 		if err != nil {
 			m.sessionLogger(session).WarnContext(ctx, "session: query prompt delivery catch-up failed", "error", err)
+			if persistenceComplete {
+				completedReadFailures++
+				if completedReadFailures >= promptDeliveryReadAttempts {
+					m.deliverPromptReadFailure(ctx, turnID, out)
+					return
+				}
+			}
 		} else {
+			completedReadFailures = 0
 			for _, event := range persisted {
 				terminal, delivered := m.deliverPersistedPromptEvent(
 					ctx, session, turnID, event, cards, persistenceDone, out,
@@ -291,6 +301,19 @@ func (m *Manager) deliverPromptProjectionFailure(
 		event.Failure = store.CloneSessionFailure(info.Failure)
 		event.Error = info.Failure.Summary
 	}
+	select {
+	case out <- event:
+	case <-ctx.Done():
+	}
+}
+
+// deliverPromptReadFailure distinguishes unreadable history from a verified missing terminal.
+func (m *Manager) deliverPromptReadFailure(ctx context.Context, turnID string, out chan<- acp.AgentEvent) {
+	event := acp.PromptStreamIncompleteEvent()
+	event.TurnID = turnID
+	event.Error = "session: prompt delivery history could not be read"
+	event.Failure.ReasonCode = store.FailureReasonPromptDeliveryReadFailed
+	event.Failure.Summary = event.Error
 	select {
 	case out <- event:
 	case <-ctx.Done():

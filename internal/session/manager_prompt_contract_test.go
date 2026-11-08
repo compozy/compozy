@@ -207,13 +207,16 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name         string
-		readError    error
-		wantTerminal bool
-		wantQueries  int64
+		name        string
+		readError   error
+		permanent   bool
+		wantType    string
+		wantReason  store.FailureReasonCode
+		wantQueries int64
 	}{
-		{"Should retry a catch-up read failure after persistence completes", errors.New("transient read failure"), true, 2},
-		{"Should end catch-up when its recorder closes", store.ErrClosed, false, 1},
+		{"Should retry a catch-up read failure after persistence completes", errors.New("transient read failure"), false, acp.EventTypeDone, "", 2},
+		{"Should end catch-up when its recorder closes", store.ErrClosed, false, "", "", 1},
+		{"Should end catch-up after persistent completed read failures", errors.New("persistent read failure"), true, acp.EventTypeError, store.FailureReasonPromptDeliveryReadFailed, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -227,7 +230,9 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle(), readError: tc.readError}
+			recorder := &promptDeliveryQueryRecorder{
+				EventRecorder: session.recorderHandle(), readError: tc.readError, failAlways: tc.permanent,
+			}
 			recorder.failNext.Store(true)
 			session.setRecorder(recorder)
 			out := make(chan acp.AgentEvent, 2)
@@ -235,20 +240,19 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 				&transcript.SessionMessageCards{}, nil, true, out)
 			close(out)
 			events := collectEvents(t, out)
-			if tc.wantTerminal {
-				if len(events) != 1 || events[0].Type != acp.EventTypeDone {
-					t.Fatalf("catch-up events = %#v, want persisted terminal after retry", events)
+			if tc.wantType != "" {
+				if len(events) != 1 || events[0].Type != tc.wantType {
+					t.Fatalf("catch-up events = %#v, want %s", events, tc.wantType)
+				}
+				if tc.wantReason != "" && (events[0].Failure == nil || events[0].Failure.ReasonCode != tc.wantReason) {
+					t.Fatalf("catch-up failure = %#v, want %s", events[0].Failure, tc.wantReason)
 				}
 			} else if len(events) != 0 {
 				t.Fatalf("closed recorder emitted events: %#v", events)
 			}
-			if queries := recorder.queries.Load(); queries != tc.wantQueries || ctx.Err() != nil {
-				t.Fatalf(
-					"catch-up queries = %d, want %d; context = %v",
-					queries,
-					tc.wantQueries,
-					ctx.Err(),
-				)
+			queries := recorder.queries.Load()
+			if queries < 1 || (tc.wantQueries > 0 && queries != tc.wantQueries) || ctx.Err() != nil {
+				t.Fatalf("catch-up queries = %d, context = %v", queries, ctx.Err())
 			}
 		})
 	}
@@ -4612,14 +4616,15 @@ func (c *profileStartedContext) Done() <-chan struct{} {
 // promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
 type promptDeliveryQueryRecorder struct {
 	EventRecorder
-	queries   atomic.Int64
-	failNext  atomic.Bool
-	readError error
+	queries    atomic.Int64
+	failNext   atomic.Bool
+	readError  error
+	failAlways bool
 }
 
 func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
 	r.queries.Add(1)
-	if r.failNext.Swap(false) {
+	if r.failAlways || r.failNext.Swap(false) {
 		return nil, r.readError
 	}
 	return r.EventRecorder.Query(ctx, query)

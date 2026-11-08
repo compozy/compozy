@@ -6,6 +6,17 @@ import (
 )
 
 func TestSessionFailureHelpers(t *testing.T) {
+	t.Run("Should validate unreadable prompt delivery as a transport failure", func(t *testing.T) {
+		t.Parallel()
+		failure := SessionFailure{Kind: FailureTransport, ReasonCode: FailureReasonPromptDeliveryReadFailed}
+		if err := failure.Validate(); err != nil {
+			t.Fatalf("Validate(prompt delivery read failure) = %v", err)
+		}
+		failure.Kind = FailurePrompt
+		if err := failure.Validate(); err == nil {
+			t.Fatal("Validate(non-transport read failure) = nil, want incompatible kind error")
+		}
+	})
 	t.Run("Should normalize validate and clone supported failures", func(t *testing.T) {
 		t.Parallel()
 
