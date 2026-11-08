@@ -59,8 +59,10 @@ describe("Library downloads", () => {
   it("lists exactly the files published in each folder, with their sizes", () => {
     for (const g of groups.filter(x => x.files.length > 0)) {
       const dir = join(PUBLIC_DIR, "brand", g.dir);
-      const onDisk = readdirSync(dir)
-        .filter(n => !n.startsWith("."))
+      // sub-folders are their own group (product/tray)
+      const onDisk = readdirSync(dir, { withFileTypes: true })
+        .filter(e => e.isFile() && !e.name.startsWith("."))
+        .map(e => e.name)
         .map(n => ({ name: n, size: statSync(join(dir, n)).size }))
         .sort((a, b) => a.name.localeCompare(b.name));
       const listed = g.files

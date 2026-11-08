@@ -9,17 +9,29 @@ prerenders to static HTML. Colours, fonts and gradients come from `@compozy/ui` 
 Run from `packages/brand`, or through Turborepo from the repo root
 (`bunx turbo run build test typecheck lint --filter=@compozy/brand`).
 
-| Script      | What it does                                                                                |
-| ----------- | ------------------------------------------------------------------------------------------- |
-| `dev`       | Dev server on http://localhost:4620                                                         |
-| `build`     | Prerenders every route to `.output/public`, then `scripts/assert-build-output.ts` checks it |
-| `preview`   | Serves the build on http://localhost:4620 (unknown URLs answer 404 with the not-found page) |
-| `typecheck` | Native `tsc --noEmit`                                                                       |
-| `lint`      | `oxfmt --check` and `oxlint --deny-warnings`                                                |
-| `test`      | Vitest: chapter registry, status badge, public asset budget and srcset policy               |
+| Script                       | What it does                                                                                                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev`                        | Dev server on http://localhost:4620                                                                                                                       |
+| `build`                      | Prerenders every route to `.output/public`, then `scripts/assert-build-output.ts` checks it                                                               |
+| `preview`                    | Serves the build on http://localhost:4620 (unknown URLs answer 404 with the not-found page)                                                               |
+| `typecheck`                  | Native `tsc --noEmit`                                                                                                                                     |
+| `lint`                       | `oxfmt --check` and `oxlint --deny-warnings`                                                                                                              |
+| `test`                       | Vitest: chapter and kit registry, status badge, asset budget, srcset, export guards                                                                       |
+| `export:kit`                 | Every `/kit/<id>` → `$BRAND_EXPORT_DIR/kit/<id>.png` (+ `.pdf` for print, `digital/` copies); `--only a,b`, `--set field=value`                           |
+| `export:visuals`             | Every `/visual/<name>-<theme>` at 2x → `$BRAND_EXPORT_DIR/visuals/`                                                                                       |
+| `export:product-shots`       | Captures pinned `web/` Storybook stories → `public/brand/product/`                                                                                        |
+| `logos`                      | Rebuilds the logo SVG/PNG set in `public/brand/{svg,png}`                                                                                                 |
+| `shot`                       | `bun run shot <url> <out.png> [w] [h] [full]` QA screenshot (Playwright, Chrome)                                                                          |
+| `imagegen` / `finish-images` | Operator-only, paid, never in CI: `prompts/<area>/<id>.md` → raw PNGs in `$BRAND_GEN_DIR` (default `~/Dev/compozy/_rebranding/gen`) → `public/brand/img/` |
+
+Exports need the dev server running. `BRAND_EXPORT_DIR` defaults to
+`~/Dev/compozy/_rebranding/exports` and is refused inside the git working tree; `BRAND_BASE_URL`
+defaults to `http://localhost:4620`. If another server answers on `localhost` (IPv6), pass
+`BRAND_BASE_URL=http://127.0.0.1:4620`.
 
 The build check fails when a chapter in `src/manual/chapters.ts` has no prerendered page, a page
-misses its status badge or a section anchor, or `404.html` is missing.
+misses its status badge or a section anchor, a kit template has no `/kit/<id>` page or is missing
+from `/kit/index.json`, or `404.html` is missing.
 
 ## Layout
 
@@ -33,6 +45,9 @@ misses its status badge or a section anchor, or `404.html` is missing.
   `public/brand/visuals`; product shots and diagrams render a marked slot until they are captured
   from the real `web/` UI.
 - `src/manual/foundations/` — chapter 01 sections and their copy (`data.ts`).
+- `src/manual/templates/` — the kit: one React component per template, sized only in `cqi`;
+  `registry.ts` maps every id in `kit-specs.ts` to its component. Chapters show them through
+  `<Frame>` (`kit-frame.tsx`); `/kit/$id` renders one at native size for `export:kit`.
 
 ## Assets
 

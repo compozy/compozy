@@ -1,12 +1,16 @@
-// Preview of one kit template, sized to the template's aspect ratio with optional guides
-// (dashed content margin + hatched bands the platform covers). The template artwork and its
-// /kit/$id page arrive with slice S5; until then the frame renders a marked slot.
+// Live preview of one kit template: the real template component rendered at the frame's width
+// (templates are sized in cqi, so they scale with the box), with optional guides (dashed content
+// margin + hatched bands the platform covers) and a caption linking to its /kit/$id page.
 import { cn } from "@compozy/ui/utils";
 
-import { kitSpecById, type Insets } from "./kit-specs";
+import type { Insets } from "./kit-specs";
+import { fieldsOf, findTemplate } from "./templates/registry";
+import type { KitFields } from "./templates/types";
 
 interface FrameProps {
   id: string;
+  /** field overrides on top of the template defaults (e.g. one carousel body slide) */
+  fields?: KitFields;
   guides?: boolean;
   caption?: boolean;
   className?: string;
@@ -48,18 +52,18 @@ function Guides({ margin, unsafe }: { margin: Insets; unsafe?: Insets }) {
   );
 }
 
-export function Frame({ id, guides = false, caption = true, className }: FrameProps) {
-  const t = kitSpecById(id);
+export function Frame({ id, fields, guides = false, caption = true, className }: FrameProps) {
+  const found = findTemplate(id);
+  if (!found) throw new Error(`unknown kit template ${id}`);
+  const { spec: t, template } = found;
+  const Template = template.component;
   return (
     <figure className={cn("m-0 min-w-0", className)} data-kit-frame={id}>
       <div
-        data-kit-pending="S5"
-        className="relative grid place-items-center overflow-hidden rounded-[14px] bg-(--b-card) shadow-[0_0_0_1px_var(--b-line)]"
+        className="relative overflow-hidden rounded-[14px] shadow-[0_0_0_1px_var(--b-line)] [container-type:inline-size]"
         style={{ aspectRatio: `${t.w}/${t.h}` }}
       >
-        <p className="m-0 max-w-[90%] truncate rounded-md border border-dashed border-(--b-line) bg-(--b-surface) px-2.5 py-1 mono-label text-[10px] text-(--b-muted)">
-          Template · {t.name}
-        </p>
+        <Template {...fieldsOf(template, fields)} />
         {guides && <Guides margin={t.margin} unsafe={t.unsafe} />}
       </div>
       {caption && (
@@ -67,7 +71,9 @@ export function Frame({ id, guides = false, caption = true, className }: FramePr
           <span>
             {t.name} · {t.w}×{t.h} · level {t.level}
           </span>
-          <span className="text-(--b-accent)">kit/{t.id}</span>
+          <a href={`/kit/${t.id}`} className="text-(--b-accent) no-underline hover:underline">
+            kit/{t.id} ↗
+          </a>
         </figcaption>
       )}
     </figure>

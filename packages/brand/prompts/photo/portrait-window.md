@@ -1,0 +1,4 @@
+Use case: portrait direction reference. Asset: photo, 4:5 portrait.
+Subject: portrait of a software engineer in their 30s standing by a large window, cold overcast daylight from the side, plain dark sweater, direct calm expression, not smiling for the camera.
+Composition: chest-up, 85mm, background a soft out-of-focus office.
+Style/medium: documentary photograph, 35mm full-frame look, natural, unposed, subtle film grain. Colour grade: cool and restrained — neutral-cool white balance, deep blue-black shadows (around #0a0a0a), desaturated about 20%, no warm orange tones. Lighting: real light only (cold daylight or screen light). Constraints: anonymous people of varied backgrounds, no readable text, no readable screens (screens show soft abstract blue light or are out of focus), no logos, no brand names. Avoid: stock-photo smiles, posing at camera, neon, holograms, robots, glowing brains, sci-fi UI overlays, lens flares, HDR look, plastic skin.

@@ -86,12 +86,10 @@ export function Badges() {
                 <td className="px-5 py-3 font-medium text-(--b-accent)">{r.role}</td>
                 <td className="px-5 py-3">{r.surface}</td>
                 <td className="px-5 py-3 text-(--b-muted)">{r.text}</td>
-                {/* /kit/$id ships with slice S5; plain text until then (prerender crawls links). */}
-                <td
-                  className="px-5 py-3 font-mono text-[12.5px] text-(--b-accent)"
-                  data-kit-pending="S5"
-                >
-                  kit/{r.id} · S5
+                <td className="px-5 py-3 font-mono text-[12.5px] text-(--b-accent)">
+                  <a href={`/kit/${r.id}`} className="no-underline hover:underline">
+                    kit/{r.id} ↗
+                  </a>
                 </td>
               </tr>
             ))}

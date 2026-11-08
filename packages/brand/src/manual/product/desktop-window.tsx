@@ -1,9 +1,10 @@
 // Desktop app → window chrome (the real desktop, captured), the empty composer specimen and the
-// wallpaper kit template (slice S5).
+// desktop-wallpaper kit template.
 import { cn } from "@compozy/ui/utils";
 
 import { Visual } from "../art/visual";
 import { cap, card, lab, rules } from "../cls";
+import { Frame } from "../kit-frame";
 import { UiCrop } from "../graphics/ui-crop";
 
 export function DesktopWindow() {
@@ -78,19 +79,11 @@ export function DesktopWindow() {
   );
 }
 
-/** Wallpaper: the kit template arrives with slice S5; until then a marked slot holds its place. */
+/** Wallpaper: the desktop-wallpaper kit template with its guides. */
 export function DesktopWallpaper() {
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <div
-        data-kit-pending="S5"
-        className="relative grid aspect-[2880/1800] place-items-end justify-end overflow-hidden rounded-[14px] p-[3%] shadow-[0_0_0_1px_var(--b-line)]"
-      >
-        <Visual name="horizon" className="opacity-60" />
-        <p className="relative m-0 rounded-md border border-dashed border-(--b-line) bg-(--b-surface) px-3 py-1.5 mono-label text-[11px] text-(--b-muted)">
-          Kit template · desktop-wallpaper · S5
-        </p>
-      </div>
+      <Frame id="desktop-wallpaper" guides />
       <div className={card}>
         <p className={lab}>desktop-wallpaper · 2880 × 1800</p>
         <ul className={cn(rules, "mt-4 text-[15px]")}>

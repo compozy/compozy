@@ -1,0 +1,2 @@
+refs: x-post.png
+Use case: social mockup photo. Asset: 4:5 portrait. Subject: a hand holding a modern black smartphone in a dim, cool-lit room; the phone shows a dark-mode social feed where one post's image is Image 1 exactly (16:9 card in the feed, legible); other feed elements are generic grey placeholder bars without readable text. Image 1 is the EXACT finished artwork: do not redraw, retype or recolour it. Style: realistic photograph, natural light, neutral cool environment. No other logos or readable text. Avoid: glossy render look, neon, warm tones.

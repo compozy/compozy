@@ -28,7 +28,7 @@ export function Carousel() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <Frame id="carousel-cover" guides />
         {carouselBodies.map(b => (
-          <Frame key={b.step} id="carousel-body" />
+          <Frame key={b.step} id="carousel-body" fields={b} />
         ))}
         <Frame id="carousel-cta" />
       </div>

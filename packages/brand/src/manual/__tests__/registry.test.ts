@@ -5,11 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import { EDITION, pages, VERSION } from "../chapters";
 import { kitSpecs } from "../kit-specs";
+import { findTemplate, kitIds, kitIndex, templateIds } from "../templates/registry";
 
 const ROUTES_DIR = fileURLToPath(new URL("../../routes", import.meta.url));
 /** route files that are not chapters: the document shell and the static not-found page */
 // Export surfaces from _dx.md Routes are not chapters.
-const NON_CHAPTER_ROUTES = new Set(["__root", "404", "visual.$id"]);
+const NON_CHAPTER_ROUTES = new Set(["__root", "404", "visual.$id", "kit.$id"]);
 
 const routeFileOf = (slug: string) => (slug === "" ? "index" : slug);
 
@@ -59,5 +60,22 @@ describe("kit spec table", () => {
         expect(box.t + box.b, t.id).toBeLessThan(100);
       }
     }
+  });
+});
+
+describe("kit registry", () => {
+  it("gives every kit spec exactly one template component, and no component without a spec", () => {
+    expect(templateIds().sort()).toEqual(kitSpecs.map(t => t.id).sort());
+    expect(kitIds()).toEqual(kitSpecs.map(t => t.id));
+  });
+
+  it("resolves every id for /kit/$id and rejects unknown ids", () => {
+    for (const id of kitIds()) expect(findTemplate(id)?.spec.id, id).toBe(id);
+    expect(findTemplate("index.json")).toBeNull();
+    expect(findTemplate("no-such-template")).toBeNull();
+  });
+
+  it("lists every template in /kit/index.json as { id, w, h, group }", () => {
+    expect(kitIndex()).toEqual(kitSpecs.map(t => ({ id: t.id, w: t.w, h: t.h, group: t.channel })));
   });
 });

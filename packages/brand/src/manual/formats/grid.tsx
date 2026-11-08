@@ -2,6 +2,7 @@
 import { cn } from "@compozy/ui/utils";
 
 import { cap, card, h3, lab } from "../cls";
+import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { canvases, columnsOf, gridRules, gutterOf, logoOf, marginOf, spacing } from "./data";
 import { GridFrame } from "./grid-frame";
@@ -12,20 +13,6 @@ const by = (id: string) => {
   return c;
 };
 const px = canvases.filter(c => !c.unit);
-
-/** Kit templates (and their guides) arrive with slice S5; until then a marked slot holds the place. */
-function KitTemplateSlot({ id }: { id: string }) {
-  const c = by(id);
-  return (
-    <div
-      data-kit-pending="S5"
-      className="grid place-items-center rounded-[14px] border border-dashed border-(--b-line) bg-(--b-card)"
-      style={{ aspectRatio: `${c.w}/${c.h}` }}
-    >
-      <p className="m-0 mono-label text-[11px] text-(--b-muted)">Kit template · {id} · S5</p>
-    </div>
-  );
-}
 
 function SpacingScale() {
   return (
@@ -127,7 +114,7 @@ export function Grid() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <figure className="m-0 min-w-0">
-          <KitTemplateSlot id="x-post" />
+          <Frame id="x-post" guides caption={false} />
           <figcaption className={cap}>
             The real kit template with its guides. Every template in the kit follows the same
             margin.

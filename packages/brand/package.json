@@ -12,7 +12,12 @@
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src scripts vite.config.ts vitest.config.ts",
         "test": "vitest run",
         "logos": "bun scripts/build-logos.ts",
-        "export:product-shots": "bun scripts/product-shots.ts"
+        "export:product-shots": "bun scripts/product-shots.ts",
+        "export:kit": "bun scripts/export-kit.ts",
+        "export:visuals": "bun scripts/export-visuals.ts",
+        "shot": "bun scripts/shot.ts",
+        "imagegen": "scripts/imagegen.sh",
+        "finish-images": "scripts/finish-images.sh"
     },
     "dependencies": {
         "@compozy/ui": "workspace:*",

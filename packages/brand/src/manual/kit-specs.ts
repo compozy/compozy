@@ -1,6 +1,6 @@
 // Metadata of every kit template (size, margins, platform-covered bands, art level, print size).
-// Chapters 07–12 render template previews from it as marked slots until the kit components and
-// /kit/$id arrive with slice S5, which owns this table from then on.
+// templates/registry.ts maps each id to its component; /kit/$id, /kit/index.json, the chapter
+// <Frame> previews and export:kit all read both.
 // Columns: id | name | channel | WxH px | level | margin t r b l (%) | unsafe t r b l (%) | print WxH+bleed mm | use
 
 export type KitChannel = "social" | "ads" | "editorial" | "offline" | "product";

@@ -294,7 +294,7 @@ export const forbidden: [string, string][] = [
   ],
 ];
 
-/** Field values of the four carousel body slides (passed to the kit template once S5 lands). */
+/** Field values of the four carousel body slides (passed to the carousel-body kit template). */
 export const carouselBodies: Record<"step" | "title" | "body" | "visual" | "count", string>[] = [
   {
     step: "02",
@@ -314,7 +314,8 @@ export const carouselBodies: Record<"step" | "title" | "body" | "visual" | "coun
     step: "04",
     title: "Continue with another agent.",
     body: "A session moves to another harness with its context, files and worktree. Start in Claude Code, finish in Codex.",
-    visual: "handoff",
+    // No handoff surface exists in web/ yet (ADR-005): the orchestrator capture shows the hand-off.
+    visual: "orchestrate",
     count: "04 / 06",
   },
   {

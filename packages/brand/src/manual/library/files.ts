@@ -1,7 +1,8 @@
 // The brand package as published in public/brand/. Static prerender has no filesystem at runtime,
 // so each published folder lists its files here (name and bytes); the public-assets test fails
-// when this list and the folder drift apart. Groups not yet published in this package (digital
-// set, product assets, kit exports, tokens and fonts) render as unlinked rows.
+// when this list and the folder drift apart. Groups not published in this package (digital set,
+// kit exports, tokens and fonts) render as unlinked rows: exports live outside git in
+// ~/Dev/compozy/_rebranding/exports (ADR-003).
 
 export const BRAND_BASE = "/brand";
 
@@ -140,6 +141,37 @@ terrain-portrait.jpg 211931
 terrain.jpg 265055
 `;
 
+const PRODUCT = `
+agents-dark.webp 44252
+agents-light.webp 46496
+approval-dark.webp 15056
+approval-light.webp 15360
+board-dark.webp 93730
+board-light.webp 97066
+desktop-dark.webp 39786
+desktop-light.webp 39634
+orchestrate-dark.webp 68682
+orchestrate-light.webp 71258
+sessions-dark.webp 40704
+sessions-light.webp 40682
+terminal-palette.json 4433
+`;
+
+const TRAY = `
+compozy-tray-attentionTemplate.png 359
+compozy-tray-attentionTemplate.svg 1668
+compozy-tray-attentionTemplate@2x.png 729
+compozy-tray-attentionTemplate@2x.svg 1668
+compozy-tray-idleTemplate.png 306
+compozy-tray-idleTemplate.svg 265
+compozy-tray-idleTemplate@2x.png 550
+compozy-tray-idleTemplate@2x.svg 265
+compozy-tray-workingTemplate.png 351
+compozy-tray-workingTemplate.svg 1418
+compozy-tray-workingTemplate@2x.png 684
+compozy-tray-workingTemplate@2x.svg 1418
+`;
+
 export const kb = (b: number) =>
   b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`;
 
@@ -171,19 +203,25 @@ export const groups: FileGroup[] = [
   {
     title: "Visuals",
     dir: "visuals",
-    note: "Atmosphere key visuals as JPG, landscape and portrait crops, for dark surfaces. Live visuals are drawn in code.",
+    note: "Atmosphere key visuals as JPG (1280 and 2560 px), landscape and portrait crops, for dark surfaces. Product visuals are captures of the real app, below.",
     files: rowsOf("visuals", VISUALS),
   },
   {
     title: "Product",
     dir: "product",
-    note: "Terminal palette, tray icons and other product assets.",
-    files: [],
+    note: "Captures of the real web/ components in the new theme, dark and light (export:product-shots), and the terminal palette.",
+    files: rowsOf("product", PRODUCT),
+  },
+  {
+    title: "Tray icons",
+    dir: "product/tray",
+    note: "macOS menu bar template icons for idle, working and attention, 1x and 2x.",
+    files: rowsOf("product/tray", TRAY),
   },
   {
     title: "Kit exports",
     dir: "kit",
-    note: "Every template at native size; print pieces also as PDF.",
+    note: "Every template at native size; print pieces also as PDF. Rendered by export:kit from /kit/<id> into $BRAND_EXPORT_DIR, outside git.",
     files: [],
   },
   {

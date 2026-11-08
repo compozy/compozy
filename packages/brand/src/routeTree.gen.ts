@@ -22,6 +22,8 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as ProductRouteImport } from './routes/product'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as VisualsRouteImport } from './routes/visuals'
+import { Route as KitIdRouteImport } from './routes/kit.$id'
+import { Route as KitIndexDotjsonRouteImport } from './routes/kit.index[.]json'
 import { Route as VisualIdRouteImport } from './routes/visual.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +91,16 @@ const VisualsRoute = VisualsRouteImport.update({
   path: '/visuals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KitIdRoute = KitIdRouteImport.update({
+  id: '/kit/$id',
+  path: '/kit/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitIndexDotjsonRoute = KitIndexDotjsonRouteImport.update({
+  id: '/kit/index.json',
+  path: '/kit/index.json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisualIdRoute = VisualIdRouteImport.update({
   id: '/visual/$id',
   path: '/visual/$id',
@@ -109,6 +121,8 @@ export interface FileRoutesByFullPath {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/kit/$id': typeof KitIdRoute
+  '/kit/index.json': typeof KitIndexDotjsonRoute
   '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +139,8 @@ export interface FileRoutesByTo {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/kit/$id': typeof KitIdRoute
+  '/kit/index.json': typeof KitIndexDotjsonRoute
   '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRoutesById {
@@ -142,6 +158,8 @@ export interface FileRoutesById {
   '/product': typeof ProductRoute
   '/social': typeof SocialRoute
   '/visuals': typeof VisualsRoute
+  '/kit/$id': typeof KitIdRoute
+  '/kit/index.json': typeof KitIndexDotjsonRoute
   '/visual/$id': typeof VisualIdRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +178,8 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/kit/$id'
+    | '/kit/index.json'
     | '/visual/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +196,8 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/kit/$id'
+    | '/kit/index.json'
     | '/visual/$id'
   id:
     | '__root__'
@@ -192,6 +214,8 @@ export interface FileRouteTypes {
     | '/product'
     | '/social'
     | '/visuals'
+    | '/kit/$id'
+    | '/kit/index.json'
     | '/visual/$id'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +233,8 @@ export interface RootRouteChildren {
   ProductRoute: typeof ProductRoute
   SocialRoute: typeof SocialRoute
   VisualsRoute: typeof VisualsRoute
+  KitIdRoute: typeof KitIdRoute
+  KitIndexDotjsonRoute: typeof KitIndexDotjsonRoute
   VisualIdRoute: typeof VisualIdRoute
 }
 
@@ -305,6 +331,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisualsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kit/$id': {
+      id: '/kit/$id'
+      path: '/kit/$id'
+      fullPath: '/kit/$id'
+      preLoaderRoute: typeof KitIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kit/index.json': {
+      id: '/kit/index.json'
+      path: '/kit/index.json'
+      fullPath: '/kit/index.json'
+      preLoaderRoute: typeof KitIndexDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visual/$id': {
       id: '/visual/$id'
       path: '/visual/$id'
@@ -329,6 +369,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProductRoute: ProductRoute,
   SocialRoute: SocialRoute,
   VisualsRoute: VisualsRoute,
+  KitIdRoute: KitIdRoute,
+  KitIndexDotjsonRoute: KitIndexDotjsonRoute,
   VisualIdRoute: VisualIdRoute,
 }
 export const routeTree = rootRouteImport
