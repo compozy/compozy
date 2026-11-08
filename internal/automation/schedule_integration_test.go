@@ -821,8 +821,11 @@ func TestSchedulerIntegrationStartupShutdown(t *testing.T) {
 		name        string
 		startupErr  error
 		reservation bool
+		kind        DispatchKind
 	}{
 		{name: "Should preserve a fire cancelled during typed ACP startup failure"},
+		{name: "Should cancel manual startup without failure hooks or retries", kind: DispatchKindManual},
+		{name: "Should cancel extension startup without failure hooks or retries", kind: DispatchKindExtension},
 		{name: "Should settle an unrelated startup failure during shutdown", startupErr: errors.New("invalid provider configuration")},
 		{name: "Should retain reservation delivery diagnostics during shutdown", startupErr: errors.New("reservation store unavailable"), reservation: true},
 	} {
@@ -842,13 +845,47 @@ func TestSchedulerIntegrationStartupShutdown(t *testing.T) {
 			if tc.reservation {
 				runStore = &shutdownReservationStore{RunStore: db, cancel: cancel, err: tc.startupErr}
 			}
-			dispatcher := newTestDispatcher(t, creator, runStore, WithDispatcherNow(clock.Now))
+			hooks := &recordingAutomationHooks{}
+			sleeps := 0
+			dispatcher := newTestDispatcher(
+				t,
+				creator,
+				runStore,
+				WithDispatcherNow(clock.Now),
+				WithDispatcherHooks(hooks),
+				WithDispatcherSleep(func(context.Context, time.Duration) error { sleeps++; return nil }),
+			)
 			job := testJob(AutomationScopeGlobal, "shutdown-startup", "")
 			fireAt := clock.Now().Add(time.Minute)
 			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
 			job, err := db.CreateJob(ctx, job)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.kind != "" {
+				job.Retry = RetryConfig{Strategy: RetryStrategyBackoff, MaxRetries: 2, BaseDelay: "1s"}
+				run, err := dispatcher.Dispatch(dispatchCtx, DispatchRequest{Kind: tc.kind, Job: &job})
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("dispatch error = %v", err)
+				}
+				if run == nil || run.Status != RunCancelled || run.Attempt != 1 || run.EndedAt == nil {
+					t.Fatalf("cancelled startup = %+v", run)
+				}
+				if sleeps != 0 || len(hooks.runFailed) != 0 || len(creator.createCalls()) != 1 {
+					t.Fatalf(
+						"cancelled startup retried or emitted failure: sleeps=%d hooks=%d",
+						sleeps,
+						len(hooks.runFailed),
+					)
+				}
+				saved, err := db.GetRun(ctx, run.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if saved.Status != RunCancelled {
+					t.Fatalf("persisted status = %s", saved.Status)
+				}
+				return
 			}
 			scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
 			if _, err := scheduler.Register(ctx, job); err != nil {

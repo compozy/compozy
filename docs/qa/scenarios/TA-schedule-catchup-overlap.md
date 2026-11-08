@@ -55,6 +55,8 @@ QA impact 2026-11-08 — automation startup failure settlement:
   cancellation during ACP initialization, still preserves the original reservation for restart recovery.
   An unrelated startup failure concurrent with shutdown settles as failed; an unrelated reservation
   error retains its delivery diagnostic without rolling back the schedule cursor.
+- Cancel a manual or extension dispatch during startup: the run remains cancelled and emits no
+  failure hook or retry, even when the job has a backoff policy.
 
 Focused verification: `go test -tags integration ./internal/automation -count=1` exercises the
 production scheduler and dispatcher against real SQLite, with session I/O injected at its boundary.

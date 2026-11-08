@@ -119,7 +119,8 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 		return cloneRun(run), errors.Join(errScheduledAdmissionDeferred, runErr)
 	}
 	status := classifyDispatchError(runErr)
-	if _, accepted := errors.AsType[*acp.FailureError](runErr); accepted {
+	if _, accepted := errors.AsType[*acp.FailureError](runErr); accepted &&
+		(ctx.Err() == nil || !errors.Is(runErr, ctx.Err())) {
 		status = RunFailed
 	}
 	return d.finishRun(ctx, run, status, runErr)
