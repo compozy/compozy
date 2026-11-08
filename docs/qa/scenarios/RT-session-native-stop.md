@@ -143,6 +143,8 @@ hook per retained event. A joining Stop receives one post-stop hook/notification
 Fail attention hydration after retained catalog registration; final cleanup must
 still wake the public catalog. Fail process termination while leaving it alive;
 the existing start run must remain tracked until exit is verified.
+Repeat that process-stop failure with catalog deletion succeeding as well as
+failing: neither route may stage/delete storage before exit verification.
 Repeat with CleanupComplete exposed without WaitForCleanup: a historical close
 error must not prevent settlement after resources release. Also fail logical
 activation persistence and request Stop during deletion; it must respect the same
@@ -158,6 +160,9 @@ owns this process-exclusivity check.
 Discovery remains available during a retryable Shutdown failure. If Run ends
 without a retry, its discovery record is removed while the lock remains owned
 until cleanup joins or the process exits.
+After a completed Shutdown releases its singleton, let a replacement acquire the
+real lock and write discovery during the old logger close. The old Run must leave
+that replacement record intact, including when logger close returns an error.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

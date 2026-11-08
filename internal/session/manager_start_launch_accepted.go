@@ -242,6 +242,11 @@ func (m *Manager) settleClosedSessionStart(
 func (m *Manager) discardClosedSessionStart(
 	ctx context.Context, accepted *acceptedSessionStart, startErr error,
 ) (bool, error) {
+	verified, processErr := m.stopFailedStartProcess(accepted)
+	if !verified {
+		return true, errors.Join(startErr, processErr)
+	}
+	startErr = errors.Join(startErr, processErr)
 	session := accepted.session
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {

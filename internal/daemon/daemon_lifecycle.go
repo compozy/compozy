@@ -85,29 +85,43 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 }
 
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	shutdownErr := d.Shutdown(context.WithoutCancel(ctx))
-	// Run is ending rather than retrying. Withdraw discovery even if cleanup
-	// still owns the database and singleton until process exit.
+	operation, shutdownErr := d.shutdownWithOperation(context.WithoutCancel(ctx))
+	if operation == nil {
+		return shutdownErr
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.shutdown != operation || !operation.sessionShutdownIncomplete {
+		return shutdownErr
+	}
+	// This exact attempt still owns the singleton. Never remove discovery again
+	// after successful teardown released the lock to a replacement daemon.
 	return errors.Join(shutdownErr, RemoveInfo(d.homePaths.DaemonInfo))
 }
 
 // Shutdown gracefully tears down the daemon in the required order.
 func (d *Daemon) Shutdown(ctx context.Context) error {
+	_, err := d.shutdownWithOperation(ctx)
+	return err
+}
+
+// shutdownWithOperation returns the exact attempt a caller joined, preserving its ownership result.
+func (d *Daemon) shutdownWithOperation(ctx context.Context) (*daemonShutdownOperation, error) {
 	if d == nil {
-		return errors.New("daemon: shutdown requires a daemon")
+		return nil, errors.New("daemon: shutdown requires a daemon")
 	}
 	if ctx == nil {
-		return errors.New("daemon: shutdown context is required")
+		return nil, errors.New("daemon: shutdown context is required")
 	}
 
 	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if started {
 		go d.runShutdownOperation(ctx, timeout, operation, targets)
 	}
-	return waitForShutdownOperation(ctx, operation)
+	return operation, waitForShutdownOperation(ctx, operation)
 }
 
 func (d *Daemon) gracefulShutdownTimeout() time.Duration {

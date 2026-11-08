@@ -1232,56 +1232,66 @@ func TestTriageDispatcher(t *testing.T) {
 	}
 	// Invariant: recorder completion cannot release a failed-start owner while its
 	// process exit is unverified. Owner: Manager startup; canonical triage suite.
-	t.Run("Should retain a failed activation owner until its process exit is verified", func(t *testing.T) {
-		t.Parallel()
-		catalog := newRecordingSessionCatalog()
-		activationErr := errors.New("activation registration unavailable")
-		stopErr := errors.New("process stop unavailable")
-		catalog.registerHook = func(_ context.Context, info *store.SessionInfo) error {
-			if info.State == string(StateActive) {
-				return activationErr
-			}
-			return nil
-		}
-		catalog.deleteErr = errors.New("catalog delete unavailable")
-		h := newHarness(t, WithSessionCatalog(catalog))
-		var stopAllowed atomic.Bool
-		defer stopAllowed.Store(true)
-		h.driver.stopHook = func(proc *fakeProcess) error {
-			if !stopAllowed.Load() {
-				return stopErr
-			}
-			proc.exit()
-			return nil
-		}
-		_, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
-		if !errors.Is(err, activationErr) {
-			t.Fatalf("activation failure = %v", err)
-		}
-		proc := h.driver.lastProcess()
-		if proc == nil || isProcessDone(proc.handle) {
-			t.Fatal("stop fault did not leave a live process")
-		}
-		run := h.manager.sessionStartRun("sess-1")
-		if run == nil {
-			t.Fatal("live failed process lost its start owner")
-		}
-		if _, ok := h.manager.Get("sess-1"); !ok {
-			t.Fatal("live failed process lost its active projection")
-		}
-		select {
-		case <-run.done:
-			t.Fatal("process owner completed before exit")
-		default:
-		}
-		stopAllowed.Store(true)
-		if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, activationErr) {
-			t.Fatalf("retained activation = %v", err)
-		}
-		if !isProcessDone(proc.handle) {
-			t.Fatal("start owner released before process exit")
-		}
-	})
+	for _, catalogFailure := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should retain a failed activation owner until its process exit is verified with catalog failure %t",
+				catalogFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				catalog := newRecordingSessionCatalog()
+				activationErr := errors.New("activation registration unavailable")
+				stopErr := errors.New("process stop unavailable")
+				catalog.registerHook = func(_ context.Context, info *store.SessionInfo) error {
+					if info.State == string(StateActive) {
+						return activationErr
+					}
+					return nil
+				}
+				if catalogFailure {
+					catalog.deleteErr = errors.New("catalog delete unavailable")
+				}
+				h := newHarness(t, WithSessionCatalog(catalog))
+				var stopAllowed atomic.Bool
+				defer stopAllowed.Store(true)
+				h.driver.stopHook = func(proc *fakeProcess) error {
+					if !stopAllowed.Load() {
+						return stopErr
+					}
+					proc.exit()
+					return nil
+				}
+				_, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				if !errors.Is(err, activationErr) {
+					t.Fatalf("activation failure = %v", err)
+				}
+				proc := h.driver.lastProcess()
+				if proc == nil || isProcessDone(proc.handle) {
+					t.Fatal("stop fault did not leave a live process")
+				}
+				run := h.manager.sessionStartRun("sess-1")
+				if run == nil {
+					t.Fatal("live failed process lost its start owner")
+				}
+				if _, ok := h.manager.Get("sess-1"); !ok {
+					t.Fatal("live failed process lost its active projection")
+				}
+				select {
+				case <-run.done:
+					t.Fatal("process owner completed before exit")
+				default:
+				}
+				stopAllowed.Store(true)
+				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, activationErr) {
+					t.Fatalf("retained activation = %v", err)
+				}
+				if !isProcessDone(proc.handle) {
+					t.Fatal("start owner released before process exit")
+				}
+			},
+		)
+	}
 
 	// Invariant: deletion cannot be undone by a waiting Stop, and failed rollback
 	// transfers ownership to the existing tombstone recovery instead of retrying forever.

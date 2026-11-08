@@ -78,6 +78,8 @@ waits for persistence and cleanup, then receives its post-stop hook and notifica
 Final settlement wakes the catalog even if attention hydration failed after commit.
 Process exit is verified separately from recorder completion; a failed Stop keeps
 the tracked start owner until the process can be stopped and verified.
+Plain discard verifies that same process exit before staging, even when catalog
+deletion would succeed.
 Activation remains startup-owned until its durable commit. The existing launch
 gate transfers Stop to normal finalization before post-create hooks run. Failed
 activation still shares the discard gate; successful logical and ACP activation
@@ -87,6 +89,9 @@ and shared persistence until cleanup joins on retry or the old process exits,
 including the foreground-start replacement path.
 Shutdown retries retain daemon discovery; a terminal return from Run removes it
 without releasing persistence or the singleton before owned cleanup finishes.
+That extra withdrawal belongs only to the exact incomplete Shutdown attempt while
+it still owns the singleton; an old Run never removes replacement discovery after
+successful teardown has released the lock.
 Canceled checkpoints restore their connection's busy timeout. Only canceled BEGIN
 operations discard an ambiguous transaction connection.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its

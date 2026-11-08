@@ -1849,6 +1849,67 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: the old Run must not delete discovery written after singleton
+	// release. Owner: daemon process replacement; canonical shutdown suite.
+	for _, loggerFailure := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should preserve replacement discovery after lock release with logger failure %t",
+				loggerFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := lock.Release(); err != nil {
+						t.Error(err)
+					}
+				}()
+				d.lock = lock
+				var replacementLock *Lock
+				defer func() {
+					if replacementLock != nil {
+						if err := replacementLock.Release(); err != nil {
+							t.Error(err)
+						}
+					}
+				}()
+				replacement := Info{PID: os.Getpid(), StartedAt: time.Now().UTC().Add(time.Second)}
+				loggerErr := errors.New("logger close unavailable")
+				d.closeLogger = func() error {
+					var err error
+					replacementLock, err = AcquireLock(home.DaemonLock, os.Getpid())
+					if err != nil {
+						return err
+					}
+					if err := WriteInfo(home.DaemonInfo, replacement); err != nil {
+						return err
+					}
+					if loggerFailure {
+						return loggerErr
+					}
+					return nil
+				}
+				err = d.shutdownAfterRunTrigger(t.Context())
+				if loggerFailure && !errors.Is(err, loggerErr) || !loggerFailure && err != nil {
+					t.Fatalf("Run shutdown = %v", err)
+				}
+				info, err := ReadInfo(home.DaemonInfo)
+				if err != nil || info != replacement {
+					t.Fatalf("replacement discovery = %+v, %v, want %+v", info, err, replacement)
+				}
+			},
+		)
+	}
+
 	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
 		t.Parallel()
 
