@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -124,4 +125,40 @@ func TestDefaultProviderAuthCommandRunner(t *testing.T) {
 			t.Fatalf("ExitCode = %d, want 0 from the completed status command", observed.result.ExitCode)
 		}
 	})
+}
+
+func TestProviderAuthEnvironmentInheritance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell")
+	}
+	t.Setenv("PROVIDER_PARENT_MARKER", "parent")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit when unspecified", want: "parent"},
+		{name: "Should retain explicit empty through probe normalization", env: []string{}, want: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probe := (&ProbeEnv{CommandEnv: tc.env}).Normalize()
+			cmd, err := commandContext(
+				t.Context(),
+				ProviderAuthCommandSpec{
+					Command: `/bin/sh -c 'printf %s "${PROVIDER_PARENT_MARKER:-absent}"'`,
+					Env:     probe.CommandEnv,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			output, err := cmd.Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(output) != tc.want {
+				t.Fatalf("child marker=%q,want %q", output, tc.want)
+			}
+		})
+	}
 }

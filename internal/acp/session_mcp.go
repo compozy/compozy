@@ -63,8 +63,8 @@ func (d *Driver) prepareSessionMCPServers(ctx context.Context, process *AgentPro
 // bridgedServerEnv gives a bridged child the environment the agent would have
 // handed it: the agent's launch environment plus the server's own variables.
 func bridgedServerEnv(agentEnv []string, serverEnv map[string]string) []string {
-	base := append([]string(nil), agentEnv...)
-	if len(base) == 0 {
+	base := slices.Clone(agentEnv)
+	if base == nil {
 		base = procutil.FilteredDaemonEnv(os.Environ())
 	}
 	for _, key := range slices.Sorted(maps.Keys(serverEnv)) {

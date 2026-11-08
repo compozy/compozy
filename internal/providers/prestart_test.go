@@ -677,6 +677,22 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 func TestPreStarterCachesOnlyMatchingFinalProbeIdentity(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should distinguish inherited and explicitly empty environments", func(t *testing.T) {
+		t.Parallel()
+		var key preStartCacheHMACKey
+		inherited, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{})
+		if !ok {
+			t.Fatal("inherited fingerprint failed")
+		}
+		empty, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{CommandEnv: []string{}})
+		if !ok {
+			t.Fatal("empty fingerprint failed")
+		}
+		if inherited == empty {
+			t.Fatal("environment presence missing from cache identity")
+		}
+	})
+
 	t.Run("Should distinguish final command environment and auth configuration", func(t *testing.T) {
 		t.Parallel()
 

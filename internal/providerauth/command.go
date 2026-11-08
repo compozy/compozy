@@ -3,6 +3,7 @@ package providerauth
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -36,7 +37,7 @@ func ParseCommand(command string) (ParsedCommand, error) {
 
 // ApplyEnvironment returns base with this command's leading assignments applied in order.
 func (p ParsedCommand) ApplyEnvironment(base []string) []string {
-	environment := append([]string(nil), base...)
+	environment := slices.Clone(base)
 	for _, assignment := range p.Environment {
 		name, value, _ := strings.Cut(assignment, "=")
 		environment = providerenv.SetEnvValue(environment, name, value)

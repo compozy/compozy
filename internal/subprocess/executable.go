@@ -101,7 +101,7 @@ func executableSearchBase(dir string) (string, error) {
 // effectiveEnvironment inherits the parent environment for an unspecified env. Internal handoff
 // variables never reach a managed subprocess, whether inherited or supplied explicitly.
 func effectiveEnvironment(env []string) []string {
-	if len(env) == 0 {
+	if env == nil {
 		env = os.Environ()
 	}
 	return procutil.WithoutInternalHandoffEnv(env)

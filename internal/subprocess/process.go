@@ -51,7 +51,8 @@ type LaunchConfig struct {
 	Executable string
 	Args       []string
 	Dir        string
-	Env        []string
+	// Env inherits when nil; an explicit empty slice inherits nothing.
+	Env []string
 
 	Logger *slog.Logger
 

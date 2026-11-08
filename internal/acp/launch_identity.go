@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -125,7 +126,7 @@ func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {
 		Command:        opts.Command,
 		Cwd:            opts.Cwd,
 		AdditionalDirs: append([]string(nil), opts.AdditionalDirs...),
-		Env:            append([]string(nil), opts.Env...),
+		Env:            slices.Clone(opts.Env),
 	}
 }
 
@@ -134,7 +135,7 @@ func applyLaunchSpecToStartOpts(opts StartOpts, spec LaunchSpec) StartOpts {
 	next.Command = spec.Command
 	next.Cwd = spec.Cwd
 	next.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
-	next.Env = append([]string(nil), spec.Env...)
+	next.Env = slices.Clone(spec.Env)
 	return next
 }
 
@@ -142,7 +143,7 @@ func cloneLaunchSpec(spec LaunchSpec) LaunchSpec {
 	clone := spec
 	clone.Args = append([]string(nil), spec.Args...)
 	clone.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
-	clone.Env = append([]string(nil), spec.Env...)
+	clone.Env = slices.Clone(spec.Env)
 	return clone
 }
 
@@ -220,7 +221,7 @@ func applyProviderLaunchIdentity(opts StartOpts) StartOpts {
 	}
 
 	probe := *next.ProviderAuthEnv
-	commandEnv := append([]string(nil), next.Env...)
+	commandEnv := slices.Clone(next.Env)
 	probe.CommandEnv = commandEnv
 	probe.CommandDir = next.Cwd
 	probe.LookupEnv = subprocess.LookupEnvFunc(commandEnv)

@@ -246,6 +246,8 @@ func TestManagedCommandDropsInternalHandoffEnv(t *testing.T) {
 		wantMarker string
 	}{
 		{name: "Should drop an inherited handoff from the child", wantMarker: "inherited-marker"},
+		{name: "Should preserve an explicitly empty child environment", env: []string{}},
+		{name: "Should preserve an environment emptied by handoff filtering", env: []string{handoff + "=explicit"}},
 		{
 			name:       "Should drop an explicit handoff from the child",
 			env:        []string{"PATH=" + os.Getenv("PATH"), handoff + "=explicit", "SUBPROCESS_ENV_MARKER=explicit-marker"},
@@ -254,7 +256,7 @@ func TestManagedCommandDropsInternalHandoffEnv(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd, stdin, stdout, _, _, err := startManagedCommand(LaunchConfig{
-				Command: "sh",
+				Command: "/bin/sh",
 				Args:    []string{"-c", `echo "handoff=${` + handoff + `:-absent} marker=${SUBPROCESS_ENV_MARKER:-}"`},
 				Dir:     t.TempDir(),
 				Env:     tc.env,
@@ -262,7 +264,9 @@ func TestManagedCommandDropsInternalHandoffEnv(t *testing.T) {
 			if err != nil {
 				t.Fatalf("startManagedCommand() error = %v", err)
 			}
-			_ = stdin.Close()
+			if err := stdin.Close(); err != nil {
+				t.Fatal(err)
+			}
 			output, readErr := io.ReadAll(stdout)
 			if waitErr := cmd.Wait(); waitErr != nil {
 				t.Fatalf("child wait error = %v", waitErr)
@@ -1769,4 +1773,28 @@ func (h *helperServer) writeEnvelope(envelope any) error {
 
 func blockForever() {
 	select {}
+}
+
+func TestExecutableResolutionEnvironmentPresence(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject switching between inherited and explicit empty environments", func(t *testing.T) {
+		t.Parallel()
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, env := range [][]string{nil, {}} {
+			resolution := NewExecutableResolution(executable, env, "", executable, nil).Clone()
+			if _, err := resolution.Consume(executable, env, ""); err != nil {
+				t.Fatal(err)
+			}
+			changed := []string{}
+			if env != nil {
+				changed = nil
+			}
+			if _, err := resolution.Consume(executable, changed, ""); err == nil {
+				t.Fatal("changed environment presence accepted")
+			}
+		}
+	})
 }

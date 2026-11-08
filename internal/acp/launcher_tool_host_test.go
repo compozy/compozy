@@ -1451,3 +1451,60 @@ func TestLocalLauncherNPXResolution(t *testing.T) {
 		}
 	})
 }
+
+func TestLocalLauncherEnvironmentInheritance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("ACP_OPERATOR_TOKEN", "operator-credential")
+	t.Setenv("COMPOZY_INTERNAL_TEST_HANDOFF", "internal")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit only when unspecified", want: "operator-credential"},
+		{name: "Should preserve explicitly empty environment", env: []string{}},
+		{name: "Should preserve environment emptied when executable discovery fails", env: daemonMatchedEnv([]string{"COMPOZY_INTERNAL_TEST_HANDOFF=explicit"}, func() (string, error) { return "", errors.New("executable unavailable") })},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts, err := normalizeStartOpts(
+				StartOpts{
+					AgentName: "env-test",
+					Command:   "/bin/sh -c 'printf %s:%s \"$ACP_OPERATOR_TOKEN\" \"$COMPOZY_INTERNAL_TEST_HANDOFF\"'",
+					Cwd:       t.TempDir(),
+					Env:       tc.env,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			spec := cloneLaunchSpec(launchSpecFromStartOpts(opts))
+			opts = applyLaunchSpecToStartOpts(opts, spec)
+			spec = launchSpecFromStartOpts(opts)
+			if (spec.Env == nil) != (tc.env == nil) {
+				t.Fatal("launch preparation changed environment presence")
+			}
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+			handle, err := launcher.Launch(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := handle.Stop(t.Context()); err != nil {
+					t.Errorf("stop child: %v", err)
+				}
+			})
+			output, err := io.ReadAll(handle.Stdout())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := handle.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			if string(output) != tc.want+":" {
+				t.Fatalf("child environment = %q, want %q", output, tc.want+":")
+			}
+		})
+	}
+}

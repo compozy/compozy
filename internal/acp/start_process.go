@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -36,7 +37,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		Args:               append([]string(nil), identity.spec.Args...),
 		Cwd:                normalized.Cwd,
 		AdditionalDirs:     append([]string(nil), normalized.AdditionalDirs...),
-		Env:                append([]string(nil), normalized.Env...),
+		Env:                slices.Clone(normalized.Env),
 	})
 	if err != nil {
 		return nil, fmt.Errorf(

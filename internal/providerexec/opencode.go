@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -126,7 +127,7 @@ func openCodeNPMPrefixHasPackage(prefix []string) bool {
 
 // ApplyOpenCodeAssignments overlays private leading NAME=value assignments on an environment.
 func ApplyOpenCodeAssignments(env []string, assignments []string) []string {
-	effective := append([]string(nil), env...)
+	effective := slices.Clone(env)
 	for _, assignment := range assignments {
 		key, value, ok := strings.Cut(assignment, "=")
 		if !ok {
