@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -807,13 +808,14 @@ func TestTriageDispatcher(t *testing.T) {
 	// Invariant: discard rollback retains failed-start history after closing the original recorder.
 	// Owner: temporary triage lifecycle; canonical triage dispatcher suite.
 	for _, tc := range []struct {
-		name                                     string
-		catalogFailure, pendingCleanup, detached bool
+		name                                                        string
+		catalogFailure, pendingCleanup, detached, stopDuringCleanup bool
 	}{
-		{"Should retain failed triage history when catalog deletion fails", true, false, false},
-		{"Should retain failed triage history after joining a failed recorder close", false, false, false},
-		{"Should defer failed triage settlement until recorder cleanup completes", false, true, false},
-		{"Should join a detached recorder before failed triage deletion", false, true, true},
+		{"Should retain failed triage history when catalog deletion fails", true, false, false, false},
+		{"Should retain failed triage history after joining a failed recorder close", false, false, false, false},
+		{"Should defer failed triage settlement until recorder cleanup completes", false, true, false, false},
+		{"Should join a detached recorder before failed triage deletion", false, true, true, false},
+		{"Should complete stop hooks and notification after deferred triage cleanup", false, true, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -825,12 +827,21 @@ func TestTriageDispatcher(t *testing.T) {
 				catalog.deleteErr = deleteErr
 				wantErr = deleteErr
 			}
+			var postStops atomic.Int32
+			hooks := &spyHookDispatcher{
+				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+					postStops.Add(1)
+					return payload, nil
+				},
+			}
 			h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
 				catalog.registerHook = db.RegisterSession
 				catalog.updateHook = func(update store.SessionStateUpdate) error {
 					return db.UpdateSessionState(t.Context(), update)
 				}
 				return WithSessionCatalog(catalog)
+			}, func(*globaldb.GlobalDB) Option {
+				return WithHookSet(fullHookSet(hooks))
 			}).harness
 			opener := h.manager.openStore
 			var opened atomic.Int32
@@ -905,8 +916,25 @@ func TestTriageDispatcher(t *testing.T) {
 				if run == nil {
 					t.Fatal("failed start lost its cleanup owner")
 				}
+				if tc.stopDuringCleanup {
+					if err := h.manager.RequestStop(t.Context(), infos[0].ID, CauseUserRequested); err != nil {
+						t.Fatal(err)
+					}
+				}
 				lease.Release()
-				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, closeErr) {
+				if tc.stopDuringCleanup {
+					outcome, err := h.manager.AwaitStopped(testutil.Context(t), infos[0].ID)
+					if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+						t.Fatalf("stop after cleanup = %+v, %v", outcome, err)
+					}
+					if postStops.Load() != 1 || h.notifier.stoppedCount() != 1 {
+						t.Fatalf(
+							"stop hook=%d notifications=%d, want one each",
+							postStops.Load(),
+							h.notifier.stoppedCount(),
+						)
+					}
+				} else if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, closeErr) {
 					t.Fatalf("deferred settlement = %v, want original close error", err)
 				}
 			}
@@ -919,7 +947,12 @@ func TestTriageDispatcher(t *testing.T) {
 				dbPath: store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, infos[0].ID)),
 			}
 			events := readStoredEvents(t, retained)
-			if countEventType(events, acp.EventTypeError) != 1 || countEventType(events, EventTypeSessionStopped) != 1 {
+			wantErrors := 1
+			if tc.stopDuringCleanup {
+				wantErrors = 0
+			}
+			if countEventType(events, acp.EventTypeError) != wantErrors ||
+				countEventType(events, EventTypeSessionStopped) != 1 {
 				t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
 			}
 			if countEventType(events, acp.EventTypeUserMessage) != 1 || events[0].TurnID != "failed-start-history" {

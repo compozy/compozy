@@ -114,6 +114,9 @@ Keep cleanup blocked across both bounded close attempts: the start must remain
 pending, with its existing lifecycle owner tracked. Release I/O and require failure
 history and stopped state to settle. Repeat after a stop has detached the session's
 recorder; deletion must still join the recorder captured by startup.
+Request stop while that cleanup waits. After release, require the requested stop
+cause, one post-stop hook, one stopped notification and one terminal event; the
+old startup failure must not replace the stop outcome.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

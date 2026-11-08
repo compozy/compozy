@@ -256,8 +256,9 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 	accepted.cleanupPending = true
 	go func() {
 		var settlementErr error
+		runErr := failure
 		defer func() {
-			m.finishSessionStartRun(accepted.session.ID, accepted.run, errors.Join(failure, settlementErr))
+			m.finishSessionStartRun(accepted.session.ID, accepted.run, errors.Join(runErr, settlementErr))
 		}()
 		processErr := m.cleanupFailedStart("", nil, accepted.proc)
 		if processErr == nil {
@@ -270,7 +271,25 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 		accepted.storage.recorder = nil
 		ctx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
-		settlementErr = errors.Join(processErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, failure))
+		if recorderErr := m.reopenAcceptedSessionRecorder(ctx, accepted); recorderErr != nil {
+			settlementErr = errors.Join(processErr, recorderErr)
+		} else {
+			releaseCommit, commitErr := acquireSessionStartLaunchCommit(ctx, accepted.run)
+			switch {
+			case commitErr != nil:
+				settlementErr = errors.Join(processErr, commitErr)
+			case accepted.session.stopWasRequested():
+				releaseCommit()
+				runErr = nil
+				settlementErr = errors.Join(processErr, m.settleCanceledSessionStart(ctx, accepted))
+			default:
+				settlementErr = errors.Join(
+					processErr,
+					m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, failure),
+				)
+				releaseCommit()
+			}
+		}
 		if settlementErr != nil {
 			m.sessionLogger(accepted.session).
 				Error("session: settle failed start after recorder cleanup", "error", settlementErr)
@@ -300,19 +319,7 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	failure error,
 ) error {
 	session := accepted.session
-	var recorderErr error
-	if accepted.storage.recorder == nil {
-		// A failed discard restores the original directory before reopening its
-		// recorder; never reset retained history while recording the failure.
-		if _, recorderErr = m.readMetaWithContext(ctx, session.ID); recorderErr == nil {
-			spec := *accepted.spec
-			spec.clearEventStoreOnOpen = false
-			accepted.storage, recorderErr = m.openSessionStartRecorder(ctx, &spec, accepted.storage)
-			if recorderErr == nil {
-				session.setRecorder(accepted.storage.recorder)
-			}
-		}
-	}
+	recorderErr := m.reopenAcceptedSessionRecorder(ctx, accepted)
 	persistErr := m.persistFailedStart(ctx, session, failure, false)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
@@ -321,4 +328,24 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	}
 	session.clearProviderSecretRedactions()
 	return errors.Join(recorderErr, persistErr, cleanupErr)
+}
+
+// reopenAcceptedSessionRecorder restores the retained owner without clearing prior history.
+func (m *Manager) reopenAcceptedSessionRecorder(ctx context.Context, accepted *acceptedSessionStart) error {
+	if accepted.storage.recorder != nil {
+		return nil
+	}
+	// A failed rollback must not recreate storage at a missing original directory.
+	if _, err := m.readMetaWithContext(ctx, accepted.session.ID); err != nil {
+		return err
+	}
+	spec := *accepted.spec
+	spec.clearEventStoreOnOpen = false
+	storage, err := m.openSessionStartRecorder(ctx, &spec, accepted.storage)
+	if err != nil {
+		return err
+	}
+	accepted.storage = storage
+	accepted.session.setRecorder(storage.recorder)
+	return nil
 }
