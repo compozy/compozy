@@ -16,8 +16,15 @@ export interface TopbarSlotValue {
    * identity from loader data push it as a live node.
    */
   crumb?: React.ReactNode;
+  /**
+   * Tab-strip label when it differs from the head title (e.g. an app whose head
+   * keeps its fixed name while the tab names the open document). Falls back to `crumb`.
+   */
+  tabLabel?: string;
   /** Host context before the title, in place of the window's own. */
   leading?: React.ReactNode;
+  /** Window context controls right after the identity; they shrink before the title does. */
+  context?: React.ReactNode;
   /** Quiet identity glyph at window root (hidden when drill-in crumbs/back are set). */
   glyph?: React.ReactNode;
   /** Icon well by default; `state` renders a bare live-state mark for document windows. */
@@ -69,6 +76,8 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
   return (
     a.leading === b.leading &&
     a.crumb === b.crumb &&
+    a.tabLabel === b.tabLabel &&
+    a.context === b.context &&
     a.glyph === b.glyph &&
     a.glyphPresentation === b.glyphPresentation &&
     a.count === b.count &&

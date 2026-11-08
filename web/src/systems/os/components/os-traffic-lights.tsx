@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
  * The window controls (shell-rail `.wctl`): trailing `quiet` icon buttons in
  * the order minimize, zoom, close — the window-head icon grammar:
  * `icon-sm` 26px pills with a 15px glyph, `muted` ink that turns `fg` on a
- * `surface-2` wash. A zoomed frame reads as a pressed toggle on the same
- * plate. They trail the deck row, or the head when the frame has no deck. The
+ * `surface-2` wash. A zoomed frame reads as a pressed toggle: the glyph in
+ * brand ink, no plate. They trail the deck row, or the head when the frame has no deck. The
  * owning window frame supplies each semantic action.
  *
  * Compact (<960px): the zoom control disappears (meaningless in a stack) and

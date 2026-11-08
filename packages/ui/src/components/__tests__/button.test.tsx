@@ -45,4 +45,22 @@ describe("Button", () => {
     expect(button).toHaveClass("disabled:bg-surface-2", "disabled:text-subtle");
     expect(button.className).not.toContain("disabled:opacity-50");
   });
+
+  // Invariant: a pressed quiet toggle (the window and session head toggles) shows its glyph in
+  // brand ink with no fill; other variants keep the held hover plate.
+  it("Should press a quiet toggle into brand ink without a plate", () => {
+    render(
+      <>
+        <Button variant="quiet" size="icon-sm" aria-label="Changes" aria-pressed />
+        <Button variant="ghost" aria-pressed>
+          Ghost
+        </Button>
+      </>
+    );
+    const quiet = screen.getByRole("button", { name: "Changes" });
+    expect(quiet).toHaveAttribute("aria-pressed", "true");
+    expect(quiet).toHaveClass("aria-pressed:text-brand", "aria-pressed:bg-transparent");
+    expect(quiet.className).not.toContain("aria-pressed:bg-surface-2");
+    expect(screen.getByRole("button", { name: "Ghost" })).toHaveClass("aria-pressed:bg-surface-2");
+  });
 });

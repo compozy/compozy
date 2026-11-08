@@ -16,10 +16,8 @@ import {
   useSessionChangeSelection,
 } from "./use-session-change-selection";
 import { useSessionChangesLiveRefresh } from "./use-session-changes-live-refresh";
-import {
-  requestSessionReviewFile,
-  type UseSessionReviewPanelStateResult,
-} from "./use-session-review-panel-state";
+import { useOpenInFilesApp } from "./use-open-in-files-app";
+import type { UseSessionReviewPanelStateResult } from "./use-session-review-panel-state";
 
 /** Below this session-window width diffs are unified and the tree folds to its toggle. */
 export const CHANGES_NARROW_WIDTH = 900;
@@ -69,6 +67,7 @@ export interface SessionChangesView {
   setScope: (scope: SessionChangesScope) => void;
   setBase: (ref: string) => void;
   reveal: (path: string) => void;
+  /** Opens the changed file in the project's Files window, at its first changed line. */
   openInViewer: (item: SessionChangeItem) => void;
   copyPath: (path: string) => void;
 }
@@ -95,6 +94,7 @@ export function useSessionChangesView({
   const [collapsed, setCollapsed] = useState<Readonly<Record<string, boolean>>>({});
   const [narrowTreeOpen, setNarrowTreeOpen] = useState(false);
   const narrow = useNarrowSessionWindow(rootRef);
+  const openInFiles = useOpenInFilesApp({ workspaceId, sessionId });
   const changes = useSessionChanges({
     workspaceId,
     sessionId,
@@ -128,12 +128,12 @@ export function useSessionChangesView({
     : [];
   const large = summary ? isLargeDiff(summary.totals) : false;
   const selection = useSessionChangeSelection({
-    sessionId,
     summary,
     items,
     large,
     focus: review.focusedChange,
     diffRef,
+    openInFiles,
   });
   const { selectedIndex, selectedPath } = selection;
   const shownItems = large ? items.slice(selectedIndex, selectedIndex + 1) : items;
@@ -183,10 +183,7 @@ export function useSessionChangesView({
     reveal: path => setRevealed(prev => new Set(prev).add(path)),
     openInViewer: item => {
       if (item.file.status === "deleted") return;
-      requestSessionReviewFile(
-        sessionId,
-        fileViewerTarget(item.path, changes.firstLineOf(item.id))
-      );
+      openInFiles?.(fileViewerTarget(item.path, changes.firstLineOf(item.id)));
     },
     copyPath: copyFilePath,
   };

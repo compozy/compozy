@@ -101,9 +101,10 @@ work.
 
 ## Open transcript paths and Open in targets
 
-File paths in assistant messages are links. A plain click opens the file in the session's
-in-app viewer (the Review panel's Files tab) on every client, browser included; the daemon serves
-it through the read-only project file routes, confined to the session's worktree or project root.
+File paths in assistant messages are links. A plain click opens the file in the project's Files
+app, as a tab of the session's window, on the session's worktree or project root and at the path's
+line, on every client, browser included; the daemon serves it through the read-only project file
+routes, confined to that root.
 User-scope sessions have no root, so the path reads as plain code there.
 
 In the desktop app, the viewer header carries an **Open in** split button. The shell lists the

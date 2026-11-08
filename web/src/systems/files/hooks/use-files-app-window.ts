@@ -20,14 +20,14 @@ export function useFilesAppWindow(workspaceId: string) {
   const archived = useArchivedWorkspaces();
   const worktrees = useWorktrees(workspaceId);
   const place = useFilesAppPlace(workspaceId);
-  const [target, setTarget] = useState<FileViewerTarget | null>(() =>
-    place.path ? fileViewerTarget(place.path) : null
-  );
-  // Another surface asked for a place (US-002.AC-6): show its path, as a fresh open would.
+  const placeTarget = () =>
+    place.requestTarget ?? (place.path ? fileViewerTarget(place.path) : null);
+  const [target, setTarget] = useState<FileViewerTarget | null>(placeTarget);
+  // Another surface asked for a place (US-002.AC-6): show its path and line, as a fresh open would.
   const [seenRequest, setSeenRequest] = useState(place.request);
   if (seenRequest !== place.request) {
     setSeenRequest(place.request);
-    setTarget(place.path ? fileViewerTarget(place.path) : null);
+    setTarget(placeTarget());
   }
   const workspace = [...(workspaces.data ?? []), ...(archived.data ?? [])].find(
     candidate => candidate.id === workspaceId

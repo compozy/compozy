@@ -4,8 +4,8 @@ area: ET
 title: Browse a project in the Files app with project and root pickers
 persona: Dora
 journey: J-operate-desktop-shell
-expected: The dock shows Files right after Agents; the dock, the palette's "Open project files", the project context menu's "Open files" and the Review panel's "Open in Files window" all open or focus one Files window per project; the root picker switches between the project root and ready worktrees; the project switcher lists live projects; a removed worktree root shows the unavailable state with "Switch to project root".
-entry_points: OS dock Files; command palette Open project files; sessions rail project group header context menu Open files; Review panel Files tab Open in Files window; /files/<workspace_id>
+expected: The dock shows Files right after Agents; the dock, the palette's "Open project files", the project context menu's "Open files" a transcript path and Changes' "Open in Files" all open or focus one Files window per project (from a session, as a tab of its frame, at the file and line); the head reads Files then the pickers, and the tab names the open file; the root picker switches between the project root and ready worktrees; the project switcher lists live projects; a removed worktree root shows the unavailable state with "Switch to project root".
+entry_points: OS dock Files; command palette Open project files; sessions rail project group header context menu Open files; transcript file path plain click; Review panel Changes Open in Files; /files/<workspace_id>
 qa_status: pass
 bug_ids: BUG-20261107-files-root-internal-workspace-id
 fix_status: fixed
@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: c5d1d54a6
 evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/A01–A07)
 last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
-overlaps: ET-session-review-files; ET-files-search
+overlaps: ET-transcript-paths-files-app; ET-files-search
 ---
 
 Introduced by the file-explorer spec (US-002; `_uiux.md` S6, S10). Walk it with two registered
@@ -36,8 +36,9 @@ Walk:
 7. With the Files window on a worktree root, remove the worktree (`compozy worktree remove`) and
    reload. The window shows the root-unavailable state; **Switch to project root** returns to the
    checkout.
-8. From a session's Review panel, **Open in Files window** opens or focuses the same project window
-   (see `ET-session-review-files` step 8).
+8. From a session, a transcript path's plain click and Changes' **Open in Files** open the project's
+   Files window as a tab of the session's frame on the session root, at the file and line, or
+   retarget the existing one (see `ET-transcript-paths-files-app` steps 2 and 3).
 
 Persistence: the root and the open path persist per project under `compozy:files:v1:<workspace_id>`.
 
@@ -48,7 +49,7 @@ E2E-002.
 
 ## Walk 2026-11-07
 
-Same lab and build as `ET-session-review-files` (integration `410a3566e`, fix `c5d1d54a6`), with
+Same lab and build as `ET-transcript-paths-files-app` (integration `410a3566e`, fix `c5d1d54a6`), with
 projects `lab-project` (worktree `feature-lab`) and `bulk-project`.
 
 | Step | Result | Evidence |
@@ -60,4 +61,4 @@ projects `lab-project` (worktree `feature-lab`) and `bulk-project`.
 | 5 Palette | pass | "Open project files" opened one window (`A05-palette.png`) |
 | 6 Project context menu | pass | **Open files** opened the `bulk-project` window (`A06-context-menu.png`, `A06b-bulk-files.png`) |
 | 7 Removed worktree | pass | Root unavailable, then Switch to project root restored `feat/review` (`A07-root-unavailable.png`) |
-| 8 Open in Files window | pass after fix | See `ET-session-review-files` step 8 and BUG-20261107-files-root-internal-workspace-id |
+| 8 Open in Files window | pass after fix | See `ET-transcript-paths-files-app` step 8 and BUG-20261107-files-root-internal-workspace-id |

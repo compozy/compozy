@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { CompozyShellBridge } from "@/systems/os/lib/desktop-shell-bridge";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 
@@ -216,6 +217,9 @@ export const HostImageReference: Story = {
 const PATHS_WORKSPACE = "ws_story";
 const PATHS_SESSION = "sess-story";
 const openInEditor = fn(async () => ({ status: "opened" as const }));
+const userOpen = fn(async () => undefined);
+/** The desktop shell's window manager, so a plain click can open the Files window. */
+const shellHandle = { coordinator: { userOpen } } as unknown as OsShellHandle;
 
 function pathsQueryClient() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -235,7 +239,10 @@ const FILE_PATHS_MARKDOWN = `I changed \`internal/mcp/hosted_proxy.go:42\` and \
 The config lives in [your config file](~/.compozy/config.toml); the report is at [report](/tmp/report.md).
 Docs: [compozy.com](https://compozy.com). \`compozy start\` is not a path.`;
 
-/** Desktop app: path inline code and links open in the viewer, and in the editor on ⌘-click. */
+/**
+ * Desktop app: path inline code and links open in the project's Files window, and in the editor
+ * on ⌘-click.
+ */
 export const DesktopFilePaths: Story = {
   beforeEach: () => {
     window.compozyShell = {
@@ -248,19 +255,21 @@ export const DesktopFilePaths: Story = {
   },
   render: () => (
     <QueryClientProvider client={pathsQueryClient()}>
-      <SessionRuntimeRenderProvider sessionId={PATHS_SESSION} workspaceId={PATHS_WORKSPACE}>
-        <MarkdownFrame>
-          <MessageMarkdown openPaths content={FILE_PATHS_MARKDOWN} />
-        </MarkdownFrame>
-      </SessionRuntimeRenderProvider>
+      <OsShellContext value={shellHandle}>
+        <SessionRuntimeRenderProvider sessionId={PATHS_SESSION} workspaceId={PATHS_WORKSPACE}>
+          <MarkdownFrame>
+            <MessageMarkdown openPaths content={FILE_PATHS_MARKDOWN} />
+          </MarkdownFrame>
+        </SessionRuntimeRenderProvider>
+      </OsShellContext>
     </QueryClientProvider>
   ),
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // A plain click opens the session viewer; the modifier click is the editor path.
+    // A plain click opens the Files window; the modifier click is the editor path.
     await expect(
-      canvas.getByRole("button", { name: "Open hosted_proxy.go in viewer" })
+      canvas.getByRole("button", { name: "Open hosted_proxy.go in Files" })
     ).toBeVisible();
     await userEvent.keyboard("{Meta>}");
     await userEvent.click(canvas.getByText("internal/mcp/hosted_proxy.go:42"));
@@ -273,5 +282,12 @@ export const DesktopFilePaths: Story = {
       })
     );
     await expect(canvas.queryByRole("button", { name: /compozy start/ })).toBeNull();
+
+    await userEvent.click(canvas.getByText("web/src/app.tsx"));
+    await waitFor(() =>
+      expect(userOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "files", instanceKey: PATHS_WORKSPACE })
+      )
+    );
   },
 };

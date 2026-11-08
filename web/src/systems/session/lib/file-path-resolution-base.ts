@@ -59,6 +59,8 @@ async function readOptional<T>(read: () => Promise<T>): Promise<T | undefined> {
 /**
  * The bases a transcript path resolves against, read at click time: the session's working
  * directory, its bound worktree's path, and the project root; `roots` lists the inside roots.
+ * `worktreeId` is the session's bound worktree, taken from the session itself so an unreadable
+ * listing never turns it into the checkout; `null` only for a session bound to none.
  */
 export async function readFilePathResolutionBase(queryClient: QueryClient, scope: SessionScope) {
   const session = await readSessionDetail(queryClient, scope);
@@ -77,5 +79,5 @@ export async function readFilePathResolutionBase(queryClient: QueryClient, scope
   const roots = [base.worktreePath, base.workspaceRoot]
     .map(root => root?.trim() ?? "")
     .filter((root, index, all) => root !== "" && all.indexOf(root) === index);
-  return { base, roots };
+  return { base, roots, worktreeId: worktreeId === "" ? null : worktreeId };
 }

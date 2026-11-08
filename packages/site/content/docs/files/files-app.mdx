@@ -3,24 +3,28 @@ title: Files app
 description: Browse a project's or worktree's files in their own window, without opening a session.
 ---
 
-The Files app opens a project's files in a window of their own. Use it to read code, search a
-project, or look at a worktree when no session is involved. It has the same tree, viewer, Go to file,
-Search, and Find in file as the [Review panel](/docs/files/review-panel)'s Files tab.
+The Files app opens a project's files in a window of their own: the tree, the
+[file viewer](/docs/files/file-viewer), Go to file, Search, and Find in file. Use it to read code,
+search a project, look at a worktree, or follow a path an agent mentioned.
 
 ## Open it
 
 - **Dock:** **Files** sits right after **Agents**.
 - **Command palette:** **Open project files**.
 - **Sessions sidebar:** open a project's menu and choose **Open files**.
-- **Review panel:** **Open in Files window** in the Files tab opens the same root and file there.
+- **Transcript:** a plain click on a file path in an assistant message opens the file on the
+  session's root (its worktree, else the project folder) at the path's line.
+- **Review panel:** **Open in Files** on a changed file opens it at its first changed line.
 
-Each project has one Files window. Opening it again, from any of these places, focuses the existing
-window instead of adding another. The dock and palette open the project of the window you are focused
+From a session, a new Files window opens as a tab of the session's window. Each project has one
+Files window: opening it again, from any of these places, focuses the existing window and moves it
+to the new root and file instead of adding another. The dock and palette open the project of the window you are focused
 on, otherwise the project you used last, otherwise your first project.
 
 ## Choose the project and root
 
-The window's top bar has two pickers:
+The window's head reads **Files**, then two pickers. Its tab names the open file, otherwise the
+project.
 
 - **Project** lists your projects. Archived projects are not listed.
 - **Root** lists **Project root** and every ready worktree of the project, with its branch.
