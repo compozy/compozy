@@ -77,6 +77,10 @@ func (s *automationInstanceEvents) checkUnavailableReason(
 		return "", err
 	}
 	policy, err := resolveTimerPolicy(ctx, s.policies, heartbeat.AuthoringTarget{
+		CheckInLimits: &heartbeat.CheckInLimits{
+			MaxToolCalls:  workspace.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: workspace.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 		ProfileID: target.ProfileID, ProfileName: workspace.ProfileName, WorkspaceID: target.WorkspaceID,
 		WorkspaceRoot: workspace.RootDir, AgentName: target.AgentName, AgentPath: agent.SourcePath,
 		Config: workspace.Config.Agents.Heartbeat,

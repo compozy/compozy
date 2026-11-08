@@ -152,7 +152,7 @@ func pickQueueState(status string) string {
 	case "sent":
 		return "delivered"
 	case "canceled":
-		return "canceled"
+		return "cancelled" //nolint:misspell // projected wire enum
 	default:
 		return "failed"
 	}

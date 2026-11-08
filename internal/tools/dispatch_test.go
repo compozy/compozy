@@ -2051,7 +2051,7 @@ func TestCheckInDispatchAccounting(t *testing.T) {
 					wantOutcome = "error"
 				}
 				if tc.cancelAfter || errors.Is(tc.backendError, context.Canceled) {
-					wantOutcome = "canceled"
+					wantOutcome = "cancelled" //nolint:misspell // persisted enum
 				}
 			}
 			if wantFinishes > 0 && recorder.outcome != wantOutcome {

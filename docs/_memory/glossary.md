@@ -547,7 +547,7 @@ Something outside the built-in facts that an always-on check-in asks what is new
 
 ### Check-in
 
-One run of an always-on agent's Heartbeat. Collection gates and check-in sources run first; an empty or unchanged digest makes no model call. A check-in that reaches the model runs in a hidden session (internal name `triage`) and may call the agent's read tools, native and MCP, through the Compozy gateway, plus write tools listed in the approved check-in authority that the main session would run without asking. Provider built-in tools stay read-only. It never asks anyone anything and never creates an approval or clarify request. It answers with nothing to report or with proposals. `[agents.always_on].check_in_tools = "disabled"` makes check-ins tool-less again. UI: one scheduled run is "a heartbeat" (see Surface Aliases).
+One run of an always-on agent's Heartbeat. Collection gates and check-in sources run first; an empty or unchanged digest makes no model call. A check-in that reaches the model runs in a hidden session (internal name `triage`) and may call the agent's read tools, native and MCP, through the CompozyOS gateway, plus write tools listed in the approved check-in authority that the main session would run without asking. Provider built-in tools stay read-only. It never asks anyone anything and never creates an approval or clarify request. It answers with nothing to report or with proposals. `[agents.always_on].check_in_tools = "disabled"` makes check-ins tool-less again. UI: one scheduled run is "a heartbeat" (see Surface Aliases).
 
 ### Check-in authority
 
@@ -555,7 +555,7 @@ The part of `HEARTBEAT.md` that grants unattended power: `check_ins.allow_writes
 
 ### Check-in action
 
-An operator-declared kind of proposal in `HEARTBEAT.md` `actions`, with instructions the main session follows when a proposal tagged with it is picked. Actions are offered to check-ins only while the check-in authority is approved. Not a Compozy command, Loop step or automation.
+An operator-declared kind of proposal in `HEARTBEAT.md` `actions`, with instructions the main session follows when a proposal tagged with it is picked. Actions are offered to check-ins only while the check-in authority is approved. Not a CompozyOS command, Loop step or automation.
 
 ### Auto-accept
 

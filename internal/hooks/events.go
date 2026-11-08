@@ -166,7 +166,6 @@ type hookEventDefinition struct {
 }
 
 var baseHookEventDefinitions = []hookEventDefinition{
-	{event: HookAgentInstanceProposalPicked, family: HookEventFamilyAgent, syncEligible: false},
 	{event: HookAgentInstanceCreated, family: HookEventFamilyAgent, syncEligible: false},
 	{event: HookAgentInstancePaused, family: HookEventFamilyAgent, syncEligible: false},
 	{event: HookAgentInstanceResumed, family: HookEventFamilyAgent, syncEligible: false},

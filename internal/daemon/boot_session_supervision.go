@@ -114,8 +114,8 @@ func (d *Daemon) bootInstanceMaintenance(
 				SweepTerminalReports(ctx, d.now(), state.cfg.Agents.Heartbeat.WakeEventRetention, 1000)
 		}
 		var auditErr error
-		if d.now().Sub(lastAuditSweep) >= 24*time.Hour {
-			if provider, ok := state.registry.(instanceRepositoryProvider); ok {
+		if provider, ok := state.registry.(instanceRepositoryProvider); ok && provider.Instances() != nil {
+			if d.now().Sub(lastAuditSweep) >= 24*time.Hour {
 				auditErr = provider.Instances().
 					SweepCheckInToolCalls(ctx, d.now().Add(-state.cfg.Agents.AlwaysOn.CheckInAuditRetention))
 				if auditErr == nil {

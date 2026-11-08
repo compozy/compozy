@@ -246,6 +246,7 @@ func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarg
 		return resolvedAuthoringTarget{}, err
 	}
 	return resolvedAuthoringTarget{
+		checkInLimits: normalized.checkInLimits,
 		profileID:     normalized.profileID,
 		workspaceID:   normalized.workspaceID,
 		workspaceRoot: normalized.workspaceRoot,
@@ -257,6 +258,7 @@ func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarg
 
 func resolvePolicyForStatus(ctx context.Context, target resolvedAuthoringTarget) (ResolvedPolicy, error) {
 	policy, err := Resolve(ctx, ResolveRequest{
+		CheckInLimits: target.checkInLimits,
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,

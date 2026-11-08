@@ -16810,7 +16810,6 @@ export interface components {
       };
       /** @enum {string} */
       event:
-        | "agent.instance.proposal.picked"
         | "agent.instance.created"
         | "agent.instance.paused"
         | "agent.instance.resumed"
@@ -16915,7 +16914,8 @@ export interface components {
         | "terminal.recording_started"
         | "terminal.recording_stopped"
         | "terminal.subscriber_evicted"
-        | "terminal.limit_rejected";
+        | "terminal.limit_rejected"
+        | "agent.instance.proposal.picked";
       /** @enum {string} */
       executor_kind?: "native" | "subprocess" | "wasm";
       matcher: components["schemas"]["HookMatcher"];
@@ -33037,7 +33037,6 @@ export interface operations {
         agent?: string;
         /** @description Hook event name */
         event?:
-          | "agent.instance.proposal.picked"
           | "agent.instance.created"
           | "agent.instance.paused"
           | "agent.instance.resumed"
@@ -33142,7 +33141,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -49681,7 +49681,6 @@ export interface operations {
         session: string;
         /** @description Hook event name */
         event?:
-          | "agent.instance.proposal.picked"
           | "agent.instance.created"
           | "agent.instance.paused"
           | "agent.instance.resumed"
@@ -49786,7 +49785,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */

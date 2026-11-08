@@ -281,7 +281,7 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
     drains: it still shows `queue_full` (recorded at publication). With an unapproved block it
     shows `unapproved`; with no main session `no_main`; paused or archived instances
     record `inactive` rather than the daily `limit`. Queue an auto pick on a busy main
-    session, then pause the instance: the queued auto pick reads `canceled`.
+    session, then pause the instance: the queued auto pick reads `cancelled`.
 13. **Operator picks (US-010).** `compozy agent instance pick issue-watch <report-id> 2` picks
     the waiting proposal (1-based) and prints that it was sent to the main session. Repeating it
     fails `proposal_already_picked` (409). From an agent session the CLI and HTTP pick fail
@@ -305,6 +305,9 @@ the operator's Linear MCP sign-in). Open: F-1, Claude `plan` check-ins decline a
 Report: `docs/qa/reports/2026-11-08-always-on-check-in-tools-qa.md`.
 
 ## Corrective boundary checks
+
+- Approve check-in authority from the Web editor: a successful 204 response clears the pending state without an error.
+- Set daemon caps to 50 tool calls and 10 writes; a policy with caps 30/7 remains valid in status and for packaged agents. Configured lower caps still reject it.
 
 - Put a FIFO in `sources/` without a writer. Discovery, approval and polling must return promptly and reject it as a script.
 - Poll multiple sources across simultaneous instances, including dry runs: active source calls never exceed `max_concurrent_polls` in total.

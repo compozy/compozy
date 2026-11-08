@@ -88,7 +88,6 @@ export interface AgentCrashedPatch {
 }
 
 export type HookEvent =
-  | "agent.instance.proposal.picked"
   | "agent.instance.created"
   | "agent.instance.paused"
   | "agent.instance.resumed"
@@ -193,7 +192,8 @@ export type HookEvent =
   | "terminal.recording_started"
   | "terminal.recording_stopped"
   | "terminal.subscriber_evicted"
-  | "terminal.limit_rejected";
+  | "terminal.limit_rejected"
+  | "agent.instance.proposal.picked";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -6754,7 +6754,6 @@ export interface WorktreePreRemovePayload {
 }
 
 export interface HookPayloadByEvent {
-  "agent.instance.proposal.picked": AgentInstancePayload;
   "agent.instance.created": AgentInstancePayload;
   "agent.instance.paused": AgentInstancePayload;
   "agent.instance.resumed": AgentInstancePayload;
@@ -6860,10 +6859,10 @@ export interface HookPayloadByEvent {
   "terminal.recording_stopped": TerminalRecordingStoppedPayload;
   "terminal.subscriber_evicted": TerminalSubscriberEvictedPayload;
   "terminal.limit_rejected": TerminalLimitRejectedPayload;
+  "agent.instance.proposal.picked": AgentInstancePayload;
 }
 
 export interface HookPatchByEvent {
-  "agent.instance.proposal.picked": AgentInstanceObservationPatch;
   "agent.instance.created": AgentInstanceObservationPatch;
   "agent.instance.paused": AgentInstanceObservationPatch;
   "agent.instance.resumed": AgentInstanceObservationPatch;
@@ -6969,6 +6968,7 @@ export interface HookPatchByEvent {
   "terminal.recording_stopped": TerminalObservationPatch;
   "terminal.subscriber_evicted": TerminalObservationPatch;
   "terminal.limit_rejected": TerminalObservationPatch;
+  "agent.instance.proposal.picked": AgentInstanceObservationPatch;
 }
 
 export interface HostAPIMethodMap {

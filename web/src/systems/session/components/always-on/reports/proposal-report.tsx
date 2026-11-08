@@ -88,6 +88,22 @@ function ask(count: number, allDone: boolean) {
     : "I found something worth doing. Should I?";
 }
 
+function ProposalFailure({ failure }: { failure: ReturnType<typeof proposalPickFailure> }) {
+  return (
+    <>
+      {failure.words}
+      {failure.code ? <span className="text-subtle"> ({failure.code})</span> : null}
+    </>
+  );
+}
+
+function proposalFootnote(unsure: boolean, allDone: boolean, label: string) {
+  if (unsure) return MAYBE_NOT_PICKED(label);
+  if (allDone)
+    return "Auto-accepted actions run in the agent's main session with its own permissions.";
+  return undefined;
+}
+
 export function ProposalReport({
   agent,
   data,
@@ -99,10 +115,10 @@ export function ProposalReport({
   instance: AgentInstancePayload | undefined;
   unsure: boolean;
 }) {
-  // A transcript that can't send, such as a conversation that moved on, offers no pick.
+  // A transcript that cannot send offers no pick.
   const live = use(SessionReportSendContext) !== null;
   const payload = reportPayload(data);
-  const { proposals, picks, picksTracked, source, itemSources } = payload;
+  const { proposals, picks, picksTracked } = payload;
   const inferred = useAuiState(state =>
     picksTracked ? undefined : pickedProposal(state.thread.messages, proposals, data.created_at)
   );
@@ -121,14 +137,7 @@ export function ProposalReport({
       ask={ask(proposals.length, allDone)}
       choices={choices}
       chosen={chosen}
-      error={
-        failure ? (
-          <>
-            {failure.words}
-            {failure.code ? <span className="text-subtle"> ({failure.code})</span> : null}
-          </>
-        ) : undefined
-      }
+      error={failure ? <ProposalFailure failure={failure} /> : undefined}
       footer={
         <ReportToolCalls
           instance={instance}
@@ -136,13 +145,7 @@ export function ProposalReport({
           summary={payload.toolCalls}
         />
       }
-      footnote={
-        unsure
-          ? MAYBE_NOT_PICKED(agent.label)
-          : allDone
-            ? "Auto-accepted actions run in the agent's main session with its own permissions."
-            : undefined
-      }
+      footnote={proposalFootnote(unsure, allDone, agent.label)}
       onChoose={
         live && instance
           ? (_choice, index) => pick.mutate({ instance, reportId: data.report_id, proposal: index })
@@ -150,7 +153,7 @@ export function ProposalReport({
       }
       picking={mine && pick.isPending ? pick.variables?.proposal : undefined}
       source={
-        source || itemSources.length > 0 ? (
+        payload.source || payload.itemSources.length > 0 ? (
           <ProposalSource data={data} instance={instance} />
         ) : undefined
       }

@@ -219,6 +219,9 @@ func (r *InstanceRepo) CheckInOccurrence(
 		return agentinstance.CheckIn{}, err
 	}
 	proposals, err := r.checkInProposals(ctx, instance, occurrence)
+	if err != nil {
+		return agentinstance.CheckIn{}, err
+	}
 	return agentinstance.CheckIn{
 		ID:           row.ID,
 		Proposals:    proposals,
@@ -229,7 +232,7 @@ func (r *InstanceRepo) CheckInOccurrence(
 		CreatedAt:    at,
 		ToolsStatus:  row.ToolsStatus,
 		ToolCalls:    calls,
-	}, err
+	}, nil
 }
 
 func (r *InstanceRepo) MarkAuthorityNotice(ctx context.Context, profile, dir, digest string) (bool, error) {

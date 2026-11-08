@@ -8630,7 +8630,6 @@ export type SettingsHookDeclarationPayload = {
     [key: string]: string;
   };
   event:
-    | "agent.instance.proposal.picked"
     | "agent.instance.created"
     | "agent.instance.paused"
     | "agent.instance.resumed"
@@ -8735,7 +8734,8 @@ export type SettingsHookDeclarationPayload = {
     | "terminal.recording_started"
     | "terminal.recording_stopped"
     | "terminal.subscriber_evicted"
-    | "terminal.limit_rejected";
+    | "terminal.limit_rejected"
+    | "agent.instance.proposal.picked";
   executor_kind?: "native" | "subprocess" | "wasm";
   matcher: HookMatcher;
   metadata?: {
@@ -21595,7 +21595,6 @@ export type GetHookCatalogData = {
      * Hook event name
      */
     event?:
-      | "agent.instance.proposal.picked"
       | "agent.instance.created"
       | "agent.instance.paused"
       | "agent.instance.resumed"
@@ -21700,7 +21699,8 @@ export type GetHookCatalogData = {
       | "terminal.recording_started"
       | "terminal.recording_stopped"
       | "terminal.subscriber_evicted"
-      | "terminal.limit_rejected";
+      | "terminal.limit_rejected"
+      | "agent.instance.proposal.picked";
     /**
      * Hook source
      */
@@ -34264,7 +34264,6 @@ export type GetHookRunsData = {
      * Hook event name
      */
     event?:
-      | "agent.instance.proposal.picked"
       | "agent.instance.created"
       | "agent.instance.paused"
       | "agent.instance.resumed"
@@ -34369,7 +34368,8 @@ export type GetHookRunsData = {
       | "terminal.recording_started"
       | "terminal.recording_stopped"
       | "terminal.subscriber_evicted"
-      | "terminal.limit_rejected";
+      | "terminal.limit_rejected"
+      | "agent.instance.proposal.picked";
     /**
      * Hook execution outcome
      */

@@ -304,7 +304,7 @@ export async function approveAgentHeartbeatAuthority(
   workspaceId?: string | null,
   profile?: string
 ) {
-  const { data, error, response } = await apiClient.POST(
+  const { error, response } = await apiClient.POST(
     "/api/agents/{name}/heartbeat/authority/approve",
     {
       params: {
@@ -318,7 +318,6 @@ export async function approveAgentHeartbeatAuthority(
   if (apiRequestFailed(response, error)) {
     throw new AgentApiError(defaultApiErrorMessage(fallback, response, error), response.status);
   }
-  return requireResponseData(data, response, fallback);
 }
 
 /** One tool the agent can see, reduced to what the check-in write list needs. */

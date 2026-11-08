@@ -31207,7 +31207,6 @@
           },
           "event": {
             "enum": [
-              "agent.instance.proposal.picked",
               "agent.instance.created",
               "agent.instance.paused",
               "agent.instance.resumed",
@@ -31312,7 +31311,8 @@
               "terminal.recording_started",
               "terminal.recording_stopped",
               "terminal.subscriber_evicted",
-              "terminal.limit_rejected"
+              "terminal.limit_rejected",
+              "agent.instance.proposal.picked"
             ],
             "type": "string"
           },
@@ -64892,7 +64892,6 @@
             "name": "event",
             "schema": {
               "enum": [
-                "agent.instance.proposal.picked",
                 "agent.instance.created",
                 "agent.instance.paused",
                 "agent.instance.resumed",
@@ -64997,7 +64996,8 @@
                 "terminal.recording_started",
                 "terminal.recording_stopped",
                 "terminal.subscriber_evicted",
-                "terminal.limit_rejected"
+                "terminal.limit_rejected",
+                "agent.instance.proposal.picked"
               ],
               "type": "string"
             }
@@ -89641,7 +89641,6 @@
             "name": "event",
             "schema": {
               "enum": [
-                "agent.instance.proposal.picked",
                 "agent.instance.created",
                 "agent.instance.paused",
                 "agent.instance.resumed",
@@ -89746,7 +89745,8 @@
                 "terminal.recording_started",
                 "terminal.recording_stopped",
                 "terminal.subscriber_evicted",
-                "terminal.limit_rejected"
+                "terminal.limit_rejected",
+                "agent.instance.proposal.picked"
               ],
               "type": "string"
             }

@@ -6149,6 +6149,51 @@ func TestSourceCollectionScheduling(t *testing.T) {
 }
 
 func TestCheckInToolRecorder(t *testing.T) {
+	t.Run(
+		"Should persist a canceled tool call with a possible write effect",
+		func(t *testing.T) {
+			t.Parallel()
+			repo := openTestGlobalDB(t).Instances()
+			instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "cancel-recorder",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			recorder := repo.CheckInRecorder()
+			policy := toolspkg.CheckInPolicy{
+				InstanceID:    instance.ID,
+				OccurrenceID:  "cancel-occurrence",
+				MaxToolCalls:  1,
+				MaxWriteCalls: 1,
+			}
+			decision, err := recorder.Begin(t.Context(), toolspkg.CheckInAttempt{
+				ToolID: "mcp__fixture__write", Backend: toolspkg.BackendMCP, Access: toolspkg.AccessWrite,
+			}, policy)
+			if err != nil || !decision.Allowed {
+				t.Fatalf("begin=%+v error=%v", decision, err)
+			}
+			if err := recorder.Finish(
+				t.Context(),
+				policy.OccurrenceID,
+				decision.Seq,
+				"cancelled", //nolint:misspell // persisted enum
+				"",
+				time.Millisecond,
+			); err != nil {
+				t.Fatal(err)
+			}
+			calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+			if err != nil || len(calls) != 1 {
+				t.Fatalf("calls=%+v error=%v", calls, err)
+			}
+			if calls[0].Outcome != "cancelled" || calls[0].Effect != "maybe" { //nolint:misspell // persisted enum
+				t.Fatalf("call=%+v", calls[0])
+			}
+		},
+	)
+
 	t.Run("Should reserve caps atomically and retain denied attempts [IT-002]", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

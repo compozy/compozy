@@ -254,6 +254,7 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		return policy, true, emptyErr
 	}
 	policy, parseErr := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+		CheckInLimits: target.CheckInLimits,
 		SourcePath:    sourcePath,
 		WorkspaceRoot: strings.TrimSpace(target.WorkspaceRoot),
 		Content:       []byte(artifacts.HeartbeatBody),

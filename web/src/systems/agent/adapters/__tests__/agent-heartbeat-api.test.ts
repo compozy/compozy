@@ -6,6 +6,7 @@ import { AgentDigestConflictError, isAgentDigestConflict } from "../agent-api";
 import {
   AgentHeartbeatScriptApprovalError,
   approveAgentHeartbeatScript,
+  approveAgentHeartbeatAuthority,
   deleteAgentHeartbeat,
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
@@ -210,6 +211,19 @@ describe("agent-heartbeat-api", () => {
       });
     }
   );
+
+  it("Should approve check-in authority on a 204 response", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+    const sha256 = `sha256:${"7f".repeat(32)}`;
+    await expect(
+      approveAgentHeartbeatAuthority("coder", sha256, "ws_alpha", "work")
+    ).resolves.toBeUndefined();
+    await expectFetchRequest({
+      path: "/api/agents/coder/heartbeat/authority/approve?workspace_id=ws_alpha&profile=work",
+      method: "POST",
+      body: { sha256 },
+    });
+  });
 
   it("Should approve the script hash it was given and keep the daemon's refusal code", async () => {
     const sha256 = `sha256:${"7f".repeat(32)}`;

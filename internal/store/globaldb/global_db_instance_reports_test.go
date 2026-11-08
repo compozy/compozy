@@ -1671,6 +1671,15 @@ func TestInstanceProposalPicks(t *testing.T) {
 				if err != nil || entry.Status != "canceled" {
 					t.Fatalf("entry=%+v err=%v", entry, err)
 				}
+				if err := db.InstanceReports().ProjectPicks(t.Context(), &proposalReport); err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Contains(
+					proposalReport.Payload,
+					[]byte(`"state":"cancelled"`), //nolint:misspell // projected wire enum
+				) {
+					t.Fatalf("paused pick=%s", proposalReport.Payload)
+				}
 			}
 		})
 	}

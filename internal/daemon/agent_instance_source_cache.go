@@ -25,6 +25,7 @@ type instanceSourceDeclarationKey struct {
 	config, body [32]byte
 	file         filesnap.Snapshot
 	packageOwned bool
+	limits       heartbeat.CheckInLimits
 }
 
 type instanceSourceDeclarations struct {
@@ -64,6 +65,7 @@ func (c *instanceSourceDeclarations) resolve(
 			policy, err = heartbeat.Parse(ctx, heartbeat.ParseRequest{
 				SourcePath: artifacts.HeartbeatSourcePath, WorkspaceRoot: target.WorkspaceRoot,
 				Content: []byte(artifacts.HeartbeatBody), Config: target.Config,
+				CheckInLimits: target.CheckInLimits,
 			})
 		}
 	} else {
@@ -112,6 +114,9 @@ func instanceSourceKey(
 	}
 	key := instanceSourceDeclarationKey{
 		root: timerPolicyRoot(target), config: sha256.Sum256(config),
+	}
+	if target.CheckInLimits != nil {
+		key.limits = *target.CheckInLimits
 	}
 	if artifacts != nil && artifacts.PackageOwned {
 		key.path = artifacts.HeartbeatSourcePath

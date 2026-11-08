@@ -245,6 +245,7 @@ type nativeAuthoredAgentTarget struct {
 	agentPath       string
 	agentLayer      string
 	heartbeatConfig compozyconfig.HeartbeatConfig
+	checkInLimits   heartbeat.CheckInLimits
 }
 
 // authoredAgentTarget resolves the native caller Profile and registered workspace before selecting agent paths.
@@ -294,12 +295,17 @@ func (n *daemonNativeTools) authoredAgentTarget(
 		agentPath:       nativeAuthoredAgentPath(resolved, name),
 		agentLayer:      agentLayer,
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
+		checkInLimits: heartbeat.CheckInLimits{
+			MaxToolCalls:  resolved.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: resolved.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 	}, nil
 }
 
 // heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		CheckInLimits: &t.checkInLimits,
 		ProfileID:     t.profileID,
 		ProfileName:   t.profileName,
 		WorkspaceID:   t.authoringWorkspaceID(),

@@ -99,7 +99,7 @@ func (a *checkInDispatch) finish(ctx context.Context, callErr error) error {
 			if errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded) ||
 				errors.Is(callErr, ErrToolCanceled) ||
 				errors.Is(callErr, ErrToolTimedOut) {
-				outcome = "canceled"
+				outcome = "cancelled" //nolint:misspell // persisted enum
 			}
 		}
 	}

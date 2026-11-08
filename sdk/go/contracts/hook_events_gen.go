@@ -5,7 +5,6 @@ package contracts
 type HookEvent string
 
 const (
-	HookEventAgentInstanceProposalPicked     HookEvent = "agent.instance.proposal.picked"
 	HookEventAgentInstanceCreated            HookEvent = "agent.instance.created"
 	HookEventAgentInstancePaused             HookEvent = "agent.instance.paused"
 	HookEventAgentInstanceResumed            HookEvent = "agent.instance.resumed"
@@ -111,4 +110,5 @@ const (
 	HookEventTerminalRecordingStopped        HookEvent = "terminal.recording_stopped"
 	HookEventTerminalSubscriberEvicted       HookEvent = "terminal.subscriber_evicted"
 	HookEventTerminalLimitRejected           HookEvent = "terminal.limit_rejected"
+	HookEventAgentInstanceProposalPicked     HookEvent = "agent.instance.proposal.picked"
 )

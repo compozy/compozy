@@ -257,20 +257,17 @@ export async function fetchAgentInstanceProjectedReports(
   ref: AgentInstanceRef,
   signal?: AbortSignal
 ): Promise<AgentInstanceReport[]> {
-  const reports: AgentInstanceReport[] = [];
-  let cursor = "";
-  for (let page = 0; page < PROJECTED_REPORT_PAGES; page += 1) {
+  const readPage = async (cursor: string, page: number): Promise<AgentInstanceReport[]> => {
     const query: Record<string, string> = { limit: String(REPORTS_READ_LIMIT) };
     if (cursor) query.cursor = cursor;
     const read = await request<AgentInstanceReportsResponse>(instancePath(ref, "/reports", query), {
       signal,
       fallback: "Failed to fetch this agent's reports",
     });
-    reports.push(...read.reports);
-    cursor = read.next_cursor;
-    if (!cursor) break;
-  }
-  return reports;
+    if (!read.next_cursor || page + 1 >= PROJECTED_REPORT_PAGES) return read.reports;
+    return [...read.reports, ...(await readPage(read.next_cursor, page + 1))];
+  };
+  return readPage("", 0);
 }
 
 /** One operator pick: the daemon queues the proposal into the main session. */
