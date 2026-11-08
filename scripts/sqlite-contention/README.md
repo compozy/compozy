@@ -41,7 +41,11 @@ Shutdown cancels and joins it; non-deadline I/O errors remain warnings. The fami
 physical connection opens with checkpoint I/O, so a cold pool open can wait on a
 slow sync until its own request deadline. A short SQLite deadline cannot interrupt
 a filesystem sync already in progress; interrupting backfill does not provide
-that cold-open guarantee. Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
+that cold-open guarantee. Final session shutdown also retains the family lease
+through backfill and last-connection close, which can itself checkpoint. Caller
+expiry bounds the close wait while owned cleanup finishes after an in-flight
+physical open releases the lease; reopening must preserve the committed events.
+Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
 A below-limit idle PASSIVE deferred by a family guard retries on the next activity

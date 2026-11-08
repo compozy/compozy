@@ -96,6 +96,14 @@ Verify that successful settlement removes the receipt. A crash before this recei
 uses interrupted-stop classification and fresh process-identity verification; it need not retain
 an outcome that had not yet been journaled. Include that branch in the final boot journey.
 
+Storage overlap regression (#1369): pause a physical events-database open while
+the old recorder closes. Final backfill and last-connection close must respect
+the database family guard, preserving its identity check. A close caller may
+reach its existing deadline while owned cleanup waits; after the open releases
+its guard, cleanup must finish and reopening must retain the terminal event.
+The canonical passive-checkpoint suite owns this ordering; the shared-stop
+integration suite owns terminal event/notification uniqueness across recovery.
+
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence
 fails. Boot must recover the original verified outcome and complete the terminal event before
 admitting new work; a direct resume against a fresh manager must respect the same pending fence.

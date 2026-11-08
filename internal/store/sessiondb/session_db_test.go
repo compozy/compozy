@@ -757,6 +757,54 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 
 	// Invariant: physical checkpoint writes serialize with guarded connection opens.
 	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
+	t.Run("Should retain close ownership while a physical open holds the family guard", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-close-family-guard")
+		db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+		if err := db.Record(t.Context(), SessionEvent{
+			ID: "before-close", TurnID: "turn-close", Type: "session_stopped", AgentName: "coder",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		lease, err := AcquireFamilyLease(t.Context(), db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		before, err := os.ReadFile(db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
+		defer cancel()
+		if err := db.Close(ctx); !errors.Is(err, store.ErrDrainTimeout) {
+			t.Fatalf("close during guarded open = %v, want bounded wait retaining cleanup", err)
+		}
+		after, err := os.ReadFile(db.path)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("close changed the main database during guarded open: %v", err)
+		}
+		lease.Release()
+		select {
+		case <-db.closeDone:
+		case <-t.Context().Done():
+			t.Fatal("close did not finish after the physical open released its guard")
+		}
+		reopened, err := OpenSessionDB(t.Context(), db.owner, db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		events, err := reopened.Query(t.Context(), EventQuery{})
+		if err != nil || len(events) != 1 || events[0].ID != "before-close" {
+			t.Fatalf("durable event after guarded close = %#v, %v", events, err)
+		}
+	})
+
 	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {
 		t.Parallel()
 		db := openTestSessionDB(t, "sess-checkpoint-guard")

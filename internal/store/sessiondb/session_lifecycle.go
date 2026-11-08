@@ -64,22 +64,40 @@ func (s *SessionDB) close(drainCtx context.Context) {
 	if s.checkpointDone != nil {
 		<-s.checkpointDone
 	}
+	databaseCloseErr := s.closeDatabases(drainCtx)
+
+	s.closeErr = errors.Join(writerErr, writerExitErr, checkpointExitErr, databaseCloseErr)
+	s.state.Store(sessionStateClosed)
+}
+
+func (s *SessionDB) closeDatabases(ctx context.Context) error {
+	// Opening a pool connection takes the family lease itself. Acquire it before
+	// guarding final backfill and last-connection close, which can also checkpoint.
+	// Caller expiry bounds Close's wait; owned cleanup still joins physical opens.
+	cleanupCtx := context.WithoutCancel(ctx)
+	connection, connectionErr := s.db.Conn(cleanupCtx)
+	lease, leaseErr := AcquireFamilyLease(cleanupCtx, s.path)
+	defer lease.Release()
+
 	var readerCloseErr error
 	if s.readDB != nil {
 		readerCloseErr = s.readDB.Close()
 	}
 	// A retained reader must not turn optional WAL truncation into a shutdown failure.
-	checkpointErr := store.CheckpointPassive(drainCtx, s.db)
+	checkpointErr := store.CheckpointPassiveConnection(ctx, connection)
 	var maintenanceCloseErr error
 	if s.checkpointDB != nil {
 		maintenanceCloseErr = s.checkpointDB.Close()
 	}
+	var connectionCloseErr error
+	if connection != nil {
+		connectionCloseErr = connection.Close()
+	}
 	closeErr := s.db.Close()
 
-	s.closeErr = errors.Join(
-		writerErr, writerExitErr, checkpointExitErr, readerCloseErr, checkpointErr, maintenanceCloseErr, closeErr,
+	return errors.Join(
+		connectionErr, leaseErr, readerCloseErr, checkpointErr, maintenanceCloseErr, connectionCloseErr, closeErr,
 	)
-	s.state.Store(sessionStateClosed)
 }
 
 func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) error {

@@ -1531,9 +1531,11 @@ func TestSharedSessionStopOperation(t *testing.T) {
 				settled.Cause != first.Cause || settled.Elapsed != first.Elapsed {
 				t.Fatalf("restarted settlement = %#v, %v", settled, err)
 			}
-			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 ||
-				h.notifier.stoppedCount() != 1 {
-				t.Fatal("restart duplicated or omitted terminal settlement")
+			stoppedEvents := countEventType(readStoredEvents(t, active), EventTypeSessionStopped)
+			stoppedNotifications := h.notifier.stoppedCount()
+			if stoppedEvents != 1 || stoppedNotifications != 1 {
+				t.Fatalf("restart terminal settlement: events = %d, notifications = %d; want 1 each",
+					stoppedEvents, stoppedNotifications)
 			}
 			if _, err := os.Stat(manager.recoveredStopReceiptPath(active.ID)); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("settled receipt retained: %v", err)
