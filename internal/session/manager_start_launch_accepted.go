@@ -180,6 +180,12 @@ func (m *Manager) discardAcceptedSessionStart(
 		return errors.Join(startErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
 	}
 	session := accepted.session
+	// Staging retains the database-family lease. Close the recorder before
+	// acquiring it, so final backfill cannot wait on our own deletion capability.
+	if err := m.closeSessionRecorder(session); err != nil {
+		return errors.Join(startErr, err, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
+	}
+	accepted.storage.recorder = nil
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
 		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
@@ -241,6 +247,19 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	failure error,
 ) error {
 	session := accepted.session
+	var recorderErr error
+	if accepted.storage.recorder == nil {
+		// A failed discard restores the original directory before reopening its
+		// recorder; never reset retained history while recording the failure.
+		if _, recorderErr = m.readMetaWithContext(ctx, session.ID); recorderErr == nil {
+			spec := *accepted.spec
+			spec.clearEventStoreOnOpen = false
+			accepted.storage, recorderErr = m.openSessionStartRecorder(ctx, &spec, accepted.storage)
+			if recorderErr == nil {
+				session.setRecorder(accepted.storage.recorder)
+			}
+		}
+	}
 	persistErr := m.persistFailedStart(ctx, session, failure, false)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
@@ -248,5 +267,5 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(persistErr, cleanupErr)
+	return errors.Join(recorderErr, persistErr, cleanupErr)
 }

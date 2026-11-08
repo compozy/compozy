@@ -45,6 +45,9 @@ that cold-open guarantee. Final session shutdown also retains the family lease
 through backfill and last-connection close, which can itself checkpoint. Caller
 expiry bounds the close wait while owned cleanup finishes after an in-flight
 physical open releases the lease; reopening must preserve the committed events.
+Failed temporary-session starts close their recorder before acquiring the deletion
+lease. If catalog deletion fails, restore the directory and reopen the recorder
+without clearing history before persisting the startup diagnostic and terminal event.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.

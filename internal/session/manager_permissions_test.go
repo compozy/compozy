@@ -803,6 +803,48 @@ func TestTriageDispatcher(t *testing.T) {
 			t.Fatalf("directories=%v error=%v", entries, err)
 		}
 	})
+	// Invariant: discard rollback retains failed-start history after closing the original recorder.
+	// Owner: temporary triage lifecycle; canonical triage dispatcher suite.
+	t.Run("Should retain failed triage history when catalog deletion fails", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		deleteErr := errors.New("catalog delete unavailable")
+		catalog.deleteErr = deleteErr
+		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+			catalog.registerHook = db.RegisterSession
+			catalog.updateHook = func(update store.SessionStateUpdate) error {
+				return db.UpdateSessionState(t.Context(), update)
+			}
+			return WithSessionCatalog(catalog)
+		}).harness
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, errors.New("provider start unavailable")
+		}
+		dispatcher := &TriageDispatcher{
+			Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+		}
+		_, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
+			ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+		}}, heartbeat.CheckDigest{}, func(string) error {
+			t.Error("failed start bound a session")
+			return nil
+		})
+		if !errors.Is(err, deleteErr) {
+			t.Fatalf("discard error = %v, want catalog failure", err)
+		}
+		infos, err := h.manager.ListAll(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].State != StateStopped {
+			t.Fatalf("retained failed session = %#v, %v", infos, err)
+		}
+		retained := &Session{
+			ID: infos[0].ID, WorkspaceID: h.workspaceID,
+			dbPath: store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, infos[0].ID)),
+		}
+		events := readStoredEvents(t, retained)
+		if countEventType(events, acp.EventTypeError) != 1 || countEventType(events, EventTypeSessionStopped) != 1 {
+			t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
+		}
+	})
 	// Invariant: a rejected triage model is a configuration diagnostic; request failures stay ordinary.
 	for _, tc := range []struct {
 		name, reason string

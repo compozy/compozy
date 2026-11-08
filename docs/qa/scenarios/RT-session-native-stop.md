@@ -104,6 +104,12 @@ its guard, cleanup must finish and reopening must retain the terminal event.
 The canonical passive-checkpoint suite owns this ordering; the shared-stop
 integration suite owns terminal event/notification uniqueness across recovery.
 
+Reject a temporary triage start and verify its recorder closes before deletion
+acquires the family guard: no writer-drain timeout or durable artifacts may remain.
+Repeat with catalog deletion failing. Rollback must restore the directory and
+retain one startup diagnostic and one terminal event, without clearing history.
+The canonical triage dispatcher suite owns these failed-start cleanup cases.
+
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence
 fails. Boot must recover the original verified outcome and complete the terminal event before
 admitting new work; a direct resume against a fresh manager must respect the same pending fence.

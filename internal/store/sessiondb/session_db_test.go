@@ -810,10 +810,6 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 				t.Fatalf("fixture was already backfilled: %v", err)
 			}
 			closeCtx, cancel := context.WithCancel(ctx)
-			if expire {
-				cancel()
-				closeCtx, cancel = context.WithTimeout(ctx, 25*time.Millisecond)
-			}
 			defer cancel()
 			closed := make(chan error, 1)
 			go func() { closed <- db.Close(closeCtx) }()
@@ -846,9 +842,10 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 				t.Fatalf("close changed the main database during guarded open: %v", err)
 			}
 			if expire {
+				cancel()
 				if err := <-closed; !errors.Is(err, store.ErrDrainTimeout) ||
-					!errors.Is(err, context.DeadlineExceeded) {
-					t.Fatalf("close during guarded open = %v, want drain deadline", err)
+					!errors.Is(err, context.Canceled) {
+					t.Fatalf("close during guarded open = %v, want drain cancellation", err)
 				}
 			} else if err := closeCtx.Err(); err != nil {
 				t.Fatalf("checkpoint context expired before the ordering check: %v", err)
