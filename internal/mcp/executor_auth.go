@@ -73,7 +73,7 @@ func (e *CallExecutor) authorizationFailureReason(
 	if e == nil || e.auth == nil || fallback != toolspkg.ReasonMCPAuthRequired {
 		return fallback
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
+	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
 		return fallback
 	}
@@ -93,7 +93,7 @@ func (e *CallExecutor) authStatus(
 	resolved ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
 	server := resolved.Server
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, e.resolveSecretRef)
+	cfg, err := e.serverAuthConfig(ctx, ResolvedServer{Server: server, Target: resolved.Target}, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -132,7 +132,7 @@ func (e *CallExecutor) refreshAuth(
 			"mcp auth service is required for refresh",
 		)
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, e.resolveSecretRef)
+	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -160,7 +160,7 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved Resolve
 	if e == nil || e.auth == nil {
 		return ""
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
+	cfg, err := e.serverAuthConfig(ctx, resolved, nil)
 	if err != nil {
 		return ""
 	}
@@ -206,4 +206,21 @@ func redactedAuthStatus(status mcpauth.Status) toolspkg.MCPAuthStatus {
 		TokenPresent: status.TokenPresent,
 		Diagnostic:   strings.TrimSpace(status.Diagnostic),
 	}
+}
+
+func (e *CallExecutor) serverAuthConfig(
+	ctx context.Context,
+	resolved ResolvedServer,
+	resolve func(context.Context, string) (string, error),
+) (mcpauth.ServerConfig, error) {
+	server, secrets, err := resolved.Server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return mcpauth.ServerConfig{}, err
+	}
+	for _, secret := range secrets {
+		registerMCPRequestSecret(ctx, secret)
+	}
+	return mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, resolve)
 }

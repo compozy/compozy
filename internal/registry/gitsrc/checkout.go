@@ -14,6 +14,8 @@ import (
 	"sync"
 )
 
+var abbreviatedCommitPattern = regexp.MustCompile(`^[0-9a-f]{7,39}$`)
+
 var gitCommitPattern = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 
 // Checkout owns a temporary repository tree until Close releases it.
@@ -106,9 +108,12 @@ func (c *Client) cloneRepository(ctx context.Context, slug, ref string) (_ *Chec
 	}()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	if gitCommitPattern.MatchString(ref) {
+	switch {
+	case abbreviatedCommitPattern.MatchString(ref):
+		err = c.fetchAbbreviatedCommit(ctx, repository, addresses, checkout, ref)
+	case gitCommitPattern.MatchString(ref):
 		err = c.fetchCommit(ctx, repository, addresses, checkout, ref)
-	} else {
+	default:
 		err = c.run(ctx, executable, cloneArgs(repository, addresses, ref, checkout.Path)...)
 	}
 	if err != nil {
@@ -149,4 +154,77 @@ func runGitOutput(ctx context.Context, executable string, args ...string) (strin
 		return "", fmt.Errorf("run git: %w", err)
 	}
 	return string(output), nil
+}
+
+func (c *Client) fetchAbbreviatedCommit(
+	ctx context.Context,
+	repository repositoryRef,
+	addresses []netip.Addr,
+	checkout *Checkout,
+	ref string,
+) error {
+	repositoryDir := filepath.Join(checkout.tempRoot, "repository")
+	if err := c.run(
+		ctx,
+		checkout.executable,
+		append(
+			repositoryArgs(repository, addresses),
+			"clone",
+			"--bare",
+			"--",
+			repository.raw,
+			repositoryDir,
+		)...); err != nil {
+		return err
+	}
+	revision := ref
+	namedRefs, err := c.output(
+		ctx,
+		checkout.executable,
+		"-C",
+		repositoryDir,
+		"for-each-ref",
+		"--format=%(refname)",
+		"refs/heads/"+ref,
+		"refs/tags/"+ref,
+	)
+	if err != nil {
+		return err
+	}
+	for name := range strings.SplitSeq(namedRefs, "\n") {
+		if name == "refs/heads/"+ref || name == "refs/tags/"+ref {
+			revision = name
+			break
+		}
+	}
+	output, err := c.output(
+		ctx,
+		checkout.executable,
+		"-C",
+		repositoryDir,
+		"rev-parse",
+		"--verify",
+		revision+"^{commit}",
+	)
+	if err != nil {
+		return err
+	}
+	commit := strings.TrimSpace(output)
+	if !gitCommitPattern.MatchString(commit) || (revision == ref && !strings.HasPrefix(commit, ref)) {
+		return errors.New("gitsrc: abbreviated revision is not a unique commit")
+	}
+	return c.run(
+		ctx,
+		checkout.executable,
+		append(
+			repositoryArgs(repository, addresses),
+			"-C",
+			repositoryDir,
+			"worktree",
+			"add",
+			"--detach",
+			"--",
+			checkout.Path,
+			commit,
+		)...)
 }

@@ -137,6 +137,7 @@ const (
 	IssueSeverityError   IssueSeverity = "error"
 	IssueSeverityWarning IssueSeverity = "warning"
 	IssueSeverityWarn    IssueSeverity = "warn"
+	IssueSeverityInfo    IssueSeverity = "info"
 )
 
 type Job struct {

@@ -116,6 +116,9 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
+	if !issuersEqual(current.Issuer, metadata.Issuer) {
+		return Status{}, ErrTokenBindingInvalid
+	}
 	refreshed, err := s.refreshToken(ctx, refreshConfig, metadata, current)
 	if err != nil {
 		return Status{}, err
@@ -136,7 +139,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			Scope:       cfg.Target.Scope,
 			WorkspaceID: cfg.Target.WorkspaceID,
 			Status:      StatusUnconfigured,
-			RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+			RemoteURL:   cfg.publicRemoteURL(),
 		}, nil
 	}
 	if err := cfg.Validate(); err != nil {
@@ -205,16 +208,20 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	var remoteErr error
 	definitionMatches := false
 	if err == nil {
-		definitionMatches, err = s.tokenMatchesServerDefinition(ctx, token, cfg)
-		if err != nil {
-			return Status{}, err
+		var bindingErr error
+		definitionMatches, bindingErr = s.tokenMatchesServerDefinition(ctx, token, cfg)
+		if bindingErr != nil {
+			remoteErr = fmt.Errorf("mcp auth: validate revocation binding: %w", bindingErr)
 		}
 	}
 	if definitionMatches {
 		metadata, metaErr := s.metadataForConfig(ctx, cfg)
-		if metaErr != nil {
+		switch {
+		case metaErr != nil:
 			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
-		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
+		case !issuersEqual(token.Issuer, metadata.Issuer):
+			remoteErr = ErrTokenBindingInvalid
+		case strings.TrimSpace(metadata.RevocationEndpoint) != "":
 			if revokeErr := s.revoke(ctx, cfg, metadata, token); revokeErr != nil {
 				remoteErr = fmt.Errorf("mcp auth: revoke remote token: %w", revokeErr)
 			}

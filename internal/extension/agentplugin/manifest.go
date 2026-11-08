@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 var manifestFields = map[string]struct{}{
@@ -29,6 +30,13 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	manifest, err := ReadManifest(root)
 	if err != nil {
 		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
+			if opts.Name != "" {
+				content, encodeErr := json.Marshal(map[string]string{"name": opts.Name})
+				if encodeErr != nil {
+					return nil, encodeErr
+				}
+				return (&ManifestDocument{root: root, Layout: "manifestless", content: content}).Load(opts)
+			}
 			return nil, err
 		}
 		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
@@ -42,6 +50,10 @@ func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", m.root, err)
 	}
 	content, layout := m.content, m.Layout
+	if status, _ := m.Classify(); opts.Name != "" && layout == LayoutStandard && status == SchemaUnrelated &&
+		m.ValidJSON() {
+		layout = "client-root"
+	}
 
 	var pkg *Package
 	if layout == LayoutStandard {
@@ -52,7 +64,7 @@ func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
 			loadMCP(root, opts.DataDir, schema, pkg)
 		}
 	} else {
-		pkg, err = clientAdapters[layout](root, content, opts)
+		pkg, err = loadClientManifest(root, content, opts)
 	}
 	if err != nil {
 		return nil, err
@@ -74,6 +86,9 @@ func (m *ManifestDocument) Name() (string, error) {
 	issues := make([]Issue, 0, 1)
 	name, ok := requiredString(fields, fieldName, &issues)
 	if ok {
+		if m.Layout != LayoutStandard {
+			name = strings.ToLower(name)
+		}
 		if err := ValidateName(name); err != nil {
 			issues = append(issues, Issue{Path: fieldName, Message: fmt.Sprintf("name %q %s", name, err)})
 		}

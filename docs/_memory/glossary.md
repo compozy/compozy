@@ -123,6 +123,10 @@ Enforcement is per call against the effective grant, which is the declared list 
 
 The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `spec-cycle` extension is enabled on a fresh CompozyOS home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
 
+### Marketplace category
+
+One entry of the fixed, CompozyOS-owned taxonomy that groups the Marketplace catalog (ADR-001 of spec `marketplace-plugin-catalog`): `productivity`, `communication`, `design`, `development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`, `more`, plus the reserved `featured` section. Every catalog entry resolves to exactly one category: a CompozyOS-curated source's explicit `x-compozy.category`, else the source's free-text `category` through a case-insensitive alias table, else `more`. Ids and labels come from `internal/marketplace/category.go`; labels are copy reviewed in `COPY.md`. Not a source, a kind, or a tag: Browse never groups by source, and third-party sources cannot set a category or feature their entries.
+
 ### Extension Secret Binding
 
 An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.

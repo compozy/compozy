@@ -185,6 +185,13 @@ type ManagedExtensionUpdatePayload struct {
 	Error          *DiagnosticItem  `json:"error,omitzero"`
 }
 
+// MarketplaceCategoryCount is a daemon API value.
+type MarketplaceCategoryCount struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
 // MarketplaceEntryResponse is a daemon API value.
 type MarketplaceEntryResponse struct {
 	Entry     MarketplaceListingPayload          `json:"entry"`
@@ -223,6 +230,7 @@ type MarketplaceInputPayload struct {
 
 // MarketplaceListResponse is a daemon API value.
 type MarketplaceListResponse struct {
+	Categories []MarketplaceCategoryCount  `json:"categories"`
 	Refreshing bool                        `json:"refreshing,omitzero"`
 	Total      int                         `json:"total"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
@@ -236,6 +244,9 @@ type MarketplaceListResponse struct {
 
 // MarketplaceListingPayload is a daemon API value.
 type MarketplaceListingPayload struct {
+	Category         string                       `json:"category"`
+	CategoryLabel    string                       `json:"category_label"`
+	Featured         bool                         `json:"featured"`
 	SourceRef        string                       `json:"source_ref,omitempty"`
 	Icon             string                       `json:"icon,omitempty"`
 	Layout           string                       `json:"layout,omitempty"`
@@ -281,6 +292,25 @@ type MarketplaceRefreshSourcePayload struct {
 	EntryCount int    `json:"entry_count"`
 	Stale      bool   `json:"stale"`
 	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceSection is a daemon API value.
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceSectionsResponse is a daemon API value.
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
 }
 
 // MarketplaceServerPayload is a daemon API value.
@@ -414,36 +444,3 @@ type ModelCatalogSourceStatusPayload struct {
 type MoveSessionRequest struct {
 	FolderID string `json:"folder_id,omitempty"`
 }
-
-// MoveSessionToLaterRequest is a daemon API value.
-type MoveSessionToLaterRequest struct {
-	Reason   string     `json:"reason,omitempty"`
-	ReturnAt *time.Time `json:"return_at,omitempty"`
-}
-
-// MoveSessionToProfileRequest is a daemon API value.
-type MoveSessionToProfileRequest struct {
-	TargetProfile string `json:"target_profile"`
-}
-
-// MoveSessionToProfileResponse is a daemon API value.
-type MoveSessionToProfileResponse struct {
-	Session    SessionPayload `json:"session"`
-	Original   SessionPayload `json:"original"`
-	WorktreeID string         `json:"worktree_id,omitempty"`
-	Branch     string         `json:"branch,omitempty"`
-}
-
-// MoveWorkspaceRequest is a daemon API value.
-type MoveWorkspaceRequest struct {
-	WorkspaceID string `json:"workspace_id"`
-	FolderID    string `json:"folder_id,omitempty"`
-}
-
-// NewSessionWorktreeRequest is a daemon API value.
-type NewSessionWorktreeRequest struct {
-	Name string `json:"name,omitempty"`
-}
-
-// NewWindowPolicy is a daemon API value.
-type NewWindowPolicy string

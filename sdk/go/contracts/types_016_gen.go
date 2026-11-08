@@ -4,6 +4,17 @@ package contracts
 
 import "time"
 
+type ResourcesListParams struct {
+	Kind  ResourceKind   `json:"kind,omitempty"`
+	Scope *ResourceScope `json:"scope,omitempty"`
+	Limit int            `json:"limit,omitempty"`
+}
+
+type ResourcesSnapshotParams struct {
+	SourceVersion int64                    `json:"source_version"`
+	Records       []ResourceSnapshotRecord `json:"records"`
+}
+
 type ResultTrust string
 
 type RetentionHealth struct {
@@ -182,31 +193,4 @@ type SessionConfigOptionValuePayload struct {
 	Description string `json:"description,omitempty"`
 	GroupID     string `json:"group_id,omitempty"`
 	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-type SessionContext struct {
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionCreatePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
 }

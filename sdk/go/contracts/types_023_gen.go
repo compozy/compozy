@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+type TaskRunCompleteParams struct {
+	ID             string          `json:"id"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
+}
+
+type TaskRunCompletedPayload struct {
+	Event             HookEvent `json:"event"`
+	Timestamp         time.Time `json:"timestamp"`
+	ProfileID         string    `json:"profile_id,omitempty"`
+	TaskID            string    `json:"task_id,omitempty"`
+	RunID             string    `json:"run_id,omitempty"`
+	RunKind           *string   `json:"run_kind,omitempty"`
+	WakeID            string    `json:"wake_id,omitempty"`
+	OwnerKey          string    `json:"owner_key,omitempty"`
+	TargetSessionID   string    `json:"target_session_id,omitempty"`
+	LoopRunID         string    `json:"loop_run_id,omitempty"`
+	WorkspaceID       string    `json:"workspace_id,omitempty"`
+	WorkflowID        string    `json:"workflow_id,omitempty"`
+	AgentName         string    `json:"agent_name,omitempty"`
+	SessionID         string    `json:"session_id,omitempty"`
+	ActorKind         string    `json:"actor_kind,omitempty"`
+	ActorID           string    `json:"actor_id,omitempty"`
+	OriginKind        string    `json:"origin_kind,omitempty"`
+	OriginRef         string    `json:"origin_ref,omitempty"`
+	TaskStatus        string    `json:"task_status,omitempty"`
+	RunStatus         string    `json:"run_status,omitempty"`
+	SoulSnapshotID    string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string    `json:"soul_digest,omitempty"`
+	Attempt           int       `json:"attempt,omitempty"`
+	LeaseUntil        time.Time `json:"lease_until"`
+	ReleaseReason     string    `json:"release_reason,omitempty"`
+	Error             string    `json:"error,omitempty"`
+	PreviousRunStatus string    `json:"previous_run_status,omitempty"`
+	PreviousSessionID string    `json:"previous_session_id,omitempty"`
+	RecoveryAction    string    `json:"recovery_action,omitempty"`
+	RecoveryReason    string    `json:"recovery_reason,omitempty"`
+}
+
 type TaskRunContext struct {
 	ProfileID       string    `json:"profile_id,omitempty"`
 	TaskID          string    `json:"task_id,omitempty"`
@@ -405,35 +444,3 @@ type TaskRunStartParams struct {
 }
 
 type TaskRunStatus uint8
-
-type TaskRunSummaryPayload struct {
-	ID                   string                 `json:"id"`
-	TaskID               string                 `json:"task_id"`
-	Status               TaskRunStatus          `json:"status"`
-	Attempt              int                    `json:"attempt"`
-	RecoveryCount        int                    `json:"recovery_count"`
-	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
-	FailureKind          string                 `json:"failure_kind,omitempty"`
-	MaxAttempts          int                    `json:"max_attempts"`
-	SessionID            string                 `json:"session_id,omitempty"`
-	WorktreeID           string                 `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
-	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
-	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
-	Designation          *RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt             time.Time              `json:"queued_at"`
-	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time             `json:"started_at,omitempty"`
-	EndedAt              *time.Time             `json:"ended_at,omitempty"`
-	Error                string                 `json:"error,omitempty"`
-}
-
-type TaskRunTotal struct {
-	Status     TaskRunStatus `json:"status"`
-	OriginKind OriginKind    `json:"origin_kind"`
-	Count      int           `json:"count"`
-}

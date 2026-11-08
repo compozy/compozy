@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1767,6 +1768,7 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 	// Invariant: install attachment, inputs, secret ownership and response address the selected cell.
 	// Owner: daemon install coordination; canonical suite: TestDaemonExtensionInputLifecycle.
 	for _, scenario := range []daemonScopedInstallCase{
+		{name: "Should install and enable a workspace instance", workspaceID: "ws-install", enable: true, local: true},
 		{name: "Should retain global all-profile installation by default"},
 		{name: "Should install for an explicit global profile", profile: "marketing"},
 		{name: "Should install for an explicit default profile", profile: "default"},
@@ -2203,6 +2205,7 @@ binding = { type = "url_query", name = "region" }
 }
 
 type daemonScopedInstallCase struct {
+	enable        bool
 	native        bool
 	update        bool
 	reinstall     bool
@@ -2254,6 +2257,20 @@ func testDaemonScopedInstall(t *testing.T, scenario daemonScopedInstallCase) {
 			ID: "ws-install", RootDir: workspaceRoot, WorkspaceID: "ws-install",
 		}}),
 	).(*daemonExtensionService)
+	if scenario.enable {
+		runtime := extensionpkg.NewManager(registry)
+		if err := runtime.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Stop(t.Context()); err != nil {
+				t.Error(err)
+			}
+		})
+		service.runtime = runtime
+		service.resourceCodecs = inventoryTestResourceCodecs(t)
+		service.automation = &fakeAutomationManager{}
+	}
 	sections := `[resources.mcp_servers.server]
 command = "server"
 secret_env = { TOKEN = "token" }
@@ -2309,6 +2326,9 @@ binding = { type = "env", name = "TOKEN" }
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
+		if scenario.enable {
+			manifest = []byte(strings.ReplaceAll(string(manifest), `requires = ["sessions/list"]`, `requires = []`))
+		}
 		if writeErr := os.WriteFile(manifestPath, append(manifest, []byte("\n"+sections)...), 0o600); writeErr != nil {
 			t.Fatal(writeErr)
 		}
@@ -2329,6 +2349,7 @@ binding = { type = "env", name = "TOKEN" }
 		actor.ReadScope = store.ReadScope{ProfileID: profileID}
 		request.Profile, request.WorkspaceID = "", ""
 	}
+	request.Enable = scenario.enable
 	installed, err := service.Install(ctx, request, actor)
 	if scenario.errorField != "" {
 		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](
@@ -2359,6 +2380,18 @@ binding = { type = "env", name = "TOKEN" }
 	if installed.Profile != profileName || installed.WorkspaceID != workspaceID || len(installed.MissingInputs) != 0 {
 		t.Fatalf("installed scope/readiness = %#v", installed)
 	}
+	if scenario.enable && (!installed.Enabled || installed.InstallEnableError != nil) {
+		t.Fatalf("workspace enable = %+v", installed.InstallEnableError)
+	}
+	if scenario.enable {
+		current, err := service.runtime.(*extensionpkg.Manager).GetForInstance(extensionpkg.InstanceKey{
+			Name: installed.Name, WorkspaceID: workspaceID,
+		})
+		if err != nil || !current.Status.Active {
+			t.Fatalf("workspace runtime = %+v, error = %v", current, err)
+		}
+	}
+
 	attachments, err := registry.Installations(ctx, "tool-ext")
 	if err != nil {
 		t.Fatal(err)
@@ -2906,4 +2939,310 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDaemonExtensionInstallEnable(t *testing.T) {
+	t.Parallel()
+	t.Run("Should mask internal enable failures for every consumer", func(t *testing.T) {
+		t.Parallel()
+		failure := installEnableError(errors.New("reload failed at /private/registry"))
+		if failure.Code != "extension_enable_failed" ||
+			failure.Error != http.StatusText(http.StatusInternalServerError) {
+			t.Fatalf("failure = %+v", failure)
+		}
+	})
+	t.Run("Should redact credentials from the underlying enable failure", func(t *testing.T) {
+		t.Parallel()
+		failure := installEnableError(
+			fmt.Errorf("%w: Authorization: Bearer sensitive-credential-value", extensionpkg.ErrManifestInvalid),
+		)
+		if failure.Code != "extension_enable_failed" || strings.Contains(failure.Error, "sensitive-credential-value") ||
+			!strings.Contains(failure.Error, "[REDACTED]") {
+			t.Fatalf("failure = %+v", failure)
+		}
+	})
+
+	t.Run("Should compensate enabled install when completion ledger write fails", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+
+		writer := &daemonExtensionEventStoreStub{
+			writeErr: errors.New("completion refused"),
+			failType: "extension.install.completed",
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger()}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{}), withDaemonExtensionEventWriter(writer)).(*daemonExtensionService)
+		fixture := writeNativeLocalExtensionFixture(t, "ledger-failure", "1.0.0")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "completion rollback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             fixture,
+				Enable:          true,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		if err == nil {
+			t.Fatal("expected completion failure")
+		}
+		if _, err := registry.Get("ledger-failure"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry after failure=%v", err)
+		}
+		if _, err := os.Stat(
+			extensionpkg.ManagedInstallPath(deps.HomePaths, "ledger-failure"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("files after failure=%v", err)
+		}
+	})
+
+	t.Run("Should retain named profile install disabled when legacy environment is missing", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		profile, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := newLifecycleStateRuntime(registry)
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(), Getenv: func(string) string { return "" }}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+		fixture := writeNativeLocalExtensionFixture(t, "profile-env", "1.0.0")
+		path := filepath.Join(fixture, "extension.toml")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(
+			content,
+			[]byte("[extension]"),
+			[]byte("[extension]\nrequires_env = [\"LEGACY_HOST\"]"),
+			1,
+		)
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "profile env")
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             fixture,
+				Profile:         profile.Name,
+				Enable:          true,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		if err != nil || item.Enabled || item.InstallEnableError == nil {
+			t.Fatalf("missing profile env outcome=%+v %v", item, err)
+		}
+		enabled, err := registry.IsEnabledForProfile(item.Name, profile.ID)
+		if err != nil || enabled {
+			t.Fatalf("profile enablement=%t %v", enabled, err)
+		}
+	})
+
+	for _, failEnable := range []bool{false, true} {
+		name := "Should install and enable in one operation"
+		if failEnable {
+			name = "Should retain installation when enable fails"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			deps, registry, _, _ := newNativeExtensionToolDeps(t)
+			runtime := newLifecycleStateRuntime(registry)
+			service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+				Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+				Profiles: deps.ProfileManager, Logger: discardLogger(),
+			}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+			fixture := writeNativeLocalExtensionFixture(t, "add-fixture", "1.0.0")
+			if failEnable {
+				_, err := registry.DB().
+					ExecContext(t.Context(), `CREATE TRIGGER reject_add_enable BEFORE DELETE ON extension_profile_enablement BEGIN SELECT RAISE(ABORT, 'enable refused'); END`)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "install and enable")
+			if err != nil {
+				t.Fatal(err)
+			}
+			item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: fixture, Enable: true, AllowUnverified: true,
+			}, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if item.Enabled == failEnable || (item.InstallEnableError != nil) != failEnable {
+				t.Fatalf("install = %#v", item)
+			}
+			if failEnable &&
+				(item.InstallEnableError.Error != http.StatusText(http.StatusInternalServerError) || item.InstallEnableError.Code != "extension_enable_failed") {
+				t.Fatalf("enable error = %+v", item.InstallEnableError)
+			}
+			persisted, err := registry.Get(item.Name)
+			if err != nil || persisted.Enabled == failEnable {
+				t.Fatalf("persisted = %#v, error = %v", persisted, err)
+			}
+			if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, item.Name)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestDaemonConcurrentAdd(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serialize duplicate Add through installation and enable", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+			Profiles: deps.ProfileManager, Logger: discardLogger(),
+		}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources), withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "concurrent Add")
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceLocalPath,
+			Ref: writeNativeLocalExtensionFixture(t, "concurrent-add", "1.0.0"), Enable: true, AllowUnverified: true}
+		results := make(chan error, 2)
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Go(func() {
+				item, err := service.Install(t.Context(), request, actor)
+				if err == nil && (!item.Enabled || item.InstallEnableError != nil) {
+					err = fmt.Errorf("Add did not enable: %#v", item)
+				}
+				results <- err
+			})
+		}
+		workers.Wait()
+		close(results)
+		successes, conflicts := 0, 0
+		for err := range results {
+			switch {
+			case err == nil:
+				successes++
+			case apicore.ExtensionStatusCode(err) == 409:
+				conflicts++
+			default:
+				t.Fatal(err)
+			}
+		}
+		installed, err := registry.Get("concurrent-add")
+		if err != nil || !installed.Enabled || successes != 1 || conflicts != 1 {
+			t.Fatalf("successes=%d conflicts=%d persisted=%#v err=%v", successes, conflicts, installed, err)
+		}
+	})
+}
+
+func TestDerivedInputInstallPreflight(t *testing.T) {
+	t.Parallel()
+	t.Run("Should install and enable a client secret environment binding", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		db, ok := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("fixture requires real database")
+		}
+		secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Runtime: newLifecycleStateRuntime(registry), HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(),
+		}, withDaemonExtensionAutomation(&fakeAutomationManager{}), withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault), withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources)).(*daemonExtensionService)
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			[]byte(
+				`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"secret-client","version":"1.0.0"}`,
+			),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(`{"mcpServers":{"local":{"command":"node","env":{"DEMO_API_KEY":"${DEMO_API_KEY}"}}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "secret client install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root, Enable: true, AllowUnverified: true,
+			Inputs: map[string]extensioninput.Value{"DEMO_API_KEY": {Value: json.RawMessage(`"private-key"`)}},
+		}, actor)
+		if item.InstallEnableError != nil {
+			t.Fatalf("enable failure = %+v", *item.InstallEnableError)
+		}
+		if err != nil || !item.Enabled || item.InstallEnableError != nil {
+			t.Fatalf("install = %+v, error = %v", item, err)
+		}
+		persisted, err := registry.Get(item.Name)
+		if err != nil || !persisted.Enabled {
+			t.Fatalf("persisted = %+v, error = %v", persisted, err)
+		}
+	})
+
+	t.Run("Should reject missing derived input before committing local plugin install", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, runtime := newNativeExtensionToolDeps(t)
+		db, ok := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("fixture requires real database")
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Logger: discardLogger(), Now: time.Now}, withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources)).(*daemonExtensionService)
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "mcp.json"),
+			[]byte(`{"mcpServers":{"remote":{"url":"https://${HOST}/mcp"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "derived input install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Install(
+			t.Context(),
+			contract.InstallExtensionRequest{
+				Source:          contract.InstallExtensionSourceLocalPath,
+				Ref:             root,
+				AllowUnverified: true,
+			},
+			actor,
+		)
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"HOST"}) {
+			t.Fatalf("missing input install = %v", err)
+		}
+		name := filepath.Base(root)
+		if _, err := registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("rejected install registry = %v", err)
+		}
+		if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("rejected install files = %v", err)
+		}
+	})
 }

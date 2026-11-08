@@ -4,8 +4,8 @@ area: ET
 title: Review a session's branch and uncommitted changes in the Changes tab
 persona: Dora
 journey: J-14
-expected: The Review panel Changes tab shows the session root's diff against its base with scope, head → base, totals and a changed-files tree; sensitive sides stay gated, generated files collapse, split/unified persists; Uncommitted drops committed files; any git-resolvable base works and a missing one shows "Base <ref> not found" with Choose base; agent edits appear without a manual refresh and external edits appear on Refresh; a turn's changed-file row focuses that file; diffs over 200 files or 20,000 lines show one file at a time; a file too large to expand says so instead of failing silently; a saved missing base falls back to the default with a notice; focusing the session window from another in-app window refreshes the summary.
-entry_points: web session Review panel Changes tab; PR chip menu Review changes; a turn's Changed files rows; compozy session changes
+expected: The Review panel shows only Changes (no tab strip): the session root's diff against its base with scope, head → base, totals and a changed-files tree; sensitive sides stay gated, generated files collapse, split/unified persists; Uncommitted drops committed files; any git-resolvable base works and a missing one shows "Base <ref> not found" with Choose base; agent edits appear without a manual refresh and external edits appear on Refresh; a turn's changed-file row focuses that file; diffs over 200 files or 20,000 lines show one file at a time; a file too large to expand says so instead of failing silently; a saved missing base falls back to the default with a notice; focusing the session window from another in-app window refreshes the summary.
+entry_points: web session Review panel (Changes toggle in the session head); PR chip menu Review changes; a turn's Changed files rows; compozy session changes
 qa_status: pass
 bug_ids:
 fix_status:
@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/C01–C10, notes/cli-*.txt|json)
 last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
-overlaps: ET-session-review-files
+overlaps: ET-transcript-paths-files-app
 ---
 
 Introduced by the file-explorer spec (US-005.AC-6, US-007–US-010). Walk it on a real daemon with a
@@ -22,7 +22,7 @@ git project on a feature branch that has a committed edit, uncommitted edits (in
 
 Walk:
 
-1. Open the Review panel and choose **Changes**. The header shows the scope (**Branch**),
+1. Open the Review panel with **Changes** in the session head. It has no tab strip. The header shows the scope (**Branch**),
    `head → base` (for example `feat/review → main`), the totals and the toolbar. The tree and the
    diff list hold the same files.
 2. Select `.env` in the tree: its diff is gated behind **Show contents**. The generated lock file
@@ -61,7 +61,7 @@ Owning automated coverage: web `session-changes.test.ts` (UT-056), `use-session-
 
 ## Walk 2026-11-07
 
-Same lab and build as `ET-session-review-files` (integration `410a3566e`, fix `c5d1d54a6`). A second
+Same lab and build as `ET-transcript-paths-files-app` (integration `410a3566e`, fix `c5d1d54a6`). A second
 project held 250 untracked files for large mode.
 
 | Step | Result | Evidence |

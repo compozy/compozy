@@ -141,7 +141,7 @@ func loadVerifiedInstallManifest(
 		}
 	}
 
-	resolvedManifest, err := loadManifestAtPath(manifestPath)
+	resolvedManifest, err := loadManifestAtPath(manifestPath, manifest.Name)
 	if err != nil {
 		return nil, "", "", err
 	}

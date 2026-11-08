@@ -4,6 +4,21 @@ package client
 
 import "time"
 
+// SettingsUpdateActor is a daemon API value.
+type SettingsUpdateActor string
+
+// SettingsUpdateAppPayload is a daemon API value.
+type SettingsUpdateAppPayload struct {
+	Status         SettingsUpdateStatusKind `json:"status"`
+	Running        bool                     `json:"running"`
+	CurrentVersion string                   `json:"current_version"`
+	LatestVersion  string                   `json:"latest_version"`
+	ReleaseURL     string                   `json:"release_url"`
+	AttemptID      string                   `json:"attempt_id"`
+	LastError      string                   `json:"last_error"`
+	Message        string                   `json:"message"`
+}
+
 // SettingsUpdateApplyRequest is a daemon API value.
 type SettingsUpdateApplyRequest struct {
 	Targets []SettingsUpdateTarget `json:"targets"`
@@ -425,19 +440,4 @@ type SourceStatus struct {
 	Source string       `json:"source"`
 	Status SourceHealth `json:"status"`
 	Reason string       `json:"reason,omitempty"`
-}
-
-// SpawnBudgetPayload is a daemon API value.
-type SpawnBudgetPayload struct {
-	MaxChildren           int   `json:"max_children"`
-	MaxDepth              int   `json:"max_depth"`
-	TTLSeconds            int64 `json:"ttl_seconds"`
-	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
-}
-
-// SpawnNewWorktreeRequest is a daemon API value.
-type SpawnNewWorktreeRequest struct {
-	Name    string `json:"name,omitempty"`
-	BaseRef string `json:"base_ref,omitempty"`
-	Branch  string `json:"branch,omitempty"`
 }

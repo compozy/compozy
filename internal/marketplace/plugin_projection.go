@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	maxPluginResolves   = 4
-	maxProjectedPlugins = 200
+	maxPluginResolves = 4
+	// Match the curated catalog ceiling without increasing concurrency or the refresh deadline.
+	maxProjectedPlugins = 1000
 	pluginRefreshBudget = 10 * time.Minute
 	budgetExhausted     = "refresh_budget_exhausted"
 )
@@ -46,7 +47,7 @@ type PluginResolver interface {
 
 var _ PluginResolver = (*pluginsource.Resolver)(nil)
 
-type PluginInspector func(context.Context, string) (PluginInspection, error)
+type PluginInspector func(context.Context, string, string) (PluginInspection, error)
 
 type PluginProjector struct {
 	resolver PluginResolver
@@ -83,6 +84,17 @@ func NewPluginProjector(
 	return projector, nil
 }
 
+type catalogCuration struct {
+	CompozyCategory string   `json:"compozy_category,omitempty"`
+	Featured        bool     `json:"featured"`
+	Supersedes      []string `json:"supersedes,omitempty"`
+	XCompozy        *struct {
+		Category   string   `json:"category"`
+		Featured   bool     `json:"featured"`
+		Supersedes []string `json:"supersedes"`
+	} `json:"x-compozy,omitempty"`
+}
+
 type pluginEntry struct {
 	MinCompozyVersion string `json:"min_compozy_version,omitempty"`
 	InstanceName      string `json:"instance_name,omitempty"`
@@ -90,7 +102,6 @@ type pluginEntry struct {
 	SourceRef   string                          `json:"source_ref,omitempty"`
 	Homepage    string                          `json:"homepage,omitempty"`
 	License     string                          `json:"license,omitempty"`
-	Category    string                          `json:"category,omitempty"`
 	Keywords    []string                        `json:"keywords,omitempty"`
 	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitzero"`
 	Contents    PluginContents                  `json:"contents"`
@@ -115,7 +126,7 @@ func (p *PluginProjector) Project(
 	}
 	workCtx, cancel := context.WithTimeout(ctx, p.budget)
 	defer cancel()
-	return p.project(ctx, workCtx, doc, name, snapshot)
+	return p.project(ctx, workCtx, doc, name, snapshot, false)
 }
 
 func (p *PluginProjector) project(
@@ -123,6 +134,7 @@ func (p *PluginProjector) project(
 	doc pluginsource.Document,
 	name string,
 	snapshot *pluginsource.Snapshot,
+	curated bool,
 ) ([]Entry, []pluginsource.Diagnostic, error) {
 	results := make([]projectedPlugin, len(doc.Plugins))
 	for index, plugin := range doc.Plugins {
@@ -132,6 +144,7 @@ func (p *PluginProjector) project(
 			doc.SourceRef,
 			budgetExhausted,
 			"source refresh budget was exhausted",
+			curated,
 		)
 	}
 	jobs := make(chan int)
@@ -140,7 +153,7 @@ func (p *PluginProjector) project(
 		workers.Go(func() {
 			for index := range jobs {
 				if workCtx.Err() == nil {
-					results[index] = p.projectOne(workCtx, doc, name, snapshot, doc.Plugins[index])
+					results[index] = p.projectOne(workCtx, doc, name, snapshot, doc.Plugins[index], curated)
 				}
 			}
 		})
@@ -192,18 +205,19 @@ func (p *PluginProjector) projectOne(
 	name string,
 	snapshot *pluginsource.Snapshot,
 	plugin pluginsource.Plugin,
+	curated bool,
 ) projectedPlugin {
 	record, err := p.resolver.Resolve(ctx, doc, snapshot, plugin)
 	if err != nil {
-		return p.projectError(plugin, name, doc.SourceRef, err)
+		return p.projectError(plugin, name, doc.SourceRef, err, curated)
 	}
 	var inspection PluginInspection
 	err = p.resolver.Inspect(ctx, record.DigestSHA256, func(ctx context.Context, root string) error {
 		var loadErr error
-		inspection, loadErr = p.inspect(ctx, root)
+		inspection, loadErr = p.inspect(ctx, root, plugin.Name)
 		return loadErr
 	})
-	result := p.projectError(plugin, name, doc.SourceRef, err)
+	result := p.projectError(plugin, name, doc.SourceRef, err, curated)
 	if result.err != nil {
 		return result
 	}
@@ -211,7 +225,7 @@ func (p *PluginProjector) projectOne(
 		diagnostic.Plugin = plugin.Name
 		result.diagnostics = append(result.diagnostics, diagnostic)
 	}
-	value := pluginPayload(plugin, name, doc.SourceRef)
+	value := pluginPayload(plugin, name, doc.SourceRef, curated)
 	value.Acquisition, value.Contents, value.Inputs = &record, inspection.Contents, inspection.Inputs
 	value.InstanceName = inspection.InstanceName
 	value.Version, value.DigestSHA256 = record.Version, record.DigestSHA256
@@ -227,7 +241,12 @@ func (p *PluginProjector) projectOne(
 	return result
 }
 
-func (p *PluginProjector) projectError(plugin pluginsource.Plugin, name, sourceRef string, err error) projectedPlugin {
+func (p *PluginProjector) projectError(
+	plugin pluginsource.Plugin,
+	name, sourceRef string,
+	err error,
+	curated bool,
+) projectedPlugin {
 	if err == nil {
 		return projectedPlugin{}
 	}
@@ -247,13 +266,14 @@ func (p *PluginProjector) projectError(plugin pluginsource.Plugin, name, sourceR
 	case errors.Is(err, pluginsource.ErrSourceUnreachable):
 		code = "source_unreachable"
 	}
-	return p.projectBlocked(plugin, name, sourceRef, code, err.Error())
+	return p.projectBlocked(plugin, name, sourceRef, code, err.Error(), curated)
 }
 
 func (p *PluginProjector) projectBlocked(
 	plugin pluginsource.Plugin, name, sourceRef, code, message string,
+	curated bool,
 ) projectedPlugin {
-	value := pluginPayload(plugin, name, sourceRef)
+	value := pluginPayload(plugin, name, sourceRef, curated)
 	entry, err := commonEntry(value.entryCommon, value)
 	entry.SourceName, entry.InstallSlug = name, value.InstallSlug
 	entry.Tier, entry.Icon = extensionTierUnverified, value.Icon
@@ -265,23 +285,39 @@ func (p *PluginProjector) projectBlocked(
 	}
 }
 
-func pluginPayload(plugin pluginsource.Plugin, name, sourceRef string) pluginEntry {
+func pluginPayload(plugin pluginsource.Plugin, name, sourceRef string, curated bool) pluginEntry {
 	icon := plugin.Icon
 	if ValidateIcon(icon) != nil {
 		icon = ""
 	}
-	return pluginEntry{SourceRef: sourceRef, Homepage: plugin.Homepage, License: plugin.License,
-		Category: plugin.Category, Keywords: plugin.Keywords,
-		EntryID:     plugin.Name,
-		Name:        plugin.Name,
-		Description: plugin.Description,
-		Version:     plugin.Version,
-		Icon:        icon,
-		InstallSlug: (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
-		Tier:        extensionTierUnverified,
+	curation := catalogCuration{CompozyCategory: string(ResolveCategory("", plugin.Category))}
+	if curated {
+		curation = catalogCuration{
+			CompozyCategory: string(ResolveCategory(plugin.CompozyCategory, plugin.Category)),
+			Featured:        plugin.Featured,
+			Supersedes:      plugin.Supersedes,
+		}
+	}
+	return pluginEntry{
+		CompozyCategory: curation.CompozyCategory,
+		Featured:        curation.Featured,
+		Supersedes:      curation.Supersedes,
+		SourceRef:       sourceRef,
+		Homepage:        plugin.Homepage,
+		License:         plugin.License,
+		Category:        plugin.Category,
+		Keywords:        plugin.Keywords,
+		EntryID:         plugin.Name,
+		Name:            plugin.Name,
+		Description:     plugin.Description,
+		Version:         plugin.Version,
+		Icon:            icon,
+		InstallSlug:     (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
+		Tier:            extensionTierUnverified,
 		Author: strings.TrimSpace(
 			plugin.Author,
 		),
 		Repository: strings.TrimSpace(plugin.Repository),
-		Format:     ExtensionFormatAgentPlugin}
+		Format:     ExtensionFormatAgentPlugin,
+	}
 }

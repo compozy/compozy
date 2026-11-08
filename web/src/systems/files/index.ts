@@ -41,6 +41,7 @@ export {
 export {
   filesAppPlace,
   filesAppPlaceStorageKey,
+  filesAppRequestTarget,
   requestFilesAppPlace,
   useFilesAppPlace,
   type FilesAppPlace,

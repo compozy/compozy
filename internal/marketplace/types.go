@@ -82,6 +82,8 @@ type SourceState struct {
 
 // BrowseResult is one ordered page from the complete enabled source set.
 type BrowseResult struct {
+	details    map[string]EntryDetails
+	Categories []CategoryCount
 	Refreshing bool
 	Entries    []Entry
 	Total      int
@@ -159,6 +161,8 @@ type Store interface {
 
 // Service exposes internal curated browse, detail, refresh, and status operations.
 type Service interface {
+	BrowseFiltered(context.Context, BrowseFilter, int, int) (BrowseResult, error)
+	Sections(context.Context, string, int) (SectionsResult, error)
 	Entry(context.Context, Origin) (*Entry, error)
 	Browse(ctx context.Context, query string, offset int, limit int) (BrowseResult, error)
 	Detail(ctx context.Context, source, entryID string) (*Entry, error)

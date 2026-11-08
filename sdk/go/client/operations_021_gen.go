@@ -61,6 +61,7 @@ func (c *Client) ListLoopsAggregate(ctx context.Context, params ListLoopsAggrega
 // ListMarketplaceParams carries the path, query, and header parameters.
 type ListMarketplaceParams struct {
 	Q           *string `url:"q"`
+	Category    *string `url:"category"`
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
 	Scope       *string `url:"scope"`
@@ -74,6 +75,9 @@ func (c *Client) ListMarketplace(ctx context.Context, params ListMarketplacePara
 	query := url.Values{}
 	if params.Q != nil {
 		query.Set("q", *params.Q)
+	}
+	if params.Category != nil {
+		query.Set("category", *params.Category)
 	}
 	if params.Limit != nil {
 		query.Set("limit", strconv.Itoa(*params.Limit))

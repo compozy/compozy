@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+// ResourcesResponse is a daemon API value.
+type ResourcesResponse struct {
+	Records []ResourceRecordPayload `json:"records"`
+}
+
+// RespondLoopRequest is a daemon API value.
+type RespondLoopRequest struct {
+	Generation int             `json:"generation"`
+	ItemIndex  int             `json:"item_index,omitzero"`
+	Decision   string          `json:"decision,omitempty"`
+	Payload    json.RawMessage `json:"payload"`
+	Note       string          `json:"note,omitempty"`
+}
+
+// RespondLoopRequestResponse is a daemon API value.
+type RespondLoopRequestResponse struct {
+	OK         bool                  `json:"ok"`
+	RunID      string                `json:"run_id"`
+	NodeID     string                `json:"node_id"`
+	Decision   string                `json:"decision"`
+	State      string                `json:"state"`
+	Provenance LoopRequestProvenance `json:"provenance"`
+}
+
+// ResponderAgentPolicy is a daemon API value.
+type ResponderAgentPolicy string
+
+// ResponderSpec is a daemon API value.
+type ResponderSpec struct {
+	Agents ResponderAgentPolicy `json:"agents,omitempty"`
+}
+
 // RestartActionResponse is a daemon API value.
 type RestartActionResponse struct {
 	OperationID        string                 `json:"operation_id"`
@@ -415,24 +447,4 @@ type RunUsage struct {
 	CostUSD       float64 `json:"cost_usd,omitzero"`
 	BudgetUsedPct float64 `json:"budget_used_pct,omitzero"`
 	Duration      string  `json:"duration,omitempty"`
-}
-
-// RunWorktreeExitActionRequest is a daemon API value.
-type RunWorktreeExitActionRequest struct {
-	DeliveryID    string             `json:"delivery_id,omitempty"`
-	ExpectedHead  string             `json:"expected_head,omitempty"`
-	IncludePaths  []string           `json:"include_paths,omitempty"`
-	ExpectedScope string             `json:"expected_scope,omitempty"`
-	Action        WorktreeExitAction `json:"action"`
-	Message       string             `json:"message,omitempty"`
-	Title         string             `json:"title,omitempty"`
-	Body          string             `json:"body,omitempty"`
-	Draft         bool               `json:"draft,omitzero"`
-	Base          string             `json:"base,omitempty"`
-}
-
-// RunsResponse is a daemon API value.
-type RunsResponse struct {
-	Page *CursorPagePayload `json:"page,omitempty"`
-	Runs []RunPayload       `json:"runs"`
 }

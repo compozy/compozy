@@ -8,16 +8,17 @@ browse the project tree, read any file with syntax highlighting, search by name 
 review what a session changed against its base branch. Everything is read-only. CompozyOS never
 writes to the project from these views.
 
-The same views appear in two places:
+These views live in two places:
 
-- **The Review panel** in a session window has two tabs. **Changes** shows the session's diff.
-  **Files** shows the tree and a file viewer, rooted at the session's worktree when it has one,
-  otherwise at the project folder.
-- **The Files app** in the dock opens a project's files in their own window, with a picker for the
-  project and for the root (the project folder or one of its worktrees).
+- **The Files app** in the dock opens a project's files in their own window: the tree, a file
+  viewer, and search, with a picker for the project and for the root (the project folder or one of
+  its worktrees).
+- **The Review panel** in a session window shows the session's **Changes**: its diff, rooted at the
+  session's worktree when it has one, otherwise at the project folder.
 
-A file path in an assistant message is a link. A plain click opens it in the in-app viewer, in the
-browser and in the desktop app alike. In the desktop app, **Open in** sends the file to an installed
+A file path in an assistant message is a link. A plain click opens it in the project's Files app,
+as a tab beside the session, on the session's root and at the path's line, in the browser and in
+the desktop app alike. In the desktop app, **Open in** sends the file to an installed
 editor or reveals it in Finder.
 
 ## Choose a path

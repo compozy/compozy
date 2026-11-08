@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// GetSessionTranscript Get a bounded materialized transcript page
+func (c *Client) GetSessionTranscript(ctx context.Context, params GetSessionTranscriptParams) (*SessionTranscriptResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.BeforeSequence != nil {
+		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionTranscriptResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionTranscriptOutlineParams carries the path, query, and header parameters.
+type GetSessionTranscriptOutlineParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionTranscriptOutline Get the full retained operator-message trail with reply previews
+func (c *Client) GetSessionTranscriptOutline(ctx context.Context, params GetSessionTranscriptOutlineParams) (*OutlineResult, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out OutlineResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionUsageParams carries the path, query, and header parameters.
 type GetSessionUsageParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -387,62 +445,4 @@ type GetSettingsWindowManagerParams struct {
 	WorkspaceID   *string `url:"workspace_id"`
 	ClientID      *string `url:"client_id"`
 	ClientProfile *string `url:"client_profile"`
-}
-
-// GetSettingsWindowManager Read the window-manager settings section
-func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSettingsWindowManagerParams) (*SettingsWindowManagerResponse, error) {
-	path := "/api/settings/window-manager"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.ClientID != nil {
-		query.Set("client_id", *params.ClientID)
-	}
-	if params.ClientProfile != nil {
-		query.Set("client_profile", *params.ClientProfile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsWindowManagerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSkillParams carries the path, query, and header parameters.
-type GetSkillParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	ForAgent    *string `url:"for_agent"`
-}
-
-// GetSkill Get one skill definition
-func (c *Client) GetSkill(ctx context.Context, params GetSkillParams) (*SkillResponse, error) {
-	path := "/api/skills/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

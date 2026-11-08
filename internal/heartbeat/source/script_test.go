@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -19,7 +23,87 @@ var _ ApprovalReader = approvalHash("")
 func (a approvalHash) ApprovedHash(context.Context, string, string, string) (string, error) {
 	return string(a), nil
 }
+
+type scriptWaitContext struct {
+	context.Context
+	waiting chan struct{}
+	once    sync.Once
+}
+
+func (c *scriptWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+	return c.Context.Done()
+}
+
 func TestScriptRunner(t *testing.T) {
+	for _, cancelWait := range []bool{false, true} {
+		name := "Should finish the private copy before waiting for Linux forks"
+		if cancelWait {
+			name = "Should cancel a private copy fork wait without blocking shutdown"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS != "linux" {
+				t.Skip("Linux Go child launches use vfork")
+			}
+			if os.Getenv("COMPOZY_TEST_SCRIPT_FORK_LOCK") != t.Name() {
+				cmd := exec.CommandContext(
+					t.Context(),
+					os.Args[0],
+					"-test.run=^"+regexp.QuoteMeta(t.Name())+"$",
+					"-test.count=1",
+				)
+				cmd.Env = append(os.Environ(), "COMPOZY_TEST_SCRIPT_FORK_LOCK="+t.Name())
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("isolated fork-lock test: %v\n%s", err, output)
+				}
+				return
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			observed := &scriptWaitContext{Context: ctx, waiting: make(chan struct{})}
+			path := filepath.Join(t.TempDir(), "poll")
+			body := "#!/bin/sh\nprintf verified\n"
+			finished := make(chan error, 1)
+			syscall.ForkLock.Lock()
+			locked := true
+			defer func() {
+				if locked {
+					syscall.ForkLock.Unlock()
+				}
+			}()
+			go func() { finished <- writePrivateScript(observed, path, []byte(body)) }()
+			select {
+			case <-observed.waiting:
+			case err := <-finished:
+				t.Fatalf("copy returned before joining the in-flight fork: %v", err)
+			case <-ctx.Done():
+				t.Fatal("copy blocked on the fork lock before completing its write")
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != body {
+				t.Fatalf("private copy=%q error=%v", data, err)
+			}
+			if cancelWait {
+				cancel()
+				if err := <-finished; !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancel error=%v", err)
+				}
+			}
+			syscall.ForkLock.Unlock()
+			locked = false
+			if !cancelWait {
+				if err := <-finished; err != nil {
+					t.Fatal(err)
+				}
+			}
+			output, err := exec.CommandContext(t.Context(), path).Output()
+			if err != nil || string(output) != "verified" {
+				t.Fatalf("script output=%q error=%v", output, err)
+			}
+		})
+	}
+
 	t.Run("Should reject named pipes without waiting for a writer", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

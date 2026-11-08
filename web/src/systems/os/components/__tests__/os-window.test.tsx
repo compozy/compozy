@@ -2,8 +2,8 @@
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
 // across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
 // frame order onto visual layers where floating windows remain above tiled resize seams. On the
-// All projects desktop a bound item window names its project (or User) in the chrome; catalog
-// windows and project desktops show no badge. While an app's surface loads, the window body shows
+// All projects desktop a bound item window names its project (or User) in the chrome, unless its
+// app names the project in its own head (Files); catalog windows and project desktops show no badge. While an app's surface loads, the window body shows
 // the app's registered loading frame for the window's route, in that window's own scope, or the
 // generic rows for an app without one. A body waits while the runtime still presents another
 // profile's desk than the shell does, so the previous desk never renders under the new profile
@@ -120,7 +120,8 @@ function JobsLoadingFallback({ route }: { route: OsWindowRoute }) {
 vi.mock("../../lib/app-registry", () => ({
   OS_APPS: {},
   getOsApp: (app: string) => ({
-    title: app === "automations" ? "Automations" : "Tasks",
+    title: app === "automations" ? "Automations" : app === "files" ? "Files" : "Tasks",
+    ...(app === "files" ? { hidesProjectBadge: true } : {}),
     icon: () => null,
     Controller: linksController
       ? LinksController
@@ -282,6 +283,34 @@ describe("OsWindow project badge", () => {
       expect(screen.getByTestId("os-window-project-window:tasks")).toHaveTextContent(name);
     }
   );
+
+  it("Should let a window that names its own project open its head with the app identity", () => {
+    partition = "global";
+    windows = {
+      "window:tasks": windowState({
+        app: "files",
+        route: { pathname: "/files/ws_beta", search: { workspace: "ws_beta" } },
+      }),
+    };
+    const view = render(<OsWindow frame={frameModel()} />);
+    expect(screen.queryByTestId("os-window-project-window:tasks")).not.toBeInTheDocument();
+    const head = view.container.querySelector('[data-slot="os-window-head"]');
+    expect(head?.querySelector('[data-slot="topbar-leading"]')).toBeNull();
+    expect(head?.querySelector('[data-slot="topbar-title"]')).toHaveTextContent("Files");
+
+    // Every other bound app keeps the badge before its identity.
+    windows = {
+      "window:tasks": windowState({
+        route: { pathname: "/tasks", search: { workspace: "ws_beta" } },
+      }),
+    };
+    view.rerender(<OsWindow frame={frameModel()} />);
+    expect(
+      head?.querySelector(
+        '[data-slot="topbar-leading"] [data-testid="os-window-project-window:tasks"]'
+      )
+    ).toHaveTextContent("beta");
+  });
 
   it("Should show no badge on a catalog window or on a project desktop", () => {
     partition = "global";

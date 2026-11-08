@@ -17,12 +17,8 @@ import {
   kitExtensionFixture,
   kitInventoryItems,
 } from "./marketplace-detail-story-fixtures";
-import {
-  installedExtension,
-  installedListing,
-  marketplaceStoryHandlers,
-  storyCatalog,
-} from "./marketplace-story-data";
+import { marketplaceStoryHandlers, storyCatalog } from "./marketplace-story-data";
+import { installedExtension, installedListing } from "../mocks/installed";
 import { storyGithubServer } from "./marketplace-story-servers";
 
 const slackNotifyDetail = marketplaceCatalogDetailFixture("slack-notify")!;
@@ -44,7 +40,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Browse mode: provenance leads the body, Install is the one head action, cards in the rail. */
+/** Browse mode: provenance leads the body, Add is the one head action, cards in the rail. */
 export const DetailExtensionBrowse: Story = {
   args: {},
   parameters: {
@@ -193,6 +189,9 @@ export const DetailExtensionDevOverlay: Story = {
         compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
           HttpResponse.json({
             entry: {
+              category: "development",
+              category_label: "Development",
+              featured: false,
               description: "Workspace dev build linked from a local generation.",
               digest_sha256: "a".repeat(64),
               entry_id: "ops-dev-extension",
@@ -299,6 +298,9 @@ export const DetailExtensionEnabledUpdate: Story = {
         compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
           HttpResponse.json({
             entry: {
+              category: "development",
+              category_label: "Development",
+              featured: false,
               description: "Dependency review agents, a weekly sweep, and a review board layout.",
               digest_sha256: "a".repeat(64),
               entry_id: "dep-kit-ops",

@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// SessionChangesResponse is a daemon API value.
+type SessionChangesResponse struct {
+	Scope       string                     `json:"scope"`
+	Root        FileRootPayload            `json:"root"`
+	Head        ChangeHeadPayload          `json:"head"`
+	Base        ChangeBasePayload          `json:"base"`
+	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
+	Totals      ChangeTotalsPayload        `json:"totals"`
+	Files       []FileChangePayload        `json:"files"`
+	Truncated   bool                       `json:"truncated"`
+	Revision    string                     `json:"revision"`
+}
+
+// SessionChildrenPayload is a daemon API value.
+type SessionChildrenPayload struct {
+	Total    int `json:"total"`
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	Waiting  int `json:"waiting"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
+}
+
 // SessionCommandPayload is a daemon API value.
 type SessionCommandPayload struct {
 	ID                string               `json:"id"`
@@ -420,20 +443,4 @@ type SessionInputClearResponse struct {
 	Inputs          []SessionInputPayload `json:"inputs"`
 	ClearedCount    int                   `json:"cleared_count"`
 	QueueGeneration int64                 `json:"queue_generation"`
-}
-
-// SessionInputListResponse is a daemon API value.
-type SessionInputListResponse struct {
-	Inputs []SessionInputPayload       `json:"inputs"`
-	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
-}
-
-// SessionInputMentionPayload is a daemon API value.
-type SessionInputMentionPayload struct {
-	Kind   SessionMentionKind `json:"kind"`
-	Token  string             `json:"token"`
-	Target string             `json:"target"`
-	Label  string             `json:"label"`
-	Start  int                `json:"start"`
-	End    int                `json:"end"`
 }

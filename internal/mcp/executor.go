@@ -417,6 +417,7 @@ func mcpOwner(id toolspkg.ToolID) (string, error) {
 func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
+	server.InputValues = maps.Clone(server.InputValues)
 	server.SecretEnv = cloneStringMap(server.SecretEnv)
 	server.Headers = cloneStringMap(server.Headers)
 	server.SecretHeaders = cloneStringMap(server.SecretHeaders)

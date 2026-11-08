@@ -17,6 +17,11 @@ func customizeExtensionInputValueSchema(schema *openapi3.Schema) {
 }
 
 func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
+	if enable := schema.Properties["enable"]; enable != nil && enable.Value != nil {
+		enable.Value.Default = false
+		enable.Value.Description = "Enable after installation under the same operation lock. " +
+			"Activation failure returns 201 with enable_error and retains the installed package and inputs."
+	}
 	if source := schema.Properties["source"]; source != nil && source.Value != nil {
 		source.Value.Enum = []any{"curated", "marketplace", "github", "git", "local_path"}
 		source.Value.Description = "Use marketplace for a registered plugin source and include the listed expected_digest."

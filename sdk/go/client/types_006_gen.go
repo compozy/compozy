@@ -306,6 +306,12 @@ type ExtensionDeclaredProfilePayload struct {
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
+// ExtensionEnableError is a daemon API value.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
 	MissingInputs               []string                    `json:"missing_inputs"`

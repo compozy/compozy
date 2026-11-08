@@ -26,6 +26,22 @@ func applyManifestMCPInputs(
 		if err != nil {
 			return err
 		}
+		if input.Binding.Type == manifestInputBindingTemplate {
+			if server.InputValues == nil {
+				server.InputValues = make(map[string]compozyconfig.MCPInputValue)
+			}
+			server.InputValues[input.Binding.Name] = compozyconfig.MCPInputValue{Value: value, SecretRef: ref}
+			if declaration.Auth != nil && declaration.Auth.ClientID == "${"+input.Binding.Name+"}" {
+				server.Auth.ClientID = value
+			}
+			if declaration.Auth != nil && declaration.Auth.ClientSecretInput == "${"+input.Binding.Name+"}" {
+				server.Auth.ClientSecretRef = ref
+			}
+			if input.Type == manifestInputTypeSecret && present {
+				applyTemplateSecretEnv(server, declaration, input.Binding.Name, ref)
+			}
+			continue
+		}
 		if input.Binding.Type == "url_query" {
 			if err := applyManifestURLInput(server, input, value, present); err != nil {
 				return err
@@ -74,4 +90,17 @@ func applyManifestURLInput(
 	parsed.RawQuery = query.Encode()
 	server.URL = parsed.String()
 	return nil
+}
+
+func applyTemplateSecretEnv(server *compozyconfig.MCPServer, declaration MCPServerConfig, inputID, ref string) {
+	for name, template := range declaration.Env {
+		if template != "${"+inputID+"}" {
+			continue
+		}
+		delete(server.Env, name)
+		if server.SecretEnv == nil {
+			server.SecretEnv = make(map[string]string)
+		}
+		server.SecretEnv[name] = ref
+	}
 }

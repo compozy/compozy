@@ -110,6 +110,13 @@ describe("extensions management mutations", () => {
         binding: { type: "url_query", name: "region" },
         default: "eu",
       },
+      {
+        id: "HOST",
+        prompt: "HOST",
+        type: "string",
+        required: true,
+        binding: { type: "template", name: "HOST" },
+      },
     ];
     mockJsonResponse(
       {
@@ -152,7 +159,12 @@ describe("extensions management mutations", () => {
   });
 
   it("Should preview an install before committing it", async () => {
-    const request = { ref: "dep-kit-ops", source: "curated" as const, version: "1.1.0" };
+    const request = {
+      enable: false,
+      ref: "dep-kit-ops",
+      source: "curated" as const,
+      version: "1.1.0",
+    };
     const preview = {
       inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
@@ -179,6 +191,7 @@ describe("extensions management mutations", () => {
     mockJsonResponse(payload);
 
     const error = await previewExtensionInstall({
+      enable: false,
       ref: "dep-kit-ops",
       source: "curated",
     }).catch(reason => reason);

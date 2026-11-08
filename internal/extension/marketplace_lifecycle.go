@@ -337,7 +337,8 @@ func inspectMarketplaceInstall(
 	slug string,
 	result *registrypkg.InstallResult,
 ) (*Manifest, string, error) {
-	manifest, err := LoadManifest(result.InstallPath)
+	_, name, _ := strings.Cut(slug, "/")
+	manifest, err := loadManifest(result.InstallPath, "", name)
 	if err != nil {
 		return nil, "", fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
 	}

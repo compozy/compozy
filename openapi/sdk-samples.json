@@ -1303,6 +1303,13 @@
             "resource": "marketplace",
             "app_access": "denied"
         },
+        "getMarketplaceSections": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.marketplace.getMarketplaceSections();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetMarketplaceSections(ctx, client.GetMarketplaceSectionsParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "marketplace",
+            "app_access": "denied"
+        },
         "getObserveOverview": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.observe.getObserveOverview();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetObserveOverview(ctx, client.GetObserveOverviewParams{})\nif err != nil { return err }\nfmt.Println(result)",

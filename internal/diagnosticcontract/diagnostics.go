@@ -163,6 +163,9 @@ const (
 )
 
 const (
+	CodeExtensionClientPlaceholderInvalid     = "client_placeholder_invalid"
+	CodeExtensionClientFieldIgnored           = "client_field_ignored"
+	CodeExtensionClientMCPDiscovered          = "client_mcp_discovered"
 	CodeExtensionClientComponentIgnored       = "client_component_ignored"
 	CodeExtensionAgentPluginComponentSkipped  = "extension_agent_plugin_component_skipped"
 	CodeExtensionAgentPluginManifestInvalid   = "extension_agent_plugin_manifest_invalid"
@@ -242,6 +245,9 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
 	{Code: CodeExtensionClientComponentIgnored, Category: CategoryExtension},
+	{Code: CodeExtensionClientPlaceholderInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionClientFieldIgnored, Category: CategoryExtension},
+	{Code: CodeExtensionClientMCPDiscovered, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginManifestInvalid, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginNotManifest, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginSchemaUnsupported, Category: CategoryExtension},

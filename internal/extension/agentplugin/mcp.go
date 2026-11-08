@@ -95,7 +95,7 @@ func decodeServer(name string, raw json.RawMessage, root string, dataDir string)
 	case transportStdio:
 		return decodeStdioServer(name, fields, root, dataDir)
 	case transportStreamableHTTP, transportSSE:
-		return decodeRemoteServer(name, transport, fields)
+		return decodeRemoteServer(name, transport, fields, false)
 	default:
 		return ServerSpec{}, errors.New("invalid mcp server entry")
 	}
@@ -139,6 +139,7 @@ func decodeRemoteServer(
 	name string,
 	transport string,
 	fields map[string]json.RawMessage,
+	client bool,
 ) (ServerSpec, error) {
 	if transport == transportSSE {
 		return ServerSpec{}, errors.New("sse transport is not supported")
@@ -154,10 +155,18 @@ func decodeRemoteServer(
 	if !ok {
 		return ServerSpec{}, errors.New("invalid mcp server entry")
 	}
-	if err := mcppolicy.ValidateRemoteURL(url); err != nil {
+	validationURL := url
+	if client {
+		validationURL = mcppolicy.PlaceholderURL(url)
+	}
+	if err := mcppolicy.ValidateRemoteURL(validationURL); err != nil {
 		return ServerSpec{}, err
 	}
-	if err := mcppolicy.ValidateHeaders(headers, nil, mcppolicy.SourcePackageFixed, false); err != nil {
+	fixed, bound := headers, map[string]string(nil)
+	if client {
+		fixed, bound = mcppolicy.InputHeaders(headers, mcppolicy.SecretInputName)
+	}
+	if err := mcppolicy.ValidateHeaders(fixed, bound, mcppolicy.SourceOperatorSecret, false); err != nil {
 		return ServerSpec{}, err
 	}
 	return ServerSpec{Name: name, Transport: transport, URL: url, Headers: headers}, nil

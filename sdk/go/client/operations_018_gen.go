@@ -9,6 +9,46 @@ import (
 	"strings"
 )
 
+// ListAgentsParams carries the path, query, and header parameters.
+type ListAgentsParams struct {
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ListAgents List all readable agent definitions, optionally resolved for a workspace
+func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*AgentsResponse, error) {
+	path := "/api/agents"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAgentsAggregateParams carries the path, query, and header parameters.
+type ListAgentsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Group         *string   `url:"group"`
+	Name          *string   `url:"name"`
+	Q             *string   `url:"q"`
+	Category      *string   `url:"category"`
+	Status        *string   `url:"status"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+}
+
 // ListAgentsAggregate List a filtered agent fleet with exact session metrics
 func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggregateParams) (*AgentCatalogResponse, error) {
 	path := "/api/agents/aggregate"
@@ -397,22 +437,4 @@ func (c *Client) ListAutomationTriggerRuns(ctx context.Context, params ListAutom
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAutomationTriggersParams carries the path, query, and header parameters.
-type ListAutomationTriggersParams struct {
-	Scope         *string   `url:"scope"`
-	WorkspaceID   *string   `url:"workspace_id"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Source        *string   `url:"source"`
-	Target        *string   `url:"target"`
-	Enabled       *bool     `url:"enabled"`
-	Event         *string   `url:"event"`
-	Q             *string   `url:"q"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
-	Loop          *string   `url:"loop"`
 }

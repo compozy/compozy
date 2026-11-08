@@ -4,6 +4,19 @@ package client
 
 import "time"
 
+// SessionRepairResponse is a daemon API value.
+type SessionRepairResponse struct {
+	Repair SessionRepairPayload `json:"repair"`
+}
+
+// SessionResponse is a daemon API value.
+type SessionResponse struct {
+	Session SessionPayload `json:"session"`
+}
+
+// SessionReviewDecision is a daemon API value.
+type SessionReviewDecision string
+
 // SessionRuntimePayload is a daemon API value.
 type SessionRuntimePayload struct {
 	Status            SessionRuntimeStatus           `json:"status"`
@@ -432,19 +445,4 @@ type SettingsExtensionGitHubSourcePayload struct {
 // SettingsExtensionGitSourcePayload is a daemon API value.
 type SettingsExtensionGitSourcePayload struct {
 	Enabled bool `json:"enabled"`
-}
-
-// SettingsExtensionRateLimitPayload is a daemon API value.
-type SettingsExtensionRateLimitPayload struct {
-	Requests int    `json:"requests"`
-	Window   string `json:"window"`
-	Queue    int    `json:"queue"`
-}
-
-// SettingsExtensionResourcesPayload is a daemon API value.
-type SettingsExtensionResourcesPayload struct {
-	AllowedKinds           []string                          `json:"allowed_kinds,omitempty"`
-	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
-	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
-	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
 }

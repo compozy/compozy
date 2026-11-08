@@ -134,6 +134,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
 					{name: "q", in: openapi3.ParameterInQuery},
+					{name: "category", in: openapi3.ParameterInQuery},
 					{name: "limit", in: openapi3.ParameterInQuery},
 					{name: "cursor", in: openapi3.ParameterInQuery},
 					{name: "scope", in: openapi3.ParameterInQuery, enum: []string{"global", "profile", "workspace"}},

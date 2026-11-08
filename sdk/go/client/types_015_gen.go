@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+// ProviderUsageAmount is a daemon API value.
+type ProviderUsageAmount struct {
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
+}
+
+// ProviderUsageBalance is a daemon API value.
+type ProviderUsageBalance struct {
+	ID        string              `json:"id"`
+	Label     string              `json:"label"`
+	Remaining ProviderUsageAmount `json:"remaining"`
+	ExpiresAt *time.Time          `json:"expires_at"`
+}
+
+// ProviderUsageEnvelope is a daemon API value.
+type ProviderUsageEnvelope struct {
+	KeychainSupported bool                     `json:"keychain_supported"`
+	ProfileID         string                   `json:"profile_id"`
+	Revision          uint64                   `json:"revision"`
+	GeneratedAt       time.Time                `json:"generated_at"`
+	Enabled           bool                     `json:"enabled"`
+	Tray              *ProviderUsageTraySignal `json:"tray"`
+	Targets           []ProviderUsageTarget    `json:"targets"`
+}
+
+// ProviderUsageError is a daemon API value.
+type ProviderUsageError struct {
+	Code       string     `json:"code"`
+	Message    string     `json:"message"`
+	Action     string     `json:"action"`
+	RetryAfter *time.Time `json:"retry_after"`
+}
+
 // ProviderUsageRefreshRequest is a daemon API value.
 type ProviderUsageRefreshRequest struct {
 	Profile       string   `json:"profile,omitempty"`
@@ -415,35 +448,3 @@ type ResourceSource struct {
 
 // ResourceSourceKind is a daemon API value.
 type ResourceSourceKind string
-
-// ResourcesResponse is a daemon API value.
-type ResourcesResponse struct {
-	Records []ResourceRecordPayload `json:"records"`
-}
-
-// RespondLoopRequest is a daemon API value.
-type RespondLoopRequest struct {
-	Generation int             `json:"generation"`
-	ItemIndex  int             `json:"item_index,omitzero"`
-	Decision   string          `json:"decision,omitempty"`
-	Payload    json.RawMessage `json:"payload"`
-	Note       string          `json:"note,omitempty"`
-}
-
-// RespondLoopRequestResponse is a daemon API value.
-type RespondLoopRequestResponse struct {
-	OK         bool                  `json:"ok"`
-	RunID      string                `json:"run_id"`
-	NodeID     string                `json:"node_id"`
-	Decision   string                `json:"decision"`
-	State      string                `json:"state"`
-	Provenance LoopRequestProvenance `json:"provenance"`
-}
-
-// ResponderAgentPolicy is a daemon API value.
-type ResponderAgentPolicy string
-
-// ResponderSpec is a daemon API value.
-type ResponderSpec struct {
-	Agents ResponderAgentPolicy `json:"agents,omitempty"`
-}

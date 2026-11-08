@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// TaskCatalogRunPayload is a daemon API value.
+type TaskCatalogRunPayload struct {
+	ID                   string               `json:"id"`
+	TaskID               string               `json:"task_id"`
+	Status               TaskRunStatus        `json:"status"`
+	Attempt              int                  `json:"attempt"`
+	RecoveryCount        int                  `json:"recovery_count"`
+	PreviousRunID        string               `json:"previous_run_id,omitempty"`
+	FailureKind          string               `json:"failure_kind,omitempty"`
+	MaxAttempts          int                  `json:"max_attempts"`
+	SessionID            string               `json:"session_id,omitempty"`
+	WorktreeID           string               `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
+	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
+	QueuedAt             time.Time            `json:"queued_at"`
+	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time           `json:"started_at,omitempty"`
+	EndedAt              *time.Time           `json:"ended_at,omitempty"`
+	Error                string               `json:"error,omitempty"`
+}
+
 // TaskCatalogStatusFacetPayload is a daemon API value.
 type TaskCatalogStatusFacetPayload struct {
 	Status TaskStatus `json:"status"`

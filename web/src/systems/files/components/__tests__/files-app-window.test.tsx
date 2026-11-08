@@ -2,14 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Topbar, TopbarSlotProvider, UIProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider, UIProvider, useTopbarSlotValue } from "@compozy/ui";
 
 import {
+  filesAppPlace,
   filesAppPlaceStorageKey,
   filesAppPlaceStore,
   requestFilesAppPlace,
 } from "../../hooks/use-files-app-place";
-import { fileViewerTarget } from "../../lib/file-viewer-target";
+import { outsideViewerTarget } from "../../lib/file-viewer-target";
 import { FilesExplorer } from "../files-explorer";
 import { filesAppProjectStatus, filesSwitcherProjects } from "../../lib/files-app-roots";
 import { FilesAppWindow } from "../files-app-window";
@@ -127,14 +128,18 @@ describe("FilesAppWindow", () => {
 
   // Operator review: the window and its tab read the open file, else the project, and the
   // project and root pickers sit in the head row instead of a row of their own.
-  it("Should title the window with the open file, else the project, and keep the pickers in the head", async () => {
+  it("Should keep Files in the head with the pickers after it and name the tab by the open file, else the project", async () => {
     stubDaemon();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function TabLabel() {
+      return <output data-testid="tab-label">{useTopbarSlotValue()?.tabLabel}</output>;
+    }
     const frame = (workspaceId: string) => (
       <QueryClientProvider client={client}>
         <UIProvider>
           <TopbarSlotProvider>
             <Topbar title="Files" />
+            <TabLabel />
             <div style={{ height: 500 }}>
               <FilesAppWindow
                 key={workspaceId}
@@ -148,16 +153,23 @@ describe("FilesAppWindow", () => {
     );
     const view = render(frame("ws_1"));
     const title = () => screen.getByTestId("topbar-title-text");
-    await waitFor(() => expect(title()).toHaveTextContent("compozy"));
-    const head = view.container.querySelector('[data-slot="topbar-leading"]');
-    expect(head?.querySelector('[data-testid="files-project-switcher"]')).not.toBeNull();
-    expect(head?.querySelector('[data-testid="files-root-picker"]')).not.toBeNull();
+    const tab = () => screen.getByTestId("tab-label");
+    await waitFor(() => expect(tab()).toHaveTextContent("compozy"));
+    expect(title()).toHaveTextContent("Files");
+    const identity = view.container.querySelector('[data-slot="topbar-identity"]');
+    const context = view.container.querySelector('[data-slot="topbar-context"]');
+    expect(context?.querySelector('[data-testid="files-project-switcher"]')).not.toBeNull();
+    expect(context?.querySelector('[data-testid="files-root-picker"]')).not.toBeNull();
+    expect(
+      identity!.compareDocumentPosition(context!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
 
     act(() => requestFilesAppPlace("ws_1", { worktreeId: null, path: "docs/README.md" }));
-    await waitFor(() => expect(title()).toHaveTextContent("README.md"));
-    expect(title()).not.toHaveTextContent("docs/");
+    await waitFor(() => expect(tab()).toHaveTextContent("README.md"));
+    expect(tab()).not.toHaveTextContent("docs/");
+    expect(title()).toHaveTextContent("Files");
 
-    // A root switch keeps the open file, so the title stays on it.
+    // A root switch keeps the open file, so the tab stays on it.
     act(() =>
       filesAppPlaceStore.trigger.placed({
         workspaceId: "ws_1",
@@ -167,11 +179,12 @@ describe("FilesAppWindow", () => {
     await waitFor(() =>
       expect(screen.getByTestId("files-root-picker")).toHaveTextContent("Worktree unavailable")
     );
-    expect(title()).toHaveTextContent("README.md");
+    expect(tab()).toHaveTextContent("README.md");
 
-    // Another project: its own place, so the title falls back to that project's name.
+    // Another project: its own place, so the tab falls back to that project's name.
     view.rerender(frame("ws_old"));
-    await waitFor(() => expect(title()).toHaveTextContent("legacy"));
+    await waitFor(() => expect(tab()).toHaveTextContent("legacy"));
+    expect(title()).toHaveTextContent("Files");
   });
 
   it("Should offer Switch to project root when the worktree is gone and reload the checkout (UT-047)", async () => {
@@ -210,31 +223,6 @@ describe("FilesAppWindow", () => {
     await waitFor(() => expect(screen.queryByTestId("files-explorer")).toBeNull());
   });
 
-  it("Should hand the session root and open path to Open in Files window (US-002.AC-6)", async () => {
-    stubDaemon();
-    const onOpenInFilesWindow = vi.fn();
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <UIProvider>
-          <div style={{ height: 500 }}>
-            <FilesExplorer
-              root={{ kind: "session", workspaceId: "ws_1", sessionId: "sess-1" }}
-              target={fileViewerTarget("README.md")}
-              onOpenFile={() => {}}
-              onOpenInFilesWindow={onOpenInFilesWindow}
-            />
-          </div>
-        </UIProvider>
-      </QueryClientProvider>
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Open in Files window" }));
-    expect(onOpenInFilesWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ workspace_id: "ws_1", worktree_id: "wt-1" }),
-      "README.md"
-    );
-  });
-
   it("Should re-root an open Files window and open the requested path (US-002.AC-6)", async () => {
     const calls = stubDaemon();
     renderWindow();
@@ -252,6 +240,17 @@ describe("FilesAppWindow", () => {
     await waitFor(() =>
       expect(screen.getByTestId("file-viewer-header")).toHaveTextContent("README.md")
     );
+
+    // A transcript path outside the root arrives as written, with no project path to persist.
+    act(() =>
+      requestFilesAppPlace(
+        "ws_1",
+        { worktreeId: "wt-1", path: null },
+        outsideViewerTarget("/etc/hosts")
+      )
+    );
+    expect(await screen.findByTestId("file-viewer-outside")).toHaveTextContent("/etc/hosts");
+    expect(filesAppPlace("ws_1").path).toBeNull();
   });
 
   // US-001: a folder whose listing fails says so with Retry, instead of looking empty, and

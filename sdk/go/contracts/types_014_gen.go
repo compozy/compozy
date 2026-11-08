@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type PatchOp struct {
+	Op    string          `json:"op"`
+	Path  string          `json:"path"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+type PayloadBase struct {
+	Event     HookEvent `json:"event"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 type PendingInteractionPayload struct {
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 	SessionID         string     `json:"session_id"`
@@ -237,14 +248,4 @@ type PromptRuntimeSelectionPayload struct {
 	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-}
-
-type ProviderModelConfigurationPayload struct {
-	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
-	Fast            *bool   `json:"fast,omitempty"`
-	Thinking        *bool   `json:"thinking,omitempty"`
-}
-
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
 }

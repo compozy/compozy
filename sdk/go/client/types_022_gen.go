@@ -4,6 +4,23 @@ package client
 
 import "encoding/json"
 
+// SettingsProviderCredentialStatusPayload is a daemon API value.
+type SettingsProviderCredentialStatusPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+	Present   bool   `json:"present"`
+	Source    string `json:"source,omitempty"`
+}
+
+// SettingsProviderFallbackPayload is a daemon API value.
+type SettingsProviderFallbackPayload struct {
+	Source   SettingsSourceRefPayload        `json:"source"`
+	Settings SettingsProviderSettingsPayload `json:"settings"`
+}
+
 // SettingsProviderItemPayload is a daemon API value.
 type SettingsProviderItemPayload struct {
 	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
@@ -428,19 +445,4 @@ type SettingsTransportParityPayload struct {
 	SettingsUDS    bool `json:"settings_uds"`
 	ExtensionsHTTP bool `json:"extensions_http"`
 	ExtensionsUDS  bool `json:"extensions_uds"`
-}
-
-// SettingsUpdateActor is a daemon API value.
-type SettingsUpdateActor string
-
-// SettingsUpdateAppPayload is a daemon API value.
-type SettingsUpdateAppPayload struct {
-	Status         SettingsUpdateStatusKind `json:"status"`
-	Running        bool                     `json:"running"`
-	CurrentVersion string                   `json:"current_version"`
-	LatestVersion  string                   `json:"latest_version"`
-	ReleaseURL     string                   `json:"release_url"`
-	AttemptID      string                   `json:"attempt_id"`
-	LastError      string                   `json:"last_error"`
-	Message        string                   `json:"message"`
 }

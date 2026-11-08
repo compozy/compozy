@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type ProviderModelConfigurationPayload struct {
+	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
+	Fast            *bool   `json:"fast,omitempty"`
+	Thinking        *bool   `json:"thinking,omitempty"`
+}
+
+type ProviderModelListResponse struct {
+	Models []ProviderModelPayload `json:"models"`
+}
+
 type ProviderModelPayload struct {
 	ProviderID             string                              `json:"provider_id"`
 	ModelID                string                              `json:"model_id"`
@@ -129,14 +139,3 @@ type ResourceSource struct {
 }
 
 type ResourceSourceKind string
-
-type ResourcesListParams struct {
-	Kind  ResourceKind   `json:"kind,omitempty"`
-	Scope *ResourceScope `json:"scope,omitempty"`
-	Limit int            `json:"limit,omitempty"`
-}
-
-type ResourcesSnapshotParams struct {
-	SourceVersion int64                    `json:"source_version"`
-	Records       []ResourceSnapshotRecord `json:"records"`
-}

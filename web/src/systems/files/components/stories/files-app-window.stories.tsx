@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
 
-import { Topbar, TopbarSlotProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
 
 import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
 
@@ -17,10 +17,24 @@ function placeFile(path: string | null) {
   });
 }
 
-/** The Files window as the OS frame renders it: the shared head row over the app body. */
+/** Stands in for the OS tab strip: the only place that names the open file. */
+function FilesWindowTab() {
+  const label = useTopbarSlotValue()?.tabLabel ?? "Files";
+  return (
+    <div
+      data-testid="files-story-tab"
+      className="truncate px-4 py-2 text-body font-medium text-muted-foreground"
+    >
+      {label}
+    </div>
+  );
+}
+
+/** The Files window as the OS frame renders it: its tab, then the shared head row over the app body. */
 function FilesWindowFrame({ width }: { width: number }) {
   return (
     <TopbarSlotProvider>
+      <FilesWindowTab />
       <div
         className="flex h-[560px] flex-col overflow-hidden rounded-lg border border-line bg-canvas"
         style={{ width }}
@@ -35,8 +49,8 @@ function FilesWindowFrame({ width }: { width: number }) {
 }
 
 /**
- * The Files OS app window (`_uiux.md` S6). One head row: the project and root pickers, then the
- * window title, which is the open file's name, else the project's name.
+ * The Files OS app window (`_uiux.md` S6). One head row: the Files identity, then the project and
+ * root pickers. Only the tab names the open file, else the project.
  */
 const meta = {
   title: "systems/files/components/FilesAppWindow",
@@ -54,8 +68,11 @@ export const ProjectTitle: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByTestId("topbar-title-text")).toHaveTextContent(storyWorkspaceNames.hq)
+      expect(canvas.getByTestId("files-story-tab")).toHaveTextContent(storyWorkspaceNames.hq)
     );
+    expect(canvas.getByTestId("topbar-title-text")).toHaveTextContent("Files");
+    const context = canvasElement.querySelector('[data-slot="topbar-context"]');
+    expect(context?.querySelector('[data-testid="files-project-switcher"]')).not.toBeNull();
   },
 };
 
@@ -65,8 +82,9 @@ export const OpenFileTitle: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByTestId("topbar-title-text")).toHaveTextContent("main.tsx")
+      expect(canvas.getByTestId("files-story-tab")).toHaveTextContent("main.tsx")
     );
+    expect(canvas.getByTestId("topbar-title-text")).toHaveTextContent("Files");
   },
 };
 

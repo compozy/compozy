@@ -410,7 +410,7 @@ func statusFromTokenWithDiagnostic(
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,
 		Status:      StatusNeedsLogin,
-		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		RemoteURL:   cfg.publicRemoteURL(),
 		AuthType:    strings.TrimSpace(cfg.Type),
 		ClientID:    strings.TrimSpace(cfg.ClientID),
 		Scopes:      trimStrings(cfg.Scopes),

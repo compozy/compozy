@@ -48,6 +48,30 @@ func (r *marketplaceRuntime) Browse(
 	return service.Browse(ctx, query, offset, limit)
 }
 
+func (r *marketplaceRuntime) BrowseFiltered(
+	ctx context.Context,
+	filter marketplace.BrowseFilter,
+	offset, limit int,
+) (marketplace.BrowseResult, error) {
+	service, err := r.currentService(ctx)
+	if err != nil {
+		return marketplace.BrowseResult{}, err
+	}
+	return service.BrowseFiltered(ctx, filter, offset, limit)
+}
+
+func (r *marketplaceRuntime) Sections(
+	ctx context.Context,
+	query string,
+	perSection int,
+) (marketplace.SectionsResult, error) {
+	service, err := r.currentService(ctx)
+	if err != nil {
+		return marketplace.SectionsResult{}, err
+	}
+	return service.Sections(ctx, query, perSection)
+}
+
 func (r *marketplaceRuntime) Detail(
 	ctx context.Context,
 	source, entryID string,
@@ -343,7 +367,7 @@ func (d *Daemon) bootMarketplace(ctx context.Context, state *bootState, cleanup 
 				for index := range installed {
 					item := &installed[index]
 					packages = append(packages, marketplace.InstalledPackage{
-						Name: item.Name, SourceName: item.Provenance.SourceName,
+						Name: item.Name, EntryID: item.Provenance.EntryID, SourceName: item.Provenance.SourceName,
 						SourceRef: item.Provenance.SourceRef, DigestSHA256: item.Provenance.ArchiveDigestSHA256,
 					})
 				}

@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// SpawnBudgetPayload is a daemon API value.
+type SpawnBudgetPayload struct {
+	MaxChildren           int   `json:"max_children"`
+	MaxDepth              int   `json:"max_depth"`
+	TTLSeconds            int64 `json:"ttl_seconds"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
+}
+
+// SpawnNewWorktreeRequest is a daemon API value.
+type SpawnNewWorktreeRequest struct {
+	Name    string `json:"name,omitempty"`
+	BaseRef string `json:"base_ref,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+}
+
 // SpawnPermissionPolicyPayload is a daemon API value.
 type SpawnPermissionPolicyPayload struct {
 	Tools          []string `json:"tools"`
@@ -421,28 +436,4 @@ type TaskCatalogItemPayload struct {
 type TaskCatalogOwnerFacetPayload struct {
 	Owner Ownership `json:"owner"`
 	Count int       `json:"count"`
-}
-
-// TaskCatalogRunPayload is a daemon API value.
-type TaskCatalogRunPayload struct {
-	ID                   string               `json:"id"`
-	TaskID               string               `json:"task_id"`
-	Status               TaskRunStatus        `json:"status"`
-	Attempt              int                  `json:"attempt"`
-	RecoveryCount        int                  `json:"recovery_count"`
-	PreviousRunID        string               `json:"previous_run_id,omitempty"`
-	FailureKind          string               `json:"failure_kind,omitempty"`
-	MaxAttempts          int                  `json:"max_attempts"`
-	SessionID            string               `json:"session_id,omitempty"`
-	WorktreeID           string               `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
-	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
-	QueuedAt             time.Time            `json:"queued_at"`
-	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time           `json:"started_at,omitempty"`
-	EndedAt              *time.Time           `json:"ended_at,omitempty"`
-	Error                string               `json:"error,omitempty"`
 }

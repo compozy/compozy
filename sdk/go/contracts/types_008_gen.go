@@ -93,6 +93,7 @@ type ExtensionToolWorkspaceScope struct {
 }
 
 type ExtensionValidatePayload struct {
+	Inputs       []MarketplaceInputPayload      `json:"inputs,omitempty"`
 	Status       string                         `json:"status"`
 	Format       string                         `json:"format"`
 	Name         string                         `json:"name,omitempty"`

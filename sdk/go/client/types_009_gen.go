@@ -361,6 +361,7 @@ type InputType string
 
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
+	Enable               bool                   `json:"enable,omitzero"`
 	Scope                string                 `json:"scope,omitempty"`
 	WorkspaceID          string                 `json:"workspace_id,omitempty"`
 	Profile              string                 `json:"profile,omitempty"`
@@ -372,6 +373,12 @@ type InstallExtensionRequest struct {
 	Asset                string                 `json:"asset,omitempty"`
 	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
 	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
+}
+
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
 }
 
 // InstallExtensionSource is a daemon API value.

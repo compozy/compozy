@@ -444,6 +444,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listGatewayDevices",
 			"listLogs",
 			"listMarketplace",
+			"getMarketplaceSections",
 			"listMarketplaceSources",
 			"listOpenAIModels",
 			"listProfileOperations",

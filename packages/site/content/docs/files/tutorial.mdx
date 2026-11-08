@@ -8,20 +8,22 @@ and in the desktop app; step 6 needs the desktop app.
 
 ## 1. Open a file from the transcript
 
-When the agent mentions a path such as `` `internal/server/handler.go:42` ``, click it. The session
-window opens the **Review panel** on the **Files** tab, reveals the file in the tree, and scrolls the
-viewer to line 42 with the line highlighted.
-
-If the context sidebar was open, the Review panel takes its place: only one of the two is open at a
-time. Toggle the Review panel from the session header, next to the context sidebar toggle. Drag its
-edge to resize it; CompozyOS remembers the width, the tab, and whether it was open, per session.
+When the agent mentions a path such as `` `internal/server/handler.go:42` ``, click it. The
+project's **Files** app opens as a tab beside the session, on the session's worktree (or the project
+folder), reveals the file in the tree, and scrolls the viewer to line 42 with the line highlighted.
+The tab names the open file. Clicking another path reuses that Files tab.
 
 A path outside the project opens **Outside this project** instead, and the path is shown as
 written. A missing file shows **File not found** with **Refresh tree**.
 
 ## 2. Review the diff
 
-Select the **Changes** tab. The header shows:
+Back on the session's tab, toggle **Changes** in the session header, next to the context sidebar
+toggle. The **Review panel** opens on the session's diff. If the context sidebar was open, the
+Review panel takes its place: only one of the two is open at a time. Drag its edge to resize it;
+CompozyOS remembers the width and whether it was open, per session.
+
+The header shows:
 
 - the scope: **Branch** (everything since the branch left its base, including uncommitted and
   untracked files) or **Uncommitted** (only what is not committed yet);
@@ -31,13 +33,13 @@ Select the **Changes** tab. The header shows:
 - **Refresh**, split or unified diff, **Collapse all**, and the changed-files tree toggle.
 
 Each file has a header with its status letter, its path (or `old → new` for a rename), its line
-counts, and actions to collapse it, **Open in viewer**, and **Copy path**. Lockfiles and generated
+counts, and actions to collapse it, **Open in Files**, and **Copy path**. Lockfiles and generated
 files start collapsed with a **Generated** label.
 
 You can also reach Changes from two other places:
 
 - the pull request chip's menu, **Review changes**, which opens the Branch scope;
-- a turn's **Changed files** row: clicking a file opens Changes at that file, or the Files tab when
+- a turn's **Changed files** row: clicking a file opens Changes at that file, or the Files app when
   the current scope doesn't list it.
 
 ## 3. Compare against another base
@@ -54,7 +56,7 @@ the window; focusing it refreshes too.
 
 ## 5. Find a file and search the project
 
-Back on the **Files** tab:
+Back in the **Files** tab:
 
 1. Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>P</kbd> and type part of a file name. Add `:120` to
    open it at line 120.
