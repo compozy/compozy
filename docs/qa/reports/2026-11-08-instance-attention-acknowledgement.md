@@ -82,3 +82,16 @@ for each session. Each refresh now gets its own detached lifecycle timeout; a ti
 session cannot consume a later session's deadline. The canonical session suite exercises that
 failure and preserves a newer pending interaction returned with current attention from the store
 (embedded nitpick `cr-comment:v1:9a0da8c64b51765e3c9c375f`).
+
+CodeRabbit review `5819154046` embedded nitpicks now also verify that a stopped-session request
+created after the acknowledgement remains pending (`cf757a07f76b78632e0a4fdf`) and that the
+post-commit pending-list read retains its deadline (`0bb7b6604fba4644dffb2e76`). Both extend the
+existing owning suites; no production behavior changed for these coverage improvements.
+
+CodeRabbit review `5819176774` / `discussion_r4507377172` now gives each retry a fresh timeout.
+The existing timeout scenario verifies that the first session recovers on retry as well as the next
+session refreshing, so an expired attempt cannot make the retry ineffective.
+
+The schema compatibility CI lane identified the new `AgentInstancePayload.attention_dismissible`
+field missing from the canonical approved-addition list. The exact component/field is now registered
+there; the suite still compares every other historical property, type and required member.

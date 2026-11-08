@@ -5086,6 +5086,21 @@ func TestInstanceSeen(t *testing.T) {
 			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
 				t.Fatalf("new attention=%v, %v", attention, err)
 			}
+			if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+				InteractionID: "newer-stopped", SessionID: main, Kind: store.PendingInteractionKindPermission,
+				ProviderRequestID: "newer-stopped", CreatedAt: at.Add(time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.MarkSeen(ctx, instance.ID, agentinstance.LocalOperator, at); err != nil {
+				t.Fatal(err)
+			}
+			var newerStatus string
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT status FROM session_pending_interactions WHERE interaction_id='newer-stopped'").
+				Scan(&newerStatus); err != nil || newerStatus != store.PendingInteractionStatusPending {
+				t.Fatalf("newer stopped interaction status=%q, %v", newerStatus, err)
+			}
 		},
 	)
 

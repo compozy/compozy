@@ -37,6 +37,7 @@ func (r *InstanceRepo) LastSeen(ctx context.Context, instance, operator string) 
 	return &at, nil
 }
 
+// MarkSeen acknowledges failures and eligible stopped requests without consuming provider reports.
 func (r *InstanceRepo) MarkSeen(
 	ctx context.Context,
 	instance, operator string,

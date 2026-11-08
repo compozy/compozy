@@ -346,29 +346,30 @@ func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits 
 	}
 }
 
-// publishPendingInteractionCommit gives each session a fresh budget so slow siblings cannot suppress it.
+// publishPendingInteractionCommit bounds each refresh attempt independently of callers and earlier reads.
 func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit store.SessionAttentionCommit) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
 	id := commit.Interaction.SessionID
 	var refreshed store.SessionAttentionCommit
 	var err error
 	for range 2 {
+		attemptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 		refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
-			current, err := m.attentionStore.GetSessionAttention(ctx, id)
+			current, err := m.attentionStore.GetSessionAttention(attemptCtx, id)
 			if err != nil {
 				return commit, err
 			}
-			if err := m.refreshPendingInteractions(ctx, id); err != nil {
+			if err := m.refreshPendingInteractions(attemptCtx, id); err != nil {
 				return commit, err
 			}
 			commit.After = current
 			return commit, nil
 		})
 		if err == nil {
-			m.publishAttentionCommit(ctx, id, refreshed)
+			m.publishAttentionCommit(attemptCtx, id, refreshed)
+			cancel()
 			return nil
 		}
+		cancel()
 	}
 	return err
 }

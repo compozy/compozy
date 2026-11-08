@@ -199,6 +199,7 @@ func instanceServiceAdmission(definitions instanceDefinitions, repo *globaldb.In
 	return admission
 }
 
+// instanceSeenPublisher refreshes acknowledged sessions before publishing the instance catalog change.
 func instanceSeenPublisher(
 	manager *session.Manager,
 ) func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit) {

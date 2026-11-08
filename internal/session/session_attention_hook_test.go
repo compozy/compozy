@@ -123,7 +123,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		}
 	})
 
-	t.Run("Should give later sessions a fresh budget after an earlier refresh times out", func(t *testing.T) {
+	t.Run("Should recover timed-out reads without suppressing later sessions", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
@@ -131,7 +131,11 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			t.Fatal(err)
 		}
 		cleanupTestManager(t, manager)
-		manager.attentionStore = &committingAttentionStore{blockedSessionID: "slow", requireBoundedRead: true}
+		manager.attentionStore = &committingAttentionStore{
+			blockedSessionID:   "slow",
+			blockedReads:       1,
+			requireBoundedRead: true,
+		}
 		manager.mu.Lock()
 		manager.sessions["slow"] = &Session{ID: "slow", State: StateStopped, PendingClarifyCount: 1}
 		manager.sessions["next"] = &Session{ID: "next", State: StateStopped, PendingClarifyCount: 1}
@@ -154,6 +158,10 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 				},
 			},
 		})
+		slow, ok := manager.Get("slow")
+		if !ok || slow.Info().PendingClarifyCount != 0 {
+			t.Fatal("timeout prevented retrying the committed session refresh")
+		}
 		next, ok := manager.Get("next")
 		if !ok || next.Info().PendingClarifyCount != 0 {
 			t.Fatal("earlier timeout suppressed the next session refresh")
@@ -251,6 +259,7 @@ type committingAttentionStore struct {
 	snapshot           store.SessionAttention
 	pending            []store.PendingInteraction
 	blockedSessionID   string
+	blockedReads       int
 	requireBoundedRead bool
 	readFailures       int
 	mu                 sync.Mutex
@@ -263,7 +272,8 @@ func (s *committingAttentionStore) GetSessionAttention(
 	ctx context.Context,
 	id string,
 ) (store.SessionAttention, error) {
-	if id == s.blockedSessionID && id != "" {
+	if id == s.blockedSessionID && s.blockedReads > 0 {
+		s.blockedReads--
 		<-ctx.Done()
 		return store.SessionAttention{}, ctx.Err()
 	}
@@ -314,10 +324,15 @@ func (s *committingAttentionStore) TransitionPendingInteraction(
 }
 
 func (s *committingAttentionStore) ListPendingInteractions(
-	context.Context,
-	string,
-	[]string,
+	ctx context.Context,
+	_ string,
+	_ []string,
 ) ([]store.PendingInteraction, error) {
+	if s.requireBoundedRead {
+		if _, bounded := ctx.Deadline(); !bounded {
+			return nil, errors.New("post-commit read has no deadline")
+		}
+	}
 	if s.listErr != nil {
 		return nil, s.listErr
 	}

@@ -20,6 +20,8 @@ var alwaysOnHardeningAdditions = []struct {
 	// Check-in sources add only these reviewed fields to the named wire components.
 	{"#/components/schemas/HeartbeatContextProjectionPayload", []string{"sources"}},
 	{"#/components/schemas/AgentInstancePayload", []string{"sources"}},
+	// #1393: only instances expose whether operator acknowledgement can clear attention.
+	{"#/components/schemas/AgentInstancePayload", []string{"attention_dismissible"}},
 	{"#/components/schemas/AgentInstanceCheckResponse", []string{"sources"}},
 	{"#/components/schemas/AgentInstanceCheckDigest", []string{"source"}},
 	{"#/components/schemas/AgentInstanceProposalSource", []string{"source_id", "source_ref", "item_key", "url"}},
