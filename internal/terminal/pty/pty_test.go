@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -27,7 +28,49 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// TestUnixPTYHardening exercises live terminal lifetime and launch inheritance.
 func TestUnixPTYHardening(t *testing.T) {
+	// Invariant: each Linux terminal mode applies priority before the payload can fork.
+	// Owner/canonical suite: Unix terminal substrate, using real PTY and pipe processes.
+	for _, mode := range []Mode{ModePTY, ModePipe} {
+		t.Run("Should inherit priority at startup in "+string(mode)+" mode", func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS != "linux" {
+				t.Skip("before-exec priority is Linux-specific")
+			}
+			proc := startTestProc(t, ProcSpec{
+				Argv: []string{"sh", "-c", `ps -o ni= -p $$; sh -c 'ps -o ni= -p $$'; read hold`},
+				Mode: mode, Niceness: 19, Cols: 80, Rows: 24,
+			})
+			defer stopTestProc(t, proc)
+			result := make(chan error, 1)
+			go func() {
+				reader := bufio.NewReader(proc.Reader())
+				for range 2 {
+					line, err := reader.ReadString('\n')
+					if err != nil {
+						result <- err
+						return
+					}
+					got, err := strconv.Atoi(strings.TrimSpace(line))
+					if err != nil || got != 19 {
+						result <- fmt.Errorf("startup niceness = %q, error = %v, want 19", line, err)
+						return
+					}
+				}
+				result <- nil
+			}()
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("terminal did not report startup priority")
+			}
+		})
+	}
+
 	t.Run("Should keep a started interactive process alive after startup context cancellation", func(t *testing.T) {
 		t.Parallel()
 

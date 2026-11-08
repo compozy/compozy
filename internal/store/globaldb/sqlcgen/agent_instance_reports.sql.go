@@ -10,6 +10,23 @@ import (
 	"database/sql"
 )
 
+const authorityNoticeSent = `-- name: AuthorityNoticeSent :one
+SELECT COUNT(*) FROM heartbeat_authority_approvals WHERE profile_id = ? AND definition_dir = ? AND notified_sha256 = ?
+`
+
+type AuthorityNoticeSentParams struct {
+	ProfileID      string `json:"profile_id"`
+	DefinitionDir  string `json:"definition_dir"`
+	NotifiedSha256 string `json:"notified_sha256"`
+}
+
+func (q *Queries) AuthorityNoticeSent(ctx context.Context, arg AuthorityNoticeSentParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, authorityNoticeSent, arg.ProfileID, arg.DefinitionDir, arg.NotifiedSha256)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deliverPromptReport = `-- name: DeliverPromptReport :execrows
 UPDATE agent_instance_reports SET state = 'delivered', delivered_at = ?1
 WHERE id = ?2 AND state = 'reserved'
@@ -500,4 +517,18 @@ func (q *Queries) SweepTerminalInstanceReports(ctx context.Context, arg SweepTer
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateInstanceReportPickDecisions = `-- name: UpdateInstanceReportPickDecisions :exec
+UPDATE agent_instance_reports SET payload = ? WHERE id = ?
+`
+
+type UpdateInstanceReportPickDecisionsParams struct {
+	Payload string `json:"payload"`
+	ID      string `json:"id"`
+}
+
+func (q *Queries) UpdateInstanceReportPickDecisions(ctx context.Context, arg UpdateInstanceReportPickDecisionsParams) error {
+	_, err := q.db.ExecContext(ctx, updateInstanceReportPickDecisions, arg.Payload, arg.ID)
+	return err
 }

@@ -5,10 +5,71 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// InstallExtension Install a local or marketplace extension
+func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*InstallExtensionResponse, error) {
+	path := "/api/extensions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out InstallExtensionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
+type InvokeCmdPaletteCommandParams struct {
+	ID                  string  `url:"id"`
+	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
+	Profile             *string `url:"profile"`
+}
+
+// InvokeCmdPaletteCommand Invoke one command palette command
+func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
+	path := "/api/cmd-palette/commands/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteInvokeResult
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeToolParams carries the path, query, and header parameters.
+type InvokeToolParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// InvokeToolFrame preserves each response payload; select its variant using the event name or HTTP status.
+type InvokeToolFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*InvokeToolFrame)(nil)
+
+var _ json.Marshaler = InvokeToolFrame{}
 
 // UnmarshalJSON retains the complete event payload.
 func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
@@ -384,44 +445,4 @@ func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulH
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAgentsParams carries the path, query, and header parameters.
-type ListAgentsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ListAgents List all readable agent definitions, optionally resolved for a workspace
-func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*AgentsResponse, error) {
-	path := "/api/agents"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentsAggregateParams carries the path, query, and header parameters.
-type ListAgentsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Group         *string   `url:"group"`
-	Name          *string   `url:"name"`
-	Q             *string   `url:"q"`
-	Category      *string   `url:"category"`
-	Status        *string   `url:"status"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
 }

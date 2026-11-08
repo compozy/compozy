@@ -4,6 +4,7 @@ package tools
 type ReasonCode string
 
 const (
+	ReasonCheckInNoMainSession ReasonCode = "check_in_no_main_session"
 	// ReasonIDEmpty reports an empty id.
 	ReasonIDEmpty ReasonCode = "id_empty"
 	// ReasonIDEmptySegment reports a missing namespace segment.
@@ -186,9 +187,42 @@ const (
 	ReasonAutonomyLeaseAlreadyHeld ReasonCode = "autonomy_lease_already_held"
 	// ReasonAutonomyWorkspaceCapacity reports a workspace whose active-run capacity is full.
 	ReasonAutonomyWorkspaceCapacity ReasonCode = "autonomy_workspace_capacity"
+	// ReasonCheckInWriteNotAllowed reports check-in write not allowed.
+	ReasonCheckInWriteNotAllowed ReasonCode = "check_in_write_not_allowed"
+
+	// ReasonCheckInToolNotWritable reports check-in tool not writable.
+	ReasonCheckInToolNotWritable ReasonCode = "check_in_tool_not_writable"
+
+	// ReasonCheckInWriteNeedsApproval reports check-in write needs approval.
+	ReasonCheckInWriteNeedsApproval ReasonCode = "check_in_write_needs_approval"
+
+	// ReasonCheckInToolBudgetExhausted reports check-in tool budget exhausted.
+	ReasonCheckInToolBudgetExhausted ReasonCode = "check_in_tool_budget_exhausted"
+
+	// ReasonCheckInAuditUnavailable reports check-in audit unavailable.
+	ReasonCheckInAuditUnavailable ReasonCode = "check_in_audit_unavailable"
+
+	// ReasonCheckInInputInvalid reports check-in input invalid.
+	ReasonCheckInInputInvalid ReasonCode = "check_in_input_invalid"
+
+	// ReasonCheckInHookDenied reports check-in hook denied.
+	ReasonCheckInHookDenied ReasonCode = "check_in_hook_denied"
+
+	// ReasonCheckInPolicyUnavailable reports check-in policy unavailable.
+	ReasonCheckInPolicyUnavailable ReasonCode = "check_in_policy_unavailable"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
+	ReasonCheckInNoMainSession:       {},
+	ReasonCheckInWriteNotAllowed:     {},
+	ReasonCheckInToolNotWritable:     {},
+	ReasonCheckInWriteNeedsApproval:  {},
+	ReasonCheckInToolBudgetExhausted: {},
+	ReasonCheckInAuditUnavailable:    {},
+	ReasonCheckInInputInvalid:        {},
+	ReasonCheckInHookDenied:          {},
+	ReasonCheckInPolicyUnavailable:   {},
+
 	ReasonIDEmpty:                        {},
 	ReasonIDEmptySegment:                 {},
 	ReasonIDInvalidFormat:                {},

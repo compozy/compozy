@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -73,6 +74,16 @@ func advanceInstanceUnattended(
 		sqlcgen.TripInstanceUnattendedPauseParams{ID: id, Now: stamp},
 	)
 	if err != nil || changed == 0 {
+		return nil, err
+	}
+	if err := q.CancelInstanceAutoPicks(
+		ctx,
+		sqlcgen.CancelInstanceAutoPicksParams{
+			CanceledAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
+			UpdatedAt:  store.FormatTimestamp(now),
+			InstanceID: id,
+		},
+	); err != nil {
 		return nil, err
 	}
 	if err := q.CancelInstanceWake(ctx, id); err != nil {

@@ -145,7 +145,7 @@ func transitionPendingInteraction(
 		return store.SessionAttentionCommit{}, err
 	}
 	if normalized.Status == store.PendingInteractionStatusResolved &&
-		(normalized.ResolvedBy == "operator" || strings.HasPrefix(normalized.ResolvedBy, "operator:")) {
+		(normalized.ResolvedBy == pickActorOperator || strings.HasPrefix(normalized.ResolvedBy, "operator:")) {
 		if err := resetLineageUnattended(
 			ctx,
 			sqlcgen.New(exec),

@@ -75,3 +75,13 @@ func canceledStartWaitErr(runCtx context.Context) error {
 	}
 	return cause
 }
+
+// waitSessionStopRun fences cached receipts against a newer startup cleanup owner.
+func (m *Manager) waitSessionStopRun(ctx context.Context, id string, run *sessionStopRun) (StopOutcome, error) {
+	if start := m.sessionStartRun(id); signalClosed(run.done) && start != nil && !start.activationCommitted.Load() {
+		if err := waitForSessionStartRun(ctx, start); err != nil {
+			return StopOutcome{}, err
+		}
+	}
+	return waitSessionStopRun(ctx, run)
+}

@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// ExposeSkill Expose one user- or workspace-owned skill to provider roots
+func (c *Client) ExposeSkill(ctx context.Context, params ExposeSkillParams, body SkillExposureRequest) (*SkillExposeResponse, error) {
+	path := "/api/skills/{name}/expose"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillExposeResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FailAgentTaskRunParams carries the path, query, and header parameters.
+type FailAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
 // FailAgentTaskRun Fail a claimed task run for the calling agent
 func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunParams, body AgentTaskFailRequest) (*AgentTaskLeaseResponse, error) {
 	path := "/api/agent/tasks/{run_id}/fail"
@@ -404,34 +432,6 @@ func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefi
 
 // GetAgentHeartbeatParams carries the path, query, and header parameters.
 type GetAgentHeartbeatParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetAgentHeartbeat Inspect the resolved Heartbeat policy for an agent definition
-func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeatParams) (*HeartbeatPolicyPayload, error) {
-	path := "/api/agents/{name}/heartbeat"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatPolicyPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentHeartbeatSourcesParams carries the path, query, and header parameters.
-type GetAgentHeartbeatSourcesParams struct {
 	Name        string  `url:"name"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`

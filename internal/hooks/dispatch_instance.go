@@ -3,6 +3,10 @@ package hooks
 import "context"
 
 type AgentInstancePayload struct {
+	Actor         string `json:"actor,omitempty"`
+	ActionID      string `json:"action_id,omitempty"`
+	ReportID      string `json:"report_id,omitempty"`
+	ProposalIndex *int   `json:"proposal_index,omitempty"`
 	PayloadBase
 	SessionContext
 	InstanceID    string `json:"instance_id"`
@@ -30,7 +34,7 @@ func instanceHookEventDescriptors() map[HookEvent]EventDescriptor {
 	result := make(map[HookEvent]EventDescriptor)
 	for _, event := range []HookEvent{
 		HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed,
-		HookAgentInstanceArchived, HookAgentInstanceAdopted,
+		HookAgentInstanceArchived, HookAgentInstanceAdopted, HookAgentInstanceProposalPicked,
 	} {
 		result[event] = EventDescriptor{
 			Event:         event,

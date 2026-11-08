@@ -34,7 +34,7 @@ func agentSkillReviewOperations() []OperationSpec {
 		},
 	}
 	for _, decision := range []struct{ path, id string }{
-		{"approve", "approveAgentSkillReview"},
+		{authorityApproveAction, "approveAgentSkillReview"},
 		{"reject", "rejectAgentSkillReview"},
 	} {
 		result = append(

@@ -225,6 +225,10 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"getAgentHeartbeatAuthority",
+			"approveAgentHeartbeatAuthority",
+			"revokeAgentHeartbeatAuthority",
+			"pickAgentInstanceProposal",
 			"approveAgentHeartbeatScript",
 			"revokeAgentHeartbeatScript",
 			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/session"
@@ -53,11 +55,13 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	dispatcher := &session.TriageDispatcher{
 		Manager:      manager,
+		Authority:    provider.Instances(),
 		Reports:      provider.InstanceReports(),
 		MaxProposals: cfg.MaxProposals,
 		StopTimeout:  state.cfg.Session.Supervision.StopGrace,
 	}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
+		AutoAcceptPerDay: cfg.AutoAcceptPerDay, QueueCap: state.cfg.Session.BusyInput.QueueCap,
 		Sources:             hb.Sources,
 		UnattendedTurnLimit: cfg.UnattendedTurnLimit,
 		QuietBackoffCap:     hb.QuietBackoffCap,
@@ -74,6 +78,11 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	if err != nil {
 		return fmt.Errorf("daemon: create proactive checks: %w", err)
 	}
+	bindInstanceReportActions(state, environment, provider)
+
+	service.SetPickHandler(func(ctx context.Context, picks []agentinstance.Pick) error {
+		return state.agentInstances.AfterPicks(ctx, picks[0].InstanceID, picks)
+	})
 	service.SetPauseHandler(state.agentInstances.Service.ApplyPause)
 	if err := service.Recover(ctx); err != nil {
 		return errors.Join(err, service.Shutdown(ctx))
@@ -83,4 +92,62 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	state.agentInstances.CheckSettings = service
 	cleanup.add(service.Shutdown)
 	return nil
+}
+
+func bindInstanceReportActions(
+	state *bootState,
+	environment *instanceCheckEnvironment,
+	provider instanceRepositoryProvider,
+) {
+	state.agentInstances.PickActions = func(ctx context.Context, id string) ([]agentinstance.ActionSnapshot, error) {
+		target, err := environment.ResolveCheck(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		hash, err := heartbeat.AuthorityDigest(
+			target.Policy.Frontmatter.CheckIns,
+			heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
+			target.ReadOnlyTools,
+		)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := filepath.EvalSymlinks(target.DefinitionDir)
+		if err != nil {
+			return nil, err
+		}
+		approved, err := provider.Instances().ApprovedAuthority(ctx, target.Instance.ProfileID, dir)
+		if err != nil {
+			return nil, err
+		}
+		if hash == "" || approved != hash {
+			return nil, nil
+		}
+		actions := make([]agentinstance.ActionSnapshot, 0, len(target.Policy.Frontmatter.Actions))
+		for _, a := range target.Policy.Frontmatter.Actions {
+			actions = append(
+				actions,
+				agentinstance.ActionSnapshot{
+					ID:           a.ID,
+					Title:        a.Title,
+					Instructions: a.Instructions,
+					AutoAccept:   a.AutoAccept,
+				},
+			)
+		}
+		return actions, nil
+	}
+	state.agentInstances.ProjectReport = func(ctx context.Context, id string, report *agentinstance.Report) error {
+		target, err := environment.ResolveCheck(ctx, id)
+		if err != nil || target.DefinitionDir == "" {
+			return provider.InstanceReports().
+				ProjectPicks(ctx, report)
+		}
+		actions, err := state.agentInstances.PickActions(ctx, id)
+		if err != nil {
+			return err
+		}
+		return provider.InstanceReports().
+			ProjectPicks(ctx, report, actions...)
+	}
 }

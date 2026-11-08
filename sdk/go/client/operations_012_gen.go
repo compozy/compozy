@@ -11,6 +11,64 @@ import (
 	"strings"
 )
 
+// GetObserveOverviewParams carries the path, query, and header parameters.
+type GetObserveOverviewParams struct {
+	AllWorkspaces  *bool   `url:"all_workspaces"`
+	ReceiptProfile *string `url:"receipt_profile"`
+	Workspace      *string `url:"workspace"`
+	UsageWindow    *string `url:"usage_window"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
+// GetObserveOverview Get the observer-backed home overview
+func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
+	path := "/api/observe/overview"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.ReceiptProfile != nil {
+		query.Set("receipt_profile", *params.ReceiptProfile)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.UsageWindow != nil {
+		query.Set("usage_window", *params.UsageWindow)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ObserveOverviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetOnboardingStatus Get the first-run onboarding completion status
+func (c *Client) GetOnboardingStatus(ctx context.Context) (*OnboardingStatusResponse, error) {
+	path := "/api/onboarding"
+	var out OnboardingStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetOpenAPIDocumentParams carries the path, query, and header parameters.
+type GetOpenAPIDocumentParams struct {
+	IfNoneMatch    *string `url:"If-None-Match"`
+	AcceptEncoding *string `url:"Accept-Encoding"`
+}
+
 // GetOpenAPIDocument Get the running daemon's OpenAPI document
 func (c *Client) GetOpenAPIDocument(ctx context.Context, params GetOpenAPIDocumentParams) (*json.RawMessage, error) {
 	path := "/api/openapi.json"
@@ -386,42 +444,4 @@ type GetSessionByIDParams struct {
 	IncludeHealth *bool   `url:"include_health"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSessionByID Get one session snapshot by id
-func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams) (*SessionResponse, error) {
-	path := "/api/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionChangeContentsParams carries the path, query, and header parameters.
-type GetSessionChangeContentsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Scope       *string `url:"scope"`
-	Base        *string `url:"base"`
-	Revision    string  `url:"revision"`
-	Path        string  `url:"path"`
-	OldPath     *string `url:"old_path"`
-	Reveal      *bool   `url:"reveal"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -245,7 +245,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 			release()
 		}
 	}()
-	proc, err := m.pty.Start(ctx, spec)
+	proc, err := m.startTerminalProcess(ctx, request.Actor, spec)
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
 	}

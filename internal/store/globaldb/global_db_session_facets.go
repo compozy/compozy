@@ -117,7 +117,7 @@ func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, coun
 	switch badge {
 	case "waiting-for-auth", "waiting-for-input", loopNodeOutputFailed, "needs-attention":
 		facets.NeedsYou += count
-	case "running":
+	case runtimeStatusRunning:
 		facets.Working += count
 	case "done":
 		facets.Finished += count

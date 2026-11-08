@@ -86,6 +86,7 @@ type AgentDiagnosticPayload struct {
 
 // AgentMCPServerJSON is the shared MCP server response payload.
 type AgentMCPServerJSON struct {
+	ReadOnlyTools   []string          `json:"read_only_tools,omitempty"`
 	Reference       bool              `json:"reference,omitzero"`
 	BrokenReference bool              `json:"broken_reference,omitzero"`
 	SecretHeaders   map[string]string `json:"secret_headers,omitempty"`
@@ -280,6 +281,7 @@ type SessionActivityHealthPayload struct {
 
 // AgentMCPServerInput attaches a name reference or an agent-local definition with Vault bindings.
 type AgentMCPServerInput struct {
+	ReadOnlyTools      []string                      `json:"read_only_tools,omitempty"`
 	SecretHeaderValues map[string]string             `json:"secret_header_values,omitempty"`
 	SecretEnvValues    map[string]string             `json:"secret_env_values,omitempty"`
 	Name               string                        `json:"name"`

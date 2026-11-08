@@ -1013,3 +1013,51 @@ func TestInstanceRotationAdmissionGuard(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckInHostedLaunch(t *testing.T) {
+	for _, tc := range []struct {
+		name                                   string
+		disabled, providerOff, launcherMissing bool
+		status                                 string
+		servers                                int
+	}{
+		{name: "Should launch only hosted MCP", status: "enabled", servers: 1},
+		{name: "Should honor kill switch", disabled: true, status: "disabled"},
+		{name: "Should report provider MCP unavailable", providerOff: true, status: "unavailable"},
+		{name: "Should report missing launcher", launcherMissing: true, status: "unavailable"},
+	} {
+		t.Run(tc.name+" [UT-022]", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.checkInToolsDisabled = tc.disabled
+			launcher := &recordingHostedMCPLauncher{
+				server: compozyconfig.MCPServer{
+					Name:    "compozy-hosted-tools",
+					Command: "compozy",
+					Args:    []string{"--bind-nonce", "fixture"},
+				},
+			}
+			if !tc.launcherMissing {
+				h.manager.hostedMCP = launcher
+			}
+			spec := &sessionStartSpec{sessionType: SessionTypeTriage, sessionID: "fixture-triage"}
+			servers, err := h.manager.sessionMCPServers(
+				t.Context(),
+				spec,
+				compozyconfig.ResolvedAgent{
+					Name:       "coder",
+					Provider:   "codex",
+					SessionMCP: !tc.providerOff,
+					MCPServers: []compozyconfig.MCPServer{{Name: "raw", Command: "raw"}},
+				},
+				compozyconfig.AgentDef{},
+			)
+			if err != nil || len(servers) != tc.servers || spec.checkInToolsStatus != tc.status {
+				t.Fatalf("servers=%+v status=%s err=%v", servers, spec.checkInToolsStatus, err)
+			}
+			if tc.servers == 1 && servers[0].Name != "compozy-hosted-tools" {
+				t.Fatal("raw MCP server escaped")
+			}
+		})
+	}
+}

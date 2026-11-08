@@ -29,10 +29,10 @@ func (h *BaseHandlers) CompactSession(c *gin.Context) {
 		return
 	}
 	source := "http"
-	if strings.HasPrefix(c.Request.UserAgent(), "compozy-cli") {
-		source = "cli"
+	if strings.HasPrefix(c.Request.UserAgent(), operatorCLIUserAgent) {
+		source = operatorViaCLI
 	} else if strings.HasPrefix(c.GetHeader("X-Compozy-Client-ID"), "web-") {
-		source = "web"
+		source = operatorViaWeb
 	}
 	result, _, err := manager.RequestCompaction(session.WithCompactionRequestedBy(c.Request.Context(), source), id)
 	if err != nil {

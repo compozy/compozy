@@ -23,7 +23,7 @@ func (g *ObserveRepo) validateEventSummaryOwner(ctx context.Context, summary sto
 	owner, err := g.readQueries.GetTelemetryWriteOwner(ctx, sqlcgen.GetTelemetryWriteOwnerParams{
 		ProfileID: summary.ProfileID, WorkspaceID: summary.WorkspaceID,
 	})
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && owner.State != "active") {
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && owner.State != instanceStateActive) {
 		return errors.New("store: profile_archived")
 	}
 	if err != nil {

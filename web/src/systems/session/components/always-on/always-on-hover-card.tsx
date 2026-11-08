@@ -16,6 +16,7 @@ import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   agentNextWakeLine,
   agentPauseCopy,
+  agentAuthorityCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceCheckInsOptions,
@@ -153,6 +154,9 @@ export function AlwaysOnHoverCardContent({
       <NextWake instance={instance} />
       {paused && held ? (
         <p className="text-small-body text-muted-foreground">{held} for you to resume</p>
+      ) : null}
+      {agentAuthorityCopy(instance) ? (
+        <p className="text-small-body text-warning">{agentAuthorityCopy(instance)}</p>
       ) : null}
       <div className="flex gap-2">
         <Button className="flex-1" onClick={onOpen} size="sm" type="button" variant="secondary">

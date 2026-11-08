@@ -3365,6 +3365,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
 
+		addCheckInToolSchemaFields(baseline)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -4132,6 +4133,17 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "string"},
 			},
 		)
+	}
+	for path, item := range paths {
+		if !strings.HasSuffix(path, "/heartbeat") {
+			continue
+		}
+		put, ok := item.(map[string]any)["put"].(map[string]any)
+		if !ok {
+			continue
+		}
+		body := put["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		body["properties"].(map[string]any)["approve_authority_sha256"] = map[string]any{"type": "string"}
 	}
 	addAlwaysOnAdditiveSchemas(baseline)
 }
@@ -5747,7 +5759,7 @@ func addAlwaysOnAdditiveSchemas(value any) {
 					values = insertReasonCode(values, event)
 				}
 			}
-			node["enum"] = values
+			node["enum"] = append(values, "agent.instance.proposal.picked")
 		}
 		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
 			node["enum"] = insertReasonCode(values, "held_permission")
@@ -5767,6 +5779,89 @@ func addAlwaysOnAdditiveSchemas(value any) {
 			)
 		}
 	}
+}
+
+func addCheckInToolSchemaFields(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+		addCheckInToolSchemaProperties(node)
+	}
+}
+
+func addCheckInToolSchemaProperties(node map[string]any) {
+	props, ok := node["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	if props["name"] != nil && props["transport"] != nil && props["command"] != nil && props["auth"] != nil {
+		props["read_only_tools"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	}
+	if props["tool_id"] != nil && props["input_schema_digest"] != nil && props["risk"] != nil &&
+		props["access"] == nil {
+		props["access"] = map[string]any{"type": "string"}
+		props["check_in_writable"] = map[string]any{"type": "boolean"}
+		required := append(node["required"].([]any), "access", "check_in_writable")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	if props["checks_enabled"] != nil && props["main_session_id"] != nil && props["pause_reason"] != nil &&
+		props["authority_status"] == nil {
+		props["authority_status"] = map[string]any{"type": "string"}
+		required := append(node["required"].([]any), "authority_status")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	policy := props["frontmatter"] != nil && props["config_provenance"] != nil && props["prompt"] != nil
+	frontmatter := props["version"] != nil && props["context"] != nil && props["preferences"] != nil
+	if (!policy && !frontmatter) || props["actions"] != nil {
+		return
+	}
+	actions := map[string]any{
+		"type": "array", "items": map[string]any{
+			"type": "object", "properties": map[string]any{
+				"auto_accept":  map[string]any{"type": "boolean"},
+				"id":           map[string]any{"type": "string"},
+				"instructions": map[string]any{"type": "string"},
+				"title":        map[string]any{"type": "string"},
+			}, "required": []any{"auto_accept", "id", "instructions", "title"},
+		},
+	}
+	checkIns := map[string]any{
+		"type": "object", "properties": map[string]any{
+			"allow_writes":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"max_tool_calls":  map[string]any{"type": "integer", "nullable": true},
+			"max_write_calls": map[string]any{"type": "integer", "nullable": true},
+		},
+	}
+	props["actions"] = actions
+	required := append(node["required"].([]any), "actions")
+	if frontmatter {
+		props["check_ins"] = checkIns
+		required = append(required, "check_ins")
+	} else {
+		props["authority"] = map[string]any{
+			"type": "object", "properties": map[string]any{
+				"actions": actions, "check_ins": checkIns,
+				"digest": map[string]any{"type": "string"},
+				"status": map[string]any{"type": "string"},
+				"read_only_tools": map[string]any{
+					"type": "object", "additionalProperties": map[string]any{
+						"type": "array", "items": map[string]any{"type": "string"},
+					},
+				},
+			}, "required": []any{"actions", "check_ins", "digest", "status"},
+		}
+		required = append(required, "authority")
+	}
+	slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+	node["required"] = required
 }
 
 func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {

@@ -1621,3 +1621,51 @@ func baseContext(t *testing.T) context.Context {
 	t.Helper()
 	return testutil.Context(t)
 }
+
+func TestHeartbeatAuthorityApproval(t *testing.T) {
+	t.Run("Should bind standing consent to the exact digest and deduplicate notices [IT-005]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+		profile, dir := store.DefaultProfileID, t.TempDir()
+		approved, err := repo.ApprovedAuthority(t.Context(), profile, dir)
+		if err != nil || approved != "" {
+			t.Fatalf("initial=%s err=%v", approved, err)
+		}
+		first, err := repo.MarkAuthorityNotice(t.Context(), profile, dir, "sha256:a")
+		if err != nil || !first {
+			t.Fatalf("first=%v err=%v", first, err)
+		}
+		repeated, err := repo.MarkAuthorityNotice(t.Context(), profile, dir, "sha256:a")
+		if err != nil || repeated {
+			t.Fatalf("repeated=%v err=%v", repeated, err)
+		}
+		approved, err = repo.ApprovedAuthority(t.Context(), profile, dir)
+		if err != nil || approved != "" {
+			t.Fatalf("notice granted consent=%s err=%v", approved, err)
+		}
+		if err := repo.ApproveAuthority(t.Context(), profile, dir, "sha256:a", "cli", now); err != nil {
+			t.Fatal(err)
+		}
+		approved, err = repo.ApprovedAuthority(t.Context(), profile, dir)
+		if err != nil || approved != "sha256:a" {
+			t.Fatalf("approved=%s err=%v", approved, err)
+		}
+		changed, err := repo.MarkAuthorityNotice(t.Context(), profile, dir, "sha256:b")
+		if err != nil || !changed {
+			t.Fatalf("changed=%v err=%v", changed, err)
+		}
+		approved, err = repo.ApprovedAuthority(t.Context(), profile, dir)
+		if err != nil || approved == "sha256:b" {
+			t.Fatalf("changed block approved=%s err=%v", approved, err)
+		}
+		if err := repo.RevokeAuthority(t.Context(), profile, dir); err != nil {
+			t.Fatal(err)
+		}
+		approved, err = repo.ApprovedAuthority(t.Context(), profile, dir)
+		if err != nil || approved != "" {
+			t.Fatalf("revoked=%s err=%v", approved, err)
+		}
+	})
+}

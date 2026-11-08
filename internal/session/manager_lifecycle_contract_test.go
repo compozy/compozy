@@ -1046,6 +1046,40 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: a previous verified stop cannot prove that a later start owner
+	// has released its resources. Owner: Manager Stop; canonical shared operation suite.
+	t.Run("Should fence a cached stop receipt behind current startup cleanup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		start, err := h.manager.newSessionStartRun(h.manager.lifecycleCtx, active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer h.manager.finishSessionStartRun(active.ID, start, nil)
+		if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		waitCtx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		outcome, err := h.manager.AwaitStopped(waitCtx, active.ID)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) || outcome.Verified {
+			t.Fatalf("cached receipt escaped pending cleanup: %+v, %v", outcome, err)
+		}
+		waitCtx, cancel = context.WithTimeout(t.Context(), 20*time.Millisecond)
+		err = h.manager.Stop(waitCtx, active.ID)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("blocking Stop escaped pending cleanup: %v", err)
+		}
+	})
+
 	// Invariant: a durably activated session uses normal stop finalization even
 	// while its post-create hook is pending. Owner/canonical suite: shared Manager Stop.
 	for _, tc := range []struct {
@@ -1096,14 +1130,26 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
 				t.Fatal(err)
 			}
-			unblock()
-			if err := <-created; err != nil {
-				t.Fatalf("successful activation: %v", err)
-			}
 			outcome, err := h.manager.AwaitStopped(testutil.Context(t), active.ID)
 			if err != nil || !outcome.Verified || outcome.FinalState != StateStopped ||
 				outcome.Cause != CauseUserRequested {
 				t.Fatalf("stop during successful activation = %+v, %v", outcome, err)
+			}
+			unblock()
+			if err := <-created; err != nil {
+				t.Fatalf("successful activation: %v", err)
+			}
+			h.notifier.mu.Lock()
+			order := append([]string(nil), h.notifier.order...)
+			h.notifier.mu.Unlock()
+			stopped := false
+			for _, event := range order {
+				if event == "stopped:"+active.ID {
+					stopped = true
+				}
+				if stopped && event == "created:"+active.ID {
+					t.Fatalf("creation followed terminal notification: %v", order)
+				}
 			}
 			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 || postStops.Load() != 1 ||
 				h.notifier.stoppedCount() != 1 {

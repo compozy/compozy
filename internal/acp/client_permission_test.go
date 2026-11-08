@@ -545,3 +545,41 @@ func TestPermissionRuleDecisions(t *testing.T) {
 		},
 	)
 }
+
+func TestCheckInHostedPermission(t *testing.T) {
+	t.Run("Should allow structured hosted calls and reject title spoofing [UT-020]", func(t *testing.T) {
+		t.Parallel()
+		for _, hosted := range []bool{false, true} {
+			p := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			p.executionPolicy = ExecutionPolicyTriage
+			p.hostedIdentity = hostedToolIdentity{launched: true, codex: true}
+			raw := map[string]any{"server": "other", "tool": "compozy__notify", "arguments": map[string]any{}}
+			if hosted {
+				raw["server"] = "compozy-hosted-tools"
+			}
+			request := acpsdk.RequestPermissionRequest{
+				ToolCall: acpsdk.ToolCallUpdate{
+					ToolCallId: "check-in-call",
+					Title:      new("mcp.compozy-hosted-tools.compozy__notify"),
+					Kind:       new(acpsdk.ToolKindExecute),
+					RawInput:   raw,
+				},
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+			}
+			response, err := p.triagePermission(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "reject"
+			if hosted {
+				want = "allow"
+			}
+			if response.Outcome.Selected == nil || string(response.Outcome.Selected.OptionId) != want {
+				t.Fatalf("hosted=%v outcome=%+v", hosted, response.Outcome)
+			}
+		}
+	})
+}

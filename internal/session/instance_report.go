@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -15,12 +16,15 @@ import (
 )
 
 type InstanceReportEvent struct {
-	Republished bool           `json:"-"`
-	ID          string         `json:"report_id"`
-	InstanceID  string         `json:"instance_id"`
-	Kind        string         `json:"kind"`
-	Payload     jsontext.Value `json:"payload"`
-	CreatedAt   time.Time      `json:"created_at"`
+	NotificationPayload jsontext.Value `json:"-"`
+	WritesDone          int64          `json:"-"`
+	WritesMaybe         int64          `json:"-"`
+	Republished         bool           `json:"-"`
+	ID                  string         `json:"report_id"`
+	InstanceID          string         `json:"instance_id"`
+	Kind                string         `json:"kind"`
+	Payload             jsontext.Value `json:"payload"`
+	CreatedAt           time.Time      `json:"created_at"`
 }
 
 func (m *Manager) PublishInstanceReport(
@@ -92,6 +96,42 @@ func (m *Manager) PublishInstanceReport(
 }
 
 func instanceReportNotification(report InstanceReportEvent) (string, string, error) {
+	if len(report.NotificationPayload) > 0 {
+		report.Payload = report.NotificationPayload
+	}
+	if report.Kind == "proposal" {
+		var payload struct {
+			Proposals []jsontext.Value `json:"proposals"`
+			Picks     []struct {
+				Actor string `json:"actor"`
+			} `json:"picks"`
+		}
+		if err := json.Unmarshal(report.Payload, &payload); err != nil {
+			return "", "", err
+		}
+		if len(payload.Proposals) > 0 && len(payload.Proposals) == len(payload.Picks) {
+			all := true
+			for _, pick := range payload.Picks {
+				all = all && pick.Actor == "auto_accept"
+			}
+			if all {
+				return "Your agent acted on a check-in", "Review the check-in report.", nil
+			}
+		}
+	}
+	if report.Kind == "activity" {
+		title := fmt.Sprintf("Your agent made %d changes", report.WritesDone)
+		switch report.WritesDone {
+		case 1:
+			title = "Your agent made 1 change"
+		case 0:
+			title = "Your agent may have changed something"
+		}
+		return title, fmt.Sprintf(
+			"%d calls may have changed something. Review the check-in report.",
+			report.WritesMaybe,
+		), nil
+	}
 	if report.Kind == "proposal" {
 		return "New agent proposal", "Review the proposed work in the agent thread.", nil
 	}

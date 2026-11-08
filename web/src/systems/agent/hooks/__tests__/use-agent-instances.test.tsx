@@ -8,7 +8,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 
-import { fetchAgentInstanceCheckIns } from "../../adapters/agent-instance-api";
+import {
+  fetchAgentInstanceCheckIns,
+  fetchAgentInstanceProjectedReports,
+} from "../../adapters/agent-instance-api";
 import { useTryCheck } from "../use-agent-instance-checks";
 import { agentKeys } from "../../lib/query-keys";
 import { agentPayloadFixture, teamItemFixture } from "../../mocks/team-fixtures";
@@ -323,4 +326,37 @@ describe("fetchAgentInstanceCheckIns", () => {
     expect(result.check_ins).toHaveLength(250);
     expect(result.check_ins[249]?.id).toBe("c249");
   });
+});
+
+describe("fetchAgentInstanceProjectedReports", () => {
+  it.each(["complete", "cap", "failure"])(
+    "Should preserve cursor order and stop on %s",
+    async mode => {
+      const cursors: string[] = [];
+      server.use(
+        http.get("*/api/agent-instances/:id/reports", ({ request }) => {
+          const cursor = new URL(request.url).searchParams.get("cursor") ?? "0";
+          cursors.push(cursor);
+          const page = Number(cursor);
+          if (mode === "failure" && page === 1) return new HttpResponse(null, { status: 500 });
+          return HttpResponse.json({
+            reports: [{ id: `report-${page}` }],
+            next_cursor: mode === "complete" && page === 2 ? "" : String(page + 1),
+          });
+        })
+      );
+      const read = fetchAgentInstanceProjectedReports({ id: "a", profile_name: "default" });
+      if (mode === "failure") {
+        await expect(read).rejects.toThrow();
+        expect(cursors).toEqual(["0", "1"]);
+      } else {
+        const reports = await read;
+        const count = mode === "cap" ? 10 : 3;
+        expect(cursors).toEqual(Array.from({ length: count }, (_, index) => String(index)));
+        expect(reports.map(report => report.id)).toEqual(
+          Array.from({ length: count }, (_, index) => `report-${index}`)
+        );
+      }
+    }
+  );
 });

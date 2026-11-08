@@ -140,12 +140,7 @@ func (m *Manager) sessionInfoForRead(session *Session) *Info {
 		return nil
 	}
 	info := session.Info()
-	if info != nil {
-		if run := m.sessionStartRun(info.ID); run != nil &&
-			(info.State == StateActive || (info.State == StateStopped && !run.activationCommitted.Load())) {
-			info.State = StateStarting
-		}
-	}
+	m.projectPendingSessionStart(info)
 	return info
 }
 
@@ -158,5 +153,34 @@ func waitForSessionStartRun(ctx context.Context, run *sessionStartRun) error {
 		return run.err
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+// projectPendingSessionStart keeps status and catalog filtering on the same owner snapshot.
+func (m *Manager) projectPendingSessionStart(info *Info) {
+	if info == nil {
+		return
+	}
+	if run := m.sessionStartRun(info.ID); run != nil &&
+		(info.State == StateActive || (info.State == StateStopped && !run.activationCommitted.Load())) {
+		info.State = StateStarting
+	}
+}
+
+// notifyActivatedSession orders creation against terminal notification, including
+// a Stop that finishes while post-activation hooks are still running.
+func (m *Manager) notifyActivatedSession(ctx context.Context, session *Session) {
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
+	if m.notifier != nil && session.Info().State == StateActive {
+		m.notifier.OnSessionCreated(ctx, session)
+	}
+}
+
+func (m *Manager) notifyStoppedSession(ctx context.Context, session *Session) {
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
+	if m.notifier != nil {
+		m.notifier.OnSessionStopped(ctx, session)
 	}
 }

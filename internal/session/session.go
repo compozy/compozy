@@ -138,7 +138,9 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	checkInToolsStatus           string
 	interactionLifecycleMu       sync.Mutex
+	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
 	hostedMCPRequiresReload      bool
 	hostedMCPDigest              string
 	directMCPDigest              string

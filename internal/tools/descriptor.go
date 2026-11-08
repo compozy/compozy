@@ -37,22 +37,24 @@ type Descriptor struct {
 	Backend BackendRef `json:"backend"`
 	*ToolPresentation
 	*ToolExecutionMetadata
-	Description         string          `json:"description"`
-	InputSchema         json.RawMessage `json:"input_schema"`
-	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest   string          `json:"input_schema_digest"`
-	OutputSchemaDigest  string          `json:"output_schema_digest,omitempty"`
-	Source              SourceRef       `json:"source"`
-	Visibility          Visibility      `json:"visibility"`
-	Risk                RiskClass       `json:"risk"`
-	ReadOnly            bool            `json:"read_only"`
-	Destructive         bool            `json:"destructive"`
-	OpenWorld           bool            `json:"open_world"`
-	RequiresInteraction bool            `json:"requires_interaction"`
-	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
-	Tags                []string        `json:"tags,omitempty"`
-	SearchHints         []string        `json:"search_hints,omitempty"`
+	Description                 string          `json:"description"`
+	InputSchema                 json.RawMessage `json:"input_schema"`
+	OutputSchema                json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest           string          `json:"input_schema_digest"`
+	OutputSchemaDigest          string          `json:"output_schema_digest,omitempty"`
+	Source                      SourceRef       `json:"source"`
+	Visibility                  Visibility      `json:"visibility"`
+	Risk                        RiskClass       `json:"risk"`
+	mcpReadOnlyOverride         bool
+	mcpReadOnlyOperatorOverride bool
+	ReadOnly                    bool        `json:"read_only"`
+	Destructive                 bool        `json:"destructive"`
+	OpenWorld                   bool        `json:"open_world"`
+	RequiresInteraction         bool        `json:"requires_interaction"`
+	ConcurrencySafe             bool        `json:"concurrency_safe"`
+	Toolsets                    []ToolsetID `json:"toolsets,omitempty"`
+	Tags                        []string    `json:"tags,omitempty"`
+	SearchHints                 []string    `json:"search_hints,omitempty"`
 }
 
 // Descriptor converts a cold resource into the runtime descriptor shape.
@@ -163,4 +165,13 @@ func (d Descriptor) Validate() error {
 // Validate ensures the cold resource can normalize into a descriptor.
 func (t Tool) Validate() error {
 	return t.Descriptor().Validate()
+}
+
+func (d Descriptor) MarshalJSON() ([]byte, error) {
+	type descriptorJSON Descriptor
+	return json.Marshal(struct {
+		descriptorJSON
+		Access          Access `json:"access"`
+		CheckInWritable bool   `json:"check_in_writable"`
+	}{descriptorJSON(d), AccessOf(d), d.CheckInWritable()})
 }

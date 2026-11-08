@@ -374,7 +374,8 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		mcpSource.Scope = source.Scope
 	}
 
-	readOnly := desc.ReadOnly
+	// destructiveHint wins over readOnlyHint: the tool is a write and must index as one.
+	readOnly := desc.ReadOnly && !desc.Destructive
 	risk := RiskOpenWorld
 	openWorld := true
 	if readOnly {
@@ -393,16 +394,18 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 			strings.TrimSpace(desc.FriendlyVerb),
 			strings.TrimSpace(desc.Preview),
 		),
-		Description:     strings.TrimSpace(desc.Description),
-		InputSchema:     cloneRawMessage(desc.InputSchema),
-		OutputSchema:    cloneRawMessage(desc.OutputSchema),
-		Source:          mcpSource,
-		Visibility:      VisibilityModel,
-		Risk:            risk,
-		ReadOnly:        readOnly,
-		Destructive:     false,
-		OpenWorld:       openWorld,
-		ConcurrencySafe: readOnly,
+		Description:                 strings.TrimSpace(desc.Description),
+		InputSchema:                 cloneRawMessage(desc.InputSchema),
+		OutputSchema:                cloneRawMessage(desc.OutputSchema),
+		Source:                      mcpSource,
+		Visibility:                  VisibilityModel,
+		Risk:                        risk,
+		ReadOnly:                    readOnly,
+		Destructive:                 desc.Destructive,
+		OpenWorld:                   openWorld,
+		ConcurrencySafe:             readOnly,
+		mcpReadOnlyOverride:         desc.ReadOnlyOverride,
+		mcpReadOnlyOperatorOverride: desc.ReadOnlyOverrideOrigin == MCPReadOnlyOverrideOperatorConfig,
 	}
 	return DescriptorWithSchemaDigests(descriptor)
 }
@@ -482,4 +485,14 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func applyMCPReadAuthority(d *Descriptor, overrides map[string]bool) {
+	approved := overrides[string(d.ID)]
+	if !d.mcpReadOnlyOverride || (!d.mcpReadOnlyOperatorOverride && !approved) ||
+		d.Backend.Kind != BackendMCP ||
+		d.Destructive {
+		return
+	}
+	d.ReadOnly, d.ConcurrencySafe, d.OpenWorld, d.Risk = true, true, false, RiskRead
 }

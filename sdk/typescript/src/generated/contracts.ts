@@ -192,7 +192,8 @@ export type HookEvent =
   | "terminal.recording_started"
   | "terminal.recording_stopped"
   | "terminal.subscriber_evicted"
-  | "terminal.limit_rejected";
+  | "terminal.limit_rejected"
+  | "agent.instance.proposal.picked";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -255,6 +256,7 @@ export interface AgentHeartbeatPolicyResolvedPayload {
 }
 
 export interface AgentHeartbeatPutParams {
+  approve_authority_sha256?: string;
   workspace_id?: string;
   agent_name: string;
   body: string;
@@ -361,6 +363,10 @@ export interface AgentHeartbeatWakePatch {
 export type AgentInstanceObservationPatch = Record<string, never>;
 
 export interface AgentInstancePayload {
+  actor?: string;
+  action_id?: string;
+  report_id?: string;
+  proposal_index?: number;
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -1965,6 +1971,27 @@ export interface HeartbeatHistoryResponse {
   next_cursor?: string;
 }
 
+export interface ActionDecl {
+  id: string;
+  title: string;
+  instructions: string;
+  auto_accept: boolean;
+}
+
+export interface CheckInsPolicy {
+  allow_writes?: string[];
+  max_tool_calls?: number;
+  max_write_calls?: number;
+}
+
+export interface HeartbeatAuthorityPayload {
+  read_only_tools?: Record<string, string[]>;
+  actions: ActionDecl[];
+  digest: string;
+  status: string;
+  check_ins: CheckInsPolicy;
+}
+
 export interface HeartbeatTimeWindowPayload {
   timezone: string;
   start: string;
@@ -1990,6 +2017,8 @@ export interface HeartbeatContextProjectionPayload {
 }
 
 export interface HeartbeatFrontmatterPayload {
+  actions: ActionDecl[];
+  check_ins: CheckInsPolicy;
   version: number;
   enabled: boolean;
   summary?: string;
@@ -2040,6 +2069,8 @@ export interface HeartbeatPromptContributionPayload {
 }
 
 export interface HeartbeatPolicyPayload {
+  actions: ActionDecl[];
+  authority: HeartbeatAuthorityPayload;
   agent_name?: string;
   enabled: boolean;
   present: boolean;
@@ -2068,6 +2099,7 @@ export interface HeartbeatMutationResponse {
 }
 
 export interface HeartbeatPutRequest {
+  approve_authority_sha256?: string;
   workspace_id?: string;
   agent_name: string;
   body: string;
@@ -6827,6 +6859,7 @@ export interface HookPayloadByEvent {
   "terminal.recording_stopped": TerminalRecordingStoppedPayload;
   "terminal.subscriber_evicted": TerminalSubscriberEvictedPayload;
   "terminal.limit_rejected": TerminalLimitRejectedPayload;
+  "agent.instance.proposal.picked": AgentInstancePayload;
 }
 
 export interface HookPatchByEvent {
@@ -6935,6 +6968,7 @@ export interface HookPatchByEvent {
   "terminal.recording_stopped": TerminalObservationPatch;
   "terminal.subscriber_evicted": TerminalObservationPatch;
   "terminal.limit_rejected": TerminalObservationPatch;
+  "agent.instance.proposal.picked": AgentInstanceObservationPatch;
 }
 
 export interface HostAPIMethodMap {

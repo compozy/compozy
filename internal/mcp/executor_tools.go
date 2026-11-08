@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -15,9 +15,10 @@ const maxMCPToolListPages = 1_000
 
 func (e *CallExecutor) descriptorsFromTools(
 	source toolspkg.SourceRef,
-	server compozyconfig.MCPServer,
+	resolved ResolvedServer,
 	tools []*mcpsdk.Tool,
 ) ([]toolspkg.MCPToolDescriptor, error) {
+	server := resolved.Server
 	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
 	for _, tool := range tools {
 		if tool == nil {
@@ -29,7 +30,23 @@ func (e *CallExecutor) descriptorsFromTools(
 		if err != nil {
 			return nil, fmt.Errorf("mcp: normalize tool %q: %w", tool.Name, err)
 		}
+		if descriptor.ReadOnlyOverride &&
+			resolved.overrideOrigin() == toolspkg.MCPReadOnlyOverrideOperatorConfig {
+			descriptor.ReadOnlyOverrideOrigin = resolved.overrideOrigin()
+		}
 		descriptors = append(descriptors, descriptor)
+	}
+	for _, name := range server.ReadOnlyTools {
+		found := false
+		for _, tool := range tools {
+			if tool != nil && tool.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			slog.Warn("mcp_read_only_override_unknown_tool", "server", server.Name, "tool", name)
+		}
 	}
 	return descriptors, nil
 }

@@ -152,6 +152,19 @@ launch gate and report the vanished session without another lookup or writes.
 For successful logical and ACP activation, block the post-create hook and request
 Stop. Releasing the hook must leave a verified stopped session with one terminal
 event, one post-stop hook and one notification; it must not remain stopping.
+Complete Stop before releasing that hook, then release it: creation must never be
+published after the terminal notification. While a public retained start's final
+recorder Close is blocked, Status and paginated catalog filters must both report
+Starting. An earlier verified Stop receipt cannot let AwaitStopped or blocking
+Stop return before the current start owner finishes. Hold the launch gate while
+final recorder cleanup completes: retained finalization must stay pending behind
+that gate and observe any Stop that committed ahead of it. Check post-record
+callbacks separately for diagnostic, terminal and marker events, exactly once each.
+Repeat activation-persistence failure through the asynchronous accepted-start path
+with a process that refuses Stop; resources remain owned until exit is verified.
+If shutdown loses a session to concurrent deletion, it still joins the captured
+start run within its context; a completed discarded startup error is not a new
+shutdown failure.
 If session-manager shutdown is incomplete, a competing foreground daemon must
 still fail to acquire the singleton lock, and the old cleanup must retain access
 to its shared database. Complete cleanup and retry Shutdown: only then may the

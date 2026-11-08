@@ -58,9 +58,10 @@ func validateResourceSpec(
 		return ResourceSpec{}, fmt.Errorf("%w: body is required", resources.ErrValidation)
 	}
 	if _, err := Parse(ctx, ParseRequest{
-		SourcePath: next.SourcePath,
-		Content:    []byte(next.Body),
-		Config:     compozyconfig.DefaultHeartbeatConfig(),
+		CheckInLimits: &CheckInLimits{MaxToolCalls: 100, MaxWriteCalls: 50},
+		SourcePath:    next.SourcePath,
+		Content:       []byte(next.Body),
+		Config:        compozyconfig.DefaultHeartbeatConfig(),
 	}); err != nil {
 		return ResourceSpec{}, errors.Join(resources.ErrValidation, err)
 	}

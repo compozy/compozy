@@ -364,6 +364,32 @@ func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body Pau
 	return &out, nil
 }
 
+// PickAgentInstanceProposalParams carries the path, query, and header parameters.
+type PickAgentInstanceProposalParams struct {
+	ID       string  `url:"id"`
+	ReportID string  `url:"report_id"`
+	Profile  *string `url:"profile"`
+}
+
+// PickAgentInstanceProposal Pick an instance proposal
+func (c *Client) PickAgentInstanceProposal(ctx context.Context, params PickAgentInstanceProposalParams, body AgentInstancePickRequest) (*AgentInstancePickResponse, error) {
+	path := "/api/agent-instances/{id}/reports/{report_id}/pick"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{report_id}", url.PathEscape(params.ReportID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstancePickResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PinCmdPaletteCommandParams carries the path, query, and header parameters.
 type PinCmdPaletteCommandParams struct {
 	ID        string  `url:"id"`
@@ -416,28 +442,6 @@ func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfile
 	path := "/api/profiles/{name}/delete-plan"
 	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	var out DeleteProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileRenameParams carries the path, query, and header parameters.
-type PrepareProfileRenameParams struct {
-	Name    string `url:"name"`
-	NewName string `url:"new_name"`
-}
-
-// PrepareProfileRename Preview a profile rename
-func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
-	path := "/api/profiles/{name}/rename-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("new_name", params.NewName)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RenameProfilePlan
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

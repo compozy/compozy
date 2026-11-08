@@ -159,6 +159,11 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	}
 
 	accepted.spec.cleanupSessionDir = false
+	verified, processErr := m.stopFailedStartProcess(accepted)
+	if !verified {
+		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, processErr))
+	}
+	startErr = errors.Join(startErr, processErr)
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
@@ -310,7 +315,13 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 				accepted.recorderClosing = false
 			}
 			if accepted.retainedFailure != nil && accepted.retainedFailure.committed {
+				releaseCommit, err := acquireSessionStartLaunchCommit(ctx, accepted.run)
+				if err != nil {
+					result = err
+					continue
+				}
 				m.finishRetainedSessionStart(ctx, accepted)
+				releaseCommit()
 				result = errors.Join(failure, result, accepted.retainedFailure.diagnosticErr)
 				break
 			}
@@ -404,10 +415,13 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 func (m *Manager) finishRetainedSessionStart(ctx context.Context, accepted *acceptedSessionStart) {
 	m.removeActive(accepted.session.ID)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, accepted.session.Info()))
+	if accepted.persistFailure {
+		m.notifyFailedStart(ctx, accepted.session)
+	}
 	if accepted.session.stopWasRequested() || (accepted.run != nil && accepted.run.stopJoined.Load()) {
 		m.dispatchSessionPostStop(ctx, accepted.session)
-		if m.notifier != nil {
-			m.notifier.OnSessionStopped(ctx, accepted.session)
+		if !accepted.persistFailure {
+			m.notifyStoppedSession(ctx, accepted.session)
 		}
 	}
 	if m.hostedMCP != nil {

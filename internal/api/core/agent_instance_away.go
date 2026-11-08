@@ -60,6 +60,11 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 			return response, err
 		}
 		for _, report := range reports {
+			if api.ProjectReport != nil {
+				if err := api.ProjectReport(ctx, id, &report); err != nil {
+					return response, err
+				}
+			}
 			if seen != nil && !report.CreatedAt.After(*seen) {
 				continue
 			}
@@ -108,6 +113,25 @@ func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if occurrence := c.Query("occurrence"); occurrence != "" {
+		reader, ok := h.AgentInstances.Store.(agentinstance.CheckInToolReader)
+		if !ok {
+			h.respondError(c, 503, errors.New("check-in tool storage unavailable"))
+			return
+		}
+		row, err := reader.CheckInOccurrence(c.Request.Context(), instance.ID, occurrence)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		c.JSON(
+			200,
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{checkInPayload(row)},
+			},
+		)
+		return
+	}
 	limit := 50
 	if raw := c.Query("limit"); raw != "" {
 		value, err := strconv.Atoi(raw)
@@ -150,16 +174,21 @@ func (api *AgentInstanceAPI) CheckIns(
 		response.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
-		response.CheckIns = append(
-			response.CheckIns,
-			contract.AgentInstanceCheckInPayload{
-				ID:        row.ID,
-				Result:    row.Result,
-				Reason:    row.Reason,
-				Detail:    row.Detail,
-				CreatedAt: row.CreatedAt,
-			},
-		)
+		response.CheckIns = append(response.CheckIns, checkInPayload(row))
 	}
 	return response, nil
+}
+
+func checkInPayload(row agentinstance.CheckIn) contract.AgentInstanceCheckInPayload {
+	return contract.AgentInstanceCheckInPayload{
+		ID:           row.ID,
+		OccurrenceID: row.OccurrenceID,
+		ToolsStatus:  row.ToolsStatus,
+		ToolCalls:    row.ToolCalls,
+		Proposals:    row.Proposals,
+		Result:       row.Result,
+		Reason:       row.Reason,
+		Detail:       row.Detail,
+		CreatedAt:    row.CreatedAt,
+	}
 }

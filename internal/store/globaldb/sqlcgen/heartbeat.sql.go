@@ -181,7 +181,7 @@ func (q *Queries) GetHeartbeatSnapshotByDigest(ctx context.Context, arg GetHeart
 
 const getHeartbeatWakeEvent = `-- name: GetHeartbeatWakeEvent :one
 SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
-       detail, denied_calls, occurrence_id, instance_id, synthetic_prompt_id, created_at, expires_at
+       detail, denied_calls, occurrence_id, tools_status, instance_id, synthetic_prompt_id, created_at, expires_at
 FROM agent_heartbeat_wake_events WHERE id = ?1
 `
 
@@ -200,6 +200,7 @@ func (q *Queries) GetHeartbeatWakeEvent(ctx context.Context, id string) (AgentHe
 		&i.Detail,
 		&i.DeniedCalls,
 		&i.OccurrenceID,
+		&i.ToolsStatus,
 		&i.InstanceID,
 		&i.SyntheticPromptID,
 		&i.CreatedAt,

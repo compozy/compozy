@@ -236,7 +236,7 @@ func (e *CallExecutor) toolCacheKey(
 	}
 	authBinding := sha256.Sum256([]byte(authorizationHeader))
 	key := targetKey + "\x00" +
-		fingerprint + "\x00" +
+		fingerprint + "\x00" + string(resolved.overrideOrigin()) + "\x00" +
 		protocolVersion + "\x00" +
 		hex.EncodeToString(authBinding[:])
 	return key, nil

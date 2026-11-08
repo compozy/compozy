@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// ApproveLoopRunParams carries the path, query, and header parameters.
+type ApproveLoopRunParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ApproveLoopRun Approve one Loop gate
+func (c *Client) ApproveLoopRun(ctx context.Context, params ApproveLoopRunParams, body ApproveLoopRunRequest) (*map[string]bool, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out map[string]bool
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ApproveSessionParams carries the path, query, and header parameters.
 type ApproveSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -418,32 +444,5 @@ type CancelLoopNodeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
 	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
-}
-
-// CancelLoopNode Cancel one Loop node
-func (c *Client) CancelLoopNode(ctx context.Context, params CancelLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelLoopRunParams carries the path, query, and header parameters.
-type CancelLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
 	Profile     *string `url:"profile"`
 }

@@ -101,9 +101,7 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	case hookspkg.HookSessionPostResume:
 		m.dispatchSessionPostResume(ctx, accepted.session)
 	}
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, accepted.session)
-	}
+	m.notifyActivatedSession(ctx, accepted.session)
 	if _, err := m.persistSessionPresence(ctx, accepted.session, m.now()); err != nil {
 		m.sessionLogger(accepted.session).Warn(
 			"session: persist logical session presence failed",

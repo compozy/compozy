@@ -2,6 +2,7 @@ package subprocess
 
 import (
 	"log/slog"
+	"os/exec"
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -14,9 +15,22 @@ var nicenessFailureWarned atomic.Bool
 // setProcessGroupNiceness is replaceable by tests that exercise the failure path.
 var setProcessGroupNiceness = procutil.SetProcessGroupNiceness
 
+// StartWithLaunchNiceness applies Linux priority before exec, without changing executable identity.
+func StartWithLaunchNiceness(logger *slog.Logger, niceness int, cmd *exec.Cmd, start func() error) error {
+	priorityErr, startErr := procutil.StartWithNiceness(niceness, start)
+	if priorityErr != nil {
+		pid := 0
+		if cmd.Process != nil {
+			pid = cmd.Process.Pid
+		}
+		logNicenessFailure(logger, pid, niceness, priorityErr)
+	}
+	return startErr
+}
+
 // ApplyLaunchNiceness lowers the scheduling priority of the launched process
-// group. It runs after the process starts, so a child the process forks during
-// the call can keep the daemon's priority (see procutil.SetProcessGroupNiceness).
+// group after start. Linux launches already inherit priority before exec; other
+// Unix platforms retain the in-flight fork limitation of SetProcessGroupNiceness.
 // Failure never aborts the launch. A failed call can still have lowered some
 // group members, and those changes are not restored; the remaining members keep
 // the daemon's priority.
@@ -27,6 +41,14 @@ func ApplyLaunchNiceness(logger *slog.Logger, pid int, niceness int) {
 	err := setProcessGroupNiceness(pid, niceness)
 	if err == nil {
 		return
+	}
+	logNicenessFailure(logger, pid, niceness, err)
+}
+
+// logNicenessFailure keeps priority diagnostics on the owning service logger.
+func logNicenessFailure(logger *slog.Logger, pid, niceness int, err error) {
+	if logger == nil {
+		logger = slog.Default()
 	}
 	if nicenessFailureWarned.CompareAndSwap(false, true) {
 		logger.Warn("subprocess: lower process group priority failed; continuing at default priority",

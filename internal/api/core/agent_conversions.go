@@ -43,22 +43,7 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 			Path:  shadow.Path,
 		})
 	}
-	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
-	for _, server := range agent.MCPServers {
-		redacted := compozyconfig.RedactedMCPServer(server)
-		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:          redacted.Name,
-			Reference:     redacted.Reference,
-			SecretHeaders: redacted.SecretHeaders,
-			Transport:     string(redacted.Transport),
-			Command:       redacted.Command,
-			Args:          append([]string(nil), redacted.Args...),
-			Env:           redacted.Env,
-			SecretEnv:     redacted.SecretEnv,
-			URL:           redacted.URL,
-			Auth:          agentMCPAuthPayload(redacted.Auth),
-		})
-	}
+	mcpServers := agentMCPServersToPayload(agent.MCPServers)
 	digest, digestErr := compozyconfig.AgentDefinitionDigest(agent)
 	diagnostics := make([]contract.AgentDiagnosticPayload, 0, 1)
 	if digestErr != nil {

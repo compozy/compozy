@@ -84,7 +84,13 @@ Activation remains startup-owned until its durable commit. The existing launch
 gate transfers Stop to normal finalization before post-create hooks run. Failed
 activation still shares the discard gate; successful logical and ACP activation
 can finalize a concurrent Stop while those hooks are pending. This preserves the terminal event, post-stop hook
-and notification. Incomplete session-manager shutdown retains the daemon lock
+and notification. Creation callbacks are serialized against terminal callbacks,
+so a completed Stop cannot be followed by a delayed creation notification.
+Status and paginated catalog filtering share the same pending-start projection;
+cached verified stop results wait for any newer startup cleanup owner. Deferred
+retained finalization takes the launch gate before removing its active projection.
+Asynchronous failed activation also verifies process exit before final settlement.
+Incomplete session-manager shutdown retains the daemon lock
 and shared persistence until cleanup joins on retry or the old process exits,
 including the foreground-start replacement path.
 Shutdown retries retain daemon discovery; a terminal return from Run removes it

@@ -328,6 +328,8 @@ func (m *Manager) notifyFailedStart(ctx context.Context, session *Session) {
 	if m.notifier == nil {
 		return
 	}
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
 	m.notifier.OnSessionCreated(ctx, session)
 	m.notifier.OnSessionStopped(ctx, session)
 }

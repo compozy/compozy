@@ -278,7 +278,7 @@ never rendered into a session, and CompozyOS does not rewrite the file.
   that level; a lower `permission_mode` is kept; a higher one fails with `permission_escalation_denied`.
 - An operator `[agents.overrides.<name>].permissions` counts as the level set on the definition.
 - Only the level comes from the definition. Tool, skill, MCP server, and path ceilings still narrow
-  descendants exactly as before. Triage sessions stay read-only at every level.
+  descendants exactly as before. Provider built-in tools in triage stay read-only at every level; hosted tools follow the approved check-in policy.
 - The level is read when a session starts and has no frozen ceiling, unlike `workspace_access`. A session
   that can write `.compozy/agents/<name>/AGENT.md` or the workspace `.compozy/config.toml` changes the
   level of the next start. Treat write access to those files as authority over the level.
@@ -373,7 +373,7 @@ permission level and `session_approval` setting.
 
 The `permissions` agent field and `[permissions].mode` accept `deny-all`,
 `approve-reads`, `approve-edits`, `auto` and `approve-all`, in increasing order.
-An unset always-on definition uses `approve-edits`; triage remains read-only.
+An unset always-on definition uses `approve-edits`; provider built-in tools in triage remain read-only.
 The app labels the levels Ask before every action (`deny-all`), Ask before changes
 (`approve-reads`), Accept edits (`approve-edits`), Auto-review (`auto`), and Full access
 (`approve-all`); use the wire value in files, config, and calls.
@@ -439,3 +439,41 @@ It returns `{"activities":[<activity>]}` in request order; each entry keeps the 
 workspaces for each item. Limits are 100 items, 100 workspace references per item and 5,000
 authorized workspace selections overall. Both HTTP/UDS reads enforce profile/workspace access;
 app tokens cannot call them. No native tool ID, CLI command, hook or configuration key changes.
+
+### Check-in tools and authority
+
+`HEARTBEAT.md` accepts `check_ins.allow_writes` (up to 32 canonical IDs or
+`mcp__<server>__*` selectors), `max_tool_calls` and `max_write_calls` (may lower the
+daemon caps). With no block, check-ins gain native/MCP reads only through the hosted
+gateway. The current main session's permissions and grants bound every call.
+Only `compozy__notify` is an eligible native write. Other native mutations remain
+proposals for the main session. MCP writes require a matching selector and must run
+without an approval under the main session's permissions. `compozy__clarify` and
+other interaction tools are always denied `check_in_tool_not_writable`. With no main session, every check-in
+call is denied `check_in_no_main_session`.
+
+The operator approves the exact block digest with `agent heartbeat authority
+show|approve|revoke <agent>`; `approve --sha256 <digest> --yes` is noninteractive.
+`heartbeat write` displays the block and confirms (`--approve-authority --yes` for
+scripts). HTTP saves approve only with an explicit matching
+`approve_authority_sha256`. Agent credentials never approve. The digest covers
+`allow_writes`, both caps, every action (`id`, `title`, `instructions`,
+`auto_accept`) and the agent's MCP `read_only_tools` overrides. Changed, unapproved
+blocks are ignored whole: reads only with default caps, no actions offered, overrides
+not applied (those tools stay writes in check-ins and the main session), and picks
+send the proposal title only. Operator-authored MCP declarations may
+list raw names in `read_only_tools`; extension/catalog overrides are ignored.
+Destructive annotations always classify a tool as write.
+
+### Check-in actions
+
+`HEARTBEAT.md` accepts up to eight `actions` with unique `id`
+(`^[a-z][a-z0-9-]{0,39}$`), `title` (1–120 characters), `instructions`
+(1–1,000 characters), and `auto_accept` (default false). The authority digest
+includes every action. Actions take effect only after operator approval of that
+exact digest. An auto-accept proposal that was not picked records
+`auto_accept_skip` (`limit`, `queue_full`, `unapproved`, `no_main`, `inactive`) at
+publication; reads project it as `auto_accept_status`. Picks use the main session's own
+permissions and preserve proposal text inside an untrusted fence. Auto picks are
+synthetic turns and count toward the unattended limit. Pause/archive cancels
+queued auto picks; picks never retarget a rotated main session.

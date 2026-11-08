@@ -73,6 +73,7 @@ func projectionAvailabilities(
 
 // DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
 func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
+	ctx = withPolicyResolutionCache(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return nil, err

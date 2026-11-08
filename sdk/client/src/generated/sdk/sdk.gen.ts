@@ -49,6 +49,9 @@ import type {
   ApplySettingsUpdateData,
   ApplySettingsUpdateErrors,
   ApplySettingsUpdateResponses,
+  ApproveAgentHeartbeatAuthorityData,
+  ApproveAgentHeartbeatAuthorityErrors,
+  ApproveAgentHeartbeatAuthorityResponses,
   ApproveAgentHeartbeatScriptData,
   ApproveAgentHeartbeatScriptErrors,
   ApproveAgentHeartbeatScriptResponses,
@@ -438,6 +441,9 @@ import type {
   GetAgentDefinitionSoulErrors,
   GetAgentDefinitionSoulResponses,
   GetAgentErrors,
+  GetAgentHeartbeatAuthorityData,
+  GetAgentHeartbeatAuthorityErrors,
+  GetAgentHeartbeatAuthorityResponses,
   GetAgentHeartbeatData,
   GetAgentHeartbeatErrors,
   GetAgentHeartbeatResponses,
@@ -1140,6 +1146,9 @@ import type {
   PauseTaskData,
   PauseTaskErrors,
   PauseTaskResponses,
+  PickAgentInstanceProposalData,
+  PickAgentInstanceProposalErrors,
+  PickAgentInstanceProposalResponses,
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
@@ -1404,6 +1413,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevokeAgentHeartbeatAuthorityData,
+  RevokeAgentHeartbeatAuthorityErrors,
+  RevokeAgentHeartbeatAuthorityResponses,
   RevokeAgentHeartbeatScriptData,
   RevokeAgentHeartbeatScriptErrors,
   RevokeAgentHeartbeatScriptResponses,
@@ -2004,6 +2016,33 @@ export class agents extends HeyApiClient {
   }
 
   /**
+   * Pick an instance proposal
+   */
+  public pickAgentInstanceProposal<ThrowOnError extends boolean = true>(
+    options: Options<PickAgentInstanceProposalData, ThrowOnError>
+  ): RequestResult<
+    PickAgentInstanceProposalResponses,
+    PickAgentInstanceProposalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PickAgentInstanceProposalResponses,
+      PickAgentInstanceProposalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports/{report_id}/pick",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Resume an agent instance
    */
   public resumeAgentInstance<ThrowOnError extends boolean = true>(
@@ -2398,6 +2437,79 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents/{name}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * show check-in authority
+   */
+  public getAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    GetAgentHeartbeatAuthorityResponses,
+    GetAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatAuthorityResponses,
+      GetAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority",
+      ...options,
+    });
+  }
+
+  /**
+   * revoke check-in authority
+   */
+  public revokeAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    RevokeAgentHeartbeatAuthorityResponses,
+    RevokeAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RevokeAgentHeartbeatAuthorityResponses,
+      RevokeAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
+      ...options,
+    });
+  }
+
+  /**
+   * approve check-in authority
+   */
+  public approveAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<ApproveAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    ApproveAgentHeartbeatAuthorityResponses,
+    ApproveAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ApproveAgentHeartbeatAuthorityResponses,
+      ApproveAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
       ...options,
       headers: {
         "Content-Type": "application/json",

@@ -7949,3 +7949,63 @@ func TestGlobalDBGoalWaitMigration(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckInMigrationPreservesReports(t *testing.T) {
+	t.Run("Should preserve report delivery state across the reports rebuild [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00198_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO agent_instances(id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES('migration-instance','00000000000000000000000000','coder','active','human','operator','2026-11-07','2026-11-07')`,
+			`INSERT INTO agent_instance_reports(id,instance_id,source_key,kind,payload,state,prompt_admission_id,recovery_noted,created_at) VALUES('migration-report','migration-instance','migration-source','failure','{"reason":"test","detail":"preserve"}','indeterminate','admission-1',1,'2026-11-07')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const query = `SELECT json_array(id,instance_id,source_key,kind,payload,state,prompt_admission_id,recovery_noted,created_at) FROM agent_instance_reports WHERE id='migration-report'`
+		var before string
+		if err := prior.QueryRowContext(ctx, query).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded := openGlobalDBForTest(t, path)
+		var after string
+		if err := upgraded.DB().QueryRowContext(ctx, query).Scan(&after); err != nil {
+			t.Fatal(err)
+		}
+		if before != after {
+			t.Fatalf("report changed: %s -> %s", before, after)
+		}
+		if _, err := upgraded.DB().
+			ExecContext(ctx, `INSERT INTO agent_instance_reports(id,instance_id,source_key,kind,payload,created_at) VALUES('activity-report','migration-instance','activity-source','activity','{"reason":"activity","detail":"changed"}','2026-11-07')`); err != nil {
+			t.Fatal(err)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+}

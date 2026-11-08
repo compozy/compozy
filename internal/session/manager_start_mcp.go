@@ -18,6 +18,12 @@ func (m *Manager) sessionMCPServers(
 	agentDef compozyconfig.AgentDef,
 ) ([]compozyconfig.MCPServer, error) {
 	if spec.sessionType == SessionTypeTriage {
+		spec.checkInToolsStatus = "unavailable"
+		if m.checkInToolsDisabled {
+			spec.checkInToolsStatus = "disabled"
+		}
+	}
+	if spec.sessionType == SessionTypeTriage && (m.checkInToolsDisabled || !resolved.SessionMCP || m.hostedMCP == nil) {
 		return nil, nil
 	}
 	required := sessionRequiresHostedMCP(spec, resolved)
@@ -67,10 +73,17 @@ func (m *Manager) sessionMCPServers(
 		AgentName:   resolved.Name,
 	})
 	if err != nil {
+		if spec.sessionType == SessionTypeTriage {
+			spec.startLogger(m).Warn("check_in_tools_unavailable", "error", err)
+			return nil, nil
+		}
 		return nil, errors.Join(
 			ErrHostedMCPUnavailable,
 			fmt.Errorf("session: mint hosted MCP launch for %q: %w", spec.sessionID, err),
 		)
+	}
+	if spec.sessionType == SessionTypeTriage {
+		spec.checkInToolsStatus = "enabled"
 	}
 	return []compozyconfig.MCPServer{hosted}, nil
 }

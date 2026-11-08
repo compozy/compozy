@@ -48,7 +48,7 @@ func (c ProviderUsageConfig) Validate(providers map[string]ProviderConfig) error
 
 func providerUsageToolPath(path []string) bool {
 	return len(path) == 4 && path[0] == ProviderUsageConfigKey && path[1] == "providers" &&
-		path[3] == "enabled"
+		path[3] == RoleFieldEnabled
 }
 
 // ProviderUsageAPIKeySlot is the bound credential slot key-based usage collectors read.

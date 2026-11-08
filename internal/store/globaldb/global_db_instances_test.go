@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -6143,6 +6144,212 @@ func TestSourceCollectionScheduling(t *testing.T) {
 		}
 		if err := service.Shutdown(t.Context()); err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+func TestCheckInToolRecorder(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		access  toolspkg.Access
+		outcome string
+		effect  string
+	}{
+		{"Should retain no effect for a failed read", toolspkg.AccessRead, "error", "none"},
+		{"Should retain no effect for a canceled read", toolspkg.AccessRead, "cancelled", "none"}, //nolint:misspell // persisted enum
+		{"Should retain no effect for a successful read", toolspkg.AccessRead, "ok", "none"},
+		{"Should retain no effect for an orphaned read", toolspkg.AccessRead, "unknown", "none"},
+		{"Should retain a possible effect for a failed write", toolspkg.AccessWrite, "error", "maybe"},
+		{"Should retain a possible effect for a canceled write", toolspkg.AccessWrite, "cancelled", "maybe"}, //nolint:misspell // persisted enum
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "recorder", "sess-recorder")
+			repo := db.Instances()
+			instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         "coder",
+				WorkspaceID:       workspace,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+			policy := toolspkg.CheckInPolicy{
+				InstanceID:    instance.ID,
+				OccurrenceID:  "recorder-occurrence",
+				MaxToolCalls:  1,
+				MaxWriteCalls: 1,
+			}
+			admitted, err := repo.Admit(
+				t.Context(),
+				heartbeat.AdmitRequest{
+					InstanceID:    instance.ID,
+					OccurrenceID:  policy.OccurrenceID,
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 2,
+				},
+			)
+			if err != nil || !admitted {
+				t.Fatalf("admit=%v err=%v", admitted, err)
+			}
+			recorder := repo.CheckInRecorder()
+			decision, err := recorder.Begin(
+				t.Context(),
+				toolspkg.CheckInAttempt{ToolID: "mcp__fixture__tool", Backend: toolspkg.BackendMCP, Access: tc.access},
+				policy,
+			)
+			if err != nil || !decision.Allowed {
+				t.Fatalf("begin=%+v error=%v", decision, err)
+			}
+			calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+			if err != nil || len(calls) != 1 || calls[0].Effect != tc.effect {
+				t.Fatalf("running calls=%+v error=%v", calls, err)
+			}
+			if tc.outcome == "unknown" {
+				result, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: policy.OccurrenceID,
+						Source:       "instance_check",
+						Result:       "quiet",
+						Reason:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || !result.Changed {
+					t.Fatalf("finish=%+v err=%v", result, err)
+				}
+			} else if err := recorder.Finish(t.Context(), policy.OccurrenceID, decision.Seq, tc.outcome, "", time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+			calls, err = repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+			if err != nil || len(calls) != 1 || calls[0].Outcome != tc.outcome || calls[0].Effect != tc.effect {
+				t.Fatalf("calls=%+v error=%v", calls, err)
+			}
+		})
+	}
+
+	t.Run("Should reserve caps atomically and retain denied attempts [IT-002]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		instance, _, err := repo.AdmitCreate(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         "recorder",
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			},
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := toolspkg.CheckInPolicy{
+			InstanceID:    instance.ID,
+			OccurrenceID:  "recorder-occurrence",
+			MaxToolCalls:  4,
+			MaxWriteCalls: 1,
+		}
+		recorder := repo.CheckInRecorder()
+		var group sync.WaitGroup
+		errorsCh := make(chan error, 12)
+		var allowed atomic.Int64
+		for range 12 {
+			group.Go(func() {
+				decision, err := recorder.Begin(
+					t.Context(),
+					toolspkg.CheckInAttempt{
+						ToolID:  "mcp__fixture__read",
+						Backend: toolspkg.BackendMCP,
+						Access:  toolspkg.AccessRead,
+					},
+					policy,
+				)
+				if err != nil {
+					errorsCh <- err
+					return
+				}
+				if decision.Allowed {
+					allowed.Add(1)
+				}
+				outcome := "denied"
+				if decision.Allowed {
+					outcome = "ok"
+				}
+				if err := recorder.Finish(
+					t.Context(),
+					policy.OccurrenceID,
+					decision.Seq,
+					outcome,
+					"",
+					time.Millisecond,
+				); err != nil {
+					errorsCh <- err
+				}
+			})
+		}
+		group.Wait()
+		close(errorsCh)
+		for err := range errorsCh {
+			t.Error(err)
+		}
+		calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(calls) != 12 || allowed.Load() != 4 {
+			t.Fatalf("calls=%d allowed=%d", len(calls), allowed.Load())
+		}
+		for _, call := range calls {
+			if call.Decision == "denied" &&
+				(call.Effect != "none" || call.DenyReason != "check_in_tool_budget_exhausted") {
+				t.Fatalf("denied=%+v", call)
+			}
+		}
+		writePolicy := policy
+		writePolicy.OccurrenceID = "write-budget"
+		denied, err := recorder.Begin(
+			t.Context(),
+			toolspkg.CheckInAttempt{
+				ToolID:     "mcp__fixture__write",
+				Backend:    toolspkg.BackendMCP,
+				Access:     toolspkg.AccessWrite,
+				DenyReason: "check_in_write_not_allowed",
+			},
+			writePolicy,
+		)
+		if err != nil || denied.Allowed {
+			t.Fatalf("denied=%+v err=%v", denied, err)
+		}
+		for i := range 2 {
+			decision, err := recorder.Begin(
+				t.Context(),
+				toolspkg.CheckInAttempt{
+					ToolID:  "mcp__fixture__write",
+					Backend: toolspkg.BackendMCP,
+					Access:  toolspkg.AccessWrite,
+				},
+				writePolicy,
+			)
+			if err != nil || decision.Allowed != (i == 0) {
+				t.Fatalf("write %d=%+v err=%v", i, decision, err)
+			}
+		}
+		if err := repo.SweepCheckInToolCalls(t.Context(), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatal(err)
+		}
+		calls, err = repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+		if err != nil || len(calls) != 0 {
+			t.Fatalf("retained=%d err=%v", len(calls), err)
 		}
 	})
 }

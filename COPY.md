@@ -429,6 +429,19 @@ Use those words only when discussing external systems or historical migration co
 - Agent kind: "Always-on" (`always_on`) and "On-demand" (`on_demand`), hyphenated as labels and before nouns ("an always-on agent"), in sentence case. The v0.5.0 word "Stays on" (`stays_on`) is retired; the input alias is removed in the release after v0.5.2. The glossary entry **Always-on agent / On-demand agent** is authoritative.
 - The skill-source "always on" flag (Settings → Skill sources) is a different concept, "always loaded", and keeps its wording. No agent copy reuses it.
 
+### Check-in Tools and Picks Terms
+
+- MCP authority overrides: "Treated as read-only"; "These tools can run in check-ins without being listed under What it can change." List each server and raw tool name in the approval notice and save confirmation. With overrides and no listed writes: "No tools listed; read-only overrides apply below". Never say "Nothing, reads only" when overrides exist.
+
+Terms: **check-in action**, **auto-accept**, **pick**, **check-in authority** (glossary). The UI calls one check-in "a heartbeat"; reports and notifications may say "check-in".
+
+- Notifications: activity report "Your agent made 1 change" / "Your agent made {N} changes" (only uncertain writes: "Your agent may have changed something"); a report whose every proposal was auto-accepted "Your agent acted on a check-in"; unapproved authority "Check-in changes need your approval", once per digest.
+- Report: tool line "Check-in used {N} tools · {M} changes · {K} blocked", hidden at zero tools; activity report "The check-in made {N} change(s)"; effect `maybe` reads "May have changed". In the While you were away card an activity report is worth knowing: "A check-in made {N} change(s)" (only uncertain writes: "A check-in may have changed something"), described "It used the tools you approved for check-ins." or "{N} call(s) may have changed something."
+- Proposals: chip "Auto-accepted" with the action title and no Pick button; waiting reasons "Daily auto-accept limit reached", "The agent is busy; pick it when ready", "Waiting for your approval of check-in changes", "The agent was paused" (`inactive`), "The agent has no main session" (`no_main`), each with Pick.
+- Blocked reasons: "Not allowed in check-ins" (`check_in_write_not_allowed`), "Would need your approval" (`check_in_write_needs_approval`), "Not available in check-ins" (`check_in_tool_not_writable`), "Tool limit reached" (`check_in_tool_budget_exhausted`), "Blocked" for other codes.
+- Editor: section "What it can change" (empty: "Nothing, reads only"; helper "Check-ins run unattended. Only these tools can change things, and only if the agent could run them without asking."); section "Actions" with the toggle "Do it without asking me" (helper "Runs in the agent's main session with its own permissions.").
+- Never "auto-approve" for auto-accept, and never "read-only check-in" for a check-in that has tools.
+
 ### OS Shell Terms
 
 The web UI presents as a desktop environment. These terms are runtime-true — each names a real surface or projection, never an aspirational one. A `workspace` remains the project/runtime scope; each workspace owns one or more persistent visual `desktops`.

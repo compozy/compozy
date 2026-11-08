@@ -67,9 +67,7 @@ func (m *Manager) activateAndWatch(
 	case hookspkg.HookSessionPostResume:
 		m.dispatchSessionPostResume(ctx, session)
 	}
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, session)
-	}
+	m.notifyActivatedSession(ctx, session)
 	if _, err := m.persistSessionPresence(ctx, session, now); err != nil {
 		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
 	}

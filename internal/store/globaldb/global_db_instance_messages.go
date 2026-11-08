@@ -56,7 +56,7 @@ func applyInstancePromptDelivery(
 			return callerErr
 		}
 		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" {
-			receipt.Delivery = "queued"
+			receipt.Delivery = inputStatusQueued
 		}
 		return nil
 	}
