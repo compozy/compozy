@@ -10,6 +10,7 @@ import {
   openAppWindow,
   sessionWindow,
   switchWorkspace,
+  windowID,
 } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
@@ -195,24 +196,36 @@ test("E2E-002: the Files dock app browses the active project and switches to a w
 
     const files = await openAppWindow(appPage, "Files", "files");
     await expect(files.getByTestId("files-root-name")).toContainText(workspace.name);
-    // One head row: the window is titled by its project until a file opens, and the project and
-    // root pickers sit in that row.
+    // One head row: the Files identity, then the project and root pickers. Only the window's
+    // tab names the open file, else the project.
     const windowTitle = files.getByTestId("topbar-title-text");
-    await expect(windowTitle).toHaveText(workspace.name);
+    await expect(windowTitle).toHaveText("Files");
     await expect(
-      files.locator('[data-slot="topbar-leading"] [data-testid="files-root-picker"]')
+      files.locator('[data-slot="topbar-context"] [data-testid="files-root-picker"]')
     ).toBeVisible();
+    // A lone window shows no tab strip; the palette's "Go to tab" row carries the same label.
+    const filesWindowID = await windowID(files);
+    const expectTabLabel = async (label: string) => {
+      await appPage.keyboard.press("ControlOrMeta+K");
+      const palette = appPage.getByTestId("os-command-palette");
+      await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
+      await expect(palette.getByTestId(`os-palette-tab-${filesWindowID}`)).toContainText(label);
+      await appPage.keyboard.press("Escape");
+      await expect(palette).toBeHidden();
+    };
+    await expectTabLabel(workspace.name);
 
     await files.locator('[data-type="item"][data-item-path="web/"]').click();
     await files.locator('[data-type="item"][data-item-path="web/README.md"]').click();
     await expect(files.getByTestId("file-viewer-header")).toContainText("web/README.md");
     await expect(files.locator("[data-slot='code-viewer']")).toContainText("Files app fixture.");
-    await expect(windowTitle).toHaveText("README.md");
+    await expectTabLabel("README.md");
+    await expect(windowTitle).toHaveText("Files");
 
     await appPage.getByTestId("files-root-picker").click();
     await appPage.getByTestId(`files-root-option-${worktree.id}`).click();
     await expect(files.getByTestId("files-root-name")).toContainText(worktree.branch);
-    await expect(windowTitle).toHaveText("README.md");
+    await expectTabLabel("README.md");
 
     await dock.getByRole("button", { name: "Files" }).click();
     await expect(appPage.locator('[data-slot="os-window-surface"][data-app="files"]')).toHaveCount(
