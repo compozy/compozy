@@ -1046,6 +1046,76 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: a durably activated session uses normal stop finalization even
+	// while its post-create hook is pending. Owner/canonical suite: shared Manager Stop.
+	for _, tc := range []struct {
+		name    string
+		logical bool
+	}{
+		{"Should finalize stop during successful logical post-create", true},
+		{"Should finalize stop during successful ACP post-create", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entered, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			defer unblock()
+			var postStops atomic.Int32
+			hooks := &spyHookDispatcher{
+				dispatchSessionPostCreateFn: func(_ context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
+					close(entered)
+					<-release
+					return payload, nil
+				},
+				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+					postStops.Add(1)
+					return payload, nil
+				},
+			}
+			h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+			created := make(chan error, 1)
+			go func() {
+				opts := CreateOpts{AgentName: "coder", Workspace: h.workspaceID}
+				var err error
+				if tc.logical {
+					_, err = h.manager.CreateAccepted(t.Context(), &CreateAcceptedOpts{Session: opts})
+				} else {
+					_, err = h.manager.Create(t.Context(), &opts)
+				}
+				created <- err
+			}()
+			select {
+			case <-entered:
+			case <-t.Context().Done():
+				t.Fatal(t.Context().Err())
+			}
+			active, ok := h.manager.Get("sess-1")
+			if !ok {
+				t.Fatal("accepted activation missing")
+			}
+			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			unblock()
+			if err := <-created; err != nil {
+				t.Fatalf("successful activation: %v", err)
+			}
+			outcome, err := h.manager.AwaitStopped(testutil.Context(t), active.ID)
+			if err != nil || !outcome.Verified || outcome.FinalState != StateStopped ||
+				outcome.Cause != CauseUserRequested {
+				t.Fatalf("stop during successful activation = %+v, %v", outcome, err)
+			}
+			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 || postStops.Load() != 1 ||
+				h.notifier.stoppedCount() != 1 {
+				t.Fatalf(
+					"stop effects = hook %d, notifications %d; want one terminal and one each",
+					postStops.Load(),
+					h.notifier.stoppedCount(),
+				)
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		reason store.StopReason
 		detail string

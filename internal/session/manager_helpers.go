@@ -57,6 +57,9 @@ func (m *Manager) activateAndWatch(
 		return errors.Join(err, rollbackErr)
 	}
 
+	if err := m.commitSessionStartActivation(ctx, session); err != nil {
+		return err
+	}
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)
 	switch postEvent {
 	case hookspkg.HookSessionPostCreate:

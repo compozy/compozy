@@ -132,11 +132,17 @@ and release the active start owner without publishing stopped history at a missi
 original path. A transient reopen failure must still retain its owner and recover.
 Fail the retained diagnostic append before and after commit. Keep the start owner
 tracked until writes recover, then require exactly one diagnostic and terminal row.
+Repeat with the stopped append failing before and after commit, and the marker
+append failing before commit. Request Stop or shutdown between retries: preserve
+the startup-failure classification, complete its marker and keep one terminal row.
 Block final Close of the reopened recorder and verify Shutdown still joins it.
 Repeat with CleanupComplete exposed without WaitForCleanup: a historical close
 error must not prevent settlement after resources release. Also fail logical
 activation persistence and request Stop during deletion; it must respect the same
 launch gate and report the vanished session without another lookup or writes.
+For successful logical and ACP activation, block the post-create hook and request
+Stop. Releasing the hook must leave a verified stopped session with one terminal
+event, one post-stop hook and one notification; it must not remain stopping.
 If session-manager shutdown is incomplete, a competing foreground daemon must
 still fail to acquire the singleton lock, and the old cleanup must retain access
 to its shared database. Complete cleanup and retry Shutdown: only then may the

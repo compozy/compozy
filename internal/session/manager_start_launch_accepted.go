@@ -225,7 +225,9 @@ func (m *Manager) settleClosedSessionStart(
 			return true, err
 		}
 	}
-	if accepted.session.stopWasRequested() {
+	// Once a failure batch reserves its terminal identity, retries own that outcome.
+	// A later Stop joins the start run instead of appending another terminal event.
+	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
 		releaseCommit()
 		return false, m.settleCanceledSessionStart(settleCtx, accepted)
 	}

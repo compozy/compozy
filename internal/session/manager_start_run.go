@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 type sessionStartRun struct {
@@ -19,6 +20,8 @@ type sessionStartRun struct {
 	recorderReadyOnce sync.Once
 	// launchCommit serializes immutable launch metadata with terminal state transitions.
 	launchCommit chan struct{}
+	// After durable activation, normal stop finalization owns termination.
+	activationCommitted atomic.Bool
 }
 
 func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*sessionStartRun, error) {
@@ -101,6 +104,25 @@ func acquireSessionStartLaunchCommit(
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// commitSessionStartActivation transfers stop ownership before post-activation hooks.
+// The launch gate orders this transfer against a stop still canceling startup.
+func (m *Manager) commitSessionStartActivation(ctx context.Context, session *Session) error {
+	run := m.sessionStartRun(session.ID)
+	if run == nil {
+		return nil
+	}
+	release, err := acquireSessionStartLaunchCommit(ctx, run)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if session.stopWasRequested() {
+		return errStartupCanceledByStop
+	}
+	run.activationCommitted.Store(true)
+	return nil
 }
 
 func (m *Manager) sessionStartRun(sessionID string) *sessionStartRun {

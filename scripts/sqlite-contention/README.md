@@ -67,10 +67,14 @@ leaves the original directory missing, cleanup ends with ErrRecoveryPersistence
 and leaves the staged directory to existing tombstone recovery instead of retrying
 an impossible reopen. Retained failure persistence reserves stable event identities and retries unfinished
 appends and metadata before releasing its owner. A write error reported after commit
-cannot duplicate the diagnostic or terminal event. The same owner joins the reopened
+cannot duplicate the diagnostic or terminal event. Once the batch is prepared,
+a later Stop or shutdown joins its original failure outcome instead of appending
+another terminal event or replacing its classification. The same owner joins the reopened
 recorder through final cleanup, honoring completion even without an optional waiter.
-Logical activation remains startup-owned until its start run ends, so its concurrent
-Stop uses the same launch gate. This preserves the terminal event, post-stop hook
+Activation remains startup-owned until its durable commit. The existing launch
+gate transfers Stop to normal finalization before post-create hooks run. Failed
+activation still shares the discard gate; successful logical and ACP activation
+can finalize a concurrent Stop while those hooks are pending. This preserves the terminal event, post-stop hook
 and notification. Incomplete session-manager shutdown retains the daemon lock
 and shared persistence until cleanup joins on retry or the old process exits,
 including the foreground-start replacement path.

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -812,6 +813,8 @@ func TestTriageDispatcher(t *testing.T) {
 		catalogFailure, pendingCleanup, detached, stopDuringCleanup, synchronousStop bool
 		noWaiter, cancelLifetime, blockedStop, reopenFailure                         bool
 		completionOnly, reopenedClose, persistFailure, afterCommit                   bool
+		persistEvent                                                                 string
+		stopDuringPersistence                                                        StopCause
 	}{
 		{name: "Should retain failed triage history when catalog deletion fails", catalogFailure: true},
 		{name: "Should retain failed triage history after joining a failed recorder close"},
@@ -827,6 +830,9 @@ func TestTriageDispatcher(t *testing.T) {
 		{name: "Should track cleanup of the reopened failed triage recorder", catalogFailure: true, reopenedClose: true},
 		{name: "Should retry failed triage event persistence before releasing ownership", catalogFailure: true, persistFailure: true},
 		{name: "Should retry a committed triage event without duplicating history", catalogFailure: true, persistFailure: true, afterCommit: true},
+		{name: "Should preserve the failure batch when stop interrupts terminal retry", catalogFailure: true, persistFailure: true, persistEvent: EventTypeSessionStopped, stopDuringPersistence: CauseUserRequested},
+		{name: "Should preserve a committed failure terminal when stop interrupts retry", catalogFailure: true, persistFailure: true, afterCommit: true, persistEvent: EventTypeSessionStopped, stopDuringPersistence: CauseUserRequested},
+		{name: "Should preserve the failure batch when shutdown interrupts marker retry", catalogFailure: true, persistFailure: true, persistEvent: eventspkg.TranscriptMarkerCreated, stopDuringPersistence: CauseShutdown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1000,6 +1006,11 @@ func TestTriageDispatcher(t *testing.T) {
 				if _, active := h.manager.Get("sess-1"); !active {
 					t.Fatal("pending retained settlement lost its active owner")
 				}
+				if tc.stopDuringPersistence != CauseNone {
+					if err := h.manager.RequestStop(t.Context(), "sess-1", tc.stopDuringPersistence); err != nil {
+						t.Fatal(err)
+					}
+				}
 				lease.Release()
 				writesAllowed.Store(true)
 				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, wantErr) {
@@ -1089,6 +1100,19 @@ func TestTriageDispatcher(t *testing.T) {
 			if countEventType(events, acp.EventTypeError) != wantErrors ||
 				countEventType(events, EventTypeSessionStopped) != 1 {
 				t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
+			}
+			if tc.stopDuringPersistence != CauseNone {
+				if infos[0].StopReason != store.StopError || infos[0].Failure == nil ||
+					infos[0].Failure.Kind != store.FailureStartup {
+					t.Fatalf("retained failure classification was replaced: %#v", infos[0])
+				}
+				if countEventType(events, eventspkg.TranscriptMarkerCreated) != 1 {
+					t.Fatal("failure retry lost or duplicated its marker")
+				}
+				outcome, err := h.manager.AwaitStopped(testutil.Context(t), "sess-1")
+				if !outcome.Verified || outcome.FinalState != StateStopped || !errors.Is(err, wantErr) {
+					t.Fatalf("stop joining failed startup = %+v, %v", outcome, err)
+				}
 			}
 			if countEventType(events, acp.EventTypeUserMessage) != 1 || events[0].TurnID != "failed-start-history" {
 				t.Fatalf("original history was cleared: %#v", events)
@@ -1989,10 +2013,15 @@ type retainedEventFailingRecorder struct {
 	allowed     *atomic.Bool
 	err         error
 	afterCommit bool
+	eventType   string
 }
 
 func (r *retainedEventFailingRecorder) Record(ctx context.Context, event store.SessionEvent) error {
-	blocked := !r.allowed.Load() && event.Type == acp.EventTypeError
+	eventType := r.eventType
+	if eventType == "" {
+		eventType = acp.EventTypeError
+	}
+	blocked := !r.allowed.Load() && event.Type == eventType
 	if blocked && !r.afterCommit {
 		return r.err
 	}
@@ -2007,7 +2036,11 @@ func (r *retainedEventFailingRecorder) AppendEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
 ) (store.SessionEvent, bool, error) {
-	blocked := !r.allowed.Load() && event.Type == acp.EventTypeError
+	eventType := r.eventType
+	if eventType == "" {
+		eventType = acp.EventTypeError
+	}
+	blocked := !r.allowed.Load() && event.Type == eventType
 	if blocked && !r.afterCommit {
 		return store.SessionEvent{}, false, r.err
 	}

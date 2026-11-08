@@ -76,13 +76,11 @@ func (m *Manager) prepareStartingSessionStop(
 		if current, ok := m.Get(id); !ok || current != session {
 			return session, run, true, ErrSessionNotFound
 		}
-		state := session.Info().State
-		if state != StateStarting && state != StateStopping &&
-			(state != StateActive || m.sessionStartRun(id) != run) {
+		if current, currentRun := m.startingStopTarget(id); current != session || currentRun != run {
 			releaseLaunchCommit()
 			return nil, nil, false, nil
 		}
-		if state == StateActive {
+		if session.Info().State == StateActive {
 			if err := m.dispatchSessionPreStop(ctx, session); err != nil {
 				return session, run, true, err
 			}
@@ -127,7 +125,11 @@ func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 	}
 	state := session.Info().State
 	run := m.sessionStartRun(id)
-	if state != StateStarting && state != StateStopping && (state != StateActive || run == nil) {
+	if run != nil && run.activationCommitted.Load() {
+		return nil, nil
+	}
+	if state != StateStarting && state != StateStopping &&
+		(state != StateActive || run == nil) {
 		return nil, nil
 	}
 	if run == nil && session.processHandle() != nil {

@@ -91,6 +91,10 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 		return m.discardLogicalSessionStart(accepted, err)
 	}
 
+	if err := m.commitSessionStartActivation(ctx, accepted.session); err != nil {
+		return m.discardLogicalSessionStart(accepted, err)
+	}
+
 	switch accepted.spec.postEvent {
 	case hookspkg.HookSessionPostCreate:
 		m.dispatchSessionPostCreate(ctx, accepted.session)
