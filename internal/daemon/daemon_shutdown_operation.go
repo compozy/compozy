@@ -12,7 +12,7 @@ import (
 type daemonShutdownOperation struct {
 	done   chan struct{}
 	result error
-	// Published with done: terminal Run may withdraw discovery only while this attempt retains the singleton.
+	// Published with done; incomplete teardown retains the singleton.
 	sessionShutdownIncomplete bool
 	withdrawDiscovery         bool
 }

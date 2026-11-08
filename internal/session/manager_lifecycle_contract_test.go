@@ -1162,6 +1162,40 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: activation winning the launch gate transfers shutdown to normal Stop.
+	t.Run("Should stop a replacement that commits activation while shutdown waits", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		if err := h.manager.activate(accepted.session); err != nil {
+			t.Fatal(err)
+		}
+		if err := accepted.session.activateWithProcess(nil, h.manager.now(), false, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.persistSessionLifecycleState(t.Context(), accepted.session, true); err != nil {
+			t.Fatal(err)
+		}
+		release, err := acquireSessionStartLaunchCommit(t.Context(), accepted.run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		ctx := &resumeWaitObservedContext{Context: testutil.Context(t), entered: make(chan struct{})}
+		shutdown := make(chan error, 1)
+		go func() { shutdown <- h.manager.shutdownSessionStarts(ctx) }()
+		<-ctx.entered
+		accepted.run.activationCommitted.Store(true)
+		h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
+		release()
+		if err := <-shutdown; err != nil {
+			t.Fatal(err)
+		}
+		if accepted.session.Info().State != StateStopped {
+			t.Fatal("shutdown missed the committed replacement")
+		}
+	})
+
 	// Invariant: cancellation during recorder close retains cleanup ownership until process death is verified.
 	t.Run("Should retain canceled startup cleanup until process verification recovers", func(t *testing.T) {
 		t.Parallel()

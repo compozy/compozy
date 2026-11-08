@@ -1836,7 +1836,10 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 		first.sessionShutdownIncomplete = true
 		d.completeShutdownOperation(first, context.DeadlineExceeded)
-		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid()}); err != nil {
+		if err := WriteInfo(
+			home.DaemonInfo,
+			Info{PID: os.Getpid(), StartedAt: time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
