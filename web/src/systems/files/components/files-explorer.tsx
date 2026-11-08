@@ -10,9 +10,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@compozy/ui";
-import { AppWindow, Eye, GitBranch, RefreshCw } from "@compozy/ui/icons";
+import { Eye, GitBranch, RefreshCw } from "@compozy/ui/icons";
 
-import type { FileRootPayload, FilesRootRef } from "../adapters/files-api";
+import type { FilesRootRef } from "../adapters/files-api";
 import type { FileTreeBridge } from "../hooks/use-file-tree-bridge";
 import { useFilesExplorer } from "../hooks/use-files-explorer";
 import type { FileViewerTarget, ViewerFindSeed } from "../lib/file-viewer-target";
@@ -34,13 +34,6 @@ export interface FilesExplorerProps {
    * Search match (`line` plus the Find in file seed).
    */
   onOpenFile: (path: string, line?: number, find?: ViewerFindSeed) => void;
-  /** Accessible name of the tree. */
-  treeLabel?: string;
-  /**
-   * Opens this root and the selected path in the project's Files window (the Review panel's
-   * "Open in Files window", US-002.AC-6). Absent where there is no such window.
-   */
-  onOpenInFilesWindow?: (root: FileRootPayload, path: string | null) => void;
   /** The way out of a root that is gone (the Files app's "Switch to project root"). */
   unavailableAction?: React.ReactNode;
 }
@@ -87,7 +80,6 @@ function TreeHeader({
   onFilterChange,
   showIgnored,
   onShowIgnoredChange,
-  onOpenInFilesWindow,
 }: {
   root: FilesRootRef;
   bridge: FileTreeBridge;
@@ -95,7 +87,6 @@ function TreeHeader({
   onFilterChange: (next: string) => void;
   showIgnored: boolean;
   onShowIgnoredChange: (next: boolean) => void;
-  onOpenInFilesWindow?: () => void;
 }) {
   const root = bridge.root.status === "ready" ? bridge.root.root : null;
   return (
@@ -125,15 +116,6 @@ function TreeHeader({
           <RefreshCw aria-hidden className="size-3.5" />
         </TreeIconAction>
         {root ? <OpenRootInMenu root={rootRef} /> : null}
-        {root && onOpenInFilesWindow ? (
-          <TreeIconAction
-            label="Open in Files window"
-            testId="files-open-in-files-window"
-            onClick={onOpenInFilesWindow}
-          >
-            <AppWindow aria-hidden className="size-3.5" />
-          </TreeIconAction>
-        ) : null}
       </div>
       <SearchInput
         aria-label="Filter files"
@@ -153,7 +135,6 @@ function TreeBody({
   selectedPath,
   revealKey,
   onOpenFile,
-  treeLabel,
   resetKey,
 }: {
   root: FilesRootRef;
@@ -162,7 +143,6 @@ function TreeBody({
   selectedPath: string | null;
   revealKey: string;
   onOpenFile: (path: string) => void;
-  treeLabel: string;
   resetKey: string;
 }) {
   switch (bridge.root.status) {
@@ -187,7 +167,7 @@ function TreeBody({
       return (
         <>
           <FileTree
-            aria-label={treeLabel}
+            aria-label="Project files"
             className="min-h-0 flex-1"
             data-testid="files-tree"
             paths={bridge.paths}
@@ -214,23 +194,14 @@ function TreeBody({
 
 /**
  * The project files explorer (`_uiux.md` S3): a lazy tree on the left and the viewer on the
- * right. Session Review panel's Files tab and the Files app compose the same view over
- * different roots.
+ * right, over a project checkout or worktree root (the Files app).
  */
-export function FilesExplorer({
-  root,
-  target,
-  onOpenFile,
-  treeLabel = "Project files",
-  onOpenInFilesWindow,
-  unavailableAction,
-}: FilesExplorerProps) {
+export function FilesExplorer({ root, target, onOpenFile, unavailableAction }: FilesExplorerProps) {
   const explorer = useFilesExplorer(root, target);
   const { bridge, pane } = explorer;
   if (bridge.root.status === "unavailable") {
     return <FileTreeUnavailableState action={unavailableAction} />;
   }
-  const readyRoot = bridge.root.status === "ready" ? bridge.root.root : null;
   return (
     <div className="relative flex min-h-0 flex-1 flex-col" onKeyDown={explorer.onKeyDown}>
       <ResizablePanelGroup
@@ -260,12 +231,6 @@ export function FilesExplorer({
                 onFilterChange={explorer.setFilter}
                 showIgnored={explorer.showIgnored}
                 onShowIgnoredChange={explorer.setShowIgnored}
-                onOpenInFilesWindow={
-                  onOpenInFilesWindow && readyRoot
-                    ? () =>
-                        onOpenInFilesWindow(readyRoot, target?.kind === "file" ? target.path : null)
-                    : undefined
-                }
               />
               <TreeBody
                 root={root}
@@ -274,7 +239,6 @@ export function FilesExplorer({
                 selectedPath={explorer.selectedPath}
                 revealKey={explorer.revealKey}
                 onOpenFile={path => onOpenFile(path)}
-                treeLabel={treeLabel}
                 resetKey={explorer.showIgnored ? "all" : "visible"}
               />
             </div>

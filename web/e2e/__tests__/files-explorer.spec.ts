@@ -74,7 +74,7 @@ async function openSessionWithReply(
   await ui.composerTextarea.click();
   await ui.composerTextarea.pressSequentially("where are the files?");
   await ui.composerTextarea.press("Enter");
-  await expect(window.getByRole("button", { name: "Open main.tsx in viewer" })).toBeVisible();
+  await expect(window.getByRole("button", { name: "Open main.tsx in Files" })).toBeVisible();
   return { window, sessionId };
 }
 
@@ -82,39 +82,70 @@ function reviewPanel(window: Locator) {
   return window.getByTestId("session-review-panel");
 }
 
-// Invariant: a transcript path opens the session's Review panel on Files with the tree revealing
-// the file and the viewer on its line; the panel replaces the Inspector and its width and tab
-// persist across a reload. Owner: session Review panel + link routing; canonical suite: this file.
-test("E2E-001: a transcript path opens the Files tab at its line and the panel persists", async ({
+/** A transcript path's plain click: the project's Files window, as the frame's active tab. */
+async function openPathInFiles(window: Locator, name: string) {
+  await window.getByRole("button", { name: `Open ${name} in Files` }).click();
+  const files = appWindow(window.page(), "files");
+  await expect(files).toBeVisible();
+  return files;
+}
+
+/** Brings the session's tab back to the front of its frame. */
+async function showSessionTab(window: Locator) {
+  await window
+    .page()
+    .getByTestId(`os-window-tab-${await windowID(window)}`)
+    .locator('[data-slot="os-window-tab-activate"]')
+    .click();
+  await expect(window).toBeVisible();
+}
+
+// Invariant: a plain click on a transcript path opens the project's Files window as a tab of the
+// session's frame, at the path and line with the tree revealing it, without opening the Review
+// panel; a second path retargets that same window. The Review panel (Changes) still replaces the
+// Inspector and keeps its width across a reload. Owner: transcript link routing + Files app;
+// canonical suite: this file.
+test("E2E-001: a transcript path opens the Files app as a tab at its line", async ({
   appPage,
   runtime,
 }) => {
   const { window } = await openSessionWithReply(appPage, runtime);
-  const inspectorToggle = window.page().getByTestId("session-inspector-toggle");
-  await inspectorToggle.click();
-  await expect(window.getByTestId("session-inspector")).toBeVisible();
+  const sessionTab = appPage.getByTestId(`os-window-tab-${await windowID(window)}`);
 
-  await window.getByRole("button", { name: "Open main.tsx in viewer" }).click();
-  const panel = reviewPanel(window);
-  await expect(panel).toBeVisible();
-  await expect(panel.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
-  await expect(window.getByTestId("session-inspector")).toHaveCount(0);
-  await expect(panel.getByTestId("file-viewer-header")).toContainText("web/src/main.tsx");
-  await expect(panel.locator("[data-slot='code-viewer']")).toHaveAttribute(
+  const files = await openPathInFiles(window, "main.tsx");
+  // Same frame: the session keeps its tab beside the Files tab, and the head stays "Files".
+  await expect(sessionTab).toBeVisible();
+  await expect(appPage.getByTestId(`os-window-tab-${await windowID(files)}`)).toHaveAttribute(
+    "data-active",
+    ""
+  );
+  await expect(files.getByTestId("topbar-title-text")).toHaveText("Files");
+  await expect(files.getByTestId("file-viewer-header")).toContainText("web/src/main.tsx");
+  await expect(files.locator("[data-slot='code-viewer']")).toHaveAttribute(
     "data-highlighted-line",
     "12"
   );
   await expect(
-    panel.locator('[data-type="item"][data-item-path="web/src/main.tsx"]')
+    files.locator('[data-type="item"][data-item-path="web/src/main.tsx"]')
   ).toHaveAttribute("aria-selected", "true");
 
+  await showSessionTab(window);
+  await expect(reviewPanel(window)).toHaveCount(0);
+  await openPathInFiles(window, ".env");
+  await expect(appPage.locator('[data-slot="os-window-surface"][data-app="files"]')).toHaveCount(1);
+  await expect(appWindow(appPage, "files").getByTestId("file-viewer-header")).toContainText(".env");
+
+  await showSessionTab(window);
+  await window.page().getByTestId("session-inspector-toggle").click();
+  await expect(window.getByTestId("session-inspector")).toBeVisible();
+  await window.page().getByTestId("session-review-toggle").click();
+  const panel = reviewPanel(window);
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("tab")).toHaveCount(0);
+  await expect(window.getByTestId("session-inspector")).toHaveCount(0);
   const widthBefore = await panel.evaluate(element => element.getBoundingClientRect().width);
   await window.page().reload();
   await expect(reviewPanel(window)).toBeVisible();
-  await expect(reviewPanel(window).getByRole("tab", { name: "Files" })).toHaveAttribute(
-    "aria-selected",
-    "true"
-  );
   await expect
     .poll(() => reviewPanel(window).evaluate(element => element.getBoundingClientRect().width))
     .toBeCloseTo(widthBefore, -1);
@@ -127,28 +158,28 @@ test("E2E-003: the browser viewer gates sensitive files, previews images, and tr
   runtime,
 }) => {
   const { window } = await openSessionWithReply(appPage, runtime);
-  const panel = reviewPanel(window);
 
-  await window.getByRole("button", { name: "Open .env in viewer" }).click();
-  await expect(panel.getByText("Sensitive file")).toBeVisible();
-  await expect(panel).not.toContainText("fixture-secret");
-  await panel.getByRole("button", { name: "Show contents" }).click();
-  await expect(panel.locator("[data-slot='code-viewer']")).toContainText(
+  const files = await openPathInFiles(window, ".env");
+  await expect(files.getByText("Sensitive file")).toBeVisible();
+  await expect(files).not.toContainText("fixture-secret");
+  await files.getByRole("button", { name: "Show contents" }).click();
+  await expect(files.locator("[data-slot='code-viewer']")).toContainText(
     "API_TOKEN=fixture-secret"
   );
 
-  await window.getByRole("button", { name: "Open logo.png in viewer" }).click();
-  await expect(panel.getByTestId("file-viewer-image").locator("img")).toBeVisible();
+  await showSessionTab(window);
+  await openPathInFiles(window, "logo.png");
+  await expect(files.getByTestId("file-viewer-image").locator("img")).toBeVisible();
 
-  await window.getByRole("button", { name: "Open build.log in viewer" }).click();
-  await expect(panel.getByTestId("file-viewer-truncated")).toHaveText(
+  await showSessionTab(window);
+  await openPathInFiles(window, "build.log");
+  await expect(files.getByTestId("file-viewer-truncated")).toHaveText(
     "Showing the first 1 MB of 2 MB"
   );
 
-  // No desktop target control (S7's "Open in …" split button); the Files window action is a
-  // browser-available navigation, not an Open in target.
-  await expect(panel.getByRole("button", { name: /^Open in (?!Files window$)/ })).toHaveCount(0);
-  await expect(panel.getByRole("button", { name: "Choose application" })).toHaveCount(0);
+  // No desktop target control (S7's "Open in …" split button) in the browser.
+  await expect(files.getByRole("button", { name: /^Open in / })).toHaveCount(0);
+  await expect(files.getByRole("button", { name: "Choose application" })).toHaveCount(0);
 });
 
 /** Seeds a ready worktree through the API so the spec starts at the Files app step. */
@@ -282,13 +313,12 @@ async function seedSearchFiles(root: string) {
   ]);
 }
 
-/** Opens the Review panel on Files and puts focus inside the explorer. */
+/** Opens the Files window from a transcript path and puts focus inside the explorer. */
 async function focusExplorer(window: Locator) {
-  await window.getByRole("button", { name: "Open main.tsx in viewer" }).click();
-  const panel = reviewPanel(window);
-  await expect(panel.getByTestId("files-tree")).toBeVisible();
-  await panel.getByTestId("files-filter").click();
-  return panel;
+  const files = await openPathInFiles(window, "main.tsx");
+  await expect(files.getByTestId("files-tree")).toBeVisible();
+  await files.getByTestId("files-filter").click();
+  return files;
 }
 
 // Invariant: Go to file ranks names on the daemon, opens the chosen file in the viewer with the

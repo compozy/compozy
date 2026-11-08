@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionChangedFilesRowView } from "@/components/assistant-ui/session-changed-files-row";
+import { filesAppPlaceStore } from "@/systems/files/hooks/use-files-app-place";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 
 import type { SessionChangesSummary } from "../../adapters/session-changes-api";
@@ -15,8 +16,11 @@ import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import { useSessionChanges } from "../use-session-changes";
 import { useSessionChangesLiveRefresh } from "../use-session-changes-live-refresh";
 import { useSessionChangesView } from "../use-session-changes-view";
+import { rehydrateStore } from "@xstate/store/persist";
+
 import {
   requestSessionReviewChanges,
+  SESSION_REVIEW_PANEL_STORAGE_KEY,
   sessionReviewPanelStore,
   useSessionReviewPanelState,
 } from "../use-session-review-panel-state";
@@ -311,10 +315,36 @@ describe("useSessionChanges", () => {
   });
 });
 
+describe("Review panel preference", () => {
+  // Invariant: a preference stored while the panel still had a Files tab (`tab: "files"`) reads
+  // back as the Changes-only panel with its other choices intact.
+  it("Should read a stored Files tab preference as the Changes panel", async () => {
+    const sessionId = "sess-stored-files-tab";
+    localStorage.setItem(
+      SESSION_REVIEW_PANEL_STORAGE_KEY,
+      JSON.stringify({
+        context: {
+          bySession: { [sessionId]: { open: true, tab: "files", size: "40%", diffMode: "split" } },
+        },
+        version: 0,
+      })
+    );
+    await rehydrateStore(sessionReviewPanelStore);
+    expect(sessionReviewPanelStore.getSnapshot().context.bySession[sessionId]).toEqual({
+      open: true,
+      size: "40%",
+      diffMode: "split",
+    });
+    const { result } = renderHook(() => useSessionReviewPanelState(sessionId));
+    expect(result.current).toMatchObject({ open: true, size: "40%", diffMode: "split" });
+    localStorage.removeItem(SESSION_REVIEW_PANEL_STORAGE_KEY);
+  });
+});
+
 describe("changed-file routing", () => {
   // UT-053. Invariant: a turn's changed-file row opens Changes focused on a listed file, and
-  // falls back to Files at the path when the summary doesn't list it.
-  it("Should focus a listed file in Changes and open Files for an unlisted one", async () => {
+  // falls back to the project's Files window at the path when the summary doesn't list it.
+  it("Should focus a listed file in Changes and open the Files window for an unlisted one", async () => {
     const sessionId = "sess-changed-file-route";
     vi.mocked(getSessionChanges).mockResolvedValue(changesSummary(["a.go", "b.go"]));
     const onOpenFile = (path: string) => requestSessionReviewChanges(sessionId, { path });
@@ -341,7 +371,15 @@ describe("changed-file routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review changes in b.go" }));
 
     const preference = () => sessionReviewPanelStore.getSnapshot().context.bySession[sessionId];
-    expect(preference()).toMatchObject({ open: true, tab: "changes" });
+    expect(preference()).toMatchObject({ open: true });
+    const userOpen = vi.fn(async () => undefined);
+    const shell = { coordinator: { userOpen } } as unknown as OsShellHandle;
+    const queryClient = newQueryClient();
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, sessionId), {
+      id: sessionId,
+      workspace_id: WORKSPACE_ID,
+      working_dir: "/repo",
+    });
     const { result } = renderHook(
       () => {
         const review = useSessionReviewPanelState(sessionId);
@@ -353,13 +391,23 @@ describe("changed-file routing", () => {
           diffRef: { current: null },
         });
       },
-      { wrapper: createWrapper(newQueryClient()) }
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>
+            <OsShellContext value={shell}>{children}</OsShellContext>
+          </QueryClientProvider>
+        ),
+      }
     );
     await waitFor(() => expect(result.current.selectedPath).toBe("b.go"));
 
     fireEvent.click(screen.getByRole("button", { name: "Review changes in missing.go" }));
-    await waitFor(() => expect(preference()?.tab).toBe("files"));
-    expect(sessionReviewPanelStore.getSnapshot().context.targets[sessionId]).toMatchObject({
+    await waitFor(() =>
+      expect(userOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "files", instanceKey: WORKSPACE_ID })
+      )
+    );
+    expect(filesAppPlaceStore.getSnapshot().context.targets[WORKSPACE_ID]).toMatchObject({
       kind: "file",
       path: "missing.go",
     });

@@ -5,7 +5,8 @@ description: How the in-app viewer shows text, images, binary, large, sensitive,
 
 The file viewer is read-only. It shows text with syntax highlighting and line numbers, previews
 images, and tells you plainly when a file can't be shown. It opens from the tree, from Go to file
-and Search, from a transcript path, and from **Open in viewer** in Changes.
+and Search, from a transcript path, and from **Open in Files** in Changes. The last two open the
+project's [Files app](/docs/files/files-app) as a tab beside the session.
 
 The header shows the path and size, **Copy path**, and in the desktop app the
 [Open in](/docs/files/open-in) button.
@@ -13,10 +14,11 @@ The header shows the path and size, **Copy path**, and in the desktop app the
 ## Open a file at a line
 
 A transcript path with a line, such as `src/main.tsx:12` or `src/main.tsx:12:4`, opens the file
-scrolled to that line with the line highlighted. The tree reveals the file. If the file is shorter,
+in the Files app scrolled to that line with the line highlighted. The tree reveals the file. If the file is shorter,
 the viewer scrolls to the end and says **Line 420 is past the end (40 lines)**.
 
-Paths resolve against the session root. A relative path never climbs above it, and an absolute path
+Paths resolve against the session root, and the Files app opens on that root (the session's
+worktree, else the project folder). A relative path never climbs above it, and an absolute path
 or `~/` path that lands inside the root opens like a relative one. If you click several paths
 quickly, only the last one opens.
 

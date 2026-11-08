@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Topbar, TopbarSlotProvider, UIProvider, useTopbarSlotValue } from "@compozy/ui";
 
 import {
+  filesAppPlace,
   filesAppPlaceStorageKey,
   filesAppPlaceStore,
   requestFilesAppPlace,
 } from "../../hooks/use-files-app-place";
-import { fileViewerTarget } from "../../lib/file-viewer-target";
+import { outsideViewerTarget } from "../../lib/file-viewer-target";
 import { FilesExplorer } from "../files-explorer";
 import { filesAppProjectStatus, filesSwitcherProjects } from "../../lib/files-app-roots";
 import { FilesAppWindow } from "../files-app-window";
@@ -222,31 +223,6 @@ describe("FilesAppWindow", () => {
     await waitFor(() => expect(screen.queryByTestId("files-explorer")).toBeNull());
   });
 
-  it("Should hand the session root and open path to Open in Files window (US-002.AC-6)", async () => {
-    stubDaemon();
-    const onOpenInFilesWindow = vi.fn();
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <UIProvider>
-          <div style={{ height: 500 }}>
-            <FilesExplorer
-              root={{ kind: "session", workspaceId: "ws_1", sessionId: "sess-1" }}
-              target={fileViewerTarget("README.md")}
-              onOpenFile={() => {}}
-              onOpenInFilesWindow={onOpenInFilesWindow}
-            />
-          </div>
-        </UIProvider>
-      </QueryClientProvider>
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Open in Files window" }));
-    expect(onOpenInFilesWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ workspace_id: "ws_1", worktree_id: "wt-1" }),
-      "README.md"
-    );
-  });
-
   it("Should re-root an open Files window and open the requested path (US-002.AC-6)", async () => {
     const calls = stubDaemon();
     renderWindow();
@@ -264,6 +240,17 @@ describe("FilesAppWindow", () => {
     await waitFor(() =>
       expect(screen.getByTestId("file-viewer-header")).toHaveTextContent("README.md")
     );
+
+    // A transcript path outside the root arrives as written, with no project path to persist.
+    act(() =>
+      requestFilesAppPlace(
+        "ws_1",
+        { worktreeId: "wt-1", path: null },
+        outsideViewerTarget("/etc/hosts")
+      )
+    );
+    expect(await screen.findByTestId("file-viewer-outside")).toHaveTextContent("/etc/hosts");
+    expect(filesAppPlace("ws_1").path).toBeNull();
   });
 
   // US-001: a folder whose listing fails says so with Retry, instead of looking empty, and

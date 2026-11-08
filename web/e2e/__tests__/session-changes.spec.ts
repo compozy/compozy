@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, windowID } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -100,7 +100,7 @@ async function openChanges(window: Locator) {
   const toggle = window.page().getByTestId("session-review-toggle");
   await expect(toggle).toBeVisible();
   if ((await toggle.getAttribute("data-state")) !== "open") await toggle.click();
-  await panel.getByRole("tab", { name: "Changes" }).click();
+  await expect(panel).toBeVisible();
   return panel;
 }
 
@@ -115,7 +115,8 @@ function fileHeader(panel: Locator, filePath: string) {
 }
 
 // Invariant: Changes shows the branch diff (committed, uncommitted, untracked) with its header,
-// tree, persisted mode, expandable context, and focus from a turn's changed-file row.
+// tree, persisted mode, expandable context, focus from a turn's changed-file row, and Open in
+// Files into the project's Files window.
 // Owner: session Changes tab; canonical suite: this file.
 test("E2E-004: Changes reviews the branch diff and focuses files from the tree and transcript", async ({
   appPage,
@@ -142,10 +143,8 @@ test("E2E-004: Changes reviews the branch diff and focuses files from the tree a
   await expect(panel.locator("[data-slot='diff-viewer']")).toHaveAttribute("data-mode", "split");
   await window.page().reload();
   const reloaded = window.getByTestId("session-review-panel");
-  await expect(reloaded.getByRole("tab", { name: "Changes" })).toHaveAttribute(
-    "aria-selected",
-    "true"
-  );
+  // Changes is the panel's only view: no tab strip.
+  await expect(reloaded.getByRole("tab")).toHaveCount(0);
   await expect(reloaded.locator("[data-slot='diff-viewer']")).toHaveAttribute("data-mode", "split");
 
   await treeRow(reloaded, "src/b.go").click();
@@ -160,6 +159,12 @@ test("E2E-004: Changes reviews the branch diff and focuses files from the tree a
   await window.getByRole("button", { name: "Review changes in b.go" }).click();
   await expect(fileHeader(reloaded, "src/b.go")).toHaveAttribute("data-selected", "true");
   await expect(fileHeader(reloaded, "src/b.go")).toBeInViewport();
+
+  // Open in Files: the project's Files window opens as a tab beside the session, on that file.
+  await fileHeader(reloaded, "src/b.go").getByTestId("changes-open-in-viewer").click();
+  const files = appWindow(window.page(), "files");
+  await expect(files.getByTestId("file-viewer-header")).toContainText("src/b.go");
+  await expect(window.page().getByTestId(`os-window-tab-${await windowID(window)}`)).toBeVisible();
 });
 
 // Invariant: scope and base drive the summary: Uncommitted drops committed files, another base

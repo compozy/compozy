@@ -379,7 +379,6 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Review changes" }));
     expect(sessionReviewPanelStore.getSnapshot().context.bySession[session.id]).toMatchObject({
       open: true,
-      tab: "changes",
       scope: "branch",
     });
   });
