@@ -4,9 +4,9 @@ area: MS
 title: An always-on agent's reports, relayed approvals and supersede states read in its main session
 persona: Dora
 journey: J-31
-expected: A report lands in the transcript without starting a turn. Picking a proposal sends one ordinary prompt and folds to "You picked". After an absence with enough heartbeats, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
-entry_points: web Sessions window; main session opened from the avatar row
-qa_status: pass
+expected: A report lands in the transcript without starting a turn. Picking a proposal records the pick through the daemon (`POST /api/agent-instances/{id}/reports/{report_id}/pick`), which queues one prompt to the main session, and folds to "You picked"; auto-accepted proposals show "Auto-accepted" with the action title and no Pick button, and limit, queue-full, unapproved and failed picks say why in plain words. A report shows "Check-in used N tools · M changes · K blocked" with the call list, an activity report says what the check-in changed, and reports published before pick tracking keep the transcript inference. After an absence with enough heartbeats, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
+entry_points: web Sessions window; main session opened from the avatar row; POST /api/agent-instances/{id}/reports/{report_id}/pick; GET /api/agent-instances/{id}/reports|check-ins?occurrence=
+qa_status: pending
 bug_ids:
 fix_status: fixed
 retest_status: pending
@@ -417,3 +417,45 @@ data and render as plain text. The source journey that produces these reports is
 `MS-always-on-check-in-sources`. Owner: `session-report-part.test.tsx`. Not walked.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): reports and pause copy read always-on ("<Agent> is no longer always-on" for `definition_not_always_on`), scheduled runs read heartbeat, and the timeout and threshold keys live under `agents.always_on`. Not walked; S4 walks it on the integration head.
+
+## Check-in picks, tool calls and activity (#1357)
+
+Spec: `.compozy/tasks/always-on-check-in-tools/` (`_uiux.md` U1–U5). The journeys that produce
+these reports are owned by `MS-always-on-check-in-sources` §8; this section walks the main-session
+transcript only. Use one instance with an approved authority block declaring an `auto_accept`
+action, a fixture MCP server, and a real provider.
+
+1. **Pick through the daemon (U1).** On a report with two waiting proposals, press Pick on the
+   second. The browser sends `POST …/reports/{report_id}/pick` with `{"proposal":1}` and no
+   chat message; while pending the choices are disabled (`aria-busy`). The proposal folds to
+   "You picked" and the main session receives one queued prompt. Reload: the state comes from
+   the projected reports read, not the transcript. Pick the same proposal from the CLI first in
+   a second tab: the Web refreshes on the instance's catalog-changed event and shows it picked.
+2. **Auto-accepted (U2).** A proposal picked by auto-accept shows the "Auto-accepted" chip and
+   the action title, with no Pick button. When every proposal was auto-accepted, the footer
+   changes accordingly.
+3. **Waiting with a reason (U2).** `auto_accept_status: limit` shows "Daily auto-accept limit
+   reached", `queue_full` "The agent is busy; pick it when ready", and `unapproved` "Waiting for
+   your approval of check-in changes"; each keeps a working Pick button. `no_main` keeps Pick.
+4. **Pick failed (U1).** Pause the instance and pick: an inline alert explains the failure in
+   plain words with the daemon code (`instance_not_active`); nothing is queued. Picking a
+   proposal already picked from the CLI shows `proposal_already_picked`.
+5. **Tool-call line (U3).** A report from a check-in that used tools shows "Check-in used N
+   tools · M changes · K blocked"; the line is hidden when N = 0. The disclosure is a button with
+   `aria-expanded`; opening it lists tool title, server, Read/Change, Allowed or the blocked
+   reason in plain words ("Not allowed in check-ins", "Would need your approval", "Not available
+   in check-ins", "Tool limit reached", "Blocked"), "May have changed" for `effect: maybe`, and
+   the duration.
+6. **Activity report (U4).** A check-in that wrote and found nothing publishes a report titled
+   "The check-in made N change(s)" (or "…may have changed something" for only `maybe` writes),
+   with the tool list open by default and no proposals or Pick buttons.
+7. **Check-ins history (U5).** On the agent's Heartbeat page, an occurrence that used tools is
+   not folded into the quiet run and opens the same list; `tools_status` disabled/unavailable
+   reads "Tools off" / "Tools unavailable".
+8. **Historical reports.** A report published before this change (no `picks_tracked`) still
+   folds to "You picked" from the transcript inference and offers Pick only where the transcript
+   can still send.
+
+Focused automation: `session-report-part.test.tsx` (UT-040–UT-042),
+`use-session-catalog-streams.test.tsx`, `agent-editor-files.test.ts` (U5) and the S3 Storybook
+evidence under the S3 worktree. Not walked.

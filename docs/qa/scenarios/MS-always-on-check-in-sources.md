@@ -4,8 +4,8 @@ area: MS
 title: An always-on agent wakes only when its check-in sources have something new
 persona: Dora
 journey: J-31
-expected: Dora declares an approved script source and the bundled New GitHub issues kind in HEARTBEAT.md. Try it now shows each source's outcome without moving any cursor. Quiet hours start no model turn, even with standing guidance. A new script or an edited one waits for operator approval and never runs before it. A source that keeps failing reaches Dora as one report. A real check during a running poll says a check is already running and starts nothing. The Check-ins page lists, adds, edits, removes and approves sources, and report proposals say which source found the item.
-entry_points: compozy agent heartbeat sources|validate|write; compozy agent instance check [--dry-run]|show|check-ins|reports -o json; web agent Check-ins page; main session reports
+expected: Dora declares an approved script source and the bundled New GitHub issues kind in HEARTBEAT.md. Try it now shows each source's outcome without moving any cursor. Quiet hours start no model turn, even with standing guidance. A new script or an edited one waits for operator approval and never runs before it. A source that keeps failing reaches Dora as one report. A real check during a running poll says a check is already running and starts nothing. The Check-ins page lists, adds, edits, removes and approves sources, and report proposals say which source found the item. Check-ins that reach the model call the agent's read tools, native and MCP, through the gateway: unannotated MCP tools are writes and denied unless an approved operator `read_only_tools` lists them; writes run only from the approved `allow_writes` and only when the main session would not ask; caps, interaction tools and a missing main session deny with stable codes; every attempt is audited per occurrence, and a check-in that wrote always reports. Declared actions tag proposals; approved `auto_accept` actions are picked by the daemon under the daily cap and queue cap, while every other proposal waits for an operator pick (1-based CLI, once, operator credentials only). An agent-edited authority block grants nothing until the operator approves it, and `check_in_tools = "disabled"` restores tool-less check-ins.
+entry_points: compozy agent heartbeat sources|validate|write|authority show|approve|revoke; compozy agent instance check [--dry-run]|show|check-ins [--occurrence]|reports|pick -o json; POST /api/agent-instances/{id}/reports/{report_id}/pick; POST|DELETE /api/agents/:name/heartbeat/authority/approve; compozy__tool_info|tool_list (access); web agent Check-ins page; main session reports
 qa_status: pending
 bug_ids:
 fix_status:
@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-heartbeat-extension-sources, MS-web-stays-on-reports, MS-web-stays-on-placement
+overlaps: ET-heartbeat-extension-sources, MS-web-stays-on-reports, MS-web-stays-on-placement, ET-native-tool-approval-grants
 ---
 
 Use an isolated lab with one project workspace whose `origin` is a disposable GitHub repository,
@@ -175,6 +175,100 @@ scripts group in `attention-bell.test.tsx`.
 
 The CLI instance create/show/checks responses use the `instance` envelope. The source-catalog
 E2E decodes that envelope before checking the persisted source's `ok` status.
+
+## 8. Check-in tools and actions (#1357, US-001–US-013)
+
+Spec: `.compozy/tasks/always-on-check-in-tools/`. Add a fixture MCP server `fixture` to the
+agent's `AGENT.md` (operator-authored, `transport: http`) with four tools: `list_items`
+(`readOnlyHint: true`), `get_item` (no annotations), `add_comment` (no annotations) and
+`delete_item` (`readOnlyHint: true`, `destructiveHint: true`). Use a real provider for the
+check-in (Claude `plan` or Codex `read-only`). Keep the instance's main session at
+`approve-edits` unless a step says otherwise. Each step that "runs a check-in" means a real
+`compozy agent instance check issue-watch` with one new source item, so the gate lets it
+through; read the result with `agent instance check-ins issue-watch --occurrence <id> -o json`.
+
+1. **Reads through MCP (US-001).** Guidance: "Call fixture list_items and propose one item per
+   result." Run a check-in. Its occurrence lists `mcp__fixture__list_items` with
+   `access: read`, `decision: allowed`, `outcome: ok`, a redacted `args_preview` and no result
+   body. The report proposes from the fixture data, and `agent instance reports -o json` shows
+   `tool_calls.total ≥ 1`. `compozy__tool_info` for the tool shows `access: read`. With no new
+   item, the next check-in is `skipped` (`digest_empty`/`digest_unchanged`) and its occurrence
+   has no tool calls.
+2. **Unannotated and destructive tools (US-002, ADR-002).** Guidance asks for `get_item`: the
+   row reads `access: write`, `decision: denied`, `deny_reason: check_in_write_not_allowed`,
+   `effect: none`. `delete_item` is `write` despite `readOnlyHint`, and the main session
+   asks before running it too.
+3. **`read_only_tools` override and its approval (US-011, US-013).** Add
+   `read_only_tools: [get_item]` to the operator-authored declaration. `heartbeat authority show`
+   reads `unapproved` with a new digest, and the next check-in still denies `get_item` as a
+   write; the main session still treats it as a write. Approve with
+   `heartbeat authority approve issue-watch`: the next check-in reads it as `read`, allowed.
+   The same override in an extension-shipped declaration is ignored with
+   `mcp_read_only_override_untrusted`.
+4. **Approved write (US-002).** Write `check_ins.allow_writes: [mcp__fixture__add_comment]`
+   with `heartbeat write`; it prints the block and asks to approve; answer `y`. Set the main
+   session to `approve-all`. A check-in that calls `add_comment` records it `allowed`,
+   `outcome: ok`, `effect: done`, and the fixture received exactly one call.
+5. **Needs approval (US-002).** Put the main session back to `approve-edits` (or let it degrade
+   to a narrower level). The same call is denied `check_in_write_needs_approval`; no approval
+   request appears anywhere (`session pending-interactions` on main and check-in sessions are
+   empty).
+6. **Writable set and interaction tools (US-002).** List `compozy__session_prompt`,
+   `compozy__terminal_exec` and `compozy__notify` in `allow_writes` and approve. A check-in that
+   tries all three denies the first two `check_in_tool_not_writable` and runs `compozy__notify`.
+   A call to `compozy__clarify` is denied `check_in_tool_not_writable` and opens no question.
+7. **Caps (US-003).** `max_tool_calls: 2` (approved): the third attempt is denied
+   `check_in_tool_budget_exhausted` and the check-in still returns a valid reply. `max_tool_calls`
+   above `[agents.always_on].check_in_max_tool_calls` fails `heartbeat validate` with
+   `heartbeat_check_ins_invalid`. `max_write_calls: 0` denies every write with the budget code.
+8. **No main session.** Run a check-in on an instance whose `instance show -o json` has no
+   `main_session_id`: every call, including `list_items`, is denied `check_in_no_main_session`.
+9. **Activity report (US-009).** With the approved write from step 4, make the check-in call
+   `add_comment` and answer `NOTHING_TO_REPORT`. It publishes kind `activity` ("The check-in
+   made 1 change"), the occurrence is not counted as quiet, and the notification reads "Your
+   agent made N changes" ("Your agent may have changed something" when only `maybe`). Repeat while pausing the instance mid-turn: the outcome
+   stays `cancelled`, the activity report still publishes, and the source item is seen again by
+   the next check-in. A write left `running` at the end shows `outcome: unknown`,
+   `effect: maybe` ("May have changed").
+10. **Authority unapproved (US-013).** From inside an agent session, add an action with
+    `auto_accept: true` through `heartbeat write`. `instance show -o json` reads
+    `authority_status: unapproved`, one notification "Check-in changes need your approval"
+    fires (not again on the next check-in), check-ins run with reads only and default caps,
+    actions are not offered, and every proposal waits. `authority approve` from the agent
+    session and HTTP `POST /api/agents/issue-watch/heartbeat/authority/approve` with agent
+    credentials fail `heartbeat_authority_operator_only`. An operator save of an unrelated
+    guidance edit without confirming leaves it unapproved; `approve --sha256 <stale> --yes`
+    fails `heartbeat_authority_changed`; `approve` from the operator approves it.
+11. **Actions and auto-accept (US-005–US-007, US-012).** Declare `report-harness-bug`
+    (`auto_accept: true`) and `open-ticket` (`auto_accept: false`) and approve. Invalid ids,
+    a duplicate id and nine actions fail `heartbeat_action_invalid`,
+    `heartbeat_action_duplicate_id` and `heartbeat_action_limit_exceeded`. A check-in that
+    proposes one `report-harness-bug` and one untagged item publishes one report: the first is
+    picked with actor `auto_accept` (`auto_accept_status: picked`), and the main session
+    receives the action instructions followed by the fenced proposal and acts on it; the second
+    waits. When every proposal was auto-accepted, the notification reads "Your agent acted on a
+    check-in". A proposal naming an undeclared action keeps its text, drops the action and the
+    check result records `check_in_action_unknown`.
+12. **Auto-accept bounds (US-006).** Set `auto_accept_per_day = 1`: the second auto proposal in
+    24 h waits with `auto_accept_status: limit`. Fill the main session's input queue: the next
+    waits with `queue_full` and the check-in still finishes. Re-read the report after the queue
+    drains: it still shows `queue_full` (recorded at publication). With an unapproved block it
+    shows `unapproved`; with no main session `no_main`. Queue an auto pick on a busy main
+    session, then pause the instance: the queued auto pick reads `cancelled`.
+13. **Operator picks (US-010).** `compozy agent instance pick issue-watch <report-id> 2` picks
+    the waiting proposal (1-based) and prints that it was sent to the main session. Repeating it
+    fails `proposal_already_picked` (409). From an agent session the CLI and HTTP pick fail
+    `proposal_pick_operator_only` (403). On a paused instance it fails `instance_not_active`.
+    An untagged proposal sends its title only, as does any proposal while authority is
+    unapproved. The pick never shows as `auto_accept_status: picked`.
+14. **Kill switch (US-011).** Set `[agents.always_on].check_in_tools = "disabled"` and restart:
+    check-ins launch with no MCP servers and no tools, the occurrence reads
+    `tools_status: disabled`, and no audit rows are written. Restore it.
+
+Focused automation: `_tests.md` UT/IT ids in the S1/S2/F1 Go suites
+(`internal/tools`, `internal/store/globaldb`, `internal/daemon` `heartbeat_wake_runtime_test.go`
+with acpmock and a fixture MCP server) and the S3 Vitest suites. Steps 1–14 are walked with a
+real provider and the fixture MCP server; the live Linear search is an operator follow-up.
 
 ## Corrective boundary checks
 

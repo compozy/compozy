@@ -425,13 +425,29 @@ exact authority digest, and a main session that could run the call without askin
 The native writable set is `compozy__notify`. Other native mutations must be proposed
 for the main session. MCP selectors accept an exact canonical ID or `mcp__<server>__*`.
 
-Review and approve the block with `compozy agent heartbeat authority show <agent>`
-and `compozy agent heartbeat authority approve <agent>`. For scripts, approve with
+A check-in never asks anyone anything. A write the main session would need approval
+for is denied `check_in_write_needs_approval`, and no approval request is created.
+`compozy__clarify` and every other tool that opens an operator interaction are always
+denied (`check_in_tool_not_writable`), even when classified as reads. When the
+instance has no main session, every call, read or write, is denied
+`check_in_no_main_session`.
+
+The authority block is `allow_writes`, both caps, every action (`id`, `title`,
+`instructions`, `auto_accept`), and the `read_only_tools` overrides in the agent's
+MCP declarations. Changing any of them changes the digest. Review and approve the
+block with `compozy agent heartbeat authority show <agent>` and
+`compozy agent heartbeat authority approve <agent>`. For scripts, approve with
 `--sha256 <digest> --yes`. Revoke with `heartbeat authority revoke <agent>`.
 `heartbeat write` displays the block before asking for approval; noninteractive
 writes can use `--approve-authority --yes`. A save never approves implicitly.
-Agent credentials cannot approve authority. An unapproved block grants reads only
-with the daemon's default caps.
+Agent credentials cannot approve authority.
+
+Until the operator approves a non-empty block, the whole block is ignored:
+check-ins get reads only with the daemon's default caps, actions are not offered
+to the check-in, `read_only_tools` overrides are not applied (those tools stay
+writes in check-ins and in the main session), and every proposal waits for a pick.
+The instance shows "Check-in changes need your approval" and one notification fires
+per digest.
 
 Each tool attempt is audited with its access class, outcome and redacted arguments;
 results are not retained. `instance check-ins <agent> --occurrence <id> -o json`
@@ -446,6 +462,41 @@ main sessions. Existing files gain reads only. Upgrade every daemon reading a fi
 before adding the new keys; older daemons reject unknown frontmatter.
 
 Set `[agents.always_on].check_in_tools = "disabled"` to disable hosted tools in check-ins.
+Check-ins then launch with no MCP servers and no tools, and
+check-in records show `tools_status: disabled`. Each record shows `unavailable` when
+the provider's read-only mode refused hosted tools.
+
+### Let a check-in search Linear
+
+Give the agent the Linear MCP server in `AGENT.md`, as for any session:
+
+```yaml
+mcp_servers:
+  - name: linear
+    transport: http
+    url: https://mcp.linear.app/mcp
+```
+
+Then tell its check-ins what to look for in `HEARTBEAT.md`, and keep writes off:
+
+```markdown
+---
+version: 1
+check_ins:
+  allow_writes: []
+---
+
+Look for new Linear issues assigned to me that have no comment from me yet.
+Propose one item per issue that needs me.
+```
+
+When a check-in reaches the model, it calls `mcp__linear__search_issues` (a read)
+with the agent's own Linear credentials and proposes what it finds. The report
+shows "Check-in used N tools", and
+`compozy agent instance check-ins <agent> --occurrence <id> -o json` lists each call.
+If a Linear read tool has no `readOnlyHint`, it is a write and denied
+`check_in_write_not_allowed`; list its raw name under `read_only_tools` in the
+operator-authored declaration and approve the changed authority.
 
 ## Actions and proposal picks
 
@@ -463,15 +514,24 @@ actions:
 
 A proposal may name an action. Picking it queues the action instructions followed
 by the proposal inside an untrusted fence in the instance's main session. A
-proposal without an action queues its title. The main session keeps its own tool
-permissions; picking grants no additional access.
+proposal without an action queues its title. While the authority is unapproved,
+actions are not offered to the check-in and a pick queues the title only. The main
+session keeps its own tool permissions; picking grants no additional access.
 
-Auto-accept requires approval of the exact authority digest. Editing an auto-accept
-action's instructions invalidates that approval. Only completed check-ins on active
-instances can auto-pick, after deduplication and unattended/fatigue checks. The
-rolling 24-hour limit is `[agents.always_on].auto_accept_per_day` (default 20,
-range 0–200). A full queue leaves the proposal waiting. Auto picks count toward
-the unattended turn limit. Pausing or archiving cancels queued auto picks.
+Auto-accept requires approval of the exact authority digest. Editing any action
+(including its title or `auto_accept`) invalidates that approval. Only completed
+check-ins on active instances with a main session can auto-pick, after
+deduplication and unattended/fatigue checks. The rolling 24-hour limit is
+`[agents.always_on].auto_accept_per_day` (default 20, range 0–200). A full queue
+leaves the proposal waiting. Auto picks count toward the unattended turn limit.
+Pausing or archiving cancels queued auto picks.
+
+Each proposal with an auto-accept action reports `auto_accept_status`: `picked`
+when the daemon picked it, otherwise the reason it waited, recorded when the report
+was published and never recomputed: `limit` (daily limit reached), `queue_full`,
+`unapproved` (authority not approved) or `no_main` (no main session). Proposals
+without an auto-accept action report `none`. An operator pick never shows as
+`picked`; its pick record has actor `operator`.
 
 Operators can pick from the CLI with a 1-based proposal number:
 

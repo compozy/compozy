@@ -1218,7 +1218,9 @@ projects `tool_calls` counts from the durable audit. Tool descriptors expose `ac
 preview and effect (`none`, `done`, `maybe`); tool results are never stored.
 An otherwise silent check-in with completed or uncertain writes publishes an
 `activity` report. Cancellation retains its outcome and discards pending source state.
-Check-ins never create approval requests. Only the operator can approve standing
+Check-ins never create approval or clarify requests: `compozy__clarify` and other
+interaction tools are always denied (`check_in_tool_not_writable`). With no main
+session, every check-in call is denied `check_in_no_main_session`. Only the operator can approve standing
 check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
 no authority-approve native tool.
 
@@ -1229,6 +1231,8 @@ Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
 `POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
 Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
 Report reads include `picks`, proposal `action`, and `auto_accept_status`
-(`picked`, `limit`, `queue_full`, `unapproved`, `none`). Each proposal is picked
+(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `none`). `picked` means
+an auto-accept pick; skip values are the decision recorded at publication and are
+never recomputed; operator picks never project as `picked`. Each proposal is picked
 once; `proposal_already_picked` reports a repeat. The observe-only
 `agent.instance.proposal.picked` hook includes actor, action id and report id.

@@ -448,14 +448,20 @@ daemon caps). With no block, check-ins gain native/MCP reads only through the ho
 gateway. The current main session's permissions and grants bound every call.
 Only `compozy__notify` is an eligible native write. Other native mutations remain
 proposals for the main session. MCP writes require a matching selector and must run
-without an approval under the main session's permissions.
+without an approval under the main session's permissions. `compozy__clarify` and
+other interaction tools are always denied. With no main session, every check-in
+call is denied `check_in_no_main_session`.
 
 The operator approves the exact block digest with `agent heartbeat authority
 show|approve|revoke <agent>`; `approve --sha256 <digest> --yes` is noninteractive.
 `heartbeat write` displays the block and confirms (`--approve-authority --yes` for
 scripts). HTTP saves approve only with an explicit matching
-`approve_authority_sha256`. Agent credentials never approve. Changed, unapproved
-blocks grant reads only with default caps. Operator-authored MCP declarations may
+`approve_authority_sha256`. Agent credentials never approve. The digest covers
+`allow_writes`, both caps, every action (`id`, `title`, `instructions`,
+`auto_accept`) and the agent's MCP `read_only_tools` overrides. Changed, unapproved
+blocks are ignored whole: reads only with default caps, no actions offered, overrides
+not applied (those tools stay writes in check-ins and the main session), and picks
+send the proposal title only. Operator-authored MCP declarations may
 list raw names in `read_only_tools`; extension/catalog overrides are ignored.
 Destructive annotations always classify a tool as write.
 
@@ -464,8 +470,10 @@ Destructive annotations always classify a tool as write.
 `HEARTBEAT.md` accepts up to eight `actions` with unique `id`
 (`^[a-z][a-z0-9-]{0,39}$`), `title` (1–120 characters), `instructions`
 (1–1,000 characters), and `auto_accept` (default false). The authority digest
-includes the id and instructions of auto-accept actions. They take effect only
-after operator approval of that exact digest. Picks use the main session's own
+includes every action. Actions take effect only after operator approval of that
+exact digest. An auto-accept proposal that was not picked records
+`auto_accept_skip` (`limit`, `queue_full`, `unapproved`, `no_main`) at
+publication; reads project it as `auto_accept_status`. Picks use the main session's own
 permissions and preserve proposal text inside an untrusted fence. Auto picks are
 synthetic turns and count toward the unattended limit. Pause/archive cancels
 queued auto picks; picks never retarget a rotated main session.
