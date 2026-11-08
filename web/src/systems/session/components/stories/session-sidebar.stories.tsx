@@ -6,7 +6,6 @@ import {
   HISTORICAL_JUDGES,
   LONG_AGENT,
   MIXED_RUNTIMES,
-  ORIGIN_SESSIONS,
   PROFILE_OWNERS,
   PROVENANCE_FAMILY,
   STABLE_FAMILY,
@@ -166,31 +165,6 @@ export const CollapsedThreadSignal: Story = {
     ...ProvenanceThreads.args,
     collapsedThreadIds: ["sess-pricing"],
     currentSessionId: "sess-deps",
-  },
-};
-
-/**
- * Rows titled by who started them: an automation run and an always-on main show their agent,
- * an operator's untitled session keeps "New session", and the compact times keep counting.
- */
-export const SessionOrigins: Story = {
-  tags: ["play-fn"],
-  args: {
-    ...ProvenanceThreads.args,
-    sessions: ORIGIN_SESSIONS,
-    currentSessionId: "sess-operator-titled",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("session-sidebar-session-sess-triage-run")).toHaveTextContent(
-      "issue-triage"
-    );
-    await expect(canvas.getByTestId("session-sidebar-session-sess-log-triage")).toHaveTextContent(
-      "log-triage"
-    );
-    await expect(
-      canvas.getByTestId("session-sidebar-session-sess-operator-untitled")
-    ).toHaveTextContent("New session");
   },
 };
 

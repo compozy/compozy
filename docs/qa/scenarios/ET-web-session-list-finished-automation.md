@@ -52,7 +52,7 @@ always-on agent's untitled main and an untitled child another agent spawned show
 operator's untitled session still reads "New session". Each row's compact time keeps counting while the list stays open (it used to freeze at
 the value it first rendered). Owners: `session-list.test.tsx` ("SessionList row title") and the
 `Time` tick tests in `packages/ui`, which now run under the React Compiler. Verified in the
-compiled `SessionSidebar/SessionOrigins` story with a Playwright clock advanced two hours: before,
+compiled `SessionSidebar/Origins` story with a Playwright clock advanced two hours: before,
 `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1388/102cc19b3/00-before-t2h.png` (three "New session" rows, times stuck at 3m/18m/42m); after,
 `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1388/102cc19b3/02-origins-t2h.png` (`issue-triage`, `log-triage`, "New session", all at 2h). Not walked against
 a lab daemon.
