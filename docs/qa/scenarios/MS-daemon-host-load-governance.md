@@ -63,3 +63,17 @@ none of the reported hot operations may hold a write transaction for one second.
 reopen, and confirm accepted telemetry and latest health/cache state survive. Upgrade a large
 pre-relocation database and compare Observe results. This walk remains unverified until the
 [contention report](../reports/2026-11-03-sqlite-contention.md) contains its receipts.
+
+
+Launch inheritance (#1374): on Linux, inspect a command that forks children immediately at
+startup through managed subprocesses and both agent terminal modes. The launch thread and all
+children must already have at least the configured niceness before any post-start adjustment;
+the daemon's launching thread remains unchanged. Repeat `TestSetProcessGroupNiceness` under
+`-count` stress in Linux CI. Include visible and hidden `terminal.exec` requests for agent, human, and system actors;
+only agent requests receive the configured priority. Priority failure diagnostics must use
+the service logger and identify the child PID when launch succeeds. Human/system terminals
+retain inherited priority. macOS retains
+best-effort post-start group adjustment (including its in-flight fork limitation); Windows
+continues to ignore niceness. The canonical procutil suite owns the deterministic pre-exec
+boundary; subprocess and terminal suites own launch-path wiring. Full host saturation remains
+outside focused local validation.
