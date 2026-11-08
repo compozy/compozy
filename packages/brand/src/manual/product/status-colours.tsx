@@ -1,11 +1,11 @@
 // 03 Status colours: session states → colour + glyph + word, AA verified in both themes.
 import { cn } from "@compozy/ui/utils";
 
-import { AgentFace } from "../agent-face";
+import { AgentFace } from "../art/pieces";
 import { cap, card, h3, lab, rules } from "../cls";
 import { grade, ratio } from "../contrast";
 import { Section } from "../parts/section";
-import type { AgentState } from "../roster";
+import type { AgentState } from "../art/roster";
 import { macos, sessions, statusChecks, states } from "./data";
 import { SessionRow } from "./session-row";
 

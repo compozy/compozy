@@ -1,7 +1,7 @@
-import { AgentFace } from "../agent-face";
+import { AgentFace } from "../art/pieces";
 import { card, h3, lab, rules, specs } from "../cls";
 import { Section } from "../parts/section";
-import { harnessLabel, roster } from "../roster";
+import { harnessLabel, roster } from "../art/roster";
 import { faceStates, rosterStates } from "./data";
 
 export function Faces() {

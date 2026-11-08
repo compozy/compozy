@@ -1,7 +1,7 @@
 // The two reference diagrams of Graphic system → Diagrams, drawn in the wireframe language with
 // @compozy/ui colour tokens. Agents are the live AgentAvatar face (ADR-005), placed in the SVG.
-import { AgentFace } from "../agent-face";
-import type { AgentState } from "../roster";
+import { AgentFace } from "../art/pieces";
+import type { AgentState } from "../art/roster";
 import { icons, type IconName } from "./icons";
 
 interface DiagramNode {

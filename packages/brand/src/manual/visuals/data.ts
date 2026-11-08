@@ -1,5 +1,5 @@
 // Copy for the Visual system chapter. Components only map over these arrays.
-import type { AgentState } from "../roster";
+import type { AgentState } from "../art/roster";
 import type { VisualName } from "../art/visuals";
 
 export const principleFrames: [title: string, text: string, visual: VisualName][] = [

@@ -20,6 +20,8 @@ interface AgentFaceProps {
   name: string;
   state?: AgentState;
   size?: number;
+  /** harness badge in the corner (from 24 px) */
+  chip?: boolean;
   /** show name and role beside the face */
   withLabel?: boolean;
   className?: string;
@@ -29,6 +31,7 @@ export function AgentFace({
   name,
   state,
   size = 40,
+  chip = true,
   withLabel = false,
   className,
 }: AgentFaceProps) {
@@ -40,8 +43,9 @@ export function AgentFace({
       label={agent.name}
       scope={harnessLabel[agent.harness]}
       state={current}
-      provider={agent.harness}
+      provider={chip ? agent.harness : null}
       size={size}
+      className={withLabel ? undefined : className}
     />
   );
   if (!withLabel) return face;

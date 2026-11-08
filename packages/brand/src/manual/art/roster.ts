@@ -34,7 +34,7 @@ export const harnessLabel: Record<Harness, string> = {
   cursor: "Cursor",
 };
 
-const roster: readonly Agent[] = [
+export const roster: readonly Agent[] = [
   { name: "checkout-lead", role: "Owns the checkout flow", harness: "claude", state: "working" },
   { name: "qa-runner", role: "Runs canaries after deploy", harness: "codex", state: "needs-you" },
   { name: "docs-steward", role: "Keeps the API docs true", harness: "gemini", state: "idle" },

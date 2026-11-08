@@ -3,11 +3,11 @@
 // @compozy/ui AgentAvatar.
 import { cn } from "@compozy/ui/utils";
 
-import { AgentFace } from "../agent-face";
+import { AgentFace } from "../art/pieces";
 import { cap, card, h3, lab, rules, specs } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
-import type { AgentState } from "../roster";
+import type { AgentState } from "../art/roster";
 import { offBrand, uiRules, uiSpec } from "./data";
 import { UiCrop } from "./ui-crop";
 

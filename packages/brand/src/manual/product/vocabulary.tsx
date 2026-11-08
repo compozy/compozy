@@ -1,13 +1,13 @@
 // 08 Vocabulary: product terms and how to depict each one (icon, glyph, product shot, words).
 import { cn } from "@compozy/ui/utils";
 
-import { AgentFace } from "../agent-face";
+import { AgentFace } from "../art/pieces";
 import type { ProductShotName } from "../art/visuals";
 import { cap, h3 } from "../cls";
 import { Icon } from "../graphics/icon";
 import { UiCrop } from "../graphics/ui-crop";
 import { Section } from "../parts/section";
-import type { AgentState } from "../roster";
+import type { AgentState } from "../art/roster";
 import { vocabulary } from "./data";
 
 const glyphTone: Record<string, string> = {
