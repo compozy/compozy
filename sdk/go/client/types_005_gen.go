@@ -7,6 +7,42 @@ import (
 	"time"
 )
 
+// ConfigApplyRecordsResponse is a daemon API value.
+type ConfigApplyRecordsResponse struct {
+	Entries []ConfigApplyRecordPayload `json:"entries"`
+}
+
+// ConfigApplyStatus is a daemon API value.
+type ConfigApplyStatus string
+
+// ConfigLayerDiagnosticPayload is a daemon API value.
+type ConfigLayerDiagnosticPayload struct {
+	Code    string `json:"code"`
+	Layer   string `json:"layer"`
+	Profile string `json:"profile"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+}
+
+// ConfigRuntimeStatusPayload is a daemon API value.
+type ConfigRuntimeStatusPayload struct {
+	Status          string                         `json:"status"`
+	Validated       bool                           `json:"validated"`
+	ValidationError string                         `json:"validation_error,omitempty"`
+	HomeDir         string                         `json:"home_dir,omitempty"`
+	ConfigFile      string                         `json:"config_file,omitempty"`
+	RestartRequired bool                           `json:"restart_required"`
+	ApplyState      string                         `json:"apply_state"`
+	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// Confirmation is a daemon API value.
+type Confirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
+}
+
 // ContextBundle is a daemon API value.
 type ContextBundle struct {
 	Task               Reference           `json:"task"`
@@ -398,51 +434,4 @@ type Diagnostic struct {
 	Code    string `json:"code"`
 	Path    string `json:"path,omitempty"`
 	Message string `json:"message"`
-}
-
-// DiagnosticItem is a daemon API value.
-type DiagnosticItem struct {
-	ID               string         `json:"id"`
-	Code             string         `json:"code"`
-	Severity         string         `json:"severity"`
-	Category         string         `json:"category"`
-	Title            string         `json:"title"`
-	Message          string         `json:"message"`
-	SuggestedCommand string         `json:"suggested_command,omitempty"`
-	DocURL           string         `json:"doc_url,omitempty"`
-	DataFreshness    string         `json:"data_freshness"`
-	Evidence         map[string]any `json:"evidence,omitempty"`
-}
-
-// DiscoveredWorktreePayload is a daemon API value.
-type DiscoveredWorktreePayload struct {
-	Name        string `json:"name"`
-	Branch      string `json:"branch"`
-	Path        string `json:"path"`
-	Detached    bool   `json:"detached"`
-	Stale       bool   `json:"stale"`
-	Selectable  bool   `json:"selectable"`
-	Unavailable bool   `json:"unavailable"`
-	Reason      string `json:"reason,omitempty"`
-}
-
-// Disposition is a daemon API value.
-type Disposition string
-
-const (
-	DispositionDirect       Disposition = "direct"
-	DispositionSteering     Disposition = "steering"
-	DispositionQueued       Disposition = "queued"
-	DispositionInterrupting Disposition = "interrupting"
-	DispositionLater        Disposition = "later"
-)
-
-// DoctorPayload is a daemon API value.
-type DoctorPayload struct {
-	SchemaVersion string               `json:"schema_version"`
-	GeneratedAt   time.Time            `json:"generated_at"`
-	DurationMS    int64                `json:"duration_ms"`
-	Status        string               `json:"status"`
-	Summary       DoctorSummaryPayload `json:"summary"`
-	Items         []DiagnosticItem     `json:"items"`
 }

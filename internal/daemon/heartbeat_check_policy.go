@@ -53,6 +53,10 @@ func resolveInstanceCheckPolicy(
 		AgentName:     instance.AgentName,
 		AgentPath:     agent.SourcePath,
 		Config:        workspace.Config.Agents.Heartbeat,
+		CheckInLimits: &heartbeat.CheckInLimits{
+			MaxToolCalls:  workspace.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: workspace.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 	}
 	policy, err := resolveTimerPolicy(ctx, resolver, authoring)
 	if errors.Is(err, heartbeat.ErrInvalid) || errors.Is(err, heartbeat.ErrPathEscape) {
@@ -109,6 +113,7 @@ func resolveTimerPolicy(
 		policy, err = heartbeat.Resolve(
 			ctx,
 			heartbeat.ResolveRequest{
+				CheckInLimits: target.CheckInLimits,
 				AgentPath:     target.AgentPath,
 				WorkspaceRoot: timerPolicyRoot(target),
 				Config:        target.Config,
@@ -116,6 +121,11 @@ func resolveTimerPolicy(
 		)
 		if err != nil {
 			return policy, err
+		}
+	}
+	if target.CheckInLimits != nil {
+		if err := policy.Frontmatter.CheckIns.ValidateBounds(*target.CheckInLimits); err != nil {
+			return policy, heartbeat.ErrInvalid
 		}
 	}
 	policy.Enabled = target.Config.Enabled && (!policy.Present || policy.Frontmatter.Enabled)

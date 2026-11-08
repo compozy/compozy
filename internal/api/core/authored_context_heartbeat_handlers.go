@@ -97,12 +97,19 @@ func (h *BaseHandlers) PutAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	if !h.validateHeartbeatWriteAuthority(c, target, req) {
+		return
+	}
 	result, err := h.HeartbeatAuthoring.Put(c.Request.Context(), heartbeat.PutRequest{
 		Target:         target.heartbeatAuthoringTarget(),
 		Body:           req.Body,
 		ExpectedDigest: strings.TrimSpace(req.ExpectedDigest),
 		Actor:          h.heartbeatActorForRequest(),
 	})
+	if err == nil && req.ApproveAuthoritySHA256 != "" &&
+		!h.approveSavedHeartbeatAuthority(c, target, req.ApproveAuthoritySHA256) {
+		return
+	}
 	h.respondHeartbeatMutation(c, target, &result, err)
 }
 

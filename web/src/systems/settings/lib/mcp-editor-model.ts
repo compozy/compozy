@@ -65,6 +65,7 @@ export interface MCPDraft {
   url: string;
   oauth: MCPOAuthDraft;
   headersEndpoint?: string;
+  readOnlyTools?: string[];
 }
 
 export interface MCPDraftErrors {
@@ -162,6 +163,7 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
     : emptyOAuth();
   return {
     name: entry.name,
+    readOnlyTools: entry.read_only_tools ? [...entry.read_only_tools] : undefined,
     transport,
     command: entry.command ?? "",
     args: [...(entry.args ?? [])],
@@ -267,6 +269,7 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const name = draft.name.trim();
   if (draft.transport === "stdio") {
     const server: ServerBody = { name, transport: "stdio", command: draft.command.trim() };
+    if (draft.readOnlyTools) server.read_only_tools = [...draft.readOnlyTools];
     const args = draft.args.flatMap(arg => {
       const trimmed = arg.trim();
       return trimmed ? [trimmed] : [];
@@ -297,6 +300,7 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
     return request;
   }
   const server: ServerBody = { name, transport: draft.transport, url: draft.url.trim() };
+  if (draft.readOnlyTools) server.read_only_tools = [...draft.readOnlyTools];
   const request: SettingsMCPServerRequest = { server };
   if (draft.headersEndpoint) request.preserve_headers = true;
   if (draft.oauth.enabled) {

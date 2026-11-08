@@ -265,6 +265,20 @@ func (h *BaseHandlers) respondHeartbeatPolicy(
 	if err != nil || policy == nil || !policy.Valid {
 		status = http.StatusUnprocessableEntity
 	}
+	if policy != nil && policy.Valid {
+		target, targetErr := h.resolveAuthoredAgentTargetForRequest(c, authoredWorkspaceRefFromQuery(c), agentName)
+		if targetErr == nil {
+			authority, authorityErr := h.authorityPayload(c.Request.Context(), target, *policy)
+			if authorityErr != nil {
+				h.respondError(c, 503, authorityErr)
+				return
+			}
+			payload.Authority = authority
+			payload.Diagnostics = append(
+				payload.Diagnostics,
+				h.heartbeatSelectorWarnings(c, target, policy.Frontmatter.CheckIns)...)
+		}
+	}
 	h.respondAuthoredJSON(c, status, payload)
 }
 
@@ -289,6 +303,12 @@ func (h *BaseHandlers) respondHeartbeatMutation(
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	authority, authorityErr := h.authorityPayload(c.Request.Context(), target, result.Policy)
+	if authorityErr != nil {
+		h.respondError(c, 503, authorityErr)
+		return
+	}
+	response.Heartbeat.Authority = authority
 	h.respondAuthoredJSON(c, http.StatusOK, response)
 }
 

@@ -4,6 +4,7 @@ import "strings"
 
 // MCPServer describes an MCP server passed through to the agent runtime.
 type MCPServer struct {
+	ReadOnlyTools  []string           `json:"read_only_tools,omitempty" yaml:"read_only_tools,omitempty" toml:"read_only_tools,omitempty"`
 	Reference      bool               `json:"reference,omitempty"       yaml:"reference,omitempty"       toml:"reference,omitempty"`
 	Name           string             `json:"name"                      yaml:"name"                      toml:"name"`
 	Owner          string             `json:"owner,omitempty"           yaml:"-"                         toml:"-"`

@@ -3,6 +3,8 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -47,6 +49,19 @@ func (e *CallExecutor) descriptorFromTool(
 		Scope:           source.Scope,
 	}
 	readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
+	destructive := tool.Annotations != nil && tool.Annotations.DestructiveHint != nil &&
+		*tool.Annotations.DestructiveHint
+	if len(server.ReadOnlyTools) > 0 {
+		if strings.HasPrefix(server.Owner, "extension:") || server.CatalogEntry != "" {
+			slog.Warn("mcp_read_only_override_untrusted", "server", server.Name)
+		} else if slices.Contains(server.ReadOnlyTools, tool.Name) {
+			if destructive {
+				slog.Warn("mcp_read_only_override_destructive", "server", server.Name, "tool", tool.Name)
+			} else {
+				readOnly = true
+			}
+		}
+	}
 	friendlyVerb, preview, err := mcpToolPresentationMetadata(tool)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
@@ -62,6 +77,7 @@ func (e *CallExecutor) descriptorFromTool(
 		OutputSchema: outputSchema,
 		Source:       mcpSource,
 		ReadOnly:     readOnly,
+		Destructive:  destructive,
 	}
 	return redactMCPToolDescriptor(descriptor)
 }

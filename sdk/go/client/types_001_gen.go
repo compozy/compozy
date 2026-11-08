@@ -298,11 +298,14 @@ type AgentInstanceCheckDigest struct {
 
 // AgentInstanceCheckInPayload is a daemon API value.
 type AgentInstanceCheckInPayload struct {
-	ID        string    `json:"id"`
-	Result    string    `json:"result"`
-	Reason    string    `json:"reason"`
-	Detail    string    `json:"detail,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	OccurrenceID string            `json:"occurrence_id"`
+	ToolsStatus  string            `json:"tools_status"`
+	ToolCalls    []CheckInToolCall `json:"tool_calls"`
+	ID           string            `json:"id"`
+	Result       string            `json:"result"`
+	Reason       string            `json:"reason"`
+	Detail       string            `json:"detail,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
 }
 
 // AgentInstanceCheckInsResponse is a daemon API value.
@@ -356,6 +359,7 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
+	AuthorityStatus     string                  `json:"authority_status"`
 	Sources             []HeartbeatSourceStatus `json:"sources"`
 	UnattendedTurns     int64                   `json:"unattended_turns"`
 	UnattendedTurnLimit int64                   `json:"unattended_turn_limit"`
@@ -418,6 +422,7 @@ type AgentInstanceProposalSource struct {
 
 // AgentInstanceReportPayload is a daemon API value.
 type AgentInstanceReportPayload struct {
+	ToolCalls     CheckInToolSummary         `json:"tool_calls"`
 	Source        *AgentInstanceReportSource `json:"source,omitempty"`
 	Action        string                     `json:"action,omitempty"`
 	Resource      string                     `json:"resource,omitempty"`
@@ -434,16 +439,4 @@ type AgentInstanceReportPayload struct {
 	Cause         string                     `json:"cause,omitempty"`
 	Since         string                     `json:"since,omitempty"`
 	CreatedAt     time.Time                  `json:"created_at"`
-}
-
-// AgentInstanceReportSource is a daemon API value.
-type AgentInstanceReportSource struct {
-	SourceID    string `json:"source_id,omitempty"`
-	SourceRef   string `json:"source_ref,omitempty"`
-	ItemKey     string `json:"item_key,omitempty"`
-	URL         string `json:"url,omitempty"`
-	Kind        string `json:"kind"`
-	TriggerName string `json:"trigger_name"`
-	Event       string `json:"event"`
-	Summary     string `json:"summary,omitempty"`
 }

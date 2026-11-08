@@ -14,6 +14,7 @@ import (
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
+	ReadOnlyTools          []string
 	Owner                  string
 	RuntimeName            string
 	Override               *extensionmcp.Override
@@ -54,6 +55,7 @@ func baseMCPServerItem(
 	auth.ClientSecretRef = ""
 	return MCPServerItem{
 		Name:                   effective.Server.Name,
+		ReadOnlyTools:          slices.Clone(effective.Server.ReadOnlyTools),
 		Owner:                  vault.NormalizeMCPOwner(effective.Server.Owner),
 		RuntimeName:            effective.Server.EffectiveRuntimeName(),
 		Transport:              effective.Server.EffectiveTransport(),

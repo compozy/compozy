@@ -255,6 +255,7 @@ export interface AgentHeartbeatPolicyResolvedPayload {
 }
 
 export interface AgentHeartbeatPutParams {
+  approve_authority_sha256?: string;
   workspace_id?: string;
   agent_name: string;
   body: string;
@@ -1949,6 +1950,18 @@ export interface HeartbeatHistoryResponse {
   next_cursor?: string;
 }
 
+export interface CheckInsPolicy {
+  allow_writes?: string[];
+  max_tool_calls?: number;
+  max_write_calls?: number;
+}
+
+export interface HeartbeatAuthorityPayload {
+  digest: string;
+  status: string;
+  check_ins: CheckInsPolicy;
+}
+
 export interface HeartbeatTimeWindowPayload {
   timezone: string;
   start: string;
@@ -1974,6 +1987,7 @@ export interface HeartbeatContextProjectionPayload {
 }
 
 export interface HeartbeatFrontmatterPayload {
+  check_ins: CheckInsPolicy;
   version: number;
   enabled: boolean;
   summary?: string;
@@ -2024,6 +2038,7 @@ export interface HeartbeatPromptContributionPayload {
 }
 
 export interface HeartbeatPolicyPayload {
+  authority: HeartbeatAuthorityPayload;
   agent_name?: string;
   enabled: boolean;
   present: boolean;
@@ -2052,6 +2067,7 @@ export interface HeartbeatMutationResponse {
 }
 
 export interface HeartbeatPutRequest {
+  approve_authority_sha256?: string;
   workspace_id?: string;
   agent_name: string;
   body: string;

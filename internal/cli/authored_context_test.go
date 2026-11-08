@@ -1028,3 +1028,54 @@ func TestHeartbeatSourceCatalogOutput(t *testing.T) {
 		})
 	}
 }
+
+func TestHeartbeatAuthorityWriteCommand(t *testing.T) {
+	for _, approve := range []bool{false, true} {
+		name := "Should save without granting authority"
+		if approve {
+			name = "Should approve only with explicit flags and display the reviewed block"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+			body := "---\nversion: 1\ncheck_ins:\n  allow_writes: [compozy__notify]\n  max_tool_calls: 26\n---\nCheck issues.\n"
+			if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			client := &stubClient{
+				putAgentHeartbeatFn: func(_ context.Context, _ string, req AgentHeartbeatPutRequest) (AgentHeartbeatMutationRecord, error) {
+					calls++
+					if (req.ApproveAuthoritySHA256 != "") != approve {
+						t.Fatalf("approval=%q approve=%v", req.ApproveAuthoritySHA256, approve)
+					}
+					return AgentHeartbeatMutationRecord{}, nil
+				},
+			}
+			deps := newWorkspaceTestDeps(t, client)
+			deps.getenv = func(string) string { return "" }
+			args := []string{
+				"agent",
+				"heartbeat",
+				"write",
+				"coder",
+				"--file",
+				path,
+				"--workspace",
+				"checkout-api",
+				"--yes",
+				"--json",
+			}
+			if approve {
+				args = append(args, "--approve-authority")
+			}
+			_, stderr, err := executeRootCommand(t, deps, args...)
+			if err != nil || calls != 1 {
+				t.Fatalf("calls=%d err=%v stderr=%s", calls, err, stderr)
+			}
+			if approve && !strings.Contains(stderr, "compozy__notify") {
+				t.Fatalf("review block missing: %s", stderr)
+			}
+		})
+	}
+}

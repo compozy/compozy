@@ -4065,3 +4065,44 @@ func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (stri
 func userMCPExecutorTarget(serverName string) mcpauth.Target {
 	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
+
+func TestCheckInReadOnlyOverride(t *testing.T) {
+	t.Run("Should accept only operator overrides and preserve destructive hints [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, owner, catalog  string
+			destructive, wantRead bool
+		}{
+			{name: "Should apply operator override", wantRead: true},
+			{name: "Should ignore extension override", owner: "extension:fixture"},
+			{name: "Should ignore catalog override", catalog: "fixture"},
+			{name: "Should preserve destructive hint", destructive: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				executor := &CallExecutor{}
+				tool := mcpsdk.Tool{
+					Name:        "read",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+					Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: new(tc.destructive)},
+				}
+				d, err := executor.descriptorFromTool(
+					toolspkg.SourceRef{},
+					compozyconfig.MCPServer{
+						Name:          "fixture",
+						Owner:         tc.owner,
+						CatalogEntry:  tc.catalog,
+						ReadOnlyTools: []string{"read"},
+					},
+					tool,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if d.ReadOnly != tc.wantRead || d.Destructive != tc.destructive {
+					t.Fatalf("descriptor=%+v", d)
+				}
+			})
+		}
+	})
+}

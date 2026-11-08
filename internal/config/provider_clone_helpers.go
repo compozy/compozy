@@ -97,6 +97,7 @@ func cloneMCPServer(src MCPServer) MCPServer {
 		Auth:           cloneMCPAuthConfig(src.Auth),
 		CatalogEntry:   src.CatalogEntry,
 		CatalogVersion: src.CatalogVersion,
+		ReadOnlyTools:  append([]string(nil), src.ReadOnlyTools...),
 	}
 }
 

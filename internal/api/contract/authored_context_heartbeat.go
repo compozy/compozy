@@ -3,6 +3,8 @@ package contract
 import (
 	"time"
 
+	heartbeatpkg "github.com/compozy/compozy/internal/heartbeat"
+
 	"github.com/compozy/compozy/internal/heartbeat/source"
 
 	"github.com/compozy/compozy/internal/session"
@@ -32,6 +34,7 @@ type HeartbeatFrontmatterPreferencesPayload struct {
 
 // HeartbeatFrontmatterPayload is the allowlisted strict HEARTBEAT.md metadata projection.
 type HeartbeatFrontmatterPayload struct {
+	CheckIns    heartbeatpkg.CheckInsPolicy            `json:"check_ins"`
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
 	Summary     string                                 `json:"summary,omitempty"`
@@ -87,6 +90,7 @@ type HeartbeatPromptContributionPayload struct {
 
 // HeartbeatPolicyPayload is the full resolved HEARTBEAT.md read model.
 type HeartbeatPolicyPayload struct {
+	Authority        HeartbeatAuthorityPayload          `json:"authority"`
 	AgentName        string                             `json:"agent_name,omitempty"`
 	Enabled          bool                               `json:"enabled"`
 	Present          bool                               `json:"present"`
@@ -124,19 +128,21 @@ type HeartbeatValidateByPathRequest struct {
 
 // HeartbeatPutRequest creates or replaces HEARTBEAT.md through the managed authoring service.
 type HeartbeatPutRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	AgentName              string `json:"agent_name"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
 }
 
 // HeartbeatPutByPathRequest creates or replaces HEARTBEAT.md for the route agent.
 type HeartbeatPutByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
 }
 
 // HeartbeatDeleteRequest removes HEARTBEAT.md through the managed authoring service.
@@ -373,3 +379,9 @@ type HeartbeatStatusResponse struct {
 
 // SessionPayloadHealth attaches optional health to session list/read responses when requested.
 type SessionPayloadHealth = SessionHealthPayload
+
+type HeartbeatAuthorityPayload struct {
+	Digest   string                      `json:"digest"`
+	Status   string                      `json:"status"`
+	CheckIns heartbeatpkg.CheckInsPolicy `json:"check_ins"`
+}

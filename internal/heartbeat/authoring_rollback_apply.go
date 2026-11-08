@@ -47,6 +47,7 @@ func (s *ManagedHeartbeatAuthoringService) applyBodyRollback(
 		WorkspaceRoot: target.workspaceRoot,
 		Content:       []byte(body),
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err != nil {
 		return MutationResult{Policy: proposed}, authoringInvalidError(proposed.Diagnostics)

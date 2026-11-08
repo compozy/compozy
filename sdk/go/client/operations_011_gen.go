@@ -4,12 +4,76 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetHookRuns List hook run history for one session
+func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/hooks/runs"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	query.Set("session", params.Session)
+	if params.Event != nil {
+		query.Set("event", *params.Event)
+	}
+	if params.Outcome != nil {
+		query.Set("outcome", *params.Outcome)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Last != nil {
+		query.Set("last", strconv.Itoa(*params.Last))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopParams carries the path, query, and header parameters.
+type GetLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetLoop Inspect one Loop definition
+func (c *Client) GetLoop(ctx context.Context, params GetLoopParams) (*LoopResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopAnnotationsParams carries the path, query, and header parameters.
+type GetLoopAnnotationsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
 
 // GetLoopAnnotations Get Loop editor annotations
 func (c *Client) GetLoopAnnotations(ctx context.Context, params GetLoopAnnotationsParams) (*LoopAnnotationsResponse, error) {
@@ -379,63 +443,6 @@ func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOvervi
 		path += "?" + query.Encode()
 	}
 	var out ObserveOverviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetOnboardingStatus Get the first-run onboarding completion status
-func (c *Client) GetOnboardingStatus(ctx context.Context) (*OnboardingStatusResponse, error) {
-	path := "/api/onboarding"
-	var out OnboardingStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetOpenAPIDocumentParams carries the path, query, and header parameters.
-type GetOpenAPIDocumentParams struct {
-	IfNoneMatch    *string `url:"If-None-Match"`
-	AcceptEncoding *string `url:"Accept-Encoding"`
-}
-
-// GetOpenAPIDocument Get the running daemon's OpenAPI document
-func (c *Client) GetOpenAPIDocument(ctx context.Context, params GetOpenAPIDocumentParams) (*json.RawMessage, error) {
-	path := "/api/openapi.json"
-	headers := http.Header{}
-	if params.IfNoneMatch != nil {
-		headers.Set("If-None-Match", *params.IfNoneMatch)
-	}
-	if params.AcceptEncoding != nil {
-		headers.Set("Accept-Encoding", *params.AcceptEncoding)
-	}
-	var out json.RawMessage
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetPendingToolApprovalParams carries the path, query, and header parameters.
-type GetPendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// GetPendingToolApproval Get one pending tool approval lifecycle
-func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalStatusResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

@@ -562,3 +562,14 @@ describe("header preservation", () => {
     expect(toRequest(withoutMCPSecretPreservation(draft)).preserve_headers).toBeUndefined();
   });
 });
+
+it("preserves operator read-only overrides when editing an MCP server", () => {
+  for (const entry of [stdioEntry(), remoteEntry()]) {
+    entry.read_only_tools = ["list_issues"];
+    const draft = toDraft(entry);
+    draft.name = "renamed";
+    const request = toRequest(draft);
+    expect(request.server.read_only_tools).toEqual(["list_issues"]);
+    expect(request.server.read_only_tools).not.toBe(entry.read_only_tools);
+  }
+});

@@ -24,6 +24,7 @@ func (w instanceReportEventWriter) Publish(
 		ctx,
 		sessionID,
 		session.InstanceReportEvent{
+			WritesDone: report.ToolCalls.WritesDone, WritesMaybe: report.ToolCalls.WritesMaybe,
 			Republished: report.EventSessionID != "",
 			ID:          report.ID,
 			InstanceID:  report.InstanceID,

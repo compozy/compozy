@@ -60,6 +60,9 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().StringVar(&options.cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&options.limit, listLimitField, 50, "Page size (1-100)")
 	}
+	if action == agentInstanceCheckInsAction {
+		cmd.Flags().StringVar(&options.occurrence, "occurrence", "", "Read one occurrence and its tool calls")
+	}
 	if action == agentListKey {
 		cmd.Flags().BoolVar(&options.peers, "peers", false, "List reachable always-on peers")
 		cmd.Flags().BoolVar(&options.all, "all-workspaces", false, "Include every workspace")
@@ -189,6 +192,7 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 type agentInstanceOptions struct {
 	global, all, peers, dryRun, noWait bool
 	state, cursor, sessionID, agent    string
+	occurrence                         string
 	limit                              int
 }
 
@@ -273,6 +277,9 @@ func (options agentInstanceOptions) query(
 			query.Set("state", options.state)
 		}
 		query.Set("cursor", options.cursor)
+		if action == agentInstanceCheckInsAction {
+			query.Set("occurrence", options.occurrence)
+		}
 	}
 	return query, nil
 }

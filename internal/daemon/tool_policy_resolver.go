@@ -18,6 +18,7 @@ import (
 )
 
 type nativeToolPolicyResolverDeps struct {
+	ApprovalGrants    toolspkg.ApprovalGrantStore
 	Config            *compozyconfig.Config
 	Sessions          nativeToolPolicySessionReader
 	WorkspaceResolver nativeToolPolicyWorkspaceResolver
@@ -45,6 +46,7 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
+	approvalGrants    toolspkg.ApprovalGrantStore
 	instanceCallers   agentinstance.CallerReader
 	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
@@ -65,6 +67,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 	}
 	return &nativeToolPolicyResolver{
 		cfg:               deps.Config,
+		approvalGrants:    deps.ApprovalGrants,
 		sessions:          deps.Sessions,
 		workspaceResolver: deps.WorkspaceResolver,
 		profileNames:      deps.ProfileNames,
@@ -79,6 +82,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyResolver, error) {
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 		Config:            &state.cfg,
+		ApprovalGrants:    state.deps.ApprovalGrants,
 		Sessions:          state.sessions,
 		WorkspaceResolver: state.workspaceResolver,
 		ProfileNames:      state.profiles,
@@ -157,6 +161,11 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		}
 	}
 	applySessionPermissionLevel(&inputs, info)
+	if info != nil && info.Type == session.SessionTypeTriage {
+		if err := r.resolveCheckInPolicy(ctx, &inputs, info, resolvedScope, resolvedWorkspace, cfg); err != nil {
+			return inputs, err
+		}
+	}
 	return inputs, nil
 }
 
@@ -408,7 +417,7 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	}
 	inputs.AlwaysOnLineage = inputs.AlwaysOnLineage || info.InstanceID != ""
 	if info.Type == session.SessionTypeTriage {
-		inputs.TriageReadOnly = true
+		inputs.CheckIn = &toolspkg.CheckInPolicy{}
 		inputs.ApprovalAvailable = false
 		inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
 		return nil

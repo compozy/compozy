@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"strings"
 )
 
 type indexedPolicyEvaluator interface {
@@ -46,12 +45,6 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 		HookResult:           policyResultAllowed,
 	}
 
-	if e.inputs.TriageReadOnly &&
-		(!isReadOnlyAutoApprovable(d) || d.Source.Kind != SourceBuiltin ||
-			strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
-		denyDecision(&decision, ReasonPolicyDenied)
-		return decision, nil
-	}
 	if e.inputs.ToolsDisabled {
 		denyDecision(&decision, ReasonSourceDisabled)
 		// The restrictions below still apply when tools are disabled: their reasons let callers tell a
@@ -71,8 +64,14 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 	if requiresSourceApproval {
 		requireApproval(&decision, e.inputs.ApprovalAvailable)
 	}
-	if e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input) {
+	if e.inputs.CheckIn == nil &&
+		(e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input)) {
 		e.applyPermissionCeiling(d, &decision)
+	}
+	if e.inputs.CheckIn != nil {
+		if reason := e.inputs.CheckIn.denial(d, input); reason != "" {
+			denyDecision(&decision, reason)
+		}
 	}
 	return decision, nil
 }
@@ -184,4 +183,8 @@ func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
 		}
 	}
 	return true
+}
+
+func (e *EffectivePolicyEvaluator) EvaluateInput(d Descriptor, input json.RawMessage) (EffectiveToolDecision, error) {
+	return e.evaluateCall(d, input)
 }

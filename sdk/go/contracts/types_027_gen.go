@@ -4,6 +4,20 @@ package contracts
 
 import "time"
 
+type WorkspaceID string
+
+type WorktreeContext struct {
+	ProfileID     string `json:"profile_id,omitempty"`
+	WorktreeID    string `json:"worktree_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	Name          string `json:"name"`
+	Branch        string `json:"branch"`
+	Path          string `json:"path"`
+	Origin        string `json:"origin"`
+	RunID         string `json:"run_id,omitempty"`
+}
+
 type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`

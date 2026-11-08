@@ -42,6 +42,17 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if c.AlwaysOn.CheckInTools != "enabled" && c.AlwaysOn.CheckInTools != "disabled" {
+		return fmt.Errorf("agents.always_on.check_in_tools must be enabled or disabled")
+	}
+	if c.AlwaysOn.CheckInMaxToolCalls < 1 || c.AlwaysOn.CheckInMaxToolCalls > 100 ||
+		c.AlwaysOn.CheckInMaxWriteCalls < 0 ||
+		c.AlwaysOn.CheckInMaxWriteCalls > 50 {
+		return fmt.Errorf("agents.always_on check-in tool caps out of range")
+	}
+	if c.AlwaysOn.CheckInAuditRetention < 24*time.Hour || c.AlwaysOn.CheckInAuditRetention > 8760*time.Hour {
+		return fmt.Errorf("agents.always_on.check_in_audit_retention must be between 24h and 8760h")
+	}
 	if c.AlwaysOn.ApprovalTimeout < time.Minute || c.AlwaysOn.ApprovalTimeout > 72*time.Hour {
 		return fmt.Errorf("agents.always_on.approval_timeout must be between 1m and 72h")
 	}

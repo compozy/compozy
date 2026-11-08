@@ -102,10 +102,7 @@ func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (Pol
 		resolver = NewStaticPolicyInputResolver(r.policyInputs)
 	}
 	inputs, err := resolver.Resolve(ctx, scope)
-	if err != nil {
-		return PolicyInputs{}, err
-	}
-	return clonePolicyInputs(inputs), nil
+	return clonePolicyInputs(inputs), err
 }
 
 func (r *RuntimeRegistry) toolsetView(toolset Toolset, universe []ToolID) ToolsetView {

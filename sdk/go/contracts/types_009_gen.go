@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type ForgeReviews struct {
+	Items             []ForgeReview       `json:"items"`
+	Threads           []ForgeReviewThread `json:"threads,omitempty"`
+	UnresolvedThreads int                 `json:"unresolved_threads"`
+	Truncated         bool                `json:"truncated,omitempty"`
+}
+
 type ForgeStatusRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
 	Branch     string   `json:"branch"`
@@ -97,6 +104,12 @@ type HeartbeatActorPayload struct {
 	Ref  string             `json:"ref,omitempty"`
 }
 
+type HeartbeatAuthorityPayload struct {
+	Digest   string         `json:"digest"`
+	Status   string         `json:"status"`
+	CheckIns CheckInsPolicy `json:"check_ins"`
+}
+
 type HeartbeatConfigProvenancePayload struct {
 	Digest string                       `json:"digest"`
 	Subset HeartbeatConfigSubsetPayload `json:"subset"`
@@ -129,6 +142,7 @@ type HeartbeatDeleteRequest struct {
 }
 
 type HeartbeatFrontmatterPayload struct {
+	CheckIns    CheckInsPolicy                         `json:"check_ins"`
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
 	Summary     string                                 `json:"summary,omitempty"`
@@ -160,6 +174,7 @@ type HeartbeatMutationResponse struct {
 }
 
 type HeartbeatPolicyPayload struct {
+	Authority        HeartbeatAuthorityPayload          `json:"authority"`
 	AgentName        string                             `json:"agent_name,omitempty"`
 	Enabled          bool                               `json:"enabled"`
 	Present          bool                               `json:"present"`
@@ -203,13 +218,3 @@ type HeartbeatPromptContributionPayload struct {
 	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 	Context          HeartbeatContextProjectionPayload  `json:"context"`
 }
-
-type HeartbeatPutRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatRevisionOperation string

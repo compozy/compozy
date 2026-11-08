@@ -16,6 +16,7 @@ import (
 )
 
 type sessionStartSpec struct {
+	checkInToolsStatus        string
 	initiatorKind             string
 	initiatorID               string
 	instancePermissionCeiling *store.SessionPermissionPolicy

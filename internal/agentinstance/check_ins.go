@@ -6,11 +6,14 @@ import (
 )
 
 type CheckIn struct {
-	ID        string
-	Result    string
-	Detail    string
-	Reason    string
-	CreatedAt time.Time
+	OccurrenceID string
+	ToolsStatus  string
+	ToolCalls    []CheckInToolCall
+	ID           string
+	Result       string
+	Detail       string
+	Reason       string
+	CreatedAt    time.Time
 }
 
 type CheckInReader interface {

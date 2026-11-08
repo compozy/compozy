@@ -350,7 +350,7 @@ CLI automation creation supports the Agent-or-Loop target union. Use `automation
 Triggers additionally accept experimental `target_kind = "agent_instance"`, `agent`, `prompt`, and
 `target_instance_scope` equal to their own workspace or `global`. CLI creation uses `--target-instance`
 and `--workspace` (or `@user` for global). Scheduled jobs do not support this target. Delivery feeds
-the existing instance's read-only check and completes the run without prompting its main. Events
+the existing instance's check-in and completes the run without prompting its main. Events
 stay pending across pause and quiet windows: newest 200 retained, at most 20 and 8 KiB read per check,
 2 KiB per summary, and `events_omitted` counts retention loss. This collector ignores `context.include`.
 A failed/cancelled check retains its batch; successful completion consumes only admitted event IDs.
@@ -746,3 +746,13 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Check-in tool bounds
+
+`[agents.always_on]` accepts `check_in_tools = "enabled"` (`disabled` restores
+no hosted tools in triage), `check_in_max_tool_calls = 25` (1–100),
+`check_in_max_write_calls = 5` (0–50), and `check_in_audit_retention = "720h"`
+(24h–8760h). Attempts count toward the total cap; only allowed writes count toward
+the write cap. Listing never spends budget. Retention removes audit rows daily.
+Operator-authored MCP declarations support `read_only_tools` with raw tool names;
+extension/catalog declarations cannot override classification.

@@ -89,6 +89,10 @@ func (h *BaseHandlers) resolveAuthoredAgentTargetForProfile(
 		agentPath:          authoredAgentPath(&resolved, name),
 		soulConfig:         resolved.Config.Agents.Soul,
 		heartbeatConfig:    resolved.Config.Agents.Heartbeat,
+		checkInLimits: &heartbeat.CheckInLimits{
+			MaxToolCalls:  resolved.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: resolved.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 	}.withAgentArtifacts(h.AgentCatalog, name, &resolved), nil
 }
 
@@ -148,6 +152,7 @@ func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarge
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
+		CheckInLimits: t.checkInLimits,
 	}
 }
 
@@ -288,6 +293,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 			WorkspaceRoot: t.workspaceRoot,
 			Content:       []byte(*body),
 			Config:        t.heartbeatConfig,
+			CheckInLimits: t.checkInLimits,
 		})
 		if err != nil {
 			return policy, err
@@ -303,6 +309,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 		WorkspaceRoot: t.workspaceRoot,
 		Content:       []byte(t.heartbeatBody),
 		Config:        t.heartbeatConfig,
+		CheckInLimits: t.checkInLimits,
 	})
 	if err != nil {
 		return policy, err

@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type HeartbeatPutRequest struct {
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	AgentName              string `json:"agent_name"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatRevisionOperation string
+
 type HeartbeatRevisionPayload struct {
 	ID             string                     `json:"id"`
 	AgentName      string                     `json:"agent_name"`
@@ -181,11 +192,3 @@ type HookMode string
 type HookRunOutcome string
 
 type HookSkillSource uint8
-
-type HookSource uint8
-
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}

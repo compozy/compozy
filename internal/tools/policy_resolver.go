@@ -55,6 +55,11 @@ func (r *staticPolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyI
 
 func clonePolicyInputs(src PolicyInputs) PolicyInputs {
 	cloned := src
+	if src.CheckIn != nil {
+		policy := *src.CheckIn
+		policy.AllowWrites = append([]string(nil), src.CheckIn.AllowWrites...)
+		cloned.CheckIn = &policy
+	}
 	cloned.TrustedSources = append([]SourceGrant(nil), src.TrustedSources...)
 	cloned.AllowSources = append([]SourceGrant(nil), src.AllowSources...)
 	cloned.AllowTools = append([]ToolPattern(nil), src.AllowTools...)

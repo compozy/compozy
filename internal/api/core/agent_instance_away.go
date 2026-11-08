@@ -108,6 +108,36 @@ func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if occurrence := c.Query("occurrence"); occurrence != "" {
+		reader, ok := h.AgentInstances.Store.(agentinstance.CheckInToolReader)
+		if !ok {
+			h.respondError(c, 503, errors.New("check-in tool storage unavailable"))
+			return
+		}
+		row, err := reader.CheckInOccurrence(c.Request.Context(), instance.ID, occurrence)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		c.JSON(
+			200,
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{
+					{
+						ID:           row.ID,
+						OccurrenceID: row.OccurrenceID,
+						Result:       row.Result,
+						Reason:       row.Reason,
+						Detail:       row.Detail,
+						CreatedAt:    row.CreatedAt,
+						ToolsStatus:  row.ToolsStatus,
+						ToolCalls:    row.ToolCalls,
+					},
+				},
+			},
+		)
+		return
+	}
 	limit := 50
 	if raw := c.Query("limit"); raw != "" {
 		value, err := strconv.Atoi(raw)
@@ -153,7 +183,8 @@ func (api *AgentInstanceAPI) CheckIns(
 		response.CheckIns = append(
 			response.CheckIns,
 			contract.AgentInstanceCheckInPayload{
-				ID:        row.ID,
+				ID:           row.ID,
+				OccurrenceID: row.OccurrenceID, ToolsStatus: row.ToolsStatus, ToolCalls: row.ToolCalls,
 				Result:    row.Result,
 				Reason:    row.Reason,
 				Detail:    row.Detail,

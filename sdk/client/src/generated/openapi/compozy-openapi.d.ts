@@ -642,6 +642,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/{name}/heartbeat/authority": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** show check-in authority */
+    get: operations["getAgentHeartbeatAuthority"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat/authority/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** approve check-in authority */
+    post: operations["approveAgentHeartbeatAuthority"];
+    /** revoke check-in authority */
+    delete: operations["revokeAgentHeartbeatAuthority"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}/heartbeat/history": {
     parameters: {
       query?: never;
@@ -8204,8 +8239,11 @@ export interface components {
       created_at: string;
       detail?: string;
       id: string;
+      occurrence_id: string;
       reason: string;
       result: string;
+      tool_calls: components["schemas"]["CheckInToolCall"][];
+      tools_status: string;
     };
     AgentInstanceCheckInsResponse: {
       check_ins: components["schemas"]["AgentInstanceCheckInPayload"][];
@@ -8246,6 +8284,7 @@ export interface components {
     AgentInstancePayload: {
       activity: string;
       agent_name: string;
+      authority_status: string;
       checks_enabled: boolean;
       created: boolean;
       /** Format: date-time */
@@ -8324,6 +8363,7 @@ export interface components {
       source?: components["schemas"]["AgentInstanceReportSource"] | null;
       state: string;
       tool?: string;
+      tool_calls: components["schemas"]["CheckInToolSummary"];
     };
     AgentInstanceReportSource: {
       event: string;
@@ -8367,6 +8407,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       reference?: boolean;
       secret_env?: {
         [key: string]: string;
@@ -8392,6 +8433,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       reference?: boolean;
       secret_env?: {
         [key: string]: string;
@@ -9134,6 +9176,37 @@ export interface components {
       deletions: number;
       files: number;
       partial?: boolean;
+    };
+    CheckInToolCall: {
+      access: string;
+      args_preview?: string;
+      backend: string;
+      decision: string;
+      deny_reason?: string;
+      /** Format: int64 */
+      duration_ms: number;
+      effect: string;
+      error_code?: string;
+      mcp_server?: string;
+      outcome: string;
+      /** Format: int64 */
+      seq: number;
+      tool_id: string;
+    };
+    CheckInToolSummary: {
+      /** Format: int64 */
+      denied: number;
+      /** Format: int64 */
+      total: number;
+      /** Format: int64 */
+      writes_done: number;
+      /** Format: int64 */
+      writes_maybe: number;
+    };
+    CheckInsPolicy: {
+      allow_writes?: string[];
+      max_tool_calls?: number | null;
+      max_write_calls?: number | null;
     };
     Chip: {
       count?: number | null;
@@ -11423,6 +11496,11 @@ export interface components {
       kind: "user" | "agent" | "extension" | "system";
       ref?: string;
     };
+    HeartbeatAuthorityPayload: {
+      check_ins: components["schemas"]["CheckInsPolicy"];
+      digest: string;
+      status: string;
+    };
     HeartbeatConfigProvenancePayload: {
       digest: string;
       subset: components["schemas"]["HeartbeatConfigSubsetPayload"];
@@ -11452,6 +11530,7 @@ export interface components {
       workspace_id?: string;
     };
     HeartbeatFrontmatterPayload: {
+      check_ins: components["schemas"]["CheckInsPolicy"];
       context: components["schemas"]["HeartbeatContextProjectionPayload"];
       enabled: boolean;
       preferences: components["schemas"]["HeartbeatFrontmatterPreferencesPayload"];
@@ -11474,6 +11553,7 @@ export interface components {
     HeartbeatPolicyPayload: {
       active: boolean;
       agent_name?: string;
+      authority: components["schemas"]["HeartbeatAuthorityPayload"];
       config_digest?: string;
       config_provenance: components["schemas"]["HeartbeatConfigProvenancePayload"];
       /** Format: date-time */
@@ -11518,6 +11598,7 @@ export interface components {
       truncated: boolean;
     };
     HeartbeatPutByPathRequest: {
+      approve_authority_sha256?: string;
       body: string;
       expected_digest: string;
       idempotency_key?: string;
@@ -16890,6 +16971,7 @@ export interface components {
       override?: components["schemas"]["SettingsMCPExtensionOverridePayload"] | null;
       owner?: string;
       profile?: string;
+      read_only_tools?: string[];
       runtime_name?: string;
       runtime_status?: components["schemas"]["SettingsMCPServerRuntimeStatusPayload"] | null;
       /** @enum {string} */
@@ -16911,6 +16993,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       secret_env?: {
         [key: string]: string;
       };
@@ -20134,6 +20217,7 @@ export interface components {
       type: string;
     };
     ToolDescriptorPayload: {
+      access: string;
       backend: components["schemas"]["ToolBackendRefPayload"];
       concurrency_safe: boolean;
       description: string;
@@ -26141,6 +26225,226 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Check-in authority */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HeartbeatAuthorityPayload"];
+        };
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  approveAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HeartbeatScriptApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description Authority approved */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Authority revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

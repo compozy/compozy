@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type DescribeHookEvent struct {
+	Event   HookEvent `json:"event"`
+	Profile string    `json:"profile,omitempty"`
+}
+
 type DescribePayload struct {
 	Name                 string                           `json:"name"`
 	Version              string                           `json:"version"`
@@ -208,10 +213,4 @@ type EventRecordPayload struct {
 	RecordType     string          `json:"record_type,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
-	Profile string `json:"profile,omitempty"`
 }

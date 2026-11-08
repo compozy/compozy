@@ -4,6 +4,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"strings"
 
 	yaml "github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
@@ -13,6 +14,9 @@ import (
 )
 
 func sourceDiagnosticCode(err error) string {
+	if strings.HasPrefix(err.Error(), "heartbeat_check_ins_invalid:") {
+		return "heartbeat_check_ins_invalid"
+	}
 	if e, ok := errors.AsType[*source.Error](err); ok {
 		return string(e.Code)
 	}

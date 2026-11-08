@@ -31,6 +31,7 @@ type CheckEnvironment interface {
 	Collect(context.Context, string, CollectorScope, []string, string, string) (CheckDigest, error)
 }
 type TriageOutcome struct {
+	ToolsStatus            string
 	Result, Reason, Detail string
 	DeniedCalls            int64
 	Report                 *agentinstance.ReportInput

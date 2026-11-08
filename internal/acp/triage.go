@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/toolmeta"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -48,8 +51,15 @@ func constrainTriageStart(opts StartOpts) (StartOpts, error) {
 		return StartOpts{}, ErrTriageUnsupported
 	}
 	opts.Permissions = compozyconfig.PermissionModeApproveReads
-	opts.MCPServers = nil
-	opts.ActivateMCPServers = nil
+	if opts.CheckInTools {
+		opts.MCPServers = slices.DeleteFunc(slices.Clone(opts.MCPServers), func(server compozyconfig.MCPServer) bool {
+			return server.Name != toolmeta.HostedServerName ||
+				!slices.Contains(server.Args, toolmeta.HostedBindNonceFlag)
+		})
+	} else {
+		opts.MCPServers = nil
+		opts.ActivateMCPServers = nil
+	}
 	return opts, nil
 }
 
@@ -58,7 +68,9 @@ func (p *AgentProcess) triagePermission(
 	request acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {
 	decision := decisionRejectOnce
-	if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
+	if _, hosted := p.hostedToolCall(request); hosted {
+		decision = decisionAllowOnce
+	} else if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
 		if _, err := p.permissions.resolvePathList(request.ToolCall.Locations); err == nil {
 			if _, err := p.interceptProviderNativePermissionRequest(ctx, request); err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

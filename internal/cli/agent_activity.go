@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -114,7 +116,36 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 		return writeInstanceOutput(
 			cmd,
 			result,
-			fmt.Sprintf("Check-ins: %d\nNext cursor: %s\n", len(result.CheckIns), result.NextCursor),
+			instanceCheckInsText(result),
 		)
 	}
+}
+
+func instanceCheckInsText(result contract.AgentInstanceCheckInsResponse) string {
+	var text strings.Builder
+	fmt.Fprintln(&text, "WHEN\tOUTCOME\tTOOLS")
+	for _, check := range result.CheckIns {
+		writes, denied := 0, 0
+		for _, call := range check.ToolCalls {
+			if call.Access == "write" && call.Decision == "allowed" {
+				writes++
+			}
+			if call.Decision == "denied" {
+				denied++
+			}
+		}
+		fmt.Fprintf(
+			&text,
+			"%s\t%s\t%d (%d writes, %d denied)\n",
+			check.CreatedAt.Format(time.RFC3339),
+			check.Result,
+			len(check.ToolCalls),
+			writes,
+			denied,
+		)
+		for _, call := range check.ToolCalls {
+			fmt.Fprintf(&text, "  %d %s %s %s %s\n", call.Seq, call.ToolID, call.Access, call.Outcome, call.DenyReason)
+		}
+	}
+	return text.String()
 }

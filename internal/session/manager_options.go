@@ -400,3 +400,7 @@ func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
 		manager.deriveConfig = cfg
 	}
 }
+
+func WithCheckInTools(enabled bool) Option {
+	return func(m *Manager) { m.checkInToolsDisabled = !enabled }
+}

@@ -92,6 +92,13 @@
             "resource": "settings",
             "app_access": "denied"
         },
+        "approveAgentHeartbeatAuthority": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.approveAgentHeartbeatAuthority({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.ApproveAgentHeartbeatAuthority(ctx, client.ApproveAgentHeartbeatAuthorityParams{Name: \"name\"}, client.HeartbeatScriptApprovalRequest{ /* request fields */ })\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "approveAgentHeartbeatScript": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.approveAgentHeartbeatScript({ path: { \"name\": \"name\", \"script\": \"script\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ApproveAgentHeartbeatScript(ctx, client.ApproveAgentHeartbeatScriptParams{Name: \"name\", Script: \"script\"}, client.HeartbeatScriptApprovalRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -1005,6 +1012,13 @@
         "getAgentHeartbeat": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentHeartbeat({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentHeartbeat(ctx, client.GetAgentHeartbeatParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
+        "getAgentHeartbeatAuthority": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentHeartbeatAuthority({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentHeartbeatAuthority(ctx, client.GetAgentHeartbeatAuthorityParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agents",
             "app_access": "denied"
@@ -3247,6 +3261,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RetryTaskRun(ctx, client.RetryTaskRunParams{ID: \"id\"}, client.RetryTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "tasks",
+            "app_access": "denied"
+        },
+        "revokeAgentHeartbeatAuthority": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.revokeAgentHeartbeatAuthority({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeAgentHeartbeatAuthority(ctx, client.RevokeAgentHeartbeatAuthorityParams{Name: \"name\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "agents",
             "app_access": "denied"
         },
         "revokeAgentHeartbeatScript": {

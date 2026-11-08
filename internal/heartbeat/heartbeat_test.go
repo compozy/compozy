@@ -1875,3 +1875,65 @@ func TestSourceFailureAndTextBudget(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckInAuthorityPolicy(t *testing.T) {
+	t.Run("Should parse strict check-in keys and stable authority [UT-010 UT-012]", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{"max_tool_calls: 0", "max_tool_calls: 101", "max_tool_calls: 26", "allow_writes: [compozy__*]", "max_write_calls: -1", "allow_writes: [bad]", "unknown: true"} {
+			policy, err := Parse(
+				t.Context(),
+				ParseRequest{
+					SourcePath: filepath.Join(t.TempDir(), FileName),
+					Content:    []byte("---\nversion: 1\ncheck_ins:\n  " + body + "\n---\nWatch issues.\n"),
+					Config:     compozyconfig.DefaultHeartbeatConfig(),
+				},
+			)
+			if err == nil || policy.Valid {
+				t.Fatalf("invalid check-in policy accepted: %s", body)
+			}
+		}
+		warnings := CheckInSelectorWarnings(
+			CheckInsPolicy{AllowWrites: []string{"compozy__unknown", "compozy__read", "mcp__fixture__*"}},
+			map[string]bool{"compozy__read": true, "mcp__fixture__write": false},
+		)
+		if len(warnings) != 2 || warnings[0].Code != "heartbeat_allow_writes_unknown_tool" {
+			t.Fatalf("warnings=%+v", warnings)
+		}
+		first, err := parseCheckIns(
+			map[string]any{"allow_writes": []string{"mcp__linear__*", "compozy__notify"}, "max_tool_calls": 10},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second := first
+		second.AllowWrites = []string{"compozy__notify", "mcp__linear__*"}
+		a, err := AuthorityDigest(first, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := AuthorityDigest(second, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a == "" || a != b {
+			t.Fatalf("unstable authority: %s %s", a, b)
+		}
+		empty, err := AuthorityDigest(CheckInsPolicy{}, nil)
+		if err != nil || empty != "" {
+			t.Fatalf("empty authority=%s err=%v", empty, err)
+		}
+		actions := []AuthorityAction{{ID: "report", Instructions: "Report one issue", AutoAccept: true}}
+		c, err := AuthorityDigest(first, actions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions[0].Instructions = "Report another issue"
+		d, err := AuthorityDigest(first, actions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c == d || c == a {
+			t.Fatal("auto action instructions missing from authority digest")
+		}
+	})
+}

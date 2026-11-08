@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// DismissAutomationSuggestion Durably dismiss one automation suggestion
+func (c *Client) DismissAutomationSuggestion(ctx context.Context, params DismissAutomationSuggestionParams) (*AutomationSuggestionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{suggestion_id}", url.PathEscape(params.SuggestionID))
+	var out AutomationSuggestionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DismissTaskParams carries the path, query, and header parameters.
+type DismissTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // DismissTask Dismiss one task inbox item
 func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
 	path := "/api/tasks/{id}/triage/dismiss"
@@ -410,32 +428,4 @@ type ExposeSkillParams struct {
 	Name     string  `url:"name"`
 	Profile  *string `url:"profile"`
 	ForAgent *string `url:"for_agent"`
-}
-
-// ExposeSkill Expose one user- or workspace-owned skill to provider roots
-func (c *Client) ExposeSkill(ctx context.Context, params ExposeSkillParams, body SkillExposureRequest) (*SkillExposeResponse, error) {
-	path := "/api/skills/{name}/expose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillExposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// FailAgentTaskRunParams carries the path, query, and header parameters.
-type FailAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
 }

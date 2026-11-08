@@ -33,6 +33,7 @@ type Tool struct {
 
 // Descriptor is the normalized runtime metadata used for indexing and dispatch.
 type Descriptor struct {
+	Access  Access     `json:"access"`
 	ID      ToolID     `json:"id"`
 	Backend BackendRef `json:"backend"`
 	*ToolPresentation

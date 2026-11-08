@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 )
 
 type InstanceReportEvent struct {
+	WritesDone  int64          `json:"-"`
+	WritesMaybe int64          `json:"-"`
 	Republished bool           `json:"-"`
 	ID          string         `json:"report_id"`
 	InstanceID  string         `json:"instance_id"`
@@ -92,6 +95,16 @@ func (m *Manager) PublishInstanceReport(
 }
 
 func instanceReportNotification(report InstanceReportEvent) (string, string, error) {
+	if report.Kind == "activity" {
+		title := fmt.Sprintf("Your agent made %d changes", report.WritesDone)
+		if report.WritesDone == 0 {
+			title = "Your agent may have changed something"
+		}
+		return title, fmt.Sprintf(
+			"%d calls may have changed something. Review the check-in report.",
+			report.WritesMaybe,
+		), nil
+	}
 	if report.Kind == "proposal" {
 		return "New agent proposal", "Review the proposed work in the agent thread.", nil
 	}

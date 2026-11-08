@@ -3,6 +3,8 @@ package contract
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
+
 	"github.com/compozy/compozy/internal/heartbeat"
 )
 
@@ -13,6 +15,7 @@ type AgentInstanceNextWake struct {
 }
 
 type AgentInstancePayload struct {
+	AuthorityStatus     string                            `json:"authority_status"`
 	Sources             []heartbeat.HeartbeatSourceStatus `json:"sources"`
 	UnattendedTurns     int64                             `json:"unattended_turns"`
 	UnattendedTurnLimit int64                             `json:"unattended_turn_limit"`
@@ -69,22 +72,23 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 type AgentInstanceReportPayload struct {
-	Source        *AgentInstanceReportSource `json:"source,omitempty"`
-	Action        string                     `json:"action,omitempty"`
-	Resource      string                     `json:"resource,omitempty"`
-	SkillReviewID string                     `json:"skill_review_id,omitempty"`
-	ID            string                     `json:"id"`
-	Kind          string                     `json:"kind"`
-	State         string                     `json:"state"`
-	Proposals     []AgentInstanceProposal    `json:"proposals,omitempty"`
-	Reason        string                     `json:"reason,omitempty"`
-	Detail        string                     `json:"detail,omitempty"`
-	SessionID     string                     `json:"session_id,omitempty"`
-	Tool          string                     `json:"tool,omitempty"`
-	ExpiredBy     string                     `json:"expired_by,omitempty"`
-	Cause         string                     `json:"cause,omitempty"`
-	Since         string                     `json:"since,omitempty"`
-	CreatedAt     time.Time                  `json:"created_at"`
+	ToolCalls     agentinstance.CheckInToolSummary `json:"tool_calls"`
+	Source        *AgentInstanceReportSource       `json:"source,omitempty"`
+	Action        string                           `json:"action,omitempty"`
+	Resource      string                           `json:"resource,omitempty"`
+	SkillReviewID string                           `json:"skill_review_id,omitempty"`
+	ID            string                           `json:"id"`
+	Kind          string                           `json:"kind"`
+	State         string                           `json:"state"`
+	Proposals     []AgentInstanceProposal          `json:"proposals,omitempty"`
+	Reason        string                           `json:"reason,omitempty"`
+	Detail        string                           `json:"detail,omitempty"`
+	SessionID     string                           `json:"session_id,omitempty"`
+	Tool          string                           `json:"tool,omitempty"`
+	ExpiredBy     string                           `json:"expired_by,omitempty"`
+	Cause         string                           `json:"cause,omitempty"`
+	Since         string                           `json:"since,omitempty"`
+	CreatedAt     time.Time                        `json:"created_at"`
 }
 type AgentInstanceReportsResponse struct {
 	Reports    []AgentInstanceReportPayload `json:"reports"`
@@ -135,11 +139,14 @@ type AgentInstanceSeenResponse struct {
 }
 
 type AgentInstanceCheckInPayload struct {
-	ID        string    `json:"id"`
-	Result    string    `json:"result"`
-	Reason    string    `json:"reason"`
-	Detail    string    `json:"detail,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	OccurrenceID string                          `json:"occurrence_id"`
+	ToolsStatus  string                          `json:"tools_status"`
+	ToolCalls    []agentinstance.CheckInToolCall `json:"tool_calls"`
+	ID           string                          `json:"id"`
+	Result       string                          `json:"result"`
+	Reason       string                          `json:"reason"`
+	Detail       string                          `json:"detail,omitempty"`
+	CreatedAt    time.Time                       `json:"created_at"`
 }
 
 type AgentInstanceCheckInsResponse struct {

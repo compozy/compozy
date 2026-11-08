@@ -56,6 +56,7 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 
 // DescriptorWithSchemaDigests returns a descriptor with canonical schema digests populated.
 func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
+	descriptor.Access = AccessOf(descriptor)
 	descriptor.ToolPresentation = CloneToolPresentation(descriptor.ToolPresentation)
 	descriptor.ToolExecutionMetadata = CloneToolExecutionMetadata(descriptor.ToolExecutionMetadata)
 	inputDigest, err := SchemaDigest(descriptor.InputSchema)

@@ -3,6 +3,7 @@ package config
 import "strings"
 
 type mcpServerOverlay struct {
+	ReadOnlyTools  *[]string           `toml:"read_only_tools"`
 	Name           *string             `toml:"name"`
 	Transport      *MCPServerTransport `toml:"transport"`
 	Command        *string             `toml:"command"`
@@ -18,6 +19,9 @@ type mcpServerOverlay struct {
 }
 
 func (o mcpServerOverlay) Apply(dst *MCPServer) {
+	if o.ReadOnlyTools != nil {
+		dst.ReadOnlyTools = append([]string(nil), (*o.ReadOnlyTools)...)
+	}
 	if o.Name != nil {
 		dst.Name = *o.Name
 	}

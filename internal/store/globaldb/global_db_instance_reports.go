@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -93,7 +94,7 @@ func (r *InstanceReportRepo) ListReports(
 	if err != nil {
 		return nil, err
 	}
-	return instanceReports(rows)
+	return r.projectReportToolCalls(ctx, rows)
 }
 
 func (r *InstanceReportRepo) RecentReports(
@@ -166,6 +167,18 @@ func (r *InstanceReportRepo) UnpublishedReports(
 		)
 		if err != nil {
 			return nil, err
+		}
+		if occurrence, ok := strings.CutPrefix(report.SourceKey, "occ:"); ok {
+			summary, err := r.readQueries.CheckInToolCallSummary(ctx, occurrence)
+			if err != nil {
+				return nil, err
+			}
+			report.ToolCalls = agentinstance.CheckInToolSummary{
+				Total:       summary.Total,
+				WritesDone:  summary.WritesDone,
+				WritesMaybe: summary.WritesMaybe,
+				Denied:      summary.Denied,
+			}
 		}
 		result = append(
 			result,

@@ -31,6 +31,7 @@ type FinishResult struct {
 }
 
 type FinishRequest struct {
+	ToolsStatus                                              string
 	HasSources, SourceMore                                   bool
 	MinInterval                                              time.Duration
 	UnattendedTurnLimit                                      int64

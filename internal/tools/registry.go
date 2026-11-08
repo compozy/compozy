@@ -14,6 +14,7 @@ type RegistryOption func(*RuntimeRegistry)
 
 // RuntimeRegistry indexes providers and produces scoped projections.
 type RuntimeRegistry struct {
+	checkInRecorder       CheckInRecorder
 	providers             []Provider
 	descriptorMetadata    descriptorMetadataIndex
 	evaluator             PolicyEvaluator
@@ -407,6 +408,7 @@ func denialErrorForView(view *ToolView) error {
 
 // cloneDescriptor isolates all mutable descriptor fields, including schemas and backend capability requirements.
 func cloneDescriptor(src Descriptor) Descriptor {
+	src.Access = AccessOf(src)
 	cloned := src
 	cloned.Backend.RequiresCapabilities = slices.Clone(src.Backend.RequiresCapabilities)
 	cloned.ToolPresentation = CloneToolPresentation(src.ToolPresentation)

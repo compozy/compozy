@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,8 +13,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -1174,4 +1178,200 @@ type failingDecideStore struct {
 
 func (s failingDecideStore) DecideReview(context.Context, string, string, string, string) error {
 	return s.err
+}
+
+func TestCheckInActivityReports(t *testing.T) {
+	for _, mode := range []string{"quiet", "cancelled", "deduped", "done"} {
+		cancelled := mode == "cancelled"
+		t.Run(
+			fmt.Sprintf("Should retain audited activity after %s [IT-003]", mode),
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "activity", "sess-activity")
+				repo := db.Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+				refs := []source.Ref{{ID: "activity-source", Script: "poll"}}
+				states, err := repo.SourceStates(t.Context(), instance.ID, refs, false, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				batch := source.Result{
+					Items: []source.Item{{Key: "one", Title: "First"}, {Key: "two", Title: "Second"}},
+					State: []byte(`{"cursor":2}`),
+				}
+				polled := []heartbeat.PolledSource{
+					{Ref: refs[0], RefDigest: states[0].RefDigest, Generation: states[0].Generation, Result: batch},
+				}
+				admitted, err := repo.Admit(
+					t.Context(),
+					heartbeat.AdmitRequest{
+						Sources:       polled,
+						InstanceID:    instance.ID,
+						OccurrenceID:  "activity-occ",
+						Now:           now,
+						NextWakeAt:    now.Add(time.Hour),
+						MaxConcurrent: 2,
+					},
+				)
+				if err != nil || !admitted {
+					t.Fatalf("admit=%v err=%v", admitted, err)
+				}
+				policy := toolspkg.CheckInPolicy{
+					InstanceID:    instance.ID,
+					OccurrenceID:  "activity-occ",
+					MaxToolCalls:  5,
+					MaxWriteCalls: 5,
+				}
+				decision, err := repo.Begin(
+					t.Context(),
+					toolspkg.CheckInAttempt{
+						ToolID:  "mcp__fixture__write",
+						Backend: toolspkg.BackendMCP,
+						Access:  toolspkg.AccessWrite,
+					},
+					policy,
+				)
+				if err != nil || !decision.Allowed {
+					t.Fatalf("begin=%+v err=%v", decision, err)
+				}
+				reportInput := (*agentinstance.ReportInput)(nil)
+				finishResult := "quiet"
+				if mode == "done" || mode == "deduped" {
+					if err := repo.FinishToolCall(
+						t.Context(),
+						"activity-occ",
+						decision.Seq,
+						"ok",
+						"",
+						time.Millisecond,
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if mode == "deduped" {
+					reportInput = &agentinstance.ReportInput{
+						SourceKey: "occ:previous",
+						Kind:      "proposal",
+						Payload: []byte(
+							`{"proposals":[{"title":"Repeat","body":"Repeat this work","item_keys":["one"]}]}`,
+						),
+					}
+					if _, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, *reportInput); err != nil {
+						t.Fatal(err)
+					}
+					finishResult = "reported"
+				}
+				if cancelled {
+					if _, err := db.DB().
+						ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET occurrence_cancelled=1 WHERE instance_id=?", instance.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				result, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: "activity-occ",
+						Source:       "instance_check",
+						Digest:       "completed-digest",
+						Result:       finishResult,
+						Report:       reportInput,
+						Reason:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || !result.Changed {
+					t.Fatalf("finish=%+v err=%v", result, err)
+				}
+				calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, "activity-occ")
+				wantCall, wantEffect := "unknown", "maybe"
+				if mode == "done" || mode == "deduped" {
+					wantCall, wantEffect = "ok", "done"
+				}
+				if err != nil || len(calls) != 1 || calls[0].Outcome != wantCall || calls[0].Effect != wantEffect {
+					t.Fatalf("calls=%+v err=%v", calls, err)
+				}
+				reports, err := db.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+				activities := 0
+				for _, report := range reports {
+					if report.SourceKey == "occ:activity-occ" && report.Kind == "activity" {
+						activities++
+					}
+				}
+				if err != nil || activities != 1 {
+					t.Fatalf("reports=%+v err=%v", reports, err)
+				}
+				var outcome string
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT result FROM agent_heartbeat_wake_events WHERE occurrence_id='activity-occ'").
+					Scan(&outcome); err != nil {
+					t.Fatal(err)
+				}
+				want := "quiet"
+				if cancelled {
+					want = "cancelled"
+				}
+				states, err = repo.SourceStates(t.Context(), instance.ID, refs, false, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wake, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if cancelled && (len(states[0].State) != 0 || wake.LastDigest != "") {
+					t.Fatalf("cancelled source committed: %+v %+v", states, wake)
+				}
+				if !cancelled &&
+					(!bytes.Equal(states[0].State, batch.State) || wake.LastDigest != "completed-digest" || wake.QuietStreak != 0) {
+					t.Fatalf("completed state=%+v wake=%+v", states, wake)
+				}
+				repeat, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: "activity-occ",
+						Source:       "instance_check",
+						Result:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || repeat.Changed {
+					t.Fatalf("repeat=%+v err=%v", repeat, err)
+				}
+				if _, err := repo.CheckInOccurrence(
+					t.Context(),
+					instance.ID,
+					"missing",
+				); !errors.Is(
+					err,
+					agentinstance.ErrNotFound,
+				) {
+					t.Fatalf("missing occurrence: %v", err)
+				}
+				if outcome != want {
+					t.Fatalf("outcome=%s want=%s", outcome, want)
+				}
+			},
+		)
+	}
 }

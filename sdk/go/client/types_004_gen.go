@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// Blocker is a daemon API value.
+type Blocker struct {
+	Kind         string     `json:"kind"`
+	NodeID       NodeID     `json:"node_id,omitempty"`
+	GateID       NodeID     `json:"gate_id,omitempty"`
+	ItemIndex    int        `json:"item_index,omitzero"`
+	WaitingSince time.Time  `json:"waiting_since"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Expired      bool       `json:"expired,omitzero"`
+	Unblocker    string     `json:"unblocker"`
+}
+
+// BoardColumn is a daemon API value.
+type BoardColumn string
+
 // Briefing is a daemon API value.
 type Briefing struct {
 	RunID     RunID         `json:"run_id"`
@@ -138,6 +153,37 @@ type ChangeTotalsPayload struct {
 	Additions int  `json:"additions"`
 	Deletions int  `json:"deletions"`
 	Partial   bool `json:"partial,omitzero"`
+}
+
+// CheckInToolCall is a daemon API value.
+type CheckInToolCall struct {
+	Seq         int64  `json:"seq"`
+	ToolID      string `json:"tool_id"`
+	Backend     string `json:"backend"`
+	MCPServer   string `json:"mcp_server,omitempty"`
+	Access      string `json:"access"`
+	Decision    string `json:"decision"`
+	DenyReason  string `json:"deny_reason,omitempty"`
+	Outcome     string `json:"outcome"`
+	Effect      string `json:"effect"`
+	ErrorCode   string `json:"error_code,omitempty"`
+	ArgsPreview string `json:"args_preview,omitempty"`
+	DurationMS  int64  `json:"duration_ms"`
+}
+
+// CheckInToolSummary is a daemon API value.
+type CheckInToolSummary struct {
+	Total       int64 `json:"total"`
+	WritesDone  int64 `json:"writes_done"`
+	WritesMaybe int64 `json:"writes_maybe"`
+	Denied      int64 `json:"denied"`
+}
+
+// CheckInsPolicy is a daemon API value.
+type CheckInsPolicy struct {
+	AllowWrites   []string `json:"allow_writes,omitempty"`
+	MaxToolCalls  *int     `json:"max_tool_calls,omitempty"`
+	MaxWriteCalls *int     `json:"max_write_calls,omitempty"`
 }
 
 // ChecksState is a daemon API value.
@@ -399,40 +445,4 @@ type ConfigApplyRecordPayload struct {
 	CreatedAt         time.Time               `json:"created_at"`
 	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
 	UpdatedAt         time.Time               `json:"updated_at"`
-}
-
-// ConfigApplyRecordsResponse is a daemon API value.
-type ConfigApplyRecordsResponse struct {
-	Entries []ConfigApplyRecordPayload `json:"entries"`
-}
-
-// ConfigApplyStatus is a daemon API value.
-type ConfigApplyStatus string
-
-// ConfigLayerDiagnosticPayload is a daemon API value.
-type ConfigLayerDiagnosticPayload struct {
-	Code    string `json:"code"`
-	Layer   string `json:"layer"`
-	Profile string `json:"profile"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-// ConfigRuntimeStatusPayload is a daemon API value.
-type ConfigRuntimeStatusPayload struct {
-	Status          string                         `json:"status"`
-	Validated       bool                           `json:"validated"`
-	ValidationError string                         `json:"validation_error,omitempty"`
-	HomeDir         string                         `json:"home_dir,omitempty"`
-	ConfigFile      string                         `json:"config_file,omitempty"`
-	RestartRequired bool                           `json:"restart_required"`
-	ApplyState      string                         `json:"apply_state"`
-	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// Confirmation is a daemon API value.
-type Confirmation struct {
-	Title   string `json:"title"`
-	Body    string `json:"body,omitempty"`
-	Confirm string `json:"confirm"`
 }

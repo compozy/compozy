@@ -55,9 +55,9 @@ WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND agent_inst
 
 -- name: InsertInstanceWakeEvent :exec
 INSERT INTO agent_heartbeat_wake_events
-(id,workspace_id,agent_name,source,result,reason,detail,denied_calls,occurrence_id,instance_id,created_at,expires_at)
+(id,workspace_id,agent_name,source,result,reason,detail,denied_calls,occurrence_id,instance_id,created_at,expires_at,tools_status)
 SELECT sqlc.arg(id),workspace_id,agent_name,sqlc.arg(source),sqlc.arg(result),sqlc.arg(reason),
-sqlc.arg(detail),sqlc.arg(denied_calls),sqlc.arg(occurrence_id),sqlc.arg(instance_id),sqlc.arg(created_at),sqlc.arg(expires_at)
+sqlc.arg(detail),sqlc.arg(denied_calls),sqlc.arg(occurrence_id),sqlc.arg(instance_id),sqlc.arg(created_at),sqlc.arg(expires_at),sqlc.arg(tools_status)
 FROM agent_instances WHERE agent_instances.id=sqlc.arg(instance_id);
 
 -- name: SetInstanceChecks :execrows
@@ -79,7 +79,7 @@ WHERE e.instance_id=sqlc.arg(instance_id) AND e.occurrence_id=sqlc.arg(occurrenc
 LIMIT 1;
 
 -- name: ListInstanceCheckIns :many
-SELECT e.id, e.result, e.reason, e.detail, e.created_at FROM agent_heartbeat_wake_events e
+SELECT e.id, e.result, e.reason, e.detail, e.created_at, e.occurrence_id, e.tools_status FROM agent_heartbeat_wake_events e
 WHERE e.instance_id=sqlc.arg(instance_id)
 AND (sqlc.arg(cursor)='' OR (e.created_at, e.id) <
  (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=sqlc.arg(instance_id) AND c.id=sqlc.arg(cursor)))

@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type TaskRunDetail struct {
+	Run     TaskRun                          `json:"run"`
+	Task    *TaskReferencePayload            `json:"task,omitempty"`
+	Session *TaskRunSessionPayload           `json:"session,omitempty"`
+	Summary TaskRunOperationalSummaryPayload `json:"summary"`
+}
+
+type TaskRunEnqueueParams struct {
+	TaskID         string          `json:"task_id"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
 type TaskRunEnqueuedPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -403,27 +416,4 @@ type TaskRunsParams struct {
 	Status    TaskRunStatus `json:"status,omitempty"`
 	SessionID string        `json:"session_id,omitempty"`
 	Limit     int           `json:"limit,omitempty"`
-}
-
-type TaskScope string
-
-type TaskStatusChangedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	ParentTaskID   string    `json:"parent_task_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	WorkflowID     string    `json:"workflow_id,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	ActorKind      string    `json:"actor_kind,omitempty"`
-	ActorID        string    `json:"actor_id,omitempty"`
-	OriginKind     string    `json:"origin_kind,omitempty"`
-	OriginRef      string    `json:"origin_ref,omitempty"`
-	TaskStatus     string    `json:"task_status,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	ReleaseReason  string    `json:"release_reason,omitempty"`
-	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
-	FromStatus     string    `json:"from_status"`
-	ToStatus       string    `json:"to_status"`
 }

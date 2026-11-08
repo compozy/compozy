@@ -25,6 +25,8 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/providers"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -34,12 +36,15 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	tools "github.com/compozy/compozy/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 	"github.com/jonboulle/clockwork"
 	"github.com/kballard/go-shellquote"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHeartbeatWakeHealthReader(t *testing.T) {
@@ -1016,7 +1021,11 @@ type heartbeatSourceRuntime struct {
 	config                            heartbeat.CheckConfig
 }
 
-func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatSourceRuntime {
+func newHeartbeatSourceRuntime(
+	t *testing.T,
+	approved, blocked bool,
+	mainPermissions ...compozyconfig.PermissionMode,
+) *heartbeatSourceRuntime {
 	t.Helper()
 	h := &heartbeatSourceRuntime{db: openDaemonTestGlobalDB(t)}
 	h.clock.Store(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC).UnixNano())
@@ -1150,7 +1159,11 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 			t.Error(err)
 		}
 	})
-	main, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: def.Name, Workspace: "source-workspace"})
+	mainOpts := &session.CreateOpts{AgentName: def.Name, Workspace: "source-workspace"}
+	if len(mainPermissions) > 0 {
+		mainOpts.Permissions = mainPermissions[0]
+	}
+	main, err := h.manager.Create(t.Context(), mainOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2681,4 +2694,284 @@ func (e *postPollHeartbeatEnvironment) ResolveCheck(ctx context.Context, id stri
 		return target, errors.New("policy unavailable")
 	}
 	return target, nil
+}
+
+func TestCheckInToolsDisabled(t *testing.T) {
+	t.Run("Should complete a real check-in without hosted tools when disabled [IT-008]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		session.WithCheckInTools(false)(h.manager)
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "1", Title: "Fixture input"}}, State: []byte(`{"cursor":1}`)},
+		)
+		h.tick(t, 1)
+		rows, err := h.db.Instances().ListCheckIns(t.Context(), h.instance.ID, "", 10)
+		if err != nil || len(rows) != 1 || rows[0].ToolsStatus != "disabled" || len(rows[0].ToolCalls) != 0 {
+			t.Fatalf("rows=%+v err=%v", rows, err)
+		}
+	})
+}
+
+type checkInGatewayFixture struct {
+	inner heartbeat.TriageDispatcher
+	call  func(context.Context, *heartbeat.CheckTarget, string) error
+}
+
+var _ heartbeat.TriageDispatcher = checkInGatewayFixture{}
+
+func (f checkInGatewayFixture) Stop(ctx context.Context, id string) error {
+	return f.inner.Stop(ctx, id)
+}
+
+func (f checkInGatewayFixture) Dispatch(
+	ctx context.Context,
+	target *heartbeat.CheckTarget,
+	digest heartbeat.CheckDigest,
+	bind func(string) error,
+) (heartbeat.TriageOutcome, error) {
+	return f.inner.Dispatch(ctx, target, digest, func(id string) error {
+		if err := bind(id); err != nil {
+			return err
+		}
+		return f.call(ctx, target, id)
+	})
+}
+func TestCheckInToolAuthorityIntegration(t *testing.T) {
+	for _, mode := range []string{"approved", "narrowed", "no-main"} {
+		t.Run("Should enforce current main authority and project MCP audit for "+mode+" [IT-006]", func(t *testing.T) {
+			permission := compozyconfig.PermissionModeApproveAll
+			if mode == "narrowed" {
+				permission = compozyconfig.PermissionModeApproveReads
+			}
+			h := newHeartbeatSourceRuntime(t, true, false, permission)
+			if err := h.checks.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			remoteFixture := mcpfixture.MustNew(mcpfixture.ProfileModern2026)
+			remoteFixture.Server().
+				AddTool(&sdkmcp.Tool{Name: "read", InputSchema: map[string]any{"type": "object"}, Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+					return &sdkmcp.CallToolResult{
+						Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "read fixture"}},
+					}, nil
+				})
+			remoteFixture.Server().
+				AddTool(&sdkmcp.Tool{Name: "unannotated", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+					return &sdkmcp.CallToolResult{}, nil
+				})
+			remote := remoteFixture.StartHTTP(t)
+			executor, err := mcppkg.NewMCPCallExecutor(
+				mcppkg.ServerResolverFunc(
+					func(context.Context, toolspkg.SourceRef, string) (mcppkg.ResolvedServer, error) {
+						return mcppkg.ResolvedServer{
+							Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
+							Server: compozyconfig.MCPServer{
+								Name:      "fixture",
+								Transport: compozyconfig.MCPServerTransportHTTP,
+								URL:       remote.URL,
+							},
+						}, nil
+					},
+				),
+				mcppkg.WithHTTPClient(remote.Client()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mcpSource := toolspkg.SourceRef{
+				Kind:          toolspkg.SourceMCP,
+				Owner:         "fixture",
+				RawServerName: "fixture",
+				RawToolName:   "*",
+			}
+			if _, err := executor.ListTools(t.Context(), mcpSource); err != nil {
+				t.Fatalf("fixture discovery: %v", err)
+			}
+			provider, err := toolspkg.NewMCPProvider(
+				toolspkg.MCPSourceListerFunc(
+					func(context.Context) ([]toolspkg.SourceRef, error) { return []toolspkg.SourceRef{mcpSource}, nil },
+				),
+				executor,
+				executor,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace, err := h.env.definitions.workspaces.Resolve(t.Context(), h.instance.WorkspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			def, err := h.env.definitions.agents.ResolveAgent(h.instance.AgentName, &workspace)
+			if err != nil {
+				t.Fatal(err)
+			}
+			def.Tools = []string{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"}
+			def.MCPServers = []compozyconfig.MCPServer{
+				{Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL},
+			}
+			agents := stubSessionCommandAgentResolver(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) { return def, nil },
+			)
+			session.WithAgentResolver(agents)(h.manager)
+			session.WithToolUniverse(
+				[]toolspkg.ToolID{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"},
+			)(
+				h.manager,
+			)
+			h.env.definitions.agents = agents
+			h.manager.SetInstanceCeilingReader(instanceCeilingReader(h.db.Instances()))
+			ceiling, err := json.Marshal(
+				store.SessionPermissionPolicy{
+					Tools:             def.Tools,
+					MCPServers:        []string{"fixture"},
+					WorkspacePaths:    []string{workspace.RootDir, h.dir},
+					MaterializedTools: true,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.db.DB().
+				ExecContext(t.Context(), "UPDATE agent_instances SET permission_ceiling=? WHERE id=?", string(ceiling), h.instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.db.DB().
+				ExecContext(t.Context(), "UPDATE sessions SET permission_policy_json=? WHERE id=?", string(ceiling), h.instance.MainSessionID); err != nil {
+				t.Fatal(err)
+			}
+			body, err := os.ReadFile(filepath.Join(h.dir, "HEARTBEAT.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = bytes.Replace(
+				body,
+				[]byte("version: 1"),
+				[]byte("version: 1\ncheck_ins:\n  allow_writes: [mcp__fixture__echo]"),
+				1,
+			)
+			if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), body, 0600); err != nil {
+				t.Fatal(err)
+			}
+			hash, err := heartbeat.AuthorityDigest(
+				heartbeat.CheckInsPolicy{AllowWrites: []string{"mcp__fixture__echo"}},
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.db.Instances().
+				ApproveAuthority(t.Context(), h.instance.ProfileID, h.dir, hash, "cli", h.now()); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "no-main" {
+				if _, err := h.db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=NULL WHERE id=?", h.instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			resolver, err := newNativeToolPolicyResolver(
+				nativeToolPolicyResolverDeps{
+					Config:            &workspace.Config,
+					Sessions:          h.manager,
+					WorkspaceResolver: h.env.definitions.workspaces,
+					ProfileNames:      nativeProfileReaderStub{},
+					AgentResolver:     &nativeToolPolicyAgentResolverStub{agent: def},
+					MCPSourceGrants: func(context.Context, toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
+						return []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "fixture"}}, nil
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolver.instanceCallers = h.db.Instances()
+			registry, err := toolspkg.NewRegistry(
+				toolspkg.WithProviders(provider),
+				toolspkg.WithPolicyInputResolver(resolver, toolspkg.ToolsetCatalog{}),
+				toolspkg.WithCheckInRecorder(h.db.Instances().CheckInRecorder()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture := checkInGatewayFixture{
+				inner: &session.TriageDispatcher{
+					Manager:      h.manager,
+					Reports:      h.db.InstanceReports(),
+					MaxProposals: 2,
+					StopTimeout:  time.Second,
+				},
+				call: func(ctx context.Context, target *heartbeat.CheckTarget, id string) error {
+					scope := toolspkg.Scope{
+						SessionID:   id,
+						ProfileID:   target.Instance.ProfileID,
+						WorkspaceID: target.Instance.WorkspaceID,
+						AgentName:   target.Instance.AgentName,
+					}
+					if _, err := registry.Call(
+						ctx,
+						scope,
+						toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+					); err != nil {
+						return fmt.Errorf("fixture read: %w", err)
+					}
+					if _, err := registry.Call(
+						ctx,
+						scope,
+						toolspkg.CallRequest{ToolID: "mcp__fixture__unannotated", Input: []byte(`{}`)},
+					); err == nil {
+						return errors.New("unannotated tool ran without opt-in")
+					}
+					_, err := registry.Call(
+						ctx,
+						scope,
+						toolspkg.CallRequest{
+							ToolID: "mcp__fixture__echo",
+							Input:  []byte(`{"message":"fixture write"}`),
+						},
+					)
+					if (err == nil) != (mode == "approved") {
+						return fmt.Errorf("write at %s: %v", mode, err)
+					}
+					return nil
+				},
+			}
+			h.checks, err = heartbeat.NewCheckService(t.Context(), h.db.Instances(), h.env, fixture, h.config, h.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.checks.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			checks := h.checks
+			t.Cleanup(func() {
+				if err := checks.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			h.writeReply(
+				t,
+				source.Result{Items: []source.Item{{Key: "1", Title: "Tool fixture"}}, State: []byte(`{"cursor":1}`)},
+			)
+			h.tick(t, 1)
+			checksRows, err := h.db.Instances().ListCheckIns(t.Context(), h.instance.ID, "", 10)
+			if err != nil || len(checksRows) != 1 || len(checksRows[0].ToolCalls) != 3 {
+				t.Fatalf("checks=%+v err=%v", checksRows, err)
+			}
+			calls := checksRows[0].ToolCalls
+			if calls[0].Outcome != "ok" || calls[0].Access != "read" {
+				t.Fatalf("read=%+v", calls[0])
+			}
+			if calls[1].Decision != "denied" || calls[1].Access != "write" || calls[1].Effect != "none" {
+				t.Fatalf("unannotated=%+v", calls[1])
+			}
+			if mode != "approved" &&
+				(calls[2].Decision != "denied" || calls[2].DenyReason != "check_in_write_needs_approval") {
+				t.Fatalf("denied write=%+v", calls[2])
+			}
+			reports, err := h.db.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: h.instance.ID, Limit: 10})
+			if err != nil || len(reports) != 1 || !bytes.Contains(reports[0].Payload, []byte(`"tool_calls"`)) {
+				t.Fatalf("reports=%+v err=%v", reports, err)
+			}
+		})
+	}
 }

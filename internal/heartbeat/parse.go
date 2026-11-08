@@ -155,6 +155,12 @@ func assignAllowedField(front *Frontmatter, key string, value any) error {
 			return fmt.Errorf("HEARTBEAT.md frontmatter field %q must be a boolean", key)
 		}
 		front.Enabled = enabled
+	case "check_ins":
+		policy, err := parseCheckIns(value)
+		if err != nil {
+			return err
+		}
+		front.CheckIns = policy
 	case "summary":
 		summary, err := stringOnly(value)
 		if err != nil {

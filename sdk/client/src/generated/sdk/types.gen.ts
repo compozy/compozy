@@ -256,8 +256,11 @@ export type AgentInstanceCheckInPayload = {
   created_at: string;
   detail?: string;
   id: string;
+  occurrence_id: string;
   reason: string;
   result: string;
+  tool_calls: Array<CheckInToolCall>;
+  tools_status: string;
 };
 
 export type AgentInstanceCheckInsResponse = {
@@ -305,6 +308,7 @@ export type AgentInstanceOccurrenceResponse = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  authority_status: string;
   checks_enabled: boolean;
   created: boolean;
   created_at: string;
@@ -379,6 +383,7 @@ export type AgentInstanceReportPayload = {
   source?: AgentInstanceReportSource | null;
   state: string;
   tool?: string;
+  tool_calls: CheckInToolSummary;
 };
 
 export type AgentInstanceReportSource = {
@@ -428,6 +433,7 @@ export type AgentMCPServerInput = {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
   reference?: boolean;
   secret_env?: {
     [key: string]: string;
@@ -448,6 +454,7 @@ export type AgentMCPServerJSON = {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
   reference?: boolean;
   secret_env?: {
     [key: string]: string;
@@ -1237,6 +1244,34 @@ export type ChangeTotalsPayload = {
   deletions: number;
   files: number;
   partial?: boolean;
+};
+
+export type CheckInToolCall = {
+  access: string;
+  args_preview?: string;
+  backend: string;
+  decision: string;
+  deny_reason?: string;
+  duration_ms: number;
+  effect: string;
+  error_code?: string;
+  mcp_server?: string;
+  outcome: string;
+  seq: number;
+  tool_id: string;
+};
+
+export type CheckInToolSummary = {
+  denied: number;
+  total: number;
+  writes_done: number;
+  writes_maybe: number;
+};
+
+export type CheckInsPolicy = {
+  allow_writes?: Array<string>;
+  max_tool_calls?: number | null;
+  max_write_calls?: number | null;
 };
 
 export type Chip = {
@@ -3499,6 +3534,12 @@ export type HeartbeatActorPayload = {
   ref?: string;
 };
 
+export type HeartbeatAuthorityPayload = {
+  check_ins: CheckInsPolicy;
+  digest: string;
+  status: string;
+};
+
 export type HeartbeatConfigProvenancePayload = {
   digest: string;
   subset: HeartbeatConfigSubsetPayload;
@@ -3530,6 +3571,7 @@ export type HeartbeatDeleteByPathRequest = {
 };
 
 export type HeartbeatFrontmatterPayload = {
+  check_ins: CheckInsPolicy;
   context: HeartbeatContextProjectionPayload;
   enabled: boolean;
   preferences: HeartbeatFrontmatterPreferencesPayload;
@@ -3556,6 +3598,7 @@ export type HeartbeatMutationResponse = {
 export type HeartbeatPolicyPayload = {
   active: boolean;
   agent_name?: string;
+  authority: HeartbeatAuthorityPayload;
   config_digest?: string;
   config_provenance: HeartbeatConfigProvenancePayload;
   created_at?: string | null;
@@ -3599,6 +3642,7 @@ export type HeartbeatPromptContributionPayload = {
 };
 
 export type HeartbeatPutByPathRequest = {
+  approve_authority_sha256?: string;
   body: string;
   expected_digest: string;
   idempotency_key?: string;
@@ -8781,6 +8825,7 @@ export type SettingsMCPServerItemPayload = {
   override?: SettingsMCPExtensionOverridePayload | null;
   owner?: string;
   profile?: string;
+  read_only_tools?: Array<string>;
   runtime_name?: string;
   runtime_status?: SettingsMCPServerRuntimeStatusPayload | null;
   scope: "user" | "profile" | "workspace" | "agent";
@@ -8802,6 +8847,7 @@ export type SettingsMCPServerPayload = {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
   secret_env?: {
     [key: string]: string;
   };
@@ -11926,6 +11972,7 @@ export type ToolContent = {
 };
 
 export type ToolDescriptorPayload = {
+  access: string;
   backend: ToolBackendRefPayload;
   concurrency_safe: boolean;
   description: string;
@@ -13219,6 +13266,7 @@ export type AgentMCPServerInputWritable = {
     [key: string]: string;
   };
   name: string;
+  read_only_tools?: Array<string>;
   reference?: boolean;
   secret_env?: {
     [key: string]: string;
@@ -16298,6 +16346,180 @@ export type PutAgentHeartbeatResponses = {
 
 export type PutAgentHeartbeatResponse =
   PutAgentHeartbeatResponses[keyof PutAgentHeartbeatResponses];
+
+export type GetAgentHeartbeatAuthorityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority";
+};
+
+export type GetAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentHeartbeatAuthorityError =
+  GetAgentHeartbeatAuthorityErrors[keyof GetAgentHeartbeatAuthorityErrors];
+
+export type GetAgentHeartbeatAuthorityResponses = {
+  /**
+   * Check-in authority
+   */
+  200: HeartbeatAuthorityPayload;
+};
+
+export type GetAgentHeartbeatAuthorityResponse =
+  GetAgentHeartbeatAuthorityResponses[keyof GetAgentHeartbeatAuthorityResponses];
+
+export type RevokeAgentHeartbeatAuthorityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority/approve";
+};
+
+export type RevokeAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAgentHeartbeatAuthorityError =
+  RevokeAgentHeartbeatAuthorityErrors[keyof RevokeAgentHeartbeatAuthorityErrors];
+
+export type RevokeAgentHeartbeatAuthorityResponses = {
+  /**
+   * Authority revoked
+   */
+  204: void;
+};
+
+export type RevokeAgentHeartbeatAuthorityResponse =
+  RevokeAgentHeartbeatAuthorityResponses[keyof RevokeAgentHeartbeatAuthorityResponses];
+
+export type ApproveAgentHeartbeatAuthorityData = {
+  /**
+   * JSON request body
+   */
+  body: HeartbeatScriptApprovalRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/authority/approve";
+};
+
+export type ApproveAgentHeartbeatAuthorityErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Authority changed
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid authority
+   */
+  422: ErrorPayload;
+  /**
+   * Authority storage unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ApproveAgentHeartbeatAuthorityError =
+  ApproveAgentHeartbeatAuthorityErrors[keyof ApproveAgentHeartbeatAuthorityErrors];
+
+export type ApproveAgentHeartbeatAuthorityResponses = {
+  /**
+   * Authority approved
+   */
+  204: void;
+};
+
+export type ApproveAgentHeartbeatAuthorityResponse =
+  ApproveAgentHeartbeatAuthorityResponses[keyof ApproveAgentHeartbeatAuthorityResponses];
 
 export type ListAgentHeartbeatHistoryData = {
   body?: never;

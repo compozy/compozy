@@ -40,6 +40,7 @@ type authoredAgentTarget struct {
 	agentLayer          string
 	soulConfig          compozyconfig.SoulConfig
 	heartbeatConfig     compozyconfig.HeartbeatConfig
+	checkInLimits       *heartbeat.CheckInLimits
 	packageOwned        bool
 	soulSourcePath      string
 	soulBody            string

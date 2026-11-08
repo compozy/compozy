@@ -7,6 +7,102 @@ import (
 	"time"
 )
 
+// NoProgress is a daemon API value.
+type NoProgress struct {
+	Window int `json:"window"`
+}
+
+// Node is a daemon API value.
+type Node struct {
+	ID             NodeID              `json:"id"`
+	Class          NodeClass           `json:"class"`
+	Kind           string              `json:"kind"`
+	Session        *SessionSpec        `json:"session,omitzero"`
+	Timeout        string              `json:"timeout,omitempty"`
+	Retry          *RetrySpec          `json:"retry,omitzero"`
+	Review         *ReviewSpec         `json:"review,omitzero"`
+	Deadline       string              `json:"deadline,omitempty"`
+	ResultContract *ResultContract     `json:"result_contract,omitzero"`
+	OnError        *ErrorPolicy        `json:"on_error,omitzero"`
+	OnRetry        []EffectSpec        `json:"on_retry,omitempty"`
+	OnSuccess      []EffectSpec        `json:"on_success,omitempty"`
+	OnPause        []EffectSpec        `json:"on_pause,omitempty"`
+	OnTimeout      []EffectSpec        `json:"on_timeout,omitempty"`
+	OnCancel       []EffectSpec        `json:"on_cancel,omitempty"`
+	OnQuarantine   []EffectSpec        `json:"on_quarantine,omitempty"`
+	OnParentClose  ParentClosePolicy   `json:"on_parent_close,omitempty"`
+	Harvest        *HarvestSpec        `json:"harvest,omitzero"`
+	Produces       map[string]any      `json:"produces,omitempty"`
+	Params         map[string]any      `json:"params,omitempty"`
+	Collection     string              `json:"collection,omitempty"`
+	Filter         string              `json:"filter,omitempty"`
+	BatchSize      int                 `json:"batch_size,omitzero"`
+	MaxParallel    int                 `json:"max_parallel,omitzero"`
+	MaxFanOut      int                 `json:"max_fan_out,omitzero"`
+	Strategy       *StrategySpec       `json:"strategy,omitzero"`
+	BindAs         string              `json:"bind_as,omitempty"`
+	IndexAs        string              `json:"index_as,omitempty"`
+	Condition      string              `json:"condition,omitempty"`
+	OnEvalError    EvalErrorPolicy     `json:"on_eval_error,omitempty"`
+	Routes         []RouteSpec         `json:"routes,omitempty"`
+	Default        NodeID              `json:"default,omitempty"`
+	Criteria       []GateCriterion     `json:"criteria,omitempty"`
+	VerdictPolicy  VerdictPolicy       `json:"verdict_policy,omitempty"`
+	OnResult       map[string]any      `json:"on_result,omitempty"`
+	MaxRevisions   int                 `json:"max_revisions,omitzero"`
+	Expires        *WaitExpiry         `json:"expires,omitzero"`
+	Body           *Graph              `json:"body,omitzero"`
+	Contract       *Contract           `json:"contract,omitzero"`
+	InputRef       string              `json:"input_ref,omitempty"`
+	Pattern        string              `json:"pattern,omitempty"`
+	Parse          FileParseKind       `json:"parse,omitempty"`
+	WatchSpec      map[string]any      `json:"watch,omitempty"`
+	Events         []EventSubscription `json:"events,omitempty"`
+}
+
+// NodeAttemptView is a daemon API value.
+type NodeAttemptView struct {
+	Attempt      int        `json:"attempt"`
+	State        NodeState  `json:"state"`
+	FailureClass string     `json:"failure_class,omitempty"`
+	Disposition  string     `json:"disposition"`
+	StartedAt    time.Time  `json:"started_at"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+}
+
+// NodeCancellation is a daemon API value.
+type NodeCancellation struct {
+	Disposition string `json:"disposition"`
+	ActorKind   string `json:"actor_kind,omitempty"`
+	ActorRef    string `json:"actor_ref,omitempty"`
+	Cause       string `json:"cause,omitempty"`
+}
+
+// NodeClass is a daemon API value.
+type NodeClass string
+
+// NodeID is a daemon API value.
+type NodeID string
+
+// NodeKind is a daemon API value.
+type NodeKind string
+
+// NodeState is a daemon API value.
+type NodeState string
+
+// NodeUsage is a daemon API value.
+type NodeUsage struct {
+	Tokens int64 `json:"tokens"`
+}
+
+// NormalizedRect is a daemon API value.
+type NormalizedRect struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
 // ObserveFailureHealthPayload is a daemon API value.
 type ObserveFailureHealthPayload struct {
 	Status string                        `json:"status"`
@@ -348,101 +444,3 @@ type PendingInteractionPayload struct {
 	Resolution        string     `json:"resolution,omitempty"`
 	ResolvedBy        string     `json:"resolved_by,omitempty"`
 }
-
-// PermissionDailyRollupPayload is a daemon API value.
-type PermissionDailyRollupPayload struct {
-	Day       string `json:"day"`
-	AgentName string `json:"agent_name"`
-	Decision  string `json:"decision"`
-	Count     int64  `json:"count"`
-}
-
-// PermissionEntriesResponse is a daemon API value.
-type PermissionEntriesResponse struct {
-	Entries []PermissionEntryPayload `json:"entries"`
-}
-
-// PermissionEntryPayload is a daemon API value.
-type PermissionEntryPayload struct {
-	ID            string    `json:"id"`
-	SessionID     string    `json:"session_id"`
-	AgentName     string    `json:"agent_name"`
-	Action        string    `json:"action"`
-	Resource      string    `json:"resource"`
-	Decision      string    `json:"decision"`
-	InitiatorKind string    `json:"initiator_kind"`
-	InitiatorID   string    `json:"initiator_id"`
-	Timestamp     time.Time `json:"timestamp"`
-}
-
-// PermissionRollupResponse is a daemon API value.
-type PermissionRollupResponse struct {
-	Since   time.Time                      `json:"since"`
-	Until   time.Time                      `json:"until"`
-	Rollups []PermissionDailyRollupPayload `json:"rollups"`
-}
-
-// PickFilesEffect is a daemon API value.
-type PickFilesEffect struct {
-	Directories bool `json:"directories,omitempty"`
-}
-
-// Predicate is a daemon API value.
-type Predicate struct {
-	Key      ContextKey        `json:"key"`
-	Operator PredicateOperator `json:"operator,omitempty"`
-	Value    any               `json:"value"`
-	Reason   string            `json:"reason,omitempty"`
-}
-
-// PredicateOperator is a daemon API value.
-type PredicateOperator string
-
-// Priority is a daemon API value.
-type Priority string
-
-// ProcessesResponse is a daemon API value.
-type ProcessesResponse struct {
-	Supported bool                         `json:"supported"`
-	ScannedAt time.Time                    `json:"scanned_at"`
-	Groups    []SessionProcessGroupPayload `json:"groups"`
-}
-
-// Profile is a daemon API value.
-type Profile struct {
-	ID                     string                         `json:"id"`
-	Name                   string                         `json:"name"`
-	Color                  string                         `json:"color"`
-	Icon                   *string                        `json:"icon"`
-	Emoji                  *string                        `json:"emoji"`
-	State                  string                         `json:"state"`
-	CreatedAt              time.Time                      `json:"created_at"`
-	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
-	WorkItems              int                            `json:"work_items,omitzero"`
-	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
-	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
-}
-
-// ProfileCredentialRequirement is a daemon API value.
-type ProfileCredentialRequirement struct {
-	Provider        string `json:"provider"`
-	Slot            string `json:"slot"`
-	SourceExtension string `json:"source_extension"`
-	Missing         bool   `json:"missing"`
-}
-
-// ProfileFolderRef is a daemon API value.
-type ProfileFolderRef struct {
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace"`
-	Path          string `json:"path"`
-}
-
-// ProfileLens is a daemon API value.
-type ProfileLens struct {
-	ID   ProfileLensID `json:"profile_lens_id"`
-	Name string        `json:"profile_name"`
-}
-
-// ProfileLensID is a daemon API value.
-type ProfileLensID string

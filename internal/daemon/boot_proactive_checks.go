@@ -53,6 +53,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	dispatcher := &session.TriageDispatcher{
 		Manager:      manager,
+		Authority:    provider.Instances(),
 		Reports:      provider.InstanceReports(),
 		MaxProposals: cfg.MaxProposals,
 		StopTimeout:  state.cfg.Session.Supervision.StopGrace,

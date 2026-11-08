@@ -59,12 +59,7 @@ func (m *Manager) prepareSessionLaunch(
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
-	if spec.sessionType == SessionTypeTriage {
-		startOpts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
-		startOpts.Permissions = compozyconfig.PermissionModeApproveReads
-		startOpts.MCPServers = nil
-		startOpts.ActivateMCPServers = nil
-	}
+	m.constrainTriageLaunch(spec, runtime, &startOpts)
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
@@ -191,4 +186,18 @@ func normalizeSessionLaunchCWD(spec *sessionStartSpec, requested string) (string
 		return "", fmt.Errorf("%w: pre-start hook cwd escapes execution root: %w", ErrValidation, err)
 	}
 	return cwd, nil
+}
+
+func (m *Manager) constrainTriageLaunch(
+	spec *sessionStartSpec,
+	runtime *sessionStartRuntime,
+	startOpts *acp.StartOpts,
+) {
+	if spec.sessionType == SessionTypeTriage {
+		startOpts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
+		startOpts.Permissions = compozyconfig.PermissionModeApproveReads
+		startOpts.MCPServers = slices.Clone(runtime.mcpServers)
+		startOpts.ActivateMCPServers = m.sessionMCPServerActivator(spec.sessionID, runtime.mcpServers)
+		startOpts.CheckInTools = len(runtime.mcpServers) > 0
+	}
 }

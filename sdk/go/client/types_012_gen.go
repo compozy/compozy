@@ -7,6 +7,105 @@ import (
 	"time"
 )
 
+// LoopRunProgress is a daemon API value.
+type LoopRunProgress struct {
+	Round      int `json:"round"`
+	StepsDone  int `json:"steps_done"`
+	StepsTotal int `json:"steps_total"`
+}
+
+// LoopRunResponse is a daemon API value.
+type LoopRunResponse struct {
+	Run                  LoopRunPayload             `json:"run"`
+	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitzero"`
+	MaterializedContract LoopContract               `json:"materialized_contract"`
+	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
+	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
+	NodeControls         []LoopNodeControlPayload   `json:"node_controls"`
+	Waits                []LoopNodeWaitPayload      `json:"waits"`
+	Requests             []LoopRequestPayload       `json:"requests"`
+	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
+	WatchEvents          *LoopWatchEventsState      `json:"watch_events,omitzero"`
+}
+
+// LoopRunStatus is a daemon API value.
+type LoopRunStatus string
+
+// LoopRunsAggregatePayload is a daemon API value.
+type LoopRunsAggregatePayload struct {
+	Total      int `json:"total"`
+	Live       int `json:"live"`
+	Terminal   int `json:"terminal"`
+	Succeeded  int `json:"succeeded"`
+	Failed     int `json:"failed"`
+	Historical int `json:"historical"`
+}
+
+// LoopRunsResponse is a daemon API value.
+type LoopRunsResponse struct {
+	Runs       []LoopRunPayload         `json:"runs"`
+	Aggregates LoopRunsAggregatePayload `json:"aggregates"`
+	NextCursor string                   `json:"next_cursor,omitempty"`
+}
+
+// LoopRuntimeDefaults is a daemon API value.
+type LoopRuntimeDefaults struct {
+	Worker LoopRuntimeSpec `json:"worker,omitempty,omitzero"`
+	Judge  LoopRuntimeSpec `json:"judge,omitempty,omitzero"`
+}
+
+// LoopRuntimeMatch is a daemon API value.
+type LoopRuntimeMatch struct {
+	ID         string `json:"id,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
+}
+
+// LoopRuntimeProvenance is a daemon API value.
+type LoopRuntimeProvenance struct {
+	Provider   string            `json:"provider,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	Reasoning  string            `json:"reasoning,omitempty"`
+	Speed      string            `json:"speed,omitempty"`
+	ACPOptions map[string]string `json:"acp_options,omitempty"`
+}
+
+// LoopRuntimeRule is a daemon API value.
+type LoopRuntimeRule struct {
+	Match   LoopRuntimeMatch `json:"match"`
+	Runtime LoopRuntimeSpec  `json:"runtime"`
+}
+
+// LoopRuntimeSpec is a daemon API value.
+// LoopRuntimeSpec preserves its custom JSON wire representation.
+type LoopRuntimeSpec = json.RawMessage
+
+// LoopRuntimeValidationItemPayload is a daemon API value.
+type LoopRuntimeValidationItemPayload struct {
+	TaskID string `json:"task_id,omitempty"`
+	Field  string `json:"field"`
+	Value  string `json:"value"`
+	Reason string `json:"reason"`
+}
+
+// LoopSource is a daemon API value.
+type LoopSource string
+
+// LoopStartBinding is a daemon API value.
+type LoopStartBinding struct {
+	Kind         string            `json:"kind"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
+// LoopTarget is a daemon API value.
+type LoopTarget struct {
+	WorkspaceID  string            `json:"workspace_id"`
+	LoopName     string            `json:"loop_name"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
 // LoopValidationResponse is a daemon API value.
 type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
@@ -348,99 +447,3 @@ type NewSessionWorktreeRequest struct {
 
 // NewWindowPolicy is a daemon API value.
 type NewWindowPolicy string
-
-// NoProgress is a daemon API value.
-type NoProgress struct {
-	Window int `json:"window"`
-}
-
-// Node is a daemon API value.
-type Node struct {
-	ID             NodeID              `json:"id"`
-	Class          NodeClass           `json:"class"`
-	Kind           string              `json:"kind"`
-	Session        *SessionSpec        `json:"session,omitzero"`
-	Timeout        string              `json:"timeout,omitempty"`
-	Retry          *RetrySpec          `json:"retry,omitzero"`
-	Review         *ReviewSpec         `json:"review,omitzero"`
-	Deadline       string              `json:"deadline,omitempty"`
-	ResultContract *ResultContract     `json:"result_contract,omitzero"`
-	OnError        *ErrorPolicy        `json:"on_error,omitzero"`
-	OnRetry        []EffectSpec        `json:"on_retry,omitempty"`
-	OnSuccess      []EffectSpec        `json:"on_success,omitempty"`
-	OnPause        []EffectSpec        `json:"on_pause,omitempty"`
-	OnTimeout      []EffectSpec        `json:"on_timeout,omitempty"`
-	OnCancel       []EffectSpec        `json:"on_cancel,omitempty"`
-	OnQuarantine   []EffectSpec        `json:"on_quarantine,omitempty"`
-	OnParentClose  ParentClosePolicy   `json:"on_parent_close,omitempty"`
-	Harvest        *HarvestSpec        `json:"harvest,omitzero"`
-	Produces       map[string]any      `json:"produces,omitempty"`
-	Params         map[string]any      `json:"params,omitempty"`
-	Collection     string              `json:"collection,omitempty"`
-	Filter         string              `json:"filter,omitempty"`
-	BatchSize      int                 `json:"batch_size,omitzero"`
-	MaxParallel    int                 `json:"max_parallel,omitzero"`
-	MaxFanOut      int                 `json:"max_fan_out,omitzero"`
-	Strategy       *StrategySpec       `json:"strategy,omitzero"`
-	BindAs         string              `json:"bind_as,omitempty"`
-	IndexAs        string              `json:"index_as,omitempty"`
-	Condition      string              `json:"condition,omitempty"`
-	OnEvalError    EvalErrorPolicy     `json:"on_eval_error,omitempty"`
-	Routes         []RouteSpec         `json:"routes,omitempty"`
-	Default        NodeID              `json:"default,omitempty"`
-	Criteria       []GateCriterion     `json:"criteria,omitempty"`
-	VerdictPolicy  VerdictPolicy       `json:"verdict_policy,omitempty"`
-	OnResult       map[string]any      `json:"on_result,omitempty"`
-	MaxRevisions   int                 `json:"max_revisions,omitzero"`
-	Expires        *WaitExpiry         `json:"expires,omitzero"`
-	Body           *Graph              `json:"body,omitzero"`
-	Contract       *Contract           `json:"contract,omitzero"`
-	InputRef       string              `json:"input_ref,omitempty"`
-	Pattern        string              `json:"pattern,omitempty"`
-	Parse          FileParseKind       `json:"parse,omitempty"`
-	WatchSpec      map[string]any      `json:"watch,omitempty"`
-	Events         []EventSubscription `json:"events,omitempty"`
-}
-
-// NodeAttemptView is a daemon API value.
-type NodeAttemptView struct {
-	Attempt      int        `json:"attempt"`
-	State        NodeState  `json:"state"`
-	FailureClass string     `json:"failure_class,omitempty"`
-	Disposition  string     `json:"disposition"`
-	StartedAt    time.Time  `json:"started_at"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-}
-
-// NodeCancellation is a daemon API value.
-type NodeCancellation struct {
-	Disposition string `json:"disposition"`
-	ActorKind   string `json:"actor_kind,omitempty"`
-	ActorRef    string `json:"actor_ref,omitempty"`
-	Cause       string `json:"cause,omitempty"`
-}
-
-// NodeClass is a daemon API value.
-type NodeClass string
-
-// NodeID is a daemon API value.
-type NodeID string
-
-// NodeKind is a daemon API value.
-type NodeKind string
-
-// NodeState is a daemon API value.
-type NodeState string
-
-// NodeUsage is a daemon API value.
-type NodeUsage struct {
-	Tokens int64 `json:"tokens"`
-}
-
-// NormalizedRect is a daemon API value.
-type NormalizedRect struct {
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
-}

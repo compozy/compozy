@@ -23,6 +23,7 @@ type resolvedAuthoringTarget struct {
 	sourcePath    string
 	managedPath   managedsidecar.Path
 	config        compozyconfig.HeartbeatConfig
+	checkInLimits *CheckInLimits
 }
 
 type normalizedAuthoringTarget struct {
@@ -32,6 +33,7 @@ type normalizedAuthoringTarget struct {
 	agentName     string
 	agentPath     string
 	config        compozyconfig.HeartbeatConfig
+	checkInLimits *CheckInLimits
 }
 
 func (s *ManagedHeartbeatAuthoringService) resolveTarget(
@@ -72,6 +74,7 @@ func (s *ManagedHeartbeatAuthoringService) resolveTarget(
 		sourcePath:    sourcePath,
 		managedPath:   managedPath,
 		config:        normalized.config,
+		checkInLimits: normalized.checkInLimits,
 	}, nil
 }
 
@@ -120,6 +123,7 @@ func normalizeAuthoringTarget(target AuthoringTarget) (normalizedAuthoringTarget
 		agentName:     agentName,
 		agentPath:     agentPath,
 		config:        config,
+		checkInLimits: target.CheckInLimits,
 	}, nil
 }
 
@@ -196,6 +200,7 @@ func (s *ManagedHeartbeatAuthoringService) currentHeartbeatForMutation(
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err == nil {
 		return current, nil

@@ -50,7 +50,7 @@ func heartbeatPathForAgent(agentPath string) (string, error) {
 
 func isAllowedField(key string) bool {
 	switch key {
-	case heartbeatVersionKey, heartbeatEnabledKey, "summary", "preferences", "context":
+	case heartbeatVersionKey, heartbeatEnabledKey, "summary", "preferences", "context", "check_ins":
 		return true
 	default:
 		return false

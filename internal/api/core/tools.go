@@ -302,6 +302,7 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayload {
 	presentation := d.Presentation()
 	return contract.ToolDescriptorPayload{
+		Access:              string(toolspkg.AccessOf(*d)),
 		ToolID:              d.ID,
 		Backend:             toolBackendPayload(d.Backend),
 		DisplayTitle:        presentation.DisplayTitle,

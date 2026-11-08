@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ExtensionCommandGroupSpec struct {
+	Path    string `json:"path"`
+	Summary string `json:"summary"`
+	Profile string `json:"profile,omitempty"`
+}
+
 type ExtensionCommandSpec struct {
 	Verb    string            `json:"verb"`
 	Summary string            `json:"summary"`
@@ -180,11 +186,4 @@ type ForgeReview struct {
 type ForgeReviewThread struct {
 	ID     string `json:"id"`
 	Commit string `json:"commit,omitempty"`
-}
-
-type ForgeReviews struct {
-	Items             []ForgeReview       `json:"items"`
-	Threads           []ForgeReviewThread `json:"threads,omitempty"`
-	UnresolvedThreads int                 `json:"unresolved_threads"`
-	Truncated         bool                `json:"truncated,omitempty"`
 }

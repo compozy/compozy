@@ -9,6 +9,12 @@ import (
 
 type CatalogSort string
 
+type CheckInsPolicy struct {
+	AllowWrites   []string `json:"allow_writes,omitempty"`
+	MaxToolCalls  *int     `json:"max_tool_calls,omitempty"`
+	MaxWriteCalls *int     `json:"max_write_calls,omitempty"`
+}
+
 type Chip struct {
 	ID       string            `json:"id"`
 	Label    string            `json:"label"`
@@ -157,9 +163,4 @@ type ConnectivityTeardownRequest struct {
 
 type ConnectivityTeardownResponse struct {
 	Stopped bool `json:"stopped"`
-}
-
-type ConsentArea struct {
-	Area   string `json:"area"`
-	Access string `json:"access"`
 }

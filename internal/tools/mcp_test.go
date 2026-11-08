@@ -1463,3 +1463,34 @@ func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([
 	}
 	return e.fakeMCPExecutor.ListTools(ctx, source)
 }
+
+func TestMCPCheckInAccess(t *testing.T) {
+	t.Run("Should give destructive annotations precedence [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		for _, readOnly := range []bool{false, true} {
+			for _, destructive := range []bool{false, true} {
+				source := SourceRef{Kind: SourceMCP, Owner: "linear", RawServerName: "linear"}
+				d, err := mcpRegistryDescriptor(
+					source,
+					MCPToolDescriptor{
+						RawName:     "read",
+						Source:      source,
+						ReadOnly:    readOnly,
+						Destructive: destructive,
+						InputSchema: json.RawMessage(`{"type":"object"}`),
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := AccessWrite
+				if readOnly && !destructive {
+					want = AccessRead
+				}
+				if AccessOf(d) != want || d.Destructive != destructive {
+					t.Fatalf("read=%v destructive=%v descriptor=%+v", readOnly, destructive, d)
+				}
+			}
+		}
+	})
+}

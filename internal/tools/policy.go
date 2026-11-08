@@ -111,7 +111,7 @@ type PolicyInputs struct {
 	// MCPResourceNames maps daemon resource IDs to logical config allowlist names.
 	MCPResourceNames     map[string]string
 	AlwaysOnLineage      bool
-	TriageReadOnly       bool
+	CheckIn              *CheckInPolicy
 	ToolsDisabled        bool
 	SystemPermissionMode PermissionMode
 	ExternalDefault      ExternalDefault
@@ -353,7 +353,7 @@ func (e *EffectivePolicyEvaluator) isTrustedReadOnlySource(d Descriptor) bool {
 }
 
 func isReadOnlyAutoApprovable(d Descriptor) bool {
-	return d.ReadOnly && !d.Destructive && !d.OpenWorld && !d.RequiresInteraction && d.Risk == RiskRead
+	return AccessOf(d) == AccessRead
 }
 
 func isSessionVisible(visibility Visibility) bool {

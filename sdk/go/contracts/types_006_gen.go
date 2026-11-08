@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
+}
+
 type ContextBlock struct {
 	Kind     string            `json:"kind,omitempty"`
 	Text     string            `json:"text,omitempty"`
@@ -259,9 +264,4 @@ type DependencyKind string
 
 type DescribeGatewayRequirement struct {
 	Permissions []string `json:"permissions"`
-}
-
-type DescribeHookEvent struct {
-	Event   HookEvent `json:"event"`
-	Profile string    `json:"profile,omitempty"`
 }

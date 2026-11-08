@@ -79,6 +79,7 @@ type ExtensionToolCallResponse struct {
 
 // MCPToolDescriptor describes one externally discovered MCP tool.
 type MCPToolDescriptor struct {
+	Destructive  bool            `json:"destructive"`
 	ID           ToolID          `json:"id"`
 	RawName      string          `json:"raw_name"`
 	Title        string          `json:"title,omitempty"`

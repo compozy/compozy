@@ -52,6 +52,7 @@ type AuthoringService interface {
 
 // AuthoringTarget identifies the workspace and agent whose HEARTBEAT.md is managed.
 type AuthoringTarget struct {
+	CheckInLimits *CheckInLimits
 	WorkspaceID   string
 	WorkspaceRoot string
 	ProfileID     string
@@ -216,6 +217,7 @@ func (s *ManagedHeartbeatAuthoringService) Validate(
 			WorkspaceRoot: target.workspaceRoot,
 			Content:       []byte(*req.Body),
 			Config:        target.config,
+			CheckInLimits: target.checkInLimits,
 		})
 		if err != nil {
 			return ValidateResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)
@@ -226,6 +228,7 @@ func (s *ManagedHeartbeatAuthoringService) Validate(
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err != nil {
 		return ValidateResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)
@@ -254,6 +257,7 @@ func (s *ManagedHeartbeatAuthoringService) Put(ctx context.Context, req PutReque
 		WorkspaceRoot: target.workspaceRoot,
 		Content:       []byte(req.Body),
 		Config:        target.config,
+		CheckInLimits: target.checkInLimits,
 	})
 	if err != nil {
 		return MutationResult{Policy: proposed}, authoringInvalidError(proposed.Diagnostics)

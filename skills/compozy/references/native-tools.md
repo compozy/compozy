@@ -1208,3 +1208,16 @@ members). These counts belong to the caller's profile and workspace, including i
 scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
 status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
 `compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.
+
+### Check-in call audit
+
+`agent_instance_check_ins` includes `occurrence_id`, `tools_status`
+(`enabled`, `disabled`, `unavailable`) and `tool_calls`. `agent_instance_reports`
+projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
+(`read` or `write`). Each attempt records decision, outcome, redacted argument
+preview and effect (`none`, `done`, `maybe`); tool results are never stored.
+An otherwise silent check-in with completed or uncertain writes publishes an
+`activity` report. Cancellation retains its outcome and discards pending source state.
+Check-ins never create approval requests. Only the operator can approve standing
+check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
+no authority-approve native tool.

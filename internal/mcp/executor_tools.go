@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -30,6 +31,18 @@ func (e *CallExecutor) descriptorsFromTools(
 			return nil, fmt.Errorf("mcp: normalize tool %q: %w", tool.Name, err)
 		}
 		descriptors = append(descriptors, descriptor)
+	}
+	for _, name := range server.ReadOnlyTools {
+		found := false
+		for _, tool := range tools {
+			if tool != nil && tool.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			slog.Warn("mcp_read_only_override_unknown_tool", "server", server.Name, "tool", name)
+		}
 	}
 	return descriptors, nil
 }

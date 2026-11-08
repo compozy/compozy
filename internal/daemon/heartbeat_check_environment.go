@@ -61,7 +61,11 @@ func (e *instanceCheckEnvironment) BeforeCheck(
 	target *heartbeat.CheckTarget,
 	source string,
 ) (string, error) {
-	return beforeInstanceCheck(ctx, e.hooks, target, source)
+	reason, err := beforeInstanceCheck(ctx, e.hooks, target, source)
+	if err != nil || reason != "" {
+		return reason, err
+	}
+	return "", e.notifyCheckInAuthority(ctx, target)
 }
 
 func (e *instanceCheckEnvironment) ReconcileSourcePolicy(ctx context.Context, target *heartbeat.CheckTarget) error {

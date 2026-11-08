@@ -47,6 +47,7 @@ var (
 
 // ResolveRequest describes a HEARTBEAT.md file located beside an AGENT.md file.
 type ResolveRequest struct {
+	CheckInLimits *CheckInLimits
 	AgentPath     string
 	WorkspaceRoot string
 	Config        compozyconfig.HeartbeatConfig
@@ -54,6 +55,7 @@ type ResolveRequest struct {
 
 // ParseRequest describes in-memory HEARTBEAT.md content to validate and project.
 type ParseRequest struct {
+	CheckInLimits *CheckInLimits
 	SourcePath    string
 	WorkspaceRoot string
 	Content       []byte
@@ -83,6 +85,7 @@ type ResolvedPolicy struct {
 
 // Frontmatter is the allowlisted strict HEARTBEAT.md metadata.
 type Frontmatter struct {
+	CheckIns    CheckInsPolicy         `json:"check_ins"`
 	Version     int                    `json:"version"`
 	Enabled     bool                   `json:"enabled"`
 	Summary     string                 `json:"summary,omitempty"`
@@ -257,6 +260,7 @@ func Resolve(ctx context.Context, req ResolveRequest) (ResolvedPolicy, error) {
 	}
 
 	return Parse(ctx, ParseRequest{
+		CheckInLimits: req.CheckInLimits,
 		SourcePath:    heartbeatPath,
 		WorkspaceRoot: req.WorkspaceRoot,
 		Content:       content,
@@ -291,6 +295,23 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedPolicy, error) {
 		return resultWithDiagnostics(&result, parseDiagnostics)
 	}
 
+	limits := CheckInLimits{MaxToolCalls: 25, MaxWriteCalls: 5}
+	if req.CheckInLimits != nil {
+		limits = *req.CheckInLimits
+	}
+	if err := front.CheckIns.ValidateBounds(limits); err != nil {
+		return resultWithDiagnostics(
+			&result,
+			[]Diagnostic{
+				{
+					Code:       "heartbeat_check_ins_invalid",
+					Severity:   diagnosticError,
+					Message:    err.Error(),
+					SourcePath: safePath,
+				},
+			},
+		)
+	}
 	preferences, preferenceDiagnostics := resolvePreferences(front, req.Config, safePath)
 	if hasErrorDiagnostics(preferenceDiagnostics) {
 		return resultWithDiagnostics(&result, preferenceDiagnostics)

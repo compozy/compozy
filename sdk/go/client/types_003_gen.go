@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// AgentSoulValidateByPathRequest is a daemon API value.
+type AgentSoulValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
+// AgentSoulValidateRequest is a daemon API value.
+type AgentSoulValidateRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
 // AgentSpawnPayload is a daemon API value.
 type AgentSpawnPayload struct {
 	Session     SessionPayload               `json:"session"`
@@ -425,18 +438,3 @@ type BlockedReason struct {
 
 // BlockedSource is a daemon API value.
 type BlockedSource string
-
-// Blocker is a daemon API value.
-type Blocker struct {
-	Kind         string     `json:"kind"`
-	NodeID       NodeID     `json:"node_id,omitempty"`
-	GateID       NodeID     `json:"gate_id,omitempty"`
-	ItemIndex    int        `json:"item_index,omitzero"`
-	WaitingSince time.Time  `json:"waiting_since"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Expired      bool       `json:"expired,omitzero"`
-	Unblocker    string     `json:"unblocker"`
-}
-
-// BoardColumn is a daemon API value.
-type BoardColumn string

@@ -377,7 +377,7 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 	readOnly := desc.ReadOnly
 	risk := RiskOpenWorld
 	openWorld := true
-	if readOnly {
+	if readOnly && !desc.Destructive {
 		risk = RiskRead
 		openWorld = false
 	}
@@ -400,9 +400,9 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		Visibility:      VisibilityModel,
 		Risk:            risk,
 		ReadOnly:        readOnly,
-		Destructive:     false,
+		Destructive:     desc.Destructive,
 		OpenWorld:       openWorld,
-		ConcurrencySafe: readOnly,
+		ConcurrencySafe: readOnly && !desc.Destructive,
 	}
 	return DescriptorWithSchemaDigests(descriptor)
 }

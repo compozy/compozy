@@ -46,8 +46,10 @@ func (s *CheckService) dispatch(
 			reason = "triage_interrupted"
 		}
 		deniedCalls := outcome.DeniedCalls
+		toolsStatus := outcome.ToolsStatus
 		outcome = failedTriage(reason)
 		outcome.DeniedCalls = deniedCalls
+		outcome.ToolsStatus = toolsStatus
 	}
 	now := s.now()
 	req := FinishRequest{
@@ -65,6 +67,7 @@ func (s *CheckService) dispatch(
 		Result:              outcome.Result,
 		Reason:              outcome.Reason,
 		Detail:              outcome.Detail,
+		ToolsStatus:         outcome.ToolsStatus,
 		DeniedCalls:         outcome.DeniedCalls,
 		Digest:              digest.Fingerprint,
 		AutomationCursor:    digest.AutomationCursor,

@@ -32,6 +32,7 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
 			HeadersConfigured: value.HeadersConfigured,
+			ReadOnlyTools:     cloneStrings(value.ReadOnlyTools),
 			Name:              strings.TrimSpace(value.Name),
 			Owner:             vault.NormalizeMCPOwner(value.Owner),
 			RuntimeName:       settingsMCPRuntimeName(value),

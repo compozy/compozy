@@ -11,6 +11,38 @@ import (
 	"strings"
 )
 
+// GetTerminal Read one terminal
+func (c *Client) GetTerminal(ctx context.Context, params GetTerminalParams) (*TerminalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetToolParams carries the path, query, and header parameters.
+type GetToolParams struct {
+	ID          string  `url:"id"`
+	WorkspaceID *string `url:"workspace_id"`
+	Workspace   *string `url:"workspace"`
+	SessionID   *string `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+	Profile     *string `url:"profile"`
+}
+
 // GetTool Get one operator-visible registry tool
 func (c *Client) GetTool(ctx context.Context, params GetToolParams) (*ToolResponse, error) {
 	path := "/api/tools/{id}"
@@ -414,35 +446,3 @@ type InvokeToolFrame struct {
 var _ json.Unmarshaler = (*InvokeToolFrame)(nil)
 
 var _ json.Marshaler = InvokeToolFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-func (f *InvokeToolFrame) setResponseStatus(status int) {
-	f.StatusCode = status
-}
-
-// AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
-func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
-	var out ToolInvokeResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsToolErrorResponse decodes this payload as ToolErrorResponse.
-func (f InvokeToolFrame) AsToolErrorResponse() (*ToolErrorResponse, error) {
-	var out ToolErrorResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
