@@ -78,6 +78,27 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	if err != nil {
 		return fmt.Errorf("daemon: create proactive checks: %w", err)
 	}
+	bindInstanceReportActions(state, environment, provider)
+
+	service.SetPickHandler(func(ctx context.Context, picks []agentinstance.Pick) error {
+		return state.agentInstances.AfterPicks(ctx, picks[0].InstanceID, picks)
+	})
+	service.SetPauseHandler(state.agentInstances.Service.ApplyPause)
+	if err := service.Recover(ctx); err != nil {
+		return errors.Join(err, service.Shutdown(ctx))
+	}
+	state.runtimeWorkers.proactiveChecks = service
+	state.agentInstances.Checks = service
+	state.agentInstances.CheckSettings = service
+	cleanup.add(service.Shutdown)
+	return nil
+}
+
+func bindInstanceReportActions(
+	state *bootState,
+	environment *instanceCheckEnvironment,
+	provider instanceRepositoryProvider,
+) {
 	state.agentInstances.PickActions = func(ctx context.Context, id string) ([]agentinstance.ActionSnapshot, error) {
 		target, err := environment.ResolveCheck(ctx, id)
 		if err != nil {
@@ -129,16 +150,4 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		return provider.InstanceReports().
 			ProjectPicks(ctx, report, actions...)
 	}
-	service.SetPickHandler(func(ctx context.Context, picks []agentinstance.Pick) error {
-		return state.agentInstances.AfterPicks(ctx, picks[0].InstanceID, picks)
-	})
-	service.SetPauseHandler(state.agentInstances.Service.ApplyPause)
-	if err := service.Recover(ctx); err != nil {
-		return errors.Join(err, service.Shutdown(ctx))
-	}
-	state.runtimeWorkers.proactiveChecks = service
-	state.agentInstances.Checks = service
-	state.agentInstances.CheckSettings = service
-	cleanup.add(service.Shutdown)
-	return nil
 }

@@ -67,7 +67,7 @@ func autoPickFinishedReport(
 	exec globalSQLExecutor,
 	req *heartbeat.FinishRequest,
 ) ([]agentinstance.Pick, error) {
-	if req.Result != "reported" || req.Report == nil || req.Report.Kind != "proposal" {
+	if req.Result != "reported" || req.Report == nil || req.Report.Kind != instanceReportProposal {
 		return nil, nil
 	}
 	q := sqlcgen.New(exec)
@@ -75,19 +75,9 @@ func autoPickFinishedReport(
 	if err != nil {
 		return nil, err
 	}
-	approvedDigest := ""
-	if req.AuthorityDigest != "" {
-		dir, err := filepath.EvalSymlinks(req.DefinitionDir)
-		if err != nil {
-			return nil, err
-		}
-		approvedDigest, err = q.GetHeartbeatAuthorityApproval(
-			ctx,
-			sqlcgen.GetHeartbeatAuthorityApprovalParams{ProfileID: instance.ProfileID, DefinitionDir: dir},
-		)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
+	approvedDigest, err := autoPickAuthorityDigest(ctx, q, req, instance.ProfileID)
+	if err != nil {
+		return nil, err
 	}
 	report, err := q.GetAgentInstanceReportBySource(
 		ctx,
@@ -100,13 +90,8 @@ func autoPickFinishedReport(
 	if err != nil {
 		return nil, err
 	}
-	count, err := q.CountAutoPicks(
-		ctx,
-		sqlcgen.CountAutoPicksParams{
-			InstanceID: req.InstanceID,
-			PickedAt:   store.FormatTimestamp(req.Now.Add(-24 * time.Hour)),
-		},
-	)
+	since := store.FormatTimestamp(req.Now.Add(-24 * time.Hour))
+	count, err := q.CountAutoPicks(ctx, sqlcgen.CountAutoPicksParams{InstanceID: req.InstanceID, PickedAt: since})
 	if err != nil {
 		return nil, err
 	}
@@ -123,17 +108,7 @@ func autoPickFinishedReport(
 		if p.Action == nil || !p.Action.AutoAccept {
 			continue
 		}
-		skip := ""
-		switch {
-		case req.AuthorityDigest == "" || approvedDigest != req.AuthorityDigest:
-			skip = "unapproved"
-		case !instance.MainSessionID.Valid:
-			skip = "no_main"
-		case instance.State != "active" || instance.ArchivedAt.Valid:
-			skip = "inactive"
-		case count >= int64(req.AutoAcceptPerDay):
-			skip = "limit"
-		}
+		skip := autoPickSkip(req, approvedDigest, instance, count)
 		if skip != "" {
 			stored[index]["auto_accept_skip"], err = json.Marshal(skip)
 			if err != nil {
@@ -147,7 +122,7 @@ func autoPickFinishedReport(
 			agentinstance.PickRequest{
 				InstanceID:    req.InstanceID,
 				ReportID:      report.ID,
-				Actor:         "auto_accept",
+				Actor:         pickActorAutoAccept,
 				ProposalIndex: index,
 				QueueCap:      req.QueueCap,
 			},
@@ -164,17 +139,67 @@ func autoPickFinishedReport(
 		picks = append(picks, pick)
 		count++
 	}
+	return picks, saveAutoPickDecisions(ctx, q, report.ID, fields, stored)
+}
+
+func autoPickSkip(
+	req *heartbeat.FinishRequest,
+	approvedDigest string,
+	instance sqlcgen.AgentInstance,
+	count int64,
+) string {
+	skip := ""
+	switch {
+	case req.AuthorityDigest == "" || approvedDigest != req.AuthorityDigest:
+		skip = "unapproved"
+	case !instance.MainSessionID.Valid:
+		skip = "no_main"
+	case instance.State != instanceStateActive || instance.ArchivedAt.Valid:
+		skip = "inactive"
+	case count >= int64(req.AutoAcceptPerDay):
+		skip = "limit"
+	}
+
+	return skip
+}
+
+func autoPickAuthorityDigest(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	profileID string,
+) (string, error) {
+	approvedDigest := ""
+	if req.AuthorityDigest != "" {
+		dir, err := filepath.EvalSymlinks(req.DefinitionDir)
+		if err != nil {
+			return "", err
+		}
+		approvedDigest, err = q.GetHeartbeatAuthorityApproval(
+			ctx,
+			sqlcgen.GetHeartbeatAuthorityApprovalParams{ProfileID: profileID, DefinitionDir: dir},
+		)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
+	}
+	return approvedDigest, nil
+}
+
+func saveAutoPickDecisions(ctx context.Context, q *sqlcgen.Queries, reportID string,
+	fields map[string]jsontext.Value, stored []map[string]jsontext.Value) error {
+	var err error
 	fields["proposals"], err = json.Marshal(stored)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	payload, err := json.Marshal(fields)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = q.UpdateInstanceReportPickDecisions(
 		ctx,
-		sqlcgen.UpdateInstanceReportPickDecisionsParams{Payload: string(payload), ID: report.ID},
+		sqlcgen.UpdateInstanceReportPickDecisionsParams{Payload: string(payload), ID: reportID},
 	)
-	return picks, err
+	return err
 }

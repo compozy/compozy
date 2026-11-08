@@ -64,23 +64,8 @@ func (h *BaseHandlers) PickAgentInstanceProposal(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		for _, mapping := range []struct {
-			cause  error
-			status int
-			code   string
-		}{
-			{agentinstance.ErrReportNotFound, 404, "report_not_found"},
-			{agentinstance.ErrProposalRange, 422, "proposal_out_of_range"},
-			{agentinstance.ErrReportNotProposal, 422, "report_not_proposal"},
-			{agentinstance.ErrAlreadyPicked, 409, "proposal_already_picked"},
-			{agentinstance.ErrInstanceNotActive, 409, "instance_not_active"},
-			{agentinstance.ErrNoMainSession, 409, "instance_no_main_session"},
-			{store.ErrSessionInputQueueFull, 409, "session_input_queue_full"},
-		} {
-			if errors.Is(err, mapping.cause) {
-				c.JSON(mapping.status, contract.ErrorPayload{Code: mapping.code, Error: mapping.code})
-				return
-			}
+		if respondPickError(c, err) {
+			return
 		}
 		h.respondError(c, 500, err)
 		return
@@ -104,4 +89,26 @@ func (h *BaseHandlers) PickAgentInstanceProposal(c *gin.Context) {
 		}
 	}
 	c.JSON(200, contract.AgentInstancePickResponse{Pick: pick})
+}
+
+func respondPickError(c *gin.Context, err error) bool {
+	for _, mapping := range []struct {
+		cause  error
+		status int
+		code   string
+	}{
+		{agentinstance.ErrReportNotFound, 404, "report_not_found"},
+		{agentinstance.ErrProposalRange, 422, "proposal_out_of_range"},
+		{agentinstance.ErrReportNotProposal, 422, "report_not_proposal"},
+		{agentinstance.ErrAlreadyPicked, 409, "proposal_already_picked"},
+		{agentinstance.ErrInstanceNotActive, 409, "instance_not_active"},
+		{agentinstance.ErrNoMainSession, 409, "instance_no_main_session"},
+		{store.ErrSessionInputQueueFull, 409, "session_input_queue_full"},
+	} {
+		if errors.Is(err, mapping.cause) {
+			c.JSON(mapping.status, contract.ErrorPayload{Code: mapping.code, Error: mapping.code})
+			return true
+		}
+	}
+	return false
 }

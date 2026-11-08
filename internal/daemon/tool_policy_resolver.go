@@ -133,18 +133,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if r.mcpResourceNames != nil {
 		inputs.MCPResourceNames = r.mcpResourceNames()
 	}
-	if err := r.applyBundledExtensionTrust(&inputs); err != nil {
-		return toolspkg.PolicyInputs{}, err
-	}
-	if resolvedWorkspace != nil {
-		if err := r.applyDevelopmentExtensionTrust(&inputs, resolvedWorkspace.ID); err != nil {
-			return toolspkg.PolicyInputs{}, err
-		}
-	}
-	if err := r.applyMCPSourceGrants(ctx, &inputs, resolvedScope); err != nil {
-		return toolspkg.PolicyInputs{}, err
-	}
-	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
+	if err := r.applyScopedSourceGrants(ctx, &inputs, resolvedScope, resolvedWorkspace); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
 	if err := r.applyInstanceToolPolicy(ctx, &inputs, info); err != nil {
@@ -163,19 +152,8 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
-	if resolvedScope.AgentName != "" &&
-		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
-		authorityInfo := info
-		if authorityInfo == nil {
-			authorityInfo = &session.Info{
-				AgentName:   resolvedScope.AgentName,
-				ProfileID:   resolvedScope.ProfileID,
-				WorkspaceID: resolvedScope.WorkspaceID,
-			}
-		}
-		if err := r.applyAgentMCPReadAuthority(ctx, &inputs, authorityInfo, resolvedWorkspace, cfg); err != nil {
-			return inputs, err
-		}
+	if err := r.applyResolvedMCPReadAuthority(ctx, &inputs, info, resolvedScope, resolvedWorkspace, cfg); err != nil {
+		return inputs, err
 	}
 	applySessionPermissionLevel(&inputs, info)
 	if info != nil && info.Type == session.SessionTypeTriage {

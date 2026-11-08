@@ -14,7 +14,9 @@ import (
 )
 
 func sourceDiagnosticCode(err error) string {
-	for _, code := range []string{"heartbeat_action_invalid", "heartbeat_action_duplicate_id", "heartbeat_action_limit_exceeded"} {
+	for _, code := range []string{
+		"heartbeat_action_invalid", "heartbeat_action_duplicate_id", "heartbeat_action_limit_exceeded",
+	} {
 		if strings.HasPrefix(err.Error(), code) {
 			return code
 		}

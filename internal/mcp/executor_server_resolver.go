@@ -11,7 +11,7 @@ import (
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.
 type ResolvedServer struct {
-	ReadOnlyOverrideOrigin toolspkg.MCPReadOnlyOverrideOrigin
+	ReadOnlyOverrideOrigin *toolspkg.MCPReadOnlyOverrideOrigin
 	Server                 compozyconfig.MCPServer
 	Target                 mcpauth.Target
 	HealthKey              RuntimeHealthKey
@@ -39,4 +39,11 @@ func (f ServerResolverFunc) ResolveMCPServer(
 		return ResolvedServer{}, errors.New("mcp: server resolver is unavailable")
 	}
 	return f(ctx, source, definitionOwner)
+}
+
+func (r ResolvedServer) overrideOrigin() toolspkg.MCPReadOnlyOverrideOrigin {
+	if r.ReadOnlyOverrideOrigin == nil {
+		return ""
+	}
+	return *r.ReadOnlyOverrideOrigin
 }

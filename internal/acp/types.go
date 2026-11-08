@@ -80,7 +80,6 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	CheckInTools           bool
 	PermissionPolicy       *StartPermissionPolicy
 	AgentName              string
 	CompozySessionID       string
@@ -112,6 +111,7 @@ type StartOpts struct {
 	PermissionEventHandler func(AgentEvent, bool)
 	ActivateMCPServers     func(context.Context) error
 	FinalizeStartup        func(context.Context) (string, StartupManifest, error)
+	CheckInTools           bool
 	Inspection             bool
 	// InputOnly marks a daemon-owned child that only transforms its prompt. The
 	// Claude Agent Bridge then skips built-in tools, user MCP servers, plugins,

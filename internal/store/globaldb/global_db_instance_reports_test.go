@@ -1181,8 +1181,8 @@ func (s failingDecideStore) DecideReview(context.Context, string, string, string
 }
 
 func TestCheckInActivityReports(t *testing.T) {
-	for _, mode := range []string{"quiet", "cancelled", "deduped", "done"} {
-		cancelled := mode == "cancelled"
+	for _, mode := range []string{"quiet", "canceled", "deduped", "done"} {
+		canceled := mode == "canceled"
 		t.Run(
 			fmt.Sprintf("Should retain audited activity after %s [IT-003]", mode),
 			func(t *testing.T) {
@@ -1277,9 +1277,9 @@ func TestCheckInActivityReports(t *testing.T) {
 					}
 					finishResult = "reported"
 				}
-				if cancelled {
+				if canceled {
 					if _, err := db.DB().
-						ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET occurrence_cancelled=1 WHERE instance_id=?", instance.ID); err != nil {
+						ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET occurrence_cancelled=1 WHERE instance_id=?", instance.ID); err != nil { //nolint:misspell // Persisted SQL column.
 						t.Fatal(err)
 					}
 				}
@@ -1326,8 +1326,8 @@ func TestCheckInActivityReports(t *testing.T) {
 					t.Fatal(err)
 				}
 				want := "quiet"
-				if cancelled {
-					want = "cancelled"
+				if canceled {
+					want = string(heartbeat.WakeResultCancelled)
 				}
 				states, err = repo.SourceStates(t.Context(), instance.ID, refs, false, now)
 				if err != nil {
@@ -1337,10 +1337,10 @@ func TestCheckInActivityReports(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if cancelled && (len(states[0].State) != 0 || wake.LastDigest != "") {
-					t.Fatalf("cancelled source committed: %+v %+v", states, wake)
+				if canceled && (len(states[0].State) != 0 || wake.LastDigest != "") {
+					t.Fatalf("canceled source committed: %+v %+v", states, wake)
 				}
-				if !cancelled &&
+				if !canceled &&
 					(!bytes.Equal(states[0].State, batch.State) || wake.LastDigest != "completed-digest" || wake.QuietStreak != 0) {
 					t.Fatalf("completed state=%+v wake=%+v", states, wake)
 				}
@@ -1377,7 +1377,7 @@ func TestCheckInActivityReports(t *testing.T) {
 }
 
 func TestInstanceProposalPicks(t *testing.T) {
-	for _, mode := range []string{"auto", "operator", "unapproved", "limit", "queue_full", "no_main", "unattended", "cancelled"} {
+	for _, mode := range []string{"auto", "operator", "unapproved", "limit", "queue_full", "no_main", "unattended", "canceled"} {
 		t.Run("Should enforce pick transaction and lifecycle for "+mode+" [IT-003 IT-004]", func(t *testing.T) {
 			db := openTestGlobalDB(t)
 			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "picks", "sess-picks")
@@ -1430,7 +1430,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 			if err != nil || !admitted {
 				t.Fatalf("admit=%v err=%v", admitted, err)
 			}
-			limit, cap, unattended := 20, 10, int64(300)
+			limit, queueCap, unattended := 20, 10, int64(300)
 			if mode == "operator" {
 				limit = 0
 			}
@@ -1449,7 +1449,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 				}
 			}
 			if mode == "queue_full" {
-				cap = 1
+				queueCap = 1
 				_, _, err := db.EnqueueSessionInput(
 					t.Context(),
 					store.SessionInputQueueInsert{
@@ -1475,7 +1475,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 			if mode == "unattended" {
 				unattended = 1
 			}
-			if mode == "cancelled" {
+			if mode == "canceled" {
 				if _, err := repo.Pause(t.Context(), instance.ID, "manual"); err != nil {
 					t.Fatal(err)
 				}
@@ -1504,7 +1504,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 				AuthorityDigest:     digest,
 				DefinitionDir:       dir,
 				AutoAcceptPerDay:    limit,
-				QueueCap:            cap,
+				QueueCap:            queueCap,
 				UnattendedTurnLimit: unattended,
 			}
 			result, err := repo.Finish(t.Context(), req)
@@ -1545,7 +1545,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 					t.Fatalf("deduped finish=%+v err=%v", second, err)
 				}
 			}
-			if mode == "cancelled" {
+			if mode == "canceled" {
 				return
 			}
 			reports, err := db.InstanceReports().

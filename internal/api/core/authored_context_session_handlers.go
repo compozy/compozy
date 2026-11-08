@@ -268,7 +268,7 @@ func (h *BaseHandlers) respondHeartbeatPolicy(
 	}
 	if policy != nil && policy.Valid {
 		// The caller's resolved target: validate and write name their workspace in the body.
-		authority, authorityErr := h.authorityPayload(c.Request.Context(), target, *policy)
+		authority, authorityErr := h.authorityPayload(c.Request.Context(), target, policy)
 		if authorityErr != nil {
 			h.respondError(c, 503, authorityErr)
 			return
@@ -302,7 +302,7 @@ func (h *BaseHandlers) respondHeartbeatMutation(
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	authority, authorityErr := h.authorityPayload(c.Request.Context(), target, result.Policy)
+	authority, authorityErr := h.authorityPayload(c.Request.Context(), target, &result.Policy)
 	if authorityErr != nil {
 		h.respondError(c, 503, authorityErr)
 		return

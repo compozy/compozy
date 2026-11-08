@@ -227,7 +227,7 @@ func finishedInstancePause(
 	q *sqlcgen.Queries,
 	before sqlcgen.AgentInstance,
 ) (*agentinstance.Instance, error) {
-	if before.State != "active" {
+	if before.State != instanceStateActive {
 		return nil, nil
 	}
 	after, err := q.GetAgentInstance(ctx, before.ID)

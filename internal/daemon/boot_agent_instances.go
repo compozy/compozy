@@ -46,12 +46,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		sessions:           manager,
 		scriptsEnabled:     state.cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
 	}
-	admission := &instanceAdmission{
-		definitions: definitions,
-		callers:     repo,
-		sessions:    instanceSessionReader{sessions: manager},
-		reach:       instanceWorkspaceReach{policy: state.accessPolicy},
-	}
+	admission := instanceServiceAdmission(definitions, repo, manager, state)
 	service, err := agentinstance.NewService(
 		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
@@ -83,40 +78,8 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
-		QueueCap: state.cfg.Session.BusyInput.QueueCap,
-		AfterPicks: func(ctx context.Context, id string, picks []agentinstance.Pick) error {
-			instance, err := repo.Get(ctx, id)
-			if err != nil {
-				return err
-			}
-			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
-			var failures []error
-			for _, pick := range picks {
-				state.logger.InfoContext(
-					ctx,
-					"agent.instance.pick",
-					"instance_id",
-					instance.ID,
-					"report_id",
-					pick.ReportID,
-					"proposal_index",
-					pick.ProposalIndex,
-					"actor",
-					pick.Actor,
-				)
-				if err := manager.ReleaseInstanceInputs(ctx, pick.TargetSession); err != nil {
-					failures = append(failures, err)
-				}
-				_, err := newInstanceLifecycleHooks(
-					state.hookDispatcher,
-					definitions,
-				).DispatchAgentInstance(ctx, proposalPickHook(instance, pick))
-				if err != nil {
-					failures = append(failures, err)
-				}
-			}
-			return errors.Join(failures...)
-		},
+		QueueCap:      state.cfg.Session.BusyInput.QueueCap,
+		AfterPicks:    instancePickEffects(state, repo, manager, definitions),
 		ReadPeer:      definitions.instancePeer,
 		ReadAttention: repo.NeedsAttention,
 		Metrics:       repo.Metrics,
@@ -184,4 +147,52 @@ func instanceProfileOwners(profiles *profile.Manager) core.ProfileOwnerReader {
 		return nil
 	}
 	return profiles
+}
+
+func instancePickEffects(state *bootState, repo *globaldb.InstanceRepo, manager *session.Manager,
+	definitions instanceDefinitions) func(context.Context, string, []agentinstance.Pick) error {
+	return func(ctx context.Context, id string, picks []agentinstance.Pick) error {
+		instance, err := repo.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+		var failures []error
+		for _, pick := range picks {
+			state.logger.InfoContext(
+				ctx,
+				"agent.instance.pick",
+				"instance_id",
+				instance.ID,
+				"report_id",
+				pick.ReportID,
+				"proposal_index",
+				pick.ProposalIndex,
+				"actor",
+				pick.Actor,
+			)
+			if err := manager.ReleaseInstanceInputs(ctx, pick.TargetSession); err != nil {
+				failures = append(failures, err)
+			}
+			_, err := newInstanceLifecycleHooks(
+				state.hookDispatcher,
+				definitions,
+			).DispatchAgentInstance(ctx, proposalPickHook(instance, pick))
+			if err != nil {
+				failures = append(failures, err)
+			}
+		}
+		return errors.Join(failures...)
+	}
+}
+
+func instanceServiceAdmission(definitions instanceDefinitions, repo *globaldb.InstanceRepo,
+	manager *session.Manager, state *bootState) *instanceAdmission {
+	admission := &instanceAdmission{
+		definitions: definitions,
+		callers:     repo,
+		sessions:    instanceSessionReader{sessions: manager},
+		reach:       instanceWorkspaceReach{policy: state.accessPolicy},
+	}
+	return admission
 }

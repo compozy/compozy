@@ -59,7 +59,7 @@ func projectInstanceAuthority(
 	payload *contract.AgentInstancePayload,
 	reader instanceAttentionReader,
 ) {
-	payload.AuthorityStatus = "none"
+	payload.AuthorityStatus = heartbeatAuthorityNone
 	if agent.SourcePath == "" {
 		return
 	}
@@ -112,3 +112,5 @@ func projectInstanceAuthority(
 		payload.AuthorityStatus = "approved"
 	}
 }
+
+const heartbeatAuthorityNone = "none"

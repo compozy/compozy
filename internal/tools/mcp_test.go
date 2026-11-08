@@ -1505,8 +1505,24 @@ func TestMCPCheckInAccess(t *testing.T) {
 				t.Fatalf("views=%+v err=%v", views, err)
 			}
 			if (AccessOf(views[0].Descriptor) == AccessRead) != tc.read ||
-				views[0].Descriptor.CheckInWritable == tc.read {
+				views[0].Descriptor.CheckInWritable() == tc.read {
 				t.Fatalf("descriptor=%+v", views[0].Descriptor)
+			}
+			encoded, err := json.Marshal(views[0].Descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var classification struct {
+				Access   Access `json:"access"`
+				Writable *bool  `json:"check_in_writable"`
+				ID       ToolID `json:"id"`
+			}
+			if err := json.Unmarshal(encoded, &classification); err != nil {
+				t.Fatal(err)
+			}
+			if classification.ID != views[0].Descriptor.ID || classification.Writable == nil ||
+				*classification.Writable == tc.read || (classification.Access == AccessRead) != tc.read {
+				t.Fatalf("descriptor classification JSON=%s", encoded)
 			}
 		})
 	}

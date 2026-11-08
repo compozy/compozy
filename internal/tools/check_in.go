@@ -30,11 +30,11 @@ type CheckInPolicy struct {
 	AllowWrites       []string
 	MaxToolCalls      int
 	MaxWriteCalls     int
-	Ceiling           func(Descriptor, json.RawMessage) bool
-	RunsUnattended    func(context.Context, Descriptor, json.RawMessage) bool
+	Ceiling           func(Descriptor, json.RawMessage) bool                  `json:"-"`
+	RunsUnattended    func(context.Context, Descriptor, json.RawMessage) bool `json:"-"`
 }
 
-func checkInWritable(d Descriptor) bool {
+func (d Descriptor) CheckInWritable() bool {
 	return AccessOf(d) == AccessWrite && (d.Backend.Kind == BackendMCP || IsCheckInWritable(d.ID))
 }
 
@@ -47,7 +47,8 @@ func (p *CheckInPolicy) denial(ctx context.Context, d Descriptor, input json.Raw
 		return ReasonCheckInToolNotWritable
 	}
 	if p.Disabled &&
-		(AccessOf(d) != AccessRead || d.Source.Kind != SourceBuiltin || strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
+		(AccessOf(d) != AccessRead || d.Source.Kind != SourceBuiltin ||
+			strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
 		return ReasonPolicyDenied
 	}
 	if p.Ceiling != nil && !p.Ceiling(d, input) {
@@ -59,11 +60,7 @@ func (p *CheckInPolicy) denial(ctx context.Context, d Descriptor, input json.Raw
 	if d.Backend.Kind != BackendMCP && !IsCheckInWritable(d.ID) {
 		return ReasonCheckInToolNotWritable
 	}
-	matched := false
-	for _, selector := range p.AllowWrites {
-		matched = matched || selector == string(d.ID) ||
-			(strings.HasPrefix(selector, "mcp__") && strings.HasSuffix(selector, "__*") && strings.HasPrefix(string(d.ID), strings.TrimSuffix(selector, "*")))
-	}
+	matched := checkInWriteMatches(d.ID, p.AllowWrites)
 	if !matched {
 		return ReasonCheckInWriteNotAllowed
 	}
@@ -90,4 +87,17 @@ type CheckInDecision struct {
 type CheckInRecorder interface {
 	Begin(context.Context, CheckInAttempt, CheckInPolicy) (CheckInDecision, error)
 	Finish(context.Context, string, int, string, string, time.Duration) error
+}
+
+func checkInWriteMatches(id ToolID, selectors []string) bool {
+	for _, selector := range selectors {
+		if selector == string(id) {
+			return true
+		}
+		if strings.HasPrefix(selector, "mcp__") && strings.HasSuffix(selector, "__*") &&
+			strings.HasPrefix(string(id), strings.TrimSuffix(selector, "*")) {
+			return true
+		}
+	}
+	return false
 }

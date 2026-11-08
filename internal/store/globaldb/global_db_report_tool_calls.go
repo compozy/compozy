@@ -32,7 +32,7 @@ func (r *InstanceReportRepo) projectReportToolCalls(
 			return nil, err
 		}
 		var payload map[string]jsontext.Value
-		if err = json.Unmarshal(report.Payload, &payload); err != nil {
+		if err := json.Unmarshal(report.Payload, &payload); err != nil {
 			return nil, err
 		}
 		payload["tool_calls"], err = json.Marshal(

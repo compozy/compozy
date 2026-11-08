@@ -55,7 +55,7 @@ func AuthorityActions(actions []ActionDecl) []AuthorityAction {
 	for _, a := range actions {
 		out = append(
 			out,
-			AuthorityAction{ID: a.ID, Title: a.Title, Instructions: a.Instructions, AutoAccept: a.AutoAccept},
+			AuthorityAction(a),
 		)
 	}
 	return out

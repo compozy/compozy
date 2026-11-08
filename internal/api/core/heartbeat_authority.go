@@ -31,7 +31,7 @@ func (h *BaseHandlers) heartbeatAuthorityStorage() (heartbeatAuthorityStore, err
 func (h *BaseHandlers) authorityPayload(
 	ctx context.Context,
 	target authoredAgentTarget,
-	policy heartbeat.ResolvedPolicy,
+	policy *heartbeat.ResolvedPolicy,
 ) (contract.HeartbeatAuthorityPayload, error) {
 	digest, err := heartbeat.AuthorityDigest(
 		policy.Frontmatter.CheckIns,
@@ -96,7 +96,7 @@ func (h *BaseHandlers) mutateHeartbeatAuthority(c *gin.Context, action string) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	payload, err := h.authorityPayload(c.Request.Context(), target, policy)
+	payload, err := h.authorityPayload(c.Request.Context(), target, &policy)
 	if err != nil {
 		h.respondError(c, 503, err)
 		return
@@ -132,10 +132,10 @@ func (h *BaseHandlers) mutateHeartbeatAuthority(c *gin.Context, action string) {
 			return
 		}
 		via := string(taskOriginKindForTransport(h.TransportName))
-		if c.Request.UserAgent() == "compozy-cli" {
-			via = "cli"
+		if c.Request.UserAgent() == operatorCLIUserAgent {
+			via = operatorViaCLI
 		} else if c.GetHeader("X-Compozy-Client-ID") != "" {
-			via = "web"
+			via = operatorViaWeb
 		}
 		err = repo.ApproveAuthority(c.Request.Context(), target.profileID, dir, payload.Digest, via, time.Now().UTC())
 	}
@@ -168,7 +168,8 @@ func (h *BaseHandlers) heartbeatSelectorWarnings(
 		return nil
 	}
 	access := make(map[string]bool, len(views))
-	for _, view := range views {
+	for i := range views {
+		view := &views[i]
 		access[string(view.Descriptor.ID)] = toolspkg.AccessOf(view.Descriptor) == toolspkg.AccessRead
 	}
 	var result []contract.AuthoredContextDiagnosticPayload
@@ -260,10 +261,10 @@ func (h *BaseHandlers) approveSavedHeartbeatAuthority(c *gin.Context, target aut
 			return false
 		}
 		via := string(taskOriginKindForTransport(h.TransportName))
-		if c.Request.UserAgent() == "compozy-cli" {
-			via = "cli"
+		if c.Request.UserAgent() == operatorCLIUserAgent {
+			via = operatorViaCLI
 		} else if c.GetHeader("X-Compozy-Client-ID") != "" {
-			via = "web"
+			via = operatorViaWeb
 		}
 		if approvalErr := repo.ApproveAuthority(
 			c.Request.Context(),
@@ -279,3 +280,9 @@ func (h *BaseHandlers) approveSavedHeartbeatAuthority(c *gin.Context, target aut
 	}
 	return true
 }
+
+const (
+	operatorCLIUserAgent = "compozy-cli"
+	operatorViaCLI       = "cli"
+	operatorViaWeb       = "web"
+)

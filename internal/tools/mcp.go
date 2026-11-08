@@ -394,18 +394,18 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 			strings.TrimSpace(desc.FriendlyVerb),
 			strings.TrimSpace(desc.Preview),
 		),
-		Description:               strings.TrimSpace(desc.Description),
-		InputSchema:               cloneRawMessage(desc.InputSchema),
-		OutputSchema:              cloneRawMessage(desc.OutputSchema),
-		Source:                    mcpSource,
-		Visibility:                VisibilityModel,
-		Risk:                      risk,
-		ReadOnly:                  readOnly,
-		Destructive:               desc.Destructive,
-		OpenWorld:                 openWorld,
-		ConcurrencySafe:           readOnly,
-		mcpReadOnlyOverride:       desc.ReadOnlyOverride,
-		mcpReadOnlyOverrideOrigin: desc.ReadOnlyOverrideOrigin,
+		Description:                 strings.TrimSpace(desc.Description),
+		InputSchema:                 cloneRawMessage(desc.InputSchema),
+		OutputSchema:                cloneRawMessage(desc.OutputSchema),
+		Source:                      mcpSource,
+		Visibility:                  VisibilityModel,
+		Risk:                        risk,
+		ReadOnly:                    readOnly,
+		Destructive:                 desc.Destructive,
+		OpenWorld:                   openWorld,
+		ConcurrencySafe:             readOnly,
+		mcpReadOnlyOverride:         desc.ReadOnlyOverride,
+		mcpReadOnlyOperatorOverride: desc.ReadOnlyOverrideOrigin == MCPReadOnlyOverrideOperatorConfig,
 	}
 	return DescriptorWithSchemaDigests(descriptor)
 }
@@ -489,7 +489,7 @@ func firstNonEmpty(values ...string) string {
 
 func applyMCPReadAuthority(d *Descriptor, overrides map[string]bool) {
 	approved := overrides[string(d.ID)]
-	if !d.mcpReadOnlyOverride || (d.mcpReadOnlyOverrideOrigin != MCPReadOnlyOverrideOperatorConfig && !approved) ||
+	if !d.mcpReadOnlyOverride || (!d.mcpReadOnlyOperatorOverride && !approved) ||
 		d.Backend.Kind != BackendMCP ||
 		d.Destructive {
 		return

@@ -19,7 +19,7 @@ func (r *InstanceRepo) PickProposal(ctx context.Context, req agentinstance.PickR
 	if err := r.checkReady(ctx, "pick instance proposal"); err != nil {
 		return agentinstance.Pick{}, err
 	}
-	if req.Actor != "operator" {
+	if req.Actor != pickActorOperator {
 		return agentinstance.Pick{}, errors.New("proposal_pick_operator_only")
 	}
 	var pick agentinstance.Pick
@@ -39,7 +39,7 @@ func (r *InstanceRepo) PickProposal(ctx context.Context, req agentinstance.PickR
 			if err != nil {
 				return err
 			}
-			if row.Kind != "proposal" {
+			if row.Kind != instanceReportProposal {
 				return agentinstance.ErrReportNotProposal
 			}
 			proposals, err := pickProposals([]byte(row.Payload), req.Actions)
@@ -78,7 +78,7 @@ func insertInstancePick(
 	if err != nil {
 		return agentinstance.Pick{}, err
 	}
-	if instance.State != "active" || instance.ArchivedAt.Valid {
+	if instance.State != instanceStateActive || instance.ArchivedAt.Valid {
 		return agentinstance.Pick{}, agentinstance.ErrInstanceNotActive
 	}
 	target := instance.MainSessionID.String
@@ -93,52 +93,26 @@ func insertInstancePick(
 	if err != nil {
 		return agentinstance.Pick{}, err
 	}
+	text, err := agentinstance.PickPromptText(p, p.Action)
+	if err != nil {
+		return agentinstance.Pick{}, err
+	}
 	entry := store.SessionInputQueueInsert{
 		ID:                id,
 		SessionID:         target,
 		MessageID:         fmt.Sprintf("pick:%s:%d", req.ReportID, req.ProposalIndex),
-		Text:              agentinstance.PickPromptText(p, p.Action),
+		Text:              text,
 		Mode:              store.SessionInputQueueModeQueue,
 		Delivery:          store.SessionInputDeliveryAfterTurn,
 		SessionGeneration: generation,
 		QueueCap:          req.QueueCap,
 		Now:               now,
-		HumanIngress:      req.Actor == "operator",
+		HumanIngress:      req.Actor == pickActorOperator,
 	}
-	if req.Actor == "auto_accept" {
-		turn, err := store.NewID("turn")
-		if err != nil {
-			return agentinstance.Pick{}, err
-		}
-		run, err := store.NewID("run")
-		if err != nil {
-			return agentinstance.Pick{}, err
-		}
-		metadata, err := json.Marshal(
-			map[string]any{
-				"kind":           "auto_accept",
-				"reason":         "proposal_auto_accept",
-				"summary":        p.Title,
-				"instance_id":    req.InstanceID,
-				"report_id":      req.ReportID,
-				"proposal_index": req.ProposalIndex,
-			},
-		)
-		if err != nil {
-			return agentinstance.Pick{}, err
-		}
-		entry.OwnerKind = store.SessionInputOwnerSynthetic
-		entry.TurnID = turn
-		entry.SyntheticPrompt = &store.SessionInputSyntheticPrompt{RunID: run, Metadata: metadata}
-	}
-	entry = entry.Normalize()
-	if err := entry.Validate(); err != nil {
+	if err := setAutoPickMetadata(&entry, req, p); err != nil {
 		return agentinstance.Pick{}, err
 	}
-	if err := checkSessionInputQueueCap(ctx, exec, entry); err != nil {
-		return agentinstance.Pick{}, err
-	}
-	if _, err := insertSessionInputQueueEntry(ctx, exec, entry); err != nil {
+	if err := admitPickInput(ctx, exec, entry); err != nil {
 		return agentinstance.Pick{}, err
 	}
 	action := ""
@@ -166,20 +140,79 @@ func insertInstancePick(
 		ActionID:      action,
 		TargetSession: target,
 		QueueEntryID:  id,
-		State:         "queued",
+		State:         inputStatusQueued,
 		PickedAt:      now,
 	}, err
 }
 
 func pickQueueState(status string) string {
 	switch status {
-	case "queued", "dispatching":
-		return "queued"
+	case inputStatusQueued, "dispatching":
+		return inputStatusQueued
 	case "sent":
 		return "delivered"
 	case "canceled":
-		return "cancelled"
+		return "canceled"
 	default:
 		return "failed"
 	}
+}
+
+const (
+	runtimeStatusRunning   = "running"
+	checkInDecisionDenied  = "denied"
+	instanceReportProposal = "proposal"
+	instanceStateActive    = "active"
+	pickActorAutoAccept    = "auto_accept"
+	pickActorOperator      = "operator"
+	inputStatusQueued      = "queued"
+	autoAcceptStatusNone   = "none"
+)
+
+func setAutoPickMetadata(
+	entry *store.SessionInputQueueInsert,
+	req agentinstance.PickRequest,
+	p agentinstance.ProposalPayload,
+) error {
+	if req.Actor == pickActorAutoAccept {
+		turn, err := store.NewID("turn")
+		if err != nil {
+			return err
+		}
+		run, err := store.NewID("run")
+		if err != nil {
+			return err
+		}
+		metadata, err := json.Marshal(
+			map[string]any{
+				"kind":           pickActorAutoAccept,
+				"reason":         "proposal_auto_accept",
+				"summary":        p.Title,
+				"instance_id":    req.InstanceID,
+				"report_id":      req.ReportID,
+				"proposal_index": req.ProposalIndex,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		entry.OwnerKind = store.SessionInputOwnerSynthetic
+		entry.TurnID = turn
+		entry.SyntheticPrompt = &store.SessionInputSyntheticPrompt{RunID: run, Metadata: metadata}
+	}
+	return nil
+}
+
+func admitPickInput(ctx context.Context, exec globalSQLExecutor, entry store.SessionInputQueueInsert) error {
+	entry = entry.Normalize()
+	if err := entry.Validate(); err != nil {
+		return err
+	}
+	if err := checkSessionInputQueueCap(ctx, exec, entry); err != nil {
+		return err
+	}
+	if _, err := insertSessionInputQueueEntry(ctx, exec, entry); err != nil {
+		return err
+	}
+	return nil
 }

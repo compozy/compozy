@@ -39,7 +39,7 @@ func (r *InstanceReportRepo) ProjectPicks(
 				PickedAt:      at,
 			},
 		)
-		picked[int(row.ProposalIndex)] = row.Actor == "auto_accept"
+		picked[int(row.ProposalIndex)] = row.Actor == pickActorAutoAccept
 	}
 	var payload map[string]jsontext.Value
 	if err := json.Unmarshal(report.Payload, &payload); err != nil {
@@ -49,53 +49,17 @@ func (r *InstanceReportRepo) ProjectPicks(
 	if err != nil {
 		return err
 	}
-	if report.Kind == "proposal" {
+	if report.Kind == instanceReportProposal {
 		var proposals []map[string]jsontext.Value
 		if err := json.Unmarshal(payload["proposals"], &proposals); err != nil {
 			return err
 		}
 		for i, p := range proposals {
-			status := "none"
-			var action agentinstance.ActionSnapshot
-			if raw, ok := p["action"]; ok {
-				var id string
-				if err := json.Unmarshal(raw, &id); err != nil {
-					if err := json.Unmarshal(raw, &action); err != nil {
-						return err
-					}
-					id = action.ID
-				}
-				action.ID = id
-				for _, decl := range actions {
-					if decl.ID == id {
-						action = decl
-						break
-					}
-				}
-			}
-			if action.ID != "" {
-				p["action"], err = json.Marshal(struct {
-					ID         string `json:"id"`
-					Title      string `json:"title"`
-					AutoAccept bool   `json:"auto_accept"`
-				}{action.ID, action.Title, action.AutoAccept})
-				if err != nil {
-					return err
-				}
-			}
-			if raw := p["auto_accept_skip"]; len(raw) > 0 {
-				if err := json.Unmarshal(raw, &status); err != nil {
-					return err
-				}
-			}
-			if picked[i] {
-				status = "picked"
-			}
-			p["auto_accept_status"], err = json.Marshal(status)
-			if err != nil {
+			if err := projectProposalPick(p, picked[i], actions); err != nil {
 				return err
 			}
 		}
+
 		payload["proposals"], err = json.Marshal(proposals)
 		if err != nil {
 			return err
@@ -103,4 +67,49 @@ func (r *InstanceReportRepo) ProjectPicks(
 	}
 	report.Payload, err = json.Marshal(payload)
 	return err
+}
+
+func projectProposalPick(p map[string]jsontext.Value, autoPicked bool, actions []agentinstance.ActionSnapshot) error {
+	var err error
+	status := autoAcceptStatusNone
+	var action agentinstance.ActionSnapshot
+	if raw, ok := p["action"]; ok {
+		var id string
+		if err := json.Unmarshal(raw, &id); err != nil {
+			if err := json.Unmarshal(raw, &action); err != nil {
+				return err
+			}
+			id = action.ID
+		}
+		action.ID = id
+		for _, decl := range actions {
+			if decl.ID == id {
+				action = decl
+				break
+			}
+		}
+	}
+	if action.ID != "" {
+		p["action"], err = json.Marshal(struct {
+			ID         string `json:"id"`
+			Title      string `json:"title"`
+			AutoAccept bool   `json:"auto_accept"`
+		}{action.ID, action.Title, action.AutoAccept})
+		if err != nil {
+			return err
+		}
+	}
+	if raw := p["auto_accept_skip"]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &status); err != nil {
+			return err
+		}
+	}
+	if autoPicked {
+		status = "picked"
+	}
+	p["auto_accept_status"], err = json.Marshal(status)
+	if err != nil {
+		return err
+	}
+	return nil
 }

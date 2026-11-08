@@ -4,7 +4,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 
 func heartbeatAuthorityOperations() []OperationSpec {
 	operations := make([]OperationSpec, 0, 3)
-	for _, verb := range []string{"show", "approve", "revoke"} {
+	for _, verb := range []string{"show", authorityApproveAction, "revoke"} {
 		method, path, id := httpMethodGet, "/api/agents/{name}/heartbeat/authority", "getAgentHeartbeatAuthority"
 		response := ResponseSpec{
 			Status:      200,
@@ -12,7 +12,7 @@ func heartbeatAuthorityOperations() []OperationSpec {
 			Body:        contract.HeartbeatAuthorityPayload{},
 		}
 
-		if verb == "approve" {
+		if verb == authorityApproveAction {
 			method, path, id = httpMethodPost, path+"/approve", "approveAgentHeartbeatAuthority"
 			response = ResponseSpec{Status: 204, Description: "Authority approved"}
 		}
@@ -35,17 +35,22 @@ func heartbeatAuthorityOperations() []OperationSpec {
 			),
 			Responses: []ResponseSpec{
 				response,
-				{Status: 403, Description: "Operator required", Body: contract.ErrorPayload{}},
+				{Status: 403, Description: operatorRequiredDescription, Body: contract.ErrorPayload{}},
 				{Status: 409, Description: "Authority changed", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 422, Description: "Invalid authority", Body: contract.ErrorPayload{}},
 				{Status: 503, Description: "Authority storage unavailable", Body: contract.ErrorPayload{}},
 			},
 		}
-		if verb == "approve" {
+		if verb == authorityApproveAction {
 			operation.RequestBody = contract.HeartbeatScriptApprovalRequest{}
 		}
 		operations = append(operations, operation)
 	}
 	return operations
 }
+
+const (
+	authorityApproveAction      = "approve"
+	operatorRequiredDescription = "Operator required"
+)

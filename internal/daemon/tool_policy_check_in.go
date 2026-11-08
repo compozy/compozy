@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type checkInPolicyStore interface {
@@ -30,7 +31,7 @@ func (r *nativeToolPolicyResolver) resolveCheckInPolicy(
 	cfg *compozyconfig.Config,
 ) error {
 	policy := &toolspkg.CheckInPolicy{
-		Disabled:      cfg.Agents.AlwaysOn.CheckInTools == "disabled",
+		Disabled:      cfg.Agents.AlwaysOn.CheckInTools == hookActionDisabled,
 		InstanceID:    info.InstanceID,
 		MaxToolCalls:  cfg.Agents.AlwaysOn.CheckInMaxToolCalls,
 		MaxWriteCalls: cfg.Agents.AlwaysOn.CheckInMaxWriteCalls,
@@ -204,6 +205,31 @@ func (r *nativeToolPolicyResolver) applyAgentMCPReadAuthority(
 				continue
 			}
 			inputs.MCPReadOnlyTools[string(id)] = approved
+		}
+	}
+	return nil
+}
+
+func (r *nativeToolPolicyResolver) applyResolvedMCPReadAuthority(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	info *session.Info,
+	resolvedScope toolspkg.Scope,
+	resolvedWorkspace *workspacepkg.ResolvedAgentConfig,
+	cfg *compozyconfig.Config,
+) error {
+	if resolvedScope.AgentName != "" &&
+		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
+		authorityInfo := info
+		if authorityInfo == nil {
+			authorityInfo = &session.Info{
+				AgentName:   resolvedScope.AgentName,
+				ProfileID:   resolvedScope.ProfileID,
+				WorkspaceID: resolvedScope.WorkspaceID,
+			}
+		}
+		if err := r.applyAgentMCPReadAuthority(ctx, inputs, authorityInfo, resolvedWorkspace, cfg); err != nil {
+			return err
 		}
 	}
 	return nil

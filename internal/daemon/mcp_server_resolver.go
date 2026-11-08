@@ -107,7 +107,7 @@ func resolveDaemonMCPResource(
 			return mcppkg.ResolvedServer{}, err
 		}
 		return mcppkg.ResolvedServer{
-			ReadOnlyOverrideOrigin: toolspkg.MCPReadOnlyOverrideOperatorConfig,
+			ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
 			Server:                 server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
 		}, nil
 	}
@@ -195,7 +195,7 @@ func mcpExtensionBindingOwner(
 func userResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
-		ReadOnlyOverrideOrigin: toolspkg.MCPReadOnlyOverrideOperatorConfig,
+		ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
 		Server:                 cloneDaemonMCPServer(server),
 		Target:                 (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
 	}

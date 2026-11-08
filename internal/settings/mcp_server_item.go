@@ -14,7 +14,7 @@ import (
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
-	ReadOnlyTools          []string
+	readOnlyTools          *[]string
 	Owner                  string
 	RuntimeName            string
 	Override               *extensionmcp.Override
@@ -24,9 +24,9 @@ type MCPServerItem struct {
 	Args                   []string
 	EnvKeys                []string
 	SecretEnvKeys          []string
-	HeadersConfigured      bool
 	URL                    string
 	Auth                   compozyconfig.MCPAuthConfig
+	HeadersConfigured      bool
 	ClientSecretConfigured bool
 	AuthStatus             *mcpauth.Status
 	RuntimeStatus          *MCPServerRuntimeStatus
@@ -55,7 +55,7 @@ func baseMCPServerItem(
 	auth.ClientSecretRef = ""
 	return MCPServerItem{
 		Name:                   effective.Server.Name,
-		ReadOnlyTools:          slices.Clone(effective.Server.ReadOnlyTools),
+		readOnlyTools:          new(slices.Clone(effective.Server.ReadOnlyTools)),
 		Owner:                  vault.NormalizeMCPOwner(effective.Server.Owner),
 		RuntimeName:            effective.Server.EffectiveRuntimeName(),
 		Transport:              effective.Server.EffectiveTransport(),
@@ -109,6 +109,9 @@ func mcpSecretEnvKeys(secretEnv map[string]string) []string {
 }
 
 func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
+	if value.readOnlyTools != nil {
+		value.readOnlyTools = new(slices.Clone(*value.readOnlyTools))
+	}
 	if value.Override != nil {
 		override := *value.Override
 		override.Env, override.Headers = maps.Clone(override.Env), maps.Clone(override.Headers)
@@ -195,4 +198,11 @@ func cloneMCPServerItemPointer(value *MCPServerItem) *MCPServerItem {
 		return nil
 	}
 	return new(cloneMCPServerItem(*value))
+}
+
+func (value MCPServerItem) ReadOnlyToolNames() []string {
+	if value.readOnlyTools == nil {
+		return nil
+	}
+	return *value.readOnlyTools
 }

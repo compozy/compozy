@@ -4090,7 +4090,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 				}
 				descriptors, err := executor.descriptorsFromTools(
 					toolspkg.SourceRef{},
-					ResolvedServer{ReadOnlyOverrideOrigin: tc.origin, Server: compozyconfig.MCPServer{
+					ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
 						Name:          "fixture",
 						Owner:         tc.owner,
 						CatalogEntry:  tc.catalog,

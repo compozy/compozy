@@ -281,7 +281,7 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
     drains: it still shows `queue_full` (recorded at publication). With an unapproved block it
     shows `unapproved`; with no main session `no_main`; paused or archived instances
     record `inactive` rather than the daily `limit`. Queue an auto pick on a busy main
-    session, then pause the instance: the queued auto pick reads `cancelled`.
+    session, then pause the instance: the queued auto pick reads `canceled`.
 13. **Operator picks (US-010).** `compozy agent instance pick issue-watch <report-id> 2` picks
     the waiting proposal (1-based) and prints that it was sent to the main session. Repeating it
     fails `proposal_already_picked` (409). From an agent session the CLI and HTTP pick fail

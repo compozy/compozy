@@ -17,7 +17,7 @@ type instanceProposalPayload struct {
 }
 
 func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.FinishRequest) error {
-	if req.Result != "reported" || req.Report == nil || req.Report.Kind != "proposal" {
+	if req.Result != "reported" || req.Report == nil || req.Report.Kind != instanceReportProposal {
 		return nil
 	}
 	validation := *req.Report
@@ -43,7 +43,7 @@ func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *
 			return err
 		}
 		for _, row := range rows {
-			if row.Kind != "proposal" || row.CreatedAt <= cutoff {
+			if row.Kind != instanceReportProposal || row.CreatedAt <= cutoff {
 				continue
 			}
 			var previous instanceProposalPayload

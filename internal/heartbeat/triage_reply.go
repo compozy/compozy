@@ -122,7 +122,10 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int, actions ...
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
 	}
 	var diagnostics []string
-	unwrapped, _ := unwrapTriageFence(strings.TrimSpace(reply))
+	unwrapped, err := unwrapTriageFence(strings.TrimSpace(reply))
+	if err != nil {
+		return invalidTriageReply(reply)
+	}
 	var raw struct {
 		Proposals []struct {
 			Action string `json:"action"`

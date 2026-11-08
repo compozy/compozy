@@ -38,7 +38,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	tools "github.com/compozy/compozy/internal/tools"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
@@ -2749,7 +2748,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		env := &instanceCheckEnvironment{instanceDigestCollector: instanceDigestCollector{instances: h.db.Instances()}}
+		env := &instanceCheckEnvironment{instances: h.db.Instances()}
 		if err := env.notifyCheckInAuthority(t.Context(), &target); err == nil {
 			t.Fatal("expected publication failure")
 		}
@@ -2804,10 +2803,10 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			}
 			executor, err := mcppkg.NewMCPCallExecutor(
 				mcppkg.ServerResolverFunc(
-					func(context.Context, toolspkg.SourceRef, string) (mcppkg.ResolvedServer, error) {
+					func(context.Context, tools.SourceRef, string) (mcppkg.ResolvedServer, error) {
 						return mcppkg.ResolvedServer{
 							Target:                 mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
-							ReadOnlyOverrideOrigin: toolspkg.MCPReadOnlyOverrideAgentDefinition,
+							ReadOnlyOverrideOrigin: new(tools.MCPReadOnlyOverrideAgentDefinition),
 							Server: compozyconfig.MCPServer{
 								Name:          "fixture",
 								ReadOnlyTools: overrideNames,
@@ -2822,8 +2821,8 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mcpSource := toolspkg.SourceRef{
-				Kind:          toolspkg.SourceMCP,
+			mcpSource := tools.SourceRef{
+				Kind:          tools.SourceMCP,
 				Owner:         "fixture",
 				RawServerName: "fixture",
 				RawToolName:   "*",
@@ -2831,9 +2830,9 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			if _, err := executor.ListTools(t.Context(), mcpSource); err != nil {
 				t.Fatalf("fixture discovery: %v", err)
 			}
-			provider, err := toolspkg.NewMCPProvider(
-				toolspkg.MCPSourceListerFunc(
-					func(context.Context) ([]toolspkg.SourceRef, error) { return []toolspkg.SourceRef{mcpSource}, nil },
+			provider, err := tools.NewMCPProvider(
+				tools.MCPSourceListerFunc(
+					func(context.Context) ([]tools.SourceRef, error) { return []tools.SourceRef{mcpSource}, nil },
 				),
 				executor,
 				executor,
@@ -2858,7 +2857,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			)
 			session.WithAgentResolver(agents)(h.manager)
 			session.WithToolUniverse(
-				[]toolspkg.ToolID{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"},
+				[]tools.ToolID{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"},
 			)(
 				h.manager,
 			)
@@ -2931,8 +2930,8 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					WorkspaceResolver: h.env.definitions.workspaces,
 					ProfileNames:      nativeProfileReaderStub{},
 					AgentResolver:     &nativeToolPolicyAgentResolverStub{agent: def},
-					MCPSourceGrants: func(context.Context, toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
-						return []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "fixture"}}, nil
+					MCPSourceGrants: func(context.Context, tools.Scope) ([]tools.SourceGrant, error) {
+						return []tools.SourceGrant{{Kind: tools.SourceMCP, Owner: "fixture"}}, nil
 					},
 				},
 			)
@@ -2941,10 +2940,10 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			}
 			resolver.instanceCallers = h.db.Instances()
 
-			registry, err := toolspkg.NewRegistry(
-				toolspkg.WithProviders(provider),
-				toolspkg.WithPolicyInputResolver(resolver, toolspkg.ToolsetCatalog{}),
-				toolspkg.WithCheckInRecorder(h.db.Instances().CheckInRecorder()),
+			registry, err := tools.NewRegistry(
+				tools.WithProviders(provider),
+				tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}),
+				tools.WithCheckInRecorder(h.db.Instances().CheckInRecorder()),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -2953,7 +2952,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			if strings.HasPrefix(mode, "override-") {
 				views, err := registry.DiagnosticProjection(
 					t.Context(),
-					toolspkg.Scope{
+					tools.Scope{
 						SessionID:   h.instance.MainSessionID,
 						ProfileID:   h.instance.ProfileID,
 						WorkspaceID: h.instance.WorkspaceID,
@@ -2967,7 +2966,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				for _, view := range views {
 					if view.Descriptor.ID == "mcp__fixture__unannotated" {
 						found = true
-						if toolspkg.AccessOf(view.Descriptor) != toolspkg.AccessWrite {
+						if tools.AccessOf(view.Descriptor) != tools.AccessWrite {
 							t.Fatalf("main override applied without approval: %+v", view)
 						}
 					}
@@ -2979,13 +2978,13 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			if mode == "override-invalid" || mode == "override-malformed" {
 				result, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{
+					tools.Scope{
 						SessionID:   h.instance.MainSessionID,
 						ProfileID:   h.instance.ProfileID,
 						WorkspaceID: h.instance.WorkspaceID,
 						AgentName:   h.instance.AgentName,
 					},
-					toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+					tools.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
 				)
 				if err != nil {
 					t.Fatalf("main call with invalid authority: %+v %v", result, err)
@@ -3004,7 +3003,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					ProfileID:   h.instance.ProfileID,
 					WorkspaceID: h.instance.WorkspaceID,
 				}
-				policy := &toolspkg.CheckInPolicy{}
+				policy := &tools.CheckInPolicy{}
 				if err := resolver.applyCheckInAuthority(
 					t.Context(),
 					policy,
@@ -3050,7 +3049,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					StopTimeout:  time.Second,
 				},
 				call: func(ctx context.Context, target *heartbeat.CheckTarget, id string) error {
-					scope := toolspkg.Scope{
+					scope := tools.Scope{
 						SessionID:   id,
 						ProfileID:   target.Instance.ProfileID,
 						WorkspaceID: target.Instance.WorkspaceID,
@@ -3059,21 +3058,21 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					if _, err := registry.Call(
 						ctx,
 						scope,
-						toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+						tools.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
 					); (err == nil) != (mode != "no-main") {
 						return fmt.Errorf("fixture read: %w", err)
 					}
 					if _, err := registry.Call(
 						ctx,
 						scope,
-						toolspkg.CallRequest{ToolID: "mcp__fixture__unannotated", Input: []byte(`{}`)},
+						tools.CallRequest{ToolID: "mcp__fixture__unannotated", Input: []byte(`{}`)},
 					); err == nil {
 						return errors.New("unannotated tool ran without opt-in")
 					}
 					_, err := registry.Call(
 						ctx,
 						scope,
-						toolspkg.CallRequest{
+						tools.CallRequest{
 							ToolID: "mcp__fixture__echo",
 							Input:  []byte(`{"message":"fixture write"}`),
 						},

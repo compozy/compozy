@@ -72,7 +72,7 @@ func (o alwaysOnOverlay) Apply(dst *AlwaysOnConfig) {
 func DefaultAlwaysOnConfig() AlwaysOnConfig {
 	return AlwaysOnConfig{
 		AutoAcceptPerDay:      20,
-		CheckInTools:          "enabled",
+		CheckInTools:          checkInToolsEnabled,
 		CheckInMaxToolCalls:   25,
 		CheckInMaxWriteCalls:  5,
 		CheckInAuditRetention: 720 * time.Hour,
@@ -84,3 +84,5 @@ func DefaultAlwaysOnConfig() AlwaysOnConfig {
 		TriageTimeout:         10 * time.Minute,
 	}
 }
+
+const checkInToolsEnabled = "enabled"

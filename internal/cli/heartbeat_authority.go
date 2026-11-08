@@ -82,7 +82,7 @@ func confirmHeartbeatAuthority(
 }
 func newAgentHeartbeatAuthorityCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "authority", Short: "Review and approve check-in authority"}
-	for _, action := range []string{"show", "approve", "revoke"} {
+	for _, action := range []string{configShowKey, loopApproveKey, authorityRevokeAction} {
 		var yes bool
 		var hash string
 		cmd := &cobra.Command{
@@ -90,7 +90,7 @@ func newAgentHeartbeatAuthorityCommand(deps commandDeps) *cobra.Command {
 			Short: action + " check-in authority",
 			Args:  exactOneNonBlankArg(),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if action != "show" && agentIdentityEnvironmentPresent(deps) {
+				if action != configShowKey && agentIdentityEnvironmentPresent(deps) {
 					return source.Failure(
 						"heartbeat_authority_operator_only",
 						"only the operator can approve or revoke check-in authority",
@@ -112,7 +112,7 @@ func newAgentHeartbeatAuthorityCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if action == "show" {
+				if action == configShowKey {
 					return writeCommandOutput(cmd, outputBundle{jsonValue: authority, human: func() (string, error) {
 						data, err := json.MarshalIndent(authority, "", "  ")
 						return string(data) + "\n", err
@@ -124,7 +124,7 @@ func newAgentHeartbeatAuthorityCommand(deps commandDeps) *cobra.Command {
 						"check-in authority changed; review the current block",
 					)
 				}
-				if action == "approve" && yes && hash == "" {
+				if action == loopApproveKey && yes && hash == "" {
 					return errors.New("--yes requires --sha256 for authority approval")
 				}
 				confirmed, err := confirmHeartbeatAuthority(cmd, authority, yes)
@@ -139,7 +139,7 @@ func newAgentHeartbeatAuthorityCommand(deps commandDeps) *cobra.Command {
 					args[0],
 					query,
 					authority.Digest,
-					action == "revoke",
+					action == authorityRevokeAction,
 				)
 			},
 		}
@@ -217,3 +217,7 @@ func reviewHeartbeatWriteAuthority(
 	}
 	return hash, nil
 }
+
+const (
+	authorityRevokeAction = "revoke"
+)

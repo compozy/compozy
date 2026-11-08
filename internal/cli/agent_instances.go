@@ -17,7 +17,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	for _, action := range []string{
 		automationCreateKey,
 		agentListKey,
-		"show",
+		configShowKey,
 		"pause",
 		"resume",
 		workspaceArchiveAction,
@@ -310,7 +310,7 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 				if !ok {
 					return "", errors.New("cli: agent instances unavailable")
 				}
-				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, "show")
+				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, configShowKey)
 				if err != nil {
 					return instanceCheckText(result, target, nil), nil
 				}
@@ -357,7 +357,7 @@ func mutateAgentInstance(cmd *cobra.Command, client agentInstancesClient, action
 	var err error
 	var before contract.AgentInstanceResponse
 	if action == workspaceArchiveAction {
-		before, err = client.MutateAgentInstance(cmd.Context(), id, "show")
+		before, err = client.MutateAgentInstance(cmd.Context(), id, configShowKey)
 		if err != nil {
 			return err
 		}

@@ -31,8 +31,8 @@ func (e *CallExecutor) descriptorsFromTools(
 			return nil, fmt.Errorf("mcp: normalize tool %q: %w", tool.Name, err)
 		}
 		if descriptor.ReadOnlyOverride &&
-			resolved.ReadOnlyOverrideOrigin == toolspkg.MCPReadOnlyOverrideOperatorConfig {
-			descriptor.ReadOnlyOverrideOrigin = resolved.ReadOnlyOverrideOrigin
+			resolved.overrideOrigin() == toolspkg.MCPReadOnlyOverrideOperatorConfig {
+			descriptor.ReadOnlyOverrideOrigin = resolved.overrideOrigin()
 		}
 		descriptors = append(descriptors, descriptor)
 	}

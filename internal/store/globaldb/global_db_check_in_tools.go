@@ -40,9 +40,9 @@ func (r *InstanceRepo) Begin(
 				decision.Allowed = false
 				decision.Reason = string(toolspkg.ReasonCheckInToolBudgetExhausted)
 			}
-			outcome, choice, effect := "running", "allowed", "maybe"
+			outcome, choice, effect := runtimeStatusRunning, "allowed", "maybe"
 			if !decision.Allowed {
-				outcome, choice, effect = "denied", "denied", "none"
+				outcome, choice, effect = checkInDecisionDenied, checkInDecisionDenied, checkInEffectNone
 			}
 			backend := "native"
 			if a.Backend == toolspkg.BackendMCP {
@@ -84,8 +84,8 @@ func (r *InstanceRepo) FinishToolCall(
 	if outcome == "ok" {
 		effect = "done"
 	}
-	if outcome == "denied" {
-		effect = "none"
+	if outcome == checkInDecisionDenied {
+		effect = checkInEffectNone
 	}
 	return r.executeWriteQuery(ctx, "finish check-in tool call", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.FinishCheckInToolCall(
@@ -268,3 +268,5 @@ func (r *InstanceRepo) AuthorityNoticeSent(ctx context.Context, profile, dir, di
 	)
 	return found > 0, err
 }
+
+const checkInEffectNone = "none"

@@ -62,7 +62,7 @@ func (d *extensionMCPDetails) populate(
 	records := d.state.mcpServerCatalog.Snapshot()
 	for i := range payload.MCPServers {
 		item := &payload.MCPServers[i]
-		if item.Status == "disabled" {
+		if item.Status == hookActionDisabled {
 			continue
 		}
 		item.Status = daemonStoppedValue
@@ -111,7 +111,7 @@ func (d *extensionMCPDetails) populate(
 
 func publishedMCPAuthSummary(auth compozyconfig.MCPAuthConfig) *contract.MCPAuthSummary {
 	if !auth.Enabled() {
-		return &contract.MCPAuthSummary{Method: "none"}
+		return &contract.MCPAuthSummary{Method: mcpAuthMethodNone}
 	}
 	registration := string(auth.Registration)
 	if registration == "auto" {
@@ -136,3 +136,5 @@ func marketplaceMCPRuntimeStatus(state settingspkg.MCPServerRuntimeState) string
 		return daemonStoppedValue
 	}
 }
+
+const mcpAuthMethodNone = "none"

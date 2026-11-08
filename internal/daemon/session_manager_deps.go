@@ -106,7 +106,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:      state.sessionAttachments,
 		SessionHealthConfig:     state.cfg.Agents.Heartbeat,
-		CheckInTools:            state.cfg.Agents.AlwaysOn.CheckInTools != "disabled",
+		CheckInTools:            state.cfg.Agents.AlwaysOn.CheckInTools != hookActionDisabled,
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,

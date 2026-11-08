@@ -46,13 +46,11 @@ func (h instanceLifecycleHooks) DispatchAgentInstance(
 
 func proposalPickHook(instance agentinstance.Instance, pick agentinstance.Pick) hookspkg.AgentInstancePayload {
 	return hookspkg.AgentInstancePayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookAgentInstanceProposalPicked, Timestamp: pick.PickedAt},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID:   instance.ProfileID,
-			WorkspaceID: instance.WorkspaceID,
-			SessionID:   pick.TargetSession,
-			AgentName:   instance.AgentName,
-		},
+		Event: hookspkg.HookAgentInstanceProposalPicked, Timestamp: pick.PickedAt,
+		ProfileID:     instance.ProfileID,
+		WorkspaceID:   instance.WorkspaceID,
+		SessionID:     pick.TargetSession,
+		AgentName:     instance.AgentName,
 		InstanceID:    instance.ID,
 		MainSessionID: pick.TargetSession,
 		Actor:         pick.Actor,

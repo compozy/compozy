@@ -121,9 +121,10 @@ func instanceReportNotification(report InstanceReportEvent) (string, string, err
 	}
 	if report.Kind == "activity" {
 		title := fmt.Sprintf("Your agent made %d changes", report.WritesDone)
-		if report.WritesDone == 1 {
+		switch report.WritesDone {
+		case 1:
 			title = "Your agent made 1 change"
-		} else if report.WritesDone == 0 {
+		case 0:
 			title = "Your agent may have changed something"
 		}
 		return title, fmt.Sprintf(

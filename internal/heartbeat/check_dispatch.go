@@ -18,15 +18,7 @@ func (s *CheckService) dispatch(
 	digest CheckDigest,
 	occurrence, source string,
 ) {
-	defer func() {
-		s.mu.Lock()
-		run := s.running[target.Instance.ID]
-		if run.occurrence == occurrence {
-			run.cancel()
-			delete(s.running, target.Instance.ID)
-		}
-		s.mu.Unlock()
-	}()
+	defer s.releaseCheck(target.Instance.ID, occurrence)
 	outcome, err := s.dispatcher.Dispatch(ctx, target, digest, func(sessionID string) error {
 		bound, err := s.store.BindTriage(ctx, target.Instance.ID, occurrence, sessionID)
 		if err != nil {
@@ -259,4 +251,14 @@ func (s *CheckService) CancelInstance(ctx context.Context, id string) error {
 		run.cancel()
 	}
 	return nil
+}
+
+func (s *CheckService) releaseCheck(instanceID, occurrence string) {
+	s.mu.Lock()
+	run := s.running[instanceID]
+	if run.occurrence == occurrence {
+		run.cancel()
+		delete(s.running, instanceID)
+	}
+	s.mu.Unlock()
 }

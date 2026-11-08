@@ -13,7 +13,7 @@ export interface ReportProposal {
 export interface ReportPick {
   index: number;
   actor: "operator" | "auto_accept" | string;
-  /** `queued`, `delivered`, `cancelled` or `failed`. */
+  /** `queued`, `delivered`, `canceled` or `failed`. */
   state: string;
 }
 
