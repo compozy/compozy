@@ -1621,6 +1621,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	}
 }
 
+// TestDaemonShutdownOperation verifies shared teardown, retry ownership and replacement discovery.
 func TestDaemonShutdownOperation(t *testing.T) {
 	t.Run("Should retain one operation while callers wait with independent contexts", func(t *testing.T) {
 		t.Parallel()

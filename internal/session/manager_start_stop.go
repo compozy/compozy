@@ -22,6 +22,7 @@ func (m *Manager) stopStartingSession(ctx context.Context, id string, cause Stop
 	return true, m.finishStartingSessionStop(ctx, session, run)
 }
 
+// finishStartingSessionStop bounds the caller wait while preserving the startup cleanup owner.
 func (m *Manager) finishStartingSessionStop(ctx context.Context, session *Session, run *sessionStartRun) error {
 	if run == nil {
 		return m.finalizeStopped(ctx, session, nil)
@@ -159,6 +160,7 @@ func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 	return session, run
 }
 
+// shutdownSessionStarts cancels uncommitted starts and stops activation that wins the launch gate.
 func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("session: shutdown starts context is required")

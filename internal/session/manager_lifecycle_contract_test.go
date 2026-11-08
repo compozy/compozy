@@ -1046,47 +1046,72 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
-	// Invariant: normal stop preparation must re-enter the replacement startup's launch gate.
-	t.Run("Should route normal stop preparation through a pending startup gate", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		accepted := prepareLifecycleStart(t, h)
-		run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
-		if !owned {
-			t.Fatal("stop admission was not owned")
-		}
-		release, err := acquireSessionStartLaunchCommit(t.Context(), accepted.run)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer release()
-		observed := &resumeWaitObservedContext{Context: testutil.Context(t), entered: make(chan struct{})}
-		prepared := make(chan struct{})
-		go func() { h.manager.prepareSessionStopRun(observed, run, CauseUserRequested, ""); close(prepared) }()
-		<-observed.entered
-		if accepted.session.Info().State != StateStarting {
-			t.Fatal("normal preparation bypassed the startup gate")
-		}
-		worker := make(chan struct{})
-		go func() {
-			defer close(worker)
-			<-accepted.run.ctx.Done()
-			err := h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
-			if !accepted.cleanupPending {
-				h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+	// Invariant: startup Stop admission holds the launch gate and dispatches pre_stop once.
+	// Owner/canonical suite: shared Manager Stop lifecycle.
+	for _, state := range []State{StateStarting, StateActive} {
+		t.Run("Should route normal stop preparation through a pending startup gate "+string(state), func(t *testing.T) {
+			t.Parallel()
+			var preStops atomic.Int32
+			hooks := &spyHookDispatcher{
+				dispatchSessionPreStopFn: func(_ context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+					preStops.Add(1)
+					return payload, nil
+				},
 			}
-		}()
-		release()
-		<-prepared
-		outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
-		if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
-			t.Fatalf("replacement startup stop = %+v, %v", outcome, err)
-		}
-		<-worker
-		if countEventType(readStoredEvents(t, accepted.session), acp.EventTypeError) != 0 {
-			t.Fatal("replacement cancellation became a startup failure")
-		}
-	})
+			h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+			accepted := prepareLifecycleStart(t, h)
+			if state == StateActive {
+				proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-uncommitted-active")
+				h.driver.processes[proc.handle] = proc
+				accepted.proc = proc.handle
+				if err := accepted.session.activateWithProcess(proc.handle, h.manager.now(), true, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
+			if !owned {
+				t.Fatal("stop admission was not owned")
+			}
+			release, err := acquireSessionStartLaunchCommit(t.Context(), accepted.run)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			observed := &resumeWaitObservedContext{Context: testutil.Context(t), entered: make(chan struct{})}
+			prepared := make(chan struct{})
+			go func() { h.manager.prepareSessionStopRun(observed, run, CauseUserRequested, ""); close(prepared) }()
+			<-observed.entered
+			if accepted.session.Info().State != state {
+				t.Fatal("normal preparation bypassed the startup gate")
+			}
+			worker := make(chan struct{})
+			go func() {
+				defer close(worker)
+				<-accepted.run.ctx.Done()
+				err := h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
+				if !accepted.cleanupPending {
+					h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+				}
+			}()
+			release()
+			<-prepared
+			outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
+			if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+				t.Fatalf("replacement startup stop = %+v, %v", outcome, err)
+			}
+			<-worker
+			if countEventType(readStoredEvents(t, accepted.session), acp.EventTypeError) != 0 {
+				t.Fatal("replacement cancellation became a startup failure")
+			}
+			wantPreStops := int32(0)
+			if state == StateActive {
+				wantPreStops = 1
+			}
+			if got := preStops.Load(); got != wantPreStops {
+				t.Fatalf("pre_stop dispatches = %d, want %d", got, wantPreStops)
+			}
+		})
+	}
 
 	// Invariant: a verified captured process cannot block terminal recovery on a later lookup failure.
 	t.Run("Should reuse exact process exit proof during canceled terminal recovery", func(t *testing.T) {

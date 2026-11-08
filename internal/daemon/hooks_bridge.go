@@ -141,6 +141,7 @@ func sessionFromHookPayload(payload hookspkg.SessionLifecyclePayload) *session.S
 	}
 }
 
+// observeSessionCreateExecutor orders native creation observation against the actual session lifecycle.
 func observeSessionCreateExecutor(observer sessionLifecycleObserver) hookspkg.Executor {
 	return hookspkg.NewTypedNativeExecutor(
 		func(
@@ -156,6 +157,7 @@ func observeSessionCreateExecutor(observer sessionLifecycleObserver) hookspkg.Ex
 	)
 }
 
+// observeSessionStopExecutor serializes native terminal observation with creation.
 func observeSessionStopExecutor(observer sessionLifecycleObserver) hookspkg.Executor {
 	return hookspkg.NewTypedNativeExecutor(
 		func(

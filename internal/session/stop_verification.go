@@ -44,6 +44,7 @@ type AgentExitVerifier interface {
 	VerifyExit(proc *AgentProcess) (bool, error)
 }
 
+// verifySessionProcessExit reuses exit proof only for the same captured process.
 func (m *Manager) verifySessionProcessExit(session *Session) error {
 	proc := session.processHandle()
 	if proc == nil || session.hasVerifiedStopProcess(proc) {

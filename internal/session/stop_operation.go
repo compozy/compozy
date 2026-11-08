@@ -191,6 +191,7 @@ func (r *sessionStopRun) notifyCommitted() {
 	notify()
 }
 
+// prepareSessionStopRun admits Stop through the current startup gate before shared termination.
 func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun, cause StopCause, detail string) {
 	var session *Session
 	var proc *AgentProcess

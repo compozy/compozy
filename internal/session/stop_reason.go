@@ -161,6 +161,7 @@ const (
 	stopPreparationFatalPromptFailure
 )
 
+// prepareStopWithCauseMode fences startup ownership before hook dispatch and durable stop intent.
 func (m *Manager) prepareStopWithCauseMode(
 	ctx context.Context,
 	id string,
@@ -182,6 +183,10 @@ func (m *Manager) prepareStopWithCauseMode(
 			)
 		}
 		return session, nil, true, false, true, nil
+	}
+	// Startup admission owns pre-stop hooks as well as the durable stop intent.
+	if start := m.sessionStartRun(session.ID); start != nil && !start.activationCommitted.Load() {
+		return nil, nil, false, false, false, errStopNeedsStartGate
 	}
 	process := session.processHandle()
 	stopWasAlreadyRequested := session.stopWasRequested()
@@ -225,9 +230,6 @@ func (m *Manager) prepareStopStateAndGoals(
 	// waiting for setup to drain so neither side waits on the other.
 	session.goalStopMu.Lock()
 	defer session.goalStopMu.Unlock()
-	if start := m.sessionStartRun(session.ID); start != nil && !start.activationCommitted.Load() {
-		return nil, errStopNeedsStartGate
-	}
 	writeMeta, promptSetupDone, err := m.commitStopIntent(ctx, session, cause, detail, run)
 	if err != nil {
 		return nil, fmt.Errorf("session: prepare stop state sync for %q: %w", session.ID, err)

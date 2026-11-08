@@ -84,6 +84,7 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 	}
 }
 
+// shutdownAfterRunTrigger retains discovery withdrawal while retrying terminal teardown.
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
 	return d.shutdownWithOperation(context.WithoutCancel(ctx), true)
 }

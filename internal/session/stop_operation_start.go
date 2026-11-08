@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// prepareStartingStopRun joins startup cancellation without releasing its terminal cleanup owner.
 func (m *Manager) prepareStartingStopRun(
 	ctx context.Context,
 	run *sessionStopRun,

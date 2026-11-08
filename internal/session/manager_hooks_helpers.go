@@ -57,6 +57,7 @@ func cloneSessionRawMessage(raw json.RawMessage) json.RawMessage {
 
 type lifecycleSessionContextKey struct{}
 
+// hookDispatchContext carries the captured session and owned cleanup context into lifecycle hooks.
 func hookDispatchContext(ctx context.Context, manager *Manager, session *Session) context.Context {
 	if ctx == nil || session == nil {
 		return ctx
