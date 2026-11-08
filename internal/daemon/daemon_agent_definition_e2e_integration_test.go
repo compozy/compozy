@@ -1408,6 +1408,9 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 		}
 		summaries := make(map[string]string, len(digest.Items))
 		for _, item := range digest.Items {
+			if _, duplicate := summaries[item.Key]; duplicate {
+				t.Fatalf("triage prompt repeats source item %q", item.Key)
+			}
 			summaries[item.Key] = item.Summary
 		}
 		for key, title := range map[string]string{
