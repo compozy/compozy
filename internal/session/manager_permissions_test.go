@@ -959,6 +959,7 @@ func TestTriageDispatcher(t *testing.T) {
 						allowed:       &writesAllowed,
 						err:           writeErr,
 						afterCommit:   tc.afterCommit,
+						eventType:     tc.persistEvent,
 					}, nil
 				}
 				return recorder, nil
@@ -1003,10 +1004,28 @@ func TestTriageDispatcher(t *testing.T) {
 				if run == nil {
 					t.Fatal("retained settlement released its owner before persistence or cleanup completed")
 				}
-				if _, active := h.manager.Get("sess-1"); !active {
+				active, ok := h.manager.Get("sess-1")
+				if !ok {
 					t.Fatal("pending retained settlement lost its active owner")
 				}
 				if tc.stopDuringPersistence != CauseNone {
+					events, err := active.recorderHandle().Query(t.Context(), store.EventQuery{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantTerminals := 0
+					if tc.afterCommit || tc.persistEvent == eventspkg.TranscriptMarkerCreated {
+						wantTerminals = 1
+					}
+					if countEventType(events, acp.EventTypeError) != 1 ||
+						countEventType(events, EventTypeSessionStopped) != wantTerminals ||
+						countEventType(events, eventspkg.TranscriptMarkerCreated) != 0 {
+						t.Fatalf(
+							"history before Stop = %#v, want diagnostic, %d terminals and no marker",
+							events,
+							wantTerminals,
+						)
+					}
 					if err := h.manager.RequestStop(t.Context(), "sess-1", tc.stopDuringPersistence); err != nil {
 						t.Fatal(err)
 					}
