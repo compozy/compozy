@@ -136,3 +136,15 @@ Cold refresh ~96 s (compozy-catalog 18 from the committed feed, claude-plugins-o
   installs as `astronomer-data`, active.
 - PASS — Set up is usable immediately: enabled 8 ms after Add and 6 ms after a reload.
 - PASS — one Retry press shows exactly one toast with the daemon cause.
+
+## QA impact 2026-11-08 — catalog sign-in confirmation lifetime
+
+When a catalog entry's **Set up** starts OAuth in place, complete the provider callback and let
+the installed inventory change the row to **Ready**. The authorization dialog must remain open,
+show the confirmed sign-in state, and close only when the operator presses **Done** or dismisses
+it. Inventory refresh must not silently dismiss an active authorization flow. Verify both the
+callback-before-inventory and inventory-before-confirmation orderings. The owning component case
+UT-032 covers the latter deterministically; `marketplace-plugin-catalog E2E-003` covers the real
+browser/daemon callback and captures the confirmed dialog beside the Ready row in CI. This entry
+defines the replay; a pending CI run is not a passing QA result. No credential, permission or
+installation-policy behavior changes.

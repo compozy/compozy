@@ -75,6 +75,8 @@ function MarketplaceCatalogRow({
   const item = inventory.pending ? null : findInstalledItem(entry, inventory.items);
   const failure = actions.enableFailureFor(entry);
   const pending = actions.isEntryPending(entry);
+  // Sign-in outlives Set up: inventory may become Ready before the user dismisses confirmation.
+  const authorization = useMCPDefinitionAuthorization();
   const state = marketplaceSetupState({
     entry,
     item,
@@ -87,7 +89,7 @@ function MarketplaceCatalogRow({
     q: query || undefined,
     ...(category ? { category } : {}),
   };
-  return (
+  const card = (
     <MarketplaceEntryCard
       compact={compact}
       data-testid={`marketplace-card-${entry.entry_id}`}
@@ -124,7 +126,12 @@ function MarketplaceCatalogRow({
             },
             setUpAction:
               state === "setup" && item ? (
-                <MarketplaceSetUpAction detailSearch={detailSearch} entry={entry} item={item} />
+                <MarketplaceSetUpAction
+                  detailSearch={detailSearch}
+                  entry={entry}
+                  item={item}
+                  onAuthorize={authorization.authorize.requestAuthorize}
+                />
               ) : null,
           }}
         />
@@ -132,6 +139,16 @@ function MarketplaceCatalogRow({
       unverified={entry.trust?.registry_tier === "unverified"}
       words={rowWords(entry, listCategory)}
     />
+  );
+  return (
+    <>
+      {card}
+      <MCPAuthorizeDialog
+        authorize={authorization.authorize}
+        scope={authorization.scope}
+        server={authorization.server}
+      />
+    </>
   );
 }
 
@@ -143,9 +160,11 @@ function MarketplaceSetUpAction({
   entry,
   item,
   detailSearch,
+  onAuthorize,
 }: {
   entry: MarketplaceCatalogListing;
   item: InstalledExtensionView;
+  onAuthorize: ReturnType<typeof useMCPDefinitionAuthorization>["authorize"]["requestAuthorize"];
   detailSearch: ReturnType<typeof catalogDetailSearch> & { q?: string; category?: string };
 }) {
   const navigate = useNavigate();
@@ -157,12 +176,11 @@ function MarketplaceSetUpAction({
   // Read in the background, never awaited: Set up is usable from the inventory right away, and a
   // press before the live server answers opens the detail's setup instead of waiting on it.
   const live = useMarketplaceExtensionMCPServer(target, target !== undefined);
-  const authorization = useMCPDefinitionAuthorization();
   const setUp = () => {
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
     if (target && server && filter) {
-      authorization.authorize.requestAuthorize(filter, server);
+      onAuthorize(filter, server);
       return;
     }
     void navigate({
@@ -172,26 +190,17 @@ function MarketplaceSetUpAction({
     });
   };
   return (
-    <>
-      <Button
-        aria-label={`Set up ${entry.name}`}
-        data-testid={`marketplace-setup-${entry.entry_id}`}
-        onClick={setUp}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
-        Set up
-      </Button>
-      {target ? (
-        <MCPAuthorizeDialog
-          authorize={authorization.authorize}
-          scope={authorization.scope}
-          server={authorization.server}
-        />
-      ) : null}
-    </>
+    <Button
+      aria-label={`Set up ${entry.name}`}
+      data-testid={`marketplace-setup-${entry.entry_id}`}
+      onClick={setUp}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
+      Set up
+    </Button>
   );
 }
 

@@ -449,6 +449,7 @@ test.describe("Marketplace plugin catalog by category", () => {
 
   test("marketplace-plugin-catalog E2E-003: Add ends in Ready, or Set up until sign-in completes", async ({
     appPage,
+    browserArtifacts,
     runtime,
   }) => {
     const authServer = await startMCPAuthServer();
@@ -533,6 +534,8 @@ test.describe("Marketplace plugin catalog by category", () => {
         await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
           timeout: 15_000,
         });
+        await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
+        await browserArtifacts.captureScreenshot("marketplace-catalog-sign-in-confirmed", appPage);
         await appPage.getByTestId("settings-page-mcp-authorize-done").click();
         await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
       });
