@@ -4,11 +4,7 @@ import { CircleAlert } from "@compozy/ui/icons";
 import { Button } from "@compozy/ui";
 
 import type { InstalledExtensionView } from "@/systems/extensions";
-import {
-  deriveMCPAuthFilter,
-  MCPAuthorizeDialog,
-  useMCPDefinitionAuthorization,
-} from "@/systems/settings";
+import { deriveMCPAuthFilter } from "@/systems/settings";
 
 import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
 import { catalogDetailSearch } from "../lib/marketplace-installed-view";
@@ -75,8 +71,6 @@ function MarketplaceCatalogRow({
   const item = inventory.pending ? null : findInstalledItem(entry, inventory.items);
   const failure = actions.enableFailureFor(entry);
   const pending = actions.isEntryPending(entry);
-  // Sign-in outlives Set up: inventory may become Ready before the user dismisses confirmation.
-  const authorization = useMCPDefinitionAuthorization();
   const state = marketplaceSetupState({
     entry,
     item,
@@ -89,7 +83,7 @@ function MarketplaceCatalogRow({
     q: query || undefined,
     ...(category ? { category } : {}),
   };
-  const card = (
+  return (
     <MarketplaceEntryCard
       compact={compact}
       data-testid={`marketplace-card-${entry.entry_id}`}
@@ -130,7 +124,7 @@ function MarketplaceCatalogRow({
                   detailSearch={detailSearch}
                   entry={entry}
                   item={item}
-                  onAuthorize={authorization.authorize.requestAuthorize}
+                  onAuthorize={actions.authorizeMCP}
                 />
               ) : null,
           }}
@@ -139,16 +133,6 @@ function MarketplaceCatalogRow({
       unverified={entry.trust?.registry_tier === "unverified"}
       words={rowWords(entry, listCategory)}
     />
-  );
-  return (
-    <>
-      {card}
-      <MCPAuthorizeDialog
-        authorize={authorization.authorize}
-        scope={authorization.scope}
-        server={authorization.server}
-      />
-    </>
   );
 }
 
@@ -164,7 +148,7 @@ function MarketplaceSetUpAction({
 }: {
   entry: MarketplaceCatalogListing;
   item: InstalledExtensionView;
-  onAuthorize: ReturnType<typeof useMCPDefinitionAuthorization>["authorize"]["requestAuthorize"];
+  onAuthorize: MarketplaceActionController["authorizeMCP"];
   detailSearch: ReturnType<typeof catalogDetailSearch> & { q?: string; category?: string };
 }) {
   const navigate = useNavigate();

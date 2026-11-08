@@ -2423,54 +2423,65 @@ describe("Category browse and row actions", () => {
   }
 
   // UT-032 [US-006.AC-1]: one server waiting for sign-in starts that sign-in from the row.
-  it("Should start the server sign-in from Set up [UT-032]", async () => {
-    const begins: URL[] = [];
-    let signedIn = false;
-    installedRow({ mcp_servers: [signInServer] });
-    server.use(
-      http.get("*/api/settings/mcp-servers/:name", () =>
-        HttpResponse.json({
-          server: {
-            ...mcpExtensionServerFixtures[1]!,
-            auth_status: {
-              ...mcpExtensionServerFixtures[1]!.auth_status!,
-              status: signedIn ? "authenticated" : "needs_login",
-              token_present: signedIn,
+  it.each(["/marketplace", `/marketplace/categories/${entry.category}`])(
+    "Should retain Set up sign-in across inventory and catalog refreshes at %s [UT-032]",
+    async path => {
+      const begins: URL[] = [];
+      let signedIn = false;
+      installedRow({ mcp_servers: [signInServer] });
+      server.use(
+        http.get("*/api/settings/mcp-servers/:name", () =>
+          HttpResponse.json({
+            server: {
+              ...mcpExtensionServerFixtures[1]!,
+              auth_status: {
+                ...mcpExtensionServerFixtures[1]!.auth_status!,
+                status: signedIn ? "authenticated" : "needs_login",
+                token_present: signedIn,
+              },
             },
-          },
+          })
+        ),
+        http.post("*/api/settings/mcp-servers/:name/auth/begin", ({ request }) => {
+          begins.push(new URL(request.url));
+          return HttpResponse.json(mcpAuthBeginFixture);
         })
-      ),
-      http.post("*/api/settings/mcp-servers/:name/auth/begin", ({ request }) => {
-        begins.push(new URL(request.url));
-        return HttpResponse.json(mcpAuthBeginFixture);
-      })
-    );
-    const { client } = setup();
-    const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
-    // The live server read has answered, so the press starts that server's sign-in in place.
-    await waitFor(() => expect(clients.at(-1)!.isFetching()).toBe(0));
-    await userEvent.click(setUp);
-    await screen.findByRole("dialog", { name: "Authorize github" });
-    await waitFor(() => expect(begins).toHaveLength(1));
-    expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
-    // Inventory can become Ready before the dialog observes the completed browser callback.
-    extensions = extensions.map(extension => ({
-      ...extension,
-      mcp_servers: [{ ...signInServer, status: "running" }],
-    }));
-    await act(async () => {
-      await client.invalidateQueries();
-    });
-    expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toBeVisible();
-    expect(screen.getByRole("dialog", { name: "Authorize github" })).toBeVisible();
-    signedIn = true;
-    await act(async () => {
-      await client.invalidateQueries();
-    });
-    expect(await screen.findByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible();
-    await userEvent.click(screen.getByTestId("settings-page-mcp-authorize-done"));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
+      );
+      const { client } = setup(undefined, path);
+      const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
+      // The live server read has answered, so the press starts that server's sign-in in place.
+      await waitFor(() => expect(clients.at(-1)!.isFetching()).toBe(0));
+      await userEvent.click(setUp);
+      await screen.findByRole("dialog", { name: "Authorize github" });
+      await waitFor(() => expect(begins).toHaveLength(1));
+      expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
+      // Inventory can become Ready before the dialog observes the completed browser callback.
+      extensions = extensions.map(extension => ({
+        ...extension,
+        mcp_servers: [{ ...signInServer, status: "running" }],
+      }));
+      await act(async () => {
+        await client.invalidateQueries();
+      });
+      expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toBeVisible();
+      expect(screen.getByRole("dialog", { name: "Authorize github" })).toBeVisible();
+      expect(screen.queryByTestId("settings-page-mcp-authorize-confirmed")).not.toBeInTheDocument();
+      catalog = { ...catalog, items: [], total: 0 };
+      await act(async () => {
+        await client.invalidateQueries();
+      });
+      expect(screen.queryByTestId(`marketplace-card-${entry.entry_id}`)).not.toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Authorize github" })).toBeVisible();
+      expect(screen.queryByTestId("settings-page-mcp-authorize-confirmed")).not.toBeInTheDocument();
+      signedIn = true;
+      await act(async () => {
+        await client.invalidateQueries();
+      });
+      expect(await screen.findByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible();
+      await userEvent.click(screen.getByTestId("settings-page-mcp-authorize-done"));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    }
+  );
 
   // Invariant: Set up is usable from the inventory alone; a slow live server read never disables
   // it, and a press before that read answers opens the detail's setup instead of waiting.

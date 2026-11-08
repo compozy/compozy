@@ -4,6 +4,8 @@ import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { useMCPDefinitionAuthorization } from "@/systems/settings";
+
 import {
   extensionTrustFacts,
   extensionUpdateScope,
@@ -58,6 +60,8 @@ import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery"
 const ENABLE_FAILURE_TOAST_MS = 10_000;
 
 interface MarketplaceActionController {
+  /** Catalog sign-in survives inventory changes and removal of the initiating row. */
+  authorizeMCP: ReturnType<typeof useMCPDefinitionAuthorization>["authorize"]["requestAuthorize"];
   dialogs: React.ReactNode;
   /** The latest Add / Ready / Couldn't-turn-on transition, for the page's polite live region. */
   announcement: string;
@@ -104,6 +108,7 @@ function useMarketplaceActionController(
   };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const authorization = useMCPDefinitionAuthorization();
   const entryActions = useRef(new Set<string>());
   const installExtension = useInstallMarketplaceExtension();
   const updateExtension = useUpdateMarketplaceExtension();
@@ -379,6 +384,7 @@ function useMarketplaceActionController(
 
   const dialogs = (
     <MarketplaceActionDialogs
+      authorization={authorization}
       install={
         installPreview
           ? {
@@ -420,6 +426,7 @@ function useMarketplaceActionController(
   );
 
   return {
+    authorizeMCP: authorization.authorize.requestAuthorize,
     announcement,
     dialogs,
     enableFailureFor: enableRecovery.failureFor,
