@@ -3314,3 +3314,67 @@ type fixedCodexProbe struct{ models []CodexModelMetadata }
 func (p fixedCodexProbe) InspectCodexModels(context.Context, DiscoveryCommandRequest) ([]CodexModelMetadata, error) {
 	return p.models, nil
 }
+
+func TestLiveDiscoveryEnvironmentInheritance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("DISCOVERY_PARENT_MARKER", "parent")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit only when unspecified", want: "parent"},
+		{name: "Should retain explicit empty through source preparation", env: []string{}, want: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := compozyconfig.BuiltinProviders()["cursor"]
+			source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{BaseEnv: tc.env})
+			env, err := source.discoveryEnv(t.Context(), provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.env != nil {
+				for _, entry := range env {
+					if strings.HasPrefix(entry, "HOME=") {
+						t.Fatal("explicit empty source inherited HOME")
+					}
+				}
+			}
+			result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+				t.Context(),
+				DiscoveryCommandRequest{
+					Command: "/bin/sh",
+					Args:    []string{"-c", `printf %s "${DISCOVERY_PARENT_MARKER:-absent}"`},
+					Env:     env,
+					Dir:     t.TempDir(),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ExitCode != 0 || result.Stdout != tc.want {
+				t.Fatalf("child marker=%q exit=%d, want %q", result.Stdout, result.ExitCode, tc.want)
+			}
+		})
+	}
+	t.Run("Should retain explicit empty in direct discovery executor", func(t *testing.T) {
+		result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+			t.Context(),
+			DiscoveryCommandRequest{
+				Command: "/bin/sh",
+				Args:    []string{"-c", `printf %s "${DISCOVERY_PARENT_MARKER:-absent}"`},
+				Env:     []string{},
+				Dir:     t.TempDir(),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ExitCode != 0 || result.Stdout != "absent" {
+			t.Fatalf("direct child marker=%q exit=%d", result.Stdout, result.ExitCode)
+		}
+	})
+}

@@ -207,7 +207,7 @@ func NewLiveProviderSource(
 		adapter:         adapter,
 		sourceID:        sourceID,
 		homePaths:       cfg.HomePaths,
-		baseEnv:         append([]string(nil), cfg.BaseEnv...),
+		baseEnv:         slices.Clone(cfg.BaseEnv),
 		secretResolver:  secretResolver,
 		httpClient:      cfg.HTTPClient,
 		commandExecutor: executor,

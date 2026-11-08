@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func (SessionACPModelProbe) InspectModels(
 		AgentName: acpDiscoveryAgentName,
 		Command:   strings.TrimSpace(req.Command),
 		Cwd:       strings.TrimSpace(req.Cwd),
-		Env:       append([]string(nil), req.Env...),
+		Env:       slices.Clone(req.Env),
 	})
 	if err != nil {
 		return acp.SessionModelInspection{}, fmt.Errorf(
@@ -78,7 +79,7 @@ func (s *LiveProviderSource) listACP(
 		ProviderID: s.providerID,
 		Command:    strings.TrimSpace(provider.Command),
 		Cwd:        cwd,
-		Env:        append([]string(nil), env...),
+		Env:        slices.Clone(env),
 		Timeout:    timeout,
 	})
 	if err != nil {
@@ -118,14 +119,14 @@ func nativeCLIACPEnv(
 ) ([]string, error) {
 	strategy := providerexec.StrategyFor(provider)
 	if strategy.Kind != providerexec.StrategyNativeCLIBridge {
-		return append([]string(nil), env...), nil
+		return slices.Clone(env), nil
 	}
 	executable, err := providerexec.ResolveNativeCLI(strategy, env, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: %w", err)
 	}
 	if strategy.NativeCLI.BridgeEnvKey == "" {
-		return append([]string(nil), env...), nil
+		return slices.Clone(env), nil
 	}
 	return setDiscoveryEnvValue(env, strategy.NativeCLI.BridgeEnvKey, executable), nil
 }

@@ -252,6 +252,10 @@ Each key is the target environment variable name. Values must be `env:NAME` or a
 Literal values are rejected. A string declaration is required by default; an absent required
 reference fails launch, while an absent optional reference is skipped with a diagnostic.
 Undeclared variables retain the existing environment filter, including socket variables.
+An explicitly supplied empty launch environment stays empty instead of restoring daemon
+variables; only an unspecified (`nil`) environment inherits. ACP preparation still adds
+`COMPOZY_BIN` and its binary directory to `PATH` when executable discovery succeeds.
+Missing optional targets are removed without restoring operator credentials.
 `COMPOZY_` names are reserved for managed runtime identity.
 
 The configuration CLI accepts a reference for a single binding or JSON for a structured binding:
