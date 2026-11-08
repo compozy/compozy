@@ -666,7 +666,8 @@ describe("useSessionTopbarSlot", () => {
       const project = renderWithTopbar(
         <SessionPublisher onStop={vi.fn()} onReviewToggle={onReviewToggle} />
       );
-      const toggle = screen.getByRole("button", { name: "Open review panel" });
+      const toggle = screen.getByRole("button", { name: "Changes" });
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
       expect(
         toggle.compareDocumentPosition(screen.getByTestId("session-inspector-toggle")) &
           Node.DOCUMENT_POSITION_FOLLOWING
