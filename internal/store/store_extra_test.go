@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -128,6 +129,172 @@ func TestStoreSQLHelpers(t *testing.T) {
 
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: checkpointing leaves WAL-header restarts to maintenance, preserving
+	// backfill and user state. Owner: SQLite lifecycle; suite: TestStoreSQLiteHelpers.
+	t.Run("Should keep WAL restarts off foreground commits", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "restart.db")
+		db, err := OpenSQLiteDatabaseWithPragmas(ctx, path, []string{"wal_autocheckpoint(0)"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(ctx, "CREATE TABLE items (value INTEGER); PRAGMA user_version = 42"); err != nil {
+			t.Fatal(err)
+		}
+		checkpointDB, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checkpointDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		salt := func() string {
+			t.Helper()
+			data, err := os.ReadFile(path + "-wal")
+			if err != nil || len(data) < 32 {
+				t.Fatalf("read WAL header: bytes=%d, error=%v", len(data), err)
+			}
+			return string(data[16:24])
+		}
+		before := salt()
+		if err := CheckpointPassive(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (0)"); err != nil {
+			t.Fatal(err)
+		}
+		if salt() == before {
+			t.Fatal("control: full passive backfill did not restart the next foreground WAL")
+		}
+		guard, err := openWALRestartGuard(ctx, ctx, checkpointDB, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := guard.close(); err != nil {
+				t.Error(err)
+			}
+		})
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		releaseOnce := sync.OnceFunc(release)
+		defer releaseOnce()
+		before = salt()
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		if salt() != before {
+			t.Fatal("maintenance restarted while another writer owned admission")
+		}
+		releaseOnce()
+		for range 5 {
+			before = salt()
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+			if salt() == before {
+				t.Fatal("maintenance did not restart the WAL; continuous writes would grow it indefinitely")
+			}
+			before = salt()
+			// A full backfill with the guard held must still not let the writer restart.
+			if err := CheckpointPassive(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+			var busy, frames, copied int
+			if err := checkpointDB.QueryRowContext(ctx, "PRAGMA wal_checkpoint(NOOP)").
+				Scan(&busy, &frames, &copied); err != nil {
+				t.Fatal(err)
+			}
+			if frames == 0 || copied != frames {
+				t.Fatalf("checkpoint copied %d/%d frames, want complete backfill", copied, frames)
+			}
+			if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+				t.Fatal(err)
+			}
+			if salt() != before {
+				t.Fatal("foreground commit restarted the WAL after maintenance")
+			}
+		}
+		var count, version int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 6 {
+			t.Fatalf("rows = %d, error = %v, want 6", count, err)
+		}
+		if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 42 {
+			t.Fatalf("user_version = %d, error = %v, want 42", version, err)
+		}
+	})
+
+	t.Run("Should queue foreground writes before BEGIN during maintenance sync", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "restart-blocked.db")
+		seed := openExecuteWriteTestDB(t, path)
+		if err := seed.Close(); err != nil {
+			t.Fatal(err)
+		}
+		io := &blockedStoreCheckpointConnector{
+			path: path, entered: make(chan struct{}), released: make(chan struct{}), closed: make(chan struct{}),
+		}
+		db := sql.OpenDB(io)
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		readDB, err := OpenSQLiteReadPool(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		guard := &walRestartGuard{readDB: readDB, lifetime: ctx}
+		done := make(chan struct{})
+		var checkpointErr error
+		var release sync.Once
+		t.Cleanup(func() {
+			release.Do(func() { close(io.released) })
+			<-done
+			if checkpointErr != nil {
+				t.Error(checkpointErr)
+			}
+			if err := errors.Join(guard.close(), db.Close()); err != nil {
+				t.Error(err)
+			}
+		})
+		go func() {
+			checkpointErr = guard.checkpoint(ctx, db)
+			close(done)
+		}()
+		select {
+		case <-io.entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer cancel()
+		called := false
+		err = ExecuteWrite(writeCtx, db, func(context.Context, *WriteTx) error {
+			called = true
+			return nil
+		})
+		if !errors.Is(err, context.DeadlineExceeded) || called {
+			t.Fatalf("write during maintenance sync = %v, callback called=%t, want deadline before BEGIN", err, called)
+		}
+		release.Do(func() { close(io.released) })
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	})
 
 	// Invariant: WAL maintenance progresses without reserving writer capacity or
 	// waiting for a live write, and its owner joins it on close. Owner: SQLite

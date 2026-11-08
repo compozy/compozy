@@ -109,6 +109,27 @@ comparing unlike telemetry transactions. Core holds, background callback holds
 and checkpoint errors are not exempted. The [eight-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#paired-transcript-commit-tail-investigation-2026-11-06)
 records shared-runner fsync evidence and residual attribution limits.
 
+The core database's checkpoint worker also owns WAL restart. A retained read
+transaction prevents foreground commits from reusing a fully backfilled WAL.
+Each maintenance tick obtains background writer admission (at most 200 ms),
+releases that read mark, completes PASSIVE backfill, and commits the existing
+`user_version` value unchanged. This writes one header page and synchronizes the
+new WAL header on the maintenance connection before pinning a new read mark.
+Application writes queue before `BEGIN IMMEDIATE` during that maintenance I/O;
+existing reads use their independent pool. If admission is occupied, the worker
+still performs PASSIVE backfill with the read mark retained and retries restart
+on the next tick. Long-lived external readers can defer reuse as usual.
+
+`synchronous=NORMAL`, the one-second maintenance cadence, shutdown backfill,
+and every acceptance threshold remain unchanged. This moves the filesystem
+pause out of application transactions; it does not guarantee a wall-clock
+deadline for writes queued behind slow storage. The extra unchanged header-page
+write and one retained reader are the cost. No persisted version, schema,
+application row, migration, or public contract changes. Session and telemetry
+durability policies are unchanged. WAL salts in `TestStoreSQLiteHelpers` prove
+the old foreground-restart control and maintenance-owned reuse over repeated
+cycles; CI owns repeated paired-load and public daemon validation.
+
 The runner's decision suite is `python3 -m unittest discover -s
 scripts/sqlite-contention -p '*_test.py' -v`, also run by the workflow before the
 experiment. It owns pairing, relative budgets, missing operations and strict

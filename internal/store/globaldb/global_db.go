@@ -42,7 +42,7 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 	if err != nil {
 		return nil, errors.Join(err, telemetry.Close(ctx), db.Close())
 	}
-	checkpoint, err := store.OpenPassiveCheckpointer(ctx, path)
+	checkpoint, err := store.OpenRestartCheckpointer(ctx, path)
 	if err != nil {
 		return nil, errors.Join(err, readDB.Close(), telemetry.Close(ctx), db.Close())
 	}
