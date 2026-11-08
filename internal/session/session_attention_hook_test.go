@@ -488,6 +488,85 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		}
 	})
 
+	for _, deleted := range []bool{false, true} {
+		name := "Should retry nonresident publication timeouts before instance completion"
+		if deleted {
+			name = "Should finish confirmed deletion after a publication timeout"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupTestManager(t, manager)
+			release := make(chan struct{})
+			close(release)
+			catalog := &attentionReadCatalog{
+				recordingSessionCatalog: newRecordingSessionCatalog(),
+				entered:                 make(chan struct{}, 2),
+				release:                 release,
+				readFailures:            1,
+			}
+			if !deleted {
+				if err := catalog.RegisterSession(
+					t.Context(),
+					&store.SessionInfo{
+						ID:        "publication-retry",
+						ProfileID: store.DefaultProfileID,
+						State:     string(StateStopped),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			manager.sessionCatalog = catalog
+			manager.attentionStore = &committingAttentionStore{}
+			events, cancel, err := manager.SubscribeSessionCatalogEvents(
+				t.Context(),
+				CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			published := make(chan *AttentionEvent, 1)
+			manager.PublishPendingInteractionCommits(
+				[]store.SessionAttentionCommit{
+					{
+						Before:      store.SessionAttention{PendingClarifyCount: 1},
+						Interaction: &store.PendingInteraction{SessionID: "publication-retry"},
+					},
+				},
+				func() {
+					var edge *AttentionEvent
+					for range 2 {
+						select {
+						case event := <-events:
+							if event.Attention != nil {
+								edge = event.Attention
+							}
+						default:
+						}
+					}
+					published <- edge
+				},
+			)
+			select {
+			case edge := <-published:
+				if deleted && edge != nil {
+					t.Fatalf("deleted session published attention=%+v", edge)
+				}
+				if !deleted &&
+					(edge == nil || edge.SessionID != "publication-retry" || edge.From != BadgeWaitingForInput || edge.To != BadgeStopped) {
+					t.Fatalf("lost recovered publication=%+v", edge)
+				}
+			case <-time.After(2 * defaultLifecycleTimeout):
+				t.Fatal("publication recovery prevented completion")
+			}
+		})
+	}
+
 	t.Run("Should preserve and publish canonical attention when transcript append fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -739,8 +818,9 @@ func publishAttentionCommitsAndWait(t *testing.T, manager *Manager, commits []st
 // attentionReadCatalog models a catalog read that must retain cancellation and a deadline.
 type attentionReadCatalog struct {
 	*recordingSessionCatalog
-	entered chan struct{}
-	release <-chan struct{}
+	entered      chan struct{}
+	release      <-chan struct{}
+	readFailures int
 }
 
 func (c *attentionReadCatalog) ListSessions(
@@ -753,6 +833,11 @@ func (c *attentionReadCatalog) ListSessions(
 	select {
 	case c.entered <- struct{}{}:
 	default:
+	}
+	if c.readFailures > 0 {
+		c.readFailures--
+		<-ctx.Done()
+		return nil, ctx.Err()
 	}
 	select {
 	case <-ctx.Done():

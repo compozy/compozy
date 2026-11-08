@@ -9,23 +9,32 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) publishAttentionCommit(
-	ctx context.Context,
-	sessionID string,
-	commit store.SessionAttentionCommit,
-) {
-	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
-		return
-	}
-	info, err := m.sessionInfoForAttentionEvent(sessionID)
-	if err != nil {
+// publishAttentionCommit keeps observer failures from failing an already committed mutation.
+func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, commit store.SessionAttentionCommit) {
+	if err := m.emitAttentionCommit(ctx, sessionID, commit); err != nil {
 		m.logger.WarnContext(
 			ctx,
 			"session: load attention event snapshot failed",
-			"session_id", sessionID,
-			"error", err,
+			"session_id",
+			sessionID,
+			"error",
+			err,
 		)
-		return
+	}
+}
+
+// emitAttentionCommit returns snapshot errors before any session event is published.
+func (m *Manager) emitAttentionCommit(
+	ctx context.Context,
+	sessionID string,
+	commit store.SessionAttentionCommit,
+) error {
+	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
+		return nil
+	}
+	info, err := m.sessionInfoForAttentionEvent(sessionID)
+	if err != nil {
+		return err
 	}
 	before := *info
 	after := *info
@@ -34,6 +43,7 @@ func (m *Manager) publishAttentionCommit(
 	if to, changed := m.publishAttentionEdge(ctx, &before, &after); changed {
 		m.dispatchSpawnWake(ctx, &after, to)
 	}
+	return nil
 }
 
 // publishAttentionEdge publishes the catalog row and, when the badge changed, the
@@ -91,7 +101,7 @@ func (m *Manager) sessionInfoForAttentionEvent(sessionID string) (*Info, error) 
 		return active.Info(), nil
 	}
 	if m.sessionCatalog == nil {
-		return nil, errorsForAttentionSnapshot(sessionID)
+		return nil, fmt.Errorf("session: attention event catalog unavailable for %q", sessionID)
 	}
 	base := m.attentionReconciliation.ctx
 	if base == nil {
@@ -133,7 +143,11 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 }
 
 func errorsForAttentionSnapshot(sessionID string) error {
-	return fmt.Errorf("session: attention event snapshot not found for %q", strings.TrimSpace(sessionID))
+	return fmt.Errorf(
+		"%w: attention event snapshot not found for %q",
+		store.ErrSessionNotFound,
+		strings.TrimSpace(sessionID),
+	)
 }
 
 func isInternalVerificationSession(info *Info) bool {

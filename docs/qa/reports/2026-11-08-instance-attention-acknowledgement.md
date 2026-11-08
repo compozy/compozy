@@ -144,3 +144,12 @@ The existing hook and ordering suites exercise deleted-descendant completion, a 
 read canceled during shutdown, canceled lock waits, old/new edge order, and direct post-shutdown
 admission rejection. These are the owning failure-path checks; no new standalone test file, schema,
 public DTO, Web component or reviewer policy is introduced.
+
+Greptile review `5819541455` / `discussion_r4507690072` identified a lost-event path after a
+nonresident metadata read timed out. Reconciliation now receives snapshot-read errors and retries
+publication instead of declaring that session complete. Successful empty catalog reads report
+canonical session-not-found so confirmed deletion finishes; unavailable catalogs and transient
+errors remain retryable. Existing mutation callers retain their logged, fail-open observer policy.
+The hook suite blocks a first metadata read until its deadline, then verifies recovery publishes
+the session edge before instance completion; its deleted-row variant completes without a spurious
+attention event.
