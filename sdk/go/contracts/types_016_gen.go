@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type ResultTrust string
+
 type RetentionHealth struct {
 	Enabled                  bool       `json:"enabled"`
 	RetentionDays            int        `json:"retention_days"`
@@ -207,8 +209,4 @@ type SessionCreatePatch struct {
 	AgentName   *string `json:"agent_name,omitempty"`
 	WorkspaceID *string `json:"workspace_id,omitempty"`
 	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionCreateResult struct {
-	SessionID string `json:"session_id"`
 }

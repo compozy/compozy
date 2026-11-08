@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type ConnectivityTeardownResponse struct {
+	Stopped bool `json:"stopped"`
+}
+
 type ConsentArea struct {
 	Area   string `json:"area"`
 	Access string `json:"access"`
@@ -261,7 +265,3 @@ type CountedCursorPagePayload struct {
 }
 
 type DependencyKind string
-
-type DescribeGatewayRequirement struct {
-	Permissions []string `json:"permissions"`
-}

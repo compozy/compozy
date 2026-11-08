@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// AgentSoulRollbackByPathRequest is a daemon API value.
+type AgentSoulRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	RevisionID     string `json:"revision_id"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// AgentSoulSectionPayload is a daemon API value.
+type AgentSoulSectionPayload struct {
+	Enabled          bool                     `json:"enabled"`
+	Present          bool                     `json:"present"`
+	Active           bool                     `json:"active"`
+	Valid            bool                     `json:"valid"`
+	ValidationStatus AuthoredValidationStatus `json:"validation_status,omitempty"`
+	SnapshotID       string                   `json:"snapshot_id,omitempty"`
+	Digest           string                   `json:"digest,omitempty"`
+	ConfigDigest     string                   `json:"config_digest,omitempty"`
+	SourcePath       string                   `json:"source_path,omitempty"`
+	Role             string                   `json:"role,omitempty"`
+	Tone             []string                 `json:"tone"`
+	Principles       []string                 `json:"principles"`
+	Truncated        bool                     `json:"truncated,omitempty"`
+	MaxBytes         int64                    `json:"max_bytes,omitempty"`
+	MaxBodyBytes     int64                    `json:"max_body_bytes,omitempty"`
+}
+
 // AgentSoulValidateByPathRequest is a daemon API value.
 type AgentSoulValidateByPathRequest struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -417,24 +444,3 @@ type BindSessionWorktreeRequest struct {
 	Worktree           string  `json:"worktree"`
 	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
 }
-
-// BindingsConfig is a daemon API value.
-type BindingsConfig struct {
-	TopCenter    string `json:"top_center"`
-	BottomCenter string `json:"bottom_center"`
-}
-
-// BlockKind is a daemon API value.
-type BlockKind string
-
-// BlockedReason is a daemon API value.
-type BlockedReason struct {
-	Source           BlockedSource `json:"source"`
-	Kind             BlockKind     `json:"kind,omitempty"`
-	Reason           string        `json:"reason,omitempty"`
-	BlockID          string        `json:"block_id,omitempty"`
-	DependsOnTaskIDs []string      `json:"depends_on_task_ids,omitempty"`
-}
-
-// BlockedSource is a daemon API value.
-type BlockedSource string

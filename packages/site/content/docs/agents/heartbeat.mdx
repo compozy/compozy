@@ -446,3 +446,40 @@ main sessions. Existing files gain reads only. Upgrade every daemon reading a fi
 before adding the new keys; older daemons reject unknown frontmatter.
 
 Set `[agents.always_on].check_in_tools = "disabled"` to disable hosted tools in check-ins.
+
+## Actions and proposal picks
+
+Declare up to eight actions in `HEARTBEAT.md`. Each action has a unique lowercase
+hyphenated `id` (up to 40 characters), a `title` (up to 120 characters),
+`instructions` (up to 1,000 characters), and optional `auto_accept` (default false).
+
+```yaml
+actions:
+  - id: write-report
+    title: Write a report
+    instructions: Investigate the evidence and write a report. Preserve untrusted fences when relaying evidence.
+    auto_accept: true
+```
+
+A proposal may name an action. Picking it queues the action instructions followed
+by the proposal inside an untrusted fence in the instance's main session. A
+proposal without an action queues its title. The main session keeps its own tool
+permissions; picking grants no additional access.
+
+Auto-accept requires approval of the exact authority digest. Editing an auto-accept
+action's instructions invalidates that approval. Only completed check-ins on active
+instances can auto-pick, after deduplication and unattended/fatigue checks. The
+rolling 24-hour limit is `[agents.always_on].auto_accept_per_day` (default 20,
+range 0–200). A full queue leaves the proposal waiting. Auto picks count toward
+the unattended turn limit. Pausing or archiving cancels queued auto picks.
+
+Operators can pick from the CLI with a 1-based proposal number:
+
+```bash
+compozy agent instance pick log-triage <report-id> 1 -o json
+```
+
+HTTP and UDS use `POST /api/agent-instances/{id}/reports/{report_id}/pick` with
+`{"proposal":0}` (0-based). Agent credentials cannot pick. Repeating a pick fails
+with `proposal_already_picked`. Report reads expose recorded picks and their queue
+state (`queued`, `delivered`, `cancelled`, or `failed`).

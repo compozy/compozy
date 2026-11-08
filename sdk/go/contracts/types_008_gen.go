@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+type EventRecordPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	RecordType     string          `json:"record_type,omitempty"`
+	Sequence       int64           `json:"sequence,omitempty"`
+	Content        json.RawMessage `json:"content,omitempty"`
+}
+
 type ExtensionCommandGroupSpec struct {
 	Path    string `json:"path"`
 	Summary string `json:"summary"`
@@ -181,9 +204,4 @@ type ForgeReview struct {
 	State       string     `json:"state"`
 	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
 	Commit      string     `json:"commit,omitempty"`
-}
-
-type ForgeReviewThread struct {
-	ID     string `json:"id"`
-	Commit string `json:"commit,omitempty"`
 }

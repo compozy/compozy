@@ -88,6 +88,11 @@ func (api *AgentInstanceAPI) ReportsPage(
 		return result, err
 	}
 	for _, report := range rows {
+		if api.ProjectReport != nil {
+			if err := api.ProjectReport(ctx, query.InstanceID, &report); err != nil {
+				return result, err
+			}
+		}
 		var payload contract.AgentInstanceReportPayload
 		if err := json.Unmarshal(report.Payload, &payload); err != nil {
 			return result, err

@@ -1992,3 +1992,34 @@ func TestAgentInstanceSourceStatuses(t *testing.T) {
 		}
 	})
 }
+
+func TestProposalPickOperatorBoundary(t *testing.T) {
+	t.Run("Should reject agent credentials before target lookup [IT-009]", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Engine.POST("/instances/:id/reports/:report_id/pick", fixture.Handlers.PickAgentInstanceProposal)
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			"POST",
+			"/instances/missing/reports/missing/pick",
+			strings.NewReader(`{"proposal":0}`),
+		)
+		req.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, req)
+		var failure contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+			t.Fatal(err)
+		}
+		if failure.Code != "proposal_pick_operator_only" {
+			t.Fatalf("failure=%+v", failure)
+		}
+		if response.Code != 403 || !strings.Contains(response.Body.String(), "proposal_pick_operator_only") {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body)
+		}
+	})
+}

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// TaskCatalogStatusFacetPayload is a daemon API value.
+type TaskCatalogStatusFacetPayload struct {
+	Status TaskStatus `json:"status"`
+	Count  int        `json:"count"`
+}
+
 // TaskDashboardActiveRunPayload is a daemon API value.
 type TaskDashboardActiveRunPayload struct {
 	TaskID         string        `json:"task_id"`

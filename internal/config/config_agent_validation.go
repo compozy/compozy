@@ -42,6 +42,9 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if c.AlwaysOn.AutoAcceptPerDay < 0 || c.AlwaysOn.AutoAcceptPerDay > 200 {
+		return fmt.Errorf("agents.always_on.auto_accept_per_day must be between 0 and 200")
+	}
 	if c.AlwaysOn.CheckInTools != "enabled" && c.AlwaysOn.CheckInTools != "disabled" {
 		return fmt.Errorf("agents.always_on.check_in_tools must be enabled or disabled")
 	}

@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// ProviderUsageRefreshRequest is a daemon API value.
+type ProviderUsageRefreshRequest struct {
+	Profile       string   `json:"profile,omitempty"`
+	ProviderIDs   []string `json:"provider_ids,omitempty"`
+	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
+	WaitMS        *int64   `json:"wait_ms,omitempty"`
+	Intent        string   `json:"intent,omitempty"`
+}
+
+// ProviderUsageSource is a daemon API value.
+type ProviderUsageSource struct {
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
+}
+
 // ProviderUsageSpendCap is a daemon API value.
 type ProviderUsageSpendCap struct {
 	ID          string               `json:"id"`
@@ -431,12 +446,4 @@ type ResponderAgentPolicy string
 // ResponderSpec is a daemon API value.
 type ResponderSpec struct {
 	Agents ResponderAgentPolicy `json:"agents,omitempty"`
-}
-
-// RestartActionResponse is a daemon API value.
-type RestartActionResponse struct {
-	OperationID        string                 `json:"operation_id"`
-	Status             RestartOperationStatus `json:"status"`
-	StatusURL          string                 `json:"status_url"`
-	ActiveSessionCount int                    `json:"active_session_count"`
 }

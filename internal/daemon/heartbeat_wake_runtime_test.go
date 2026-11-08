@@ -1128,6 +1128,7 @@ func newHeartbeatSourceRuntime(
 		session.WithProfileNameResolver(nativeProfileReaderStub{}),
 		session.WithSessionCatalog(h.db),
 		session.WithSessionPromptAdmissionStore(h.db),
+		session.WithSessionInputQueueStore(h.db),
 		session.WithEventLedger(h.db),
 		session.WithAttentionWorkspaceMuteReader(h.db),
 		session.WithPromptAssembler(NewComposedAssembler()),
@@ -2973,5 +2974,129 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatalf("reports=%+v err=%v", reports, err)
 			}
 		})
+	}
+}
+
+// Invariant: committed auto picks use the real session queue, including a released main.
+// Owning layer and canonical suite: daemon heartbeat wake runtime integration.
+func TestAutoPickQueueDelivery(t *testing.T) {
+	for _, released := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should deliver one auto pick to released=%v main [IT-007 IT-010]", released),
+			func(t *testing.T) {
+				h := newHeartbeatSourceRuntime(t, true, false)
+				if released {
+					if err := h.manager.Stop(t.Context(), h.instance.MainSessionID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				actions := []heartbeat.ActionDecl{
+					{ID: "report", Title: "Report", Instructions: "Write the report.", AutoAccept: true},
+				}
+				digest, err := heartbeat.AuthorityDigest(
+					heartbeat.CheckInsPolicy{},
+					heartbeat.AuthorityActions(actions),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.db.Instances().
+					ApproveAuthority(t.Context(), h.instance.ProfileID, h.dir, digest, "cli", h.now()); err != nil {
+					t.Fatal(err)
+				}
+				admitted, err := h.db.Instances().
+					Admit(t.Context(), heartbeat.AdmitRequest{InstanceID: h.instance.ID, OccurrenceID: "auto-pick", Now: h.now(), NextWakeAt: h.now().Add(time.Hour), MaxConcurrent: 1})
+				if err != nil || !admitted {
+					t.Fatalf("admit=%v err=%v", admitted, err)
+				}
+				outcome := heartbeat.TriageReplyOutcome(
+					`{"proposals":[{"title":"Report","body":"Evidence","item_keys":[],"action":"report"}]}`,
+					heartbeat.CheckDigest{},
+					2,
+					actions...)
+				req := heartbeat.FinishRequest{
+					InstanceID:          h.instance.ID,
+					OccurrenceID:        "auto-pick",
+					Source:              "timer",
+					Result:              outcome.Result,
+					Reason:              outcome.Reason,
+					Report:              outcome.Report,
+					Now:                 h.now(),
+					ExpiresAt:           h.now().Add(time.Hour),
+					Actions:             actions,
+					AuthorityDigest:     digest,
+					DefinitionDir:       h.dir,
+					AutoAcceptPerDay:    20,
+					QueueCap:            10,
+					UnattendedTurnLimit: 300,
+				}
+				result, err := h.db.Instances().Finish(t.Context(), req)
+				if err != nil || len(result.Picks) != 1 {
+					t.Fatalf("result=%+v err=%v", result, err)
+				}
+				pick := result.Picks[0]
+				payload := proposalPickHook(h.instance, pick)
+				if payload.Event != "agent.instance.proposal.picked" || payload.Actor != "auto_accept" ||
+					payload.ReportID != pick.ReportID {
+					t.Fatalf("hook=%+v", payload)
+				}
+				if err := releaseInstanceInputs(
+					t.Context(),
+					&bootState{sessions: h.manager},
+					h.db.Instances(),
+					h.instance,
+				); err != nil {
+					t.Fatal(err)
+				}
+				waitForConditionWithin(t, "auto pick delivered", 15*time.Second, func() bool {
+					entry, err := h.db.GetSessionInputQueueEntry(t.Context(), pick.TargetSession, pick.QueueEntryID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return entry.Status == "sent"
+				})
+				state, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+				if err != nil || state.UnattendedTurns < 2 {
+					t.Fatalf("state=%+v err=%v", state, err)
+				}
+				manualReport, err := h.db.InstanceReports().
+					AppendReport(t.Context(), h.instance.ID, agentinstance.ReportInput{SourceKey: "occ:operator-pick", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review manually","body":"Operator request","item_keys":[]}]}`)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				manualPick, err := h.db.Instances().
+					PickProposal(t.Context(), agentinstance.PickRequest{InstanceID: h.instance.ID, ReportID: manualReport.ID, Actor: "operator", ProposalIndex: 0, QueueCap: 10})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := releaseInstanceInputs(
+					t.Context(),
+					&bootState{sessions: h.manager},
+					h.db.Instances(),
+					h.instance,
+				); err != nil {
+					t.Fatal(err)
+				}
+				waitForConditionWithin(t, "operator pick delivered", 15*time.Second, func() bool {
+					entry, err := h.db.GetSessionInputQueueEntry(
+						t.Context(),
+						manualPick.TargetSession,
+						manualPick.QueueEntryID,
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return entry.Status == "sent"
+				})
+				state, err = h.db.Instances().WakeState(t.Context(), h.instance.ID)
+				if err != nil || state.UnattendedTurns != 0 {
+					t.Fatalf("operator state=%+v err=%v", state, err)
+				}
+				repeated, err := h.db.Instances().Finish(t.Context(), req)
+				if err != nil || len(repeated.Picks) != 0 {
+					t.Fatalf("repeated=%+v err=%v", repeated, err)
+				}
+			},
+		)
 	}
 }

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// RestartActionResponse is a daemon API value.
+type RestartActionResponse struct {
+	OperationID        string                 `json:"operation_id"`
+	Status             RestartOperationStatus `json:"status"`
+	StatusURL          string                 `json:"status_url"`
+	ActiveSessionCount int                    `json:"active_session_count"`
+}
+
 // RestartActionStatus is a daemon API value.
 type RestartActionStatus struct {
 	OperationID        string                 `json:"operation_id"`
@@ -427,23 +435,4 @@ type RunWorktreeExitActionRequest struct {
 type RunsResponse struct {
 	Page *CursorPagePayload `json:"page,omitempty"`
 	Runs []RunPayload       `json:"runs"`
-}
-
-// RuntimeActivityPayload is a daemon API value.
-type RuntimeActivityPayload struct {
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current"`
-	IterationMax       int        `json:"iteration_max"`
-	IdleSeconds        int64      `json:"idle_seconds"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds"`
-	ElapsedMS          int64      `json:"elapsed_ms"`
 }

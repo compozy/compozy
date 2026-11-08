@@ -458,3 +458,14 @@ scripts). HTTP saves approve only with an explicit matching
 blocks grant reads only with default caps. Operator-authored MCP declarations may
 list raw names in `read_only_tools`; extension/catalog overrides are ignored.
 Destructive annotations always classify a tool as write.
+
+### Check-in actions
+
+`HEARTBEAT.md` accepts up to eight `actions` with unique `id`
+(`^[a-z][a-z0-9-]{0,39}$`), `title` (1–120 characters), `instructions`
+(1–1,000 characters), and `auto_accept` (default false). The authority digest
+includes the id and instructions of auto-accept actions. They take effect only
+after operator approval of that exact digest. Picks use the main session's own
+permissions and preserve proposal text inside an untrusted fence. Auto picks are
+synthetic turns and count toward the unattended limit. Pause/archive cancels
+queued auto picks; picks never retarget a rotated main session.

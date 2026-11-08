@@ -9,6 +9,7 @@ import (
 
 // HeartbeatPolicyPayload is a daemon API value.
 type HeartbeatPolicyPayload struct {
+	Actions          []ActionDecl                       `json:"actions"`
 	Authority        HeartbeatAuthorityPayload          `json:"authority"`
 	AgentName        string                             `json:"agent_name,omitempty"`
 	Enabled          bool                               `json:"enabled"`

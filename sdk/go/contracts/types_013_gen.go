@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type ModelCatalogCostPayload struct {
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
+}
+
 type ModelCatalogSourceRefPayload struct {
 	SourceID    string `json:"source_id"`
 	SourceKind  string `json:"source_kind"`
@@ -180,22 +188,4 @@ type PatchOp struct {
 type PayloadBase struct {
 	Event     HookEvent `json:"event"`
 	Timestamp time.Time `json:"timestamp"`
-}
-
-type PendingInteractionPayload struct {
-	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
-	SessionID         string     `json:"session_id"`
-	InteractionID     string     `json:"interaction_id"`
-	Kind              string     `json:"kind"`
-	ProviderRequestID string     `json:"provider_request_id"`
-	TurnID            string     `json:"turn_id,omitempty"`
-	Title             string     `json:"title,omitempty"`
-	Choices           []string   `json:"choices,omitempty"`
-	Decisions         []string   `json:"decisions,omitempty"`
-	ToolID            string     `json:"tool_id,omitempty"`
-	Status            string     `json:"status"`
-	CreatedAt         time.Time  `json:"created_at"`
-	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
-	Resolution        string     `json:"resolution,omitempty"`
-	ResolvedBy        string     `json:"resolved_by,omitempty"`
 }

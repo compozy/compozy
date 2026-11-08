@@ -2965,3 +2965,10 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Auto-accept limit
+
+`[agents.always_on].auto_accept_per_day` limits auto-accepted check-in proposals per
+instance over a rolling 24 hours. The default is `20`; valid values are `0`–`200`.
+Set it to `0` to disable auto picks. An action must still have operator-approved
+`auto_accept: true` authority; the limit grants no tool permissions.

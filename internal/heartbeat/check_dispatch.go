@@ -52,7 +52,19 @@ func (s *CheckService) dispatch(
 		outcome.ToolsStatus = toolsStatus
 	}
 	now := s.now()
+	authorityDigest, digestErr := AuthorityDigest(
+		target.Policy.Frontmatter.CheckIns,
+		AuthorityActions(target.Policy.Frontmatter.Actions),
+	)
+	if digestErr != nil {
+		outcome = failedTriage("triage_failed")
+	}
 	req := FinishRequest{
+		Actions:             target.Policy.Frontmatter.Actions,
+		AuthorityDigest:     authorityDigest,
+		DefinitionDir:       target.DefinitionDir,
+		AutoAcceptPerDay:    s.config.AutoAcceptPerDay,
+		QueueCap:            s.config.QueueCap,
 		HasSources:          len(target.Policy.Preferences.Context.Sources) > 0,
 		SourceMore:          digest.SourceMore,
 		MinInterval:         s.config.MinInterval,

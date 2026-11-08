@@ -6,6 +6,7 @@ type HookContract[P any, Patch any] struct {
 	Event HookEvent
 }
 
+var HookAgentInstanceProposalPickedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceProposalPicked}
 var HookAgentInstanceCreatedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceCreated}
 var HookAgentInstancePausedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstancePaused}
 var HookAgentInstanceResumedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceResumed}

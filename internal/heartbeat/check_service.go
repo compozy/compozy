@@ -41,6 +41,7 @@ type TriageDispatcher interface {
 	Stop(context.Context, string) error
 }
 type CheckConfig struct {
+	AutoAcceptPerDay, QueueCap                             int
 	Sources                                                compozyconfig.HeartbeatSourcesConfig
 	UnattendedTurnLimit                                    int64
 	QuietBackoffCap                                        time.Duration
@@ -66,6 +67,7 @@ type CheckService struct {
 	collecting         map[string]context.CancelFunc
 	pollSem            chan struct{}
 	recoveryMu         sync.Mutex
+	afterPicks         func(context.Context, []agentinstance.Pick) error
 	afterPause         func(context.Context, agentinstance.Instance) error
 	running            map[string]checkRun
 	store              InstanceWakeStore

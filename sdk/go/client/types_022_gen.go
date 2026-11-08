@@ -4,6 +4,20 @@ package client
 
 import "encoding/json"
 
+// SettingsProviderItemPayload is a daemon API value.
+type SettingsProviderItemPayload struct {
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	Settings         SettingsProviderSettingsPayload           `json:"settings"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	CommandAvailable bool                                      `json:"command_available"`
+	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
+	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
+	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
+	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
+}
+
 // SettingsProviderModelPayload is a daemon API value.
 type SettingsProviderModelPayload struct {
 	ID                       string   `json:"id"`
@@ -430,20 +444,3 @@ type SettingsUpdateAppPayload struct {
 	LastError      string                   `json:"last_error"`
 	Message        string                   `json:"message"`
 }
-
-// SettingsUpdateApplyRequest is a daemon API value.
-type SettingsUpdateApplyRequest struct {
-	Targets []SettingsUpdateTarget `json:"targets"`
-}
-
-// SettingsUpdateApplyResponse is a daemon API value.
-type SettingsUpdateApplyResponse struct {
-	Targets     []SettingsUpdateTarget       `json:"targets"`
-	Status      SettingsUpdateApplyStatus    `json:"status"`
-	OperationID string                       `json:"operation_id,omitempty"`
-	Message     string                       `json:"message"`
-	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
-}
-
-// SettingsUpdateApplyStatus is a daemon API value.
-type SettingsUpdateApplyStatus string

@@ -80,10 +80,10 @@ func decodeSoulRevisionDiagnostics(raw json.RawMessage) ([]AuthoredContextDiagno
 
 func heartbeatFrontmatterPayload(front heartbeatpkg.Frontmatter) HeartbeatFrontmatterPayload {
 	return HeartbeatFrontmatterPayload{
-		CheckIns: front.CheckIns,
-		Version:  front.Version,
-		Enabled:  front.Enabled,
-		Summary:  strings.TrimSpace(front.Summary),
+		CheckIns: front.CheckIns, Actions: front.Actions,
+		Version: front.Version,
+		Enabled: front.Enabled,
+		Summary: strings.TrimSpace(front.Summary),
 		Preferences: HeartbeatFrontmatterPreferencesPayload{
 			MinInterval:  strings.TrimSpace(front.Preferences.MinInterval),
 			ActiveHours:  heartbeatTimeWindowsPayload(front.Preferences.ActiveHours),

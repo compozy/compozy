@@ -4,6 +4,30 @@ package client
 
 import "time"
 
+// AgentInstanceReportPayload is a daemon API value.
+type AgentInstanceReportPayload struct {
+	Diagnostics   []string                   `json:"diagnostics,omitempty"`
+	PicksTracked  bool                       `json:"picks_tracked"`
+	Picks         []Pick                     `json:"picks"`
+	ToolCalls     CheckInToolSummary         `json:"tool_calls"`
+	Source        *AgentInstanceReportSource `json:"source,omitempty"`
+	Action        string                     `json:"action,omitempty"`
+	Resource      string                     `json:"resource,omitempty"`
+	SkillReviewID string                     `json:"skill_review_id,omitempty"`
+	ID            string                     `json:"id"`
+	Kind          string                     `json:"kind"`
+	State         string                     `json:"state"`
+	Proposals     []AgentInstanceProposal    `json:"proposals,omitempty"`
+	Reason        string                     `json:"reason,omitempty"`
+	Detail        string                     `json:"detail,omitempty"`
+	SessionID     string                     `json:"session_id,omitempty"`
+	Tool          string                     `json:"tool,omitempty"`
+	ExpiredBy     string                     `json:"expired_by,omitempty"`
+	Cause         string                     `json:"cause,omitempty"`
+	Since         string                     `json:"since,omitempty"`
+	CreatedAt     time.Time                  `json:"created_at"`
+}
+
 // AgentInstanceReportSource is a daemon API value.
 type AgentInstanceReportSource struct {
 	SourceID    string `json:"source_id,omitempty"`
@@ -419,31 +443,4 @@ type AgentSoulRevisionPayload struct {
 	Actor          AuthoredContextActorPayload        `json:"actor"`
 	Origin         *AuthoredContextActorPayload       `json:"origin,omitempty"`
 	CreatedAt      time.Time                          `json:"created_at"`
-}
-
-// AgentSoulRollbackByPathRequest is a daemon API value.
-type AgentSoulRollbackByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	RevisionID     string `json:"revision_id"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// AgentSoulSectionPayload is a daemon API value.
-type AgentSoulSectionPayload struct {
-	Enabled          bool                     `json:"enabled"`
-	Present          bool                     `json:"present"`
-	Active           bool                     `json:"active"`
-	Valid            bool                     `json:"valid"`
-	ValidationStatus AuthoredValidationStatus `json:"validation_status,omitempty"`
-	SnapshotID       string                   `json:"snapshot_id,omitempty"`
-	Digest           string                   `json:"digest,omitempty"`
-	ConfigDigest     string                   `json:"config_digest,omitempty"`
-	SourcePath       string                   `json:"source_path,omitempty"`
-	Role             string                   `json:"role,omitempty"`
-	Tone             []string                 `json:"tone"`
-	Principles       []string                 `json:"principles"`
-	Truncated        bool                     `json:"truncated,omitempty"`
-	MaxBytes         int64                    `json:"max_bytes,omitempty"`
-	MaxBodyBytes     int64                    `json:"max_body_bytes,omitempty"`
 }

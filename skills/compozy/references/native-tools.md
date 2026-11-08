@@ -1221,3 +1221,14 @@ An otherwise silent check-in with completed or uncertain writes publishes an
 Check-ins never create approval requests. Only the operator can approve standing
 check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
 no authority-approve native tool.
+
+### Proposal picks
+
+Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
+<report-id> <n>` uses a 1-based index; HTTP/UDS
+`POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
+Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
+Report reads include `picks`, proposal `action`, and `auto_accept_status`
+(`picked`, `limit`, `queue_full`, `unapproved`, `none`). Each proposal is picked
+once; `proposal_already_picked` reports a repeat. The observe-only
+`agent.instance.proposal.picked` hook includes actor, action id and report id.

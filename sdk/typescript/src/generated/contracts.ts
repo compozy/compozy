@@ -88,6 +88,7 @@ export interface AgentCrashedPatch {
 }
 
 export type HookEvent =
+  | "agent.instance.proposal.picked"
   | "agent.instance.created"
   | "agent.instance.paused"
   | "agent.instance.resumed"
@@ -362,6 +363,10 @@ export interface AgentHeartbeatWakePatch {
 export type AgentInstanceObservationPatch = Record<string, never>;
 
 export interface AgentInstancePayload {
+  actor?: string;
+  action_id?: string;
+  report_id?: string;
+  proposal_index?: number;
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -1950,6 +1955,13 @@ export interface HeartbeatHistoryResponse {
   next_cursor?: string;
 }
 
+export interface ActionDecl {
+  id: string;
+  title: string;
+  instructions: string;
+  auto_accept: boolean;
+}
+
 export interface CheckInsPolicy {
   allow_writes?: string[];
   max_tool_calls?: number;
@@ -1957,6 +1969,7 @@ export interface CheckInsPolicy {
 }
 
 export interface HeartbeatAuthorityPayload {
+  actions: ActionDecl[];
   digest: string;
   status: string;
   check_ins: CheckInsPolicy;
@@ -1987,6 +2000,7 @@ export interface HeartbeatContextProjectionPayload {
 }
 
 export interface HeartbeatFrontmatterPayload {
+  actions: ActionDecl[];
   check_ins: CheckInsPolicy;
   version: number;
   enabled: boolean;
@@ -2038,6 +2052,7 @@ export interface HeartbeatPromptContributionPayload {
 }
 
 export interface HeartbeatPolicyPayload {
+  actions: ActionDecl[];
   authority: HeartbeatAuthorityPayload;
   agent_name?: string;
   enabled: boolean;
@@ -6722,6 +6737,7 @@ export interface WorktreePreRemovePayload {
 }
 
 export interface HookPayloadByEvent {
+  "agent.instance.proposal.picked": AgentInstancePayload;
   "agent.instance.created": AgentInstancePayload;
   "agent.instance.paused": AgentInstancePayload;
   "agent.instance.resumed": AgentInstancePayload;
@@ -6830,6 +6846,7 @@ export interface HookPayloadByEvent {
 }
 
 export interface HookPatchByEvent {
+  "agent.instance.proposal.picked": AgentInstanceObservationPatch;
   "agent.instance.created": AgentInstanceObservationPatch;
   "agent.instance.paused": AgentInstanceObservationPatch;
   "agent.instance.resumed": AgentInstanceObservationPatch;

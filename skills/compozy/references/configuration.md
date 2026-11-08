@@ -756,3 +756,9 @@ no hosted tools in triage), `check_in_max_tool_calls = 25` (1–100),
 the write cap. Listing never spends budget. Retention removes audit rows daily.
 Operator-authored MCP declarations support `read_only_tools` with raw tool names;
 extension/catalog declarations cannot override classification.
+
+`[agents.always_on].auto_accept_per_day` defaults to 20 and accepts 0–200.
+It limits auto-accepted proposals per instance over a rolling 24 hours. Zero
+disables auto picks. Queue capacity, approved authority, active lifecycle state,
+deduplication, fatigue and unattended limits still apply. A queue-cap miss leaves
+the proposal waiting and does not fail the completed check-in.

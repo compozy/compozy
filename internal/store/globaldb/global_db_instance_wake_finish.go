@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -78,6 +79,10 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 
+			result.Picks, err = autoPickFinishedReport(ctx, tx, &req)
+			if err != nil {
+				return err
+			}
 			result.Paused, err = finishedInstancePause(ctx, q, instance)
 			return err
 		},
@@ -150,6 +155,11 @@ func insertInstanceWakeReport(ctx context.Context, q *sqlcgen.Queries, req *hear
 		return nil
 	}
 	report := *req.Report
+	payload, err := preparePickReport(report.Payload)
+	if err != nil {
+		return err
+	}
+	report.Payload = payload
 	report.SourceKey = "occ:" + req.OccurrenceID
 	if err := report.Validate(); err != nil {
 		return err
@@ -191,6 +201,16 @@ func pauseFatiguedInstance(
 			return err
 		} else if changed == 0 {
 			return nil
+		}
+		if err := q.CancelInstanceAutoPicks(
+			ctx,
+			sqlcgen.CancelInstanceAutoPicksParams{
+				CanceledAt: sql.NullString{String: store.FormatTimestamp(req.Now), Valid: true},
+				UpdatedAt:  store.FormatTimestamp(req.Now),
+				InstanceID: req.InstanceID,
+			},
+		); err != nil {
+			return err
 		}
 		req.Report = &agentinstance.ReportInput{
 			Kind: "failure",

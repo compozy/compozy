@@ -85,6 +85,7 @@ type ResolvedPolicy struct {
 
 // Frontmatter is the allowlisted strict HEARTBEAT.md metadata.
 type Frontmatter struct {
+	Actions     []ActionDecl           `json:"actions,omitempty"`
 	CheckIns    CheckInsPolicy         `json:"check_ins"`
 	Version     int                    `json:"version"`
 	Enabled     bool                   `json:"enabled"`

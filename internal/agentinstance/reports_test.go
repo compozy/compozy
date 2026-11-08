@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -149,4 +150,21 @@ func TestReportInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProposalPickPrompt(t *testing.T) {
+	t.Run("Should fence untrusted proposal text and preserve instructions [UT-030]", func(t *testing.T) {
+		p := ProposalPayload{Title: "Investigate ```", Body: "Do something", ItemKeys: []string{"key"}}
+		action := &ActionSnapshot{Instructions: "Write a report only."}
+		text := PickPromptText(p, action)
+		if !strings.HasPrefix(text, action.Instructions) ||
+			!strings.Contains(text, "Keep the fence when you relay it.") ||
+			strings.Count(text, "```") != 2 ||
+			!strings.Contains(text, `\u0060`) {
+			t.Fatalf("unsafe prompt: %s", text)
+		}
+		if PickPromptText(p, nil) != p.Title {
+			t.Fatal("plain pick changed title")
+		}
+	})
 }

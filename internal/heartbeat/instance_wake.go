@@ -26,11 +26,15 @@ type AdmitRequest struct {
 	MaxConcurrent            int
 }
 type FinishResult struct {
+	Picks   []agentinstance.Pick
 	Changed bool
 	Paused  *agentinstance.Instance
 }
 
 type FinishRequest struct {
+	Actions                                                  []ActionDecl
+	AuthorityDigest, DefinitionDir                           string
+	AutoAcceptPerDay, QueueCap                               int
 	ToolsStatus                                              string
 	HasSources, SourceMore                                   bool
 	MinInterval                                              time.Duration

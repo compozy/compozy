@@ -72,6 +72,9 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 type AgentInstanceReportPayload struct {
+	Diagnostics   []string                         `json:"diagnostics,omitempty"`
+	PicksTracked  bool                             `json:"picks_tracked"`
+	Picks         []agentinstance.Pick             `json:"picks"`
 	ToolCalls     agentinstance.CheckInToolSummary `json:"tool_calls"`
 	Source        *AgentInstanceReportSource       `json:"source,omitempty"`
 	Action        string                           `json:"action,omitempty"`
@@ -96,10 +99,12 @@ type AgentInstanceReportsResponse struct {
 }
 
 type AgentInstanceProposal struct {
-	Sources  []AgentInstanceProposalSource `json:"sources,omitempty"`
-	Title    string                        `json:"title"`
-	Body     string                        `json:"body"`
-	ItemKeys []string                      `json:"item_keys"`
+	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
+	AutoAcceptStatus string                        `json:"auto_accept_status"`
+	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title            string                        `json:"title"`
+	Body             string                        `json:"body"`
+	ItemKeys         []string                      `json:"item_keys"`
 }
 
 type AgentInstanceCheckRequest struct {
@@ -177,4 +182,17 @@ type AgentInstanceReportSource struct {
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
 	Summary     string `json:"summary,omitempty"`
+}
+
+type AgentInstancePickRequest struct {
+	Proposal *int `json:"proposal"`
+}
+type AgentInstancePickResponse struct {
+	Pick agentinstance.Pick `json:"pick"`
+}
+
+type AgentInstanceProposalAction struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	AutoAccept bool   `json:"auto_accept"`
 }

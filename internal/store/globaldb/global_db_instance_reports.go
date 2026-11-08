@@ -32,6 +32,11 @@ func (r *InstanceReportRepo) AppendReport(
 	if err := input.Validate(); err != nil {
 		return agentinstance.Report{}, err
 	}
+	payload, err := preparePickReport(input.Payload)
+	if err != nil {
+		return agentinstance.Report{}, err
+	}
+	input.Payload = payload
 	id, err := store.NewID("arpt")
 	if err != nil {
 		return agentinstance.Report{}, err
@@ -166,6 +171,9 @@ func (r *InstanceReportRepo) UnpublishedReports(
 			},
 		)
 		if err != nil {
+			return nil, err
+		}
+		if err := r.ProjectPicks(ctx, &report, false, 20, 10); err != nil {
 			return nil, err
 		}
 		if occurrence, ok := strings.CutPrefix(report.SourceKey, "occ:"); ok {

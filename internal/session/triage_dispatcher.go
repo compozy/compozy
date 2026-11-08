@@ -125,7 +125,7 @@ func (d *TriageDispatcher) Dispatch(
 	if !result.Completed || result.Error != "" {
 		return outcome, fmt.Errorf("session: triage turn did not complete successfully")
 	}
-	return heartbeat.TriageReplyOutcome(result.Text, digest, d.MaxProposals), nil
+	return heartbeat.TriageReplyOutcome(result.Text, digest, d.MaxProposals, target.Policy.Frontmatter.Actions...), nil
 }
 
 func (d *TriageDispatcher) cleanup(ctx context.Context, id, workspaceID string, quiet bool) error {
@@ -278,8 +278,17 @@ func triageConfigRejection(err error) (heartbeat.TriageOutcome, bool) {
 func (d *TriageDispatcher) checkInGuidance(ctx context.Context, target *heartbeat.CheckTarget) (string, error) {
 	guidance := target.Policy.GuidanceMarkdown
 	selectors := []string(nil)
+	actions := make([]heartbeat.ActionDecl, 0)
+	for _, a := range target.Policy.Frontmatter.Actions {
+		if !a.AutoAccept {
+			actions = append(actions, a)
+		}
+	}
 	if d.Authority != nil {
-		hash, err := heartbeat.AuthorityDigest(target.Policy.Frontmatter.CheckIns, nil)
+		hash, err := heartbeat.AuthorityDigest(
+			target.Policy.Frontmatter.CheckIns,
+			heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
+		)
 		if err != nil {
 			return "", err
 		}
@@ -293,8 +302,14 @@ func (d *TriageDispatcher) checkInGuidance(ctx context.Context, target *heartbea
 		}
 		if hash != "" && approved == hash {
 			selectors = target.Policy.Frontmatter.CheckIns.AllowWrites
+			actions = target.Policy.Frontmatter.Actions
 		}
 	}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		return "", err
+	}
+	guidance += "\nApproved actions (use an optional action id on each proposal): " + string(data)
 	guidance += "\nApproved check-in write selectors: " + strings.Join(
 		selectors,
 		", ",

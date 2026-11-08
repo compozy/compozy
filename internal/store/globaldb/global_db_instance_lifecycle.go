@@ -90,6 +90,16 @@ func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinsta
 		"pause instance wake",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			q := sqlcgen.New(tx)
+			if err := q.CancelInstanceAutoPicks(
+				ctx,
+				sqlcgen.CancelInstanceAutoPicksParams{
+					CanceledAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
+					UpdatedAt:  store.FormatTimestamp(r.now()),
+					InstanceID: id,
+				},
+			); err != nil {
+				return err
+			}
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}
@@ -184,6 +194,16 @@ func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.In
 		"archive instance wake",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			q := sqlcgen.New(tx)
+			if err := q.CancelInstanceAutoPicks(
+				ctx,
+				sqlcgen.CancelInstanceAutoPicksParams{
+					CanceledAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
+					UpdatedAt:  store.FormatTimestamp(r.now()),
+					InstanceID: id,
+				},
+			); err != nil {
+				return err
+			}
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}

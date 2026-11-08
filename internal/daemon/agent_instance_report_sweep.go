@@ -20,9 +20,13 @@ func sweepInstanceReports(ctx context.Context, state *bootState) error {
 	if !ok {
 		return nil
 	}
+	var project func(context.Context, string, *agentinstance.Report) error
+	if state.agentInstances != nil {
+		project = state.agentInstances.ProjectReport
+	}
 	publisher := agentinstance.ReportPublisher{
 		Store:     provider.InstanceReports(),
-		Writer:    instanceReportEventWriter{sessions: writer},
+		Writer:    instanceReportEventWriter{sessions: writer, project: project},
 		BatchSize: 100,
 	}
 	return publisher.Sweep(ctx)

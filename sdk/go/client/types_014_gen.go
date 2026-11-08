@@ -37,6 +37,18 @@ type PermissionRollupResponse struct {
 	Rollups []PermissionDailyRollupPayload `json:"rollups"`
 }
 
+// Pick is a daemon API value.
+type Pick struct {
+	ReportID      string    `json:"report_id"`
+	ProposalIndex int       `json:"proposal_index"`
+	ActionID      string    `json:"action_id,omitempty"`
+	Actor         string    `json:"actor"`
+	TargetSession string    `json:"target_session_id"`
+	QueueEntryID  string    `json:"queue_entry_id"`
+	State         string    `json:"state"`
+	PickedAt      time.Time `json:"picked_at"`
+}
+
 // PickFilesEffect is a daemon API value.
 type PickFilesEffect struct {
 	Directories bool `json:"directories,omitempty"`
@@ -432,19 +444,4 @@ type ProviderUsageError struct {
 	Message    string     `json:"message"`
 	Action     string     `json:"action"`
 	RetryAfter *time.Time `json:"retry_after"`
-}
-
-// ProviderUsageRefreshRequest is a daemon API value.
-type ProviderUsageRefreshRequest struct {
-	Profile       string   `json:"profile,omitempty"`
-	ProviderIDs   []string `json:"provider_ids,omitempty"`
-	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
-	WaitMS        *int64   `json:"wait_ms,omitempty"`
-	Intent        string   `json:"intent,omitempty"`
-}
-
-// ProviderUsageSource is a daemon API value.
-type ProviderUsageSource struct {
-	Kind  string `json:"kind"`
-	Label string `json:"label"`
 }

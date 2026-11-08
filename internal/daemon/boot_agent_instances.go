@@ -83,6 +83,40 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
+		QueueCap: state.cfg.Session.BusyInput.QueueCap,
+		AfterPicks: func(ctx context.Context, id string, picks []agentinstance.Pick) error {
+			instance, err := repo.Get(ctx, id)
+			if err != nil {
+				return err
+			}
+			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+			var failures []error
+			for _, pick := range picks {
+				state.logger.InfoContext(
+					ctx,
+					"agent.instance.pick",
+					"instance_id",
+					instance.ID,
+					"report_id",
+					pick.ReportID,
+					"proposal_index",
+					pick.ProposalIndex,
+					"actor",
+					pick.Actor,
+				)
+				if err := manager.ReleaseInstanceInputs(ctx, pick.TargetSession); err != nil {
+					failures = append(failures, err)
+				}
+				_, err := newInstanceLifecycleHooks(
+					state.hookDispatcher,
+					definitions,
+				).DispatchAgentInstance(ctx, proposalPickHook(instance, pick))
+				if err != nil {
+					failures = append(failures, err)
+				}
+			}
+			return errors.Join(failures...)
+		},
 		ReadPeer:      definitions.instancePeer,
 		ReadAttention: repo.NeedsAttention,
 		Metrics:       repo.Metrics,

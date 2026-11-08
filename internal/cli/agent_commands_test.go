@@ -1178,6 +1178,7 @@ func TestAgentInstanceCommands(t *testing.T) {
 	}{
 		{"create", []string{"create", "triage"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
 		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
+		{"pick", []string{"pick", "ainst-test", "report-test", "1", "--global"}, "Picked proposal 1 (queued)\n"},
 		{"pause", []string{"pause", "ainst-test"}, "Triage Lead paused in Global\n"},
 		{"resume", []string{"resume", "ainst-test"}, "Triage Lead resumed in Global\n"},
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
@@ -1217,6 +1218,14 @@ func TestAgentInstanceCommands(t *testing.T) {
 					body = `{"occurrence_id":"occ-test"}`
 				case "/api/agent-instances/ainst-test/occurrences/occ-test":
 					body = `{"state":"finished","result":"reported","reason":"reported","report_id":"report-test"}`
+				case "/api/agent-instances/ainst-test/reports/report-test/pick":
+					var request contract.AgentInstancePickRequest
+					if err := json.NewDecoder(r.Body).
+						Decode(&request); err != nil || request.Proposal == nil || *request.Proposal != 0 ||
+						r.Method != "POST" {
+						t.Errorf("pick request=%+v method=%s err=%v", request, r.Method, err)
+					}
+					body = `{"pick":{"report_id":"report-test","proposal_index":0,"actor":"operator","state":"queued"}}`
 				case "/api/agent-instances/ainst-test/reports":
 					body = `{"reports":[{"id":"report-test","kind":"proposal","state":"delivered","proposals":[{"title":"Review","body":"Review work"}]}]}`
 				default:

@@ -11,8 +11,9 @@ import (
 )
 
 type instanceProposalPayload struct {
-	Source    *heartbeat.AutomationEventSource `json:"source,omitempty"`
-	Proposals []heartbeat.TriageProposal       `json:"proposals"`
+	Diagnostics []string                         `json:"diagnostics,omitempty"`
+	Source      *heartbeat.AutomationEventSource `json:"source,omitempty"`
+	Proposals   []heartbeat.TriageProposal       `json:"proposals"`
 }
 
 func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.FinishRequest) error {
@@ -71,7 +72,9 @@ func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *
 		req.Result, req.Reason, req.Report = instanceWakeQuietResult, "duplicate_suppressed", nil
 		return nil
 	}
-	payload, err := json.Marshal(instanceProposalPayload{Proposals: retained, Source: incoming.Source})
+	payload, err := json.Marshal(
+		instanceProposalPayload{Proposals: retained, Source: incoming.Source, Diagnostics: incoming.Diagnostics},
+	)
 	if err != nil {
 		return err
 	}

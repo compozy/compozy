@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type SessionSoulRefreshRequest struct {
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
 type SessionStatus struct {
 	SessionID   string                `json:"session_id"`
 	Name        string                `json:"name,omitempty"`
@@ -229,31 +234,4 @@ type SpawnLifecyclePayload struct {
 
 type SpawnObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type SpawnParentStoppedPayload struct {
-	Event             HookEvent      `json:"event"`
-	Timestamp         time.Time      `json:"timestamp"`
-	ProfileID         string         `json:"profile_id,omitempty"`
-	ParentSessionID   string         `json:"parent_session_id,omitempty"`
-	RootSessionID     string         `json:"root_session_id,omitempty"`
-	ChildSessionID    string         `json:"child_session_id,omitempty"`
-	WorkspaceID       string         `json:"workspace_id,omitempty"`
-	Workspace         string         `json:"workspace,omitempty"`
-	AgentName         string         `json:"agent_name,omitempty"`
-	SpawnRole         string         `json:"spawn_role,omitempty"`
-	SpawnDepth        int            `json:"spawn_depth,omitempty"`
-	TTLSeconds        int64          `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent  bool           `json:"auto_stop_on_parent,omitempty"`
-	TaskID            string         `json:"task_id,omitempty"`
-	RunID             string         `json:"run_id,omitempty"`
-	WorkflowID        string         `json:"workflow_id,omitempty"`
-	SoulSnapshotID    string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest        string         `json:"soul_digest,omitempty"`
-	ParentSoulDigest  string         `json:"parent_soul_digest,omitempty"`
-	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
-	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
-	StopReason        string         `json:"stop_reason,omitempty"`
-	ReapReason        string         `json:"reap_reason,omitempty"`
-	Error             string         `json:"error,omitempty"`
 }

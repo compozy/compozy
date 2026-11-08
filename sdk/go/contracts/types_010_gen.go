@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type HeartbeatPromptContributionPayload struct {
+	Active           bool                               `json:"active"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Truncated        bool                               `json:"truncated"`
+	MaxBytes         int64                              `json:"max_bytes"`
+	MaxBodyBytes     int64                              `json:"max_body_bytes"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Context          HeartbeatContextProjectionPayload  `json:"context"`
+}
+
 type HeartbeatPutRequest struct {
 	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
 	WorkspaceID            string `json:"workspace_id,omitempty"`
@@ -190,5 +205,3 @@ type HookMatcher struct {
 type HookMode string
 
 type HookRunOutcome string
-
-type HookSkillSource uint8

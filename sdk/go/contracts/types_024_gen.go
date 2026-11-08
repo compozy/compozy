@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskRunsParams struct {
+	ID        string        `json:"id"`
+	Status    TaskRunStatus `json:"status,omitempty"`
+	SessionID string        `json:"session_id,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+}
+
 type TaskScope string
 
 type TaskStatusChangedPayload struct {
@@ -311,20 +318,3 @@ type TerminalLimitRejectedPayload struct {
 }
 
 type TerminalObservationPatch struct{}
-
-type TerminalOpenedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	Mode        string    `json:"mode"`
-	Cwd         string    `json:"cwd"`
-	Title       string    `json:"title,omitempty"`
-}

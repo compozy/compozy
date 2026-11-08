@@ -2647,6 +2647,13 @@
             "resource": "tasks",
             "app_access": "allowed"
         },
+        "pickAgentInstanceProposal": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.pickAgentInstanceProposal({ path: { \"id\": \"id\", \"report_id\": \"report_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PickAgentInstanceProposal(ctx, client.PickAgentInstanceProposalParams{ID: \"id\", ReportID: \"report_id\"}, client.AgentInstancePickRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "pinCmdPaletteCommand": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.cmdPalette.pinCmdPaletteCommand({ path: { \"id\": \"id\" }, query: { \"workspace\": \"workspace\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PinCmdPaletteCommand(ctx, client.PinCmdPaletteCommandParams{ID: \"id\", Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",

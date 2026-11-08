@@ -60,6 +60,11 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 			return response, err
 		}
 		for _, report := range reports {
+			if api.ProjectReport != nil {
+				if err := api.ProjectReport(ctx, id, &report); err != nil {
+					return response, err
+				}
+			}
 			if seen != nil && !report.CreatedAt.After(*seen) {
 				continue
 			}

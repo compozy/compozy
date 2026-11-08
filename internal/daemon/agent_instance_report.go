@@ -11,7 +11,10 @@ type instanceReportSessionWriter interface {
 	PublishInstanceReport(context.Context, string, session.InstanceReportEvent) (int64, error)
 }
 
-type instanceReportEventWriter struct{ sessions instanceReportSessionWriter }
+type instanceReportEventWriter struct {
+	sessions instanceReportSessionWriter
+	project  func(context.Context, string, *agentinstance.Report) error
+}
 
 var _ agentinstance.ReportEventWriter = instanceReportEventWriter{}
 
@@ -20,6 +23,11 @@ func (w instanceReportEventWriter) Publish(
 	sessionID string,
 	report agentinstance.Report,
 ) (int64, error) {
+	if w.project != nil {
+		if err := w.project(ctx, report.InstanceID, &report); err != nil {
+			return 0, err
+		}
+	}
 	return w.sessions.PublishInstanceReport(
 		ctx,
 		sessionID,

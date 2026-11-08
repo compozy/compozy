@@ -35,6 +35,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	for _, action := range []string{"on", agentInstanceChecksOff} {
 		checks.AddCommand(newAgentInstanceAction(deps, action))
 	}
+	parent.AddCommand(newAgentInstancePickCommand(deps))
 	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps))
 	return parent
 }

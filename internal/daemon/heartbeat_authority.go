@@ -13,7 +13,10 @@ import (
 )
 
 func (e *instanceCheckEnvironment) notifyCheckInAuthority(ctx context.Context, target *heartbeat.CheckTarget) error {
-	digest, err := heartbeat.AuthorityDigest(target.Policy.Frontmatter.CheckIns, nil)
+	digest, err := heartbeat.AuthorityDigest(
+		target.Policy.Frontmatter.CheckIns,
+		heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
+	)
 	if err != nil || digest == "" || target.Instance.MainSessionID == "" {
 		return err
 	}
@@ -82,7 +85,10 @@ func projectInstanceAuthority(
 	if err != nil {
 		return
 	}
-	digest, err := heartbeat.AuthorityDigest(policy.Frontmatter.CheckIns, nil)
+	digest, err := heartbeat.AuthorityDigest(
+		policy.Frontmatter.CheckIns,
+		heartbeat.AuthorityActions(policy.Frontmatter.Actions),
+	)
 	if err != nil || digest == "" {
 		return
 	}

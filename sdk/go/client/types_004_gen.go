@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// BindingsConfig is a daemon API value.
+type BindingsConfig struct {
+	TopCenter    string `json:"top_center"`
+	BottomCenter string `json:"bottom_center"`
+}
+
+// BlockKind is a daemon API value.
+type BlockKind string
+
+// BlockedReason is a daemon API value.
+type BlockedReason struct {
+	Source           BlockedSource `json:"source"`
+	Kind             BlockKind     `json:"kind,omitempty"`
+	Reason           string        `json:"reason,omitempty"`
+	BlockID          string        `json:"block_id,omitempty"`
+	DependsOnTaskIDs []string      `json:"depends_on_task_ids,omitempty"`
+}
+
+// BlockedSource is a daemon API value.
+type BlockedSource string
+
 // Blocker is a daemon API value.
 type Blocker struct {
 	Kind         string     `json:"kind"`
@@ -427,22 +448,3 @@ type CompleteTaskRunRequest struct {
 
 // ConcurrencyPolicy is a daemon API value.
 type ConcurrencyPolicy string
-
-// ConfigApplyRecordPayload is a daemon API value.
-type ConfigApplyRecordPayload struct {
-	ID                string                  `json:"id"`
-	DesiredConfigHash string                  `json:"desired_config_hash"`
-	ActiveConfigHash  string                  `json:"active_config_hash"`
-	Generation        int64                   `json:"generation"`
-	Actor             string                  `json:"actor"`
-	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
-	WritePath         string                  `json:"write_path,omitempty"`
-	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
-	Status            ConfigApplyStatus       `json:"status"`
-	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`
-	NextAction        SettingsApplyNextAction `json:"next_action"`
-	Diagnostics       []DiagnosticItem        `json:"diagnostics,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-}

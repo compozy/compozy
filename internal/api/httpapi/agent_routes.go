@@ -33,6 +33,7 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	instances.POST("/adopt", handlers.AdoptAgentInstance)
 	instances.GET("/:id", handlers.GetAgentInstance)
 	instances.GET("/:id/reports", handlers.ListAgentInstanceReports)
+	instances.POST("/:id/reports/:report_id/pick", handlers.PickAgentInstanceProposal)
 	instances.POST("/:id/check", handlers.CheckAgentInstance)
 	instances.PATCH("/:id", handlers.UpdateAgentInstance)
 	instances.GET("/:id/occurrences/:occurrence", handlers.GetAgentInstanceOccurrence)

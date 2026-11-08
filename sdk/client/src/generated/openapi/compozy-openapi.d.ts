@@ -178,6 +178,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-instances/{id}/reports/{report_id}/pick": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pick an instance proposal */
+    post: operations["pickAgentInstanceProposal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-instances/{id}/resume": {
     parameters: {
       query?: never;
@@ -8054,6 +8071,12 @@ export interface components {
       url?: string;
       view?: string;
     };
+    ActionDecl: {
+      auto_accept: boolean;
+      id: string;
+      instructions: string;
+      title: string;
+    };
     ActivityCost: {
       scope: string;
       /** Format: int64 */
@@ -8328,10 +8351,23 @@ export interface components {
       scope: string;
       state: string;
     };
+    AgentInstancePickRequest: {
+      proposal: number | null;
+    };
+    AgentInstancePickResponse: {
+      pick: components["schemas"]["Pick"];
+    };
     AgentInstanceProposal: {
+      action?: components["schemas"]["AgentInstanceProposalAction"] | null;
+      auto_accept_status: string;
       body: string;
       item_keys: string[];
       sources?: components["schemas"]["AgentInstanceProposalSource"][];
+      title: string;
+    };
+    AgentInstanceProposalAction: {
+      auto_accept: boolean;
+      id: string;
       title: string;
     };
     AgentInstanceProposalSource: {
@@ -8351,9 +8387,12 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       detail?: string;
+      diagnostics?: string[];
       expired_by?: string;
       id: string;
       kind: string;
+      picks: components["schemas"]["Pick"][];
+      picks_tracked: boolean;
       proposals?: components["schemas"]["AgentInstanceProposal"][];
       reason?: string;
       resource?: string;
@@ -11497,6 +11536,7 @@ export interface components {
       ref?: string;
     };
     HeartbeatAuthorityPayload: {
+      actions: components["schemas"]["ActionDecl"][];
       check_ins: components["schemas"]["CheckInsPolicy"];
       digest: string;
       status: string;
@@ -11530,6 +11570,7 @@ export interface components {
       workspace_id?: string;
     };
     HeartbeatFrontmatterPayload: {
+      actions: components["schemas"]["ActionDecl"][];
       check_ins: components["schemas"]["CheckInsPolicy"];
       context: components["schemas"]["HeartbeatContextProjectionPayload"];
       enabled: boolean;
@@ -11551,6 +11592,7 @@ export interface components {
       revision: components["schemas"]["HeartbeatRevisionPayload"];
     };
     HeartbeatPolicyPayload: {
+      actions: components["schemas"]["ActionDecl"][];
       active: boolean;
       agent_name?: string;
       authority: components["schemas"]["HeartbeatAuthorityPayload"];
@@ -13751,6 +13793,17 @@ export interface components {
       since: string;
       /** Format: date-time */
       until: string;
+    };
+    Pick: {
+      action_id?: string;
+      actor: string;
+      /** Format: date-time */
+      picked_at: string;
+      proposal_index: number;
+      queue_entry_id: string;
+      report_id: string;
+      state: string;
+      target_session_id: string;
     };
     PickFilesEffect: {
       directories?: boolean;
@@ -16683,6 +16736,7 @@ export interface components {
       };
       /** @enum {string} */
       event:
+        | "agent.instance.proposal.picked"
         | "agent.instance.created"
         | "agent.instance.paused"
         | "agent.instance.resumed"
@@ -23454,6 +23508,111 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceReportsResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  pickAgentInstanceProposal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+        /** @description Report ID */
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstancePickRequest"];
+      };
+    };
+    responses: {
+      /** @description Picked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstancePickResponse"];
         };
       };
       /** @description Invalid profile selection */
@@ -32802,6 +32961,7 @@ export interface operations {
         agent?: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.proposal.picked"
           | "agent.instance.created"
           | "agent.instance.paused"
           | "agent.instance.resumed"
@@ -49385,6 +49545,7 @@ export interface operations {
         session: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.proposal.picked"
           | "agent.instance.created"
           | "agent.instance.paused"
           | "agent.instance.resumed"

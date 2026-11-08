@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// SpawnPermissionPolicyPayload is a daemon API value.
+type SpawnPermissionPolicyPayload struct {
+	Tools          []string `json:"tools"`
+	Skills         []string `json:"skills"`
+	MCPServers     []string `json:"mcp_servers"`
+	WorkspacePaths []string `json:"workspace_paths"`
+}
+
+// SpawnPermissionRequestPayload is a daemon API value.
+type SpawnPermissionRequestPayload struct {
+	Tools          []string `json:"tools,omitzero"`
+	Skills         []string `json:"skills,omitzero"`
+	MCPServers     []string `json:"mcp_servers,omitzero"`
+	WorkspacePaths []string `json:"workspace_paths,omitzero"`
+}
+
 // SpawnPromptPayload is a daemon API value.
 type SpawnPromptPayload struct {
 	MessageID       string `json:"message_id"`
@@ -429,10 +445,4 @@ type TaskCatalogRunPayload struct {
 	StartedAt            *time.Time           `json:"started_at,omitempty"`
 	EndedAt              *time.Time           `json:"ended_at,omitempty"`
 	Error                string               `json:"error,omitempty"`
-}
-
-// TaskCatalogStatusFacetPayload is a daemon API value.
-type TaskCatalogStatusFacetPayload struct {
-	Status TaskStatus `json:"status"`
-	Count  int        `json:"count"`
 }

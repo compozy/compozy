@@ -34,6 +34,7 @@ type HeartbeatFrontmatterPreferencesPayload struct {
 
 // HeartbeatFrontmatterPayload is the allowlisted strict HEARTBEAT.md metadata projection.
 type HeartbeatFrontmatterPayload struct {
+	Actions     []heartbeatpkg.ActionDecl              `json:"actions"`
 	CheckIns    heartbeatpkg.CheckInsPolicy            `json:"check_ins"`
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
@@ -90,6 +91,7 @@ type HeartbeatPromptContributionPayload struct {
 
 // HeartbeatPolicyPayload is the full resolved HEARTBEAT.md read model.
 type HeartbeatPolicyPayload struct {
+	Actions          []heartbeatpkg.ActionDecl          `json:"actions"`
 	Authority        HeartbeatAuthorityPayload          `json:"authority"`
 	AgentName        string                             `json:"agent_name,omitempty"`
 	Enabled          bool                               `json:"enabled"`
@@ -381,6 +383,7 @@ type HeartbeatStatusResponse struct {
 type SessionPayloadHealth = SessionHealthPayload
 
 type HeartbeatAuthorityPayload struct {
+	Actions  []heartbeatpkg.ActionDecl   `json:"actions"`
 	Digest   string                      `json:"digest"`
 	Status   string                      `json:"status"`
 	CheckIns heartbeatpkg.CheckInsPolicy `json:"check_ins"`

@@ -30,6 +30,13 @@ type Action struct {
 	Args map[string]any `json:"args,omitempty"`
 }
 
+type ActionDecl struct {
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Instructions string `json:"instructions"`
+	AutoAccept   bool   `json:"auto_accept"`
+}
+
 type ActionKind string
 
 type ActorIdentity struct {
@@ -210,6 +217,10 @@ type AgentHeartbeatWakePatch struct {
 type AgentInstanceObservationPatch struct{}
 
 type AgentInstancePayload struct {
+	Actor          string    `json:"actor,omitempty"`
+	ActionID       string    `json:"action_id,omitempty"`
+	ReportID       string    `json:"report_id,omitempty"`
+	ProposalIndex  *int      `json:"proposal_index,omitempty"`
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
 	ProfileID      string    `json:"profile_id,omitempty"`
@@ -229,8 +240,4 @@ type AgentInstancePayload struct {
 	InstanceID     string    `json:"instance_id"`
 	MainSessionID  string    `json:"main_session_id,omitempty"`
 	Reason         string    `json:"reason,omitempty"`
-}
-
-type AgentLifecyclePatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

@@ -107,7 +107,10 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 	if err != nil {
 		return err
 	}
-	digest, err := heartbeat.AuthorityDigest(authored.Frontmatter.CheckIns, nil)
+	digest, err := heartbeat.AuthorityDigest(
+		authored.Frontmatter.CheckIns,
+		heartbeat.AuthorityActions(authored.Frontmatter.Actions),
+	)
 	if err != nil {
 		return err
 	}

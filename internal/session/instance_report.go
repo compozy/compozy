@@ -95,6 +95,26 @@ func (m *Manager) PublishInstanceReport(
 }
 
 func instanceReportNotification(report InstanceReportEvent) (string, string, error) {
+	if report.Kind == "proposal" {
+		var payload struct {
+			Proposals []jsontext.Value `json:"proposals"`
+			Picks     []struct {
+				Actor string `json:"actor"`
+			} `json:"picks"`
+		}
+		if err := json.Unmarshal(report.Payload, &payload); err != nil {
+			return "", "", err
+		}
+		if len(payload.Proposals) > 0 && len(payload.Proposals) == len(payload.Picks) {
+			all := true
+			for _, pick := range payload.Picks {
+				all = all && pick.Actor == "auto_accept"
+			}
+			if all {
+				return "Your agent acted on a check-in", "Review the check-in report.", nil
+			}
+		}
+	}
 	if report.Kind == "activity" {
 		title := fmt.Sprintf("Your agent made %d changes", report.WritesDone)
 		if report.WritesDone == 0 {

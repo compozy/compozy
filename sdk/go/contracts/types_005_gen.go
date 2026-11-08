@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type CatalogScope string
+
 type CatalogSort string
 
 type CheckInsPolicy struct {
@@ -159,8 +161,4 @@ type ConnectivityStatusRequest struct {
 type ConnectivityTeardownRequest struct {
 	Tier     string    `json:"tier"`
 	Deadline time.Time `json:"deadline"`
-}
-
-type ConnectivityTeardownResponse struct {
-	Stopped bool `json:"stopped"`
 }

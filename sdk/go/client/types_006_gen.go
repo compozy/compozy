@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// Diagnostic is a daemon API value.
+type Diagnostic struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
 // DiagnosticItem is a daemon API value.
 type DiagnosticItem struct {
 	ID               string         `json:"id"`

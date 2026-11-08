@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type ForgeReviewThread struct {
+	ID     string `json:"id"`
+	Commit string `json:"commit,omitempty"`
+}
+
 type ForgeReviews struct {
 	Items             []ForgeReview       `json:"items"`
 	Threads           []ForgeReviewThread `json:"threads,omitempty"`
@@ -105,6 +110,7 @@ type HeartbeatActorPayload struct {
 }
 
 type HeartbeatAuthorityPayload struct {
+	Actions  []ActionDecl   `json:"actions"`
 	Digest   string         `json:"digest"`
 	Status   string         `json:"status"`
 	CheckIns CheckInsPolicy `json:"check_ins"`
@@ -142,6 +148,7 @@ type HeartbeatDeleteRequest struct {
 }
 
 type HeartbeatFrontmatterPayload struct {
+	Actions     []ActionDecl                           `json:"actions"`
 	CheckIns    CheckInsPolicy                         `json:"check_ins"`
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
@@ -174,6 +181,7 @@ type HeartbeatMutationResponse struct {
 }
 
 type HeartbeatPolicyPayload struct {
+	Actions          []ActionDecl                       `json:"actions"`
 	Authority        HeartbeatAuthorityPayload          `json:"authority"`
 	AgentName        string                             `json:"agent_name,omitempty"`
 	Enabled          bool                               `json:"enabled"`
@@ -202,19 +210,4 @@ type HeartbeatPreferencesPayload struct {
 	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
 	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
 	Context      HeartbeatContextProjectionPayload `json:"context"`
-}
-
-type HeartbeatPromptContributionPayload struct {
-	Active           bool                               `json:"active"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Truncated        bool                               `json:"truncated"`
-	MaxBytes         int64                              `json:"max_bytes"`
-	MaxBodyBytes     int64                              `json:"max_body_bytes"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Context          HeartbeatContextProjectionPayload  `json:"context"`
 }

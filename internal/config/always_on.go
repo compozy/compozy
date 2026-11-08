@@ -3,6 +3,7 @@ package config
 import "time"
 
 type AlwaysOnConfig struct {
+	AutoAcceptPerDay      int           `toml:"auto_accept_per_day"`
 	CheckInTools          string        `toml:"check_in_tools"`
 	CheckInMaxToolCalls   int           `toml:"check_in_max_tool_calls"`
 	CheckInMaxWriteCalls  int           `toml:"check_in_max_write_calls"`
@@ -17,6 +18,7 @@ type AlwaysOnConfig struct {
 }
 
 type alwaysOnOverlay struct {
+	AutoAcceptPerDay      *int           `toml:"auto_accept_per_day"`
 	CheckInTools          *string        `toml:"check_in_tools"`
 	CheckInMaxToolCalls   *int           `toml:"check_in_max_tool_calls"`
 	CheckInMaxWriteCalls  *int           `toml:"check_in_max_write_calls"`
@@ -31,6 +33,9 @@ type alwaysOnOverlay struct {
 }
 
 func (o alwaysOnOverlay) Apply(dst *AlwaysOnConfig) {
+	if o.AutoAcceptPerDay != nil {
+		dst.AutoAcceptPerDay = *o.AutoAcceptPerDay
+	}
 	if o.CheckInTools != nil {
 		dst.CheckInTools = *o.CheckInTools
 	}
@@ -66,6 +71,7 @@ func (o alwaysOnOverlay) Apply(dst *AlwaysOnConfig) {
 
 func DefaultAlwaysOnConfig() AlwaysOnConfig {
 	return AlwaysOnConfig{
+		AutoAcceptPerDay:      20,
 		CheckInTools:          "enabled",
 		CheckInMaxToolCalls:   25,
 		CheckInMaxWriteCalls:  5,

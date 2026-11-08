@@ -1143,6 +1143,9 @@ import type {
   PauseTaskData,
   PauseTaskErrors,
   PauseTaskResponses,
+  PickAgentInstanceProposalData,
+  PickAgentInstanceProposalErrors,
+  PickAgentInstanceProposalResponses,
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
@@ -2006,6 +2009,33 @@ export class agents extends HeyApiClient {
       responseStyle: "data",
       url: "/api/agent-instances/{id}/reports",
       ...options,
+    });
+  }
+
+  /**
+   * Pick an instance proposal
+   */
+  public pickAgentInstanceProposal<ThrowOnError extends boolean = true>(
+    options: Options<PickAgentInstanceProposalData, ThrowOnError>
+  ): RequestResult<
+    PickAgentInstanceProposalResponses,
+    PickAgentInstanceProposalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PickAgentInstanceProposalResponses,
+      PickAgentInstanceProposalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports/{report_id}/pick",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

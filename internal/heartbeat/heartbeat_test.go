@@ -1937,3 +1937,86 @@ func TestCheckInAuthorityPolicy(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckInActions(t *testing.T) {
+	t.Run("Should validate action declarations and authority [UT-011]", func(t *testing.T) {
+		cases := []struct{ name, content, code string }{
+			{
+				"valid",
+				"actions:\n  - id: report\n    title: Report\n    instructions: Write a report\n    auto_accept: true\n",
+				"",
+			},
+			{
+				"invalid id",
+				"actions:\n  - id: Bad\n    title: Report\n    instructions: Write\n",
+				"heartbeat_action_invalid",
+			},
+			{
+				"duplicate",
+				"actions:\n  - {id: report, title: Report, instructions: Write}\n  - {id: report, title: Report, instructions: Write}\n",
+				"heartbeat_action_duplicate_id",
+			},
+			{
+				"limit",
+				"actions:\n" + strings.Repeat("  - {id: report, title: Report, instructions: Write}\n", 9),
+				"heartbeat_action_limit_exceeded",
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should parse "+tc.name, func(t *testing.T) {
+				p, err := Parse(
+					t.Context(),
+					ParseRequest{
+						Content: []byte("---\nversion: 1\n" + tc.content + "---\nCheck reports."),
+						Config:  compozyconfig.DefaultHeartbeatConfig(),
+					},
+				)
+				if tc.code != "" {
+					if err == nil || len(p.Diagnostics) == 0 || p.Diagnostics[0].Code != tc.code {
+						t.Fatalf("diagnostics=%+v err=%v", p.Diagnostics, err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				digest, err := AuthorityDigest(p.Frontmatter.CheckIns, AuthorityActions(p.Frontmatter.Actions))
+				if err != nil || digest == "" {
+					t.Fatalf("digest=%q err=%v", digest, err)
+				}
+			})
+		}
+	})
+	t.Run("Should keep declared actions and drop unknown ids [UT-013]", func(t *testing.T) {
+		reply := `{"proposals":[{"title":"Title","body":"Body","item_keys":[],"action":"report"}]}`
+		got, err := ParseTriageReply(reply, CheckDigest{}, 2, ActionDecl{ID: "report"})
+		if err != nil || got[0].Action != "report" {
+			t.Fatalf("got=%+v err=%v", got, err)
+		}
+		got, err = ParseTriageReply(reply, CheckDigest{}, 2)
+		if err != nil || got[0].Action != "" {
+			t.Fatalf("got=%+v err=%v", got, err)
+		}
+		outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+		if outcome.Report == nil || !strings.Contains(string(outcome.Report.Payload), "check_in_action_unknown") {
+			t.Fatalf("unknown action outcome=%+v", outcome)
+		}
+		for _, id := range []string{"report", "other", ""} {
+			folded := foldSourceProposals(
+				[]TriageProposal{
+					{Action: "report", Body: "One", ItemKeys: []string{"a"}},
+					{Action: id, Body: "Two", ItemKeys: []string{"b"}},
+				},
+				1,
+				CheckDigest{},
+			)
+			want := ""
+			if id == "report" {
+				want = id
+			}
+			if folded[0].Action != want || len(folded[0].ItemKeys) != 2 {
+				t.Fatalf("folded=%+v", folded)
+			}
+		}
+	})
+}

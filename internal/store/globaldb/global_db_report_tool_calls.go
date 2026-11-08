@@ -20,6 +20,9 @@ func (r *InstanceReportRepo) projectReportToolCalls(
 	}
 	for i := range reports {
 		report := &reports[i]
+		if err := r.ProjectPicks(ctx, report, false, 20, 10); err != nil {
+			return nil, err
+		}
 		occurrence, ok := strings.CutPrefix(report.SourceKey, "occ:")
 		if !ok {
 			continue

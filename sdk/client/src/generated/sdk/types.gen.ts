@@ -48,6 +48,13 @@ export type Action = {
   view?: string;
 };
 
+export type ActionDecl = {
+  auto_accept: boolean;
+  id: string;
+  instructions: string;
+  title: string;
+};
+
 export type ActivityCost = {
   scope: string;
   tokens: number;
@@ -347,10 +354,26 @@ export type AgentInstancePeer = {
   state: string;
 };
 
+export type AgentInstancePickRequest = {
+  proposal: number | null;
+};
+
+export type AgentInstancePickResponse = {
+  pick: Pick;
+};
+
 export type AgentInstanceProposal = {
+  action?: AgentInstanceProposalAction | null;
+  auto_accept_status: string;
   body: string;
   item_keys: Array<string>;
   sources?: Array<AgentInstanceProposalSource>;
+  title: string;
+};
+
+export type AgentInstanceProposalAction = {
+  auto_accept: boolean;
+  id: string;
   title: string;
 };
 
@@ -371,9 +394,12 @@ export type AgentInstanceReportPayload = {
   cause?: string;
   created_at: string;
   detail?: string;
+  diagnostics?: Array<string>;
   expired_by?: string;
   id: string;
   kind: string;
+  picks: Array<Pick>;
+  picks_tracked: boolean;
   proposals?: Array<AgentInstanceProposal>;
   reason?: string;
   resource?: string;
@@ -3535,6 +3561,7 @@ export type HeartbeatActorPayload = {
 };
 
 export type HeartbeatAuthorityPayload = {
+  actions: Array<ActionDecl>;
   check_ins: CheckInsPolicy;
   digest: string;
   status: string;
@@ -3571,6 +3598,7 @@ export type HeartbeatDeleteByPathRequest = {
 };
 
 export type HeartbeatFrontmatterPayload = {
+  actions: Array<ActionDecl>;
   check_ins: CheckInsPolicy;
   context: HeartbeatContextProjectionPayload;
   enabled: boolean;
@@ -3596,6 +3624,7 @@ export type HeartbeatMutationResponse = {
 };
 
 export type HeartbeatPolicyPayload = {
+  actions: Array<ActionDecl>;
   active: boolean;
   agent_name?: string;
   authority: HeartbeatAuthorityPayload;
@@ -5694,6 +5723,17 @@ export type PermissionRollupResponse = {
   rollups: Array<PermissionDailyRollupPayload>;
   since: string;
   until: string;
+};
+
+export type Pick = {
+  action_id?: string;
+  actor: string;
+  picked_at: string;
+  proposal_index: number;
+  queue_entry_id: string;
+  report_id: string;
+  state: string;
+  target_session_id: string;
 };
 
 export type PickFilesEffect = {
@@ -8532,6 +8572,7 @@ export type SettingsHookDeclarationPayload = {
     [key: string]: string;
   };
   event:
+    | "agent.instance.proposal.picked"
     | "agent.instance.created"
     | "agent.instance.paused"
     | "agent.instance.resumed"
@@ -14394,6 +14435,78 @@ export type ListAgentInstanceReportsResponses = {
 
 export type ListAgentInstanceReportsResponse =
   ListAgentInstanceReportsResponses[keyof ListAgentInstanceReportsResponses];
+
+export type PickAgentInstanceProposalData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstancePickRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+    /**
+     * Report ID
+     */
+    report_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/reports/{report_id}/pick";
+};
+
+export type PickAgentInstanceProposalErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type PickAgentInstanceProposalError =
+  PickAgentInstanceProposalErrors[keyof PickAgentInstanceProposalErrors];
+
+export type PickAgentInstanceProposalResponses = {
+  /**
+   * Picked
+   */
+  200: AgentInstancePickResponse;
+};
+
+export type PickAgentInstanceProposalResponse =
+  PickAgentInstanceProposalResponses[keyof PickAgentInstanceProposalResponses];
 
 export type ResumeAgentInstanceData = {
   body?: never;
@@ -21418,6 +21531,7 @@ export type GetHookCatalogData = {
      * Hook event name
      */
     event?:
+      | "agent.instance.proposal.picked"
       | "agent.instance.created"
       | "agent.instance.paused"
       | "agent.instance.resumed"
@@ -34026,6 +34140,7 @@ export type GetHookRunsData = {
      * Hook event name
      */
     event?:
+      | "agent.instance.proposal.picked"
       | "agent.instance.created"
       | "agent.instance.paused"
       | "agent.instance.resumed"

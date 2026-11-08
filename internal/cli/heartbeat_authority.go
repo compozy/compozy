@@ -169,7 +169,10 @@ func reviewHeartbeatWriteAuthority(
 	if err != nil {
 		return "", nil
 	}
-	hash, err := heartbeat.AuthorityDigest(parsed.Frontmatter.CheckIns, nil)
+	hash, err := heartbeat.AuthorityDigest(
+		parsed.Frontmatter.CheckIns,
+		heartbeat.AuthorityActions(parsed.Frontmatter.Actions),
+	)
 	if err != nil || hash == "" || !approve && yes {
 		return "", err
 	}
@@ -184,7 +187,12 @@ func reviewHeartbeatWriteAuthority(
 	}
 	confirmed, err := confirmHeartbeatAuthority(
 		cmd,
-		contract.HeartbeatAuthorityPayload{Digest: hash, Status: "unapproved", CheckIns: parsed.Frontmatter.CheckIns},
+		contract.HeartbeatAuthorityPayload{
+			Digest:   hash,
+			Status:   "unapproved",
+			CheckIns: parsed.Frontmatter.CheckIns,
+			Actions:  parsed.Frontmatter.Actions,
+		},
 		yes && approve,
 	)
 	if err != nil || !confirmed {

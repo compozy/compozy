@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+type SpawnParentStoppedPayload struct {
+	Event             HookEvent      `json:"event"`
+	Timestamp         time.Time      `json:"timestamp"`
+	ProfileID         string         `json:"profile_id,omitempty"`
+	ParentSessionID   string         `json:"parent_session_id,omitempty"`
+	RootSessionID     string         `json:"root_session_id,omitempty"`
+	ChildSessionID    string         `json:"child_session_id,omitempty"`
+	WorkspaceID       string         `json:"workspace_id,omitempty"`
+	Workspace         string         `json:"workspace,omitempty"`
+	AgentName         string         `json:"agent_name,omitempty"`
+	SpawnRole         string         `json:"spawn_role,omitempty"`
+	SpawnDepth        int            `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string         `json:"task_id,omitempty"`
+	RunID             string         `json:"run_id,omitempty"`
+	WorkflowID        string         `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason        string         `json:"stop_reason,omitempty"`
+	ReapReason        string         `json:"reap_reason,omitempty"`
+	Error             string         `json:"error,omitempty"`
+}
+
 type SpawnPermissionPolicyPayload struct {
 	Tools          []string `json:"tools"`
 	Skills         []string `json:"skills"`
@@ -298,27 +325,4 @@ type TaskCatalogItemPayload struct {
 type TaskCatalogOwnerFacetPayload struct {
 	Owner Ownership `json:"owner"`
 	Count int       `json:"count"`
-}
-
-type TaskCatalogRunPayload struct {
-	ID                   string               `json:"id"`
-	TaskID               string               `json:"task_id"`
-	Status               TaskRunStatus        `json:"status"`
-	Attempt              int                  `json:"attempt"`
-	RecoveryCount        int                  `json:"recovery_count"`
-	PreviousRunID        string               `json:"previous_run_id,omitempty"`
-	FailureKind          string               `json:"failure_kind,omitempty"`
-	MaxAttempts          int                  `json:"max_attempts"`
-	SessionID            string               `json:"session_id,omitempty"`
-	WorktreeID           string               `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
-	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
-	QueuedAt             time.Time            `json:"queued_at"`
-	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time           `json:"started_at,omitempty"`
-	EndedAt              *time.Time           `json:"ended_at,omitempty"`
-	Error                string               `json:"error,omitempty"`
 }

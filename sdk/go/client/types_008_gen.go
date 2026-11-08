@@ -366,6 +366,7 @@ type HeartbeatActorPayload struct {
 
 // HeartbeatAuthorityPayload is a daemon API value.
 type HeartbeatAuthorityPayload struct {
+	Actions  []ActionDecl   `json:"actions"`
 	Digest   string         `json:"digest"`
 	Status   string         `json:"status"`
 	CheckIns CheckInsPolicy `json:"check_ins"`
@@ -407,6 +408,7 @@ type HeartbeatDeleteByPathRequest struct {
 
 // HeartbeatFrontmatterPayload is a daemon API value.
 type HeartbeatFrontmatterPayload struct {
+	Actions     []ActionDecl                           `json:"actions"`
 	CheckIns    CheckInsPolicy                         `json:"check_ins"`
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
