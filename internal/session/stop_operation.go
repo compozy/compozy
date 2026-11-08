@@ -36,9 +36,20 @@ func (m *Manager) AwaitStopped(ctx context.Context, id string) (StopOutcome, err
 	}
 	m.mu.RLock()
 	run := m.stopRuns[strings.TrimSpace(id)]
-	active := m.sessions[strings.TrimSpace(id)]
 	m.mu.RUnlock()
-	if run == nil || (active != nil && run.session != active) {
+	if run == nil {
+		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
+	}
+	select {
+	case <-run.ready:
+	case <-ctx.Done():
+		return StopOutcome{}, ctx.Err()
+	}
+	m.mu.RLock()
+	active := m.sessions[strings.TrimSpace(id)]
+	matches := active == nil || run.session == active
+	m.mu.RUnlock()
+	if !matches {
 		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
 	}
 	return m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
@@ -212,9 +223,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		m.failStopPreparation(run, err)
 		return
 	}
-	m.mu.Lock()
-	run.session = session
-	m.mu.Unlock()
+	m.bindSessionStopRun(run, session, proc)
 
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
@@ -233,13 +242,14 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 	promptDone := session.currentPromptCompletion()
 	m.startTrackedPromptTask(func() {
 		defer close(run.done)
+		stopProc := proc
+		if stopProc == nil {
+			stopProc = session.releasedProcessForStop()
+			m.bindSessionStopRun(run, session, stopProc)
+		}
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
 		if !result.Verified {
-			stopProc := proc
-			if stopProc == nil {
-				stopProc = session.releasedProcessForStop()
-			}
 			target := m.sessionStopTerminationTarget(session, promptDone, cause)
 			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
 		}
@@ -258,7 +268,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			run.err = errors.Join(run.err, waitErr)
 			return
 		}
-		run.outcome = session.retainVerifiedStopOutcome(run.outcome)
+		run.outcome = session.retainVerifiedStopOutcome(stopProc, run.outcome)
 		var waitErr error
 		if proc != nil && isProcessDone(proc) {
 			waitErr = proc.Wait()
@@ -288,4 +298,15 @@ func (m *Manager) sessionStopTerminationTarget(
 		target.cooperative = m.driver.Stop
 	}
 	return target
+}
+
+// bindSessionStopRun invalidates cached exit proof when either captured target identity changes.
+func (m *Manager) bindSessionStopRun(run *sessionStopRun, session *Session, proc *AgentProcess) {
+	m.mu.Lock()
+	sameSession := run.session == session
+	run.session = session
+	m.mu.Unlock()
+	if run.outcome.Verified && (!sameSession || session == nil || !session.hasVerifiedStopProcess(proc)) {
+		run.outcome = StopOutcome{}
+	}
 }

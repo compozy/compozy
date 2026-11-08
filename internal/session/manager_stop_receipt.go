@@ -53,15 +53,15 @@ func restoreStopReceiptClassification(meta *store.SessionMeta, receipt *recovere
 }
 
 // retainVerifiedStopOutcome binds exit proof to this session and its exact captured process.
-func (s *Session) retainVerifiedStopOutcome(outcome StopOutcome) StopOutcome {
+func (s *Session) retainVerifiedStopOutcome(proc *AgentProcess, outcome StopOutcome) StopOutcome {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.stopVerifiedOutcome.Verified && s.stopVerifiedProcess == s.process {
+	if s.stopVerifiedOutcome.Verified && s.stopVerifiedProcess == proc {
 		return s.stopVerifiedOutcome
 	}
 	if outcome.Verified {
 		s.stopVerifiedOutcome = outcome
-		s.stopVerifiedProcess = s.process
+		s.stopVerifiedProcess = proc
 	}
 	return outcome
 }
@@ -81,6 +81,7 @@ func (s *Session) stopReceiptOutcome(at time.Time) StopOutcome {
 		if !s.stopStartedAt.IsZero() {
 			outcome.Elapsed = max(0, at.Sub(s.stopStartedAt))
 		}
+		s.stopVerifiedProcess = s.process
 	}
 	outcome.FinalState, outcome.Cause = StateStopped, s.stopCause
 	s.stopVerifiedOutcome = outcome

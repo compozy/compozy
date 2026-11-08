@@ -1541,6 +1541,63 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
 		}
 	})
+	// Invariant: Stop admission stays responsive while its worker joins an owned idle release.
+	t.Run("Should admit Stop before an in-flight idle runtime release finishes", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		released := h.driver.lastProcess()
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		setStopHook(h, func(proc *fakeProcess) error {
+			close(entered)
+			<-release
+			proc.exit()
+			return nil
+		})
+		releaseDone := make(chan struct{})
+		var releaseErr error
+		go func() {
+			defer close(releaseDone)
+			releaseErr = superviseUntilReleaseError(h, clock, advance)
+		}()
+		defer func() { unblock(); <-releaseDone }()
+		<-entered
+		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+		requested, requestDone := make(chan error, 1), make(chan struct{})
+		go func() {
+			defer close(requestDone)
+			requested <- h.manager.RequestStop(ctx, target.ID, CauseUserRequested)
+		}()
+		defer func() { unblock(); <-requestDone }()
+		select {
+		case err := <-requested:
+			if err != nil {
+				t.Fatalf("RequestStop() admission = %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("RequestStop blocked on idle runtime release")
+		}
+		cancel()
+		if outcome, err := h.manager.AwaitStopped(
+			ctx,
+			target.ID,
+		); !errors.Is(err, context.Canceled) ||
+			outcome.Verified {
+			t.Fatalf("canceled stop waiter = %+v, %v", outcome, err)
+		}
+		if isProcessDone(released.handle) || target.Info().State == StateStopped {
+			t.Fatal("Stop released its owner before idle termination finished")
+		}
+		unblock()
+		<-releaseDone
+		if releaseErr != nil {
+			t.Fatal(releaseErr)
+		}
+		if outcome, err := h.manager.AwaitStopped(testutil.Context(t), target.ID); err != nil ||
+			!outcome.Verified || !isProcessDone(released.handle) {
+			t.Fatalf("settled idle release Stop = %+v, %v", outcome, err)
+		}
+	})
 	t.Run("Should stop the released process before a session stop verifies exit", func(t *testing.T) {
 		h, target, clock, advance := idleReleaseHarness(t, nil)
 		released := h.driver.lastProcess()

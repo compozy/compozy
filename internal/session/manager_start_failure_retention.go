@@ -93,7 +93,7 @@ func (m *Manager) prepareFailedStartRetention(
 }
 
 // persistRetainedFailedStart retries only unfinished appends and metadata. The recorder
-// and start run stay owned on every persistence error; completed appends remain idempotent.
+// and start run stay owned on terminal persistence errors; ordinary marker errors remain diagnostic.
 func (m *Manager) persistRetainedFailedStart(
 	ctx context.Context,
 	accepted *acceptedSessionStart,
@@ -111,7 +111,13 @@ func (m *Manager) persistRetainedFailedStart(
 	for batch.next < len(batch.events) {
 		event := batch.events[batch.next]
 		if err := m.recordEventWithWriter(ctx, session, event, "", recordRetainedSessionEvent); err != nil {
-			return err
+			if batch.next < 2 || accepted.spec.discardStartFailure || accepted.spec.deriveReceipt != nil {
+				return err
+			}
+			// Ordinary failures report marker errors and close; rolled-back discards retain complete history.
+			batch.diagnosticErr = errors.Join(batch.diagnosticErr, err)
+			batch.next++
+			continue
 		}
 		if batch.next >= 2 {
 			m.notifyAgentEvent(ctx, session, event)
@@ -151,10 +157,8 @@ func recordRetainedSessionEvent(
 		if err := recorder.Record(ctx, event); err != nil {
 			return store.SessionEvent{}, err
 		}
-		rows, err = recorder.Query(ctx, store.EventQuery{ID: event.ID, Limit: 1})
-		if err != nil {
-			return store.SessionEvent{}, err
-		}
+		// Record's acknowledgment owns this append; Query is needed only when resuming it.
+		return event, nil
 	}
 	if len(rows) != 1 || rows[0].Type != event.Type || rows[0].TurnID != event.TurnID ||
 		rows[0].Content != event.Content {
@@ -173,7 +177,22 @@ func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, 
 	}
 	ctx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
-	stopErr := m.driver.Stop(ctx, accepted.proc)
+	if accepted.processStopPending == nil {
+		accepted.processStopPending = m.startStopAction(ctx, accepted.proc, m.driver.Stop)
+	}
+	var stopRequested <-chan struct{}
+	if accepted.run != nil && accepted.retainedFailure == nil {
+		stopRequested = accepted.run.stopRequested
+	}
+	var stopErr error
+	select {
+	case stopErr = <-accepted.processStopPending:
+		accepted.processStopPending = nil
+	case <-stopRequested:
+		return false, errors.Join(ErrStopVerificationFailed, errStartupCanceledByStop)
+	case <-ctx.Done():
+		stopErr = ctx.Err()
+	}
 	verified, verifyErr := m.verifyStopPhase(ctx, accepted.proc)
 	if !verified {
 		return false, errors.Join(ErrStopVerificationFailed, stopErr, verifyErr)
@@ -183,9 +202,12 @@ func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, 
 }
 
 // joinFailedStartProcess keeps the tracked start owner until termination is verified.
-func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *acceptedSessionStart) error {
+func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *acceptedSessionStart, yieldToStop bool) error {
 	var previous error
 	for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+		if yieldToStop && accepted.retainedFailure == nil && accepted.session.stopWasRequested() {
+			return nil
+		}
 		verified, err := m.stopFailedStartProcess(accepted)
 		if verified {
 			return errors.Join(previous, err)
@@ -208,13 +230,41 @@ func (m *Manager) joinFailedStartProcessForSettlement(ctx context.Context, accep
 		accepted.proc = nil
 		return nil
 	}
-	joinCtx := ctx
-	if accepted.retainedFailure == nil {
-		joinCtx = accepted.run.ctx
+	return m.joinFailedStartProcess(ctx, accepted, true)
+}
+
+// retainFailedSessionStart retries the existing failure batch with an independent persistence budget.
+func (m *Manager) retainFailedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	ctx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	pending, err := m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr)
+	if pending {
+		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, err))
 	}
-	err := m.joinFailedStartProcess(joinCtx, accepted)
-	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
-		return nil
+	return errors.Join(startErr, err)
+}
+
+// releaseMissingSessionStart verifies every captured process before leaving a rollback tombstone to boot recovery.
+func (m *Manager) releaseMissingSessionStart(
+	ctx context.Context, accepted *acceptedSessionStart, cause error,
+) (bool, error) {
+	for _, proc := range []*AgentProcess{accepted.proc, accepted.session.processHandle()} {
+		if proc == nil || accepted.session.hasVerifiedStopProcess(proc) {
+			continue
+		}
+		result, err := m.runTerminationLadder(ctx, proc, terminationTarget{})
+		if !result.Verified {
+			return true, errors.Join(ErrRecoveryPersistence, cause, err)
+		}
+		accepted.session.retainVerifiedStopOutcome(proc, result.StopOutcome)
+		if accepted.proc == proc {
+			accepted.proc = nil
+		}
 	}
-	return err
+	m.removeActive(accepted.session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(accepted.session.ID)
+	}
+	accepted.session.clearProviderSecretRedactions()
+	return false, errors.Join(ErrRecoveryPersistence, cause)
 }

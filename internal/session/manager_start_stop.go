@@ -103,7 +103,7 @@ func (m *Manager) prepareStartingSessionStop(
 		return session, run, true, fmt.Errorf("session: prepare starting stop for %q: %w", id, err)
 	}
 	if run != nil {
-		run.stopJoined.Store(true)
+		run.markStopRequested()
 	}
 	// The launch settles termination itself once canceled, so effects go first.
 	stopRun.notifyCommitted()
