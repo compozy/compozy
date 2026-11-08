@@ -319,6 +319,19 @@ describe("MessageMarkdown file paths", () => {
     );
   });
 
+  // Invariant: a session bound to a worktree opens the Files window on that worktree even when the
+  // worktree listing can't name its path; it never silently falls back to the project checkout.
+  it("Should keep the bound worktree when its listing entry is missing", async () => {
+    stubShell();
+    renderTranscript(
+      <MessageMarkdown openPaths content="See `internal/a.go:3`." />,
+      seededClient({ working_dir: "/repo", worktree_id: "wt-gone" })
+    );
+    fireEvent.click(screen.getByText("internal/a.go:3"));
+    await waitFor(() => expect(userOpen).toHaveBeenCalled());
+    expect(filesAppPlace(WS).worktreeId).toBe("wt-gone");
+  });
+
   // US-005.AC-1/AC-2 (file-explorer). A plain click opens the Files window on every client, including
   // the browser without a desktop bridge.
   it("Should open the Files window at the path and line on a plain click (UT-042)", async () => {
