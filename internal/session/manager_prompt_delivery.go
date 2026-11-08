@@ -78,6 +78,11 @@ func (m *Manager) runDurablePromptDelivery(
 				live = nil
 				continue
 			}
+			// Concurrent publishers can overtake an earlier append; replay before advancing past a gap.
+			if persisted.Sequence > afterSequence+1 {
+				live = nil
+				continue
+			}
 			terminal, delivered := m.deliverPersistedPromptEvent(
 				ctx, session, turnID, persisted, cards, persistenceDone, out,
 			)

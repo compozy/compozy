@@ -205,6 +205,47 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	t.Run("Should replay a terminal event overtaken by a concurrent publication", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		turnID := "turn-publication-order"
+		var later store.SessionEvent
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeSystem} {
+			payload, err := json.Marshal(acp.AgentEvent{Type: eventType, TurnID: turnID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			later, err = recordPersistedSessionEvent(ctx, session.recorderHandle(), store.SessionEvent{
+				TurnID: turnID, Type: eventType, Content: string(payload), Timestamp: time.Now().UTC(),
+				AgentName: session.Info().AgentName,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Publish the later marker while the terminal's post-append work is still running.
+		live := make(chan store.SessionEvent, 1)
+		live <- later
+		close(live)
+		persisted := make(chan struct{})
+		finish := sync.OnceFunc(func() { close(persisted) })
+		defer finish()
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, turnID, live, func() {}, persisted, out)
+		first := receivePromptEvent(t, out)
+		finish()
+		if first.Type != acp.EventTypeAgentMessage {
+			t.Fatalf("first event = %q, want persisted agent message before terminal", first.Type)
+		}
+		events := collectEvents(t, out)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want the persisted terminal", events)
+		}
+	})
 	t.Run("Should label batch persistence when capture starts during an active turn", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
