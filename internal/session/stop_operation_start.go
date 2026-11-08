@@ -40,8 +40,12 @@ func (m *Manager) prepareStartingStopRun(
 	return true
 }
 
+// settleCanceledSessionStart retries terminal persistence without reacquiring an already verified process.
 func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
 	session := accepted.session
+	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified {
+		return m.finalizeStopped(ctx, session, canceledStartWaitErr(accepted.run.ctx))
+	}
 	proc := accepted.proc
 	if proc == nil {
 		proc = session.processHandle()
@@ -92,4 +96,10 @@ func (m *Manager) waitSessionStopRun(ctx context.Context, id string, run *sessio
 		}
 	}
 	return outcome, err
+}
+
+// canceledSessionStartPending joins the terminal owner even after its in-memory state is Stopped.
+func (m *Manager) canceledSessionStartPending(accepted *acceptedSessionStart) bool {
+	current, tracked := m.Get(accepted.session.ID)
+	return tracked && current == accepted.session
 }

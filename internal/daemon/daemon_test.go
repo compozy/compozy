@@ -1829,6 +1829,17 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
 		d.sessions = &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
 		first, _, _, _, err := d.beginShutdownOperation(t.Context(), true)
 		if err != nil {
@@ -1859,6 +1870,17 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
 		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
 			t.Fatal(err)
 		}
@@ -1903,6 +1925,9 @@ func TestDaemonShutdownOperation(t *testing.T) {
 					}
 				}()
 				d.lock = lock
+				manager := &fakeSessionManager{}
+				d.sessions = manager
+
 				var replacementLock *Lock
 				defer func() {
 					if replacementLock != nil {
@@ -1931,6 +1956,26 @@ func TestDaemonShutdownOperation(t *testing.T) {
 				if loggerFailure && !errors.Is(err, loggerErr) || !loggerFailure && err != nil {
 					t.Fatalf("Run shutdown = %v", err)
 				}
+				if loggerFailure {
+					d.closeLogger = func() error { return nil }
+					manager.mu.Lock()
+					manager.shutdownErr = context.DeadlineExceeded
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatal(err)
+					}
+					info, err := ReadInfo(home.DaemonInfo)
+					if err != nil || info != replacement {
+						t.Fatalf("incomplete retry removed replacement: %+v, %v", info, err)
+					}
+					manager.mu.Lock()
+					manager.shutdownErr = nil
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
+
 				info, err := ReadInfo(home.DaemonInfo)
 				if err != nil || info != replacement {
 					t.Fatalf("replacement discovery = %+v, %v, want %+v", info, err, replacement)

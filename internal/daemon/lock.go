@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/gofrs/flock"
@@ -43,6 +44,7 @@ type Lock struct {
 	path      string
 	pid       int
 	stalePID  int
+	released  atomic.Bool
 	releaseFn func() error
 }
 
@@ -123,11 +125,15 @@ func (l *Lock) StalePID() int {
 
 // Release clears the lock file contents and releases the advisory file lock.
 func (l *Lock) Release() error {
-	if l == nil {
+	if l == nil || l.released.Load() {
 		return nil
 	}
 	if l.releaseFn != nil {
-		return l.releaseFn()
+		err := l.releaseFn()
+		if err == nil {
+			l.released.Store(true)
+		}
+		return err
 	}
 
 	var errs []error
@@ -144,6 +150,7 @@ func (l *Lock) Release() error {
 	}
 
 	l.flock = nil
+	l.released.Store(true)
 	l.stalePID = 0
 	return errors.Join(errs...)
 }

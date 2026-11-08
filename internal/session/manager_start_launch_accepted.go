@@ -143,6 +143,7 @@ func (m *Manager) prepareAcceptedSessionRecorder(accepted *acceptedSessionStart)
 	return nil
 }
 
+// settleAcceptedSessionStartFailure arbitrates cancellation before releasing failed-start ownership.
 func (m *Manager) settleAcceptedSessionStartFailure(
 	accepted *acceptedSessionStart,
 	startErr error,
@@ -171,7 +172,11 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	defer release()
 	if session.stopWasRequested() {
 		release()
-		return m.settleCanceledSessionStart(cleanupCtx, accepted)
+		err := m.settleCanceledSessionStart(cleanupCtx, accepted)
+		if m.canceledSessionStartPending(accepted) {
+			return m.deferFailedStartCleanup(accepted, err)
+		}
+		return err
 	}
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -244,7 +249,7 @@ func (m *Manager) settleClosedSessionStart(
 	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
 		releaseCommit()
 		err := m.settleCanceledSessionStart(settleCtx, accepted)
-		return accepted.run.stopOutcome != nil && !accepted.run.stopOutcome.Verified, err
+		return m.canceledSessionStartPending(accepted), err
 	}
 	if retain {
 		pending, retainErr := m.retainAcceptedSessionAfterDiscardFailure(settleCtx, accepted, failure)
