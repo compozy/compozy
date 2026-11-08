@@ -1180,7 +1180,9 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			if action == "restart" {
 				// The old daemon cannot retry settlement after the replacement boots.
-				if err := h.manager.shutdownProcessWatchers(t.Context()); err != nil {
+				shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				if err := h.manager.Shutdown(shutdownCtx); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1524,7 +1526,9 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			// Join the old daemon's watchers while persistence still fails, so only
 			// the replacement manager can complete the durable receipt after restart.
-			if err := h.manager.shutdownProcessWatchers(t.Context()); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if err := h.manager.Shutdown(shutdownCtx); err != nil {
 				t.Fatal(err)
 			}
 			fail.Store(false)

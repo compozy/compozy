@@ -70,6 +70,7 @@ func (s *SessionDB) close(drainCtx context.Context) {
 	s.state.Store(sessionStateClosed)
 }
 
+// closeDatabases retains the family guard through final backfill even after caller expiry.
 func (s *SessionDB) closeDatabases(ctx context.Context) error {
 	// Opening a pool connection takes the family lease itself. Acquire it before
 	// guarding final backfill and last-connection close, which can also checkpoint.
@@ -84,7 +85,7 @@ func (s *SessionDB) closeDatabases(ctx context.Context) error {
 		readerCloseErr = s.readDB.Close()
 	}
 	// A retained reader must not turn optional WAL truncation into a shutdown failure.
-	checkpointErr := store.CheckpointPassiveConnection(ctx, connection)
+	checkpointErr := store.CheckpointPassiveConnection(cleanupCtx, connection)
 	var maintenanceCloseErr error
 	if s.checkpointDB != nil {
 		maintenanceCloseErr = s.checkpointDB.Close()
