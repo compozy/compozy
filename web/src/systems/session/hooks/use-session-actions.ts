@@ -143,23 +143,33 @@ export function useSessionDeletionPending(sessionId: string | null): boolean {
 
 /** Catalog delivery can precede the local archive response; keep its request owner mounted. */
 export function useSessionArchivePending(sessionId: string | null): boolean {
-  return useSessionMutationPending(sessionId, sessionKeys.archives());
+  return useSessionMutationPending(sessionId, sessionKeys.archives(), { includeDescendants: true });
 }
 
 function useSessionMutationPending(
   sessionId: string | null,
-  mutationKey: readonly unknown[]
+  mutationKey: readonly unknown[],
+  options: { includeDescendants?: boolean } = {}
 ): boolean {
   return (
     useIsMutating({
       mutationKey,
       predicate: mutation => {
         const variables = mutation.state.variables;
+        if (typeof variables !== "object" || variables === null || !("id" in variables))
+          return false;
+        if (variables.id === sessionId) return true;
         return (
-          typeof variables === "object" &&
-          variables !== null &&
-          "id" in variables &&
-          variables.id === sessionId
+          options.includeDescendants === true &&
+          "descendants" in variables &&
+          Array.isArray(variables.descendants) &&
+          variables.descendants.some(
+            (target: unknown) =>
+              typeof target === "object" &&
+              target !== null &&
+              "id" in target &&
+              target.id === sessionId
+          )
         );
       },
     }) > 0

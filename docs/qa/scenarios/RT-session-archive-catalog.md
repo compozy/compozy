@@ -66,8 +66,9 @@ composer is one way back (RT-session-later).
 Request-ownership regression (#1384): delay the local archive HTTP response after
 its catalog wake reports the session archived. The initiating window must remain
 mounted until the response settles, so its request is not aborted by automatic
-window retirement. Then retire the archived window without a missing-session
-toast. An archive from another surface still retires windows normally. The
+window retirement. Repeat from a child window's sidebar when archiving its parent
+with the tree included: that child also remains pending until the parent's response.
+Then retire the archived windows without a missing-session toast. An archive from another surface still retires windows normally. The
 canonical SessionWindow and session-actions suites cover this ordering and keep
 cancellation on genuine hook unmount; E2E-PROC-002 owns the real browser receipt.
 
