@@ -5,7 +5,6 @@ package terminal
 import (
 	"fmt"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -33,19 +32,27 @@ func TestManagerProcessPriority(t *testing.T) {
 					t.Fatal(err)
 				}
 				result, err := manager.Exec(t.Context(), ExecRequest{
-					WS: "workspace-a", Command: "sh", Args: []string{"-c", `ps -o ni= -p $$; sleep 0.1`},
-					Visible: visible, Actor: actor, Approval: "allowlisted", YieldMs: 1000,
+					WS: "workspace-a", Command: "sh", Args: []string{"-c", "read hold"},
+					Visible: visible, Actor: actor, Approval: "allowlisted", YieldMs: 250,
 				})
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := strconv.Atoi(strings.TrimSpace(result.Output))
+				if !result.StillRunning || result.TerminalID == nil {
+					t.Fatalf("Exec() = %+v, want a live terminal", result)
+				}
+				handle, err := manager.Handle(t.Context(), "workspace-a", "profile-a", *result.TerminalID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Exec has returned through the yield boundary, after the platform's group adjustment.
+				got, err := procutil.ProcessGroupNiceness(handle.(*session).proc.ProcessGroupID())
 				want := inherited
 				if kind == ActorKindAgent {
 					want = max(19, inherited)
 				}
 				if err != nil || got != want {
-					t.Fatalf("exec priority = %q, error = %v, want %d", result.Output, err, want)
+					t.Fatalf("exec group priority = %d, error = %v, want %d", got, err, want)
 				}
 			})
 		}
