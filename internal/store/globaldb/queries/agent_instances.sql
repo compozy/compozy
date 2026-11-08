@@ -104,6 +104,8 @@ SELECT EXISTS (
  WHERE p.status IN ('pending', 'orphaned')
 ) OR EXISTS (
  SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = sqlc.arg(instance_id) AND r.state = 'pending' AND r.kind = 'failure'
+ AND r.created_at > COALESCE((SELECT last_seen_at FROM agent_instance_seen
+ WHERE instance_id = r.instance_id AND operator_id = 'local-operator'), '')
 );
 
 -- name: CountInstanceHeldWakes :one
@@ -223,3 +225,17 @@ WHERE i.profile_id = sqlc.arg(profile_id) AND i.workspace_id = sqlc.arg(workspac
 SELECT p.actor, COUNT(*) AS count FROM agent_instance_proposal_picks p
 JOIN agent_instances i ON i.id = p.instance_id
 WHERE i.profile_id = sqlc.arg(profile_id) AND i.workspace_id = sqlc.arg(workspace_id) GROUP BY p.actor;
+
+-- name: InstanceHasLiveInteractions :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ JOIN sessions live ON live.id = s.id
+ WHERE p.status IN ('pending', 'orphaned') AND live.state <> 'stopped'
+);

@@ -19,6 +19,7 @@ import (
 )
 
 type instanceAttentionReader interface {
+	HasLiveInteractions(context.Context, string) (bool, error)
 	NeedsAttention(context.Context, string) (bool, error)
 }
 
@@ -48,6 +49,13 @@ func (r instanceDefinitions) instancePayload(
 		return payload, err
 	}
 	payload.NeedsAttention = needsAttention
+	if needsAttention {
+		live, err := attention.HasLiveInteractions(ctx, instance.ID)
+		if err != nil {
+			return payload, err
+		}
+		payload.AttentionDismissible = !live
+	}
 	return payload, nil
 }
 

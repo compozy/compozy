@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -78,6 +79,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
+		AfterSeen:     instanceSeenPublisher(manager),
 		QueueCap:      state.cfg.Session.BusyInput.QueueCap,
 		AfterPicks:    instancePickEffects(state, repo, manager, definitions),
 		ReadPeer:      definitions.instancePeer,
@@ -195,4 +197,14 @@ func instanceServiceAdmission(definitions instanceDefinitions, repo *globaldb.In
 		reach:       instanceWorkspaceReach{policy: state.accessPolicy},
 	}
 	return admission
+}
+
+// instanceSeenPublisher refreshes acknowledged sessions before publishing the instance catalog change.
+func instanceSeenPublisher(
+	manager *session.Manager,
+) func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit) {
+	return func(ctx context.Context, instance agentinstance.Instance, commits []store.SessionAttentionCommit) {
+		manager.PublishPendingInteractionCommits(ctx, commits)
+		manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+	}
 }

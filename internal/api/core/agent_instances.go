@@ -21,6 +21,7 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	AfterSeen           func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
 	PickActions         func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
 	ProjectReport       func(context.Context, string, *agentinstance.Report) error
 	QueueCap            int

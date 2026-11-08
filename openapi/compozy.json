@@ -1070,6 +1070,9 @@
           "agent_name": {
             "type": "string"
           },
+          "attention_dismissible": {
+            "type": "boolean"
+          },
           "authority_status": {
             "type": "string"
           },
@@ -1179,6 +1182,7 @@
         "required": [
           "activity",
           "agent_name",
+          "attention_dismissible",
           "authority_status",
           "checks_enabled",
           "created",

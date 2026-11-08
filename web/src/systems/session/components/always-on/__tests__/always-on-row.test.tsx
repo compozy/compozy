@@ -13,11 +13,12 @@ import { AlwaysOnRow } from "../always-on-row";
 
 const { mockNavigate, mockApi } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
-  mockApi: { ensureMain: vi.fn(), pause: vi.fn(), resume: vi.fn() },
+  mockApi: { ensureMain: vi.fn(), pause: vi.fn(), resume: vi.fn(), seen: vi.fn() },
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  markAgentInstanceSeen: mockApi.seen,
   ensureAgentInstanceMain: mockApi.ensureMain,
   pauseAgentInstance: mockApi.pause,
   resumeAgentInstance: mockApi.resume,
@@ -57,6 +58,41 @@ describe("AlwaysOnRow", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     for (const call of Object.values(mockApi)) call.mockReset();
+  });
+
+  it("Should explicitly mark attention seen from the avatar hover card", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture({ needs_attention: true, attention_dismissible: true });
+    mockApi.seen.mockResolvedValue(undefined);
+    renderRow([instance]);
+    await user.hover(screen.getByTestId(`always-on-seat-${instance.id}`));
+    await user.click(await screen.findByRole("button", { name: "Mark as seen" }));
+    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledWith(instance, expect.anything()));
+  });
+
+  it("Should keep live requests actionable instead of offering mark as seen", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture({ needs_attention: true, attention_dismissible: false });
+    renderRow([instance]);
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId(`always-on-seat-${instance.id}`),
+    });
+    expect(await screen.findByRole("menuitem", { name: "Archive" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Mark as seen" })).toBeNull();
+  });
+
+  it("Should offer mark as seen in the avatar context menu", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture({ needs_attention: true, attention_dismissible: true });
+    mockApi.seen.mockResolvedValue(undefined);
+    renderRow([instance]);
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId(`always-on-seat-${instance.id}`),
+    });
+    await user.click(await screen.findByRole("menuitem", { name: "Mark as seen" }));
+    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledWith(instance, expect.anything()));
   });
 
   it("Should render nothing with no instances", () => {

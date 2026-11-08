@@ -14,6 +14,7 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
+  useMarkAgentInstanceSeen,
   agentNextWakeLine,
   agentPauseCopy,
   agentAuthorityCopy,
@@ -121,6 +122,7 @@ export function AlwaysOnHoverCardContent({
   onOpen: () => void;
   onTogglePause: () => void;
 }) {
+  const markSeen = useMarkAgentInstanceSeen();
   const state = agentInstanceAvatarState(instance);
   const paused = instance.state === "paused";
   const doing = doingLine(instance);
@@ -157,6 +159,22 @@ export function AlwaysOnHoverCardContent({
       ) : null}
       {agentAuthorityCopy(instance) ? (
         <p className="text-small-body text-warning">{agentAuthorityCopy(instance)}</p>
+      ) : null}
+      {instance.attention_dismissible ? (
+        <Button
+          disabled={markSeen.isPending}
+          onClick={() => markSeen.mutate(instance)}
+          size="sm"
+          type="button"
+          variant="quiet"
+        >
+          {markSeen.isPending ? "Marking seen…" : "Mark as seen"}
+        </Button>
+      ) : null}
+      {markSeen.error ? (
+        <p role="alert" className="text-small-body text-destructive">
+          {markSeen.error.message}
+        </p>
       ) : null}
       <div className="flex gap-2">
         <Button className="flex-1" onClick={onOpen} size="sm" type="button" variant="secondary">

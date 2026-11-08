@@ -296,3 +296,12 @@ func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (b
 	value, err := r.readQueries.InstanceNeedsAttention(ctx, instanceID)
 	return value.Bool, err
 }
+
+// HasLiveInteractions prevents acknowledgement from hiding requests that still have a runtime.
+func (r *InstanceRepo) HasLiveInteractions(ctx context.Context, instanceID string) (bool, error) {
+	if err := r.checkReady(ctx, "read instance live interactions"); err != nil {
+		return false, err
+	}
+	value, err := r.readQueries.InstanceHasLiveInteractions(ctx, instanceID)
+	return value, err
+}

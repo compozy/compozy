@@ -1240,3 +1240,14 @@ an auto-accept pick; skip values are the decision recorded at publication and ar
 never recomputed; operator picks never project as `picked`. Each proposal is picked
 once; `proposal_already_picked` reports a repeat. The observe-only
 `agent.instance.proposal.picked` hook includes actor, action id and report id.
+
+### Instance attention acknowledgement
+
+The local operator can acknowledge an always-on instance with
+`compozy agent instance mark-seen <id>`, `POST /api/agent-instances/{id}/away`, or
+`compozy__agent_instance_mark_seen`. The avatar hover card offers **Mark as seen**.
+This advances the operator's seen watermark, acknowledges failure attention through that time,
+and cancels pending/orphaned interactions in stopped sessions in the instance's profile-scoped
+lineage. Live sessions' requests still need an answer. New failures raise attention again.
+Reports retain their provider delivery state and history; acknowledgement does not deliver them
+to the provider. The catalog stream updates open avatars without a reload.

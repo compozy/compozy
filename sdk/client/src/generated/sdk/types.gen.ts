@@ -316,6 +316,7 @@ export type AgentInstanceOccurrenceResponse = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  attention_dismissible: boolean;
   authority_status: string;
   checks_enabled: boolean;
   created: boolean;

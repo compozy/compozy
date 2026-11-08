@@ -355,15 +355,10 @@ export async function fetchAgentInstanceAway(
 }
 
 export async function markAgentInstanceSeen(ref: AgentInstanceRef): Promise<void> {
-  try {
-    await request<void>(instancePath(ref, "/away"), {
-      method: "POST",
-      fallback: "Failed to mark this agent as seen",
-    });
-  } catch (error) {
-    if (error instanceof AgentInstanceApiError && error.status === 404) return;
-    throw error;
-  }
+  await request<void>(instancePath(ref, "/away"), {
+    method: "POST",
+    fallback: "Couldn't mark the agent as seen.",
+  });
 }
 
 export async function draftAgentInstructions(
