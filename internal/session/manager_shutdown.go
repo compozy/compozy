@@ -11,6 +11,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
+	m.stopAttentionReconciliation()
 	m.stopDeletedSessionWindowReconciliation()
 	var shutdownErr error
 	if service := m.ReplyWatches(); service != nil {

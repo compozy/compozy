@@ -485,3 +485,9 @@ Not walked: step 3's `queue_full`/`unapproved`, the all-auto-accepted footer, an
    their results agree with the UI. Native tool calls still require operator authority.
 5. Verify a failed acknowledgement shows an error and keeps the attention mark. Check keyboard
    access to the hover card action and a narrow viewport. Other instances/profiles remain untouched.
+
+Acknowledgement recovery under delayed or failed storage reads is covered by the canonical
+`TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen` suite: the response must not wait
+for reconciliation, an unrelated live permission must still commit, a recovered stopped session
+publishes one attention edge before the instance update, and shutdown cancels and joins the worker.
+`TestInstanceSeen` separately proves a newer stopped request alone keeps instance attention raised.

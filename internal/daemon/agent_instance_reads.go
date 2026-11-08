@@ -23,6 +23,7 @@ type instanceAttentionReader interface {
 	NeedsAttention(context.Context, string) (bool, error)
 }
 
+// instancePayload derives dismissal eligibility from live requests in the instance lineage.
 func (r instanceDefinitions) instancePayload(
 	ctx context.Context,
 	instance agentinstance.Instance,

@@ -203,8 +203,9 @@ func instanceServiceAdmission(definitions instanceDefinitions, repo *globaldb.In
 func instanceSeenPublisher(
 	manager *session.Manager,
 ) func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit) {
-	return func(ctx context.Context, instance agentinstance.Instance, commits []store.SessionAttentionCommit) {
-		manager.PublishPendingInteractionCommits(ctx, commits)
-		manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+	return func(_ context.Context, instance agentinstance.Instance, commits []store.SessionAttentionCommit) {
+		manager.PublishPendingInteractionCommits(commits, func() {
+			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+		})
 	}
 }

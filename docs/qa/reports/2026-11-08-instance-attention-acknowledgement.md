@@ -95,3 +95,32 @@ session refreshing, so an expired attempt cannot make the retry ineffective.
 The schema compatibility CI lane identified the new `AgentInstancePayload.attention_dismissible`
 field missing from the canonical approved-addition list. The exact component/field is now registered
 there; the suite still compares every other historical property, type and required member.
+
+## Reconciliation follow-up after PR #1395
+
+The release coordinator merged #1395 at `630b1127970df3b5b03a56bc7b69453ce4a99976` after current-head
+CI passed, including the targeted SQLite rerun. Three valid minor CodeRabbit findings from review
+`5819255704` remain owned by this follow-up:
+
+- `discussion_r4507436571`: move refresh/publication into an admitted Manager worker. The HTTP,
+  CLI and native response still acknowledges the durable transaction; reads no longer block it.
+  The instance update follows successful session reconciliation. Manager shutdown closes admission,
+  cancels storage reads and joins admitted workers; initialization failures release the new context.
+- `discussion_r4507436575`: retain canonical write/resident-apply ordering with reference-counted
+  session locks. A stalled stopped session cannot block another session's live permission commit.
+- `discussion_r4507436583`: retain two immediate bounded attempts, then retry only failed sessions
+  with bounded backoff until recovery or Manager cancellation. Successful session edges are not
+  repeated. Restart hydrates resident state from the existing canonical records; no new persisted
+  queue, schema or public surface is added.
+
+Both embedded coverage suggestions are applied in their existing suites: the timeout scenario
+checks the recovered session's waiting-for-input → stopped catalog edge, and the newer stopped
+interaction case removes the independent failure report before asserting `NeedsAttention`.
+The affected handler, native adapter and payload projection now document their acknowledgement
+boundaries; no docstring coverage policy changed.
+
+Focused session hook/ordering/seen, real-SQLite instance seen, production HTTP away and native
+operator-authority suites passed after the follow-up. Storage read faults are injected only at the
+owning unit-test I/O boundary. The earlier rendered component/HTTP evidence remains applicable:
+no Web rendering, request/response shape, authorization or attention SQL changed in the follow-up.
+No local full/race/E2E suite or operator-daemon restart was run.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -225,8 +226,8 @@ func (m *Manager) commitAttention(
 	sessionID string,
 	write func() (store.SessionAttentionCommit, error),
 ) (store.SessionAttentionCommit, error) {
-	m.attentionCommitMu.Lock()
-	defer m.attentionCommitMu.Unlock()
+	unlock := m.lockAttentionCommit(sessionID)
+	defer unlock()
 	commit, err := write()
 	if err != nil {
 		return commit, err
@@ -321,55 +322,33 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 	return result
 }
 
-// PublishPendingInteractionCommits reconciles each session once after an instance acknowledgement.
-func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits []store.SessionAttentionCommit) {
-	seen := make(map[string]bool)
-	for _, commit := range commits {
-		if commit.Interaction == nil {
-			continue
-		}
-		id := commit.Interaction.SessionID
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		if err := m.publishPendingInteractionCommit(ctx, commit); err != nil {
-			m.logger.WarnContext(
-				ctx,
-				"session: refresh acknowledged interaction failed",
-				"session_id",
-				id,
-				"error",
-				err,
-			)
-		}
-	}
+// attentionCommitLock serializes one session while references keep its lock registered.
+type attentionCommitLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
-// publishPendingInteractionCommit bounds each refresh attempt independently of callers and earlier reads.
-func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit store.SessionAttentionCommit) error {
-	id := commit.Interaction.SessionID
-	var refreshed store.SessionAttentionCommit
-	var err error
-	for range 2 {
-		attemptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-		refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
-			current, err := m.attentionStore.GetSessionAttention(attemptCtx, id)
-			if err != nil {
-				return commit, err
-			}
-			if err := m.refreshPendingInteractions(attemptCtx, id); err != nil {
-				return commit, err
-			}
-			commit.After = current
-			return commit, nil
-		})
-		if err == nil {
-			m.publishAttentionCommit(attemptCtx, id, refreshed)
-			cancel()
-			return nil
-		}
-		cancel()
+// lockAttentionCommit preserves write/apply ordering without coupling unrelated sessions.
+func (m *Manager) lockAttentionCommit(sessionID string) func() {
+	m.attentionCommitMu.Lock()
+	if m.attentionCommitLocks == nil {
+		m.attentionCommitLocks = make(map[string]*attentionCommitLock)
 	}
-	return err
+	lock := m.attentionCommitLocks[sessionID]
+	if lock == nil {
+		lock = &attentionCommitLock{}
+		m.attentionCommitLocks[sessionID] = lock
+	}
+	lock.refs++
+	m.attentionCommitMu.Unlock()
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+		m.attentionCommitMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(m.attentionCommitLocks, sessionID)
+		}
+		m.attentionCommitMu.Unlock()
+	}
 }

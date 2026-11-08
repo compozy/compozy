@@ -93,9 +93,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		next := commit
 		next.Interaction = new(*commit.Interaction)
 		next.Interaction.InteractionID = "interaction-hook-other"
-		disconnected, cancel := context.WithCancel(t.Context())
-		cancel()
-		manager.PublishPendingInteractionCommits(disconnected, []store.SessionAttentionCommit{commit, next})
+		publishAttentionCommitsAndWait(t, manager, []store.SessionAttentionCommit{commit, next})
 		if edges != 2 {
 			t.Fatalf("attention edges=%d, want one creation and one acknowledgement", edges)
 		}
@@ -115,7 +113,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 				Status:        store.PendingInteractionStatusPending,
 			},
 		}
-		manager.PublishPendingInteractionCommits(disconnected, []store.SessionAttentionCommit{commit, next})
+		publishAttentionCommitsAndWait(t, manager, []store.SessionAttentionCommit{commit, next})
 		current := target.Info()
 		if BadgeForInfo(current) != BadgeWaitingForInput || len(current.PendingInteractions) != 1 ||
 			current.PendingInteractions[0].InteractionID != "newer" {
@@ -131,33 +129,92 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			t.Fatal(err)
 		}
 		cleanupTestManager(t, manager)
+		readStarted := make(chan struct{}, 1)
 		manager.attentionStore = &committingAttentionStore{
+			readStarted:        readStarted,
 			blockedSessionID:   "slow",
 			blockedReads:       1,
 			requireBoundedRead: true,
 		}
 		manager.mu.Lock()
-		manager.sessions["slow"] = &Session{ID: "slow", State: StateStopped, PendingClarifyCount: 1}
-		manager.sessions["next"] = &Session{ID: "next", State: StateStopped, PendingClarifyCount: 1}
+		manager.sessions["slow"] = &Session{
+			ID:                  "slow",
+			ProfileID:           store.DefaultProfileID,
+			State:               StateStopped,
+			PendingClarifyCount: 1,
+		}
+		manager.sessions["next"] = &Session{
+			ID:                  "next",
+			ProfileID:           store.DefaultProfileID,
+			State:               StateStopped,
+			PendingClarifyCount: 1,
+		}
+		manager.sessions["live"] = &Session{ID: "live", ProfileID: store.DefaultProfileID, State: StateActive}
 		manager.mu.Unlock()
-		manager.PublishPendingInteractionCommits(ctx, []store.SessionAttentionCommit{
-			{
-				Before: store.SessionAttention{PendingClarifyCount: 1},
-				Interaction: &store.PendingInteraction{
-					InteractionID: "old-slow",
-					SessionID:     "slow",
-					Status:        store.PendingInteractionStatusCanceled,
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		done := make(chan struct{})
+		returned := make(chan struct{})
+		go func() {
+			manager.PublishPendingInteractionCommits([]store.SessionAttentionCommit{
+				{
+					Before: store.SessionAttention{PendingClarifyCount: 1},
+					Interaction: &store.PendingInteraction{
+						InteractionID: "old-slow",
+						SessionID:     "slow",
+						Status:        store.PendingInteractionStatusCanceled,
+					},
 				},
-			},
-			{
-				Before: store.SessionAttention{PendingClarifyCount: 1},
-				Interaction: &store.PendingInteraction{
-					InteractionID: "old-next",
-					SessionID:     "next",
-					Status:        store.PendingInteractionStatusCanceled,
+				{
+					Before: store.SessionAttention{PendingClarifyCount: 1},
+					Interaction: &store.PendingInteraction{
+						InteractionID: "old-next",
+						SessionID:     "next",
+						Status:        store.PendingInteractionStatusCanceled,
+					},
 				},
-			},
-		})
+			}, func() { close(done) })
+			close(returned)
+		}()
+		select {
+		case <-returned:
+		case <-time.After(time.Second):
+			t.Fatal("acknowledgement waited for reconciliation")
+		}
+		select {
+		case <-readStarted:
+		case <-time.After(time.Second):
+			t.Fatal("refresh did not start")
+		}
+		live := make(chan error, 1)
+		go func() {
+			_, err := manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+				SessionID:         "live",
+				InteractionID:     "live-permission",
+				Kind:              store.PendingInteractionKindPermission,
+				ProviderRequestID: "live-permission",
+			})
+			live <- err
+		}()
+		select {
+		case err := <-live:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("blocked read delayed unrelated permission")
+		}
+		select {
+		case <-done:
+		case <-time.After(2 * defaultLifecycleTimeout):
+			t.Fatal("refresh did not recover")
+		}
 		slow, ok := manager.Get("slow")
 		if !ok || slow.Info().PendingClarifyCount != 0 {
 			t.Fatal("timeout prevented retrying the committed session refresh")
@@ -165,6 +222,125 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		next, ok := manager.Get("next")
 		if !ok || next.Info().PendingClarifyCount != 0 {
 			t.Fatal("earlier timeout suppressed the next session refresh")
+		}
+		slowEdges := 0
+		for range 3 {
+			assertCatalogEventName(t, events, CatalogEventNameChanged)
+			edge := assertCatalogEventName(t, events, CatalogEventNameAttention).Attention
+			if edge != nil && edge.SessionID == "slow" {
+				slowEdges++
+				if edge.From != BadgeWaitingForInput || edge.To != BadgeStopped {
+					t.Fatalf("recovered slow edge=%+v", edge)
+				}
+			}
+		}
+		if slowEdges != 1 {
+			t.Fatalf("recovered slow edges=%d", slowEdges)
+		}
+	})
+
+	t.Run("Should reconcile after exhausting immediate reads and publish before completion", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		manager.attentionStore = &committingAttentionStore{readFailures: 3, requireBoundedRead: true}
+		manager.sessions["retry"] = &Session{
+			ID:                  "retry",
+			ProfileID:           store.DefaultProfileID,
+			State:               StateStopped,
+			PendingClarifyCount: 1,
+			PendingInteractions: []store.PendingInteraction{
+				{InteractionID: "old", Status: store.PendingInteractionStatusPending},
+			},
+		}
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		published := make(chan []CatalogEvent, 1)
+		manager.PublishPendingInteractionCommits([]store.SessionAttentionCommit{
+			{
+				Before: store.SessionAttention{PendingClarifyCount: 1},
+				Interaction: &store.PendingInteraction{
+					SessionID:     "retry",
+					InteractionID: "old",
+					Status:        store.PendingInteractionStatusCanceled,
+				},
+			},
+		}, func() {
+			var emitted []CatalogEvent
+			for range 2 {
+				select {
+				case event := <-events:
+					emitted = append(emitted, event)
+				default:
+				}
+			}
+			published <- emitted
+		})
+		var emitted []CatalogEvent
+		select {
+		case emitted = <-published:
+		case <-time.After(2 * defaultLifecycleTimeout):
+			t.Fatal("reconciliation did not complete")
+		}
+		if len(emitted) != 2 || emitted[0].Name != CatalogEventNameChanged ||
+			emitted[1].Name != CatalogEventNameAttention {
+			t.Fatalf("events before completion=%+v", emitted)
+		}
+		info := manager.sessions["retry"].Info()
+		if info.PendingClarifyCount != 0 || len(info.PendingInteractions) != 0 {
+			t.Fatalf("stale resident state=%+v", info)
+		}
+		edge := emitted[1].Attention
+		if edge == nil || edge.SessionID != "retry" || edge.From != BadgeWaitingForInput || edge.To != BadgeStopped {
+			t.Fatalf("reconciled edge=%+v", edge)
+		}
+		select {
+		case extra := <-events:
+			t.Fatalf("duplicate reconciliation event=%+v", extra)
+		default:
+		}
+	})
+
+	t.Run("Should cancel and join acknowledgement reads on shutdown", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		entered := make(chan struct{}, 1)
+		manager.attentionStore = &committingAttentionStore{
+			blockedSessionID: "stop",
+			blockedReads:     10,
+			readStarted:      entered,
+		}
+		completed := make(chan struct{}, 1)
+		commits := []store.SessionAttentionCommit{{Interaction: &store.PendingInteraction{SessionID: "stop"}}}
+		manager.PublishPendingInteractionCommits(commits, func() { completed <- struct{}{} })
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("refresh did not start")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		manager.PublishPendingInteractionCommits(commits, func() { completed <- struct{}{} })
+		select {
+		case <-completed:
+			t.Fatal("shutdown allowed acknowledgement completion")
+		default:
 		}
 	})
 
@@ -260,6 +436,7 @@ type committingAttentionStore struct {
 	pending            []store.PendingInteraction
 	blockedSessionID   string
 	blockedReads       int
+	readStarted        chan struct{}
 	requireBoundedRead bool
 	readFailures       int
 	mu                 sync.Mutex
@@ -274,6 +451,12 @@ func (s *committingAttentionStore) GetSessionAttention(
 ) (store.SessionAttention, error) {
 	if id == s.blockedSessionID && s.blockedReads > 0 {
 		s.blockedReads--
+		if s.readStarted != nil {
+			select {
+			case s.readStarted <- struct{}{}:
+			default:
+			}
+		}
 		<-ctx.Done()
 		return store.SessionAttention{}, ctx.Err()
 	}
@@ -387,4 +570,16 @@ func (s *committingAttentionStore) wasCommitted() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.committed
+}
+
+// publishAttentionCommitsAndWait observes completion after the manager publishes the session edges.
+func publishAttentionCommitsAndWait(t *testing.T, manager *Manager, commits []store.SessionAttentionCommit) {
+	t.Helper()
+	done := make(chan struct{})
+	manager.PublishPendingInteractionCommits(commits, func() { close(done) })
+	select {
+	case <-done:
+	case <-time.After(2 * defaultLifecycleTimeout):
+		t.Fatal("acknowledgement reconciliation did not finish")
+	}
 }
