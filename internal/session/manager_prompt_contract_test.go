@@ -205,6 +205,48 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep later prompts on live delivery without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "prior-turn", Text: "prior reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "later-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: "reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		first := receivePromptEvent(t, delivery.events)
+		if first.Type != acp.EventTypeAgentMessage || first.Text != "reply" {
+			t.Fatalf("live event = %#v", first)
+		}
+		if queries := recorder.queries.Load(); queries != 0 {
+			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "later-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		events := collectEvents(t, delivery.events)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want persisted terminal", events)
+		}
+	})
 	t.Run("Should replay a terminal event overtaken by a concurrent publication", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -235,7 +277,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		finish := sync.OnceFunc(func() { close(persisted) })
 		defer finish()
 		out := make(chan acp.AgentEvent)
-		go h.manager.runDurablePromptDelivery(ctx, session, turnID, live, func() {}, persisted, out)
+		go h.manager.runDurablePromptDelivery(ctx, session, turnID, 0, live, func() {}, persisted, out)
 		first := receivePromptEvent(t, out)
 		finish()
 		if first.Type != acp.EventTypeAgentMessage {
@@ -4484,4 +4526,21 @@ var _ context.Context = (*profileStartedContext)(nil)
 func (c *profileStartedContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.started) })
 	return c.Context.Done()
+}
+
+// promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
+type promptDeliveryQueryRecorder struct {
+	EventRecorder
+	queries atomic.Int64
+}
+
+func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+	r.queries.Add(1)
+	return r.EventRecorder.Query(ctx, query)
+}
+
+func (r *promptDeliveryQueryRecorder) RecordPersisted(
+	ctx context.Context, event store.SessionEvent,
+) (store.SessionEvent, error) {
+	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
 }

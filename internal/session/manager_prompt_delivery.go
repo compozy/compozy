@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -21,13 +22,22 @@ type durablePromptDelivery struct {
 	cancel          context.CancelFunc
 }
 
+// openDurablePromptDelivery anchors live delivery before the provider can append this turn's output.
 func (m *Manager) openDurablePromptDelivery(
 	ctx context.Context,
 	session *Session,
 	turnID string,
 ) (durablePromptDelivery, error) {
+	recorder := session.recorderHandle()
+	if recorder == nil {
+		return durablePromptDelivery{}, errors.New("session: event recorder is not available")
+	}
+	afterSequence, err := recorder.MaxEventSequence(ctx)
+	if err != nil {
+		return durablePromptDelivery{}, err
+	}
 	deliveryCtx, cancel := context.WithCancel(ctx)
-	persisted, unsubscribe, err := m.subscribePersistedSessionEvents(deliveryCtx, session.ID, 0)
+	persisted, unsubscribe, err := m.subscribePersistedSessionEvents(deliveryCtx, session.ID, afterSequence)
 	if err != nil {
 		cancel()
 		return durablePromptDelivery{}, err
@@ -40,6 +50,7 @@ func (m *Manager) openDurablePromptDelivery(
 			deliveryCtx,
 			session,
 			turnID,
+			afterSequence,
 			persisted,
 			unsubscribe,
 			persistenceDone,
@@ -49,10 +60,12 @@ func (m *Manager) openDurablePromptDelivery(
 	return durablePromptDelivery{events: out, persistenceDone: persistenceDone, cancel: cancel}, nil
 }
 
+// runDurablePromptDelivery keeps a contiguous cursor so reordered publications cannot hide terminal events.
 func (m *Manager) runDurablePromptDelivery(
 	ctx context.Context,
 	session *Session,
 	turnID string,
+	afterSequence int64,
 	live <-chan store.SessionEvent,
 	unsubscribe func(),
 	persistenceDone <-chan struct{},
@@ -61,7 +74,6 @@ func (m *Manager) runDurablePromptDelivery(
 	defer close(out)
 	defer unsubscribe()
 
-	afterSequence := int64(0)
 	persistenceComplete := false
 	// One turn's events resolve their session-message cards in order, like its transcript entry.
 	cards := &transcript.SessionMessageCards{}
