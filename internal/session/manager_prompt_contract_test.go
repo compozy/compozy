@@ -203,8 +203,71 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 	})
 }
 
+// TestPromptStreamsToRecorderAndNotifier verifies ordered durable output and live delivery across replay boundaries.
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retry a catch-up read failure after persistence completes", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "turn-read-retry",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.failNext.Store(true)
+		session.setRecorder(recorder)
+		out := make(chan acp.AgentEvent, 2)
+		h.manager.catchUpDurablePromptDelivery(ctx, session, "turn-read-retry", 0,
+			&transcript.SessionMessageCards{}, nil, true, out)
+		close(out)
+		events := collectEvents(t, out)
+		if len(events) != 1 || events[0].Type != acp.EventTypeDone || recorder.queries.Load() != 2 {
+			t.Fatalf(
+				"catch-up events = %#v, queries = %d; want persisted terminal after retry",
+				events,
+				recorder.queries.Load(),
+			)
+		}
+	})
+	t.Run("Should deliver a contiguous live terminal without catch-up queries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		session.setRecorder(recorder)
+		cursor, err := recorder.MaxEventSequence(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, unsubscribe, err := h.manager.subscribePersistedSessionEvents(ctx, session.ID, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make(chan acp.AgentEvent)
+		go h.manager.runDurablePromptDelivery(ctx, session, "turn-live-terminal", cursor, live, unsubscribe, nil, out)
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: eventType, TurnID: "turn-live-terminal",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := collectEvents(t, out)
+		if len(events) != 2 || events[0].Type != acp.EventTypeAgentMessage || events[1].Type != acp.EventTypeDone {
+			t.Fatalf("live events = %#v", events)
+		}
+		if queries := recorder.queries.Load(); queries != 0 {
+			t.Fatalf("contiguous terminal delivery made %d catch-up queries", queries)
+		}
+	})
 	t.Run("Should keep later prompts on live delivery without catch-up queries", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -272,13 +335,13 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		// Publish the later marker while the terminal's post-append work is still running.
 		live := make(chan store.SessionEvent, 1)
 		live <- later
-		close(live)
 		persisted := make(chan struct{})
 		finish := sync.OnceFunc(func() { close(persisted) })
 		defer finish()
 		out := make(chan acp.AgentEvent)
 		go h.manager.runDurablePromptDelivery(ctx, session, turnID, 0, live, func() {}, persisted, out)
 		first := receivePromptEvent(t, out)
+		close(live)
 		finish()
 		if first.Type != acp.EventTypeAgentMessage {
 			t.Fatalf("first event = %q, want persisted agent message before terminal", first.Type)
@@ -4531,11 +4594,15 @@ func (c *profileStartedContext) Done() <-chan struct{} {
 // promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
 type promptDeliveryQueryRecorder struct {
 	EventRecorder
-	queries atomic.Int64
+	queries  atomic.Int64
+	failNext atomic.Bool
 }
 
 func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
 	r.queries.Add(1)
+	if r.failNext.Swap(false) {
+		return nil, errors.New("transient catch-up read failure")
+	}
 	return r.EventRecorder.Query(ctx, query)
 }
 

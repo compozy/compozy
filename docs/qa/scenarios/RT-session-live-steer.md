@@ -74,3 +74,5 @@ replay any publication gap from durable history, preserve message order and deli
 terminal once, without synthesizing `prompt_stream_incomplete`. The queued guidance runs next.
 On a later prompt in the same session, contiguous live events must retain live delivery rather than
 entering periodic catch-up queries merely because earlier turns have larger session sequences.
+If a catch-up read fails after persistence completes, retain the cursor and retry the read; a
+transient read failure must not be reported as a missing terminal in the durable transcript.

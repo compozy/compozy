@@ -164,7 +164,7 @@ func (m *Manager) catchUpDurablePromptDelivery(
 		if err == nil && len(persisted) == promptDeliveryPageSize {
 			continue
 		}
-		if persistenceComplete {
+		if persistenceComplete && err == nil {
 			m.deliverPromptProjectionFailure(ctx, session, turnID, out)
 			return
 		}
