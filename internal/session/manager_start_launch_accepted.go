@@ -185,7 +185,11 @@ func (m *Manager) discardAcceptedSessionStart(
 	if err := m.closeSessionRecorder(session); err != nil {
 		// Join a timed-out close before reopening; the old writer still owns cleanup.
 		joinErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
-		if joinErr == nil {
+		complete := joinErr == nil
+		if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
+			complete = cleanup.CleanupComplete()
+		}
+		if complete {
 			accepted.storage.recorder = nil
 		}
 		retainCtx, cancel := m.lifecycleCleanupContext()

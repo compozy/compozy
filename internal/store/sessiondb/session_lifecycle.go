@@ -8,6 +8,12 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// CleanupComplete reports whether close has finished releasing all owned resources.
+// A completed cleanup can still report an earlier drain timeout through Close.
+func (s *SessionDB) CleanupComplete() bool {
+	return s == nil || s.state.Load() == sessionStateClosed
+}
+
 // Close drains queued writes, checkpoints the WAL, and closes the database.
 // If its deadline expires, cleanup retains ownership until active I/O stops;
 // another Close can join that cleanup with its own waiting deadline.

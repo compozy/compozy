@@ -848,6 +848,7 @@ func TestTriageDispatcher(t *testing.T) {
 					if !catalogFailure {
 						return &terminalCloseFailingRecorder{
 							EventRecorder: recorder, fail: &fail, closeErr: closeErr, terminal: true,
+							persistentCloseErr: true,
 						}, nil
 					}
 				}

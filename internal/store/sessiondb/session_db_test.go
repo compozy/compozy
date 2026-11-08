@@ -685,6 +685,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			if blocked.closed.Load() {
 				t.Fatal("checkpoint connection closed while I/O was still active")
 			}
+			if db.CleanupComplete() {
+				t.Fatal("cleanup reported complete while checkpoint I/O was still active")
+			}
 			unblock()
 			if expire {
 				if err := db.Close(testutil.Context(t)); err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -695,6 +698,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}
 			if !blocked.closed.Load() {
 				t.Fatal("checkpoint connection remains open after cleanup joined")
+			}
+			if !db.CleanupComplete() {
+				t.Fatal("cleanup remained pending after its resources closed")
 			}
 		})
 	}
