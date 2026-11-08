@@ -81,6 +81,7 @@ func (s *Session) stopReceiptOutcome(at time.Time) StopOutcome {
 		if !s.stopStartedAt.IsZero() {
 			outcome.Elapsed = max(0, at.Sub(s.stopStartedAt))
 		}
+		s.stopVerifiedProcess = s.process
 	}
 	outcome.FinalState, outcome.Cause = StateStopped, s.stopCause
 	s.stopVerifiedOutcome = outcome

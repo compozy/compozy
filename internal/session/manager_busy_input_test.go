@@ -2145,6 +2145,50 @@ func promptRequestEndsWith(message string, request string) bool {
 func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: durable activation does not release runtime ownership before startup observations finish.
+	t.Run("Should join post-activation startup before Goal attachment preflight", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-post-activation")
+		h.driver.processes[proc.handle] = proc
+		if err := accepted.session.activateWithProcess(proc.handle, h.manager.now(), true, false); err != nil {
+			t.Fatal(err)
+		}
+		accepted.run.activationCommitted.Store(true)
+		defer func() {
+			if !signalClosed(accepted.run.done) {
+				h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
+			}
+		}()
+		if err := accepted.session.lockRuntimeApply(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		unlock := sync.OnceFunc(accepted.session.unlockRuntimeApply)
+		defer unlock()
+		observed := &resumeWaitObservedContext{Context: testutil.Context(t), entered: make(chan struct{})}
+		result := make(chan error, 1)
+		go func() {
+			result <- h.manager.preflightAdmittedPromptAttachments(observed, accepted.session, nil,
+				[]AttachmentMeta{{Name: "notes.txt", MIMEType: "text/plain"}})
+		}()
+		<-observed.entered
+		accepted.session.mu.RLock()
+		setups := accepted.session.promptSetupCount
+		accepted.session.mu.RUnlock()
+		if setups != 0 {
+			t.Fatal("Goal preflight reserved runtime before startup hooks finished")
+		}
+		h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
+		unlock()
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), accepted.session.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	// Invariant: Goal attachment preflight cannot replace a runtime owned by uncommitted startup.
 	t.Run("Should join uncommitted startup before Goal attachment preflight", func(t *testing.T) {
 		t.Parallel()

@@ -26,7 +26,9 @@ type sessionStartRun struct {
 	// After durable activation, normal stop finalization owns termination.
 	activationCommitted atomic.Bool
 	// stopJoined records a Stop waiting for retained cleanup without changing its failure outcome.
-	stopJoined atomic.Bool
+	stopJoined        atomic.Bool
+	stopRequested     chan struct{}
+	stopRequestedOnce sync.Once
 }
 
 func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*sessionStartRun, error) {
@@ -42,6 +44,7 @@ func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*s
 		ctx:           ctx,
 		cancel:        cancel,
 		done:          make(chan struct{}),
+		stopRequested: make(chan struct{}),
 		recorderReady: make(chan struct{}),
 		launchCommit:  make(chan struct{}, 1),
 	}
@@ -75,6 +78,12 @@ func (m *Manager) finishSessionStartRun(sessionID string, run *sessionStartRun, 
 	close(run.done)
 	m.startLifecycle.mu.Unlock()
 	m.startLifecycle.wg.Done()
+}
+
+// markStopRequested wakes in-flight cleanup only after a Stop intent has been accepted.
+func (r *sessionStartRun) markStopRequested() {
+	r.stopJoined.Store(true)
+	r.stopRequestedOnce.Do(func() { close(r.stopRequested) })
 }
 
 func (r *sessionStartRun) signalRecorderReady() {

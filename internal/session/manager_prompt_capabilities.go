@@ -13,7 +13,7 @@ func (m *Manager) preflightAdmittedPromptAttachments(
 		return nil
 	}
 	// Match ordinary prompt admission: startup owns its binding until its run settles.
-	if start := m.sessionStartRun(session.ID); start != nil && !start.activationCommitted.Load() {
+	if start := m.sessionStartRun(session.ID); start != nil {
 		if err := waitForSessionStartRun(ctx, start); err != nil {
 			return err
 		}

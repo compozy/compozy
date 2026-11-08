@@ -93,7 +93,7 @@ func (m *Manager) prepareFailedStartRetention(
 }
 
 // persistRetainedFailedStart retries only unfinished appends and metadata. The recorder
-// and start run stay owned on every persistence error; completed appends remain idempotent.
+// and start run stay owned on terminal persistence errors; ordinary marker errors remain diagnostic.
 func (m *Manager) persistRetainedFailedStart(
 	ctx context.Context,
 	accepted *acceptedSessionStart,
@@ -111,7 +111,13 @@ func (m *Manager) persistRetainedFailedStart(
 	for batch.next < len(batch.events) {
 		event := batch.events[batch.next]
 		if err := m.recordEventWithWriter(ctx, session, event, "", recordRetainedSessionEvent); err != nil {
-			return err
+			if batch.next < 2 || accepted.spec.discardStartFailure || accepted.spec.deriveReceipt != nil {
+				return err
+			}
+			// Ordinary failures report marker errors and close; rolled-back discards retain complete history.
+			batch.diagnosticErr = errors.Join(batch.diagnosticErr, err)
+			batch.next++
+			continue
 		}
 		if batch.next >= 2 {
 			m.notifyAgentEvent(ctx, session, event)
@@ -151,10 +157,8 @@ func recordRetainedSessionEvent(
 		if err := recorder.Record(ctx, event); err != nil {
 			return store.SessionEvent{}, err
 		}
-		rows, err = recorder.Query(ctx, store.EventQuery{ID: event.ID, Limit: 1})
-		if err != nil {
-			return store.SessionEvent{}, err
-		}
+		// Record's acknowledgment owns this append; Query is needed only when resuming it.
+		return event, nil
 	}
 	if len(rows) != 1 || rows[0].Type != event.Type || rows[0].TurnID != event.TurnID ||
 		rows[0].Content != event.Content {
@@ -173,7 +177,22 @@ func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, 
 	}
 	ctx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
-	stopErr := m.driver.Stop(ctx, accepted.proc)
+	if accepted.processStopPending == nil {
+		accepted.processStopPending = m.startStopAction(ctx, accepted.proc, m.driver.Stop)
+	}
+	var stopRequested <-chan struct{}
+	if accepted.run != nil && accepted.retainedFailure == nil {
+		stopRequested = accepted.run.stopRequested
+	}
+	var stopErr error
+	select {
+	case stopErr = <-accepted.processStopPending:
+		accepted.processStopPending = nil
+	case <-stopRequested:
+		return false, errors.Join(ErrStopVerificationFailed, errStartupCanceledByStop)
+	case <-ctx.Done():
+		stopErr = ctx.Err()
+	}
 	verified, verifyErr := m.verifyStopPhase(ctx, accepted.proc)
 	if !verified {
 		return false, errors.Join(ErrStopVerificationFailed, stopErr, verifyErr)

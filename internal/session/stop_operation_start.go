@@ -22,9 +22,7 @@ func (m *Manager) prepareStartingStopRun(
 		m.failStopPreparation(run, err)
 		return true
 	}
-	m.mu.Lock()
-	run.session = session
-	m.mu.Unlock()
+	m.bindSessionStopRun(run, session, session.processHandle())
 	run.notifyCommitted()
 	close(run.ready)
 	m.startTrackedPromptTask(func() {

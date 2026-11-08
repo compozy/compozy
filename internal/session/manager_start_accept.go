@@ -9,14 +9,16 @@ import (
 )
 
 type acceptedSessionStart struct {
-	spec           *sessionStartSpec
-	runtime        sessionStartRuntime
-	session        *Session
-	storage        sessionStartStorage
-	run            *sessionStartRun
-	proc           *AgentProcess
-	async          bool
-	persistFailure bool
+	spec    *sessionStartSpec
+	runtime sessionStartRuntime
+	session *Session
+	storage sessionStartStorage
+	run     *sessionStartRun
+	proc    *AgentProcess
+	// processStopPending retains a bounded wait on the same owned driver call across retries.
+	processStopPending <-chan error
+	async              bool
+	persistFailure     bool
 	// cleanupPending transfers start-run completion to recorder cleanup.
 	cleanupPending bool
 	// recorderClosing distinguishes joining Close from retrying an unfinished write.

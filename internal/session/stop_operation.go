@@ -223,9 +223,11 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		m.failStopPreparation(run, err)
 		return
 	}
-	m.mu.Lock()
-	run.session = session
-	m.mu.Unlock()
+	stopProc := proc
+	if stopProc == nil && session != nil {
+		stopProc = session.releasedProcessForStop()
+	}
+	m.bindSessionStopRun(run, session, stopProc)
 
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
@@ -246,10 +248,6 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		defer close(run.done)
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
-		stopProc := proc
-		if stopProc == nil {
-			stopProc = session.releasedProcessForStop()
-		}
 		if !result.Verified {
 			target := m.sessionStopTerminationTarget(session, promptDone, cause)
 			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
@@ -299,4 +297,15 @@ func (m *Manager) sessionStopTerminationTarget(
 		target.cooperative = m.driver.Stop
 	}
 	return target
+}
+
+// bindSessionStopRun invalidates cached exit proof when either captured target identity changes.
+func (m *Manager) bindSessionStopRun(run *sessionStopRun, session *Session, proc *AgentProcess) {
+	m.mu.Lock()
+	sameSession := run.session == session
+	run.session = session
+	m.mu.Unlock()
+	if run.outcome.Verified && (!sameSession || session == nil || !session.hasVerifiedStopProcess(proc)) {
+		run.outcome = StopOutcome{}
+	}
 }

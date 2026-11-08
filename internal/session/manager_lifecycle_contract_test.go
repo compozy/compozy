@@ -1309,6 +1309,74 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		)
 	}
 
+	// Invariant: Stop accepted during an in-flight cleanup must still reach bounded process termination.
+	t.Run("Should yield an in-flight process join when Stop is accepted", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-inflight-join")
+		h.driver.processes[proc.handle] = proc
+		accepted.proc = proc.handle
+		entered, release, killed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { proc.exit(); close(release) })
+		defer unblock()
+		signalEntered := sync.OnceFunc(func() { close(entered) })
+		signalKilled := sync.OnceFunc(func() { close(killed) })
+		h.driver.stopHook = func(*fakeProcess) error { signalEntered(); <-release; return nil }
+		h.driver.killHook = func(proc *fakeProcess) error { proc.exit(); signalKilled(); return nil }
+		h.manager.deferFailedStartCleanup(accepted, errors.New("startup failed"))
+		<-entered
+		if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(testutil.Context(t), TerminationBudget(h.manager.stopConfig)+time.Second)
+		defer cancel()
+		select {
+		case <-killed:
+		case <-ctx.Done():
+			t.Fatal("in-flight join prevented the accepted Stop from reaching Kill")
+		}
+		outcome, err := h.manager.AwaitStopped(ctx, accepted.session.ID)
+		if err != nil || !outcome.Verified {
+			t.Fatalf("in-flight join stop = %+v, %v", outcome, err)
+		}
+		pendingCtx, cancelPending := context.WithCancel(t.Context())
+		cancelPending()
+		if err := h.manager.WaitForPromptDrains(pendingCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("blocked Stop transport lost its owner: %v", err)
+		}
+		unblock()
+		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: a cached receipt cannot certify a replacement target selected after Stop was claimed.
+	t.Run("Should verify a retargeted stop despite a cached old-session receipt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-retarget-receipt")
+		defer proc.exit()
+		h.driver.processes[proc.handle] = proc
+		if err := accepted.session.activateWithProcess(proc.handle, h.manager.now(), true, false); err != nil {
+			t.Fatal(err)
+		}
+		accepted.run.activationCommitted.Store(true)
+		h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, nil)
+		run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
+		if !owned {
+			t.Fatal("stop admission was not owned")
+		}
+		run.session = &Session{ID: accepted.session.ID}
+		run.outcome = StopOutcome{FinalState: StateStopped, Verified: true}
+		h.manager.prepareSessionStopRun(testutil.Context(t), run, CauseUserRequested, "")
+		outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
+		if err != nil || !outcome.Verified || !isProcessDone(proc.handle) {
+			t.Fatalf("old receipt certified a live replacement target: %+v, %v", outcome, err)
+		}
+	})
+
 	// Invariant: accepted Stop retries the bounded termination ladder rather than a blocking independent join.
 	t.Run("Should yield already canceled startup cleanup to the bounded stop ladder", func(t *testing.T) {
 		t.Parallel()
@@ -2400,7 +2468,8 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 	})
 
-	for _, stage := range []string{"event", "ack", "state"} {
+	// Invariant: a watcher-first receipt and the stop driver retain the same verified outcome after restart.
+	for _, stage := range []string{"event", "ack", "state", "event-watcher-first"} {
 		t.Run("Should recover active stop after manager restart at "+stage+" persistence", func(t *testing.T) {
 			t.Parallel()
 			catalog := newRecordingSessionCatalog()
@@ -2430,6 +2499,12 @@ func TestSharedSessionStopOperation(t *testing.T) {
 						return nil, writeErr
 					}
 					return openStore(ctx, owner, path)
+				}
+			}
+			if stage == "event-watcher-first" {
+				h.driver.stopHook = func(proc *fakeProcess) error {
+					proc.exit()
+					return h.manager.handleProcessExit(t.Context(), active, proc.handle, nil)
 				}
 			}
 			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
