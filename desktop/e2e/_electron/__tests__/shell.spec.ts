@@ -1123,7 +1123,7 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await files.getByRole("button", { name: "Choose application" }).first().click();
   // The reveal target is named for the platform's file manager (Windows is skipped above).
   const reveal = process.platform === "darwin" ? "Finder" : "Show in folder";
-  await expect(product.getByRole("menuitem", { name: reveal })).toBeVisible();
+  await expect(product.getByRole("menuitem", { name: reveal, exact: true })).toBeVisible();
   await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
   const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
   await expect
