@@ -37,7 +37,7 @@ function Time({
   ...props
 }: TimeProps) {
   // Every mode ticks: absolute mode still shows the relative time as its tooltip.
-  const now = useRelativeTick(refreshMs);
+  const now = useRelativeTick(refreshMs, iso);
 
   const relative = formatRelativeTime(iso, now);
   const absolute = formatAbsoluteTime(iso);

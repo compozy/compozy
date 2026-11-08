@@ -316,6 +316,7 @@ describe("SessionList row title", () => {
     renderList({
       sessions: [
         { ...base, id: "automation-row", type: "system", name: "issue-triage" },
+        { ...base, id: "job-row", type: "system", name: "nightly-checkout" },
         { ...base, id: "always-on-row", type: "user", instance_id: "ainst-1", name: undefined },
         { ...base, id: "operator-row", type: "user", name: "issue-triage" },
       ],
@@ -323,6 +324,7 @@ describe("SessionList row title", () => {
 
     const title = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
     expect(title("automation-row")).toHaveTextContent("issue-triage");
+    expect(title("job-row")).toHaveTextContent("nightly-checkout");
     expect(title("always-on-row")).toHaveTextContent("issue-triage");
     expect(title("operator-row")).toHaveTextContent("New session");
     expect(title("operator-row")).not.toHaveTextContent("issue-triage");
