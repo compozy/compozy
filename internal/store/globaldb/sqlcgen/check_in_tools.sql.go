@@ -74,7 +74,7 @@ func (q *Queries) CountCheckInToolCalls(ctx context.Context, occurrenceID string
 }
 
 const finishCheckInToolCall = `-- name: FinishCheckInToolCall :exec
-UPDATE agent_instance_check_tool_calls SET outcome=?,effect=?,error_code=?,duration_ms=?,updated_at=? WHERE occurrence_id=? AND seq=? AND outcome='running'
+UPDATE agent_instance_check_tool_calls SET outcome=?,effect=CASE WHEN access='read' THEN 'none' ELSE ? END,error_code=?,duration_ms=?,updated_at=? WHERE occurrence_id=? AND seq=? AND outcome='running'
 `
 
 type FinishCheckInToolCallParams struct {
@@ -276,7 +276,7 @@ func (q *Queries) MarkHeartbeatAuthorityNotice(ctx context.Context, arg MarkHear
 }
 
 const orphanCheckInToolCalls = `-- name: OrphanCheckInToolCalls :exec
-UPDATE agent_instance_check_tool_calls SET outcome='unknown',effect='maybe',updated_at=? WHERE occurrence_id=? AND outcome='running'
+UPDATE agent_instance_check_tool_calls SET outcome='unknown',effect=CASE WHEN access='read' THEN 'none' ELSE 'maybe' END,updated_at=? WHERE occurrence_id=? AND outcome='running'
 `
 
 type OrphanCheckInToolCallsParams struct {

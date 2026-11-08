@@ -222,6 +222,9 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
    reads `unapproved` with a new digest, and the next check-in still denies `get_item` as a
    write; the main session still treats it as a write. Approve with
    `heartbeat authority approve issue-watch`: the next check-in reads it as `read`, allowed.
+   In the Web, both the pending approval notice and a changed-authority save confirmation list
+   every override as server plus raw tool name under "Treated as read-only", explain that these
+   tools can run without being listed under "What it can change", and never say "Nothing, reads only".
    The same override in an extension-shipped declaration is ignored with
    `mcp_read_only_override_untrusted`. An agent-definition override stays a write in
    agentless and daemon-actor tool listings when no scope approval is present; an

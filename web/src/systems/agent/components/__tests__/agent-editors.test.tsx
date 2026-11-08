@@ -1287,6 +1287,21 @@ describe("Heartbeat", () => {
   // Invariant (U6/U7): the form edits what check-ins may change and their actions, and a save that
   // changes that block approves it only after the operator saw it and confirmed.
   describe("check-in changes and authority", () => {
+    const OVERRIDES = { github: ["get_item", "search_items"], linear: ["list_issues"] };
+    function expectOverrides(container: HTMLElement) {
+      const view = within(container);
+      for (const [server, tools] of Object.entries(OVERRIDES)) {
+        for (const tool of tools) expect(view.getByText(`${server}: ${tool}`)).toBeTruthy();
+      }
+      expect(view.getByText("Treated as read-only")).toBeTruthy();
+      expect(
+        view.getByText(
+          "These tools can run in check-ins without being listed under What it can change."
+        )
+      ).toBeTruthy();
+      expect(view.queryByText("Nothing, reads only")).toBeNull();
+    }
+
     const NONE = { digest: "", status: "none", check_ins: {}, actions: [] };
 
     function serveTools() {
@@ -1346,6 +1361,7 @@ describe("Heartbeat", () => {
         digest: "sha-new",
         status: "unapproved",
         check_ins: { allow_writes: ["mcp__github__add_label"] },
+        read_only_tools: OVERRIDES,
         actions: [],
       });
       const writes = captureWrites();
@@ -1358,6 +1374,7 @@ describe("Heartbeat", () => {
 
       const dialog = await screen.findByRole("dialog", { name: "Approve these check-in changes?" });
       expect(within(dialog).getByText("mcp__github__add_label")).toBeTruthy();
+      expectOverrides(dialog);
       expect(writes).toHaveLength(0);
       await user.click(within(dialog).getByRole("button", { name: choice }));
 
@@ -1392,38 +1409,44 @@ describe("Heartbeat", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("Should ask for approval of a waiting block and approve its exact digest [UT-043]", async () => {
-      serveHeartbeat(
-        heartbeatPayload({
-          authority: {
-            digest: "sha-old",
-            status: "unapproved",
-            check_ins: { allow_writes: ["compozy__notify"] },
-            actions: [
-              { id: "triage", title: "Triage", instructions: "Label them.", auto_accept: true },
-            ],
-          },
-        })
-      );
-      const approvals: unknown[] = [];
-      server.use(
-        http.post("*/api/agents/:name/heartbeat/authority/approve", async ({ request }) => {
-          approvals.push(await request.json());
-          return new HttpResponse(null, { status: 204 });
-        })
-      );
-      const user = userEvent.setup();
-      renderEditor(<AgentCheckInsEditor {...props()} />);
+    it.each([{ allowWrites: [] }, { allowWrites: ["compozy__notify"] }])(
+      "Should ask for approval of a waiting block and approve its exact digest [UT-043]",
+      async ({ allowWrites }) => {
+        serveHeartbeat(
+          heartbeatPayload({
+            authority: {
+              digest: "sha-old",
+              status: "unapproved",
+              check_ins: { allow_writes: allowWrites },
+              read_only_tools: OVERRIDES,
+              actions: [
+                { id: "triage", title: "Triage", instructions: "Label them.", auto_accept: true },
+              ],
+            },
+          })
+        );
+        const approvals: unknown[] = [];
+        server.use(
+          http.post("*/api/agents/:name/heartbeat/authority/approve", async ({ request }) => {
+            approvals.push(await request.json());
+            return new HttpResponse(null, { status: 204 });
+          })
+        );
+        const user = userEvent.setup();
+        renderEditor(<AgentCheckInsEditor {...props()} />);
 
-      const notice = await screen.findByRole("region", {
-        name: "Check-in changes need your approval",
-      });
-      expect(within(notice).getByText("compozy__notify")).toBeTruthy();
-      expect(within(notice).getByText("Label them.", { exact: false })).toBeTruthy();
-      await user.click(within(notice).getByRole("button", { name: "Approve" }));
+        const notice = await screen.findByRole("region", {
+          name: "Check-in changes need your approval",
+        });
+        expectOverrides(notice);
+        if (allowWrites.length > 0)
+          expect(within(notice).getByText("compozy__notify")).toBeTruthy();
+        expect(within(notice).getByText("Label them.", { exact: false })).toBeTruthy();
+        await user.click(within(notice).getByRole("button", { name: "Approve" }));
 
-      await waitFor(() => expect(approvals).toEqual([{ sha256: "sha-old" }]));
-    });
+        await waitFor(() => expect(approvals).toEqual([{ sha256: "sha-old" }]));
+      }
+    );
   });
 });
 

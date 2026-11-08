@@ -431,6 +431,8 @@ Use those words only when discussing external systems or historical migration co
 
 ### Check-in Tools and Picks Terms
 
+- MCP authority overrides: "Treated as read-only"; "These tools can run in check-ins without being listed under What it can change." List each server and raw tool name in the approval notice and save confirmation. With overrides and no listed writes: "No tools listed; read-only overrides apply below". Never say "Nothing, reads only" when overrides exist.
+
 Terms: **check-in action**, **auto-accept**, **pick**, **check-in authority** (glossary). The UI calls one check-in "a heartbeat"; reports and notifications may say "check-in".
 
 - Notifications: activity report "Your agent made 1 change" / "Your agent made {N} changes" (only uncertain writes: "Your agent may have changed something"); a report whose every proposal was auto-accepted "Your agent acted on a check-in"; unapproved authority "Check-in changes need your approval", once per digest.

@@ -446,6 +446,8 @@ action, a fixture MCP server, and a real provider.
    reason in plain words ("Not allowed in check-ins", "Would need your approval", "Not available
    in check-ins", "Tool limit reached", "Blocked"), "May have changed" for `effect: maybe`, and
    the duration.
+   Read calls retain `effect: none` even after errors, cancellation, or an orphaned call becomes
+   `unknown`; a read-only occurrence creates no activity report.
 6. **Activity report (U4).** A check-in that wrote and found nothing publishes a report titled
    "The check-in made N change(s)" (or "…may have changed something" for only `maybe` writes),
    with the tool list open by default and no proposals or Pick buttons.

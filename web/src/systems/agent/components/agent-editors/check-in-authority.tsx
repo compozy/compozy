@@ -24,9 +24,12 @@ function caps(checkIns: HeartbeatAuthority["check_ins"]) {
   return parts.length > 0 ? `Up to ${parts.join(" and ")} per check-in` : null;
 }
 
-/** The authority block as the operator approves it: writes, caps and auto-accepted actions. */
+/** The authority block as the operator approves it: writes, caps, MCP read-only overrides and auto-accepted actions. */
 export function AuthorityBlock({ authority }: { authority: HeartbeatAuthority }) {
   const writes = authority.check_ins.allow_writes ?? [];
+  const overrides = Object.entries(authority.read_only_tools ?? {}).flatMap(([server, tools]) =>
+    tools.map(tool => ({ server, tool }))
+  );
   const limit = caps(authority.check_ins);
   const auto = authority.actions.filter(action => action.auto_accept);
   return (
@@ -34,10 +37,27 @@ export function AuthorityBlock({ authority }: { authority: HeartbeatAuthority })
       <div className="flex flex-col gap-0.5">
         <dt className="font-medium text-fg">What it can change</dt>
         <dd className="text-muted-foreground">
-          {writes.length > 0 ? writes.join(", ") : "Nothing, reads only"}
+          {writes.length > 0
+            ? writes.join(", ")
+            : overrides.length > 0
+              ? "No tools listed; read-only overrides apply below"
+              : "Nothing, reads only"}
         </dd>
         {limit ? <dd className="text-muted-foreground">{limit}</dd> : null}
       </div>
+      {overrides.length > 0 ? (
+        <div className="flex flex-col gap-0.5">
+          <dt className="font-medium text-fg">Treated as read-only</dt>
+          <dd className="text-muted-foreground">
+            These tools can run in check-ins without being listed under What it can change.
+          </dd>
+          {overrides.map(({ server, tool }) => (
+            <dd className="text-muted-foreground" key={`${server}:${tool}`}>
+              {server}: {tool}
+            </dd>
+          ))}
+        </div>
+      ) : null}
       {auto.length > 0 ? (
         <div className="flex flex-col gap-0.5">
           <dt className="font-medium text-fg">Done without asking you</dt>

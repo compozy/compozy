@@ -1181,7 +1181,7 @@ func (s failingDecideStore) DecideReview(context.Context, string, string, string
 }
 
 func TestCheckInActivityReports(t *testing.T) {
-	for _, mode := range []string{"quiet", "canceled", "deduped", "done"} {
+	for _, mode := range []string{"quiet", "canceled", "deduped", "done", "read"} {
 		canceled := mode == "canceled"
 		t.Run(
 			fmt.Sprintf("Should retain audited activity after %s [IT-003]", mode),
@@ -1238,12 +1238,16 @@ func TestCheckInActivityReports(t *testing.T) {
 					MaxToolCalls:  5,
 					MaxWriteCalls: 5,
 				}
+				access := toolspkg.AccessWrite
+				if mode == "read" {
+					access = toolspkg.AccessRead
+				}
 				decision, err := repo.Begin(
 					t.Context(),
 					toolspkg.CheckInAttempt{
 						ToolID:  "mcp__fixture__write",
 						Backend: toolspkg.BackendMCP,
-						Access:  toolspkg.AccessWrite,
+						Access:  access,
 					},
 					policy,
 				)
@@ -1305,6 +1309,9 @@ func TestCheckInActivityReports(t *testing.T) {
 				if mode == "done" || mode == "deduped" {
 					wantCall, wantEffect = "ok", "done"
 				}
+				if mode == "read" {
+					wantEffect = "none"
+				}
 				if err != nil || len(calls) != 1 || calls[0].Outcome != wantCall || calls[0].Effect != wantEffect {
 					t.Fatalf("calls=%+v err=%v", calls, err)
 				}
@@ -1316,7 +1323,11 @@ func TestCheckInActivityReports(t *testing.T) {
 						activities++
 					}
 				}
-				if err != nil || activities != 1 {
+				wantActivities := 1
+				if mode == "read" {
+					wantActivities = 0
+				}
+				if err != nil || activities != wantActivities {
 					t.Fatalf("reports=%+v err=%v", reports, err)
 				}
 				var outcome string
@@ -1341,7 +1352,7 @@ func TestCheckInActivityReports(t *testing.T) {
 					t.Fatalf("canceled source committed: %+v %+v", states, wake)
 				}
 				if !canceled &&
-					(!bytes.Equal(states[0].State, batch.State) || wake.LastDigest != "completed-digest" || wake.QuietStreak != 0) {
+					(!bytes.Equal(states[0].State, batch.State) || wake.LastDigest != "completed-digest" || wake.QuietStreak != int64(1-wantActivities)) {
 					t.Fatalf("completed state=%+v wake=%+v", states, wake)
 				}
 				repeat, err := repo.Finish(

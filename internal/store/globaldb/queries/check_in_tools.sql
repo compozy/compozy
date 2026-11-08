@@ -15,10 +15,10 @@ SELECT count(*) AS total, CAST(coalesce(sum(CASE WHEN access='write' AND decisio
 INSERT INTO agent_instance_check_tool_calls(instance_id,occurrence_id,seq,tool_id,backend,mcp_server,access,decision,deny_reason,outcome,effect,args_preview,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?);
 
 -- name: FinishCheckInToolCall :exec
-UPDATE agent_instance_check_tool_calls SET outcome=?,effect=?,error_code=?,duration_ms=?,updated_at=? WHERE occurrence_id=? AND seq=? AND outcome='running';
+UPDATE agent_instance_check_tool_calls SET outcome=?,effect=CASE WHEN access='read' THEN 'none' ELSE ? END,error_code=?,duration_ms=?,updated_at=? WHERE occurrence_id=? AND seq=? AND outcome='running';
 
 -- name: OrphanCheckInToolCalls :exec
-UPDATE agent_instance_check_tool_calls SET outcome='unknown',effect='maybe',updated_at=? WHERE occurrence_id=? AND outcome='running';
+UPDATE agent_instance_check_tool_calls SET outcome='unknown',effect=CASE WHEN access='read' THEN 'none' ELSE 'maybe' END,updated_at=? WHERE occurrence_id=? AND outcome='running';
 
 -- name: ListCheckInToolCalls :many
 SELECT * FROM agent_instance_check_tool_calls WHERE instance_id=? AND occurrence_id=? ORDER BY seq;

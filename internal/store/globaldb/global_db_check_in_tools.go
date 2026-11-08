@@ -41,6 +41,9 @@ func (r *InstanceRepo) Begin(
 				decision.Reason = string(toolspkg.ReasonCheckInToolBudgetExhausted)
 			}
 			outcome, choice, effect := runtimeStatusRunning, "allowed", "maybe"
+			if a.Access == toolspkg.AccessRead {
+				effect = checkInEffectNone
+			}
 			if !decision.Allowed {
 				outcome, choice, effect = checkInDecisionDenied, checkInDecisionDenied, checkInEffectNone
 			}

@@ -6149,50 +6149,92 @@ func TestSourceCollectionScheduling(t *testing.T) {
 }
 
 func TestCheckInToolRecorder(t *testing.T) {
-	t.Run(
-		"Should persist a canceled tool call with a possible write effect",
-		func(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		access  toolspkg.Access
+		outcome string
+		effect  string
+	}{
+		{"Should retain no effect for a failed read", toolspkg.AccessRead, "error", "none"},
+		{"Should retain no effect for a canceled read", toolspkg.AccessRead, "cancelled", "none"}, //nolint:misspell // persisted enum
+		{"Should retain no effect for a successful read", toolspkg.AccessRead, "ok", "none"},
+		{"Should retain no effect for an orphaned read", toolspkg.AccessRead, "unknown", "none"},
+		{"Should retain a possible effect for a failed write", toolspkg.AccessWrite, "error", "maybe"},
+		{"Should retain a possible effect for a canceled write", toolspkg.AccessWrite, "cancelled", "maybe"}, //nolint:misspell // persisted enum
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			repo := openTestGlobalDB(t).Instances()
-			instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{
-				ProfileID: store.DefaultProfileID, AgentName: "cancel-recorder",
-				PermissionCeiling: "{}", CreatedByKind: "human",
-			}, 10)
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "recorder", "sess-recorder")
+			repo := db.Instances()
+			instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         "coder",
+				WorkspaceID:       workspace,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			}, main, 10)
 			if err != nil {
 				t.Fatal(err)
 			}
-			recorder := repo.CheckInRecorder()
+			now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 			policy := toolspkg.CheckInPolicy{
 				InstanceID:    instance.ID,
-				OccurrenceID:  "cancel-occurrence",
+				OccurrenceID:  "recorder-occurrence",
 				MaxToolCalls:  1,
 				MaxWriteCalls: 1,
 			}
-			decision, err := recorder.Begin(t.Context(), toolspkg.CheckInAttempt{
-				ToolID: "mcp__fixture__write", Backend: toolspkg.BackendMCP, Access: toolspkg.AccessWrite,
-			}, policy)
+			admitted, err := repo.Admit(
+				t.Context(),
+				heartbeat.AdmitRequest{
+					InstanceID:    instance.ID,
+					OccurrenceID:  policy.OccurrenceID,
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 2,
+				},
+			)
+			if err != nil || !admitted {
+				t.Fatalf("admit=%v err=%v", admitted, err)
+			}
+			recorder := repo.CheckInRecorder()
+			decision, err := recorder.Begin(
+				t.Context(),
+				toolspkg.CheckInAttempt{ToolID: "mcp__fixture__tool", Backend: toolspkg.BackendMCP, Access: tc.access},
+				policy,
+			)
 			if err != nil || !decision.Allowed {
 				t.Fatalf("begin=%+v error=%v", decision, err)
 			}
-			if err := recorder.Finish(
-				t.Context(),
-				policy.OccurrenceID,
-				decision.Seq,
-				"cancelled", //nolint:misspell // persisted enum
-				"",
-				time.Millisecond,
-			); err != nil {
+			calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+			if err != nil || len(calls) != 1 || calls[0].Effect != tc.effect {
+				t.Fatalf("running calls=%+v error=%v", calls, err)
+			}
+			if tc.outcome == "unknown" {
+				result, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: policy.OccurrenceID,
+						Source:       "instance_check",
+						Result:       "quiet",
+						Reason:       "quiet",
+						Now:          now,
+						ExpiresAt:    now.Add(time.Hour),
+					},
+				)
+				if err != nil || !result.Changed {
+					t.Fatalf("finish=%+v err=%v", result, err)
+				}
+			} else if err := recorder.Finish(t.Context(), policy.OccurrenceID, decision.Seq, tc.outcome, "", time.Millisecond); err != nil {
 				t.Fatal(err)
 			}
-			calls, err := repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
-			if err != nil || len(calls) != 1 {
+			calls, err = repo.CheckInToolCalls(t.Context(), instance.ID, policy.OccurrenceID)
+			if err != nil || len(calls) != 1 || calls[0].Outcome != tc.outcome || calls[0].Effect != tc.effect {
 				t.Fatalf("calls=%+v error=%v", calls, err)
 			}
-			if calls[0].Outcome != "cancelled" || calls[0].Effect != "maybe" { //nolint:misspell // persisted enum
-				t.Fatalf("call=%+v", calls[0])
-			}
-		},
-	)
+		})
+	}
 
 	t.Run("Should reserve caps atomically and retain denied attempts [IT-002]", func(t *testing.T) {
 		t.Parallel()
