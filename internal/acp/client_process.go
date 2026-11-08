@@ -15,6 +15,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/procutil"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -164,11 +165,13 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 }
 
 // DaemonMatchedEnv binds subprocess CLI discovery to the executable running the daemon.
+// Internal handoff variables never reach the subprocess, whatever layer assembled base.
 func DaemonMatchedEnv(base []string) []string {
 	env := append([]string(nil), base...)
 	if len(env) == 0 {
 		env = os.Environ()
 	}
+	env = procutil.WithoutInternalHandoffEnv(env)
 
 	executable, err := os.Executable()
 	if err != nil {

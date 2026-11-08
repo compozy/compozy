@@ -152,11 +152,14 @@ func resolveLaunchBinary(binary string) (string, error) {
 	return resolved, nil
 }
 
+// launchSandbox keeps internal handoff variables from an explicit sandbox: detached launches are
+// the handoff channel and callers set those variables for the process they start. The inherited
+// fallback environment never carries them.
 func launchSandbox(sandbox []string) []string {
-	if len(sandbox) > 0 {
-		return FilteredDaemonEnv(sandbox)
+	if len(sandbox) == 0 {
+		return FilteredDaemonEnv(nil)
 	}
-	return FilteredDaemonEnv(nil)
+	return filterDaemonEnv(sandbox, true)
 }
 
 func closeDetachedLaunchHandles(stdinFile *os.File, logFile *os.File, logPath string) error {
