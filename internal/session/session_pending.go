@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -40,7 +39,7 @@ func (m *Manager) commitCreatePendingInteraction(
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = m.now().UTC()
 	}
-	commit, err := m.commitAttention(req.SessionID, func() (store.SessionAttentionCommit, error) {
+	commit, err := m.commitAttention(ctx, req.SessionID, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.CreatePendingInteraction(ctx, req)
 	})
 	if err != nil {
@@ -51,9 +50,10 @@ func (m *Manager) commitCreatePendingInteraction(
 
 func (m *Manager) transitionPendingInteraction(
 	ctx context.Context,
+	sessionID string,
 	req store.PendingInteractionTransition,
 ) (store.SessionAttentionCommit, error) {
-	commit, err := m.commitTransitionPendingInteraction(ctx, req)
+	commit, err := m.commitTransitionPendingInteraction(ctx, sessionID, req)
 	if err == nil && commit.Interaction != nil {
 		m.publishAttentionCommit(ctx, commit.Interaction.SessionID, commit)
 	}
@@ -62,6 +62,7 @@ func (m *Manager) transitionPendingInteraction(
 
 func (m *Manager) commitTransitionPendingInteraction(
 	ctx context.Context,
+	sessionID string,
 	req store.PendingInteractionTransition,
 ) (store.SessionAttentionCommit, error) {
 	if m.attentionStore == nil {
@@ -70,7 +71,7 @@ func (m *Manager) commitTransitionPendingInteraction(
 	if req.At.IsZero() {
 		req.At = m.now().UTC()
 	}
-	commit, err := m.commitAttention("", func() (store.SessionAttentionCommit, error) {
+	commit, err := m.commitAttention(ctx, sessionID, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.TransitionPendingInteraction(ctx, req)
 	})
 	if err != nil {
@@ -159,7 +160,7 @@ func (m *Manager) recoverPendingInteractions(ctx context.Context, sessionID stri
 		if expire || expired {
 			transition = terminalInteractionTransition(interaction, transition.At, "failed-by-restart")
 		}
-		commit, err := m.transitionPendingInteraction(ctx, transition)
+		commit, err := m.transitionPendingInteraction(ctx, interaction.SessionID, transition)
 		if err != nil {
 			return settled, fmt.Errorf(
 				"session: settle interaction %q during restart recovery: %w",
@@ -223,11 +224,23 @@ func (m *Manager) refreshPendingInteractions(ctx context.Context, sessionID stri
 
 // commitAttention orders durable attention writes with their resident projection updates.
 func (m *Manager) commitAttention(
+	ctx context.Context,
 	sessionID string,
 	write func() (store.SessionAttentionCommit, error),
 ) (store.SessionAttentionCommit, error) {
-	unlock := m.lockAttentionCommit(sessionID)
+	unlock, err := m.lockAttentionCommit(ctx, sessionID)
+	if err != nil {
+		return store.SessionAttentionCommit{}, err
+	}
 	defer unlock()
+	return m.commitAttentionLocked(sessionID, write)
+}
+
+// commitAttentionLocked applies a durable result while the caller owns its session lock.
+func (m *Manager) commitAttentionLocked(
+	sessionID string,
+	write func() (store.SessionAttentionCommit, error),
+) (store.SessionAttentionCommit, error) {
 	commit, err := write()
 	if err != nil {
 		return commit, err
@@ -324,31 +337,43 @@ func clonePendingInteractions(values []store.PendingInteraction) []store.Pending
 
 // attentionCommitLock serializes one session while references keep its lock registered.
 type attentionCommitLock struct {
-	mu   sync.Mutex
-	refs int
+	token chan struct{}
+	refs  int
 }
 
-// lockAttentionCommit preserves write/apply ordering without coupling unrelated sessions.
-func (m *Manager) lockAttentionCommit(sessionID string) func() {
+// lockAttentionCommit preserves session ordering while allowing canceled waiters to leave.
+func (m *Manager) lockAttentionCommit(ctx context.Context, sessionID string) (func(), error) {
+	sessionID = strings.TrimSpace(sessionID)
 	m.attentionCommitMu.Lock()
 	if m.attentionCommitLocks == nil {
 		m.attentionCommitLocks = make(map[string]*attentionCommitLock)
 	}
 	lock := m.attentionCommitLocks[sessionID]
 	if lock == nil {
-		lock = &attentionCommitLock{}
+		lock = &attentionCommitLock{token: make(chan struct{}, 1)}
+		lock.token <- struct{}{}
 		m.attentionCommitLocks[sessionID] = lock
 	}
 	lock.refs++
 	m.attentionCommitMu.Unlock()
-	lock.mu.Lock()
+	select {
+	case <-lock.token:
+	case <-ctx.Done():
+		m.releaseAttentionCommitRef(sessionID, lock)
+		return nil, ctx.Err()
+	}
 	return func() {
-		lock.mu.Unlock()
-		m.attentionCommitMu.Lock()
-		lock.refs--
-		if lock.refs == 0 {
-			delete(m.attentionCommitLocks, sessionID)
-		}
-		m.attentionCommitMu.Unlock()
+		lock.token <- struct{}{}
+		m.releaseAttentionCommitRef(sessionID, lock)
+	}, nil
+}
+
+// releaseAttentionCommitRef removes idle lock entries after their final owner or waiter leaves.
+func (m *Manager) releaseAttentionCommitRef(sessionID string, lock *attentionCommitLock) {
+	m.attentionCommitMu.Lock()
+	defer m.attentionCommitMu.Unlock()
+	lock.refs--
+	if lock.refs == 0 {
+		delete(m.attentionCommitLocks, sessionID)
 	}
 }

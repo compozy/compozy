@@ -336,11 +336,155 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		if err := manager.Shutdown(ctx); err != nil {
 			t.Fatal(err)
 		}
-		manager.PublishPendingInteractionCommits(commits, func() { completed <- struct{}{} })
+		if manager.PublishPendingInteractionCommits(commits, func() { completed <- struct{}{} }) {
+			t.Fatal("shutdown admitted another worker")
+		}
 		select {
 		case <-completed:
 			t.Fatal("shutdown allowed acknowledgement completion")
 		default:
+		}
+	})
+
+	t.Run("Should complete the batch when an acknowledged descendant was deleted", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		manager.attentionStore = &committingAttentionStore{missingSessionID: "deleted"}
+		manager.sessions["kept"] = &Session{ID: "kept", State: StateStopped, PendingClarifyCount: 1}
+		publishAttentionCommitsAndWait(t, manager, []store.SessionAttentionCommit{
+			{
+				Before:      store.SessionAttention{PendingClarifyCount: 1},
+				Interaction: &store.PendingInteraction{SessionID: "deleted"},
+			},
+			{
+				Before:      store.SessionAttention{PendingClarifyCount: 1},
+				Interaction: &store.PendingInteraction{SessionID: "kept"},
+			},
+		})
+		if info := manager.sessions["kept"].Info(); info.PendingClarifyCount != 0 {
+			t.Fatalf("remaining session not refreshed: %+v", info)
+		}
+	})
+	t.Run("Should cancel nonresident publication reads before joining workers", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		entered := make(chan struct{}, 1)
+		manager.attentionStore = &committingAttentionStore{snapshot: store.SessionAttention{AttentionRevision: 1}}
+		manager.sessionCatalog = &attentionReadCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			entered:                 entered,
+		}
+		manager.PublishPendingInteractionCommits(
+			[]store.SessionAttentionCommit{{Interaction: &store.PendingInteraction{SessionID: "nonresident"}}},
+			nil,
+		)
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("bounded publication read did not start")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		stopped := make(chan error, 1)
+		go func() { stopped <- manager.Shutdown(ctx) }()
+		select {
+		case err := <-stopped:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-ctx.Done():
+			t.Fatal("publication read prevented worker shutdown")
+		}
+	})
+	t.Run("Should publish reconciliation before a resumed session's new permission", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		entered, created := make(chan struct{}, 1), make(chan struct{}, 1)
+		release := make(chan struct{})
+		catalog := &attentionReadCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			entered:                 entered,
+			release:                 release,
+		}
+		if err := catalog.RegisterSession(
+			t.Context(),
+			&store.SessionInfo{ID: "resumed", ProfileID: store.DefaultProfileID, State: string(StateStopped)},
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager.sessionCatalog = catalog
+		manager.attentionStore = &committingAttentionStore{createEntered: created}
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		done := make(chan struct{})
+		manager.PublishPendingInteractionCommits(
+			[]store.SessionAttentionCommit{
+				{
+					Before:      store.SessionAttention{PendingClarifyCount: 1},
+					Interaction: &store.PendingInteraction{SessionID: "resumed"},
+				},
+			},
+			func() { close(done) },
+		)
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("publication did not start")
+		}
+		newer := make(chan error, 1)
+		go func() {
+			_, err := manager.createPendingInteraction(
+				t.Context(),
+				store.PendingInteractionCreate{
+					SessionID:         "resumed",
+					InteractionID:     "new-permission",
+					ProviderRequestID: "new-permission",
+					Kind:              store.PendingInteractionKindPermission,
+				},
+			)
+			newer <- err
+		}()
+		select {
+		case <-created:
+			close(release)
+			<-newer
+			t.Fatal("new permission overtook reconciliation publication")
+		case <-time.After(100 * time.Millisecond):
+		}
+		close(release)
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("reconciliation did not complete")
+		}
+		if err := <-newer; err != nil {
+			t.Fatal(err)
+		}
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		first := assertCatalogEventName(t, events, CatalogEventNameAttention).Attention
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		second := assertCatalogEventName(t, events, CatalogEventNameAttention).Attention
+		if first == nil || second == nil || first.To != BadgeStopped || second.To != BadgeWaitingForAuth {
+			t.Fatalf("publication order: first=%+v second=%+v", first, second)
 		}
 	})
 
@@ -437,6 +581,8 @@ type committingAttentionStore struct {
 	blockedSessionID   string
 	blockedReads       int
 	readStarted        chan struct{}
+	missingSessionID   string
+	createEntered      chan struct{}
 	requireBoundedRead bool
 	readFailures       int
 	mu                 sync.Mutex
@@ -449,6 +595,9 @@ func (s *committingAttentionStore) GetSessionAttention(
 	ctx context.Context,
 	id string,
 ) (store.SessionAttention, error) {
+	if id != "" && id == s.missingSessionID {
+		return store.SessionAttention{}, errors.Join(store.ErrSessionNotFound, errors.New("deleted session"))
+	}
 	if id == s.blockedSessionID && s.blockedReads > 0 {
 		s.blockedReads--
 		if s.readStarted != nil {
@@ -476,6 +625,9 @@ func (s *committingAttentionStore) CreatePendingInteraction(
 	_ context.Context,
 	req store.PendingInteractionCreate,
 ) (store.SessionAttentionCommit, error) {
+	if s.createEntered != nil {
+		s.createEntered <- struct{}{}
+	}
 	s.mu.Lock()
 	s.committed = true
 	s.mu.Unlock()
@@ -581,5 +733,31 @@ func publishAttentionCommitsAndWait(t *testing.T, manager *Manager, commits []st
 	case <-done:
 	case <-time.After(2 * defaultLifecycleTimeout):
 		t.Fatal("acknowledgement reconciliation did not finish")
+	}
+}
+
+// attentionReadCatalog models a catalog read that must retain cancellation and a deadline.
+type attentionReadCatalog struct {
+	*recordingSessionCatalog
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (c *attentionReadCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	if _, bounded := ctx.Deadline(); !bounded {
+		return nil, errors.New("publication read has no deadline")
+	}
+	select {
+	case c.entered <- struct{}{}:
+	default:
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.release:
+		return c.recordingSessionCatalog.ListSessions(ctx, query)
 	}
 }

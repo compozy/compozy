@@ -17,7 +17,7 @@ func (m *Manager) publishAttentionCommit(
 	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
 		return
 	}
-	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
+	info, err := m.sessionInfoForAttentionEvent(sessionID)
 	if err != nil {
 		m.logger.WarnContext(
 			ctx,
@@ -85,19 +85,20 @@ func timePointersEqual(left, right *time.Time) bool {
 	return left.Equal(*right)
 }
 
-func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID string) (*Info, error) {
+// sessionInfoForAttentionEvent keeps durable publication reads in the Manager lifetime.
+func (m *Manager) sessionInfoForAttentionEvent(sessionID string) (*Info, error) {
 	if active, ok := m.Get(sessionID); ok {
 		return active.Info(), nil
 	}
 	if m.sessionCatalog == nil {
 		return nil, errorsForAttentionSnapshot(sessionID)
 	}
-	queryCtx := ctx
-	if queryCtx == nil {
-		queryCtx = context.Background()
-	} else {
-		queryCtx = context.WithoutCancel(queryCtx)
+	base := m.attentionReconciliation.ctx
+	if base == nil {
+		base = m.fallbackLifecycleContext()
 	}
+	queryCtx, cancel := context.WithTimeout(base, defaultLifecycleTimeout)
+	defer cancel()
 	rows, err := m.sessionCatalog.ListSessions(queryCtx, store.SessionListQuery{
 		ReadScope: store.ReadScope{AllProfiles: true},
 		ID:        strings.TrimSpace(sessionID),

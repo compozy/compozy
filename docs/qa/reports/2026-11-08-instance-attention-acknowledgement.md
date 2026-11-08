@@ -124,3 +124,23 @@ operator-authority suites passed after the follow-up. Storage read faults are in
 owning unit-test I/O boundary. The earlier rendered component/HTTP evidence remains applicable:
 no Web rendering, request/response shape, authorization or attention SQL changed in the follow-up.
 No local full/race/E2E suite or operator-daemon restart was run.
+
+### Follow-up review repairs
+
+Greptile review `5819461176` and CodeRabbit review `5819479651` identified further ordering and
+shutdown boundaries. Permission/clarification transitions now carry their canonical session ID into
+the same lock as presence and reconciliation; there is no empty-key transition lock. The existing
+real-SQLite ordering suite pauses a committed permission transition and verifies that a newer
+presence write cannot overtake its resident apply.
+
+A canonical `store.ErrSessionNotFound` removes a deleted acknowledged descendant from the retry
+batch; other failures still retry. Nonresident publication reads use a bounded Manager-owned
+context, preserving caller-disconnect independence while honoring shutdown cancellation. Session
+lock acquisition accepts the operation context, so canceled reconciliation can leave its lock wait.
+A successful reconciliation holds that lock through publication, keeping a later permission edge
+from overtaking the clearing edge. Admission reports rejection directly after shutdown.
+
+The existing hook and ordering suites exercise deleted-descendant completion, a bounded catalog
+read canceled during shutdown, canceled lock waits, old/new edge order, and direct post-shutdown
+admission rejection. These are the owning failure-path checks; no new standalone test file, schema,
+public DTO, Web component or reviewer policy is introduced.

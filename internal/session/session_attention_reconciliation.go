@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -24,10 +25,11 @@ type attentionReconciliationLifecycle struct {
 
 // PublishPendingInteractionCommits reconciles committed acknowledgements in the manager lifetime.
 // after runs only after every affected session has refreshed and published its attention edge.
+// It returns false when shutdown has closed worker admission.
 func (m *Manager) PublishPendingInteractionCommits(
 	commits []store.SessionAttentionCommit,
 	after func(),
-) {
+) bool {
 	pending := make([]store.SessionAttentionCommit, 0, len(commits))
 	seen := make(map[string]bool)
 	for _, commit := range commits {
@@ -42,7 +44,7 @@ func (m *Manager) PublishPendingInteractionCommits(
 	lifecycle.mu.Lock()
 	if lifecycle.closing {
 		lifecycle.mu.Unlock()
-		return
+		return false
 	}
 	lifecycle.wg.Add(1)
 	lifecycle.mu.Unlock()
@@ -50,6 +52,7 @@ func (m *Manager) PublishPendingInteractionCommits(
 		defer lifecycle.wg.Done()
 		m.reconcileAcknowledgedInteractions(lifecycle.ctx, pending, after)
 	}()
+	return true
 }
 
 // reconcileAcknowledgedInteractions retries failed refreshes without repeating successful edges.
@@ -64,7 +67,11 @@ func (m *Manager) reconcileAcknowledgedInteractions(
 			if ctx.Err() != nil {
 				return
 			}
-			if err := m.publishPendingInteractionCommit(ctx, commit); err != nil {
+			if err := m.publishPendingInteractionCommit(
+				ctx,
+				commit,
+			); err != nil &&
+				!errors.Is(err, store.ErrSessionNotFound) {
 				m.logger.WarnContext(ctx, "session: refresh acknowledged interaction failed; retrying",
 					"session_id", commit.Interaction.SessionID, "error", err)
 				failed = append(failed, commit)
@@ -102,7 +109,12 @@ func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit st
 	var err error
 	for range 2 {
 		attemptCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
-		refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
+		unlock, lockErr := m.lockAttentionCommit(attemptCtx, id)
+		if lockErr != nil {
+			cancel()
+			return lockErr
+		}
+		refreshed, err = m.commitAttentionLocked(id, func() (store.SessionAttentionCommit, error) {
 			current, err := m.attentionStore.GetSessionAttention(attemptCtx, id)
 			if err != nil {
 				return commit, err
@@ -115,9 +127,11 @@ func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit st
 		})
 		if err == nil {
 			m.publishAttentionCommit(attemptCtx, id, refreshed)
+			unlock()
 			cancel()
 			return nil
 		}
+		unlock()
 		cancel()
 	}
 	return err

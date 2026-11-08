@@ -491,3 +491,7 @@ Acknowledgement recovery under delayed or failed storage reads is covered by the
 for reconciliation, an unrelated live permission must still commit, a recovered stopped session
 publishes one attention edge before the instance update, and shutdown cancels and joins the worker.
 `TestInstanceSeen` separately proves a newer stopped request alone keeps instance attention raised.
+
+The same owning suites also verify that deletion of an acknowledged descendant cannot hold the
+instance notification indefinitely, that catalog reads and lock waits cancel on shutdown, and that
+an older clearing edge cannot follow a newer permission edge for the same resumed session.
