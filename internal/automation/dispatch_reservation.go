@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 )
 
@@ -114,13 +115,27 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 	run *Run,
 	runErr error,
 ) (*Run, error) {
-	if scheduledAdmissionInterrupted(req, runErr) {
+	if scheduledAdmissionInterrupted(ctx, req, runErr) {
 		return cloneRun(run), errors.Join(errScheduledAdmissionDeferred, runErr)
 	}
-	return d.finishRun(ctx, run, classifyDispatchError(runErr), runErr)
+	status := classifyDispatchError(runErr)
+	if _, accepted := errors.AsType[*acp.FailureError](runErr); accepted &&
+		(ctx.Err() == nil || !errors.Is(runErr, ctx.Err())) {
+		status = RunFailed
+	}
+	return d.finishRun(ctx, run, status, runErr)
 }
 
-func scheduledAdmissionInterrupted(req DispatchRequest, err error) bool {
+// scheduledAdmissionInterrupted preserves the fire when dispatch itself was interrupted.
+func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err error) bool {
+	if req.Kind == DispatchKindSchedule && req.ReservedRun != nil && ctx.Err() != nil &&
+		errors.Is(err, ctx.Err()) {
+		return true
+	}
+	// Accepted startup failures retain wrapped timeout errors but must consume the fire.
+	if _, accepted := errors.AsType[*acp.FailureError](err); accepted {
+		return false
+	}
 	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
 		(errors.Is(err, admission.ErrDraining) || errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded))
@@ -204,7 +219,7 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 		now,
 	)
 	if err != nil {
-		if reserved.Status == RunScheduled && scheduledAdmissionInterrupted(req, err) {
+		if reserved.Status == RunScheduled && scheduledAdmissionInterrupted(ctx, req, err) {
 			return reserved, errors.Join(errScheduledAdmissionDeferred, err)
 		}
 		return reserved, err
