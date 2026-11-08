@@ -45,3 +45,14 @@ the finished run stayed hidden. The job's run history linked the run's session, 
 it without adding a row. `compozy session list` still returned both sessions. Dark theme only; the
 board, All projects with several projects, a prompted run and a reload were not walked here and rest
 on their automated suites.
+
+QA impact 2026-11-08 (#1388): a run shown with "Show automation runs" is titled by its job (for
+example `issue-triage`), not "New session", even when the job and its agent share a name; an
+always-on agent's untitled main shows its agent; an operator's untitled session still reads "New
+session". Each row's compact time keeps counting while the list stays open (it used to freeze at
+the value it first rendered). Owners: `session-list.test.tsx` ("SessionList row title") and the
+`Time` tick tests in `packages/ui`, which now run under the React Compiler. Verified in the
+compiled `SessionSidebar/SessionOrigins` story with a Playwright clock advanced two hours: before,
+`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1388/102cc19b3/00-before-t2h.png` (three "New session" rows, times stuck at 3m/18m/42m); after,
+`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1388/102cc19b3/02-origins-t2h.png` (`issue-triage`, `log-triage`, "New session", all at 2h). Not walked against
+a lab daemon.
