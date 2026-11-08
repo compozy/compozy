@@ -1043,9 +1043,9 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
   });
   const path = product.locator("code", { hasText: "fixture.txt:7" }).first();
   await expect(path).toBeVisible({ timeout: 30_000 });
-  // The path itself is the link (file-explorer US-005): a plain click opens the viewer, the
+  // The path itself is the link (file-explorer US-005): a plain click opens the Files app tab, the
   // modifier click the editor.
-  await expect(product.getByRole("button", { name: "Open fixture.txt in viewer" })).toHaveCount(1);
+  await expect(product.getByRole("button", { name: "Open fixture.txt in Files" })).toHaveCount(1);
   await path.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
 
   const recorded = join(desktop.home, "fixtures", "editor-argv.json");
@@ -1114,27 +1114,45 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await product.goto(new URL(`/session/${id}`, product.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  const link = product.getByRole("button", { name: "Open fixture.txt in viewer" }).first();
+  const session = osWindowSurface(product, "session", `[data-instance-key="${id}"]`);
+  const link = session.getByRole("button", { name: "Open fixture.txt in Files" }).first();
+  // A plain click opens the project's Files app as the active tab of the session's frame.
   await link.click();
-  await product.getByRole("button", { name: "Choose application" }).first().click();
+  const files = osWindowSurface(product, "files");
+  await expect(files).toBeVisible();
+  await files.getByRole("button", { name: "Choose application" }).first().click();
   await expect(product.getByRole("menuitem", { name: "Finder" })).toBeVisible();
   await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
   const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
   await expect
     .poll(async () => readFile(recorded, "utf8").catch(() => ""))
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
-  await expect(
-    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
-  ).toBeVisible();
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
   await writeFile(recorded, "");
+  await activateOsWindowTab(product, session);
   await link.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
   await expect
     .poll(async () => readFile(recorded, "utf8").catch(() => ""))
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
-  await expect(
-    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
-  ).toBeVisible();
+  await activateOsWindowTab(product, files);
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
 });
+
+/** One OS window surface of an app; `extra` narrows it with further attribute selectors. */
+function osWindowSurface(product: Page, app: string, extra = ""): Locator {
+  return product.locator(`[data-slot="os-window-surface"][data-app="${app}"]${extra}`).first();
+}
+
+/** Brings a window's tab to the front of its frame, the way an operator clicks a tab. */
+async function activateOsWindowTab(product: Page, surface: Locator): Promise<void> {
+  const testID = (await surface.getAttribute("data-testid")) ?? "";
+  expect(testID.startsWith("os-window-")).toBe(true);
+  await product
+    .getByTestId(`os-window-tab-${testID.slice("os-window-".length)}`)
+    .locator('[data-slot="os-window-tab-activate"]')
+    .click();
+  await expect(surface).toBeVisible();
+}
 
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({
   launchDesktop,

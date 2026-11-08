@@ -41,6 +41,21 @@ export async function startMCPAuthServer(): Promise<MCPAuthTestServer> {
       return;
     }
 
+    // RFC 9728 protected resource metadata for the `/mcp` resource, so a server definition without
+    // an explicit issuer (a plugin's `.mcp.json`) discovers this authorization server.
+    if (request.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/json");
+      response.end(
+        JSON.stringify({
+          resource: `${baseURL}/mcp`,
+          authorization_servers: [baseURL],
+          scopes_supported: ["read", "write"],
+        })
+      );
+      return;
+    }
+
     // Auto-approve: redirect straight back to the daemon callback with a code.
     if (request.method === "GET" && url.pathname === "/authorize") {
       const redirectUri = url.searchParams.get("redirect_uri");
