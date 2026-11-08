@@ -8985,6 +8985,7 @@ export interface components {
       finished: boolean;
       generation: number;
       id: string;
+      instance_id?: string;
       item_index: number;
       kind: string;
       loop_name?: string;
@@ -8994,6 +8995,7 @@ export interface components {
       redacted: boolean;
       request_kind?: string;
       run_id?: string;
+      session_type?: string;
       source_id: string;
       terminal_id?: string;
       title: string;

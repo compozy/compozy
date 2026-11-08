@@ -21,8 +21,8 @@ export interface TimeProps extends Omit<React.ComponentProps<"time">, "title" | 
    */
   mode?: TimeMode;
   /**
-   * Tick interval for `relative` mode in milliseconds. Defaults to 30 s per
-   *
+   * Tick interval in milliseconds for the relative text, which is the primary text in
+   * `relative`/`compact` mode and the tooltip in `absolute` mode. Defaults to 30 s.
    */
   refreshMs?: number;
 }
@@ -36,12 +36,17 @@ function Time({
   className,
   ...props
 }: TimeProps) {
-  useRelativeTick(mode !== "absolute", refreshMs);
+  // Every mode ticks: absolute mode still shows the relative time as its tooltip.
+  const now = useRelativeTick(refreshMs, iso);
 
-  const relative = formatRelativeTime(iso);
+  const relative = formatRelativeTime(iso, now);
   const absolute = formatAbsoluteTime(iso);
   const primary =
-    mode === "absolute" ? absolute : mode === "compact" ? formatCompactRelativeTime(iso) : relative;
+    mode === "absolute"
+      ? absolute
+      : mode === "compact"
+        ? formatCompactRelativeTime(iso, now)
+        : relative;
   const title = mode === "absolute" ? relative : absolute;
 
   return (

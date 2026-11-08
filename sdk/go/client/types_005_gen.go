@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// CommandID is a daemon API value.
+type CommandID string
+
 // CompleteTaskRunRequest is a daemon API value.
 type CompleteTaskRunRequest struct {
 	Result         json.RawMessage `json:"result,omitempty"`

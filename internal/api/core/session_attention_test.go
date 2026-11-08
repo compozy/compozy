@@ -704,7 +704,8 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				}
 				if len(query.Badges) == 1 && query.Badges[0] == session.BadgeDone && !query.AttentionOnly {
 					return session.ListPage{Sessions: []*session.Info{{
-						ID: "sess-finished", Name: "Completed work", ProfileID: store.DefaultProfileID,
+						ID: "sess-finished", Name: "issue-triage", AgentName: "issue-triage",
+						Type: session.SessionTypeSystem, ProfileID: store.DefaultProfileID,
 						WorkspaceID: "ws-2", State: session.StateActive, LastSettledRevision: revision,
 						AttentionRevision: revision, UpdatedAt: time.Date(2026, 9, 10, 13, 0, 0, 0, time.UTC),
 					}}}, nil
@@ -726,6 +727,7 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 							ProfileID:           store.DefaultProfileID,
 							WorkspaceID:         "ws-1",
 							PendingClarifyCount: 1,
+							InstanceID:          "ainst-triage",
 							AttentionRevision:   revision,
 							UpdatedAt:           time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
 						},
@@ -770,6 +772,11 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 			}
 			if before.Items[0].SourceID != "sess-finished" || !before.Items[0].Finished {
 				t.Fatalf("finished row missing from the notification snapshot: %+v", before.Items[0])
+			}
+			// A session row carries its origin so the bell can title an automation run by its job.
+			if before.Items[0].SessionType != string(session.SessionTypeSystem) ||
+				before.Items[1].InstanceID != "ainst-triage" {
+				t.Fatalf("session origin missing from notification rows: %+v / %+v", before.Items[0], before.Items[1])
 			}
 			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
 			if err != nil {

@@ -583,6 +583,26 @@ describe("useSessionLabel", () => {
     expect(result.current.workspaceName).toBeNull();
   });
 
+  it.each(["issue-triage", "automation-agent"])(
+    "Should name an automation sender by its job, not New session, when its agent is %s (#1388)",
+    async fetchedAgent => {
+      const automation = sessionDetail(SENDER_ID, "issue-triage", fetchedAgent);
+      stubDetailReads({ [SENDER_ID]: { session: { ...automation.session, type: "system" } } });
+      const { result } = renderHook(
+        () =>
+          useSessionLabel({
+            sessionId: SENDER_ID,
+            workspaceId: WS,
+            currentWorkspaceId: WS,
+            agentName: "recorded-agent",
+          }),
+        { wrapper }
+      );
+      await waitFor(() => expect(result.current.pending).toBeUndefined());
+      expect(result.current.title).toBe("issue-triage");
+    }
+  );
+
   it("Should name nothing while the read is in flight and no title was recorded (m-13)", async () => {
     const { result } = renderHook(
       () =>

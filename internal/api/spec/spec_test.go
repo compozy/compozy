@@ -3291,6 +3291,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addBoundarySteerDelivery(baseline) == 0 {
 			t.Fatal("approved boundary delivery addition: no historical steering schemas found")
 		}
+		// #1388: attention notification session rows carry the session's origin.
+		if addAttentionNotificationSessionOrigin(baseline) == 0 {
+			t.Fatal("approved notification session origin addition: no historical notification schema found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3444,6 +3448,30 @@ func addBoundarySteerDelivery(value any) int {
 			}
 			count++
 		}
+	}
+	return count
+}
+
+func addAttentionNotificationSessionOrigin(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["source_id"] == nil || properties["request_kind"] == nil ||
+			properties["terminal_id"] == nil {
+			return count
+		}
+		// Optional fields; the required set stays unchanged.
+		properties["session_type"] = map[string]any{"type": "string"}
+		properties["instance_id"] = map[string]any{"type": "string"}
+		count++
 	}
 	return count
 }
