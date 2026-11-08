@@ -12,6 +12,8 @@ import (
 // interrupted. It is the requested stop, not a runtime failure of the session.
 var errStartupCanceledByStop = errors.New("session: startup canceled")
 
+var errStopNeedsStartGate = errors.New("session: stop requires the current startup gate")
+
 func (m *Manager) stopStartingSession(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
 	session, run, handled, err := m.prepareStartingSessionStop(ctx, id, cause, detail, nil)
 	if !handled || err != nil {
@@ -35,11 +37,13 @@ func (m *Manager) finishStartingSessionStop(ctx context.Context, session *Sessio
 	outcome.Cause, _ = session.stopCauseDetail()
 	diagnosticCtx, cancelDiagnostic := m.lifecycleCleanupContext()
 	defer cancelDiagnostic()
-	return errors.Join(
-		ErrStopVerificationFailed,
-		err,
-		m.recordSessionStopVerificationFailure(diagnosticCtx, session, outcome),
-	)
+	var observationErr error
+	if !session.hasVerifiedStopProcess(session.processHandle()) {
+		observationErr = recordStartStopObservation(&run.stopVerificationRecorded, func() error {
+			return m.recordSessionStopVerificationFailure(diagnosticCtx, session, outcome)
+		})
+	}
+	return errors.Join(ErrStopVerificationFailed, err, observationErr)
 }
 
 func (m *Manager) prepareStartingSessionStop(

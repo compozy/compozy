@@ -150,6 +150,7 @@ func (l *Lock) Release() error {
 	}
 
 	l.flock = nil
+	// A closed or uncertain lock is no longer authority to rewrite singleton discovery.
 	l.released.Store(true)
 	l.stalePID = 0
 	return errors.Join(errs...)

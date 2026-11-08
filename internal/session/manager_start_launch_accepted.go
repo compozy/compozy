@@ -153,7 +153,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	session := accepted.session
 
 	if session.stopWasRequested() {
-		return m.settleCanceledSessionStart(cleanupCtx, accepted)
+		return m.settleAndTrackCanceledSessionStart(cleanupCtx, accepted)
 	}
 	if !accepted.persistFailure {
 		return m.discardAcceptedSessionStart(cleanupCtx, accepted, startErr)
@@ -172,11 +172,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	defer release()
 	if session.stopWasRequested() {
 		release()
-		err := m.settleCanceledSessionStart(cleanupCtx, accepted)
-		if m.canceledSessionStartPending(accepted) {
-			return m.deferFailedStartCleanup(accepted, err)
-		}
-		return err
+		return m.settleAndTrackCanceledSessionStart(cleanupCtx, accepted)
 	}
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -224,8 +220,7 @@ func (m *Manager) discardAcceptedSessionStart(
 	return result
 }
 
-// settleClosedSessionStart arbitrates failure retention, deletion and requested stop
-// only after cleanup releases the captured recorder. No recorder is reopened before the gate.
+// settleClosedSessionStart arbitrates terminal settlement after recorder release and before reopening under the gate.
 func (m *Manager) settleClosedSessionStart(
 	ctx context.Context, accepted *acceptedSessionStart, failure error, retain bool,
 ) (bool, error) {
@@ -234,6 +229,10 @@ func (m *Manager) settleClosedSessionStart(
 		return true, err
 	}
 	defer releaseCommit()
+	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified &&
+		!m.canceledSessionStartPending(accepted) {
+		return false, failure
+	}
 	settleCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	if retain || accepted.session.stopWasRequested() {
@@ -321,7 +320,7 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 		// Caller expiry and manager cancellation cannot release this resource owner.
 		// Shutdown still bounds its wait through the existing tracked start run.
 		ctx := context.WithoutCancel(m.lifecycleCtx)
-		processErr := m.joinFailedStartProcess(ctx, accepted)
+		processErr := m.joinFailedStartProcessForSettlement(ctx, accepted)
 		var result error
 		for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
 			if accepted.recorderClosing {
@@ -405,6 +404,7 @@ func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart,
 	return errors.Join(failure, m.removeUncommittedSessionStart(accepted))
 }
 
+// removeUncommittedSessionStart removes the captured child only after its process and recorder release ownership.
 func (m *Manager) removeUncommittedSessionStart(accepted *acceptedSessionStart) error {
 	session := accepted.session
 	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, nil, nil)

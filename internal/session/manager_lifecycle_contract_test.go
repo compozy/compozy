@@ -1046,6 +1046,232 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: normal stop preparation must re-enter the replacement startup's launch gate.
+	t.Run("Should route normal stop preparation through a pending startup gate", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		run, owned := h.manager.claimSessionStopRun(accepted.session.ID)
+		if !owned {
+			t.Fatal("stop admission was not owned")
+		}
+		release, err := acquireSessionStartLaunchCommit(t.Context(), accepted.run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		observed := &resumeWaitObservedContext{Context: testutil.Context(t), entered: make(chan struct{})}
+		prepared := make(chan struct{})
+		go func() { h.manager.prepareSessionStopRun(observed, run, CauseUserRequested, ""); close(prepared) }()
+		<-observed.entered
+		if accepted.session.Info().State != StateStarting {
+			t.Fatal("normal preparation bypassed the startup gate")
+		}
+		worker := make(chan struct{})
+		go func() {
+			defer close(worker)
+			<-accepted.run.ctx.Done()
+			err := h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
+			if !accepted.cleanupPending {
+				h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+			}
+		}()
+		release()
+		<-prepared
+		outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+			t.Fatalf("replacement startup stop = %+v, %v", outcome, err)
+		}
+		<-worker
+		if countEventType(readStoredEvents(t, accepted.session), acp.EventTypeError) != 0 {
+			t.Fatal("replacement cancellation became a startup failure")
+		}
+	})
+
+	// Invariant: a verified captured process cannot block terminal recovery on a later lookup failure.
+	t.Run("Should reuse exact process exit proof during canceled terminal recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-exit-proof")
+		proc.exit()
+		h.driver.processes[proc.handle] = proc
+		accepted.proc = proc.handle
+		var calls atomic.Int32
+		var lookupFailed atomic.Bool
+		lookupFailed.Store(true)
+		defer lookupFailed.Store(false)
+		h.driver.verifyExitHook = func(*AgentProcess) (bool, error) {
+			if calls.Add(1) > 1 && lookupFailed.Load() {
+				return false, errors.New("process lookup unavailable after verified exit")
+			}
+			return true, nil
+		}
+		path := h.manager.recoveredStopReceiptPath(accepted.session.ID)
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		remove := sync.OnceFunc(func() {
+			if err := os.Remove(path); err != nil {
+				t.Error(err)
+			}
+		})
+		defer remove()
+		if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		err := h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
+		if !accepted.cleanupPending {
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}
+		if !accepted.cleanupPending || !errors.Is(err, ErrRecoveryPersistence) {
+			t.Fatalf("terminal receipt failure lost its owner: %v", err)
+		}
+		remove()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+		if err := waitForSessionStartRun(ctx, accepted.run); err != nil {
+			t.Fatal(err)
+		}
+		h.driver.mu.Lock()
+		stops := h.driver.stopCalls
+		h.driver.mu.Unlock()
+		if calls.Load() != 1 || stops != 0 {
+			t.Fatalf("verified process was reacquired: lookups=%d stops=%d", calls.Load(), stops)
+		}
+		if countEventType(readStoredEvents(t, accepted.session), EventTypeSessionStopped) != 1 {
+			t.Fatal("terminal recovery did not persist one stop event")
+		}
+	})
+
+	// Invariant: exit proof for an old process cannot certify a replacement process in the same session.
+	t.Run("Should verify a replacement process despite a previous exit receipt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		old := h.driver.lastProcess()
+		old.exit()
+		active.retainVerifiedStopOutcome(StopOutcome{Verified: true, FinalState: StateStopped})
+		replacement := newFakeProcess("coder", "fake-agent", h.workspace, "acp-replacement-proof")
+		h.driver.processes[replacement.handle] = replacement
+		active.mu.Lock()
+		active.process = replacement.handle
+		active.mu.Unlock()
+		var calls atomic.Int32
+		h.driver.verifyExitHook = func(*AgentProcess) (bool, error) { calls.Add(1); return false, nil }
+		err := h.manager.verifySessionProcessExit(active)
+		if !errors.Is(err, ErrStopVerificationFailed) || calls.Load() != 1 {
+			t.Fatalf("old exit proof certified replacement: %v, calls=%d", err, calls.Load())
+		}
+		h.driver.mu.Lock()
+		h.driver.verifyExitHook = nil
+		h.driver.mu.Unlock()
+		replacement.exit()
+		if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: canceled startup ownership outlives a recorder close deadline and joins its captured cleanup.
+	for _, optionalWaiter := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should join canceled recorder cleanup with optional waiter %t", optionalWaiter),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				accepted := prepareLifecycleStart(t, h)
+				lease, err := sessiondb.AcquireFamilyLease(t.Context(), accepted.session.DBPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer lease.Release()
+				closeCtx, cancel := context.WithCancel(t.Context())
+				cancel()
+				fail := new(atomic.Bool)
+				wrapped := &terminalCloseFailingRecorder{
+					EventRecorder: accepted.storage.recorder,
+					fail:          fail,
+					closeContext:  closeCtx,
+				}
+				accepted.storage.recorder = wrapped
+				if !optionalWaiter {
+					accepted.storage.recorder = &struct{ EventRecorder }{wrapped}
+				}
+				accepted.session.setRecorder(accepted.storage.recorder)
+				if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+					t.Fatal(err)
+				}
+				err = h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
+				if !accepted.cleanupPending {
+					h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+				}
+				if !accepted.cleanupPending || signalClosed(accepted.run.done) ||
+					!errors.Is(err, store.ErrDrainTimeout) {
+					t.Fatalf("recorder cleanup lost startup owner: %v", err)
+				}
+				ctx, cancelWait := context.WithCancel(t.Context())
+				cancelWait()
+				outcome, err := h.manager.AwaitStopped(ctx, accepted.session.ID)
+				if !errors.Is(err, context.Canceled) || outcome.Verified {
+					t.Fatalf("stop receipt escaped recorder cleanup: %+v, %v", outcome, err)
+				}
+				lease.Release()
+				if err := waitForSessionStartRun(
+					testutil.Context(t),
+					accepted.run,
+				); !errors.Is(
+					err,
+					store.ErrDrainTimeout,
+				) {
+					t.Fatalf("joined cleanup diagnostic = %v", err)
+				}
+				if !wrapped.CleanupComplete() {
+					t.Fatal("startup finished before captured recorder cleanup")
+				}
+			},
+		)
+	}
+
+	// Invariant: Stop accepted before failure settlement retains a storage-failed terminal owner.
+	t.Run("Should retain early cancellation through terminal persistence recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		var fail atomic.Bool
+		fail.Store(true)
+		defer fail.Store(false)
+		wrap := func(recorder EventRecorder) EventRecorder {
+			return &terminalWriteFailingRecorder{EventRecorder: recorder, fail: &fail, writeErr: syscall.ENOSPC}
+		}
+		opener := h.manager.openStore
+		h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+			recorder, err := opener(ctx, owner, path)
+			if err != nil {
+				return nil, err
+			}
+			return wrap(recorder), nil
+		}
+		accepted.storage.recorder = wrap(accepted.storage.recorder)
+		accepted.session.setRecorder(accepted.storage.recorder)
+		if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		err := h.manager.settleAcceptedSessionStartFailure(accepted, context.Canceled)
+		if !accepted.cleanupPending {
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}
+		if !accepted.cleanupPending || signalClosed(accepted.run.done) || !errors.Is(err, ErrRecoveryPersistence) {
+			t.Fatalf("early cancellation lost terminal ownership: %v", err)
+		}
+		fail.Store(false)
+		if err := waitForSessionStartRun(testutil.Context(t), accepted.run); err != nil {
+			t.Fatal(err)
+		}
+		if countEventType(readStoredEvents(t, accepted.session), EventTypeSessionStopped) != 1 {
+			t.Fatal("early cancellation did not persist exactly one stop")
+		}
+	})
+
 	// Invariant: cancellation winning async failure arbitration retains an unverified terminal owner.
 	t.Run("Should retry asynchronous cancellation after exit verification fails", func(t *testing.T) {
 		t.Parallel()
@@ -1055,6 +1281,14 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-late-verification")
 		h.driver.processes[proc.handle] = proc
 		accepted.proc = proc.handle
+		retryEntered := make(chan struct{})
+		var kills atomic.Int32
+		h.driver.killHook = func(*fakeProcess) error {
+			if kills.Add(1) == 2 {
+				close(retryEntered)
+			}
+			return nil
+		}
 		var calls atomic.Int32
 		var recovered atomic.Bool
 		defer recovered.Store(true)
@@ -1077,10 +1311,21 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		if !errors.Is(err, ErrStopVerificationFailed) || !accepted.cleanupPending || signalClosed(accepted.run.done) {
 			t.Fatalf("async cancellation lost cleanup ownership: %v", err)
 		}
+		select {
+		case <-retryEntered:
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
 		recovered.Store(true)
 		if err := waitForSessionStartRun(testutil.Context(t), accepted.run); err != nil {
 			t.Fatal(err)
 		}
+		events := readStoredEvents(t, accepted.session)
+		if countEventType(events, eventspkg.SessionStopEscalated) != 2 ||
+			countEventType(events, eventspkg.SessionStopVerificationFailed) != 1 {
+			t.Fatal("canceled retries repeated unchanged stop observations")
+		}
+
 		if accepted.session.Info().State != StateStopped ||
 			countEventType(readStoredEvents(t, accepted.session), EventTypeSessionStopped) != 1 {
 			t.Fatal("async cancellation did not settle once")
@@ -3014,11 +3259,20 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			readMeta(t, active.MetaPath()).State != string(StateStopping) {
 			t.Fatal("late live process was not retained for a retry")
 		}
+		if run := h.manager.sessionStartRun(active.ID); run == nil || signalClosed(run.done) {
+			t.Fatal("early cancellation released its unverified startup owner")
+		}
+
 		h.driver.mu.Lock()
 		h.driver.killHook = nil
 		h.driver.mu.Unlock()
 		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
 			t.Fatalf("retry late process stop: %v", err)
+		}
+		events := readStoredEvents(t, active)
+		if countEventType(events, eventspkg.SessionStopEscalated) != 2 ||
+			countEventType(events, eventspkg.SessionStopVerificationFailed) != 1 {
+			t.Fatal("stop waiters duplicated canceled startup observations")
 		}
 	})
 	t.Run("Should preserve creation identity when stop follows a canceled catalog registration", func(t *testing.T) {

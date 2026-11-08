@@ -46,7 +46,7 @@ type AgentExitVerifier interface {
 
 func (m *Manager) verifySessionProcessExit(session *Session) error {
 	proc := session.processHandle()
-	if proc == nil {
+	if proc == nil || session.hasVerifiedStopProcess(proc) {
 		return nil
 	}
 	verifyCtx, cancel := m.lifecycleCleanupContext()

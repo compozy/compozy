@@ -165,8 +165,9 @@ type Session struct {
 	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr     error
-	stopVerifiedOutcome     StopOutcome // Protected by mu.
-	stopStatePending        bool        // Protected by mu.
+	stopVerifiedOutcome     StopOutcome   // Protected by mu.
+	stopVerifiedProcess     *AgentProcess // Protected by mu.
+	stopStatePending        bool          // Protected by mu.
 	stopTerminalEvent       *acp.AgentEvent
 	stopTerminalRecorded    bool
 	stopTurnID              string // Protected by mu.

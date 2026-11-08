@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,6 +21,9 @@ func (m *Manager) prepareStartingStopRun(
 		m.failStopPreparation(run, err)
 		return true
 	}
+	m.mu.Lock()
+	run.session = session
+	m.mu.Unlock()
 	run.notifyCommitted()
 	close(run.ready)
 	m.startTrackedPromptTask(func() {
@@ -43,8 +47,9 @@ func (m *Manager) prepareStartingStopRun(
 // settleCanceledSessionStart retries terminal persistence without reacquiring an already verified process.
 func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
 	session := accepted.session
-	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified {
-		return m.finalizeStopped(ctx, session, canceledStartWaitErr(accepted.run.ctx))
+	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified &&
+		(accepted.proc == nil || session.hasVerifiedStopProcess(accepted.proc)) {
+		return m.finalizeCanceledSessionStart(ctx, accepted)
 	}
 	proc := accepted.proc
 	if proc == nil {
@@ -57,7 +62,13 @@ func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acce
 	cause, _ := session.stopCauseDetail()
 	result, err := m.runTerminationLadder(ctx, proc, terminationTarget{
 		beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
-			return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
+			recorded := &accepted.run.stopForcedRecorded
+			if phase == StopPhaseKilled {
+				recorded = &accepted.run.stopKilledRecorded
+			}
+			return recordStartStopObservation(recorded, func() error {
+				return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
+			})
 		},
 	})
 	result.Cause = cause
@@ -66,10 +77,13 @@ func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acce
 	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	if !result.Verified {
-		return errors.Join(err, m.recordSessionStopVerificationFailure(settleCtx, session, result.StopOutcome))
+		observationErr := recordStartStopObservation(&accepted.run.stopVerificationRecorded, func() error {
+			return m.recordSessionStopVerificationFailure(settleCtx, session, result.StopOutcome)
+		})
+		return errors.Join(err, observationErr)
 	}
 	result.StopOutcome = session.retainVerifiedStopOutcome(result.StopOutcome)
-	return errors.Join(err, m.finalizeStopped(settleCtx, session, canceledStartWaitErr(accepted.run.ctx)))
+	return errors.Join(err, m.finalizeCanceledSessionStart(settleCtx, accepted))
 }
 
 // canceledStartWaitErr reports the launch error a canceled start settles with. A
@@ -101,5 +115,44 @@ func (m *Manager) waitSessionStopRun(ctx context.Context, id string, run *sessio
 // canceledSessionStartPending joins the terminal owner even after its in-memory state is Stopped.
 func (m *Manager) canceledSessionStartPending(accepted *acceptedSessionStart) bool {
 	current, tracked := m.Get(accepted.session.ID)
-	return tracked && current == accepted.session
+	return accepted.recorderClosing || (tracked && current == accepted.session)
+}
+
+// settleAndTrackCanceledSessionStart keeps every cancellation entry point on the same retained owner.
+func (m *Manager) settleAndTrackCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
+	err := m.settleCanceledSessionStart(ctx, accepted)
+	if m.canceledSessionStartPending(accepted) {
+		return m.deferFailedStartCleanup(accepted, err)
+	}
+	return err
+}
+
+// recordStartStopObservation coalesces in-flight observations without holding a lock across I/O.
+func recordStartStopObservation(recorded *atomic.Bool, record func() error) error {
+	if !recorded.CompareAndSwap(false, true) {
+		return nil
+	}
+	err := record()
+	if err != nil {
+		recorded.Store(false)
+	}
+	return err
+}
+
+// finalizeCanceledSessionStart keeps captured recorder cleanup owned after terminal projections finish.
+func (m *Manager) finalizeCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
+	err := m.finalizeStopped(ctx, accepted.session, canceledStartWaitErr(accepted.run.ctx))
+	if current, tracked := m.Get(accepted.session.ID); tracked && current == accepted.session {
+		return err
+	}
+	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+	complete := closeErr == nil
+	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
+		complete = cleanup.CleanupComplete()
+	}
+	accepted.recorderClosing = !complete
+	if complete {
+		accepted.storage.recorder = nil
+	}
+	return errors.Join(err, closeErr)
 }

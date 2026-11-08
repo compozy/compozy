@@ -12,7 +12,7 @@ import (
 type daemonShutdownOperation struct {
 	done   chan struct{}
 	result error
-	// Published with done; incomplete teardown retains the singleton.
+	// Published with done; discovery withdrawal also requires current singleton ownership.
 	sessionShutdownIncomplete bool
 	withdrawDiscovery         bool
 }

@@ -7,8 +7,7 @@ import (
 
 // shutdownPersistentResources preserves replacement discovery after singleton ownership ends.
 func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutdownTargets, errs *[]error) {
-	// Caller expiry is not resource release. Keep persistence and the singleton
-	// available to owned cleanup until a retry joins it or this process exits.
+	// Caller expiry retains remaining resources; an earlier attempt may have released the singleton.
 	if targets.sessionShutdownIncomplete {
 		return
 	}

@@ -225,6 +225,9 @@ func (m *Manager) prepareStopStateAndGoals(
 	// waiting for setup to drain so neither side waits on the other.
 	session.goalStopMu.Lock()
 	defer session.goalStopMu.Unlock()
+	if start := m.sessionStartRun(session.ID); start != nil && !start.activationCommitted.Load() {
+		return nil, errStopNeedsStartGate
+	}
 	writeMeta, promptSetupDone, err := m.commitStopIntent(ctx, session, cause, detail, run)
 	if err != nil {
 		return nil, fmt.Errorf("session: prepare stop state sync for %q: %w", session.ID, err)
