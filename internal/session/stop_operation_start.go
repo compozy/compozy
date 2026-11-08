@@ -28,7 +28,7 @@ func (m *Manager) prepareStartingStopRun(
 		run.err = m.finishStartingSessionStop(context.WithoutCancel(ctx), session, start)
 		info := session.Info()
 		run.outcome = StopOutcome{
-			FinalState: info.State, Verified: info.State == StateStopped,
+			FinalState: info.State, Verified: info.State == StateStopped && (start == nil || signalClosed(start.done)),
 			Cause: cause, Phase: StopPhaseCooperative, Elapsed: m.now().Sub(started),
 		}
 		if start != nil && signalClosed(start.done) && start.stopOutcome != nil {

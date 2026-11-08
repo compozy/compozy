@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -108,7 +110,7 @@ func (m *Manager) persistRetainedFailedStart(
 	}
 	for batch.next < len(batch.events) {
 		event := batch.events[batch.next]
-		if err := m.recordEventWithWriter(ctx, session, event, "", recordIdentifiedSessionEventIfAbsent); err != nil {
+		if err := m.recordEventWithWriter(ctx, session, event, "", recordRetainedSessionEvent); err != nil {
 			return err
 		}
 		if batch.next >= 2 {
@@ -128,4 +130,74 @@ func (m *Manager) persistRetainedFailedStart(
 	}
 	batch.committed = true
 	return nil
+}
+
+// recordRetainedSessionEvent resumes this batch's unpublished append after an ambiguous
+// acknowledgment, including recorders exposing only the mandatory Query/Record methods.
+func recordRetainedSessionEvent(
+	ctx context.Context,
+	recorder EventRecorder,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	rows, err := recorder.Query(ctx, store.EventQuery{ID: event.ID, Limit: 1})
+	if err != nil {
+		return store.SessionEvent{}, err
+	}
+	if len(rows) == 0 {
+		if appender, ok := recorder.(idempotentSessionEventAppender); ok {
+			row, _, err := appender.AppendEventIfAbsent(ctx, event)
+			return row, err
+		}
+		if err := recorder.Record(ctx, event); err != nil {
+			return store.SessionEvent{}, err
+		}
+		rows, err = recorder.Query(ctx, store.EventQuery{ID: event.ID, Limit: 1})
+		if err != nil {
+			return store.SessionEvent{}, err
+		}
+	}
+	if len(rows) != 1 || rows[0].Type != event.Type || rows[0].TurnID != event.TurnID ||
+		rows[0].Content != event.Content {
+		return store.SessionEvent{}, fmt.Errorf(
+			"session: retained event identity %q does not match persisted content",
+			event.ID,
+		)
+	}
+	return rows[0], nil
+}
+
+// stopFailedStartProcess releases its captured process only after exit verification.
+func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, error) {
+	if accepted.proc == nil {
+		return true, nil
+	}
+	ctx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	stopErr := m.driver.Stop(ctx, accepted.proc)
+	verified, verifyErr := m.verifyStopPhase(ctx, accepted.proc)
+	if !verified {
+		return false, errors.Join(ErrStopVerificationFailed, stopErr, verifyErr)
+	}
+	accepted.proc = nil
+	return true, errors.Join(stopErr, verifyErr)
+}
+
+// joinFailedStartProcess keeps the tracked start owner until termination is verified.
+func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *acceptedSessionStart) error {
+	var previous error
+	for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+		verified, err := m.stopFailedStartProcess(accepted)
+		if verified {
+			return errors.Join(previous, err)
+		}
+		previous = err
+		m.sessionLogger(accepted.session).Error("session: failed start process cleanup pending", "error", err)
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return errors.Join(err, ctx.Err())
+		}
+	}
 }

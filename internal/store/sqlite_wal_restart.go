@@ -99,10 +99,7 @@ func (g *walRestartGuard) restart(ctx context.Context, db *sql.DB) (retErr error
 	}
 	defer func() { retErr = errors.Join(retErr, conn.Close()) }()
 	// Probe external contention before releasing the snapshot that protects writers.
-	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
-		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
-		return err
-	}); err != nil {
+	if err := beginSQLiteImmediate(ctx, conn); err != nil {
 		return fmt.Errorf("store: begin WAL restart: %w", err)
 	}
 	if err := rollbackWriteTx(context.WithoutCancel(ctx), conn); err != nil {
@@ -157,10 +154,7 @@ func (g *walRestartGuard) restart(ctx context.Context, db *sql.DB) (retErr error
 // beginWALRestart retains admission across external-writer races after backfill.
 func beginWALRestart(ctx context.Context, conn *sql.Conn) error {
 	for {
-		err := executeSQLiteWithBusyWait(ctx, conn, func() error {
-			_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
-			return err
-		})
+		err := beginSQLiteImmediate(ctx, conn)
 		if !IsSQLiteBusy(err) {
 			return err
 		}

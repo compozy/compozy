@@ -22,6 +22,8 @@ type sessionStartRun struct {
 	launchCommit chan struct{}
 	// After durable activation, normal stop finalization owns termination.
 	activationCommitted atomic.Bool
+	// stopJoined records a Stop waiting for retained cleanup without changing its failure outcome.
+	stopJoined atomic.Bool
 }
 
 func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*sessionStartRun, error) {
@@ -132,14 +134,17 @@ func (m *Manager) sessionStartRun(sessionID string) *sessionStartRun {
 }
 
 // sessionInfoForRead returns the externally visible session snapshot.
-// Active is projected as Starting while its start run remains tracked.
+// Activation and retained failure settlement project Starting until their owner finishes.
 func (m *Manager) sessionInfoForRead(session *Session) *Info {
 	if session == nil {
 		return nil
 	}
 	info := session.Info()
-	if info != nil && info.State == StateActive && m.sessionStartRun(info.ID) != nil {
-		info.State = StateStarting
+	if info != nil {
+		if run := m.sessionStartRun(info.ID); run != nil &&
+			(info.State == StateActive || (info.State == StateStopped && !run.activationCommitted.Load())) {
+			info.State = StateStarting
+		}
 	}
 	return info
 }

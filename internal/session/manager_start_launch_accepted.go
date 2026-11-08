@@ -296,10 +296,7 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 		// Caller expiry and manager cancellation cannot release this resource owner.
 		// Shutdown still bounds its wait through the existing tracked start run.
 		ctx := context.WithoutCancel(m.lifecycleCtx)
-		processErr := m.cleanupFailedStart("", nil, accepted.proc)
-		if processErr == nil {
-			accepted.proc = nil
-		}
+		processErr := m.joinFailedStartProcess(ctx, accepted)
 		var result error
 		for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
 			if accepted.recorderClosing {
@@ -308,7 +305,7 @@ func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failur
 				accepted.recorderClosing = false
 			}
 			if accepted.retainedFailure != nil && accepted.retainedFailure.committed {
-				m.finishRetainedSessionStart(accepted)
+				m.finishRetainedSessionStart(ctx, accepted)
 				result = errors.Join(failure, result, accepted.retainedFailure.diagnosticErr)
 				break
 			}
@@ -370,6 +367,11 @@ func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart,
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	ctx context.Context, accepted *acceptedSessionStart, failure error,
 ) (bool, error) {
+	verified, processErr := m.stopFailedStartProcess(accepted)
+	if !verified {
+		return true, processErr
+	}
+	failure = errors.Join(failure, processErr)
 	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
 			return false, m.releaseMissingSessionStart(accepted, err)
@@ -379,23 +381,30 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	if err := m.persistRetainedFailedStart(ctx, accepted, failure); err != nil {
 		return true, err
 	}
-	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
+	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
 	complete := cleanupErr == nil
 	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
 		complete = cleanup.CleanupComplete()
 	}
 	if !complete {
 		accepted.recorderClosing = true
-		return true, errors.Join(cleanupErr, accepted.retainedFailure.diagnosticErr)
+		return true, errors.Join(processErr, cleanupErr, accepted.retainedFailure.diagnosticErr)
 	}
 	accepted.storage.recorder = nil
-	m.finishRetainedSessionStart(accepted)
-	return false, errors.Join(cleanupErr, accepted.retainedFailure.diagnosticErr)
+	m.finishRetainedSessionStart(ctx, accepted)
+	return false, errors.Join(processErr, cleanupErr, accepted.retainedFailure.diagnosticErr)
 }
 
 // finishRetainedSessionStart releases the active projection after writes and cleanup finish.
-func (m *Manager) finishRetainedSessionStart(accepted *acceptedSessionStart) {
+func (m *Manager) finishRetainedSessionStart(ctx context.Context, accepted *acceptedSessionStart) {
 	m.removeActive(accepted.session.ID)
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, accepted.session.Info()))
+	if accepted.session.stopWasRequested() || (accepted.run != nil && accepted.run.stopJoined.Load()) {
+		m.dispatchSessionPostStop(ctx, accepted.session)
+		if m.notifier != nil {
+			m.notifier.OnSessionStopped(ctx, accepted.session)
+		}
+	}
 	if m.hostedMCP != nil {
 		m.hostedMCP.CancelLaunch(accepted.session.ID)
 	}

@@ -85,16 +85,20 @@ func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now t
 		return nil
 	}
 
+	var cleanupErr error
+	if proc != nil {
+		stopCtx, cancel := m.lifecycleCleanupContext()
+		defer cancel()
+		stopErr := m.driver.Stop(stopCtx, proc)
+		verified, verifyErr := m.verifyStopPhase(stopCtx, proc)
+		if !verified {
+			return errors.Join(ErrStopVerificationFailed, stopErr, verifyErr)
+		}
+		cleanupErr = errors.Join(stopErr, verifyErr)
+	}
 	m.remove(session.ID)
 	session.rollbackActivation(now)
-
-	if proc == nil {
-		return nil
-	}
-
-	stopCtx, cancel := m.lifecycleCleanupContext()
-	defer cancel()
-	return m.driver.Stop(stopCtx, proc)
+	return cleanupErr
 }
 
 // sessionLogger identifies the bound route, which can differ from an attempted replacement route.

@@ -28,7 +28,7 @@ func (m *Manager) finishStartingSessionStop(ctx context.Context, session *Sessio
 	waitCtx, cancel := context.WithTimeout(ctx, m.stopConfig.CooperativeGrace+stopForcedGrace+stopKillGrace)
 	defer cancel()
 	err := waitForSessionStartRun(waitCtx, run)
-	if signalClosed(run.done) || session.Info().State == StateStopped {
+	if signalClosed(run.done) {
 		return err
 	}
 	outcome := StopOutcome{FinalState: StateStopping, Phase: StopPhaseCooperative, Elapsed: m.now().Sub(started)}
@@ -71,14 +71,19 @@ func (m *Manager) prepareStartingSessionStop(
 		if err != nil {
 			return session, run, true, fmt.Errorf("session: acquire starting launch commit for %q: %w", id, err)
 		}
-		// Failed-start deletion may have completed while this stop waited on
-		// launchCommit. Never persist through a stale pointer after removal.
-		if current, ok := m.Get(id); !ok || current != session {
-			return session, run, true, ErrSessionNotFound
+		eligible, targetErr := m.revalidateStartingStopTarget(id, session, run)
+		if targetErr != nil {
+			return session, run, true, targetErr
 		}
-		if current, currentRun := m.startingStopTarget(id); current != session || currentRun != run {
-			releaseLaunchCommit()
+		if !eligible {
 			return nil, nil, false, nil
+		}
+		if session.Info().State == StateStopped {
+			if stopRun != nil && stopRun.guard != nil {
+				return session, run, true, errStopDeclinedEnded
+			}
+			run.stopJoined.Store(true)
+			return session, run, true, nil
 		}
 		if session.Info().State == StateActive {
 			if err := m.dispatchSessionPreStop(ctx, session); err != nil {
@@ -91,6 +96,9 @@ func (m *Manager) prepareStartingSessionStop(
 	if err != nil {
 		releaseLaunchCommit()
 		return session, run, true, fmt.Errorf("session: prepare starting stop for %q: %w", id, err)
+	}
+	if run != nil {
+		run.stopJoined.Store(true)
 	}
 	// The launch settles termination itself once canceled, so effects go first.
 	stopRun.notifyCommitted()
@@ -118,6 +126,15 @@ func (m *Manager) prepareStartingSessionStop(
 	return session, run, true, nil
 }
 
+// revalidateStartingStopTarget fences deletion and activation changes while Stop waited on the gate.
+func (m *Manager) revalidateStartingStopTarget(id string, session *Session, run *sessionStartRun) (bool, error) {
+	if current, ok := m.Get(id); !ok || current != session {
+		return false, ErrSessionNotFound
+	}
+	current, currentRun := m.startingStopTarget(id)
+	return current == session && currentRun == run, nil
+}
+
 func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 	session, ok := m.Get(id)
 	if !ok || session == nil {
@@ -129,7 +146,7 @@ func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 		return nil, nil
 	}
 	if state != StateStarting && state != StateStopping &&
-		(state != StateActive || run == nil) {
+		(run == nil || (state != StateActive && state != StateStopped)) {
 		return nil, nil
 	}
 	if run == nil && session.processHandle() != nil {
@@ -153,7 +170,8 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 		session, ok := m.Get(id)
 		if ok && session != nil {
 			state := session.Info().State
-			if state == StateStarting || state == StateStopping {
+			if state == StateStarting || state == StateStopping ||
+				(state == StateStopped && !run.activationCommitted.Load()) {
 				_, stopErr := m.stopStartingSession(ctx, id, CauseShutdown, "manager shutdown")
 				if errors.Is(stopErr, ErrSessionNotFound) {
 					continue

@@ -813,6 +813,7 @@ func TestTriageDispatcher(t *testing.T) {
 		catalogFailure, pendingCleanup, detached, stopDuringCleanup, synchronousStop bool
 		noWaiter, cancelLifetime, blockedStop, reopenFailure                         bool
 		completionOnly, reopenedClose, persistFailure, afterCommit                   bool
+		baseRecorderOnly, projectionFailure                                          bool
 		persistEvent                                                                 string
 		stopDuringPersistence                                                        StopCause
 	}{
@@ -830,6 +831,9 @@ func TestTriageDispatcher(t *testing.T) {
 		{name: "Should track cleanup of the reopened failed triage recorder", catalogFailure: true, reopenedClose: true},
 		{name: "Should retry failed triage event persistence before releasing ownership", catalogFailure: true, persistFailure: true},
 		{name: "Should retry a committed triage event without duplicating history", catalogFailure: true, persistFailure: true, afterCommit: true},
+		{name: "Should recover a committed event through an EventRecorder-only wrapper", catalogFailure: true, persistFailure: true, afterCommit: true, baseRecorderOnly: true},
+		{name: "Should keep Stop pending until reopened recorder cleanup completes", catalogFailure: true, reopenedClose: true, stopDuringPersistence: CauseUserRequested},
+		{name: "Should publish a final wake after retained attention hydration fails", catalogFailure: true, reopenedClose: true, projectionFailure: true},
 		{name: "Should preserve the failure batch when stop interrupts terminal retry", catalogFailure: true, persistFailure: true, persistEvent: EventTypeSessionStopped, stopDuringPersistence: CauseUserRequested},
 		{name: "Should preserve a committed failure terminal when stop interrupts retry", catalogFailure: true, persistFailure: true, afterCommit: true, persistEvent: EventTypeSessionStopped, stopDuringPersistence: CauseUserRequested},
 		{name: "Should preserve the failure batch when shutdown interrupts marker retry", catalogFailure: true, persistFailure: true, persistEvent: eventspkg.TranscriptMarkerCreated, stopDuringPersistence: CauseShutdown},
@@ -848,15 +852,29 @@ func TestTriageDispatcher(t *testing.T) {
 			unblockStop := sync.OnceFunc(func() { close(stopRelease) })
 			defer unblockStop()
 			blockStop := sync.OnceFunc(func() { close(stopEntered); <-stopRelease })
-			var postStops atomic.Int32
+			var postStops, postRecords atomic.Int32
+			var attention *deriveAttentionFault
 			hooks := &spyHookDispatcher{
+				dispatchEventPostRecordFn: func(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+					if payload.RecordType == acp.EventTypeError || payload.RecordType == EventTypeSessionStopped ||
+						payload.RecordType == eventspkg.TranscriptMarkerCreated {
+						postRecords.Add(1)
+					}
+					return payload, nil
+				},
 				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
 					postStops.Add(1)
 					return payload, nil
 				},
 			}
 			h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
-				catalog.registerHook = db.RegisterSession
+				attention = &deriveAttentionFault{GlobalDB: db}
+				catalog.registerHook = func(ctx context.Context, info *store.SessionInfo) error {
+					if tc.projectionFailure && info.State == string(StateStopped) {
+						attention.armed.Store(true)
+					}
+					return db.RegisterSession(ctx, info)
+				}
 				catalog.updateHook = func(update store.SessionStateUpdate) error {
 					return db.UpdateSessionState(t.Context(), update)
 				}
@@ -867,12 +885,18 @@ func TestTriageDispatcher(t *testing.T) {
 				return WithSessionCreationStore(&triageCreationStore{
 					SessionCreationStore: db,
 					beforeRegister: func(info *store.SessionInfo) {
+						if tc.projectionFailure && info.State == string(StateStopped) {
+							attention.armed.Store(true)
+						}
 						if tc.blockedStop && info.State == string(StateStopping) {
 							blockStop()
 						}
 					},
 				})
 			}).harness
+			if tc.projectionFailure {
+				h.manager.attentionStore = attention
+			}
 			lifetime, cancelLifetime := context.WithCancel(h.manager.lifecycleCtx)
 			h.manager.lifecycleCtx = lifetime
 			defer cancelLifetime()
@@ -954,13 +978,17 @@ func TestTriageDispatcher(t *testing.T) {
 					}, nil
 				}
 				if tc.persistFailure {
-					return &retainedEventFailingRecorder{
+					wrapped := &retainedEventFailingRecorder{
 						EventRecorder: recorder,
 						allowed:       &writesAllowed,
 						err:           writeErr,
 						afterCommit:   tc.afterCommit,
 						eventType:     tc.persistEvent,
-					}, nil
+					}
+					if tc.baseRecorderOnly {
+						return &struct{ EventRecorder }{wrapped}, nil
+					}
+					return wrapped, nil
 				}
 				return recorder, nil
 			}
@@ -976,7 +1004,15 @@ func TestTriageDispatcher(t *testing.T) {
 				}
 				return nil, errors.New("provider start unavailable")
 			}
-			if tc.synchronousStop {
+			switch {
+			case tc.projectionFailure:
+				_, err := h.manager.Create(t.Context(), &CreateOpts{
+					AgentName: "coder", Workspace: h.workspaceID, DiscardStartFailure: true,
+				})
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("public retained start = %v, want %v", err, wantErr)
+				}
+			case tc.synchronousStop:
 				_, err := h.manager.Create(t.Context(), &CreateOpts{
 					Origin:     workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "failed-instance"},
 					InstanceID: "failed-instance", AgentName: "coder", Workspace: h.workspaceID,
@@ -985,7 +1021,7 @@ func TestTriageDispatcher(t *testing.T) {
 				if err != nil {
 					t.Fatalf("stop during close returned startup failure: %v", err)
 				}
-			} else {
+			default:
 				dispatcher := &TriageDispatcher{
 					Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
 				}
@@ -1008,7 +1044,7 @@ func TestTriageDispatcher(t *testing.T) {
 				if !ok {
 					t.Fatal("pending retained settlement lost its active owner")
 				}
-				if tc.stopDuringPersistence != CauseNone {
+				if tc.stopDuringPersistence != CauseNone && tc.persistFailure {
 					events, err := active.recorderHandle().Query(t.Context(), store.EventQuery{})
 					if err != nil {
 						t.Fatal(err)
@@ -1026,14 +1062,60 @@ func TestTriageDispatcher(t *testing.T) {
 							wantTerminals,
 						)
 					}
+				}
+				if tc.stopDuringPersistence != CauseNone {
+					if !tc.persistFailure {
+						info, err := h.manager.Status(t.Context(), "sess-1")
+						if err != nil || info.State == StateStopped {
+							t.Fatalf("pending retained state = %#v, %v", info, err)
+						}
+					}
 					if err := h.manager.RequestStop(t.Context(), "sess-1", tc.stopDuringPersistence); err != nil {
 						t.Fatal(err)
 					}
+					if !tc.persistFailure {
+						waitCtx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+						outcome, err := h.manager.AwaitStopped(waitCtx, "sess-1")
+						cancel()
+						if !errors.Is(err, context.DeadlineExceeded) || outcome.Verified {
+							t.Fatalf("premature stop outcome = %+v, %v", outcome, err)
+						}
+					}
+				}
+				var catalogWakes <-chan CatalogEvent
+				if tc.projectionFailure {
+					var cancel func()
+					var err error
+					catalogWakes, cancel, err = h.manager.SubscribeSessionCatalogEvents(
+						t.Context(),
+						CatalogScope{
+							ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+							WorkspaceID: h.workspaceID,
+						},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer cancel()
 				}
 				lease.Release()
 				writesAllowed.Store(true)
 				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, wantErr) {
 					t.Fatalf("retained settlement = %v, want original failure %v", err, wantErr)
+				}
+				if tc.projectionFailure {
+					if attention.failed.Load() == 0 {
+						t.Fatal("attention hydration failure was not exercised")
+					}
+					select {
+					case wake := <-catalogWakes:
+						if wake.SessionID != "sess-1" {
+							t.Fatalf("final catalog wake = %+v", wake)
+						}
+					case <-time.After(time.Second):
+						t.Fatal("retained settlement lost its final catalog wake")
+					}
+					attention.armed.Store(false)
 				}
 			}
 			if tc.pendingCleanup || tc.reopenFailure {
@@ -1120,7 +1202,17 @@ func TestTriageDispatcher(t *testing.T) {
 				countEventType(events, EventTypeSessionStopped) != 1 {
 				t.Fatalf("retained failure history = %#v, want one diagnostic and one terminal event", events)
 			}
+			if tc.persistFailure && postRecords.Load() != 3 {
+				t.Fatalf("failure post-record hooks = %d, want 3", postRecords.Load())
+			}
 			if tc.stopDuringPersistence != CauseNone {
+				if postStops.Load() != 1 || h.notifier.stoppedCount() != 1 {
+					t.Fatalf(
+						"joined stop effects = hooks %d notifications %d, want one each",
+						postStops.Load(),
+						h.notifier.stoppedCount(),
+					)
+				}
 				if infos[0].StopReason != store.StopError || infos[0].Failure == nil ||
 					infos[0].Failure.Kind != store.FailureStartup {
 					t.Fatalf("retained failure classification was replaced: %#v", infos[0])
@@ -1138,6 +1230,59 @@ func TestTriageDispatcher(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: recorder completion cannot release a failed-start owner while its
+	// process exit is unverified. Owner: Manager startup; canonical triage suite.
+	t.Run("Should retain a failed activation owner until its process exit is verified", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		activationErr := errors.New("activation registration unavailable")
+		stopErr := errors.New("process stop unavailable")
+		catalog.registerHook = func(_ context.Context, info *store.SessionInfo) error {
+			if info.State == string(StateActive) {
+				return activationErr
+			}
+			return nil
+		}
+		catalog.deleteErr = errors.New("catalog delete unavailable")
+		h := newHarness(t, WithSessionCatalog(catalog))
+		var stopAllowed atomic.Bool
+		defer stopAllowed.Store(true)
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			if !stopAllowed.Load() {
+				return stopErr
+			}
+			proc.exit()
+			return nil
+		}
+		_, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if !errors.Is(err, activationErr) {
+			t.Fatalf("activation failure = %v", err)
+		}
+		proc := h.driver.lastProcess()
+		if proc == nil || isProcessDone(proc.handle) {
+			t.Fatal("stop fault did not leave a live process")
+		}
+		run := h.manager.sessionStartRun("sess-1")
+		if run == nil {
+			t.Fatal("live failed process lost its start owner")
+		}
+		if _, ok := h.manager.Get("sess-1"); !ok {
+			t.Fatal("live failed process lost its active projection")
+		}
+		select {
+		case <-run.done:
+			t.Fatal("process owner completed before exit")
+		default:
+		}
+		stopAllowed.Store(true)
+		if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, activationErr) {
+			t.Fatalf("retained activation = %v", err)
+		}
+		if !isProcessDone(proc.handle) {
+			t.Fatal("start owner released before process exit")
+		}
+	})
+
 	// Invariant: deletion cannot be undone by a waiting Stop, and failed rollback
 	// transfers ownership to the existing tombstone recovery instead of retrying forever.
 	// Owner: temporary session lifecycle; canonical triage dispatcher suite.
@@ -2068,4 +2213,21 @@ func (r *retainedEventFailingRecorder) AppendEventIfAbsent(
 		return row, inserted, errors.Join(err, r.err)
 	}
 	return row, inserted, err
+}
+
+// Query keeps an ambiguous committed write unresolved until the simulated storage recovers.
+func (r *retainedEventFailingRecorder) Query(
+	ctx context.Context,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	rows, err := r.EventRecorder.Query(ctx, query)
+	eventType := r.eventType
+	if eventType == "" {
+		eventType = acp.EventTypeError
+	}
+	if err == nil && query.ID != "" && r.afterCommit && !r.allowed.Load() && len(rows) > 0 &&
+		rows[0].Type == eventType {
+		return nil, r.err
+	}
+	return rows, err
 }

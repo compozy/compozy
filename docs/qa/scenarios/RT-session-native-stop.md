@@ -136,6 +136,13 @@ Repeat with the stopped append failing before and after commit, and the marker
 append failing before commit. Request Stop or shutdown between retries: preserve
 the startup-failure classification, complete its marker and keep one terminal row.
 Block final Close of the reopened recorder and verify Shutdown still joins it.
+Request Stop during that final Close: neither the public state nor AwaitStopped
+may report completed cleanup early. Repeat a committed append error through an
+EventRecorder-only wrapper; require one row, one publication and one post-record
+hook per retained event. A joining Stop receives one post-stop hook/notification.
+Fail attention hydration after retained catalog registration; final cleanup must
+still wake the public catalog. Fail process termination while leaving it alive;
+the existing start run must remain tracked until exit is verified.
 Repeat with CleanupComplete exposed without WaitForCleanup: a historical close
 error must not prevent settlement after resources release. Also fail logical
 activation persistence and request Stop during deletion; it must respect the same
@@ -148,6 +155,9 @@ still fail to acquire the singleton lock, and the old cleanup must retain access
 to its shared database. Complete cleanup and retry Shutdown: only then may the
 database close and a replacement acquire the lock. The daemon shutdown suite
 owns this process-exclusivity check.
+Discovery remains available during a retryable Shutdown failure. If Run ends
+without a retry, its discovery record is removed while the lock remains owned
+until cleanup joins or the process exits.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

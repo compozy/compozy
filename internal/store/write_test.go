@@ -1414,10 +1414,11 @@ func BenchmarkExecuteWrite(b *testing.B) {
 }
 
 type writeCleanupFailureConnector struct {
-	dsn       string
-	statement string
-	failure   error
-	failed    atomic.Bool
+	queryCancel context.CancelFunc
+	dsn         string
+	statement   string
+	failure     error
+	failed      atomic.Bool
 }
 
 func (c *writeCleanupFailureConnector) Connect(context.Context) (driver.Conn, error) {
@@ -1444,4 +1445,16 @@ func (c *writeCleanupFailureConn) ExecContext(
 		return nil, c.connector.failure
 	}
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
+}
+
+// QueryContext can reproduce a driver reporting cancellation after checkpoint I/O.
+func (c *writeCleanupFailureConn) QueryContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Rows, error) {
+	if query == c.connector.statement && c.connector.queryCancel != nil &&
+		c.connector.failed.CompareAndSwap(false, true) {
+		c.connector.queryCancel()
+		return nil, ctx.Err()
+	}
+	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }

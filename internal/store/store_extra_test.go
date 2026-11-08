@@ -695,6 +695,45 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		}
 	})
 
+	// Invariant: canceled non-transactional checkpoint I/O preserves the connection's
+	// configured busy timeout. Owner: SQLite helpers; this canonical suite.
+	t.Run("Should restore the checkpoint timeout when the driver reports cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		dsn, err := url.Parse(sqliteDSN(filepath.Join(t.TempDir(), "checkpoint-cancel.db")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := dsn.Query()
+		for index, pragma := range query["_pragma"] {
+			if strings.HasPrefix(pragma, "busy_timeout(") {
+				query["_pragma"][index] = "busy_timeout(1)"
+			}
+		}
+		dsn.RawQuery = query.Encode()
+		db := sql.OpenDB(&writeCleanupFailureConnector{
+			dsn:       dsn.String(),
+			statement: "PRAGMA wal_checkpoint(TRUNCATE)", queryCancel: cancel,
+		})
+		db.SetMaxOpenConns(1)
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(t.Context(), "PRAGMA busy_timeout = 5000"); err != nil {
+			t.Fatal(err)
+		}
+		if err := Checkpoint(ctx, db); !errors.Is(err, context.Canceled) {
+			t.Fatalf("checkpoint = %v, want canceled driver operation", err)
+		}
+		var timeout int
+		if err := db.QueryRowContext(t.Context(), "PRAGMA busy_timeout").Scan(&timeout); err != nil || timeout != 5000 {
+			t.Fatalf("restored timeout = %d, %v, want 5000", timeout, err)
+		}
+	})
+
 	t.Run("Should report a retained reader preventing WAL truncation", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

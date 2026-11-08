@@ -71,6 +71,13 @@ cannot duplicate the diagnostic or terminal event. Once the batch is prepared,
 a later Stop or shutdown joins its original failure outcome instead of appending
 another terminal event or replacing its classification. The same owner joins the reopened
 recorder through final cleanup, honoring completion even without an optional waiter.
+Retained retries confirm committed event identities through the recorder's existing
+query capability, including wrappers without an optional idempotent appender. The
+batch completes its pending publication and post-record hooks once. A joining Stop
+waits for persistence and cleanup, then receives its post-stop hook and notification.
+Final settlement wakes the catalog even if attention hydration failed after commit.
+Process exit is verified separately from recorder completion; a failed Stop keeps
+the tracked start owner until the process can be stopped and verified.
 Activation remains startup-owned until its durable commit. The existing launch
 gate transfers Stop to normal finalization before post-create hooks run. Failed
 activation still shares the discard gate; successful logical and ACP activation
@@ -78,6 +85,10 @@ can finalize a concurrent Stop while those hooks are pending. This preserves the
 and notification. Incomplete session-manager shutdown retains the daemon lock
 and shared persistence until cleanup joins on retry or the old process exits,
 including the foreground-start replacement path.
+Shutdown retries retain daemon discovery; a terminal return from Run removes it
+without releasing persistence or the singleton before owned cleanup finishes.
+Canceled checkpoints restore their connection's busy timeout. Only canceled BEGIN
+operations discard an ambiguous transaction connection.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.

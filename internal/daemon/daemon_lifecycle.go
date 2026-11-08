@@ -85,7 +85,10 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 }
 
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	return d.Shutdown(context.WithoutCancel(ctx))
+	shutdownErr := d.Shutdown(context.WithoutCancel(ctx))
+	// Run is ending rather than retrying. Withdraw discovery even if cleanup
+	// still owns the database and singleton until process exit.
+	return errors.Join(shutdownErr, RemoveInfo(d.homePaths.DaemonInfo))
 }
 
 // Shutdown gracefully tears down the daemon in the required order.
