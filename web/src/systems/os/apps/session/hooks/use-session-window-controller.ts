@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
+  useSessionArchivePending,
   useSessionDeletedByOperator,
   useSessionDeletionPending,
   useSessionPresence,
@@ -22,6 +23,7 @@ export function useSessionWindowController(windowId: string) {
   const { focused, liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
+  const archivePending = useSessionArchivePending(windowId);
   const deletedByOperator = useSessionDeletedByOperator(sessionId);
   const resolution = useSessionWindowResolution({
     sessionId,
@@ -30,7 +32,7 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
-  const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution);
+  const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
@@ -91,14 +93,15 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
  */
 function useSessionArchivedWhileOpen(
   sessionId: string | null,
-  { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">
+  { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">,
+  archivePending: boolean
 ): boolean {
   const [seenUnarchivedId, setSeenUnarchivedId] = useState<string | null>(null);
   const shown = shownSession?.id === sessionId ? shownSession : undefined;
   const seenUnarchived = shown?.archived_at === null && !isFetching;
   const next = seenUnarchived || seenUnarchivedId === sessionId ? sessionId : null;
   if (next !== seenUnarchivedId) setSeenUnarchivedId(next);
-  return next !== null && shown !== undefined && shown.archived_at !== null;
+  return !archivePending && next !== null && shown !== undefined && shown.archived_at !== null;
 }
 
 function useRetireSessionWindow(

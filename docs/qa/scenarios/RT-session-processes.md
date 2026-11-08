@@ -43,6 +43,11 @@ reaches the daemon, and checks process survival or exit independently. Real OS i
 lineage/restart persistence, and reused-PID safety remain in `internal/procutil` and
 `internal/sessionprocess`; wire policy belongs to the API/client suites.
 
+For #1384, let the archive catalog event arrive before the HTTP reply, especially
+on the second session's terminate choice. The initiating window must not close
+and cancel that in-flight request. Require the original successful response and
+independent process-exit assertions; keep the existing timeout and both choices.
+
 Switch profile lenses while a process list is cached: never reuse the preceding profile's rows.
 A process-change event invalidates every cached profile variant for that session. Submit aggregate
 termination for a live owner or a foreign profile: neither may be signaled. Retained owners in

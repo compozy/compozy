@@ -5,7 +5,9 @@
 // A window's data scope (its binding, else its partition: a project, or User) hides another
 // scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
-import { render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderView, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = {
@@ -33,6 +35,7 @@ const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
 const userRetireSession = vi.fn(() => Promise.resolve(true));
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
+const coordinator = { userRetireSession, userClose, userOpen };
 type TestDataScope = { kind: "project"; workspaceId: string } | { kind: "user" } | { kind: "all" };
 const workspace: { dataScope: TestDataScope | null } = {
   dataScope: { kind: "project", workspaceId: "ws-1" },
@@ -47,7 +50,8 @@ const queryState: {
   isError: boolean;
 } = { data: session, error: null, isLoading: false, isFetching: false, isError: false };
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async importOriginal => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: (options: Record<string, unknown>) => {
     queryOptionsSpy(options);
     return queryState;
@@ -76,6 +80,11 @@ vi.mock("@/systems/session", async importOriginal => {
     useSessionDeletedByOperator: () => deletedByOperator,
   };
 });
+
+vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-api")>()),
+  archiveSession: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
@@ -118,11 +127,7 @@ vi.mock("../../../hooks/use-desktop", () => ({
 
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({
-    coordinator: {
-      userRetireSession,
-      userClose,
-      userOpen,
-    },
+    coordinator,
   }),
 }));
 
@@ -136,11 +141,25 @@ vi.mock("../session-window-view", () => ({
 }));
 
 import { SessionWindow } from "../session-window";
-import { SessionNotFoundError } from "@/systems/session";
+import { SessionNotFoundError, useArchiveSession, type SessionPayload } from "@/systems/session";
+import { archiveSession } from "@/systems/session/adapters/session-api";
 import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
+
+let queryClient: QueryClient;
+
+function render(ui: ReactNode) {
+  return renderView(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 describe("SessionWindow", () => {
   beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
     desktop.activeDesktopId = "desktop-1";
     desktop.focusedId = "session:sess-1";
     desktop.windows["session:sess-1"].desktopId = "desktop-1";
@@ -390,6 +409,61 @@ describe("SessionWindow", () => {
     );
     expect(toastError).not.toHaveBeenCalled();
   });
+
+  // Invariant: only the window owning the archive request waits through an early catalog wake.
+  // Owner: OS session-window retirement; canonical suite: SessionWindow, using the real mutation.
+  it.each([true, false])(
+    "Should defer archival retirement only for the request owner (owner=%s)",
+    async ownsRequest => {
+      let resolveResponse!: (session: SessionPayload) => void;
+      const response = new Promise<SessionPayload>(resolve => {
+        resolveResponse = resolve;
+      });
+      vi.mocked(archiveSession).mockReturnValue(response);
+      function RequestOwner() {
+        const archive = useArchiveSession({
+          requestOwnerId: ownsRequest ? "session:sess-1" : "session:other",
+        });
+        return (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                archive.mutate({
+                  id: "parent-session",
+                  workspace_id: session.workspace_id,
+                  profile_name: "marketing",
+                })
+              }
+            >
+              Archive parent
+            </button>
+            <SessionWindow windowId="session:sess-1" />
+          </>
+        );
+      }
+      const view = render(<RequestOwner />);
+      fireEvent.click(view.getByRole("button", { name: "Archive parent" }));
+      await waitFor(() => expect(archiveSession).toHaveBeenCalledOnce());
+      queryState.data = { ...session, archived_at: "2026-11-08T16:29:12Z" };
+      view.rerender(<RequestOwner />);
+      if (ownsRequest) {
+        expect(userRetireSession).not.toHaveBeenCalled();
+        expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({ session: queryState.data })
+        );
+      } else {
+        await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
+      }
+      await act(async () => {
+        resolveResponse(queryState.data as SessionPayload);
+      });
+      await waitFor(() =>
+        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
+      );
+      expect(toastError).not.toHaveBeenCalled();
+    }
+  );
 
   it("Should retire a window showing another profile's session when it is archived", async () => {
     queryState.data = undefined;
