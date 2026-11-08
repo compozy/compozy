@@ -23,7 +23,7 @@ export function useSessionWindowController(windowId: string) {
   const { focused, liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
-  const archivePending = useSessionArchivePending(sessionId);
+  const archivePending = useSessionArchivePending(windowId);
   const deletedByOperator = useSessionDeletedByOperator(sessionId);
   const resolution = useSessionWindowResolution({
     sessionId,

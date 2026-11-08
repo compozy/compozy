@@ -69,7 +69,7 @@ export function useSessionWindowSidebar({
   const transport = useSessionTransportState();
   const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionListLifecycleActions();
+  const lifecycle = useSessionListLifecycleActions({ windowId });
   // Only a project narrows to a worktree.
   const worktree = useScopedWorktreeFilter(
     scope?.kind === "project" ? scope.workspaceId : null,

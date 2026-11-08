@@ -12,7 +12,10 @@ export type SessionListRemoval = "archive" | "later" | "delete";
  * a parked session is one of the ways back.
  */
 export function useSessionListLifecycleActions(
-  options: { onRemoved?: (session: { id: string }, action: SessionListRemoval) => void } = {}
+  options: {
+    windowId?: string;
+    onRemoved?: (session: { id: string }, action: SessionListRemoval) => void;
+  } = {}
 ) {
   const { coordinator, manager } = useOsShell();
   const { onRemoved } = options;
@@ -29,6 +32,7 @@ export function useSessionListLifecycleActions(
     );
   };
   return useSessionLifecycleActions({
+    archiveRequestOwnerId: options.windowId,
     onArchiveSuccess: session => retireWindows(session, "archive"),
     onLaterSuccess: session => onRemoved?.(session, "later"),
     onDeleteSuccess: session => retireWindows(session, "delete"),

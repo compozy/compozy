@@ -138,40 +138,28 @@ export function useStopSession() {
 
 /** Keep remote disappearance recovery from racing an operator-owned deletion. */
 export function useSessionDeletionPending(sessionId: string | null): boolean {
-  return useSessionMutationPending(sessionId, sessionKeys.deletions());
-}
-
-/** Catalog delivery can precede the local archive response; keep its request owner mounted. */
-export function useSessionArchivePending(sessionId: string | null): boolean {
-  return useSessionMutationPending(sessionId, sessionKeys.archives(), { includeDescendants: true });
-}
-
-function useSessionMutationPending(
-  sessionId: string | null,
-  mutationKey: readonly unknown[],
-  options: { includeDescendants?: boolean } = {}
-): boolean {
   return (
     useIsMutating({
-      mutationKey,
+      mutationKey: sessionKeys.deletions(),
       predicate: mutation => {
         const variables = mutation.state.variables;
-        if (typeof variables !== "object" || variables === null || !("id" in variables))
-          return false;
-        if (variables.id === sessionId) return true;
         return (
-          options.includeDescendants === true &&
-          "descendants" in variables &&
-          Array.isArray(variables.descendants) &&
-          variables.descendants.some(
-            (target: unknown) =>
-              typeof target === "object" &&
-              target !== null &&
-              "id" in target &&
-              target.id === sessionId
-          )
+          typeof variables === "object" &&
+          variables !== null &&
+          "id" in variables &&
+          variables.id === sessionId
         );
       },
+    }) > 0
+  );
+}
+
+/** Catalog delivery can precede the archive response; keep only its request owner mounted. */
+export function useSessionArchivePending(requestOwnerId: string): boolean {
+  return (
+    useIsMutating({
+      mutationKey: sessionKeys.archives(),
+      predicate: mutation => mutation.meta?.requestOwnerId === requestOwnerId,
     }) > 0
   );
 }
@@ -284,12 +272,13 @@ export interface ArchiveSessionParams extends SessionActionTarget {
 }
 
 /** Archives the supplied row without depending on the currently selected workspace. */
-export function useArchiveSession() {
+export function useArchiveSession(options: { requestOwnerId?: string } = {}) {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
 
   return useMutation({
     mutationKey: sessionKeys.archives(),
+    meta: { requestOwnerId: options.requestOwnerId },
     mutationFn: ({
       id,
       workspace_id,

@@ -70,6 +70,8 @@ export type {
  */
 export function useSessionLifecycleActions(
   options: Parameters<typeof useDeleteSession>[0] & {
+    /** The host whose lifetime owns archive requests, independent of their targets. */
+    archiveRequestOwnerId?: string;
     /** Each session this host archived, single or batched, once the daemon confirmed it. */
     onArchiveSuccess?: (session: SessionPayload) => void | Promise<void>;
     /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
@@ -77,9 +79,9 @@ export function useSessionLifecycleActions(
   } = {}
 ): UseSessionLifecycleActionsResult {
   const queryClient = useQueryClient();
-  const { onArchiveSuccess, onLaterSuccess, ...deleteOptions } = options;
+  const { archiveRequestOwnerId, onArchiveSuccess, onLaterSuccess, ...deleteOptions } = options;
   const stop = useStopSession();
-  const archive = useArchiveSession();
+  const archive = useArchiveSession({ requestOwnerId: archiveRequestOwnerId });
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();

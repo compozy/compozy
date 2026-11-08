@@ -988,10 +988,10 @@ describe("session actions", () => {
     );
   });
 
-  // Invariant: a local archive keeps its target mounted through the HTTP receipt, even after a catalog wake.
+  // Invariant: only the request-owning window waits, including a subagent archived implicitly.
   // Owner: session mutation lifetime; canonical suite: use-session-actions.
   it.each([false, true])(
-    "tracks the archive owner and included children until the response settles (tree=%s)",
+    "keeps a subagent request owner pending while archiving its parent (tree=%s)",
     async includeChildren => {
       let resolveResponse!: (session: SessionPayload) => void;
       const response = new Promise<SessionPayload>(resolve => {
@@ -999,42 +999,62 @@ describe("session actions", () => {
       });
       vi.mocked(archiveSession).mockReturnValue(response);
       vi.mocked(archiveSessionTree).mockReturnValue(response);
+      vi.mocked(fetchSessionById).mockResolvedValue(createdSession);
+      const subagent = {
+        ...createdSession,
+        id: "subagent-session",
+        lineage: {
+          kind: "spawn" as const,
+          spawn_role: "subagent" as const,
+          parent_session_id: createdSession.id,
+          root_session_id: createdSession.id,
+          spawn_depth: 1,
+          auto_stop_on_parent: false,
+          notify_creator: false,
+          spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+          permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+        },
+      };
       const child = { ...createdSession, id: "child-session" };
+      vi.mocked(listSessionDescendants).mockResolvedValue([subagent, child]);
+      const ownerId = `session:${subagent.id}`;
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       });
       const { result } = renderHook(
         () => ({
-          archive: useArchiveSession(),
-          pending: useSessionArchivePending(createdSession.id),
-          childPending: useSessionArchivePending(child.id),
-          otherPending: useSessionArchivePending("other-session"),
+          lifecycle: useSessionLifecycleActions({ archiveRequestOwnerId: ownerId }),
+          pending: useSessionArchivePending(ownerId),
+          parentPending: useSessionArchivePending(`session:${createdSession.id}`),
+          childPending: useSessionArchivePending(`session:${child.id}`),
+          otherPending: useSessionArchivePending("other-window"),
         }),
         { wrapper: createWrapper(queryClient) }
       );
-      let mutation!: Promise<unknown>;
-      act(() => {
-        mutation = result.current.archive.mutateAsync({
-          ...createdSession,
-          ...(includeChildren ? { descendants: [child] } : {}),
-        });
-      });
-      await waitFor(() => expect(result.current.pending).toBe(true));
-      const archived = { ...createdSession, archived_at: "2026-11-08T16:29:12Z" };
+      act(() => result.current.lifecycle.actions.onArchive(createdSession));
+      await waitFor(() => expect(result.current.lifecycle.processDialog.open).toBe(true));
       act(() =>
-        queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), archived)
+        result.current.lifecycle.processDialog.childSessions?.onIncludedChange(includeChildren)
+      );
+      act(() => result.current.lifecycle.processDialog.onChoose());
+      await waitFor(() =>
+        expect(includeChildren ? archiveSessionTree : archiveSession).toHaveBeenCalledOnce()
+      );
+      await waitFor(() => expect(result.current.pending).toBe(true));
+      act(() =>
+        queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, subagent.id), {
+          ...subagent,
+          archived_at: "2026-11-08T16:29:12Z",
+        })
       );
       expect(result.current.pending).toBe(true);
-      expect(result.current.childPending).toBe(includeChildren);
+      expect(result.current.parentPending).toBe(false);
+      expect(result.current.childPending).toBe(false);
       expect(result.current.otherPending).toBe(false);
       await act(async () => {
-        resolveResponse(archived);
-        await mutation;
+        resolveResponse({ ...createdSession, archived_at: "2026-11-08T16:29:12Z" });
       });
-      await waitFor(() => {
-        expect(result.current.pending).toBe(false);
-        expect(result.current.childPending).toBe(false);
-      });
+      await waitFor(() => expect(result.current.pending).toBe(false));
     }
   );
 
