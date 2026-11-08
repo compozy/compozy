@@ -183,9 +183,12 @@ func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, 
 }
 
 // joinFailedStartProcess keeps the tracked start owner until termination is verified.
-func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *acceptedSessionStart) error {
+func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *acceptedSessionStart, yieldToStop bool) error {
 	var previous error
 	for delay := 100 * time.Millisecond; ; delay = min(2*delay, time.Second) {
+		if yieldToStop && accepted.retainedFailure == nil && accepted.session.stopWasRequested() {
+			return nil
+		}
 		verified, err := m.stopFailedStartProcess(accepted)
 		if verified {
 			return errors.Join(previous, err)
@@ -208,13 +211,41 @@ func (m *Manager) joinFailedStartProcessForSettlement(ctx context.Context, accep
 		accepted.proc = nil
 		return nil
 	}
-	joinCtx := ctx
-	if accepted.retainedFailure == nil {
-		joinCtx = accepted.run.ctx
+	return m.joinFailedStartProcess(ctx, accepted, true)
+}
+
+// retainFailedSessionStart retries the existing failure batch with an independent persistence budget.
+func (m *Manager) retainFailedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	ctx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	pending, err := m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr)
+	if pending {
+		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, err))
 	}
-	err := m.joinFailedStartProcess(joinCtx, accepted)
-	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
-		return nil
+	return errors.Join(startErr, err)
+}
+
+// releaseMissingSessionStart verifies every captured process before leaving a rollback tombstone to boot recovery.
+func (m *Manager) releaseMissingSessionStart(
+	ctx context.Context, accepted *acceptedSessionStart, cause error,
+) (bool, error) {
+	for _, proc := range []*AgentProcess{accepted.proc, accepted.session.processHandle()} {
+		if proc == nil || accepted.session.hasVerifiedStopProcess(proc) {
+			continue
+		}
+		result, err := m.runTerminationLadder(ctx, proc, terminationTarget{})
+		if !result.Verified {
+			return true, errors.Join(ErrRecoveryPersistence, cause, err)
+		}
+		accepted.session.retainVerifiedStopOutcome(proc, result.StopOutcome)
+		if accepted.proc == proc {
+			accepted.proc = nil
+		}
 	}
-	return err
+	m.removeActive(accepted.session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(accepted.session.ID)
+	}
+	accepted.session.clearProviderSecretRedactions()
+	return false, errors.Join(ErrRecoveryPersistence, cause)
 }

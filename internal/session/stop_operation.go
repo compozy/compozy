@@ -36,9 +36,20 @@ func (m *Manager) AwaitStopped(ctx context.Context, id string) (StopOutcome, err
 	}
 	m.mu.RLock()
 	run := m.stopRuns[strings.TrimSpace(id)]
-	active := m.sessions[strings.TrimSpace(id)]
 	m.mu.RUnlock()
-	if run == nil || (active != nil && run.session != active) {
+	if run == nil {
+		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
+	}
+	select {
+	case <-run.ready:
+	case <-ctx.Done():
+		return StopOutcome{}, ctx.Err()
+	}
+	m.mu.RLock()
+	active := m.sessions[strings.TrimSpace(id)]
+	matches := active == nil || run.session == active
+	m.mu.RUnlock()
+	if !matches {
 		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
 	}
 	return m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
@@ -235,11 +246,11 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		defer close(run.done)
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
+		stopProc := proc
+		if stopProc == nil {
+			stopProc = session.releasedProcessForStop()
+		}
 		if !result.Verified {
-			stopProc := proc
-			if stopProc == nil {
-				stopProc = session.releasedProcessForStop()
-			}
 			target := m.sessionStopTerminationTarget(session, promptDone, cause)
 			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
 		}
@@ -258,7 +269,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			run.err = errors.Join(run.err, waitErr)
 			return
 		}
-		run.outcome = session.retainVerifiedStopOutcome(run.outcome)
+		run.outcome = session.retainVerifiedStopOutcome(stopProc, run.outcome)
 		var waitErr error
 		if proc != nil && isProcessDone(proc) {
 			waitErr = proc.Wait()
