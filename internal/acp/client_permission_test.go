@@ -2,16 +2,118 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func TestPermissionDispatchOrdering(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver preceding prose before permission without blocking later updates", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		active := beginACPTestRun(t, proc, "turn-order")
+		reader, writer := io.Pipe()
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		permission := make(chan struct{}, 1)
+		proc.permissionEventHandler = func(event AgentEvent, _ bool) {
+			if event.Decision == "" {
+				permission <- struct{}{}
+			}
+		}
+		proc.conn = acpsdk.NewConnectionWithOptions(
+			func(ctx context.Context, method string, params json.RawMessage) (any, *acpsdk.RequestError) {
+				if method == acpsdk.ClientMethodSessionUpdate &&
+					strings.Contains(string(params), "Streaming response") {
+					close(entered)
+					select {
+					case <-release:
+					case <-ctx.Done():
+						return nil, nil
+					}
+				}
+				return proc.handleInbound(ctx, method, params)
+			},
+			io.Discard,
+			reader,
+			acpsdk.ConnectionOptions{
+				NotificationQueueOverflow:          acpsdk.NotificationQueueOverflowBlock,
+				WaitForNotificationsBeforeRequests: true,
+			},
+		)
+		write := func(message string) {
+			t.Helper()
+			if _, err := io.WriteString(writer, message+"\n"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
+		)
+		select {
+		case <-entered:
+		case <-t.Context().Done():
+			t.Fatal("notification handler did not start")
+		}
+		write(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
+		)
+		write(
+			`{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess-direct","toolCall":{"toolCallId":"edit","kind":"edit","title":"Edit file"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}`,
+		)
+		select {
+		case <-permission:
+			t.Fatal("permission overtook a preceding notification still being delivered")
+		case <-time.After(100 * time.Millisecond):
+		}
+		unblock()
+		var prose strings.Builder
+		for {
+			select {
+			case event := <-active.events:
+				if event.Type == EventTypeAgentMessage {
+					prose.WriteString(event.Text)
+				}
+				if event.Type == EventTypePermission {
+					if prose.String() != "Streaming response started. " {
+						t.Fatalf("pre-permission prose = %q", prose.String())
+					}
+					write(
+						`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"while pending"}}}}`,
+					)
+					select {
+					case later := <-active.events:
+						if later.Text != "while pending" {
+							t.Fatalf("later event = %+v", later)
+						}
+					case <-t.Context().Done():
+						t.Fatal("unanswered permission blocked notifications")
+					}
+					return
+				}
+			case <-t.Context().Done():
+				t.Fatal("permission was not delivered")
+			}
+		}
+	})
+}
 
 func TestPermissionPolicyModes(t *testing.T) {
 	t.Parallel()

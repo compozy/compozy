@@ -119,7 +119,10 @@ func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, 
 		process.handleInbound,
 		handle.Stdin(),
 		&connectionStartupReader{reader: handle.Stdout(), ready: ready},
-		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
+		acpsdk.ConnectionOptions{
+			NotificationQueueOverflow:          acpsdk.NotificationQueueOverflowBlock,
+			WaitForNotificationsBeforeRequests: true,
+		},
 	)
 	process.conn.SetLogger(d.logger)
 	close(ready)
