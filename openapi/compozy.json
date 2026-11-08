@@ -145,6 +145,29 @@
         ],
         "type": "object"
       },
+      "ActionDecl": {
+        "properties": {
+          "auto_accept": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "auto_accept",
+          "id",
+          "instructions",
+          "title"
+        ],
+        "type": "object"
+      },
       "ActivityCost": {
         "properties": {
           "scope": {
@@ -864,18 +887,37 @@
           "id": {
             "type": "string"
           },
+          "occurrence_id": {
+            "type": "string"
+          },
+          "proposals": {
+            "$ref": "#/components/schemas/CheckInProposalSummary"
+          },
           "reason": {
             "type": "string"
           },
           "result": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInToolCall"
+            },
+            "type": "array"
+          },
+          "tools_status": {
             "type": "string"
           }
         },
         "required": [
           "created_at",
           "id",
+          "occurrence_id",
+          "proposals",
           "reason",
-          "result"
+          "result",
+          "tool_calls",
+          "tools_status"
         ],
         "type": "object"
       },
@@ -1028,6 +1070,9 @@
           "agent_name": {
             "type": "string"
           },
+          "authority_status": {
+            "type": "string"
+          },
           "checks_enabled": {
             "type": "boolean"
           },
@@ -1134,6 +1179,7 @@
         "required": [
           "activity",
           "agent_name",
+          "authority_status",
           "checks_enabled",
           "created",
           "created_at",
@@ -1186,8 +1232,56 @@
         ],
         "type": "object"
       },
+      "AgentInstancePickRequest": {
+        "properties": {
+          "proposal": {
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proposal"
+        ],
+        "type": "object"
+      },
+      "AgentInstancePickResponse": {
+        "properties": {
+          "pick": {
+            "$ref": "#/components/schemas/Pick"
+          }
+        },
+        "required": [
+          "pick"
+        ],
+        "type": "object"
+      },
       "AgentInstanceProposal": {
         "properties": {
+          "action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceProposalAction"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "auto_accept_status": {
+            "enum": [
+              "picked",
+              "limit",
+              "queue_full",
+              "unapproved",
+              "no_main",
+              "inactive",
+              "none"
+            ],
+            "type": "string"
+          },
           "body": {
             "type": "string"
           },
@@ -1208,8 +1302,28 @@
           }
         },
         "required": [
+          "auto_accept_status",
           "body",
           "item_keys",
+          "title"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceProposalAction": {
+        "properties": {
+          "auto_accept": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "auto_accept",
+          "id",
           "title"
         ],
         "type": "object"
@@ -1268,6 +1382,12 @@
           "detail": {
             "type": "string"
           },
+          "diagnostics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "expired_by": {
             "type": "string"
           },
@@ -1276,6 +1396,18 @@
           },
           "kind": {
             "type": "string"
+          },
+          "occurrence_id": {
+            "type": "string"
+          },
+          "picks": {
+            "items": {
+              "$ref": "#/components/schemas/Pick"
+            },
+            "type": "array"
+          },
+          "picks_tracked": {
+            "type": "boolean"
           },
           "proposals": {
             "items": {
@@ -1316,13 +1448,19 @@
           },
           "tool": {
             "type": "string"
+          },
+          "tool_calls": {
+            "$ref": "#/components/schemas/CheckInToolSummary"
           }
         },
         "required": [
           "created_at",
           "id",
           "kind",
-          "state"
+          "picks",
+          "picks_tracked",
+          "state",
+          "tool_calls"
         ],
         "type": "object"
       },
@@ -1483,6 +1621,12 @@
           "name": {
             "type": "string"
           },
+          "read_only_tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "reference": {
             "type": "boolean"
           },
@@ -1559,6 +1703,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "read_only_tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "reference": {
             "type": "boolean"
@@ -4335,6 +4485,122 @@
           "deletions",
           "files"
         ],
+        "type": "object"
+      },
+      "CheckInProposalSummary": {
+        "properties": {
+          "auto_accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waiting": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "auto_accepted",
+          "waiting"
+        ],
+        "type": "object"
+      },
+      "CheckInToolCall": {
+        "properties": {
+          "access": {
+            "type": "string"
+          },
+          "args_preview": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "deny_reason": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "effect": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "mcp_server": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tool_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "backend",
+          "decision",
+          "duration_ms",
+          "effect",
+          "outcome",
+          "seq",
+          "tool_id"
+        ],
+        "type": "object"
+      },
+      "CheckInToolSummary": {
+        "properties": {
+          "denied": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "writes_done": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "writes_maybe": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "denied",
+          "total",
+          "writes_done",
+          "writes_maybe"
+        ],
+        "type": "object"
+      },
+      "CheckInsPolicy": {
+        "properties": {
+          "allow_writes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_tool_calls": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "max_write_calls": {
+            "nullable": true,
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "Chip": {
@@ -12506,6 +12772,41 @@
         ],
         "type": "object"
       },
+      "HeartbeatAuthorityPayload": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDecl"
+            },
+            "type": "array"
+          },
+          "check_ins": {
+            "$ref": "#/components/schemas/CheckInsPolicy"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "read_only_tools": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actions",
+          "check_ins",
+          "digest",
+          "status"
+        ],
+        "type": "object"
+      },
       "HeartbeatConfigProvenancePayload": {
         "properties": {
           "digest": {
@@ -12611,6 +12912,15 @@
       },
       "HeartbeatFrontmatterPayload": {
         "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDecl"
+            },
+            "type": "array"
+          },
+          "check_ins": {
+            "$ref": "#/components/schemas/CheckInsPolicy"
+          },
           "context": {
             "$ref": "#/components/schemas/HeartbeatContextProjectionPayload"
           },
@@ -12628,6 +12938,8 @@
           }
         },
         "required": [
+          "actions",
+          "check_ins",
           "context",
           "enabled",
           "preferences",
@@ -12689,11 +13001,20 @@
       },
       "HeartbeatPolicyPayload": {
         "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDecl"
+            },
+            "type": "array"
+          },
           "active": {
             "type": "boolean"
           },
           "agent_name": {
             "type": "string"
+          },
+          "authority": {
+            "$ref": "#/components/schemas/HeartbeatAuthorityPayload"
           },
           "config_digest": {
             "type": "string"
@@ -12762,7 +13083,9 @@
           }
         },
         "required": [
+          "actions",
           "active",
+          "authority",
           "config_provenance",
           "enabled",
           "frontmatter",
@@ -12859,6 +13182,9 @@
       },
       "HeartbeatPutByPathRequest": {
         "properties": {
+          "approve_authority_sha256": {
+            "type": "string"
+          },
           "body": {
             "type": "string"
           },
@@ -20255,6 +20581,45 @@
           "rollups",
           "since",
           "until"
+        ],
+        "type": "object"
+      },
+      "Pick": {
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "picked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "proposal_index": {
+            "type": "integer"
+          },
+          "queue_entry_id": {
+            "type": "string"
+          },
+          "report_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "target_session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "picked_at",
+          "proposal_index",
+          "queue_entry_id",
+          "report_id",
+          "state",
+          "target_session_id"
         ],
         "type": "object"
       },
@@ -30946,7 +31311,8 @@
               "terminal.recording_started",
               "terminal.recording_stopped",
               "terminal.subscriber_evicted",
-              "terminal.limit_rejected"
+              "terminal.limit_rejected",
+              "agent.instance.proposal.picked"
             ],
             "type": "string"
           },
@@ -31620,6 +31986,12 @@
           "profile": {
             "type": "string"
           },
+          "read_only_tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "runtime_name": {
             "type": "string"
           },
@@ -31710,6 +32082,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "read_only_tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "secret_env": {
             "additionalProperties": {
@@ -42279,8 +42657,14 @@
       },
       "ToolDescriptorPayload": {
         "properties": {
+          "access": {
+            "type": "string"
+          },
           "backend": {
             "$ref": "#/components/schemas/ToolBackendRefPayload"
+          },
+          "check_in_writable": {
+            "type": "boolean"
           },
           "concurrency_safe": {
             "type": "boolean"
@@ -42365,7 +42749,9 @@
           }
         },
         "required": [
+          "access",
           "backend",
+          "check_in_writable",
           "concurrency_safe",
           "description",
           "destructive",
@@ -50837,6 +51223,151 @@
         ]
       }
     },
+    "/api/agent-instances/{id}/reports/{report_id}/pick": {
+      "post": {
+        "operationId": "pickAgentInstanceProposal",
+        "parameters": [
+          {
+            "description": "Instance ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Report ID",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentInstancePickRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstancePickResponse"
+                }
+              }
+            },
+            "description": "Picked"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Pick an instance proposal",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/agent-instances/{id}/resume": {
       "post": {
         "operationId": "resumeAgentInstance",
@@ -54637,6 +55168,310 @@
           }
         },
         "summary": "Create or replace HEARTBEAT.md through managed authoring",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/{name}/heartbeat/authority": {
+      "get": {
+        "operationId": "getAgentHeartbeatAuthority",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeartbeatAuthorityPayload"
+                }
+              }
+            },
+            "description": "Check-in authority"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority changed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid authority"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority storage unavailable"
+          }
+        },
+        "summary": "show check-in authority",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/{name}/heartbeat/authority/approve": {
+      "delete": {
+        "operationId": "revokeAgentHeartbeatAuthority",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Authority revoked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority changed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid authority"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority storage unavailable"
+          }
+        },
+        "summary": "revoke check-in authority",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "approveAgentHeartbeatAuthority",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatScriptApprovalRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Authority approved"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority changed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid authority"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Authority storage unavailable"
+          }
+        },
+        "summary": "approve check-in authority",
         "tags": [
           "agents"
         ],
@@ -64161,7 +64996,8 @@
                 "terminal.recording_started",
                 "terminal.recording_stopped",
                 "terminal.subscriber_evicted",
-                "terminal.limit_rejected"
+                "terminal.limit_rejected",
+                "agent.instance.proposal.picked"
               ],
               "type": "string"
             }
@@ -88909,7 +89745,8 @@
                 "terminal.recording_started",
                 "terminal.recording_stopped",
                 "terminal.subscriber_evicted",
-                "terminal.limit_rejected"
+                "terminal.limit_rejected",
+                "agent.instance.proposal.picked"
               ],
               "type": "string"
             }

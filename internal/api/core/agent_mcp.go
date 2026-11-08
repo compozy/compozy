@@ -17,6 +17,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func agentMCPServersToPayload(servers []compozyconfig.MCPServer) []contract.AgentMCPServerJSON {
+	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(servers))
+	for _, server := range servers {
+		redacted := compozyconfig.RedactedMCPServer(server)
+		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
+			Name:          redacted.Name,
+			ReadOnlyTools: append([]string(nil), redacted.ReadOnlyTools...),
+			Reference:     redacted.Reference,
+			SecretHeaders: redacted.SecretHeaders,
+			Transport:     string(redacted.Transport),
+			Command:       redacted.Command,
+			Args:          append([]string(nil), redacted.Args...),
+			Env:           redacted.Env,
+			SecretEnv:     redacted.SecretEnv,
+			URL:           redacted.URL,
+			Auth:          agentMCPAuthPayload(redacted.Auth),
+		})
+	}
+	return mcpServers
+}
+
 // agentMCPServersFromPayload clones bindings while leaving raw values for the Vault write boundary.
 func agentMCPServersFromPayload(payload []contract.AgentMCPServerInput) []compozyconfig.MCPServer {
 	servers := make([]compozyconfig.MCPServer, 0, len(payload))
@@ -27,6 +48,7 @@ func agentMCPServersFromPayload(payload []contract.AgentMCPServerInput) []compoz
 			Transport:     compozyconfig.MCPServerTransport(value.Transport),
 			Command:       value.Command,
 			Args:          slices.Clone(value.Args),
+			ReadOnlyTools: slices.Clone(value.ReadOnlyTools),
 			Env:           maps.Clone(value.Env),
 			SecretEnv:     maps.Clone(value.SecretEnv),
 			URL:           value.URL,

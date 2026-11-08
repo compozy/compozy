@@ -53,6 +53,15 @@ export function applyAgentInstanceUpdate(queryClient: QueryClient, next: AgentIn
   if (!known || slotMoved) void invalidateAgentInstances(queryClient);
 }
 
+/**
+ * An instance changed: a pick, an auto pick or a finished check-in. Its reports and check-ins are
+ * reread where something shows them, so a transcript report shows its live pick state.
+ */
+export function invalidateAgentInstanceReads(queryClient: QueryClient, id: string) {
+  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceReports(id) });
+  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceCheckIns(id) });
+}
+
 export function invalidateAgentInstances(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: agentKeys.instanceLists() });
 }

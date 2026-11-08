@@ -1,5 +1,67 @@
 # Compozy Change Impact
 
+## Check-in tools and auto-accepted actions — 2026-11-08
+
+Owner: spec `.compozy/tasks/always-on-check-in-tools/` (GitHub #1357), integration branch
+`feat/always-on-check-in-tools` (S1 tools/audit/authority, S2 actions/picks, S3 Web, F1 review
+fixes, S4 docs/QA). Additive on every public surface and user state (SD-013). Internal hard cut:
+`TriageReadOnly`, the triage MCP stripping and the read-only triage prompt sentence are deleted.
+Supersedes the read-only triage clause of always-on ADR-004.
+
+- **Native tools.** Check-in sessions reach the agent's native tools and MCP servers through the
+  hosted gateway, bounded by the instance's current main session: reads always; writes only from
+  the approved `check_ins.allow_writes`, only if the main session would not ask, and for native
+  tools only from the closed writable set `{compozy__notify}`. `compozy__clarify` and every
+  interaction tool are always denied; with no main session every call is denied
+  `check_in_no_main_session`. `compozy__agent_instance_check_ins` gains `occurrence_id`,
+  `tools_status`, `tool_calls`; `compozy__agent_instance_reports` gains `picks`, `tool_calls`
+  counts, `occurrence_id`, proposal `action` and `auto_accept_status`
+  (`picked|limit|queue_full|unapproved|no_main|none`); `compozy__agent_instance_get` gains
+  `authority_status`; `compozy__tool_info`/`tool_list` gain `access`. No native pick or
+  authority-approve tool.
+- **CLI/HTTP/UDS.** New `compozy agent instance pick` (1-based), `POST
+  /api/agent-instances/{id}/reports/{report_id}/pick` (0-based), UDS `agent.instance.report.pick`
+  (operator-only, `proposal_pick_operator_only`). New `compozy agent heartbeat authority
+  show|approve|revoke`, `POST|DELETE /api/agents/:name/heartbeat/authority/approve`, UDS
+  `agent.heartbeat.authority.approve|revoke` (operator-only). `PUT …/heartbeat` accepts
+  `approve_authority_sha256`; `heartbeat write` shows the block and asks
+  (`--approve-authority --yes`). `instance check-ins --occurrence`, `instance reports` (pick state,
+  auto-accept status, tool summary) and `heartbeat validate` gain fields and diagnostics.
+- **Extensibility and hooks.** New observe-only hook `agent.instance.proposal.picked`.
+  `tool.pre_call`/`tool.post_call` fire for check-in calls; policy re-evaluates after `pre_call`.
+  Extension-shipped agents may declare `check_ins`/`actions` (authority starts unapproved); their
+  MCP `read_only_tools` is ignored (`mcp_read_only_override_untrusted`). Provide surfaces and SDK
+  helpers unchanged; generated TS/Go clients regenerated.
+- **Config.** `[agents.always_on]` `check_in_tools` (`enabled|disabled`), `check_in_max_tool_calls`
+  (25, 1–100), `check_in_max_write_calls` (5, 0–50), `auto_accept_per_day` (20, 0–200),
+  `check_in_audit_retention` (`720h`). MCP server declarations gain `read_only_tools`.
+- **Workspace data isolation.** The check-in ceiling is the instance's main-session ceiling
+  (workspace reach, MCP source grants, permission policy). Audit and pick rows are per instance;
+  picks go only to the main session fixed at insert. Authority approvals are per
+  (profile, definition directory).
+- **User state.** `HEARTBEAT.md` `check_ins` and `actions` (additive; absent = reads only, no
+  writes, no auto-accept; older daemons reject them on downgrade). Authority digest covers
+  `allow_writes`, caps, every action (`id`, `title`, `instructions`, `auto_accept`) and the MCP
+  `read_only_tools` overrides; unapproved = ignored whole. Migration `00198`: tables
+  `agent_instance_check_tool_calls`, `agent_instance_proposal_picks`,
+  `heartbeat_authority_approvals`; `agent_instance_reports` rebuilt losslessly for kind
+  `activity`. Report payloads store `picks_tracked` and per-proposal `auto_accept_skip`, recorded
+  at publication. Picks reuse `session_input_queue`. No file rewritten on upgrade.
+- **Runtime behavior.** Every check-in that reaches the model may call read tools; empty or
+  unchanged digests still make no model call. `destructiveHint: true` MCP tools become writes in
+  every session (release note). A check-in that wrote always reports (`activity`). Auto picks are
+  synthetic turns; pause/archive cancels queued auto picks.
+- **Web.** Server pick, auto-accepted chip and waiting reasons, tool-call line and list, activity
+  report, check-ins history tools badge, editor "What it can change" and "Actions", authority
+  notice, Approve and save-confirm. No new page.
+- **Docs and official skill.** `agents/heartbeat.mdx` (tools, authority, Linear snippet, actions,
+  picks), `configuration/config-toml.mdx`, generated CLI reference;
+  `skills/compozy/references/{agent-definitions,configuration,native-tools}.md`; glossary
+  "check-in", "check-in authority", "check-in action", "auto-accept", "pick"; `COPY.md` check-in
+  tools and picks terms.
+- **QA.** `MS-always-on-check-in-sources.md` §8 (tools and actions), `MS-web-stays-on-reports.md`
+  (picks, tool calls, activity). Both pending the integrated walk.
+
 ## Marketplace plugin catalog — category browse, one-step Add, plugin compatibility
 
 Owner: spec `.compozy/tasks/marketplace-plugin-catalog/` (slices S1–S9), integration branch

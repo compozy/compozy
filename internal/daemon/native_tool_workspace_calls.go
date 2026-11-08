@@ -208,6 +208,8 @@ func (n *daemonNativeTools) observeMetrics(
 				return toolspkg.ToolResult{}, err
 			}
 			result["agent_instances"] = metrics
+			result["heartbeat_check_in_tool_calls_total"] = metrics.CheckInToolCalls
+			result["agent_instance_picks_total"] = metrics.Picks
 		}
 	}
 	return structuredResult(result, payload.Status)

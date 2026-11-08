@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type HeartbeatPromptContributionPayload struct {
+	Active           bool                               `json:"active"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Truncated        bool                               `json:"truncated"`
+	MaxBytes         int64                              `json:"max_bytes"`
+	MaxBodyBytes     int64                              `json:"max_body_bytes"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Context          HeartbeatContextProjectionPayload  `json:"context"`
+}
+
+type HeartbeatPutRequest struct {
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	AgentName              string `json:"agent_name"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatRevisionOperation string
+
 type HeartbeatRevisionPayload struct {
 	ID             string                     `json:"id"`
 	AgentName      string                     `json:"agent_name"`
@@ -179,13 +205,3 @@ type HookMatcher struct {
 type HookMode string
 
 type HookRunOutcome string
-
-type HookSkillSource uint8
-
-type HookSource uint8
-
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}

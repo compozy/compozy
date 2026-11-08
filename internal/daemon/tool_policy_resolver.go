@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -18,6 +19,7 @@ import (
 )
 
 type nativeToolPolicyResolverDeps struct {
+	ApprovalGrants    toolspkg.ApprovalGrantStore
 	Config            *compozyconfig.Config
 	Sessions          nativeToolPolicySessionReader
 	WorkspaceResolver nativeToolPolicyWorkspaceResolver
@@ -45,6 +47,9 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
+	authorityMu       sync.Mutex
+	authorityCache    map[authorityPolicyKey]authorityPolicyValue
+	approvalGrants    toolspkg.ApprovalGrantStore
 	instanceCallers   agentinstance.CallerReader
 	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
@@ -65,6 +70,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 	}
 	return &nativeToolPolicyResolver{
 		cfg:               deps.Config,
+		approvalGrants:    deps.ApprovalGrants,
 		sessions:          deps.Sessions,
 		workspaceResolver: deps.WorkspaceResolver,
 		profileNames:      deps.ProfileNames,
@@ -79,6 +85,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyResolver, error) {
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 		Config:            &state.cfg,
+		ApprovalGrants:    state.deps.ApprovalGrants,
 		Sessions:          state.sessions,
 		WorkspaceResolver: state.workspaceResolver,
 		ProfileNames:      state.profiles,
@@ -126,18 +133,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if r.mcpResourceNames != nil {
 		inputs.MCPResourceNames = r.mcpResourceNames()
 	}
-	if err := r.applyBundledExtensionTrust(&inputs); err != nil {
-		return toolspkg.PolicyInputs{}, err
-	}
-	if resolvedWorkspace != nil {
-		if err := r.applyDevelopmentExtensionTrust(&inputs, resolvedWorkspace.ID); err != nil {
-			return toolspkg.PolicyInputs{}, err
-		}
-	}
-	if err := r.applyMCPSourceGrants(ctx, &inputs, resolvedScope); err != nil {
-		return toolspkg.PolicyInputs{}, err
-	}
-	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
+	if err := r.applyScopedSourceGrants(ctx, &inputs, resolvedScope, resolvedWorkspace); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
 	if err := r.applyInstanceToolPolicy(ctx, &inputs, info); err != nil {
@@ -156,7 +152,15 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
+	if err := r.applyResolvedMCPReadAuthority(ctx, &inputs, info, resolvedScope, resolvedWorkspace, cfg); err != nil {
+		return inputs, err
+	}
 	applySessionPermissionLevel(&inputs, info)
+	if info != nil && info.Type == session.SessionTypeTriage {
+		if err := r.resolveCheckInPolicy(ctx, &inputs, info, resolvedScope, resolvedWorkspace, cfg); err != nil {
+			return inputs, err
+		}
+	}
 	return inputs, nil
 }
 
@@ -408,7 +412,7 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	}
 	inputs.AlwaysOnLineage = inputs.AlwaysOnLineage || info.InstanceID != ""
 	if info.Type == session.SessionTypeTriage {
-		inputs.TriageReadOnly = true
+		inputs.CheckIn = &toolspkg.CheckInPolicy{}
 		inputs.ApprovalAvailable = false
 		inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
 		return nil
@@ -466,6 +470,9 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
 				return err
 			}
+			// The instance ceiling names the agent's MCP servers, never their dynamic tool IDs, so a
+			// listed server admits its tools unless the ceiling lists specific tools of that server.
+			inputs.Session.MCPByServer = true
 		}
 	}
 	return nil

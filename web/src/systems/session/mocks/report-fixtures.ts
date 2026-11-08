@@ -22,6 +22,54 @@ export const REPORT_CHOICES = [
   { title: "Close the stale design issue", body: "#918 was fixed in #931 and nobody closed it." },
 ];
 
+/** One check-in's audited calls: a read, a write that may have landed, and a blocked write. */
+export const REPORT_TOOL_CALLS = [
+  {
+    seq: 1,
+    tool_id: "mcp__github__list_issues",
+    backend: "mcp",
+    mcp_server: "github",
+    access: "read",
+    decision: "allowed",
+    outcome: "ok",
+    effect: "none",
+    duration_ms: 320,
+  },
+  {
+    seq: 2,
+    tool_id: "mcp__github__add_label",
+    backend: "mcp",
+    mcp_server: "github",
+    access: "write",
+    decision: "allowed",
+    outcome: "ok",
+    effect: "done",
+    duration_ms: 610,
+  },
+  {
+    seq: 3,
+    tool_id: "mcp__github__add_label",
+    backend: "mcp",
+    mcp_server: "github",
+    access: "write",
+    decision: "allowed",
+    outcome: "error",
+    effect: "maybe",
+    duration_ms: 2400,
+  },
+  {
+    seq: 4,
+    tool_id: "compozy__session_prompt",
+    backend: "native_go",
+    access: "write",
+    decision: "denied",
+    deny_reason: "check_in_tool_not_writable",
+    outcome: "denied",
+    effect: "none",
+    duration_ms: 0,
+  },
+];
+
 export const AWAY_NOW = Date.parse("2026-11-01T08:30:00Z");
 
 export const AWAY_FIXTURE: AgentInstanceAway = {

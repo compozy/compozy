@@ -11,6 +11,8 @@ import (
 
 // ToolDescriptorPayload is the public descriptor shape exposed by daemon APIs.
 type ToolDescriptorPayload struct {
+	CheckInWritable     bool                  `json:"check_in_writable"`
+	Access              string                `json:"access"`
 	ToolID              tools.ToolID          `json:"tool_id"`
 	Backend             ToolBackendRefPayload `json:"backend"`
 	DisplayTitle        string                `json:"display_title,omitempty"`

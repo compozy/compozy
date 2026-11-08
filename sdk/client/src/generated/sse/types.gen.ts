@@ -30,6 +30,7 @@ export type AgentInstanceNextWake = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  authority_status: string;
   checks_enabled: boolean;
   created: boolean;
   created_at: string;

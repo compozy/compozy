@@ -3538,3 +3538,23 @@ func TestHeartbeatSourceConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckInToolConfiguration(t *testing.T) {
+	t.Run("Should validate the check-in tool bounds [UT-031]", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.AlwaysOn.AutoAcceptPerDay != 20 || cfg.Agents.AlwaysOn.CheckInTools != "enabled" ||
+			cfg.Agents.AlwaysOn.CheckInMaxToolCalls != 25 ||
+			cfg.Agents.AlwaysOn.CheckInMaxWriteCalls != 5 ||
+			cfg.Agents.AlwaysOn.CheckInAuditRetention != 720*time.Hour {
+			t.Fatalf("defaults=%+v", cfg.Agents.AlwaysOn)
+		}
+		for _, mutate := range []func(*AlwaysOnConfig){func(c *AlwaysOnConfig) { c.AutoAcceptPerDay = -1 }, func(c *AlwaysOnConfig) { c.AutoAcceptPerDay = 201 }, func(c *AlwaysOnConfig) { c.CheckInTools = "other" }, func(c *AlwaysOnConfig) { c.CheckInMaxToolCalls = 0 }, func(c *AlwaysOnConfig) { c.CheckInMaxToolCalls = 101 }, func(c *AlwaysOnConfig) { c.CheckInMaxWriteCalls = 51 }, func(c *AlwaysOnConfig) { c.CheckInAuditRetention = time.Hour }} {
+			candidate := cfg
+			mutate(&candidate.Agents.AlwaysOn)
+			if err := candidate.Agents.Validate(); err == nil {
+				t.Fatalf("invalid configuration accepted: %+v", candidate.Agents.AlwaysOn)
+			}
+		}
+	})
+}

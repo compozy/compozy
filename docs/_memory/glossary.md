@@ -544,3 +544,23 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 ### Check-in source
 
 Something outside the built-in facts that an always-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.
+
+### Check-in
+
+One run of an always-on agent's Heartbeat. Collection gates and check-in sources run first; an empty or unchanged digest makes no model call. A check-in that reaches the model runs in a hidden session (internal name `triage`) and may call the agent's read tools, native and MCP, through the CompozyOS gateway, plus write tools listed in the approved check-in authority that the main session would run without asking. Provider built-in tools stay read-only. It never asks anyone anything and never creates an approval or clarify request. It answers with nothing to report or with proposals. `[agents.always_on].check_in_tools = "disabled"` makes check-ins tool-less again. UI: one scheduled run is "a heartbeat" (see Surface Aliases).
+
+### Check-in authority
+
+The part of `HEARTBEAT.md` that grants unattended power: `check_ins.allow_writes`, the call caps, every action (`id`, `title`, `instructions`, `auto_accept`), and the agent's MCP `read_only_tools` overrides. It takes effect only after the operator approves its sha256 digest; agent credentials never approve. Until then the whole block is ignored and check-ins get reads only. UI copy: "Check-in changes need your approval". Not a tool approval (`compozy__tool_approvals_*`) and not a source script approval.
+
+### Check-in action
+
+An operator-declared kind of proposal in `HEARTBEAT.md` `actions`, with instructions the main session follows when a proposal tagged with it is picked. Actions are offered to check-ins only while the check-in authority is approved. Not a CompozyOS command, Loop step or automation.
+
+### Auto-accept
+
+An action flag (`auto_accept: true`; UI "Do it without asking me"). The daemon picks matching proposals without the operator when the check-in authority is approved, bounded by `[agents.always_on].auto_accept_per_day` and the main session's queue. A proposal it does not pick records why (`limit`, `queue_full`, `unapproved`, `no_main`) when the report is published. Not a permission mode and not "auto-approve".
+
+### Pick
+
+The recorded choice of one proposal, by the operator or by auto-accept, which queues one prompt to the instance's main session. Each proposal is picked at most once. Operator picks are operator-only (CLI index is 1-based, wire index 0-based); there is no native pick tool. UI: "Pick", "You picked", "Auto-accepted".

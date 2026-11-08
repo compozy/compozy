@@ -141,6 +141,32 @@ export function checkInsModelFixture(
       openExtensions: fn(),
       openScript: fn(),
     },
+    authority: {
+      current: { digest: "", status: "none", check_ins: {}, actions: [] },
+      writeTools: [
+        {
+          tool_id: "compozy__notify",
+          title: "Notify",
+          access: "write",
+          check_in_writable: true,
+          backend: "native_go",
+        },
+        {
+          tool_id: "mcp__github__create_issue_comment",
+          title: "Comment on an issue",
+          access: "write",
+          check_in_writable: true,
+          backend: "mcp",
+          server: "github",
+        },
+      ],
+      toolsState: "ready",
+      approve: fn(),
+      approving: false,
+      confirmSave: async () => false,
+      pending: null,
+      writeWarnings: [],
+    },
     now: new Date("2026-11-01T14:12:00Z"),
     turnOn: fn(),
     resume: fn(),
@@ -260,5 +286,61 @@ export function awaitingApprovalCheckInsModelFixture({ paused = false } = {}) {
       ],
     },
     sources: { ...base.sources, catalogState: "ready" },
+  });
+}
+
+const AUTHORITY_SETTINGS: CheckInSettings = {
+  ...CHECK_IN_SETTINGS,
+  authority: {
+    writes: ["mcp__github__add_label"],
+    caps: {},
+    actions: [
+      {
+        id: "triage",
+        title: "Triage new issues",
+        instructions: "Label each new issue and say which ones need me.",
+        autoAccept: true,
+      },
+      {
+        id: "close-stale",
+        title: "Close a stale issue",
+        instructions: "Close it with a short note that links the fix.",
+        autoAccept: false,
+      },
+    ],
+  },
+};
+
+const AUTHORITY_BLOCK = {
+  digest: "sha256:3f9c",
+  status: "unapproved",
+  check_ins: { allow_writes: ["mcp__github__add_label"] },
+  actions: [
+    {
+      id: "triage",
+      title: "Triage new issues",
+      instructions: "Label each new issue and say which ones need me.",
+      auto_accept: true,
+    },
+  ],
+};
+
+/**
+ * U6/U7: a Heartbeat page with check-in writes and actions. `waiting` shows the approval notice;
+ * `confirming` holds a save on the confirmation that lists the block.
+ */
+export function authorityCheckInsModelFixture({
+  waiting = false,
+  confirming = false,
+}: { waiting?: boolean; confirming?: boolean } = {}) {
+  const base = checkInsModelFixture();
+  return checkInsModelFixture({
+    document: editorDocumentFixture(AUTHORITY_SETTINGS, composeCheckInsFile(AUTHORITY_SETTINGS)),
+    settings: AUTHORITY_SETTINGS,
+    authority: {
+      ...base.authority,
+      current: waiting ? AUTHORITY_BLOCK : { ...AUTHORITY_BLOCK, status: "approved" },
+      pending: confirming ? { authority: AUTHORITY_BLOCK, settle: fn() } : null,
+    },
   });
 }

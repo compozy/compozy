@@ -2897,20 +2897,24 @@ in the release after v0.5.2. Errors identify the corresponding `agents.always_on
 [the migration guide](/docs/migration#always-on-vocabulary). Validation messages name
 `agents.always_on.*`.
 
-| Key                     | Default | Constraint                |
-| ----------------------- | ------- | ------------------------- |
-| `rotation_threshold`    | `0.8`   | Greater than 0, at most 1 |
-| `max_active_instances`  | `10`    | Positive                  |
-| `unattended_turn_limit` | `300`   | Nonnegative; `0` disables |
-| `approval_timeout`      | `"12h"` | 1m–72h                    |
-| `max_proposals`         | `2`     | 1–20                      |
-| `triage_timeout`        | `"10m"` | Positive duration         |
+| Key                        | Default     | Constraint                       |
+| -------------------------- | ----------- | -------------------------------- |
+| `rotation_threshold`       | `0.8`       | Greater than 0, at most 1        |
+| `max_active_instances`     | `10`        | Positive                         |
+| `unattended_turn_limit`    | `300`       | Nonnegative; `0` disables        |
+| `approval_timeout`         | `"12h"`     | 1m–72h                           |
+| `max_proposals`            | `2`         | 1–20                             |
+| `triage_timeout`           | `"10m"`     | Positive duration                |
+| `check_in_tools`           | `"enabled"` | `enabled` or `disabled`          |
+| `check_in_max_tool_calls`  | `25`        | 1–100 attempts per check-in      |
+| `check_in_max_write_calls` | `5`         | 0–50 allowed writes per check-in |
+| `check_in_audit_retention` | `"720h"`    | 24h–8760h                        |
 
 Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive) and
 `max_interval` (default `"24h"`, at least `quiet_backoff_cap`), alongside enablement,
 default interval, batch size, and wake event retention.
 Interrupted occurrences are finalized before the scheduler begins checking due instances.
-Pausing an instance cancels its running read-only check. That occurrence finishes as
+Pausing an instance cancels its running check-in. That occurrence finishes as
 `cancelled`, without adding fatigue or a failure report. A working turn already
 in progress finishes. Each reported or failed check counts once toward
 `unattended_turn_limit`; quiet and cancelled checks do not count. Replaying a
@@ -2961,3 +2965,10 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Auto-accept limit
+
+`[agents.always_on].auto_accept_per_day` limits auto-accepted check-in proposals per
+instance over a rolling 24 hours. The default is `20`; valid values are `0`–`200`.
+Set it to `0` to disable auto picks. An action must still have operator-approved
+`auto_accept: true` authority; the limit grants no tool permissions.

@@ -25,6 +25,8 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/providers"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -34,12 +36,14 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	tools "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 	"github.com/jonboulle/clockwork"
 	"github.com/kballard/go-shellquote"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHeartbeatWakeHealthReader(t *testing.T) {
@@ -1016,7 +1020,11 @@ type heartbeatSourceRuntime struct {
 	config                            heartbeat.CheckConfig
 }
 
-func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatSourceRuntime {
+func newHeartbeatSourceRuntime(
+	t *testing.T,
+	approved, blocked bool,
+	mainPermissions ...compozyconfig.PermissionMode,
+) *heartbeatSourceRuntime {
 	t.Helper()
 	h := &heartbeatSourceRuntime{db: openDaemonTestGlobalDB(t)}
 	h.clock.Store(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC).UnixNano())
@@ -1039,7 +1047,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 			Turns: []acpmock.TurnFixture{
 				{
 					Name:  "source-check",
-					Match: acpmock.TurnMatch{RawUserTextContains: "Perform a read-only proactive check."},
+					Match: acpmock.TurnMatch{RawUserTextContains: "Perform a proactive check."},
 					Steps: []acpmock.Step{
 						{
 							Kind: acpmock.StepKindAssistant,
@@ -1119,6 +1127,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 		session.WithProfileNameResolver(nativeProfileReaderStub{}),
 		session.WithSessionCatalog(h.db),
 		session.WithSessionPromptAdmissionStore(h.db),
+		session.WithSessionInputQueueStore(h.db),
 		session.WithEventLedger(h.db),
 		session.WithAttentionWorkspaceMuteReader(h.db),
 		session.WithPromptAssembler(NewComposedAssembler()),
@@ -1150,7 +1159,11 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 			t.Error(err)
 		}
 	})
-	main, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: def.Name, Workspace: "source-workspace"})
+	mainOpts := &session.CreateOpts{AgentName: def.Name, Workspace: "source-workspace"}
+	if len(mainPermissions) > 0 {
+		mainOpts.Permissions = mainPermissions[0]
+	}
+	main, err := h.manager.Create(t.Context(), mainOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2259,7 +2272,7 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 		}
 		promptCtx, cancelPrompt := context.WithCancel(t.Context())
 		defer cancelPrompt()
-		events, err := h.manager.Prompt(promptCtx, triage.ID, "Perform a read-only proactive check.")
+		events, err := h.manager.Prompt(promptCtx, triage.ID, "Perform a proactive check.")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2681,4 +2694,622 @@ func (e *postPollHeartbeatEnvironment) ResolveCheck(ctx context.Context, id stri
 		return target, errors.New("policy unavailable")
 	}
 	return target, nil
+}
+
+func TestCheckInToolsDisabled(t *testing.T) {
+	t.Run("Should complete a real check-in without hosted tools when disabled [IT-008]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		session.WithCheckInTools(false)(h.manager)
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "1", Title: "Fixture input"}}, State: []byte(`{"cursor":1}`)},
+		)
+		h.tick(t, 1)
+		rows, err := h.db.Instances().ListCheckIns(t.Context(), h.instance.ID, "", 10)
+		if err != nil || len(rows) != 1 || rows[0].ToolsStatus != "disabled" || len(rows[0].ToolCalls) != 0 {
+			t.Fatalf("rows=%+v err=%v", rows, err)
+		}
+	})
+}
+
+type checkInGatewayFixture struct {
+	inner heartbeat.TriageDispatcher
+	call  func(context.Context, *heartbeat.CheckTarget, string) error
+}
+
+var _ heartbeat.TriageDispatcher = checkInGatewayFixture{}
+
+func (f checkInGatewayFixture) Stop(ctx context.Context, id string) error {
+	return f.inner.Stop(ctx, id)
+}
+
+func (f checkInGatewayFixture) Dispatch(
+	ctx context.Context,
+	target *heartbeat.CheckTarget,
+	digest heartbeat.CheckDigest,
+	bind func(string) error,
+) (heartbeat.TriageOutcome, error) {
+	return f.inner.Dispatch(ctx, target, digest, func(id string) error {
+		if err := bind(id); err != nil {
+			return err
+		}
+		return f.call(ctx, target, id)
+	})
+}
+func TestCheckInToolAuthorityIntegration(t *testing.T) {
+	t.Run("Should retry an authority notice after publication fails without skipping the check", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target.Policy.Frontmatter.CheckIns.AllowWrites = []string{"compozy__notify"}
+		digest, err := heartbeat.AuthorityDigest(target.Policy.Frontmatter.CheckIns, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := &instanceCheckEnvironment{instances: h.db.Instances()}
+		if err := env.notifyCheckInAuthority(t.Context(), &target); err == nil {
+			t.Fatal("expected publication failure")
+		}
+		sent, err := h.db.Instances().
+			AuthorityNoticeSent(t.Context(), target.Instance.ProfileID, target.DefinitionDir, digest)
+		if err != nil || sent {
+			t.Fatalf("failed notice was marked: %v %v", sent, err)
+		}
+		reason, err := env.BeforeCheck(t.Context(), &target, "timer")
+		if err != nil || reason != "" {
+			t.Fatalf("notice failure skipped check: %s %v", reason, err)
+		}
+	})
+
+	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved", "override-invalid", "override-malformed"} {
+		t.Run("Should enforce current main authority and project MCP audit for "+mode+" [IT-006]", func(t *testing.T) {
+			permission := compozyconfig.PermissionModeApproveAll
+			if mode == "narrowed" {
+				permission = compozyconfig.PermissionModeApproveReads
+			}
+			h := newHeartbeatSourceRuntime(t, true, false, permission)
+			if err := h.checks.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			remoteFixture := mcpfixture.MustNew(mcpfixture.ProfileModern2026)
+			remoteFixture.Server().
+				AddTool(&sdkmcp.Tool{Name: "read", InputSchema: map[string]any{"type": "object"}, Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+					return &sdkmcp.CallToolResult{
+						Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "read fixture"}},
+					}, nil
+				})
+			remoteFixture.Server().
+				AddTool(&sdkmcp.Tool{Name: "unannotated", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+					return &sdkmcp.CallToolResult{}, nil
+				})
+			if mode == "semantic-error" {
+				remoteFixture.Server().
+					AddTool(&sdkmcp.Tool{Name: "echo", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+						return &sdkmcp.CallToolResult{
+							IsError: true,
+							Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "failed"}},
+						}, nil
+					})
+			}
+			remote := remoteFixture.StartHTTP(t)
+			overrideNames := []string(nil)
+			if strings.HasPrefix(mode, "override-") {
+				overrideNames = []string{"unannotated"}
+				if mode == "override-malformed" {
+					overrideNames = append(overrideNames, "invalid name")
+				}
+			}
+			executor, err := mcppkg.NewMCPCallExecutor(
+				mcppkg.ServerResolverFunc(
+					func(context.Context, tools.SourceRef, string) (mcppkg.ResolvedServer, error) {
+						return mcppkg.ResolvedServer{
+							Target:                 mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
+							ReadOnlyOverrideOrigin: new(tools.MCPReadOnlyOverrideAgentDefinition),
+							Server: compozyconfig.MCPServer{
+								Name:          "fixture",
+								ReadOnlyTools: overrideNames,
+								Transport:     compozyconfig.MCPServerTransportHTTP,
+								URL:           remote.URL,
+							},
+						}, nil
+					},
+				),
+				mcppkg.WithHTTPClient(remote.Client()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mcpSource := tools.SourceRef{
+				Kind:          tools.SourceMCP,
+				Owner:         "fixture",
+				RawServerName: "fixture",
+				RawToolName:   "*",
+			}
+			if _, err := executor.ListTools(t.Context(), mcpSource); err != nil {
+				t.Fatalf("fixture discovery: %v", err)
+			}
+			provider, err := tools.NewMCPProvider(
+				tools.MCPSourceListerFunc(
+					func(context.Context) ([]tools.SourceRef, error) { return []tools.SourceRef{mcpSource}, nil },
+				),
+				executor,
+				executor,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace, err := h.env.definitions.workspaces.Resolve(t.Context(), h.instance.WorkspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			def, err := h.env.definitions.agents.ResolveAgent(h.instance.AgentName, &workspace)
+			if err != nil {
+				t.Fatal(err)
+			}
+			def.Tools = []string{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"}
+			def.MCPServers = []compozyconfig.MCPServer{
+				{Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL},
+			}
+			agents := stubSessionCommandAgentResolver(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) { return def, nil },
+			)
+			session.WithAgentResolver(agents)(h.manager)
+			session.WithToolUniverse(
+				[]tools.ToolID{"mcp__fixture__read", "mcp__fixture__echo", "mcp__fixture__unannotated"},
+			)(
+				h.manager,
+			)
+			h.env.definitions.agents = agents
+			h.manager.SetInstanceCeilingReader(instanceCeilingReader(h.db.Instances()))
+			ceiling, err := json.Marshal(
+				// Admission records MCP servers by name and never their tool IDs or materialized flags.
+				store.SessionPermissionPolicy{
+					MCPServers:     []string{"fixture"},
+					WorkspacePaths: []string{workspace.RootDir, h.dir},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.db.DB().
+				ExecContext(t.Context(), "UPDATE agent_instances SET permission_ceiling=? WHERE id=?", string(ceiling), h.instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.db.DB().
+				ExecContext(t.Context(), "UPDATE sessions SET permission_policy_json=? WHERE id=?", string(ceiling), h.instance.MainSessionID); err != nil {
+				t.Fatal(err)
+			}
+			body, err := os.ReadFile(filepath.Join(h.dir, "HEARTBEAT.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = bytes.Replace(
+				body,
+				[]byte("version: 1"),
+				[]byte("version: 1\ncheck_ins:\n  allow_writes: [mcp__fixture__echo]"),
+				1,
+			)
+			if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), body, 0600); err != nil {
+				t.Fatal(err)
+			}
+			hash, err := heartbeat.AuthorityDigest(
+				heartbeat.CheckInsPolicy{AllowWrites: []string{"mcp__fixture__echo"}},
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.db.Instances().
+				ApproveAuthority(t.Context(), h.instance.ProfileID, h.dir, hash, "cli", h.now()); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "no-main" {
+				if _, err := h.db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=NULL WHERE id=?", h.instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if strings.HasPrefix(mode, "override-") {
+				def.MCPServers[0].ReadOnlyTools = overrideNames
+			}
+			if mode == "override-invalid" {
+				if err := os.WriteFile(
+					filepath.Join(h.dir, "HEARTBEAT.md"),
+					[]byte("---\ncheck_ins: invalid\n---\n"),
+					0600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			resolver, err := newNativeToolPolicyResolver(
+				nativeToolPolicyResolverDeps{
+					Config:            &workspace.Config,
+					Sessions:          h.manager,
+					WorkspaceResolver: h.env.definitions.workspaces,
+					ProfileNames:      nativeProfileReaderStub{},
+					AgentResolver:     &nativeToolPolicyAgentResolverStub{agent: def},
+					MCPSourceGrants: func(context.Context, tools.Scope) ([]tools.SourceGrant, error) {
+						return []tools.SourceGrant{{Kind: tools.SourceMCP, Owner: "fixture"}}, nil
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolver.instanceCallers = h.db.Instances()
+
+			registry, err := tools.NewRegistry(
+				tools.WithProviders(provider),
+				tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}),
+				tools.WithCheckInRecorder(h.db.Instances().CheckInRecorder()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if strings.HasPrefix(mode, "override-") {
+				views, err := registry.DiagnosticProjection(
+					t.Context(),
+					tools.Scope{
+						SessionID:   h.instance.MainSessionID,
+						ProfileID:   h.instance.ProfileID,
+						WorkspaceID: h.instance.WorkspaceID,
+						AgentName:   h.instance.AgentName,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, view := range views {
+					if view.Descriptor.ID == "mcp__fixture__unannotated" {
+						found = true
+						if tools.AccessOf(view.Descriptor) != tools.AccessWrite {
+							t.Fatalf("main override applied without approval: %+v", view)
+						}
+					}
+				}
+				if !found {
+					t.Fatal("main tool missing")
+				}
+			}
+			if mode == "override-invalid" || mode == "override-malformed" {
+				result, err := registry.Call(
+					t.Context(),
+					tools.Scope{
+						SessionID:   h.instance.MainSessionID,
+						ProfileID:   h.instance.ProfileID,
+						WorkspaceID: h.instance.WorkspaceID,
+						AgentName:   h.instance.AgentName,
+					},
+					tools.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+				)
+				if err != nil {
+					t.Fatalf("main call with invalid authority: %+v %v", result, err)
+				}
+				if mode == "override-malformed" {
+					return
+				}
+				repaired := []byte("---\nversion: 1\ncheck_ins:\n  max_tool_calls: 2\n---\n")
+				if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), repaired, 0600); err != nil {
+					t.Fatal(err)
+				}
+				cfg := workspace.Config
+				cfg.Agents.AlwaysOn.CheckInMaxToolCalls = 1
+				info := &session.Info{
+					AgentName:   h.instance.AgentName,
+					ProfileID:   h.instance.ProfileID,
+					WorkspaceID: h.instance.WorkspaceID,
+				}
+				policy := &tools.CheckInPolicy{}
+				if err := resolver.applyCheckInAuthority(
+					t.Context(),
+					policy,
+					info,
+					nil,
+					&cfg,
+					h.db.Instances(),
+				); err != nil ||
+					policy.AuthorityApproved {
+					t.Fatalf("lowered cap: %+v %v", policy, err)
+				}
+				cfg.Agents.AlwaysOn.CheckInMaxToolCalls = 2
+				digest, err := heartbeat.AuthorityDigest(
+					heartbeat.CheckInsPolicy{MaxToolCalls: new(2)},
+					nil,
+					heartbeat.AuthorityOverrides(def.MCPServers),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.db.Instances().
+					ApproveAuthority(t.Context(), info.ProfileID, h.dir, digest, "cli", h.now()); err != nil {
+					t.Fatal(err)
+				}
+				if err := resolver.applyCheckInAuthority(
+					t.Context(),
+					policy,
+					info,
+					nil,
+					&cfg,
+					h.db.Instances(),
+				); err != nil ||
+					!policy.AuthorityApproved {
+					t.Fatalf("repaired authority: %+v %v", policy, err)
+				}
+				return
+			}
+			fixture := checkInGatewayFixture{
+				inner: &session.TriageDispatcher{
+					Manager:      h.manager,
+					Reports:      h.db.InstanceReports(),
+					MaxProposals: 2,
+					StopTimeout:  time.Second,
+				},
+				call: func(ctx context.Context, target *heartbeat.CheckTarget, id string) error {
+					scope := tools.Scope{
+						SessionID:   id,
+						ProfileID:   target.Instance.ProfileID,
+						WorkspaceID: target.Instance.WorkspaceID,
+						AgentName:   target.Instance.AgentName,
+					}
+					if _, err := registry.Call(
+						ctx,
+						scope,
+						tools.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+					); (err == nil) != (mode != "no-main") {
+						return fmt.Errorf("fixture read: %w", err)
+					}
+					if _, err := registry.Call(
+						ctx,
+						scope,
+						tools.CallRequest{ToolID: "mcp__fixture__unannotated", Input: []byte(`{}`)},
+					); err == nil {
+						return errors.New("unannotated tool ran without opt-in")
+					}
+					_, err := registry.Call(
+						ctx,
+						scope,
+						tools.CallRequest{
+							ToolID: "mcp__fixture__echo",
+							Input:  []byte(`{"message":"fixture write"}`),
+						},
+					)
+					if (err == nil) != (mode == "approved" || mode == "semantic-error") {
+						return fmt.Errorf("write at %s: %v", mode, err)
+					}
+					return nil
+				},
+			}
+			h.checks, err = heartbeat.NewCheckService(t.Context(), h.db.Instances(), h.env, fixture, h.config, h.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.checks.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			checks := h.checks
+			t.Cleanup(func() {
+				if err := checks.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			h.writeReply(
+				t,
+				source.Result{Items: []source.Item{{Key: "1", Title: "Tool fixture"}}, State: []byte(`{"cursor":1}`)},
+			)
+			h.tick(t, 1)
+			checksRows, err := h.db.Instances().ListCheckIns(t.Context(), h.instance.ID, "", 10)
+			if err != nil || len(checksRows) != 1 || len(checksRows[0].ToolCalls) != 3 {
+				t.Fatalf("checks=%+v err=%v", checksRows, err)
+			}
+			calls := checksRows[0].ToolCalls
+			metrics, err := h.db.Instances().Metrics(t.Context(), h.instance.ProfileID, h.instance.WorkspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var total int64
+			for _, decisions := range metrics.CheckInToolCalls {
+				for _, count := range decisions {
+					total += count
+				}
+			}
+			if total != 3 {
+				t.Fatalf("tool-call metrics=%+v", metrics.CheckInToolCalls)
+			}
+
+			if mode == "semantic-error" && (calls[2].Outcome != "error" || calls[2].Effect != "maybe") {
+				t.Fatalf("semantic MCP failure=%+v", calls[2])
+			}
+			if mode == "override-unapproved" && calls[2].DenyReason != "check_in_write_not_allowed" {
+				t.Fatalf("unapproved override widened writes: %+v", calls[2])
+			}
+
+			if mode == "no-main" {
+				if calls[0].DenyReason != "check_in_no_main_session" {
+					t.Fatalf("read=%+v", calls[0])
+				}
+			} else if calls[0].Outcome != "ok" || calls[0].Access != "read" {
+				t.Fatalf("read=%+v", calls[0])
+			}
+			if calls[1].Decision != "denied" || calls[1].Access != "write" || calls[1].Effect != "none" {
+				t.Fatalf("unannotated=%+v", calls[1])
+			}
+			if mode != "approved" && mode != "semantic-error" && mode != "override-unapproved" &&
+				(calls[2].Decision != "denied" || calls[2].DenyReason != map[bool]string{true: "check_in_no_main_session", false: "check_in_write_needs_approval"}[mode == "no-main"]) {
+				t.Fatalf("denied write=%+v", calls[2])
+			}
+			reports, err := h.db.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: h.instance.ID, Limit: 10})
+			if err != nil || len(reports) != 1 || !bytes.Contains(reports[0].Payload, []byte(`"tool_calls"`)) {
+				t.Fatalf("reports=%+v err=%v", reports, err)
+			}
+		})
+	}
+}
+
+// Invariant: committed auto picks use the real session queue, including a released main.
+// Owning layer and canonical suite: daemon heartbeat wake runtime integration.
+func TestAutoPickQueueDelivery(t *testing.T) {
+	t.Run("Should keep durable publication unchanged when pick projections change", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		report, err := h.db.InstanceReports().
+			AppendReport(t.Context(), h.instance.ID, agentinstance.ReportInput{SourceKey: "occ:immutable", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review","body":"Evidence","item_keys":[]}]}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		report.EventSessionID = h.instance.MainSessionID
+		state := "queued"
+		writer := instanceReportEventWriter{
+			sessions: h.manager,
+			project: func(_ context.Context, _ string, report *agentinstance.Report) error {
+				payload, err := json.Marshal(
+					map[string]any{
+						"proposals": []map[string]any{
+							{
+								"title":              "Review",
+								"body":               "Evidence",
+								"item_keys":          []string{},
+								"auto_accept_status": "picked",
+							},
+						},
+						"picks": []map[string]any{{"actor": "auto_accept", "state": state}},
+					},
+				)
+				report.Payload = payload
+				return err
+			},
+		}
+		first, err := writer.Publish(t.Context(), h.instance.MainSessionID, report)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state = "delivered"
+		second, err := writer.Publish(t.Context(), h.instance.MainSessionID, report)
+		if err != nil || first != second {
+			t.Fatalf("replay changed: first=%d second=%d err=%v", first, second, err)
+		}
+	})
+
+	for _, released := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should deliver one auto pick to released=%v main [IT-007 IT-010]", released),
+			func(t *testing.T) {
+				h := newHeartbeatSourceRuntime(t, true, false)
+				if released {
+					if err := h.manager.Stop(t.Context(), h.instance.MainSessionID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				actions := []heartbeat.ActionDecl{
+					{ID: "report", Title: "Report", Instructions: "Write the report.", AutoAccept: true},
+				}
+				digest, err := heartbeat.AuthorityDigest(
+					heartbeat.CheckInsPolicy{},
+					heartbeat.AuthorityActions(actions),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.db.Instances().
+					ApproveAuthority(t.Context(), h.instance.ProfileID, h.dir, digest, "cli", h.now()); err != nil {
+					t.Fatal(err)
+				}
+				admitted, err := h.db.Instances().
+					Admit(t.Context(), heartbeat.AdmitRequest{InstanceID: h.instance.ID, OccurrenceID: "auto-pick", Now: h.now(), NextWakeAt: h.now().Add(time.Hour), MaxConcurrent: 1})
+				if err != nil || !admitted {
+					t.Fatalf("admit=%v err=%v", admitted, err)
+				}
+				outcome := heartbeat.TriageReplyOutcome(
+					`{"proposals":[{"title":"Report","body":"Evidence","item_keys":[],"action":"report"}]}`,
+					heartbeat.CheckDigest{},
+					2,
+					actions...)
+				req := heartbeat.FinishRequest{
+					InstanceID:          h.instance.ID,
+					OccurrenceID:        "auto-pick",
+					Source:              "timer",
+					Result:              outcome.Result,
+					Reason:              outcome.Reason,
+					Report:              outcome.Report,
+					Now:                 h.now(),
+					ExpiresAt:           h.now().Add(time.Hour),
+					Actions:             actions,
+					AuthorityDigest:     digest,
+					DefinitionDir:       h.dir,
+					AutoAcceptPerDay:    20,
+					QueueCap:            10,
+					UnattendedTurnLimit: 300,
+				}
+				result, err := h.db.Instances().Finish(t.Context(), req)
+				if err != nil || len(result.Picks) != 1 {
+					t.Fatalf("result=%+v err=%v", result, err)
+				}
+				pick := result.Picks[0]
+				payload := proposalPickHook(h.instance, pick)
+				if payload.Event != "agent.instance.proposal.picked" || payload.Actor != "auto_accept" ||
+					payload.ReportID != pick.ReportID {
+					t.Fatalf("hook=%+v", payload)
+				}
+				if err := releaseInstanceInputs(
+					t.Context(),
+					&bootState{sessions: h.manager},
+					h.db.Instances(),
+					h.instance,
+				); err != nil {
+					t.Fatal(err)
+				}
+				waitForConditionWithin(t, "auto pick delivered", 15*time.Second, func() bool {
+					entry, err := h.db.GetSessionInputQueueEntry(t.Context(), pick.TargetSession, pick.QueueEntryID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return entry.Status == "sent"
+				})
+				state, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+				if err != nil || state.UnattendedTurns < 2 {
+					t.Fatalf("state=%+v err=%v", state, err)
+				}
+				manualReport, err := h.db.InstanceReports().
+					AppendReport(t.Context(), h.instance.ID, agentinstance.ReportInput{SourceKey: "occ:operator-pick", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review manually","body":"Operator request","item_keys":[]}]}`)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				manualPick, err := h.db.Instances().
+					PickProposal(t.Context(), agentinstance.PickRequest{InstanceID: h.instance.ID, ReportID: manualReport.ID, Actor: "operator", ProposalIndex: 0, QueueCap: 10})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := releaseInstanceInputs(
+					t.Context(),
+					&bootState{sessions: h.manager},
+					h.db.Instances(),
+					h.instance,
+				); err != nil {
+					t.Fatal(err)
+				}
+				waitForConditionWithin(t, "operator pick delivered", 15*time.Second, func() bool {
+					entry, err := h.db.GetSessionInputQueueEntry(
+						t.Context(),
+						manualPick.TargetSession,
+						manualPick.QueueEntryID,
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return entry.Status == "sent"
+				})
+				state, err = h.db.Instances().WakeState(t.Context(), h.instance.ID)
+				if err != nil || state.UnattendedTurns != 0 {
+					t.Fatalf("operator state=%+v err=%v", state, err)
+				}
+				repeated, err := h.db.Instances().Finish(t.Context(), req)
+				if err != nil || len(repeated.Picks) != 0 {
+					t.Fatalf("repeated=%+v err=%v", repeated, err)
+				}
+			},
+		)
+	}
 }

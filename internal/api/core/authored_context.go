@@ -30,6 +30,7 @@ var (
 )
 
 type authoredAgentTarget struct {
+	readOnlyTools       map[string][]string
 	profileID           string
 	profileName         string
 	workspaceID         string
@@ -40,6 +41,7 @@ type authoredAgentTarget struct {
 	agentLayer          string
 	soulConfig          compozyconfig.SoulConfig
 	heartbeatConfig     compozyconfig.HeartbeatConfig
+	checkInLimits       *heartbeat.CheckInLimits
 	packageOwned        bool
 	soulSourcePath      string
 	soulBody            string

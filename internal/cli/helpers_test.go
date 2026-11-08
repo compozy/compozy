@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	heartbeatAuthorityFn          func(context.Context, string, AgentQuery) (contract.HeartbeatAuthorityPayload, error)
 	permissionRollupFn            func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error)
 	changeSessionWorktreeFn       func(context.Context, string, string, string) (SessionRecord, error)
 	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
@@ -3819,4 +3820,18 @@ func (s *stubClient) SessionChanges(
 	options sessionChangesOptions,
 ) (sessionChangesRecord, error) {
 	return s.sessionChangesFn(ctx, id, options)
+}
+
+func (s *stubClient) HeartbeatAuthority(
+	ctx context.Context,
+	name string,
+	q AgentQuery,
+) (contract.HeartbeatAuthorityPayload, error) {
+	if s.heartbeatAuthorityFn != nil {
+		return s.heartbeatAuthorityFn(ctx, name, q)
+	}
+	return contract.HeartbeatAuthorityPayload{}, nil
+}
+func (s *stubClient) MutateHeartbeatAuthority(context.Context, string, AgentQuery, string, bool) error {
+	return nil
 }

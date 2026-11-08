@@ -43,3 +43,19 @@ func (h instanceLifecycleHooks) DispatchAgentInstance(
 	dispatched, err := h.dispatcher.DispatchAgentInstance(ctx, payload)
 	return dispatched, errors.Join(resolveErr, err)
 }
+
+func proposalPickHook(instance agentinstance.Instance, pick agentinstance.Pick) hookspkg.AgentInstancePayload {
+	return hookspkg.AgentInstancePayload{
+		Event: hookspkg.HookAgentInstanceProposalPicked, Timestamp: pick.PickedAt,
+		ProfileID:     instance.ProfileID,
+		WorkspaceID:   instance.WorkspaceID,
+		SessionID:     pick.TargetSession,
+		AgentName:     instance.AgentName,
+		InstanceID:    instance.ID,
+		MainSessionID: pick.TargetSession,
+		Actor:         pick.Actor,
+		ActionID:      pick.ActionID,
+		ReportID:      pick.ReportID,
+		ProposalIndex: new(pick.ProposalIndex),
+	}
+}

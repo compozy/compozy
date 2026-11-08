@@ -159,7 +159,7 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 		case failed > 0:
 			v.MostUrgent = loopNodeOutputFailed
 		case live+resumed > 0:
-			v.MostUrgent = "running"
+			v.MostUrgent = runtimeStatusRunning
 		}
 		out[row.ParentSessionID] = v
 	}

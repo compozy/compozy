@@ -3,6 +3,8 @@ package contract
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
+
 	"github.com/compozy/compozy/internal/heartbeat"
 )
 
@@ -13,6 +15,7 @@ type AgentInstanceNextWake struct {
 }
 
 type AgentInstancePayload struct {
+	AuthorityStatus     string                            `json:"authority_status"`
 	Sources             []heartbeat.HeartbeatSourceStatus `json:"sources"`
 	UnattendedTurns     int64                             `json:"unattended_turns"`
 	UnattendedTurnLimit int64                             `json:"unattended_turn_limit"`
@@ -69,22 +72,27 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 type AgentInstanceReportPayload struct {
-	Source        *AgentInstanceReportSource `json:"source,omitempty"`
-	Action        string                     `json:"action,omitempty"`
-	Resource      string                     `json:"resource,omitempty"`
-	SkillReviewID string                     `json:"skill_review_id,omitempty"`
-	ID            string                     `json:"id"`
-	Kind          string                     `json:"kind"`
-	State         string                     `json:"state"`
-	Proposals     []AgentInstanceProposal    `json:"proposals,omitempty"`
-	Reason        string                     `json:"reason,omitempty"`
-	Detail        string                     `json:"detail,omitempty"`
-	SessionID     string                     `json:"session_id,omitempty"`
-	Tool          string                     `json:"tool,omitempty"`
-	ExpiredBy     string                     `json:"expired_by,omitempty"`
-	Cause         string                     `json:"cause,omitempty"`
-	Since         string                     `json:"since,omitempty"`
-	CreatedAt     time.Time                  `json:"created_at"`
+	Diagnostics   []string                         `json:"diagnostics,omitempty"`
+	OccurrenceID  string                           `json:"occurrence_id,omitempty"`
+	PicksTracked  bool                             `json:"picks_tracked"`
+	Picks         []agentinstance.Pick             `json:"picks"`
+	ToolCalls     agentinstance.CheckInToolSummary `json:"tool_calls"`
+	Source        *AgentInstanceReportSource       `json:"source,omitempty"`
+	Action        string                           `json:"action,omitempty"`
+	Resource      string                           `json:"resource,omitempty"`
+	SkillReviewID string                           `json:"skill_review_id,omitempty"`
+	ID            string                           `json:"id"`
+	Kind          string                           `json:"kind"`
+	State         string                           `json:"state"`
+	Proposals     []AgentInstanceProposal          `json:"proposals,omitempty"`
+	Reason        string                           `json:"reason,omitempty"`
+	Detail        string                           `json:"detail,omitempty"`
+	SessionID     string                           `json:"session_id,omitempty"`
+	Tool          string                           `json:"tool,omitempty"`
+	ExpiredBy     string                           `json:"expired_by,omitempty"`
+	Cause         string                           `json:"cause,omitempty"`
+	Since         string                           `json:"since,omitempty"`
+	CreatedAt     time.Time                        `json:"created_at"`
 }
 type AgentInstanceReportsResponse struct {
 	Reports    []AgentInstanceReportPayload `json:"reports"`
@@ -92,10 +100,12 @@ type AgentInstanceReportsResponse struct {
 }
 
 type AgentInstanceProposal struct {
-	Sources  []AgentInstanceProposalSource `json:"sources,omitempty"`
-	Title    string                        `json:"title"`
-	Body     string                        `json:"body"`
-	ItemKeys []string                      `json:"item_keys"`
+	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
+	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
+	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title            string                        `json:"title"`
+	Body             string                        `json:"body"`
+	ItemKeys         []string                      `json:"item_keys"`
 }
 
 type AgentInstanceCheckRequest struct {
@@ -135,11 +145,15 @@ type AgentInstanceSeenResponse struct {
 }
 
 type AgentInstanceCheckInPayload struct {
-	ID        string    `json:"id"`
-	Result    string    `json:"result"`
-	Reason    string    `json:"reason"`
-	Detail    string    `json:"detail,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	Proposals    agentinstance.CheckInProposalSummary `json:"proposals"`
+	OccurrenceID string                               `json:"occurrence_id"`
+	ToolsStatus  string                               `json:"tools_status"`
+	ToolCalls    []agentinstance.CheckInToolCall      `json:"tool_calls"`
+	ID           string                               `json:"id"`
+	Result       string                               `json:"result"`
+	Reason       string                               `json:"reason"`
+	Detail       string                               `json:"detail,omitempty"`
+	CreatedAt    time.Time                            `json:"created_at"`
 }
 
 type AgentInstanceCheckInsResponse struct {
@@ -171,3 +185,28 @@ type AgentInstanceReportSource struct {
 	Event       string `json:"event"`
 	Summary     string `json:"summary,omitempty"`
 }
+
+type AgentInstancePickRequest struct {
+	Proposal *int `json:"proposal"`
+}
+type AgentInstancePickResponse struct {
+	Pick agentinstance.Pick `json:"pick"`
+}
+
+type AgentInstanceProposalAction struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	AutoAccept bool   `json:"auto_accept"`
+}
+
+type AutoAcceptStatus string
+
+const (
+	AutoAcceptPicked     AutoAcceptStatus = "picked"
+	AutoAcceptLimit      AutoAcceptStatus = "limit"
+	AutoAcceptQueueFull  AutoAcceptStatus = "queue_full"
+	AutoAcceptUnapproved AutoAcceptStatus = "unapproved"
+	AutoAcceptNoMain     AutoAcceptStatus = "no_main"
+	AutoAcceptInactive   AutoAcceptStatus = "inactive"
+	AutoAcceptNone       AutoAcceptStatus = "none"
+)

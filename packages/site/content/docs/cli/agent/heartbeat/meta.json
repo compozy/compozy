@@ -10,6 +10,7 @@
         "validate",
         "wake",
         "write",
+        "authority",
         "sources"
     ]
 }

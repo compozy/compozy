@@ -2851,3 +2851,40 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckInHostedStartup(t *testing.T) {
+	t.Run("Should retain only the daemon hosted server when enabled [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		for _, enabled := range []bool{false, true} {
+			opts := StartOpts{
+				ProviderName:     "codex",
+				CheckInTools:     enabled,
+				Command:          "npx -y @agentclientprotocol/codex-acp@latest",
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				MCPServers: []compozyconfig.MCPServer{
+					{Name: "raw", Command: "raw"},
+					{Name: "compozy-hosted-tools", Command: "compozy", Args: []string{"--bind-nonce", "nonce"}},
+				},
+			}
+			normalized, err := constrainTriageStart(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if enabled {
+				want = 1
+			}
+			if len(normalized.MCPServers) != want {
+				t.Fatalf("enabled=%v servers=%+v", enabled, normalized.MCPServers)
+			}
+			process := &AgentProcess{}
+			process.setHostedToolIdentity(normalized)
+			if process.hostedToolIdentitySnapshot().launched != enabled {
+				t.Fatalf("hosted identity enabled=%v", enabled)
+			}
+			if len(opts.MCPServers) != 2 || opts.MCPServers[0].Name != "raw" {
+				t.Fatal("start constraint mutated caller slice")
+			}
+		}
+	})
+}

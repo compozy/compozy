@@ -71,10 +71,10 @@ func (m *Manager) sessionStartOpts(
 		),
 	}
 	if s.sessionType == SessionTypeTriage {
+		session.checkInToolsStatus = s.checkInToolsStatus
 		opts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
 		opts.Permissions = compozyconfig.PermissionModeApproveReads
-		opts.MCPServers = nil
-		opts.ActivateMCPServers = nil
+		opts.CheckInTools = len(mcpServers) > 0
 		opts.ShellWaitGuard = false
 	}
 	return applyProviderRuntimeAdapter(resolved, opts)

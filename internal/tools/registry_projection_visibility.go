@@ -21,6 +21,9 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 	if err != nil {
 		return "", false
 	}
+	if inputs.CheckIn != nil {
+		return "", false
+	}
 	// ToolPattern and agent enforcement are intentionally absent from PolicyInputs' JSON shape.
 	type visibilityPolicy struct {
 		Inputs        PolicyInputs

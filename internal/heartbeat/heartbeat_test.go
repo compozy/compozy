@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/heartbeat/source"
@@ -1874,4 +1875,192 @@ func TestSourceFailureAndTextBudget(t *testing.T) {
 			t.Fatalf("policy=%+v", policy)
 		}
 	})
+}
+
+func TestCheckInAuthorityPolicy(t *testing.T) {
+	t.Run("Should parse strict check-in keys and stable authority [UT-010 UT-012]", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{"max_tool_calls: 0", "max_tool_calls: 101", "max_tool_calls: 26", "allow_writes: [compozy__*]", "max_write_calls: -1", "allow_writes: [bad]", "unknown: true"} {
+			policy, err := Parse(
+				t.Context(),
+				ParseRequest{
+					SourcePath: filepath.Join(t.TempDir(), FileName),
+					Content:    []byte("---\nversion: 1\ncheck_ins:\n  " + body + "\n---\nWatch issues.\n"),
+					Config:     compozyconfig.DefaultHeartbeatConfig(),
+				},
+			)
+			if err == nil || policy.Valid {
+				t.Fatalf("invalid check-in policy accepted: %s", body)
+			}
+		}
+		warnings := CheckInSelectorWarnings(
+			CheckInsPolicy{AllowWrites: []string{"compozy__unknown", "compozy__read", "mcp__fixture__*"}},
+			map[string]bool{"compozy__read": true, "mcp__fixture__write": false},
+		)
+		if len(warnings) != 2 || warnings[0].Code != "heartbeat_allow_writes_unknown_tool" {
+			t.Fatalf("warnings=%+v", warnings)
+		}
+		first, err := parseCheckIns(
+			map[string]any{"allow_writes": []string{"mcp__linear__*", "compozy__notify"}, "max_tool_calls": 10},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second := first
+		second.AllowWrites = []string{"compozy__notify", "mcp__linear__*"}
+		a, err := AuthorityDigest(first, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := AuthorityDigest(second, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a == "" || a != b {
+			t.Fatalf("unstable authority: %s %s", a, b)
+		}
+		empty, err := AuthorityDigest(CheckInsPolicy{}, nil)
+		if err != nil || empty != "" {
+			t.Fatalf("empty authority=%s err=%v", empty, err)
+		}
+		actions := []AuthorityAction{{ID: "report", Instructions: "Report one issue", AutoAccept: true}}
+		c, err := AuthorityDigest(first, actions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions[0].Instructions = "Report another issue"
+		d, err := AuthorityDigest(first, actions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*AuthorityAction){func(a *AuthorityAction) { a.AutoAccept = false }, func(a *AuthorityAction) { a.Title = "Changed" }, func(a *AuthorityAction) { a.ID = "other" }} {
+			altered := actions[0]
+			mutate(&altered)
+			changed, err := AuthorityDigest(first, []AuthorityAction{altered})
+			if err != nil || changed == d {
+				t.Fatalf("action change not covered: %s %v", changed, err)
+			}
+		}
+		manual, err := AuthorityDigest(
+			CheckInsPolicy{},
+			[]AuthorityAction{{ID: "manual", Title: "Manual", Instructions: "Do it"}},
+		)
+		if err != nil || manual == "" {
+			t.Fatalf("manual authority %s %v", manual, err)
+		}
+		override, err := AuthorityDigest(first, actions, map[string][]string{"fixture": {"write"}})
+		if err != nil || override == d {
+			t.Fatalf("override authority %s %v", override, err)
+		}
+		if c == d || c == a {
+			t.Fatal("auto action instructions missing from authority digest")
+		}
+	})
+}
+
+func TestCheckInActions(t *testing.T) {
+	t.Run("Should run pause effects even when pick effects fail after commit", func(t *testing.T) {
+		t.Parallel()
+		paused := false
+		service := CheckService{store: finishedCheckStore{}}
+		service.SetPickHandler(
+			func(context.Context, []agentinstance.Pick) error { return errors.New("release failed") },
+		)
+		service.SetPauseHandler(func(context.Context, agentinstance.Instance) error { paused = true; return nil })
+		if err := service.finish(t.Context(), FinishRequest{InstanceID: "instance"}); err != nil || !paused {
+			t.Fatalf("postcommit effects: paused=%v err=%v", paused, err)
+		}
+	})
+
+	t.Run("Should validate action declarations and authority [UT-011]", func(t *testing.T) {
+		cases := []struct{ name, content, code string }{
+			{
+				"valid",
+				"actions:\n  - id: report\n    title: Report\n    instructions: Write a report\n    auto_accept: true\n",
+				"",
+			},
+			{
+				"invalid id",
+				"actions:\n  - id: Bad\n    title: Report\n    instructions: Write\n",
+				"heartbeat_action_invalid",
+			},
+			{
+				"duplicate",
+				"actions:\n  - {id: report, title: Report, instructions: Write}\n  - {id: report, title: Report, instructions: Write}\n",
+				"heartbeat_action_duplicate_id",
+			},
+			{
+				"limit",
+				"actions:\n" + strings.Repeat("  - {id: report, title: Report, instructions: Write}\n", 9),
+				"heartbeat_action_limit_exceeded",
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should parse "+tc.name, func(t *testing.T) {
+				p, err := Parse(
+					t.Context(),
+					ParseRequest{
+						Content: []byte("---\nversion: 1\n" + tc.content + "---\nCheck reports."),
+						Config:  compozyconfig.DefaultHeartbeatConfig(),
+					},
+				)
+				if tc.code != "" {
+					if err == nil || len(p.Diagnostics) == 0 || p.Diagnostics[0].Code != tc.code {
+						t.Fatalf("diagnostics=%+v err=%v", p.Diagnostics, err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				digest, err := AuthorityDigest(p.Frontmatter.CheckIns, AuthorityActions(p.Frontmatter.Actions))
+				if err != nil || digest == "" {
+					t.Fatalf("digest=%q err=%v", digest, err)
+				}
+			})
+		}
+	})
+	t.Run("Should keep declared actions and drop unknown ids [UT-013]", func(t *testing.T) {
+		reply := `{"proposals":[{"title":"Title","body":"Body","item_keys":[],"action":"report"}]}`
+		got, err := ParseTriageReply(reply, CheckDigest{}, 2, ActionDecl{ID: "report"})
+		if err != nil || got[0].Action != "report" {
+			t.Fatalf("got=%+v err=%v", got, err)
+		}
+		got, err = ParseTriageReply(reply, CheckDigest{}, 2)
+		if err != nil || got[0].Action != "" {
+			t.Fatalf("got=%+v err=%v", got, err)
+		}
+		outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+		if outcome.Report == nil || !strings.Contains(string(outcome.Report.Payload), "check_in_action_unknown") {
+			t.Fatalf("unknown action outcome=%+v", outcome)
+		}
+		for _, id := range []string{"report", "other", ""} {
+			folded := foldSourceProposals(
+				[]TriageProposal{
+					{Action: "report", Body: "One", ItemKeys: []string{"a"}},
+					{Action: id, Body: "Two", ItemKeys: []string{"b"}},
+				},
+				1,
+				CheckDigest{},
+			)
+			want := ""
+			if id == "report" {
+				want = id
+			}
+			if folded[0].Action != want || len(folded[0].ItemKeys) != 2 {
+				t.Fatalf("folded=%+v", folded)
+			}
+		}
+	})
+}
+
+type finishedCheckStore struct{ InstanceWakeStore }
+
+var _ InstanceWakeStore = finishedCheckStore{}
+
+func (finishedCheckStore) Finish(context.Context, FinishRequest) (FinishResult, error) {
+	return FinishResult{
+		Picks:  []agentinstance.Pick{{InstanceID: "instance"}},
+		Paused: &agentinstance.Instance{ID: "instance"},
+	}, nil
 }

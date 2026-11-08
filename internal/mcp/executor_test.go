@@ -4066,6 +4066,51 @@ func userMCPExecutorTarget(serverName string) mcpauth.Target {
 	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
 
+func TestCheckInReadOnlyOverride(t *testing.T) {
+	t.Run("Should accept only operator overrides and preserve destructive hints [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, owner, catalog      string
+			origin                    toolspkg.MCPReadOnlyOverrideOrigin
+			destructive, wantOverride bool
+		}{
+			{name: "Should retain operator override for authority mapping", wantOverride: true, origin: toolspkg.MCPReadOnlyOverrideOperatorConfig},
+			{name: "Should retain agent origin for authority mapping", wantOverride: true, origin: toolspkg.MCPReadOnlyOverrideAgentDefinition},
+			{name: "Should ignore extension override", owner: "extension:fixture"},
+			{name: "Should ignore catalog override", catalog: "fixture"},
+			{name: "Should preserve destructive hint", destructive: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				executor := &CallExecutor{}
+				tool := mcpsdk.Tool{
+					Name:        "read",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+					Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: new(tc.destructive)},
+				}
+				descriptors, err := executor.descriptorsFromTools(
+					toolspkg.SourceRef{},
+					ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
+						Name:          "fixture",
+						Owner:         tc.owner,
+						CatalogEntry:  tc.catalog,
+						ReadOnlyTools: []string{"read"},
+					}},
+					[]*mcpsdk.Tool{&tool},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				d := descriptors[0]
+				if d.ReadOnlyOverrideOrigin != tc.origin || d.ReadOnly || d.ReadOnlyOverride != tc.wantOverride ||
+					d.Destructive != tc.destructive {
+					t.Fatalf("descriptor=%+v", d)
+				}
+			})
+		}
+	})
+}
+
 func TestClientInputConnection(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve derived URL and bearer input against a real MCP server", func(t *testing.T) {

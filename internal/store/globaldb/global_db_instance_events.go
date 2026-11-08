@@ -146,7 +146,7 @@ func trimInstanceEvents(ctx context.Context, q *sqlcgen.Queries, instanceID stri
 }
 
 func instanceEventDelivery(instance sqlcgen.AgentInstance, supported bool) automation.InstanceEventDelivery {
-	result := automation.InstanceEventDelivery{InstanceID: instance.ID, CheckScheduled: true, Reason: "queued"}
+	result := automation.InstanceEventDelivery{InstanceID: instance.ID, CheckScheduled: true, Reason: inputStatusQueued}
 	switch {
 	case !supported:
 		result.CheckScheduled, result.Reason = false, "triage_unsupported"

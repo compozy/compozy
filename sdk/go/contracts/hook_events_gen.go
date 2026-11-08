@@ -110,4 +110,5 @@ const (
 	HookEventTerminalRecordingStopped        HookEvent = "terminal.recording_stopped"
 	HookEventTerminalSubscriberEvicted       HookEvent = "terminal.subscriber_evicted"
 	HookEventTerminalLimitRejected           HookEvent = "terminal.limit_rejected"
+	HookEventAgentInstanceProposalPicked     HookEvent = "agent.instance.proposal.picked"
 )

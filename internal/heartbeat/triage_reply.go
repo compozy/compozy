@@ -21,6 +21,7 @@ const (
 )
 
 type TriageProposal struct {
+	Action   string                  `json:"action,omitempty"`
 	Sources  []AutomationEventSource `json:"sources,omitempty"`
 	Title    string                  `json:"title"`
 	Body     string                  `json:"body"`
@@ -28,7 +29,7 @@ type TriageProposal struct {
 }
 
 // ParseTriageReply consumes only the final assistant message selected by the dispatcher.
-func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProposal, error) {
+func ParseTriageReply(reply string, digest CheckDigest, limit int, actions ...ActionDecl) ([]TriageProposal, error) {
 	reply = strings.TrimSpace(reply)
 	var err error
 	reply, err = unwrapTriageFence(reply)
@@ -68,6 +69,9 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 		if err != nil {
 			return nil, err
 		}
+		if raw.Action != "" && !slices.ContainsFunc(actions, func(a ActionDecl) bool { return a.ID == raw.Action }) {
+			raw.Action = ""
+		}
 		keys := []string{}
 		for _, key := range raw.ItemKeys {
 			if allowed[key] {
@@ -75,8 +79,11 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 			}
 		}
 		slices.Sort(keys)
-		proposals = append(proposals, TriageProposal{Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys),
-			Sources: triageProposalSources(digest, keys)})
+		proposals = append(
+			proposals,
+			TriageProposal{Action: raw.Action, Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys),
+				Sources: triageProposalSources(digest, keys)},
+		)
 	}
 	if hasSources && len(proposals) > limit {
 		proposals = foldSourceProposals(proposals, limit, digest)
@@ -86,6 +93,7 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 
 func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
 	var raw struct {
+		Action   string    `json:"action,omitempty"`
 		Title    *string   `json:"title"`
 		Body     *string   `json:"body"`
 		ItemKeys *[]string `json:"item_keys"`
@@ -101,17 +109,35 @@ func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
 		utf8.RuneCountInString(*raw.Body) > TriageBodyMaxRunes {
 		return TriageProposal{}, ErrTriageOutputInvalid
 	}
-	return TriageProposal{Title: *raw.Title, Body: *raw.Body, ItemKeys: *raw.ItemKeys}, nil
+	return TriageProposal{Action: raw.Action, Title: *raw.Title, Body: *raw.Body, ItemKeys: *raw.ItemKeys}, nil
 }
 
 // TriageReplyOutcome converts provider output to a finalization that satisfies the report contract.
-func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutcome {
-	proposals, err := ParseTriageReply(reply, digest, limit)
+func TriageReplyOutcome(reply string, digest CheckDigest, limit int, actions ...ActionDecl) TriageOutcome {
+	proposals, err := ParseTriageReply(reply, digest, limit, actions...)
 	if err != nil {
 		return invalidTriageReply(reply)
 	}
 	if len(proposals) == 0 {
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
+	}
+	var diagnostics []string
+	unwrapped, err := unwrapTriageFence(strings.TrimSpace(reply))
+	if err != nil {
+		return invalidTriageReply(reply)
+	}
+	var raw struct {
+		Proposals []struct {
+			Action string `json:"action"`
+		} `json:"proposals"`
+	}
+	if err := json.Unmarshal([]byte(unwrapped), &raw); err == nil {
+		for _, p := range raw.Proposals {
+			if p.Action != "" && !slices.ContainsFunc(actions, func(a ActionDecl) bool { return a.ID == p.Action }) {
+				diagnostics = []string{"check_in_action_unknown"}
+				break
+			}
+		}
 	}
 	var source *AutomationEventSource
 	for _, item := range digest.Items {
@@ -131,9 +157,10 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutco
 		}
 	}
 	payload, err := json.Marshal(struct {
-		Source    *AutomationEventSource `json:"source,omitempty"`
-		Proposals []TriageProposal       `json:"proposals"`
-	}{Proposals: proposals, Source: source})
+		Diagnostics []string               `json:"diagnostics,omitempty"`
+		Source      *AutomationEventSource `json:"source,omitempty"`
+		Proposals   []TriageProposal       `json:"proposals"`
+	}{Proposals: proposals, Source: source, Diagnostics: diagnostics})
 	if err != nil {
 		return failedTriage("triage_output_invalid")
 	}
@@ -167,6 +194,9 @@ func triageProposalSources(digest CheckDigest, keys []string) []AutomationEventS
 func foldSourceProposals(proposals []TriageProposal, limit int, digest CheckDigest) []TriageProposal {
 	last := &proposals[limit-1]
 	for _, p := range proposals[limit:] {
+		if last.Action != p.Action {
+			last.Action = ""
+		}
 		last.ItemKeys = append(last.ItemKeys, p.ItemKeys...)
 	}
 	slices.Sort(last.ItemKeys)

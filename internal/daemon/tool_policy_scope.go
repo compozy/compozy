@@ -1,7 +1,10 @@
 package daemon
 
 import (
+	"context"
 	"strings"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -35,4 +38,27 @@ func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) to
 		scope.AgentName = strings.TrimSpace(info.AgentName)
 	}
 	return scope
+}
+
+func (r *nativeToolPolicyResolver) applyScopedSourceGrants(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	resolvedScope toolspkg.Scope,
+	resolvedWorkspace *workspacepkg.ResolvedAgentConfig,
+) error {
+	if err := r.applyBundledExtensionTrust(inputs); err != nil {
+		return err
+	}
+	if resolvedWorkspace != nil {
+		if err := r.applyDevelopmentExtensionTrust(inputs, resolvedWorkspace.ID); err != nil {
+			return err
+		}
+	}
+	if err := r.applyMCPSourceGrants(ctx, inputs, resolvedScope); err != nil {
+		return err
+	}
+	if err := applyLoopExtensionOwnerGrant(ctx, inputs, resolvedScope); err != nil {
+		return err
+	}
+	return nil
 }

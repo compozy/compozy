@@ -55,6 +55,14 @@ type Action struct {
 	Args map[string]any `json:"args,omitempty"`
 }
 
+// ActionDecl is a daemon API value.
+type ActionDecl struct {
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Instructions string `json:"instructions"`
+	AutoAccept   bool   `json:"auto_accept"`
+}
+
 // ActionKind is a daemon API value.
 type ActionKind string
 
@@ -298,11 +306,15 @@ type AgentInstanceCheckDigest struct {
 
 // AgentInstanceCheckInPayload is a daemon API value.
 type AgentInstanceCheckInPayload struct {
-	ID        string    `json:"id"`
-	Result    string    `json:"result"`
-	Reason    string    `json:"reason"`
-	Detail    string    `json:"detail,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	Proposals    CheckInProposalSummary `json:"proposals"`
+	OccurrenceID string                 `json:"occurrence_id"`
+	ToolsStatus  string                 `json:"tools_status"`
+	ToolCalls    []CheckInToolCall      `json:"tool_calls"`
+	ID           string                 `json:"id"`
+	Result       string                 `json:"result"`
+	Reason       string                 `json:"reason"`
+	Detail       string                 `json:"detail,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
 }
 
 // AgentInstanceCheckInsResponse is a daemon API value.
@@ -356,6 +368,7 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
+	AuthorityStatus     string                  `json:"authority_status"`
 	Sources             []HeartbeatSourceStatus `json:"sources"`
 	UnattendedTurns     int64                   `json:"unattended_turns"`
 	UnattendedTurnLimit int64                   `json:"unattended_turn_limit"`
@@ -395,12 +408,31 @@ type AgentInstancePeer struct {
 	State       string `json:"state"`
 }
 
+// AgentInstancePickRequest is a daemon API value.
+type AgentInstancePickRequest struct {
+	Proposal *int `json:"proposal"`
+}
+
+// AgentInstancePickResponse is a daemon API value.
+type AgentInstancePickResponse struct {
+	Pick Pick `json:"pick"`
+}
+
 // AgentInstanceProposal is a daemon API value.
 type AgentInstanceProposal struct {
-	Sources  []AgentInstanceProposalSource `json:"sources,omitempty"`
-	Title    string                        `json:"title"`
-	Body     string                        `json:"body"`
-	ItemKeys []string                      `json:"item_keys"`
+	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
+	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
+	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title            string                        `json:"title"`
+	Body             string                        `json:"body"`
+	ItemKeys         []string                      `json:"item_keys"`
+}
+
+// AgentInstanceProposalAction is a daemon API value.
+type AgentInstanceProposalAction struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	AutoAccept bool   `json:"auto_accept"`
 }
 
 // AgentInstanceProposalSource is a daemon API value.
@@ -414,36 +446,4 @@ type AgentInstanceProposalSource struct {
 	TriggerID  string `json:"trigger_id"`
 	RunID      string `json:"run_id"`
 	ReceivedAt string `json:"received_at"`
-}
-
-// AgentInstanceReportPayload is a daemon API value.
-type AgentInstanceReportPayload struct {
-	Source        *AgentInstanceReportSource `json:"source,omitempty"`
-	Action        string                     `json:"action,omitempty"`
-	Resource      string                     `json:"resource,omitempty"`
-	SkillReviewID string                     `json:"skill_review_id,omitempty"`
-	ID            string                     `json:"id"`
-	Kind          string                     `json:"kind"`
-	State         string                     `json:"state"`
-	Proposals     []AgentInstanceProposal    `json:"proposals,omitempty"`
-	Reason        string                     `json:"reason,omitempty"`
-	Detail        string                     `json:"detail,omitempty"`
-	SessionID     string                     `json:"session_id,omitempty"`
-	Tool          string                     `json:"tool,omitempty"`
-	ExpiredBy     string                     `json:"expired_by,omitempty"`
-	Cause         string                     `json:"cause,omitempty"`
-	Since         string                     `json:"since,omitempty"`
-	CreatedAt     time.Time                  `json:"created_at"`
-}
-
-// AgentInstanceReportSource is a daemon API value.
-type AgentInstanceReportSource struct {
-	SourceID    string `json:"source_id,omitempty"`
-	SourceRef   string `json:"source_ref,omitempty"`
-	ItemKey     string `json:"item_key,omitempty"`
-	URL         string `json:"url,omitempty"`
-	Kind        string `json:"kind"`
-	TriggerName string `json:"trigger_name"`
-	Event       string `json:"event"`
-	Summary     string `json:"summary,omitempty"`
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 )
 
 type registryIndex struct {
@@ -31,6 +32,10 @@ func (r *RuntimeRegistry) buildIndexMatching(
 	scope Scope,
 	include func(Provider) bool,
 ) (*registryIndex, error) {
+	inputs, err := r.policyInputsFor(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
 	index := &registryIndex{
 		entries: make([]*registryEntry, 0),
 		byID:    make(map[ToolID]*registryEntry),
@@ -58,6 +63,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			if err := descriptor.Validate(); err != nil {
 				return nil, indexValidationError(descriptor.ID, err)
 			}
+			applyMCPReadAuthority(descriptor, inputs.MCPReadOnlyTools)
 			index.add(cloneDescriptor(*descriptor), provider, providerIndex, true)
 		}
 	}
@@ -97,15 +103,27 @@ func (r *RuntimeRegistry) evaluatorFor(ctx context.Context, scope Scope, ids []T
 }
 
 func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (PolicyInputs, error) {
+	if cache, ok := ctx.Value(policyResolutionKey{}).(*policyResolutionCache); ok {
+		key := policyResolutionScope{registry: r, scope: scope}
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		if value, ok := cache.values[key]; ok {
+			return clonePolicyInputs(value.inputs), value.err
+		}
+		inputs, err := r.resolvePolicyInputs(ctx, scope)
+		cache.values[key] = policyResolution{inputs, err}
+		return inputs, err
+	}
+	return r.resolvePolicyInputs(ctx, scope)
+}
+
+func (r *RuntimeRegistry) resolvePolicyInputs(ctx context.Context, scope Scope) (PolicyInputs, error) {
 	resolver := r.policyResolver
 	if resolver == nil {
 		resolver = NewStaticPolicyInputResolver(r.policyInputs)
 	}
 	inputs, err := resolver.Resolve(ctx, scope)
-	if err != nil {
-		return PolicyInputs{}, err
-	}
-	return clonePolicyInputs(inputs), nil
+	return clonePolicyInputs(inputs), err
 }
 
 func (r *RuntimeRegistry) toolsetView(toolset Toolset, universe []ToolID) ToolsetView {
@@ -170,4 +188,30 @@ func sourceKey(source SourceRef) string {
 	return string(source.Kind) + "\x00" + source.Owner + "\x00" +
 		source.RawServerName + "\x00" + source.RawToolName + "\x00" + source.Scope + "\x00" +
 		source.ProfileID + "\x00" + source.WorkspaceID + "\x00" + source.ResourceID + "\x00" + source.ResourceVersion
+}
+
+type policyResolutionKey struct{}
+type policyResolution struct {
+	inputs PolicyInputs
+	err    error
+}
+type policyResolutionCache struct {
+	mu     sync.Mutex
+	values map[policyResolutionScope]policyResolution
+}
+
+func withPolicyResolutionCache(ctx context.Context) context.Context {
+	if ctx.Value(policyResolutionKey{}) != nil {
+		return ctx
+	}
+	return context.WithValue(
+		ctx,
+		policyResolutionKey{},
+		&policyResolutionCache{values: map[policyResolutionScope]policyResolution{}},
+	)
+}
+
+type policyResolutionScope struct {
+	registry *RuntimeRegistry
+	scope    Scope
 }

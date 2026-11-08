@@ -18,6 +18,7 @@ import {
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   agentPauseCopy,
+  agentAuthorityCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceDefinitionGone,
@@ -62,6 +63,9 @@ function SeatMenu({
           {instance.label} · {agentScopeLabel(instance.scope)}
         </ContextMenuLabel>
         {reason ? <p className="px-2 pb-1.5 text-eyebrow text-subtle">{reason}</p> : null}
+        {agentAuthorityCopy(instance) ? (
+          <p className="px-2 pb-1.5 text-eyebrow text-warning">{agentAuthorityCopy(instance)}</p>
+        ) : null}
       </ContextMenuGroup>
       <ContextMenuSeparator />
       <ContextMenuItem

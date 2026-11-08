@@ -178,6 +178,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-instances/{id}/reports/{report_id}/pick": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pick an instance proposal */
+    post: operations["pickAgentInstanceProposal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-instances/{id}/resume": {
     parameters: {
       query?: never;
@@ -637,6 +654,41 @@ export interface paths {
     post?: never;
     /** Delete HEARTBEAT.md through managed authoring */
     delete: operations["deleteAgentHeartbeat"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat/authority": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** show check-in authority */
+    get: operations["getAgentHeartbeatAuthority"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat/authority/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** approve check-in authority */
+    post: operations["approveAgentHeartbeatAuthority"];
+    /** revoke check-in authority */
+    delete: operations["revokeAgentHeartbeatAuthority"];
     options?: never;
     head?: never;
     patch?: never;
@@ -8036,6 +8088,12 @@ export interface components {
       url?: string;
       view?: string;
     };
+    ActionDecl: {
+      auto_accept: boolean;
+      id: string;
+      instructions: string;
+      title: string;
+    };
     ActivityCost: {
       scope: string;
       /** Format: int64 */
@@ -8221,8 +8279,12 @@ export interface components {
       created_at: string;
       detail?: string;
       id: string;
+      occurrence_id: string;
+      proposals: components["schemas"]["CheckInProposalSummary"];
       reason: string;
       result: string;
+      tool_calls: components["schemas"]["CheckInToolCall"][];
+      tools_status: string;
     };
     AgentInstanceCheckInsResponse: {
       check_ins: components["schemas"]["AgentInstanceCheckInPayload"][];
@@ -8263,6 +8325,7 @@ export interface components {
     AgentInstancePayload: {
       activity: string;
       agent_name: string;
+      authority_status: string;
       checks_enabled: boolean;
       created: boolean;
       /** Format: date-time */
@@ -8306,10 +8369,31 @@ export interface components {
       scope: string;
       state: string;
     };
+    AgentInstancePickRequest: {
+      proposal: number | null;
+    };
+    AgentInstancePickResponse: {
+      pick: components["schemas"]["Pick"];
+    };
     AgentInstanceProposal: {
+      action?: components["schemas"]["AgentInstanceProposalAction"] | null;
+      /** @enum {string} */
+      auto_accept_status:
+        | "picked"
+        | "limit"
+        | "queue_full"
+        | "unapproved"
+        | "no_main"
+        | "inactive"
+        | "none";
       body: string;
       item_keys: string[];
       sources?: components["schemas"]["AgentInstanceProposalSource"][];
+      title: string;
+    };
+    AgentInstanceProposalAction: {
+      auto_accept: boolean;
+      id: string;
       title: string;
     };
     AgentInstanceProposalSource: {
@@ -8329,9 +8413,13 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       detail?: string;
+      diagnostics?: string[];
       expired_by?: string;
       id: string;
       kind: string;
+      occurrence_id?: string;
+      picks: components["schemas"]["Pick"][];
+      picks_tracked: boolean;
       proposals?: components["schemas"]["AgentInstanceProposal"][];
       reason?: string;
       resource?: string;
@@ -8341,6 +8429,7 @@ export interface components {
       source?: components["schemas"]["AgentInstanceReportSource"] | null;
       state: string;
       tool?: string;
+      tool_calls: components["schemas"]["CheckInToolSummary"];
     };
     AgentInstanceReportSource: {
       event: string;
@@ -8384,6 +8473,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       reference?: boolean;
       secret_env?: {
         [key: string]: string;
@@ -8409,6 +8499,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       reference?: boolean;
       secret_env?: {
         [key: string]: string;
@@ -9151,6 +9242,43 @@ export interface components {
       deletions: number;
       files: number;
       partial?: boolean;
+    };
+    CheckInProposalSummary: {
+      /** Format: int64 */
+      auto_accepted: number;
+      /** Format: int64 */
+      waiting: number;
+    };
+    CheckInToolCall: {
+      access: string;
+      args_preview?: string;
+      backend: string;
+      decision: string;
+      deny_reason?: string;
+      /** Format: int64 */
+      duration_ms: number;
+      effect: string;
+      error_code?: string;
+      mcp_server?: string;
+      outcome: string;
+      /** Format: int64 */
+      seq: number;
+      tool_id: string;
+    };
+    CheckInToolSummary: {
+      /** Format: int64 */
+      denied: number;
+      /** Format: int64 */
+      total: number;
+      /** Format: int64 */
+      writes_done: number;
+      /** Format: int64 */
+      writes_maybe: number;
+    };
+    CheckInsPolicy: {
+      allow_writes?: string[];
+      max_tool_calls?: number | null;
+      max_write_calls?: number | null;
     };
     Chip: {
       count?: number | null;
@@ -11445,6 +11573,15 @@ export interface components {
       kind: "user" | "agent" | "extension" | "system";
       ref?: string;
     };
+    HeartbeatAuthorityPayload: {
+      actions: components["schemas"]["ActionDecl"][];
+      check_ins: components["schemas"]["CheckInsPolicy"];
+      digest: string;
+      read_only_tools?: {
+        [key: string]: string[];
+      };
+      status: string;
+    };
     HeartbeatConfigProvenancePayload: {
       digest: string;
       subset: components["schemas"]["HeartbeatConfigSubsetPayload"];
@@ -11474,6 +11611,8 @@ export interface components {
       workspace_id?: string;
     };
     HeartbeatFrontmatterPayload: {
+      actions: components["schemas"]["ActionDecl"][];
+      check_ins: components["schemas"]["CheckInsPolicy"];
       context: components["schemas"]["HeartbeatContextProjectionPayload"];
       enabled: boolean;
       preferences: components["schemas"]["HeartbeatFrontmatterPreferencesPayload"];
@@ -11494,8 +11633,10 @@ export interface components {
       revision: components["schemas"]["HeartbeatRevisionPayload"];
     };
     HeartbeatPolicyPayload: {
+      actions: components["schemas"]["ActionDecl"][];
       active: boolean;
       agent_name?: string;
+      authority: components["schemas"]["HeartbeatAuthorityPayload"];
       config_digest?: string;
       config_provenance: components["schemas"]["HeartbeatConfigProvenancePayload"];
       /** Format: date-time */
@@ -11540,6 +11681,7 @@ export interface components {
       truncated: boolean;
     };
     HeartbeatPutByPathRequest: {
+      approve_authority_sha256?: string;
       body: string;
       expected_digest: string;
       idempotency_key?: string;
@@ -13725,6 +13867,17 @@ export interface components {
       since: string;
       /** Format: date-time */
       until: string;
+    };
+    Pick: {
+      action_id?: string;
+      actor: string;
+      /** Format: date-time */
+      picked_at: string;
+      proposal_index: number;
+      queue_entry_id: string;
+      report_id: string;
+      state: string;
+      target_session_id: string;
     };
     PickFilesEffect: {
       directories?: boolean;
@@ -16761,7 +16914,8 @@ export interface components {
         | "terminal.recording_started"
         | "terminal.recording_stopped"
         | "terminal.subscriber_evicted"
-        | "terminal.limit_rejected";
+        | "terminal.limit_rejected"
+        | "agent.instance.proposal.picked";
       /** @enum {string} */
       executor_kind?: "native" | "subprocess" | "wasm";
       matcher: components["schemas"]["HookMatcher"];
@@ -16945,6 +17099,7 @@ export interface components {
       override?: components["schemas"]["SettingsMCPExtensionOverridePayload"] | null;
       owner?: string;
       profile?: string;
+      read_only_tools?: string[];
       runtime_name?: string;
       runtime_status?: components["schemas"]["SettingsMCPServerRuntimeStatusPayload"] | null;
       /** @enum {string} */
@@ -16966,6 +17121,7 @@ export interface components {
         [key: string]: string;
       };
       name: string;
+      read_only_tools?: string[];
       secret_env?: {
         [key: string]: string;
       };
@@ -20189,7 +20345,9 @@ export interface components {
       type: string;
     };
     ToolDescriptorPayload: {
+      access: string;
       backend: components["schemas"]["ToolBackendRefPayload"];
+      check_in_writable: boolean;
       concurrency_safe: boolean;
       description: string;
       destructive: boolean;
@@ -23502,6 +23660,111 @@ export interface operations {
       };
     };
   };
+  pickAgentInstanceProposal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+        /** @description Report ID */
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstancePickRequest"];
+      };
+    };
+    responses: {
+      /** @description Picked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstancePickResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   resumeAgentInstance: {
     parameters: {
       query?: {
@@ -26197,6 +26460,226 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Check-in authority */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HeartbeatAuthorityPayload"];
+        };
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  approveAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HeartbeatScriptApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description Authority approved */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAgentHeartbeatAuthority: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Authority revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid authority */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Authority storage unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -32658,7 +33141,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -49301,7 +49785,8 @@ export interface operations {
           | "terminal.recording_started"
           | "terminal.recording_stopped"
           | "terminal.subscriber_evicted"
-          | "terminal.limit_rejected";
+          | "terminal.limit_rejected"
+          | "agent.instance.proposal.picked";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */

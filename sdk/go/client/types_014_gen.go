@@ -2,7 +2,106 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// PatchOp is a daemon API value.
+type PatchOp struct {
+	Op    string          `json:"op"`
+	Path  string          `json:"path"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+// PauseTaskRequest is a daemon API value.
+type PauseTaskRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// PendingInteractionPayload is a daemon API value.
+type PendingInteractionPayload struct {
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	SessionID         string     `json:"session_id"`
+	InteractionID     string     `json:"interaction_id"`
+	Kind              string     `json:"kind"`
+	ProviderRequestID string     `json:"provider_request_id"`
+	TurnID            string     `json:"turn_id,omitempty"`
+	Title             string     `json:"title,omitempty"`
+	Choices           []string   `json:"choices,omitempty"`
+	Decisions         []string   `json:"decisions,omitempty"`
+	ToolID            string     `json:"tool_id,omitempty"`
+	Status            string     `json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
+	Resolution        string     `json:"resolution,omitempty"`
+	ResolvedBy        string     `json:"resolved_by,omitempty"`
+}
+
+// PermissionDailyRollupPayload is a daemon API value.
+type PermissionDailyRollupPayload struct {
+	Day       string `json:"day"`
+	AgentName string `json:"agent_name"`
+	Decision  string `json:"decision"`
+	Count     int64  `json:"count"`
+}
+
+// PermissionEntriesResponse is a daemon API value.
+type PermissionEntriesResponse struct {
+	Entries []PermissionEntryPayload `json:"entries"`
+}
+
+// PermissionEntryPayload is a daemon API value.
+type PermissionEntryPayload struct {
+	ID            string    `json:"id"`
+	SessionID     string    `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
+	Action        string    `json:"action"`
+	Resource      string    `json:"resource"`
+	Decision      string    `json:"decision"`
+	InitiatorKind string    `json:"initiator_kind"`
+	InitiatorID   string    `json:"initiator_id"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
+// PermissionRollupResponse is a daemon API value.
+type PermissionRollupResponse struct {
+	Since   time.Time                      `json:"since"`
+	Until   time.Time                      `json:"until"`
+	Rollups []PermissionDailyRollupPayload `json:"rollups"`
+}
+
+// Pick is a daemon API value.
+type Pick struct {
+	ReportID      string    `json:"report_id"`
+	ProposalIndex int       `json:"proposal_index"`
+	ActionID      string    `json:"action_id,omitempty"`
+	Actor         string    `json:"actor"`
+	TargetSession string    `json:"target_session_id"`
+	QueueEntryID  string    `json:"queue_entry_id"`
+	State         string    `json:"state"`
+	PickedAt      time.Time `json:"picked_at"`
+}
+
+// PickFilesEffect is a daemon API value.
+type PickFilesEffect struct {
+	Directories bool `json:"directories,omitempty"`
+}
+
+// Predicate is a daemon API value.
+type Predicate struct {
+	Key      ContextKey        `json:"key"`
+	Operator PredicateOperator `json:"operator,omitempty"`
+	Value    any               `json:"value"`
+	Reason   string            `json:"reason,omitempty"`
+}
+
+// PredicateOperator is a daemon API value.
+type PredicateOperator string
+
+// Priority is a daemon API value.
+type Priority string
 
 // ProcessesResponse is a daemon API value.
 type ProcessesResponse struct {
@@ -347,99 +446,4 @@ type ProviderSummaryPayload struct {
 type ProviderUsageAccount struct {
 	Label string `json:"label"`
 	Plan  string `json:"plan"`
-}
-
-// ProviderUsageAmount is a daemon API value.
-type ProviderUsageAmount struct {
-	Value string `json:"value"`
-	Unit  string `json:"unit"`
-}
-
-// ProviderUsageBalance is a daemon API value.
-type ProviderUsageBalance struct {
-	ID        string              `json:"id"`
-	Label     string              `json:"label"`
-	Remaining ProviderUsageAmount `json:"remaining"`
-	ExpiresAt *time.Time          `json:"expires_at"`
-}
-
-// ProviderUsageEnvelope is a daemon API value.
-type ProviderUsageEnvelope struct {
-	KeychainSupported bool                     `json:"keychain_supported"`
-	ProfileID         string                   `json:"profile_id"`
-	Revision          uint64                   `json:"revision"`
-	GeneratedAt       time.Time                `json:"generated_at"`
-	Enabled           bool                     `json:"enabled"`
-	Tray              *ProviderUsageTraySignal `json:"tray"`
-	Targets           []ProviderUsageTarget    `json:"targets"`
-}
-
-// ProviderUsageError is a daemon API value.
-type ProviderUsageError struct {
-	Code       string     `json:"code"`
-	Message    string     `json:"message"`
-	Action     string     `json:"action"`
-	RetryAfter *time.Time `json:"retry_after"`
-}
-
-// ProviderUsageRefreshRequest is a daemon API value.
-type ProviderUsageRefreshRequest struct {
-	Profile       string   `json:"profile,omitempty"`
-	ProviderIDs   []string `json:"provider_ids,omitempty"`
-	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
-	WaitMS        *int64   `json:"wait_ms,omitempty"`
-	Intent        string   `json:"intent,omitempty"`
-}
-
-// ProviderUsageSource is a daemon API value.
-type ProviderUsageSource struct {
-	Kind  string `json:"kind"`
-	Label string `json:"label"`
-}
-
-// ProviderUsageSpendCap is a daemon API value.
-type ProviderUsageSpendCap struct {
-	ID          string               `json:"id"`
-	Label       string               `json:"label"`
-	Used        ProviderUsageAmount  `json:"used"`
-	Limit       *ProviderUsageAmount `json:"limit"`
-	UsedPercent *float64             `json:"used_percent"`
-	ResetsAt    *time.Time           `json:"resets_at"`
-	Enabled     *bool                `json:"enabled"`
-}
-
-// ProviderUsageStreamEvent is a daemon API value.
-type ProviderUsageStreamEvent struct {
-	Revision uint64 `json:"revision"`
-	BootID   string `json:"boot_id"`
-}
-
-// ProviderUsageTarget is a daemon API value.
-type ProviderUsageTarget struct {
-	ProviderID    string                  `json:"provider_id"`
-	CollectorID   string                  `json:"collector_id,omitempty"`
-	ProviderName  string                  `json:"provider_name"`
-	Status        string                  `json:"status"`
-	Source        *ProviderUsageSource    `json:"source"`
-	Account       *ProviderUsageAccount   `json:"account"`
-	Windows       []ProviderUsageWindow   `json:"windows"`
-	Balances      []ProviderUsageBalance  `json:"balances"`
-	SpendCaps     []ProviderUsageSpendCap `json:"spend_caps"`
-	Confidence    string                  `json:"confidence"`
-	MeasuredAt    *time.Time              `json:"measured_at"`
-	CheckedAt     *time.Time              `json:"checked_at"`
-	NextRefreshAt *time.Time              `json:"next_refresh_at"`
-	Refreshing    bool                    `json:"refreshing"`
-	Error         *ProviderUsageError     `json:"error"`
-}
-
-// ProviderUsageTraySignal is a daemon API value.
-type ProviderUsageTraySignal struct {
-	ProviderID  string     `json:"provider_id"`
-	WindowID    string     `json:"window_id"`
-	Label       string     `json:"label"`
-	UsedPercent float64    `json:"used_percent"`
-	ResetsAt    *time.Time `json:"resets_at"`
-	Severity    string     `json:"severity"`
-	Stale       bool       `json:"stale"`
 }

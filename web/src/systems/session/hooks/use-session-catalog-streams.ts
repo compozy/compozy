@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tans
 
 import {
   applyAgentInstanceUpdate,
+  invalidateAgentInstanceReads,
   invalidateAgentInstances,
   type AgentInstanceWirePayload,
 } from "@/systems/agent";
@@ -248,8 +249,10 @@ function openSessionCatalogStream(
   const handleInstanceUpdate: EventListener = event => {
     markLive();
     const payload = parseNamedEvent<AgentInstanceWirePayload>(event, ["id", "agent_name", "state"]);
-    if (payload) applyAgentInstanceUpdate(queryClient, payload);
-    else void invalidateAgentInstances(queryClient);
+    if (payload) {
+      applyAgentInstanceUpdate(queryClient, payload);
+      invalidateAgentInstanceReads(queryClient, payload.id);
+    } else void invalidateAgentInstances(queryClient);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

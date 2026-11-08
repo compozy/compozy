@@ -11,6 +11,10 @@ func buildHookEventCatalog() ([]HookEvent, map[HookEvent]hookEventDefinition) {
 	definitions = append(definitions, windowManagerHookEventDefinitions()...)
 	definitions = append(definitions, worktreeHookEventDefinitions()...)
 	definitions = append(definitions, terminalHookEventDefinitions()...)
+	definitions = append(
+		definitions,
+		hookEventDefinition{event: HookAgentInstanceProposalPicked, family: HookEventFamilyAgent},
+	)
 
 	events := make([]HookEvent, 0, len(definitions))
 	specs := make(map[HookEvent]hookEventDefinition, len(definitions))

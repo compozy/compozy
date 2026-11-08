@@ -1208,3 +1208,35 @@ members). These counts belong to the caller's profile and workspace, including i
 scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
 status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
 `compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.
+
+### Check-in call audit
+
+`agent_instance_check_ins` includes `occurrence_id`, `tools_status`
+(`enabled`, `disabled`, `unavailable`) and `tool_calls`. `agent_instance_reports`
+projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
+(`read` or `write`) and `check_in_writable` (whether it belongs in the check-in
+write selector). Each attempt records decision, outcome, redacted argument
+preview and effect (`none`, `done`, `maybe`); tool results are never stored.
+CLI `instance reports` text prints per-proposal pick state and `auto_accept_status`
+plus the tool summary. `instance check-ins` text has WHEN, OUTCOME, TOOLS and
+PROPOSALS columns, with counts such as `1 auto-accepted, 1 waiting`.
+An otherwise silent check-in with completed or uncertain writes publishes an
+`activity` report. Cancellation retains its outcome and discards pending source state.
+Check-ins never create approval or clarify requests: `compozy__clarify` and other
+interaction tools are always denied (`check_in_tool_not_writable`). With no main
+session, every check-in call is denied `check_in_no_main_session`. Only the operator can approve standing
+check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
+no authority-approve native tool.
+
+### Proposal picks
+
+Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
+<report-id> <n>` uses a 1-based index; HTTP/UDS
+`POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
+Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
+Report reads include `picks`, proposal `action`, and `auto_accept_status`
+(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive`, `none`). `picked` means
+an auto-accept pick; skip values are the decision recorded at publication and are
+never recomputed; operator picks never project as `picked`. Each proposal is picked
+once; `proposal_already_picked` reports a repeat. The observe-only
+`agent.instance.proposal.picked` hook includes actor, action id and report id.

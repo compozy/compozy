@@ -7,9 +7,11 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -1920,4 +1922,144 @@ func (a scopeMarkingAuthorizer) AuthorizeCallInput(ctx context.Context, _ Scope,
 		MarkOutsideCallerScope(ctx)
 	}
 	return nil
+}
+
+type checkInRecorderProbe struct {
+	begins, finishes int
+	err              error
+	attempt          CheckInAttempt
+	outcome          string
+}
+
+func (r *checkInRecorderProbe) Begin(_ context.Context, a CheckInAttempt, _ CheckInPolicy) (CheckInDecision, error) {
+	r.begins++
+	r.attempt = a
+	return CheckInDecision{Seq: 1, Allowed: a.DenyReason == "", Reason: a.DenyReason}, r.err
+}
+
+func (r *checkInRecorderProbe) Finish(
+	_ context.Context,
+	_ string,
+	_ int,
+	outcome string,
+	_ string,
+	_ time.Duration,
+) error {
+	r.outcome = outcome
+	r.finishes++
+	return nil
+}
+
+var _ CheckInRecorder = (*checkInRecorderProbe)(nil)
+
+func TestCheckInDispatchAccounting(t *testing.T) {
+	for _, tc := range []struct {
+		name, input   string
+		auditFails    bool
+		hookMode      string
+		cancelAfter   bool
+		semanticError bool
+		backendError  error
+		wantError     bool
+		wantCalls     int
+	}{
+		{name: "Should record semantic MCP failure", semanticError: true, input: `{"query":"ok"}`, wantCalls: 1},
+		{name: "Should record successful backend invocation", input: `{"query":"ok"}`, wantCalls: 1},
+		{name: "Should record invalid input before backend invocation", input: `{}`, wantError: true},
+		{name: "Should record backend failure", input: `{"query":"ok"}`, backendError: errors.New("remote error"), wantError: true, wantCalls: 1},
+		{name: "Should record pre-hook denial", input: `{"query":"ok"}`, hookMode: "deny", wantError: true},
+		{name: "Should re-evaluate rewritten input", input: `{"query":"ok"}`, hookMode: "rewrite", wantError: true},
+		{name: "Should record success followed by cancellation", input: `{"query":"ok"}`, cancelAfter: true, wantError: true, wantCalls: 1},
+		{name: "Should record backend cancellation", input: `{"query":"ok"}`, backendError: context.Canceled, wantError: true, wantCalls: 1},
+		{name: "Should fail closed when audit is unavailable", input: `{"query":"ok"}`, auditFails: true, wantError: true},
+	} {
+		t.Run(tc.name+" [UT-006]", func(t *testing.T) {
+			t.Parallel()
+			d := validDispatchDescriptor()
+			called := 0
+			recorder := &checkInRecorderProbe{}
+			if tc.auditFails {
+				recorder.err = errors.New("audit unavailable")
+			}
+			callCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			hooks := &recordingHookRunner{
+				pre: func(_ context.Context, req CallRequest) (CallRequest, EffectiveToolDecision, error) {
+					if tc.hookMode == "deny" {
+						return req, EffectiveToolDecision{Callable: false}, nil
+					}
+					if tc.hookMode == "rewrite" {
+						req.Input = json.RawMessage(`{"query":"write"}`)
+					}
+					return req, hookAllowedDecision(), nil
+				},
+			}
+			provider := dispatchProviderWithHandle(
+				d,
+				&registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called++
+						if tc.cancelAfter {
+							cancel()
+						}
+						return ToolResult{
+							Metadata: map[string]json.RawMessage{
+								"is_error": json.RawMessage(strconv.FormatBool(tc.semanticError)),
+							},
+						}, tc.backendError
+					},
+				},
+			)
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithPolicyInputs(
+					PolicyInputs{
+						SystemPermissionMode: PermissionModeApproveReads,
+						CheckIn: &CheckInPolicy{
+							OccurrenceID:  "test",
+							MaxToolCalls:  25,
+							MaxWriteCalls: 5,
+							Ceiling:       func(_ Descriptor, input json.RawMessage) bool { return !bytes.Contains(input, []byte("write")) },
+						},
+					},
+					ToolsetCatalog{},
+				),
+				WithCheckInRecorder(recorder),
+				WithHookRunner(hooks),
+			)
+			if _, err := registry.List(t.Context(), Scope{}); err != nil {
+				t.Fatal(err)
+			}
+			if recorder.begins != 0 {
+				t.Fatal("listing spent budget")
+			}
+			_, err := registry.Call(callCtx, Scope{}, CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input)})
+			if (err != nil) != tc.wantError {
+				t.Fatalf("call error=%v", err)
+			}
+			wantFinishes := 1
+			if tc.auditFails {
+				wantFinishes = 0
+			}
+			wantOutcome := "denied"
+			if tc.wantCalls > 0 {
+				wantOutcome = "ok"
+				if tc.backendError != nil || tc.semanticError {
+					wantOutcome = "error"
+				}
+				if tc.cancelAfter || errors.Is(tc.backendError, context.Canceled) {
+					wantOutcome = "cancelled" //nolint:misspell // persisted enum
+				}
+			}
+			if wantFinishes > 0 && recorder.outcome != wantOutcome {
+				t.Fatalf("outcome=%s want=%s", recorder.outcome, wantOutcome)
+			}
+			if recorder.begins != 1 || recorder.finishes != wantFinishes || called != tc.wantCalls {
+				t.Fatalf("begin=%d finish=%d calls=%d", recorder.begins, recorder.finishes, called)
+			}
+		})
+	}
 }

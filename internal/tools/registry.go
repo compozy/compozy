@@ -14,6 +14,7 @@ type RegistryOption func(*RuntimeRegistry)
 
 // RuntimeRegistry indexes providers and produces scoped projections.
 type RuntimeRegistry struct {
+	checkInRecorder       CheckInRecorder
 	providers             []Provider
 	descriptorMetadata    descriptorMetadataIndex
 	evaluator             PolicyEvaluator
@@ -231,6 +232,7 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 	if err := id.Validate(); err != nil {
 		return ToolView{}, err
 	}
+	ctx = withPolicyResolutionCache(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return ToolView{}, err
@@ -267,6 +269,7 @@ func (r *RuntimeRegistry) ListToolsets(ctx context.Context, scope Scope) ([]Tool
 	if len(toolsets) == 0 {
 		return views, nil
 	}
+	ctx = withPolicyResolutionCache(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return nil, err
@@ -293,6 +296,7 @@ func (r *RuntimeRegistry) GetToolset(ctx context.Context, scope Scope, id Toolse
 			ReasonToolsetUnknown,
 		)
 	}
+	ctx = withPolicyResolutionCache(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return ToolsetView{}, err

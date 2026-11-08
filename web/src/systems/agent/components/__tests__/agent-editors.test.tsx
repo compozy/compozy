@@ -382,7 +382,18 @@ describe("Heartbeat", () => {
     const now = new Date();
     seedAgentInstanceMock(
       [agentInstanceFixture({ agent_name: agent.name, last_wake_at: now.toISOString() })],
-      [{ id: "c1", result: "failed", reason: "triage_timeout", created_at: now.toISOString() }],
+      [
+        {
+          id: "c1",
+          occurrence_id: "occ-1",
+          proposals: { auto_accepted: 0, waiting: 0 },
+          result: "failed",
+          reason: "triage_timeout",
+          created_at: now.toISOString(),
+          tool_calls: [],
+          tools_status: "enabled",
+        },
+      ],
       [{ key: "task:1", summary: "Migrate tokens is stuck" }]
     );
     const user = userEvent.setup();
@@ -1263,12 +1274,179 @@ describe("Heartbeat", () => {
           enabled: true,
           preferences: { min_interval: "45m" },
           context: {},
+          check_ins: {},
+          actions: [],
         },
       })
     );
     renderEditor(<AgentCheckInsEditor {...props()} />);
     expect(await screen.findByText(/has settings the editor can't show/)).toBeTruthy();
     expect(screen.queryByText("How often")).toBeNull();
+  });
+
+  // Invariant (U6/U7): the form edits what check-ins may change and their actions, and a save that
+  // changes that block approves it only after the operator saw it and confirmed.
+  describe("check-in changes and authority", () => {
+    const OVERRIDES = { github: ["get_item", "search_items"], linear: ["list_issues"] };
+    function expectOverrides(container: HTMLElement) {
+      const view = within(container);
+      for (const [server, tools] of Object.entries(OVERRIDES)) {
+        for (const tool of tools) expect(view.getByText(`${server}: ${tool}`)).toBeTruthy();
+      }
+      expect(view.getByText("Treated as read-only")).toBeTruthy();
+      expect(
+        view.getByText(
+          "These tools can run in check-ins without being listed under What it can change."
+        )
+      ).toBeTruthy();
+      expect(view.queryByText("Nothing, reads only")).toBeNull();
+    }
+
+    const NONE = { digest: "", status: "none", check_ins: {}, actions: [] };
+
+    function serveTools() {
+      const tool = (tool_id: string, title: string, kind: string, server?: string) => ({
+        descriptor: {
+          tool_id,
+          display_title: title,
+          access: "write",
+          check_in_writable: true,
+          backend: { kind, mcp_server: server },
+        },
+      });
+      server.use(
+        http.get("*/api/tools", () =>
+          HttpResponse.json({
+            tools: [
+              tool("compozy__notify", "Notify", "native_go"),
+              tool("mcp__github__add_label", "Add a label", "mcp", "github"),
+            ],
+          })
+        )
+      );
+    }
+
+    function serveValidate(authority: AgentHeartbeatPayload["authority"]) {
+      server.use(
+        http.post("*/api/agents/:name/heartbeat/validate", () =>
+          HttpResponse.json(heartbeatPayload({ authority }))
+        )
+      );
+    }
+
+    function captureWrites() {
+      const writes: { body: string; approve_authority_sha256?: string }[] = [];
+      server.use(
+        http.put("*/api/agents/:name/heartbeat", async ({ request }) => {
+          writes.push((await request.json()) as (typeof writes)[number]);
+          return HttpResponse.json({ heartbeat: heartbeatPayload({ authority: NONE }) });
+        })
+      );
+      return writes;
+    }
+
+    beforeEach(() => {
+      seedAgentInstanceMock([
+        agentInstanceFixture({ agent_name: agent.name, last_wake_at: new Date().toISOString() }),
+      ]);
+      serveTools();
+    });
+
+    it.each([
+      ["Approve and save", "sha-new"],
+      ["Save without approving", undefined],
+    ])("Should show a changed block before saving, then %s [UT-043]", async (choice, approved) => {
+      serveHeartbeat(heartbeatPayload({ authority: NONE }));
+      serveValidate({
+        digest: "sha-new",
+        status: "unapproved",
+        check_ins: { allow_writes: ["mcp__github__add_label"] },
+        read_only_tools: OVERRIDES,
+        actions: [],
+      });
+      const writes = captureWrites();
+      const user = userEvent.setup();
+      renderEditor(<AgentCheckInsEditor {...props()} />);
+
+      expect(await screen.findByText("Nothing, reads only")).toBeTruthy();
+      await user.click(await screen.findByRole("switch", { name: "Add a label · github" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Approve these check-in changes?" });
+      expect(within(dialog).getByText("mcp__github__add_label")).toBeTruthy();
+      expectOverrides(dialog);
+      expect(writes).toHaveLength(0);
+      await user.click(within(dialog).getByRole("button", { name: choice }));
+
+      await waitFor(() => expect(writes).toHaveLength(1));
+      expect(writes[0]?.body).toContain('allow_writes:\n    - "mcp__github__add_label"');
+      expect(writes[0]?.approve_authority_sha256).toBe(approved);
+    });
+
+    it("Should save actions from the form, the auto-accept switch included [UT-043]", async () => {
+      serveHeartbeat(heartbeatPayload({ authority: NONE }));
+      serveValidate({ ...NONE, digest: "sha-ok", status: "approved" });
+      const writes = captureWrites();
+      const user = userEvent.setup();
+      renderEditor(<AgentCheckInsEditor {...props()} />);
+
+      await user.click(await screen.findByRole("button", { name: "Add action" }));
+      await user.type(screen.getByLabelText("Title"), "Triage new issues");
+      await user.type(screen.getByLabelText("Instructions"), "Label each new issue.");
+      await user.click(screen.getByRole("switch", { name: "Do it without asking me" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(writes).toHaveLength(1));
+      expect(writes[0]?.body).toContain(
+        [
+          "actions:",
+          '  - id: "action"',
+          '    title: "Triage new issues"',
+          '    instructions: "Label each new issue."',
+          "    auto_accept: true",
+        ].join("\n")
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it.each([{ allowWrites: [] }, { allowWrites: ["compozy__notify"] }])(
+      "Should ask for approval of a waiting block and approve its exact digest [UT-043]",
+      async ({ allowWrites }) => {
+        serveHeartbeat(
+          heartbeatPayload({
+            authority: {
+              digest: "sha-old",
+              status: "unapproved",
+              check_ins: { allow_writes: allowWrites },
+              read_only_tools: OVERRIDES,
+              actions: [
+                { id: "triage", title: "Triage", instructions: "Label them.", auto_accept: true },
+              ],
+            },
+          })
+        );
+        const approvals: unknown[] = [];
+        server.use(
+          http.post("*/api/agents/:name/heartbeat/authority/approve", async ({ request }) => {
+            approvals.push(await request.json());
+            return new HttpResponse(null, { status: 204 });
+          })
+        );
+        const user = userEvent.setup();
+        renderEditor(<AgentCheckInsEditor {...props()} />);
+
+        const notice = await screen.findByRole("region", {
+          name: "Check-in changes need your approval",
+        });
+        expectOverrides(notice);
+        if (allowWrites.length > 0)
+          expect(within(notice).getByText("compozy__notify")).toBeTruthy();
+        expect(within(notice).getByText("Label them.", { exact: false })).toBeTruthy();
+        await user.click(within(notice).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => expect(approvals).toEqual([{ sha256: "sha-old" }]));
+      }
+    );
   });
 });
 

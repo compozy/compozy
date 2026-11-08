@@ -111,3 +111,4 @@ var HookTerminalRecordingStartedContract = HookContract[TerminalRecordingStarted
 var HookTerminalRecordingStoppedContract = HookContract[TerminalRecordingStoppedPayload, TerminalObservationPatch]{Event: HookEventTerminalRecordingStopped}
 var HookTerminalSubscriberEvictedContract = HookContract[TerminalSubscriberEvictedPayload, TerminalObservationPatch]{Event: HookEventTerminalSubscriberEvicted}
 var HookTerminalLimitRejectedContract = HookContract[TerminalLimitRejectedPayload, TerminalObservationPatch]{Event: HookEventTerminalLimitRejected}
+var HookAgentInstanceProposalPickedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceProposalPicked}

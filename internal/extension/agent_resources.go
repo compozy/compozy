@@ -208,9 +208,10 @@ func loadStaticAgentSidecar(
 		})
 	case agentSidecarKindHeartbeat:
 		_, err = heartbeat.Parse(context.Background(), heartbeat.ParseRequest{
-			SourcePath: sourcePath,
-			Content:    body,
-			Config:     compozyconfig.DefaultHeartbeatConfig(),
+			CheckInLimits: &heartbeat.CheckInLimits{MaxToolCalls: 100, MaxWriteCalls: 50},
+			SourcePath:    sourcePath,
+			Content:       body,
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 	}
 	if err != nil {

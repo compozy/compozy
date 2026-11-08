@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/storeseed"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -2277,4 +2278,278 @@ func TestAuthoredContextHeartbeatStatusInstanceChecks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHeartbeatAuthorityOperatorBoundary(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		t.Run("Should reject agent authority mutation over "+method+" [IT-005]", func(t *testing.T) {
+			t.Parallel()
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
+			engine := gin.New()
+			engine.POST("/agents/:name/heartbeat/authority/approve", handlers.ApproveAgentHeartbeatAuthority)
+			engine.DELETE("/agents/:name/heartbeat/authority/approve", handlers.RevokeAgentHeartbeatAuthority)
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				method,
+				"/agents/coder/heartbeat/authority/approve",
+				strings.NewReader(`{"sha256":"sha256:stale"}`),
+			)
+			request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			if recorder.Code != 403 || !strings.Contains(recorder.Body.String(), "heartbeat_authority_operator_only") {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body)
+			}
+		})
+	}
+}
+
+func TestHeartbeatAuthorityHTTP(t *testing.T) {
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should approve only the reviewed digest over "+transport+" [IT-005]", func(t *testing.T) {
+			t.Parallel()
+			home := testutil.NewTestHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := filepath.Join(root, "coder")
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			agentPath := filepath.Join(dir, "AGENT.md")
+			if err := os.WriteFile(
+				agentPath,
+				[]byte("---\nname: coder\nprovider: codex\n---\nAgent\n"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			body := []byte("---\nversion: 1\ncheck_ins:\n  allow_writes: [compozy__notify]\n---\nWatch issues.\n")
+			if err := os.WriteFile(filepath.Join(dir, "HEARTBEAT.md"), body, 0600); err != nil {
+				t.Fatal(err)
+			}
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: "ws", Name: "authority", RootDir: root},
+			); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			resolve := func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				// The registered ID keys the tool registry; the identity ID differs, as in production.
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "ws",
+					WorkspaceID: "ws-identity",
+					RootDir:     root,
+					Config:      cfg,
+					Agents: []compozyconfig.AgentDef{
+						{Name: "coder", SourcePath: agentPath, SourceLayer: "workspace"},
+					},
+				}, nil
+			}
+			handlers := core.NewBaseHandlers(
+				&core.BaseHandlerConfig{
+					Sessions: &testutil.StubSessionManager{
+						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+							return &session.Info{
+								ID:          id,
+								AgentName:   "coder",
+								ProfileID:   store.DefaultProfileID,
+								WorkspaceID: "ws",
+								State:       session.StateActive,
+							}, nil
+						},
+					},
+					HomePaths:      home,
+					Config:         cfg,
+					TransportName:  transport,
+					Profiles:       sessionProfileServiceStub{},
+					Workspaces:     testutil.StubWorkspaceService{ResolveFn: resolve},
+					AgentInstances: &core.AgentInstanceAPI{Store: db.Instances()},
+				},
+			)
+			handlers.Tools = selectorToolRegistry{workspaceID: "ws", tool: "mcp__fixture__write"}
+			handlers.HeartbeatAuthoring, err = heartbeat.NewManagedHeartbeatAuthoringService(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			engine := gin.New()
+			engine.PUT("/agents/:name/heartbeat", handlers.PutAgentHeartbeat)
+			engine.GET("/agents/:name/heartbeat/authority", handlers.GetAgentHeartbeatAuthority)
+			engine.POST("/agents/:name/heartbeat/authority/approve", handlers.ApproveAgentHeartbeatAuthority)
+			endpoint := "/agents/coder/heartbeat/authority?workspace_id=ws"
+			response := performRequest(t, engine, http.MethodGet, endpoint, nil)
+			var authority contract.HeartbeatAuthorityPayload
+			decodeJSON(t, response.Body.Bytes(), &authority)
+			if response.Code != 200 || authority.Status != "unapproved" || authority.Digest == "" {
+				t.Fatalf("show=%d %s", response.Code, response.Body)
+			}
+			stale := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/agents/coder/heartbeat/authority/approve?workspace_id=ws",
+				[]byte(`{"sha256":"sha256:stale"}`),
+			)
+			if stale.Code != 409 || !strings.Contains(stale.Body.String(), "heartbeat_authority_changed") {
+				t.Fatalf("stale=%d %s", stale.Code, stale.Body)
+			}
+			request, err := json.Marshal(contract.HeartbeatScriptApprovalRequest{SHA256: authority.Digest})
+			if err != nil {
+				t.Fatal(err)
+			}
+			approved := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/agents/coder/heartbeat/authority/approve?workspace_id=ws",
+				request,
+			)
+			hash, err := db.Instances().ApprovedAuthority(t.Context(), store.DefaultProfileID, dir)
+			if err != nil || approved.Code != 204 || hash != authority.Digest {
+				t.Fatalf("approve=%d hash=%s err=%v body=%s", approved.Code, hash, err, approved.Body)
+			}
+			save := func(content string, approval string, agent bool, status int) {
+				t.Helper()
+				current, err := heartbeat.Resolve(
+					t.Context(),
+					heartbeat.ResolveRequest{AgentPath: agentPath, WorkspaceRoot: root, Config: cfg.Agents.Heartbeat},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				data, err := json.Marshal(
+					map[string]string{
+						"body":                     content,
+						"expected_digest":          current.Digest,
+						"approve_authority_sha256": approval,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				req := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPut,
+					"/agents/coder/heartbeat?workspace_id=ws",
+					bytes.NewReader(data),
+				)
+				if agent {
+					req.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+					req.Header.Set(agentidentity.HeaderAgent, "coder")
+				}
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, req)
+				if response.Code != status {
+					t.Fatalf("save=%d want=%d body=%s", response.Code, status, response.Body)
+				}
+			}
+			changed := strings.Replace(string(body), "[compozy__notify]", "[mcp__fixture__write]", 1)
+			save(changed, "", true, 200)
+			unrelated := changed + "\nWatch another queue.\n"
+			save(unrelated, "", false, 200)
+			shown := performRequest(t, engine, http.MethodGet, endpoint, nil)
+			decodeJSON(t, shown.Body.Bytes(), &authority)
+			if authority.Status != "unapproved" {
+				t.Fatalf("implicit approval: %s", shown.Body)
+			}
+			save(unrelated, "sha256:stale", false, 409)
+			save(unrelated, authority.Digest, true, 403)
+			save(unrelated, authority.Digest, false, 200)
+			shown = performRequest(t, engine, http.MethodGet, endpoint, nil)
+			decodeJSON(t, shown.Body.Bytes(), &authority)
+			if authority.Status != "approved" {
+				t.Fatalf("explicit approval: %s", shown.Body)
+			}
+
+			// The Web validates a candidate before saving; its workspace rides in the body.
+			engine.POST("/agents/:name/heartbeat/validate", handlers.ValidateAgentHeartbeat)
+			validate := func(content string) contract.HeartbeatAuthorityPayload {
+				t.Helper()
+				data, err := json.Marshal(map[string]string{"body": content, "workspace_id": "ws"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				response := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", data)
+				var policy contract.HeartbeatPolicyPayload
+				decodeJSON(t, response.Body.Bytes(), &policy)
+				if response.Code != 200 {
+					t.Fatalf("validate=%d %s", response.Code, response.Body)
+				}
+				return policy.Authority
+			}
+			selectorData, err := json.Marshal(map[string]string{"body": unrelated, "workspace_id": "ws"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			checked := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", selectorData)
+			if checked.Code != 200 || strings.Contains(checked.Body.String(), "heartbeat_allow_writes_unknown_tool") {
+				t.Fatalf("selector warning for a current write tool: %d %s", checked.Code, checked.Body)
+			}
+			if candidate := validate(unrelated); candidate.Status != "approved" ||
+				candidate.Digest != authority.Digest {
+				t.Fatalf("validated approved block: %#v", candidate)
+			}
+			if candidate := validate(
+				strings.Replace(unrelated, "[mcp__fixture__write]", "[compozy__notify]", 1),
+			); candidate.Status != "unapproved" ||
+				candidate.Digest == authority.Digest {
+				t.Fatalf("validated changed block: %#v", candidate)
+			}
+			withAction := strings.Replace(
+				unrelated,
+				"---\nWatch",
+				"actions:\n  - id: open-ticket\n    title: Open a ticket\n    instructions: Draft it.\n---\nWatch",
+				1,
+			)
+			data, err := json.Marshal(map[string]string{"body": withAction, "workspace_id": "ws"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			validated := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", data)
+			var policy contract.HeartbeatPolicyPayload
+			decodeJSON(t, validated.Body.Bytes(), &policy)
+			if validated.Code != 200 || len(policy.Actions) != 1 || policy.Actions[0].ID != "open-ticket" ||
+				len(policy.Authority.Actions) != 1 {
+				t.Fatalf("policy actions projection=%d %s", validated.Code, validated.Body)
+			}
+		})
+	}
+}
+
+// selectorToolRegistry lists one write tool, only for the registered workspace ID.
+type selectorToolRegistry struct {
+	workspaceID string
+	tool        toolspkg.ToolID
+}
+
+func (r selectorToolRegistry) List(_ context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	if scope.WorkspaceID != r.workspaceID {
+		return nil, nil
+	}
+	return []toolspkg.ToolView{
+		{Descriptor: toolspkg.Descriptor{ID: r.tool, Risk: toolspkg.RiskOpenWorld, OpenWorld: true}},
+	}, nil
+}
+
+func (selectorToolRegistry) Search(context.Context, toolspkg.Scope, toolspkg.SearchQuery) ([]toolspkg.ToolView, error) {
+	return nil, nil
+}
+
+func (selectorToolRegistry) Get(context.Context, toolspkg.Scope, toolspkg.ToolID) (toolspkg.ToolView, error) {
+	return toolspkg.ToolView{}, nil
+}
+
+func (selectorToolRegistry) Call(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+	return toolspkg.ToolResult{}, nil
 }
