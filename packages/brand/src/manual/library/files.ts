@@ -115,29 +115,29 @@ favicon.ico 7677
 
 const VISUALS = `
 block-1280.jpg 100786
-block.jpg 426952
+block.jpg 308260
 cone-1280.jpg 56392
 cone-portrait-1280.jpg 48649
-cone-portrait.jpg 234997
-cone.jpg 379274
+cone-portrait.jpg 105424
+cone.jpg 192438
 converge-1280.jpg 105820
-converge-portrait-1280.jpg 127501
-converge-portrait.jpg 421010
-converge.jpg 365277
+converge-portrait-1280.jpg 95812
+converge-portrait.jpg 283186
+converge.jpg 252170
 field-1280.jpg 110984
-field-portrait-1280.jpg 121521
-field-portrait.jpg 281967
-field.jpg 259118
+field-portrait-1280.jpg 91490
+field-portrait.jpg 186300
+field.jpg 168241
 horizon-1280.jpg 40975
-horizon.jpg 178675
-swarm-1280.jpg 161821
-swarm-portrait-1280.jpg 183392
-swarm-portrait.jpg 818417
-swarm.jpg 742032
+horizon.jpg 104200
+swarm-1280.jpg 126706
+swarm-portrait-1280.jpg 144802
+swarm-portrait.jpg 604431
+swarm.jpg 542248
 terrain-1280.jpg 93403
 terrain-portrait-1280.jpg 76725
-terrain-portrait.jpg 314290
-terrain.jpg 375540
+terrain-portrait.jpg 211931
+terrain.jpg 265055
 `;
 
 export const kb = (b: number) =>

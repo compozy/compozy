@@ -100,7 +100,7 @@ export const productRules: [rule: string, text: string][] = [
   ],
   [
     "Real UI only",
-    "Screenshots of the shipping build, captured at 2x. Live visuals drawn from the product (desktop, board, orchestrate) stand in until then; mockups drawn in Figma are concept art and say so in the caption.",
+    "Product shots are captures of the shipping components (desktop, board, orchestrate), rendered at 2x. Mockups drawn in Figma are concept art and say so in the caption.",
   ],
   [
     "On ink",
@@ -116,7 +116,7 @@ export const productRules: [rule: string, text: string][] = [
   ],
   [
     "Flat, straight, 1:1",
-    "Live visuals render with tilt off in product shots. No tilted devices, no 3D perspective, no floating phones. Scale the shot, never skew it.",
+    "Product shots sit flat and square in the layout. Perspective framing belongs only to covers and backgrounds, where the manual's product-shot frame applies it. No tilted devices, no floating phones. Scale the shot, never skew it.",
   ],
   [
     "Clean data",
