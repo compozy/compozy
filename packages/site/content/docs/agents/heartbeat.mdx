@@ -425,6 +425,11 @@ exact authority digest, and a main session that could run the call without askin
 The native writable set is `compozy__notify`. Other native mutations must be proposed
 for the main session. MCP selectors accept an exact canonical ID or `mcp__<server>__*`.
 
+Claude check-ins run in Claude's `plan` mode, and Claude currently declines approved
+write tools while in that mode. Reads and actions work on Claude; for approved check-in
+writes, run the agent on Codex, or declare an action so the main session performs the
+change.
+
 A check-in never asks anyone anything. A write the main session would need approval
 for is denied `check_in_write_needs_approval`, and no approval request is created.
 `compozy__clarify` and every other tool that opens an operator interaction are always
