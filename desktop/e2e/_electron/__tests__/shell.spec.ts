@@ -1117,7 +1117,12 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   const link = product.getByRole("button", { name: "Open fixture.txt in viewer" }).first();
   await link.click();
   await product.getByRole("button", { name: "Choose application" }).first().click();
-  await expect(product.getByRole("menuitem", { name: "Finder" })).toBeVisible();
+  await expect(
+    product.getByRole("menuitem", {
+      name: process.platform === "darwin" ? "Finder" : "Show in folder",
+      exact: true,
+    })
+  ).toBeVisible();
   await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
   const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
   await expect
