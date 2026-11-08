@@ -359,3 +359,18 @@ An unchanged approved authority digest saved through CLI asks for no new approva
 A notification publication failure must not suppress the check or mark its notice
 as sent. Focused F1 backend evidence is in the slice report; integrated public
 journey evidence remains owned by the conductor.
+
+## Runtime pick golden path regression (#1385)
+
+The canonical `TestDaemonE2ECheckInProposalPickCLI` suite exercises the real daemon,
+CLI and ACP fixture process: a source-backed check produces two proposals, the
+approved action is automatically picked, the operator picks the other proposal,
+a repeated pick returns `proposal_already_picked`, and authority remains approved.
+
+Keep the fixture routed by typed turn-source metadata, advertise its configured
+model, and give the two proposals distinct source item keys so deduplication
+preserves both independent choices. The agent created through
+`agent create` must receive the registered fixture command explicitly; registering
+a separate mock agent does not configure that new agent. A driver launched without
+`--fixture` produces a startup failure report instead of exercising proposal picks.
+This focused runtime check does not replace the live-provider and Web journeys above.

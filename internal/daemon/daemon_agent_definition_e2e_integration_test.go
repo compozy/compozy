@@ -21,6 +21,7 @@ import (
 	"time"
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1198,14 +1199,22 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 				Current:  "read-only",
 				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "read-only"}},
 			},
+			{
+				ID:       "model",
+				Name:     "Model",
+				Category: "model",
+				Current:  "model-v1",
+				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "model-v1"}},
+			},
 		}
 		fixture.Agents[0].Turns = []acpmock.TurnFixture{
 			{
-				Name: "proposal",
+				Name:  "proposal",
+				Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceUser},
 				Steps: []acpmock.Step{
 					{
 						Kind: acpmock.StepKindAssistant,
-						Text: `{"proposals":[{"title":"Write report","body":"Review evidence","item_keys":["source:incoming:1"],"action":"report"},{"title":"Review manually","body":"Review this separately","item_keys":["source:incoming:1"]}]}`,
+						Text: `{"proposals":[{"title":"Write report","body":"Review evidence","item_keys":["source:incoming:1"],"action":"report"},{"title":"Review manually","body":"Review this separately","item_keys":["source:incoming:2"]}]}`,
 					},
 				},
 			},
@@ -1227,6 +1236,10 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 				},
 			},
 		)
+		registration, ok := harness.MockAgentRegistration("pick-provider")
+		if !ok {
+			t.Fatal("MockAgentRegistration(pick-provider) = missing, want present")
+		}
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 		run := func(result any, args ...string) {
@@ -1247,6 +1260,8 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 			"always_on",
 			"--provider",
 			acpmock.ProviderName,
+			"--command",
+			registration.Command,
 			"--model",
 			"model-v1",
 			"--prompt",
@@ -1267,7 +1282,9 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			filepath.Join(dir, "sources", "incoming"),
-			[]byte("#!/bin/sh\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"Incoming evidence\"}]}'\n"),
+			[]byte(
+				"#!/bin/sh\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"Incoming evidence\"},{\"key\":\"2\",\"title\":\"Separate evidence\"}]}'\n",
+			),
 			0700,
 		); err != nil {
 			t.Fatal(err)
