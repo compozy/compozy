@@ -1047,6 +1047,131 @@ func TestTriageDispatcher(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: deletion cannot be undone by a waiting Stop, and failed rollback
+	// transfers ownership to the existing tombstone recovery instead of retrying forever.
+	// Owner: temporary session lifecycle; canonical triage dispatcher suite.
+	for _, tc := range []struct {
+		name                      string
+		shutdown, rollbackFailure bool
+	}{
+		{name: "Should not recreate a discarded triage session for a waiting stop"},
+		{name: "Should not recreate a discarded triage session during shutdown", shutdown: true},
+		{name: "Should hand a failed triage rollback to tombstone recovery", rollbackFailure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			deleting := make(chan *sessionStartRun, 1)
+			releaseDelete := make(chan struct{})
+			unblockDelete := sync.OnceFunc(func() { close(releaseDelete) })
+			defer unblockDelete()
+			deleteErr := errors.New("catalog deletion refused")
+			var h *deriveHarness
+			h = newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				return WithSessionCatalog(&triageDeleteCatalog{
+					GlobalDB: db,
+					beforeDelete: func(_ context.Context, id string) error {
+						deleting <- h.manager.sessionStartRun(id)
+						if tc.rollbackFailure {
+							// The staged directory remains intact; an independently created
+							// empty target prevents the real rollback rename from committing.
+							if err := os.Mkdir(filepath.Join(h.homePaths.SessionsDir, id), 0o700); err != nil {
+								return err
+							}
+							return deleteErr
+						}
+						<-releaseDelete
+						return nil
+					},
+				})
+			})
+			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+				return nil, errors.New("provider start unavailable")
+			}
+			createDone := make(chan error, 1)
+			go func() {
+				_, err := h.manager.Create(t.Context(), &CreateOpts{
+					Origin:     workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "failed-instance"},
+					InstanceID: "failed-instance", AgentName: "coder", Workspace: h.workspaceID,
+					DiscardStartFailure: true, Type: SessionTypeTriage,
+				})
+				createDone <- err
+			}()
+			var start *sessionStartRun
+			select {
+			case start = <-deleting:
+			case <-t.Context().Done():
+				t.Fatal(t.Context().Err())
+			}
+			original := filepath.Join(h.homePaths.SessionsDir, "sess-1")
+			if tc.rollbackFailure {
+				defer func() {
+					if err := os.Remove(original); err != nil {
+						t.Error(err)
+						return
+					}
+					h.manager.cleanupDeleteTombstones()
+				}()
+				createErr := <-createDone
+				joinCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				joinErr := waitForSessionStartRun(joinCtx, start)
+				if !errors.Is(joinErr, ErrRecoveryPersistence) || !errors.Is(createErr, deleteErr) {
+					t.Fatalf("rollback recovery ownership = create %v, join %v", createErr, joinErr)
+				}
+				if _, active := h.manager.Get("sess-1"); active || h.manager.sessionStartRun("sess-1") != nil {
+					t.Fatal("missing original directory retained an active retry owner")
+				}
+				if _, err := os.Stat(store.SessionMetaFile(original)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("rollback recreated metadata: %v", err)
+				}
+				entries, err := os.ReadDir(h.homePaths.SessionsDir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				staged := 0
+				for _, entry := range entries {
+					if strings.HasPrefix(entry.Name(), sessionDeleteStagedPrefix) {
+						staged++
+					}
+				}
+				if staged != 1 {
+					t.Fatalf("staged directories = %d, want one retained recovery artifact", staged)
+				}
+				return
+			}
+			observed := &joinSignalContext{Context: t.Context(), joined: make(chan struct{})}
+			stopDone := make(chan error, 1)
+			go func() {
+				if tc.shutdown {
+					stopDone <- h.manager.Shutdown(observed)
+				} else {
+					stopDone <- h.manager.RequestStop(observed, "sess-1", CauseUserRequested)
+				}
+			}()
+			select {
+			case <-observed.joined:
+			case <-t.Context().Done():
+				t.Fatal(t.Context().Err())
+			}
+			unblockDelete()
+			if err := <-createDone; err == nil {
+				t.Fatal("failed start unexpectedly succeeded")
+			}
+			stopErr := <-stopDone
+			if tc.shutdown && stopErr != nil || !tc.shutdown && !errors.Is(stopErr, ErrSessionNotFound) {
+				t.Fatalf("stop after deletion = %v", stopErr)
+			}
+			rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveInclude,
+			})
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("deleted catalog rows = %#v, %v", rows, err)
+			}
+			if _, err := os.Stat(original); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("deleted session recreated: %v", err)
+			}
+		})
+	}
 	// Invariant: a rejected triage model is a configuration diagnostic; request failures stay ordinary.
 	for _, tc := range []struct {
 		name, reason string
@@ -1754,4 +1879,17 @@ func (s *triageCreationStore) RegisterSessionWithCreationIdentity(
 ) (store.SessionCreationRegistration, error) {
 	s.beforeRegister(info)
 	return s.SessionCreationStore.RegisterSessionWithCreationIdentity(ctx, info, identity)
+}
+
+// triageDeleteCatalog delays or refuses only deletion, retaining the real catalog.
+type triageDeleteCatalog struct {
+	*globaldb.GlobalDB
+	beforeDelete func(context.Context, string) error
+}
+
+func (c *triageDeleteCatalog) DeleteSession(ctx context.Context, id string) error {
+	if err := c.beforeDelete(ctx, id); err != nil {
+		return err
+	}
+	return c.GlobalDB.DeleteSession(ctx, id)
 }

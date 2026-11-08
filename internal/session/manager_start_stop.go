@@ -71,6 +71,11 @@ func (m *Manager) prepareStartingSessionStop(
 		if err != nil {
 			return session, run, true, fmt.Errorf("session: acquire starting launch commit for %q: %w", id, err)
 		}
+		// Failed-start deletion may have completed while this stop waited on
+		// launchCommit. Never persist through a stale pointer after removal.
+		if current, ok := m.Get(id); !ok || current != session {
+			return nil, nil, false, nil
+		}
 		state := session.Info().State
 		if state != StateStarting && state != StateStopping {
 			releaseLaunchCommit()

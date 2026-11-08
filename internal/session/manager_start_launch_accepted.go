@@ -218,6 +218,9 @@ func (m *Manager) settleClosedSessionStart(
 	defer cancel()
 	if retain || accepted.session.stopWasRequested() {
 		if err := m.reopenAcceptedSessionRecorder(settleCtx, accepted); err != nil {
+			if errors.Is(err, ErrSessionNotFound) {
+				return false, errors.Join(failure, m.releaseMissingSessionStart(accepted, err))
+			}
 			return true, err
 		}
 	}
@@ -245,7 +248,8 @@ func (m *Manager) discardClosedSessionStart(
 				accepted,
 				errors.Join(startErr, stageErr),
 			)
-			return accepted.storage.recorder == nil, errors.Join(startErr, stageErr, retainErr)
+			return accepted.storage.recorder == nil && !errors.Is(retainErr, ErrRecoveryPersistence),
+				errors.Join(startErr, stageErr, retainErr)
 		}
 		staged = &entry
 	}
@@ -260,7 +264,8 @@ func (m *Manager) discardClosedSessionStart(
 				accepted,
 				errors.Join(startErr, catalogErr, rollbackErr),
 			)
-			return accepted.storage.recorder == nil, errors.Join(startErr, catalogErr, rollbackErr, retainErr)
+			return accepted.storage.recorder == nil && !errors.Is(retainErr, ErrRecoveryPersistence),
+				errors.Join(startErr, catalogErr, rollbackErr, retainErr)
 		}
 	}
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -353,6 +358,9 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 ) error {
 	session := accepted.session
 	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return m.releaseMissingSessionStart(accepted, err)
+		}
 		return err
 	}
 	persistErr := m.persistFailedStart(ctx, session, failure, false)
@@ -363,6 +371,18 @@ func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	}
 	session.clearProviderSecretRedactions()
 	return errors.Join(persistErr, cleanupErr)
+}
+
+// releaseMissingSessionStart leaves a failed rollback's tombstone to existing boot
+// recovery. Reopening a missing original path cannot converge and must not recreate it.
+func (m *Manager) releaseMissingSessionStart(accepted *acceptedSessionStart, cause error) error {
+	cleanupErr := m.cleanupFailedStart("", nil, accepted.proc)
+	m.removeActive(accepted.session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(accepted.session.ID)
+	}
+	accepted.session.clearProviderSecretRedactions()
+	return errors.Join(ErrRecoveryPersistence, cause, cleanupErr)
 }
 
 // reopenAcceptedSessionRecorder restores the retained owner without clearing prior history.

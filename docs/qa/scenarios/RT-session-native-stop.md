@@ -124,6 +124,12 @@ lifetime while cleanup waits, and repeat with a recorder exposing only the base
 EventRecorder methods. Both must retain their cleanup owner until I/O releases.
 Finally fail reopening after deletion rollback: keep Starting and its start run
 tracked until storage recovers, then append the diagnostic and terminal event once.
+Hold deletion in its catalog transaction, then request Stop or manager Shutdown.
+After deletion completes, neither caller may recreate a directory or catalog row.
+Also refuse catalog deletion and block the real rollback rename: preserve the
+staged directory for existing tombstone recovery, return ErrRecoveryPersistence,
+and release the active start owner without publishing stopped history at a missing
+original path. A transient reopen failure must still retain its owner and recover.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

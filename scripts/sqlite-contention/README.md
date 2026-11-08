@@ -61,7 +61,11 @@ owner or leave a reopened recorder behind. Cleanup survives manager cancellation
 joins recorders without optional wait methods through bounded Close attempts, and
 retries an unavailable reopen before publishing stopped state or failure events.
 The existing start run owns these retries and shutdown still bounds its wait.
-This preserves the terminal event, post-stop hook and notification.
+A Stop that waited behind successful deletion revalidates the live session before
+persistence, so it cannot recreate deleted metadata or catalog rows. If rollback
+leaves the original directory missing, cleanup ends with ErrRecoveryPersistence
+and leaves the staged directory to existing tombstone recovery instead of retrying
+an impossible reopen. This preserves the terminal event, post-stop hook and notification.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
