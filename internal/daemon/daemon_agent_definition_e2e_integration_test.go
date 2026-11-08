@@ -1366,6 +1366,31 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 		if len(reports.Reports) == 0 || len(reports.Reports[0].Proposals) != 2 || len(reports.Reports[0].Picks) != 1 {
 			t.Fatalf("reports=%+v", reports)
 		}
+		for i, itemKey := range []string{"source:incoming:1", "source:incoming:2"} {
+			if got := reports.Reports[0].Proposals[i].ItemKeys; !slices.Equal(got, []string{itemKey}) {
+				t.Fatalf("proposal %d item keys = %v, want [%s]", i+1, got, itemKey)
+			}
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) == 0 {
+			t.Fatal("mock agent received no prompts")
+		}
+		for _, fragment := range []string{
+			"Report a useful finding.",
+			"Write a report from the evidence.",
+			"source:incoming:1",
+			"Incoming evidence",
+			"source:incoming:2",
+			"Separate evidence",
+		} {
+			if !strings.Contains(prompts[0].Prompt, fragment) {
+				t.Fatalf("triage prompt missing %q", fragment)
+			}
+		}
 		var picked compozycontract.AgentInstancePickResponse
 		run(&picked, "agent", "instance", "pick", instance.Instance.ID, reports.Reports[0].ID, "2", "-o", "json")
 		if picked.Pick.Actor != "operator" || picked.Pick.ProposalIndex != 1 {
