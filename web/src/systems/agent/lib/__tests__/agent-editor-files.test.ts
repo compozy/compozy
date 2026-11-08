@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 import type { AgentInstanceCheckIn } from "../../types";
 
 import { checkInActivity, checkInReason } from "../agent-check-in-activity";
-import { actionIdFor } from "../agent-check-in-authority";
+import {
+  actionIdFor,
+  countAuthorityChanges,
+  isCheckInWritableTool,
+} from "../agent-check-in-authority";
 import { agentAuthorityCopy } from "../agent-instance";
 import {
   LOOK_AT_IDS,
@@ -123,6 +127,26 @@ actions:
 ---
 Watch issues.
 `;
+
+  it("Should compare canonical authority and use daemon writable metadata", () => {
+    const first = {
+      writes: ["b", "a", "a"],
+      actions: [
+        { id: "b", title: "B", instructions: "B", autoAccept: false },
+        { id: "a", title: "A", instructions: "A", autoAccept: true },
+      ],
+      caps: { max_tool_calls: 5, max_write_calls: 2 },
+    };
+    const second = {
+      writes: ["a", "b"],
+      actions: [...first.actions].reverse(),
+      caps: { max_write_calls: 2, max_tool_calls: 5 },
+    };
+    expect(countAuthorityChanges(first, second)).toBe(0);
+    expect(countAuthorityChanges(first, { ...second, writes: ["a"] })).toBe(1);
+    expect(isCheckInWritableTool({ check_in_writable: true })).toBe(true);
+    expect(isCheckInWritableTool({ check_in_writable: false })).toBe(false);
+  });
 
   it("Should round-trip check_ins and actions through the form, caps untouched [UT-043]", () => {
     const settings = settingsOf(AUTHORITY_FILE);

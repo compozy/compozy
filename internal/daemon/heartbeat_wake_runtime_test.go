@@ -2764,7 +2764,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 		}
 	})
 
-	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved"} {
+	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved", "override-invalid"} {
 		t.Run("Should enforce current main authority and project MCP audit for "+mode+" [IT-006]", func(t *testing.T) {
 			permission := compozyconfig.PermissionModeApproveAll
 			if mode == "narrowed" {
@@ -2795,15 +2795,20 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					})
 			}
 			remote := remoteFixture.StartHTTP(t)
+			overrideNames := []string(nil)
+			if mode == "override-unapproved" || mode == "override-invalid" {
+				overrideNames = []string{"unannotated"}
+			}
 			executor, err := mcppkg.NewMCPCallExecutor(
 				mcppkg.ServerResolverFunc(
 					func(context.Context, toolspkg.SourceRef, string) (mcppkg.ResolvedServer, error) {
 						return mcppkg.ResolvedServer{
 							Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "fixture"},
 							Server: compozyconfig.MCPServer{
-								Name:      "fixture",
-								Transport: compozyconfig.MCPServerTransportHTTP,
-								URL:       remote.URL,
+								Name:          "fixture",
+								ReadOnlyTools: overrideNames,
+								Transport:     compozyconfig.MCPServerTransportHTTP,
+								URL:           remote.URL,
 							},
 						}, nil
 					},
@@ -2904,8 +2909,17 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if mode == "override-unapproved" {
+			if mode == "override-unapproved" || mode == "override-invalid" {
 				def.MCPServers[0].ReadOnlyTools = []string{"unannotated"}
+			}
+			if mode == "override-invalid" {
+				if err := os.WriteFile(
+					filepath.Join(h.dir, "HEARTBEAT.md"),
+					[]byte("---\ncheck_ins: invalid\n---\n"),
+					0600,
+				); err != nil {
+					t.Fatal(err)
+				}
 			}
 			resolver, err := newNativeToolPolicyResolver(
 				nativeToolPolicyResolverDeps{
@@ -2923,6 +2937,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			resolver.instanceCallers = h.db.Instances()
+
 			registry, err := toolspkg.NewRegistry(
 				toolspkg.WithProviders(provider),
 				toolspkg.WithPolicyInputResolver(resolver, toolspkg.ToolsetCatalog{}),
@@ -2932,7 +2947,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if mode == "override-unapproved" {
+			if mode == "override-unapproved" || mode == "override-invalid" {
 				views, err := registry.DiagnosticProjection(
 					t.Context(),
 					toolspkg.Scope{
@@ -2957,6 +2972,69 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				if !found {
 					t.Fatal("main tool missing")
 				}
+			}
+			if mode == "override-invalid" {
+				result, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						SessionID:   h.instance.MainSessionID,
+						ProfileID:   h.instance.ProfileID,
+						WorkspaceID: h.instance.WorkspaceID,
+						AgentName:   h.instance.AgentName,
+					},
+					toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
+				)
+				if err != nil {
+					t.Fatalf("main call with invalid heartbeat: %+v %v", result, err)
+				}
+				repaired := []byte("---\nversion: 1\ncheck_ins:\n  max_tool_calls: 2\n---\n")
+				if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), repaired, 0600); err != nil {
+					t.Fatal(err)
+				}
+				cfg := workspace.Config
+				cfg.Agents.AlwaysOn.CheckInMaxToolCalls = 1
+				info := &session.Info{
+					AgentName:   h.instance.AgentName,
+					ProfileID:   h.instance.ProfileID,
+					WorkspaceID: h.instance.WorkspaceID,
+				}
+				policy := &toolspkg.CheckInPolicy{}
+				if err := resolver.applyCheckInAuthority(
+					t.Context(),
+					policy,
+					info,
+					nil,
+					&cfg,
+					h.db.Instances(),
+				); err != nil ||
+					policy.AuthorityApproved {
+					t.Fatalf("lowered cap: %+v %v", policy, err)
+				}
+				cfg.Agents.AlwaysOn.CheckInMaxToolCalls = 2
+				digest, err := heartbeat.AuthorityDigest(
+					heartbeat.CheckInsPolicy{MaxToolCalls: new(2)},
+					nil,
+					heartbeat.AuthorityOverrides(def.MCPServers),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.db.Instances().
+					ApproveAuthority(t.Context(), info.ProfileID, h.dir, digest, "cli", h.now()); err != nil {
+					t.Fatal(err)
+				}
+				if err := resolver.applyCheckInAuthority(
+					t.Context(),
+					policy,
+					info,
+					nil,
+					&cfg,
+					h.db.Instances(),
+				); err != nil ||
+					!policy.AuthorityApproved {
+					t.Fatalf("repaired authority: %+v %v", policy, err)
+				}
+				return
 			}
 			fixture := checkInGatewayFixture{
 				inner: &session.TriageDispatcher{

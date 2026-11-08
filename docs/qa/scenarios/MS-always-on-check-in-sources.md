@@ -191,7 +191,8 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
    result." Run a check-in. Its occurrence lists `mcp__fixture__list_items` with
    `access: read`, `decision: allowed`, `outcome: ok`, a redacted `args_preview` and no result
    body. The report proposes from the fixture data, and `agent instance reports -o json` shows
-   `tool_calls.total ≥ 1`. `compozy__tool_info` for the tool shows `access: read`. With no new
+   `tool_calls.total ≥ 1`. `compozy__tool_info` for the tool shows `access: read` and
+   `check_in_writable: false`. With no new
    item, the next check-in is `skipped` (`digest_empty`/`digest_unchanged`) and its occurrence
    has no tool calls.
 2. **Unannotated and destructive tools (US-002, ADR-002).** Guidance asks for `get_item`: the
@@ -253,7 +254,8 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
     24 h waits with `auto_accept_status: limit`. Fill the main session's input queue: the next
     waits with `queue_full` and the check-in still finishes. Re-read the report after the queue
     drains: it still shows `queue_full` (recorded at publication). With an unapproved block it
-    shows `unapproved`; with no main session `no_main`. Queue an auto pick on a busy main
+    shows `unapproved`; with no main session `no_main`; paused or archived instances
+    record `inactive` rather than the daily `limit`. Queue an auto pick on a busy main
     session, then pause the instance: the queued auto pick reads `cancelled`.
 13. **Operator picks (US-010).** `compozy agent instance pick issue-watch <report-id> 2` picks
     the waiting proposal (1-based) and prints that it was sent to the main session. Repeating it

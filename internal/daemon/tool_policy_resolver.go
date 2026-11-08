@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -46,6 +47,8 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
+	authorityMu       sync.Mutex
+	authorityCache    map[authorityPolicyKey]authorityPolicyValue
 	approvalGrants    toolspkg.ApprovalGrantStore
 	instanceCallers   agentinstance.CallerReader
 	cfg               *compozyconfig.Config
@@ -160,9 +163,17 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
-	if info != nil && resolvedScope.AgentName != "" &&
+	if resolvedScope.AgentName != "" &&
 		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
-		if err := r.applyAgentMCPReadAuthority(ctx, &inputs, info, resolvedWorkspace, cfg); err != nil {
+		authorityInfo := info
+		if authorityInfo == nil {
+			authorityInfo = &session.Info{
+				AgentName:   resolvedScope.AgentName,
+				ProfileID:   resolvedScope.ProfileID,
+				WorkspaceID: resolvedScope.WorkspaceID,
+			}
+		}
+		if err := r.applyAgentMCPReadAuthority(ctx, &inputs, authorityInfo, resolvedWorkspace, cfg); err != nil {
 			return inputs, err
 		}
 	}

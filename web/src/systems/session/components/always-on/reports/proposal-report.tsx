@@ -33,6 +33,8 @@ const MAYBE_NOT_PICKED = (label: string) =>
 
 /** Why an action-tagged proposal still waits for you. */
 const WAITING_NOTE: Record<string, string> = {
+  inactive: "The agent was paused",
+  no_main: "The agent has no main session",
   limit: "Daily auto-accept limit reached",
   queue_full: "The agent is busy; pick it when ready",
   unapproved: "Waiting for your approval of check-in changes",

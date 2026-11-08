@@ -144,11 +144,18 @@ export function checkInsModelFixture(
     authority: {
       current: { digest: "", status: "none", check_ins: {}, actions: [] },
       writeTools: [
-        { tool_id: "compozy__notify", title: "Notify", access: "write", backend: "native_go" },
+        {
+          tool_id: "compozy__notify",
+          title: "Notify",
+          access: "write",
+          check_in_writable: true,
+          backend: "native_go",
+        },
         {
           tool_id: "mcp__github__create_issue_comment",
           title: "Comment on an issue",
           access: "write",
+          check_in_writable: true,
           backend: "mcp",
           server: "github",
         },

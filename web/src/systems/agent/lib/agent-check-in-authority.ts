@@ -89,9 +89,11 @@ export function composeCheckInAuthority(form: CheckInAuthorityForm) {
 
 export function countAuthorityChanges(a: CheckInAuthorityForm, b: CheckInAuthorityForm) {
   return [
-    a.writes.join() !== b.writes.join(),
-    JSON.stringify(a.actions) !== JSON.stringify(b.actions),
-    JSON.stringify(a.caps) !== JSON.stringify(b.caps),
+    JSON.stringify([...new Set(a.writes)].sort()) !== JSON.stringify([...new Set(b.writes)].sort()),
+    JSON.stringify([...a.actions].sort((x, y) => x.id.localeCompare(y.id))) !==
+      JSON.stringify([...b.actions].sort((x, y) => x.id.localeCompare(y.id))),
+    a.caps.max_tool_calls !== b.caps.max_tool_calls ||
+      a.caps.max_write_calls !== b.caps.max_write_calls,
   ].filter(Boolean).length;
 }
 
@@ -113,9 +115,9 @@ export function actionIdFor(title: string, taken: readonly string[]) {
   return id;
 }
 
-/** The write tools a check-in may call: MCP writes and the closed native set (`compozy__notify`). */
-export function isCheckInWritableTool(tool: { tool_id: string; access: string; backend: string }) {
-  return tool.access === "write" && (tool.backend === "mcp" || tool.tool_id === "compozy__notify");
+/** The daemon owns the check-in writable set. */
+export function isCheckInWritableTool(tool: { check_in_writable: boolean }) {
+  return tool.check_in_writable;
 }
 
 /** An action needs a title and instructions before the file can take it. */

@@ -8361,7 +8361,14 @@ export interface components {
     AgentInstanceProposal: {
       action?: components["schemas"]["AgentInstanceProposalAction"] | null;
       /** @enum {string} */
-      auto_accept_status: "picked" | "limit" | "queue_full" | "unapproved" | "no_main" | "none";
+      auto_accept_status:
+        | "picked"
+        | "limit"
+        | "queue_full"
+        | "unapproved"
+        | "no_main"
+        | "inactive"
+        | "none";
       body: string;
       item_keys: string[];
       sources?: components["schemas"]["AgentInstanceProposalSource"][];
@@ -20285,6 +20292,7 @@ export interface components {
     ToolDescriptorPayload: {
       access: string;
       backend: components["schemas"]["ToolBackendRefPayload"];
+      check_in_writable: boolean;
       concurrency_safe: boolean;
       description: string;
       destructive: boolean;

@@ -1214,7 +1214,8 @@ status, `scripts_enabled`, and effective `limits`. It returns the same catalog J
 `agent_instance_check_ins` includes `occurrence_id`, `tools_status`
 (`enabled`, `disabled`, `unavailable`) and `tool_calls`. `agent_instance_reports`
 projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
-(`read` or `write`). Each attempt records decision, outcome, redacted argument
+(`read` or `write`) and `check_in_writable` (whether it belongs in the check-in
+write selector). Each attempt records decision, outcome, redacted argument
 preview and effect (`none`, `done`, `maybe`); tool results are never stored.
 CLI `instance reports` text prints per-proposal pick state and `auto_accept_status`
 plus the tool summary. `instance check-ins` text has WHEN, OUTCOME, TOOLS and
@@ -1234,7 +1235,7 @@ Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
 `POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
 Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
 Report reads include `picks`, proposal `action`, and `auto_accept_status`
-(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `none`). `picked` means
+(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive`, `none`). `picked` means
 an auto-accept pick; skip values are the decision recorded at publication and are
 never recomputed; operator picks never project as `picked`. Each proposal is picked
 once; `proposal_already_picked` reports a repeat. The observe-only

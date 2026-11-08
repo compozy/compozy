@@ -303,6 +303,7 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 	presentation := d.Presentation()
 	return contract.ToolDescriptorPayload{
 		Access:              string(toolspkg.AccessOf(*d)),
+		CheckInWritable:     d.CheckInWritable,
 		ToolID:              d.ID,
 		Backend:             toolBackendPayload(d.Backend),
 		DisplayTitle:        presentation.DisplayTitle,

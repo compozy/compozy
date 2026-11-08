@@ -36,6 +36,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			"queue_full",
 			"unapproved",
 			"no_main",
+			"inactive",
 			"none",
 		},
 		reflect.TypeFor[contract.SessionProcessAttribution](): {"env", "lineage"},

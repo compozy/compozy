@@ -207,5 +207,6 @@ const (
 	AutoAcceptQueueFull  AutoAcceptStatus = "queue_full"
 	AutoAcceptUnapproved AutoAcceptStatus = "unapproved"
 	AutoAcceptNoMain     AutoAcceptStatus = "no_main"
+	AutoAcceptInactive   AutoAcceptStatus = "inactive"
 	AutoAcceptNone       AutoAcceptStatus = "none"
 )

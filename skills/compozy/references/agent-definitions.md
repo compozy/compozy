@@ -472,7 +472,7 @@ Destructive annotations always classify a tool as write.
 (1–1,000 characters), and `auto_accept` (default false). The authority digest
 includes every action. Actions take effect only after operator approval of that
 exact digest. An auto-accept proposal that was not picked records
-`auto_accept_skip` (`limit`, `queue_full`, `unapproved`, `no_main`) at
+`auto_accept_skip` (`limit`, `queue_full`, `unapproved`, `no_main`, `inactive`) at
 publication; reads project it as `auto_accept_status`. Picks use the main session's own
 permissions and preserve proposal text inside an untrusted fence. Auto picks are
 synthetic turns and count toward the unattended limit. Pause/archive cancels

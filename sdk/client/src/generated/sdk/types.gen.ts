@@ -365,7 +365,14 @@ export type AgentInstancePickResponse = {
 
 export type AgentInstanceProposal = {
   action?: AgentInstanceProposalAction | null;
-  auto_accept_status: "picked" | "limit" | "queue_full" | "unapproved" | "no_main" | "none";
+  auto_accept_status:
+    | "picked"
+    | "limit"
+    | "queue_full"
+    | "unapproved"
+    | "no_main"
+    | "inactive"
+    | "none";
   body: string;
   item_keys: Array<string>;
   sources?: Array<AgentInstanceProposalSource>;
@@ -12025,6 +12032,7 @@ export type ToolContent = {
 export type ToolDescriptorPayload = {
   access: string;
   backend: ToolBackendRefPayload;
+  check_in_writable: boolean;
   concurrency_safe: boolean;
   description: string;
   destructive: boolean;

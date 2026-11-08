@@ -5,7 +5,7 @@ export interface ReportProposal {
   body: string;
   /** The declared action the check-in tagged it with. */
   action?: { id: string; title: string; autoAccept: boolean };
-  /** `picked`, `limit`, `queue_full`, `unapproved` or `none`. */
+  /** `picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive` or `none`. */
   autoAcceptStatus?: string;
 }
 

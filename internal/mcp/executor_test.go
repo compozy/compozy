@@ -4070,10 +4070,10 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 	t.Run("Should accept only operator overrides and preserve destructive hints [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
-			name, owner, catalog  string
-			destructive, wantRead bool
+			name, owner, catalog      string
+			destructive, wantOverride bool
 		}{
-			{name: "Should apply operator override", wantRead: true},
+			{name: "Should retain operator override for authority mapping", wantOverride: true},
 			{name: "Should ignore extension override", owner: "extension:fixture"},
 			{name: "Should ignore catalog override", catalog: "fixture"},
 			{name: "Should preserve destructive hint", destructive: true},
@@ -4099,7 +4099,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if d.ReadOnly != tc.wantRead || d.Destructive != tc.destructive {
+				if d.ReadOnly || d.ReadOnlyOverride != tc.wantOverride || d.Destructive != tc.destructive {
 					t.Fatalf("descriptor=%+v", d)
 				}
 			})

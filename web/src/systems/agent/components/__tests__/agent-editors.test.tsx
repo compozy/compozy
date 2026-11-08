@@ -1295,6 +1295,7 @@ describe("Heartbeat", () => {
           tool_id,
           display_title: title,
           access: "write",
+          check_in_writable: true,
           backend: { kind, mcp_server: server },
         },
       });

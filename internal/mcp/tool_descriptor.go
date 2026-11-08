@@ -48,6 +48,7 @@ func (e *CallExecutor) descriptorFromTool(
 		WorkspaceID:     source.WorkspaceID,
 		Scope:           source.Scope,
 	}
+	readOnlyOverride := false
 	readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
 	destructive := tool.Annotations != nil && tool.Annotations.DestructiveHint != nil &&
 		*tool.Annotations.DestructiveHint
@@ -58,7 +59,7 @@ func (e *CallExecutor) descriptorFromTool(
 			if destructive {
 				slog.Warn("mcp_read_only_override_destructive", "server", server.Name, "tool", tool.Name)
 			} else {
-				readOnly = true
+				readOnlyOverride = true
 			}
 		}
 	}
@@ -67,17 +68,18 @@ func (e *CallExecutor) descriptorFromTool(
 		return toolspkg.MCPToolDescriptor{}, err
 	}
 	descriptor := toolspkg.MCPToolDescriptor{
-		ID:           id,
-		RawName:      strings.TrimSpace(tool.Name),
-		Title:        mcpToolTitle(tool),
-		FriendlyVerb: friendlyVerb,
-		Preview:      preview,
-		Description:  strings.TrimSpace(tool.Description),
-		InputSchema:  inputSchema,
-		OutputSchema: outputSchema,
-		Source:       mcpSource,
-		ReadOnly:     readOnly,
-		Destructive:  destructive,
+		ID:               id,
+		RawName:          strings.TrimSpace(tool.Name),
+		Title:            mcpToolTitle(tool),
+		FriendlyVerb:     friendlyVerb,
+		Preview:          preview,
+		Description:      strings.TrimSpace(tool.Description),
+		InputSchema:      inputSchema,
+		OutputSchema:     outputSchema,
+		Source:           mcpSource,
+		ReadOnly:         readOnly,
+		ReadOnlyOverride: readOnlyOverride,
+		Destructive:      destructive,
 	}
 	return redactMCPToolDescriptor(descriptor)
 }

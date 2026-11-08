@@ -323,6 +323,7 @@ export async function approveAgentHeartbeatAuthority(
 
 /** One tool the agent can see, reduced to what the check-in write list needs. */
 export interface AgentToolChoice {
+  check_in_writable: boolean;
   tool_id: string;
   title: string;
   access: string;
@@ -355,6 +356,7 @@ export async function fetchAgentTools(
     tool_id: descriptor.tool_id,
     title: descriptor.display_title || descriptor.tool_id,
     access: descriptor.access,
+    check_in_writable: descriptor.check_in_writable,
     backend: descriptor.backend.kind,
     server: descriptor.backend.mcp_server,
   }));

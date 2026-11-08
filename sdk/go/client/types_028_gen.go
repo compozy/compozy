@@ -91,6 +91,7 @@ type ToolContent struct {
 
 // ToolDescriptorPayload is a daemon API value.
 type ToolDescriptorPayload struct {
+	CheckInWritable     bool                  `json:"check_in_writable"`
 	Access              string                `json:"access"`
 	ToolID              ToolID                `json:"tool_id"`
 	Backend             ToolBackendRefPayload `json:"backend"`

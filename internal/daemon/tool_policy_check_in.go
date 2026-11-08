@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -79,47 +78,13 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 	if err != nil {
 		return err
 	}
-	root := ""
-	if workspace != nil {
-		root = workspace.RootDir
-	}
-	var policyResolver heartbeat.PolicyResolver
-	if resolver, ok := r.agentResolver.(heartbeat.PolicyResolver); ok {
-		policyResolver = resolver
-	}
-	authored, err := resolveTimerPolicy(
-		ctx,
-		policyResolver,
-		heartbeat.AuthoringTarget{
-			AgentPath:     agent.SourcePath,
-			WorkspaceRoot: root,
-			AgentName:     info.AgentName,
-			ProfileID:     info.ProfileID,
-			WorkspaceID:   info.WorkspaceID,
-			Config:        cfg.Agents.Heartbeat,
-			CheckInLimits: &heartbeat.CheckInLimits{
-				MaxToolCalls:  cfg.Agents.AlwaysOn.CheckInMaxToolCalls,
-				MaxWriteCalls: cfg.Agents.AlwaysOn.CheckInMaxWriteCalls,
-			},
-		},
-	)
+	authored, digest, dir, err := r.cachedAuthorityPolicy(ctx, agent, info, workspace, cfg)
 	if err != nil {
-		return err
-	}
-	digest, err := heartbeat.AuthorityDigest(
-		authored.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(authored.Frontmatter.Actions), heartbeat.AuthorityOverrides(agent.MCPServers),
-	)
-	if err != nil {
-		return err
-	}
-	dir, err := filepath.EvalSymlinks(filepath.Dir(agent.SourcePath))
-	if err != nil {
-		return err
+		return nil
 	}
 	approved, err := repo.ApprovedAuthority(ctx, info.ProfileID, dir)
 	if err != nil {
-		return err
+		return nil
 	}
 	if digest != "" && approved == digest {
 		policy.AuthorityApproved = true

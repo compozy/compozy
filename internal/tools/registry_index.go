@@ -63,17 +63,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			if err := descriptor.Validate(); err != nil {
 				return nil, indexValidationError(descriptor.ID, err)
 			}
-			if read, ok := inputs.MCPReadOnlyTools[string(descriptor.ID)]; ok && read &&
-				descriptor.Backend.Kind == BackendMCP &&
-				!descriptor.Destructive {
-				descriptor.ReadOnly = read
-				descriptor.ConcurrencySafe = read
-				descriptor.OpenWorld = !read
-				descriptor.Risk = RiskOpenWorld
-				if read {
-					descriptor.Risk = RiskRead
-				}
-			}
+			applyMCPReadAuthority(descriptor, inputs.MCPReadOnlyTools)
 			index.add(cloneDescriptor(*descriptor), provider, providerIndex, true)
 		}
 	}

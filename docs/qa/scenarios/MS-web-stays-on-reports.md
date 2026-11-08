@@ -436,7 +436,7 @@ action, a fixture MCP server, and a real provider.
    changes accordingly.
 3. **Waiting with a reason (U2).** `auto_accept_status: limit` shows "Daily auto-accept limit
    reached", `queue_full` "The agent is busy; pick it when ready", and `unapproved` "Waiting for
-   your approval of check-in changes"; each keeps a working Pick button. `no_main` keeps Pick.
+   your approval of check-in changes"; each keeps a working Pick button. `no_main` shows "The agent has no main session" and `inactive` shows "The agent was paused"; both keep Pick.
 4. **Pick failed (U1).** Pause the instance and pick: an inline alert explains the failure in
    plain words with the daemon code (`instance_not_active`); nothing is queued. Picking a
    proposal already picked from the CLI shows `proposal_already_picked`.

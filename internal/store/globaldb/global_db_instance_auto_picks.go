@@ -129,7 +129,9 @@ func autoPickFinishedReport(
 			skip = "unapproved"
 		case !instance.MainSessionID.Valid:
 			skip = "no_main"
-		case instance.State != "active" || instance.ArchivedAt.Valid || count >= int64(req.AutoAcceptPerDay):
+		case instance.State != "active" || instance.ArchivedAt.Valid:
+			skip = "inactive"
+		case count >= int64(req.AutoAcceptPerDay):
 			skip = "limit"
 		}
 		if skip != "" {

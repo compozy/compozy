@@ -1465,6 +1465,45 @@ func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([
 }
 
 func TestMCPCheckInAccess(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		authority map[string]bool
+		read      bool
+	}{
+		{name: "Should apply operator config override", read: true},
+		{name: "Should withhold unapproved agent override", authority: map[string]bool{"mcp__linear__write": false}},
+		{name: "Should apply approved agent override", authority: map[string]bool{"mcp__linear__write": true}, read: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			source := SourceRef{Kind: SourceMCP, Owner: "linear", RawServerName: "linear"}
+			executor := newFakeMCPExecutor(
+				[]MCPToolDescriptor{
+					{
+						RawName:          "write",
+						Source:           source,
+						ReadOnlyOverride: true,
+						InputSchema:      json.RawMessage(`{"type":"object"}`),
+					},
+				},
+			)
+			provider := newTestMCPProvider(t, executor, []SourceRef{source})
+			inputs := DefaultPolicyInputs()
+			inputs.MCPReadOnlyTools = tc.authority
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			views, err := registry.DiagnosticProjection(t.Context(), Scope{})
+			if err != nil || len(views) != 1 {
+				t.Fatalf("views=%+v err=%v", views, err)
+			}
+			if (AccessOf(views[0].Descriptor) == AccessRead) != tc.read ||
+				views[0].Descriptor.CheckInWritable == tc.read {
+				t.Fatalf("descriptor=%+v", views[0].Descriptor)
+			}
+		})
+	}
 	t.Run("Should give destructive annotations precedence [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		for _, readOnly := range []bool{false, true} {

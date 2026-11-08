@@ -449,6 +449,11 @@ writes in check-ins and in the main session), and every proposal waits for a pic
 The instance shows "Check-in changes need your approval" and one notification fires
 per digest.
 
+If HEARTBEAT.md cannot be read or validated, including caps above the daemon limits,
+its authority is treated as unapproved. Main-session tools remain available with
+MCP overrides withheld. Tool descriptors expose `check_in_writable` alongside
+`access`; the editor uses this value for its write-tool choices.
+
 Each tool attempt is audited with its access class, outcome and redacted arguments;
 results are not retained. `instance check-ins <agent> --occurrence <id> -o json`
 lists calls. Without JSON output, `instance check-ins` includes WHEN, OUTCOME,
@@ -533,7 +538,8 @@ Pausing or archiving cancels queued auto picks.
 Each proposal with an auto-accept action reports `auto_accept_status`: `picked`
 when the daemon picked it, otherwise the reason it waited, recorded when the report
 was published and never recomputed: `limit` (daily limit reached), `queue_full`,
-`unapproved` (authority not approved) or `no_main` (no main session). Proposals
+`unapproved` (authority not approved), `no_main` (no main session), or
+`inactive` (the instance was paused, archived, or inactive). Proposals
 without an auto-accept action report `none`. An operator pick never shows as
 `picked`; its pick record has actor `operator`.
 

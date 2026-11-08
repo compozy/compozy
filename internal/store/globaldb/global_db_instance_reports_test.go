@@ -1577,7 +1577,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 			if err := json.Unmarshal(proposalReport.Payload, &projection); err != nil {
 				t.Fatal(err)
 			}
-			expectedStatus := map[string]string{"auto": "picked", "limit": "limit", "queue_full": "queue_full", "unapproved": "unapproved", "no_main": "no_main", "operator": "none"}[mode]
+			expectedStatus := map[string]string{"auto": "picked", "limit": "limit", "queue_full": "queue_full", "unapproved": "unapproved", "no_main": "no_main", "unattended": "inactive", "operator": "none"}[mode]
 			if expectedStatus != "" && projection.Proposals[0].AutoAcceptStatus != expectedStatus {
 				t.Fatalf("projection=%+v", projection)
 			}

@@ -34,6 +34,10 @@ type CheckInPolicy struct {
 	RunsUnattended    func(context.Context, Descriptor, json.RawMessage) bool
 }
 
+func checkInWritable(d Descriptor) bool {
+	return AccessOf(d) == AccessWrite && (d.Backend.Kind == BackendMCP || IsCheckInWritable(d.ID))
+}
+
 func IsCheckInWritable(id ToolID) bool { return id == ToolIDNotify }
 func (p *CheckInPolicy) denial(ctx context.Context, d Descriptor, input json.RawMessage) ReasonCode {
 	if p.NoMainSession {

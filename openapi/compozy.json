@@ -1277,6 +1277,7 @@
               "queue_full",
               "unapproved",
               "no_main",
+              "inactive",
               "none"
             ],
             "type": "string"
@@ -42509,6 +42510,9 @@
           "backend": {
             "$ref": "#/components/schemas/ToolBackendRefPayload"
           },
+          "check_in_writable": {
+            "type": "boolean"
+          },
           "concurrency_safe": {
             "type": "boolean"
           },
@@ -42594,6 +42598,7 @@
         "required": [
           "access",
           "backend",
+          "check_in_writable",
           "concurrency_safe",
           "description",
           "destructive",
