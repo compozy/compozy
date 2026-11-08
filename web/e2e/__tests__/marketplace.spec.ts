@@ -529,6 +529,7 @@ test.describe("Marketplace plugin catalog by category", () => {
         await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();
         popup = await popupPromise;
         await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("POST /token");
+        expect(authServer.requests).toContain("GET /.well-known/oauth-protected-resource/mcp");
         await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
           timeout: 15_000,
         });
@@ -1944,9 +1945,9 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await expect(trustDialog).not.toContainText(/permission/i);
       await marketplace.extensionTrustConfirm.click();
-      await appPage.getByTestId("extension-install-summary-confirm").click();
       const install = await installResponse;
       expect(install.status()).toBe(201);
+      await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
       const installedInstance = await install.json();
       const installedScope = new URLSearchParams({
         workspace: installedInstance.extension.workspace_id,
@@ -2042,19 +2043,19 @@ test.describe("Agent Plugins marketplace journeys", () => {
       });
       await expect(marketplace.card(driftedEntryID)).toBeVisible({ timeout: 20_000 });
 
-      await marketplace.action(driftedEntryID).click();
-      const trustDialog = marketplace.extensionTrustDialog;
-      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
-      await marketplace.extensionTrustConfirm.click();
-
       const installResponse = appPage.waitForResponse(
         response =>
           response.request().method() === "POST" &&
           new URL(response.url()).pathname === "/api/extensions"
       );
-      await appPage.getByTestId("extension-install-summary-confirm").click();
+      await marketplace.action(driftedEntryID).click();
+      const trustDialog = marketplace.extensionTrustDialog;
+      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
+      await marketplace.extensionTrustConfirm.click();
+
       const response = await installResponse;
       expect(response.status()).toBe(201);
+      await expect(appPage.getByTestId("extension-install-summary-dialog")).toHaveCount(0);
       const installed = await response.json();
       expect(installed.extension).toMatchObject({
         name: driftedName,

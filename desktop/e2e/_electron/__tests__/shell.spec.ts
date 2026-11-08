@@ -30,6 +30,7 @@ import {
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
+import { appWindow, sessionWindow, windowID } from "../../../../web/e2e/fixtures/os-navigation";
 import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -1043,9 +1044,9 @@ test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the confi
   });
   const path = product.locator("code", { hasText: "fixture.txt:7" }).first();
   await expect(path).toBeVisible({ timeout: 30_000 });
-  // The path itself is the link (file-explorer US-005): a plain click opens the viewer, the
+  // The path itself is the link (file-explorer US-005): a plain click opens Files, the
   // modifier click the editor.
-  await expect(product.getByRole("button", { name: "Open fixture.txt in viewer" })).toHaveCount(1);
+  await expect(product.getByRole("button", { name: "Open fixture.txt in Files" })).toHaveCount(1);
   await path.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
 
   const recorded = join(desktop.home, "fixtures", "editor-argv.json");
@@ -1114,9 +1115,13 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await product.goto(new URL(`/session/${id}`, product.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  const link = product.getByRole("button", { name: "Open fixture.txt in viewer" }).first();
+  const link = product.getByRole("button", { name: "Open fixture.txt in Files" }).first();
+  const sessionTabID = await windowID(sessionWindow(product, id));
   await link.click();
-  await product.getByRole("button", { name: "Choose application" }).first().click();
+  const files = appWindow(product, "files");
+  await expect(files).toBeVisible();
+  const filesTabID = await windowID(files);
+  await files.getByRole("button", { name: "Choose application" }).click();
   await expect(
     product.getByRole("menuitem", {
       name: process.platform === "darwin" ? "Finder" : "Show in folder",
@@ -1132,13 +1137,21 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
     product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
   ).toBeVisible();
   await writeFile(recorded, "");
+  await product
+    .getByTestId(`os-window-tab-${sessionTabID}`)
+    .locator('[data-slot="os-window-tab-activate"]')
+    .click();
+  await expect(link).toBeVisible();
   await link.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
   await expect
     .poll(async () => readFile(recorded, "utf8").catch(() => ""))
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
-  await expect(
-    product.getByRole("button", { name: "Open in Cursor", exact: true }).first()
-  ).toBeVisible();
+  await expect(files).not.toBeVisible();
+  await product
+    .getByTestId(`os-window-tab-${filesTabID}`)
+    .locator('[data-slot="os-window-tab-activate"]')
+    .click();
+  await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
 });
 
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({
