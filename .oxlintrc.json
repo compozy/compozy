@@ -381,6 +381,7 @@
         "web/dist/**",
         "web/dist-proto/**",
         "**/routeTree.gen.ts",
+        "**/.output/**",
         ".compozy/tasks/**",
         "docs/design/**"
     ]

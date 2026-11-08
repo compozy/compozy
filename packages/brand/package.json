@@ -1,0 +1,37 @@
+{
+    "name": "@compozy/brand",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Compozy brand manual (v1.2.0) on TanStack Start, statically prerendered",
+    "type": "module",
+    "scripts": {
+        "dev": "vite dev --port 4620 --strictPort",
+        "build": "vite build && bun scripts/assert-build-output.ts",
+        "preview": "vite preview --port 4620 --strictPort",
+        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit",
+        "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src scripts vite.config.ts vitest.config.ts",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@compozy/ui": "workspace:*",
+        "@fontsource-variable/figtree": "5.3.0",
+        "@fontsource-variable/geist-mono": "5.3.0",
+        "@fontsource-variable/instrument-sans": "5.3.0",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.4",
+        "react": "19.3.1",
+        "react-dom": "19.3.1"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "4.3.3",
+        "@testing-library/react": "16.3.3",
+        "@types/node": "26.6.5",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "@vitejs/plugin-react": "6.1.2",
+        "jsdom": "30.1.3",
+        "tailwindcss": "4.3.3",
+        "vite": "8.3.5",
+        "vitest": "5.0.5"
+    }
+}

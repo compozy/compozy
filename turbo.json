@@ -50,6 +50,10 @@
             "dependsOn": [],
             "outputs": []
         },
+        "@compozy/brand#build": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": [".output/**"]
+        },
         "@compozy/extension-react#typecheck": {
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": []
