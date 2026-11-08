@@ -25,7 +25,7 @@ export const PRODUCT_SHOT_PINS: readonly ProductShotPin[] = [
   {
     name: "desktop",
     story: "src/systems/os/components/stories/os-window-deck.stories.tsx",
-    exportName: "VC03SessionComposer",
+    exportName: "VC06PinnedMixedSurfaces",
     viewport: { width: 1280, height: 800 },
   },
   {
