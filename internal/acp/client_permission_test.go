@@ -2,7 +2,6 @@ package acp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -22,15 +21,18 @@ func TestPermissionDispatchOrdering(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		active := beginACPTestRun(t, proc, "turn-order")
-		reader, writer := io.Pipe()
+		handle := newFakeHandle(proc.Cwd)
 		t.Cleanup(func() {
-			if err := writer.Close(); err != nil {
+			if err := handle.finish(); err != nil {
+				t.Error(err)
+			}
+			if err := handle.stdoutReader.Close(); err != nil {
 				t.Error(err)
 			}
 		})
-		entered := make(chan struct{})
-		release := make(chan struct{})
-		unblock := sync.OnceFunc(func() { close(release) })
+		// Hold a real config notification so the following prose stays queued in the SDK.
+		proc.capsMu.Lock()
+		unblock := sync.OnceFunc(proc.capsMu.Unlock)
 		t.Cleanup(unblock)
 		permission := make(chan struct{}, 1)
 		proc.permissionEventHandler = func(event AgentEvent, _ bool) {
@@ -38,40 +40,19 @@ func TestPermissionDispatchOrdering(t *testing.T) {
 				permission <- struct{}{}
 			}
 		}
-		proc.conn = acpsdk.NewConnectionWithOptions(
-			func(ctx context.Context, method string, params json.RawMessage) (any, *acpsdk.RequestError) {
-				if method == acpsdk.ClientMethodSessionUpdate &&
-					strings.Contains(string(params), "Streaming response") {
-					close(entered)
-					select {
-					case <-release:
-					case <-ctx.Done():
-						return nil, nil
-					}
-				}
-				return proc.handleInbound(ctx, method, params)
-			},
-			io.Discard,
-			reader,
-			acpsdk.ConnectionOptions{
-				NotificationQueueOverflow:          acpsdk.NotificationQueueOverflowBlock,
-				WaitForNotificationsBeforeRequests: true,
-			},
-		)
+		New().configureAgentConnection(proc, handle, nil)
 		write := func(message string) {
 			t.Helper()
-			if _, err := io.WriteString(writer, message+"\n"); err != nil {
+			if _, err := io.WriteString(handle.stdoutWriter, message+"\n"); err != nil {
 				t.Fatal(err)
 			}
 		}
 		write(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"config_option_update","configOptions":[]}}}`,
+		)
+		write(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
 		)
-		select {
-		case <-entered:
-		case <-t.Context().Done():
-			t.Fatal("notification handler did not start")
-		}
 		write(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
 		)

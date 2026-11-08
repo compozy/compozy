@@ -169,8 +169,6 @@ github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUo
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/compozy/acp-go-sdk v0.13.6-0.20261008041747-ebd00ee4ba87 h1:P14jTFTiweppxOTvHmmwa4nAHXGnNFOWjhERBIyxtJk=
-github.com/compozy/acp-go-sdk v0.13.6-0.20261008041747-ebd00ee4ba87/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
 github.com/compozy/acp-go-sdk v0.13.6-0.20261108200626-c44ddfb2d7a2 h1:IZJt9F4knKsd18bHzgYPIl7bCd9mx2nMpZhBxeVkXsE=
 github.com/compozy/acp-go-sdk v0.13.6-0.20261108200626-c44ddfb2d7a2/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
 github.com/compozy/compozy-web-assets v0.0.617 h1:bS6E+lcm0ZrQDChHrw5N+TvF6IAJxCWtkiKEmdFMf0Q=
