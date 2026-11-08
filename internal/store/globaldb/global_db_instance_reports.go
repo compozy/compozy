@@ -173,9 +173,6 @@ func (r *InstanceReportRepo) UnpublishedReports(
 		if err != nil {
 			return nil, err
 		}
-		if err := r.ProjectPicks(ctx, &report, false, 20, 10); err != nil {
-			return nil, err
-		}
 		if occurrence, ok := strings.CutPrefix(report.SourceKey, "occ:"); ok {
 			summary, err := r.readQueries.CheckInToolCallSummary(ctx, occurrence)
 			if err != nil {

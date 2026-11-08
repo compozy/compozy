@@ -160,6 +160,12 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
+	if info != nil && resolvedScope.AgentName != "" &&
+		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
+		if err := r.applyAgentMCPReadAuthority(ctx, &inputs, info, resolvedWorkspace, cfg); err != nil {
+			return inputs, err
+		}
+	}
 	applySessionPermissionLevel(&inputs, info)
 	if info != nil && info.Type == session.SessionTypeTriage {
 		if err := r.resolveCheckInPolicy(ctx, &inputs, info, resolvedScope, resolvedWorkspace, cfg); err != nil {

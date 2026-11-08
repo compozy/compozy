@@ -103,6 +103,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 ) authoredAgentTarget {
 	for _, agent := range resolved.Agents {
 		if agent.Name == agentName {
+			t.readOnlyTools = heartbeat.AuthorityOverrides(agent.MCPServers)
 			t.agentLayer = agent.SourceLayer
 			break
 		}
@@ -121,6 +122,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 	if sourcePath := strings.TrimSpace(artifacts.Agent.SourcePath); sourcePath != "" {
 		t.agentPath = sourcePath
 	}
+	t.readOnlyTools = heartbeat.AuthorityOverrides(artifacts.Agent.MCPServers)
 	t.agentLayer = artifacts.Agent.SourceLayer
 	t.packageOwned = artifacts.PackageOwned
 	t.soulSourcePath = strings.TrimSpace(artifacts.SoulSourcePath)

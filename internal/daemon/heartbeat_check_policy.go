@@ -66,6 +66,7 @@ func resolveInstanceCheckPolicy(
 	if err != nil {
 		return err
 	}
+	target.ReadOnlyTools = heartbeat.AuthorityOverrides(agent.MCPServers)
 	target.DefinitionDir = filepath.Dir(agent.SourcePath)
 	target.RootDir = workspace.RootDir
 	if resolver, ok := definitions.agents.(interface {

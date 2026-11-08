@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// GatewayIngressBindRequest is a daemon API value.
+type GatewayIngressBindRequest struct {
+	SubjectKind string `json:"subject_kind"`
+	SubjectID   string `json:"subject_id"`
+	Confirmed   bool   `json:"confirmed"`
+}
+
 // GatewayIngressBindingResponse is a daemon API value.
 type GatewayIngressBindingResponse struct {
 	Binding GatewayIngressPayload `json:"binding"`
@@ -366,10 +373,11 @@ type HeartbeatActorPayload struct {
 
 // HeartbeatAuthorityPayload is a daemon API value.
 type HeartbeatAuthorityPayload struct {
-	Actions  []ActionDecl   `json:"actions"`
-	Digest   string         `json:"digest"`
-	Status   string         `json:"status"`
-	CheckIns CheckInsPolicy `json:"check_ins"`
+	ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
+	Actions       []ActionDecl        `json:"actions"`
+	Digest        string              `json:"digest"`
+	Status        string              `json:"status"`
+	CheckIns      CheckInsPolicy      `json:"check_ins"`
 }
 
 // HeartbeatConfigProvenancePayload is a daemon API value.

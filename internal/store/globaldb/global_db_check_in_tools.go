@@ -255,3 +255,11 @@ func (r *InstanceRepo) CheckInSessionBinding(ctx context.Context, id string) (st
 	}
 	return row.InstanceID, row.OccurrenceID, err
 }
+
+func (r *InstanceRepo) AuthorityNoticeSent(ctx context.Context, profile, dir, digest string) (bool, error) {
+	found, err := r.readQueries.AuthorityNoticeSent(
+		ctx,
+		sqlcgen.AuthorityNoticeSentParams{ProfileID: profile, DefinitionDir: dir, NotifiedSha256: digest},
+	)
+	return found > 0, err
+}

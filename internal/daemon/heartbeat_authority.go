@@ -15,7 +15,7 @@ import (
 func (e *instanceCheckEnvironment) notifyCheckInAuthority(ctx context.Context, target *heartbeat.CheckTarget) error {
 	digest, err := heartbeat.AuthorityDigest(
 		target.Policy.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
+		heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions), target.ReadOnlyTools,
 	)
 	if err != nil || digest == "" || target.Instance.MainSessionID == "" {
 		return err
@@ -28,8 +28,8 @@ func (e *instanceCheckEnvironment) notifyCheckInAuthority(ctx context.Context, t
 	if err != nil || approved == digest {
 		return err
 	}
-	first, err := e.instances.MarkAuthorityNotice(ctx, target.Instance.ProfileID, dir, digest)
-	if err != nil || !first {
+	sent, err := e.instances.AuthorityNoticeSent(ctx, target.Instance.ProfileID, dir, digest)
+	if err != nil || sent {
 		return err
 	}
 	_, err = e.sessions.PublishOperatorNotification(
@@ -43,6 +43,10 @@ func (e *instanceCheckEnvironment) notifyCheckInAuthority(ctx context.Context, t
 			Body:        "Review the check-in authority block for " + target.Instance.AgentName + ".",
 		},
 	)
+	if err != nil {
+		return err
+	}
+	_, err = e.instances.MarkAuthorityNotice(ctx, target.Instance.ProfileID, dir, digest)
 	return err
 }
 
@@ -87,7 +91,7 @@ func projectInstanceAuthority(
 	}
 	digest, err := heartbeat.AuthorityDigest(
 		policy.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(policy.Frontmatter.Actions),
+		heartbeat.AuthorityActions(policy.Frontmatter.Actions), heartbeat.AuthorityOverrides(agent.MCPServers),
 	)
 	if err != nil || digest == "" {
 		return

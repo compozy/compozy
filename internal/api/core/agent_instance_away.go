@@ -189,11 +189,14 @@ func (api *AgentInstanceAPI) CheckIns(
 			response.CheckIns,
 			contract.AgentInstanceCheckInPayload{
 				ID:           row.ID,
-				OccurrenceID: row.OccurrenceID, ToolsStatus: row.ToolsStatus, ToolCalls: row.ToolCalls,
-				Result:    row.Result,
-				Reason:    row.Reason,
-				Detail:    row.Detail,
-				CreatedAt: row.CreatedAt,
+				OccurrenceID: row.OccurrenceID,
+				ToolsStatus:  row.ToolsStatus,
+				ToolCalls:    row.ToolCalls,
+				Proposals:    row.Proposals,
+				Result:       row.Result,
+				Reason:       row.Reason,
+				Detail:       row.Detail,
+				CreatedAt:    row.CreatedAt,
 			},
 		)
 	}

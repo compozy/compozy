@@ -226,7 +226,7 @@ through; read the result with `agent instance check-ins issue-watch --occurrence
 9. **Activity report (US-009).** With the approved write from step 4, make the check-in call
    `add_comment` and answer `NOTHING_TO_REPORT`. It publishes kind `activity` ("The check-in
    made 1 change"), the occurrence is not counted as quiet, and the notification reads "Your
-   agent made N changes" ("Your agent may have changed something" when only `maybe`). Repeat while pausing the instance mid-turn: the outcome
+   agent made 1 change" (or "Your agent made N changes" for multiple completed writes) ("Your agent may have changed something" when only `maybe`). Repeat while pausing the instance mid-turn: the outcome
    stays `cancelled`, the activity report still publishes, and the source item is seen again by
    the next check-in. A write left `running` at the end shows `outcome: unknown`,
    `effect: maybe` ("May have changed").
@@ -309,3 +309,13 @@ survive, including punctuation-only OAuth codes; the diagnostic stays fixed in s
 Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
 `internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns
 source dispatch and report persistence. Live-provider re-walk is separate from these checks.
+
+CLI evidence for this journey: `instance reports` text prints each proposal's pick
+state and `auto_accept_status`, followed by total tools, completed/uncertain writes
+and denials. `instance check-ins` prints WHEN, OUTCOME, TOOLS and PROPOSALS; the last
+column reads, for example, `1 auto-accepted, 1 waiting`. Re-read a skipped report
+both after draining its queue and after 24 hours: the original reason must remain.
+An unchanged approved authority digest saved through CLI asks for no new approval.
+A notification publication failure must not suppress the check or mark its notice
+as sent. Focused F1 backend evidence is in the slice report; integrated public
+journey evidence remains owned by the conductor.

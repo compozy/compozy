@@ -155,6 +155,7 @@ func reviewHeartbeatWriteAuthority(
 	cmd *cobra.Command,
 	deps commandDeps,
 	body string,
+	agent string, query AgentQuery,
 	approve, yes bool,
 ) (string, error) {
 	// The server validates configured caps; local parsing only prepares the review block.
@@ -169,12 +170,27 @@ func reviewHeartbeatWriteAuthority(
 	if err != nil {
 		return "", nil
 	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return "", err
+	}
+	authorityClient, ok := client.(heartbeatAuthorityClient)
+	if !ok {
+		return "", errors.New("check-in authority client unavailable")
+	}
+	current, err := authorityClient.HeartbeatAuthority(cmd.Context(), agent, query)
+	if err != nil {
+		return "", err
+	}
 	hash, err := heartbeat.AuthorityDigest(
 		parsed.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(parsed.Frontmatter.Actions),
+		heartbeat.AuthorityActions(parsed.Frontmatter.Actions), current.ReadOnlyTools,
 	)
 	if err != nil || hash == "" || !approve && yes {
 		return "", err
+	}
+	if hash == current.Digest && current.Status == "approved" {
+		return "", nil
 	}
 	if agentIdentityEnvironmentPresent(deps) {
 		if approve {
@@ -188,10 +204,11 @@ func reviewHeartbeatWriteAuthority(
 	confirmed, err := confirmHeartbeatAuthority(
 		cmd,
 		contract.HeartbeatAuthorityPayload{
-			Digest:   hash,
-			Status:   "unapproved",
-			CheckIns: parsed.Frontmatter.CheckIns,
-			Actions:  parsed.Frontmatter.Actions,
+			ReadOnlyTools: current.ReadOnlyTools,
+			Digest:        hash,
+			Status:        "unapproved",
+			CheckIns:      parsed.Frontmatter.CheckIns,
+			Actions:       parsed.Frontmatter.Actions,
 		},
 		yes && approve,
 	)

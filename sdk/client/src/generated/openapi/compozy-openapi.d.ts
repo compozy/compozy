@@ -8263,6 +8263,7 @@ export interface components {
       detail?: string;
       id: string;
       occurrence_id: string;
+      proposals: components["schemas"]["CheckInProposalSummary"];
       reason: string;
       result: string;
       tool_calls: components["schemas"]["CheckInToolCall"][];
@@ -8359,7 +8360,8 @@ export interface components {
     };
     AgentInstanceProposal: {
       action?: components["schemas"]["AgentInstanceProposalAction"] | null;
-      auto_accept_status: string;
+      /** @enum {string} */
+      auto_accept_status: "picked" | "limit" | "queue_full" | "unapproved" | "no_main" | "none";
       body: string;
       item_keys: string[];
       sources?: components["schemas"]["AgentInstanceProposalSource"][];
@@ -9216,6 +9218,12 @@ export interface components {
       deletions: number;
       files: number;
       partial?: boolean;
+    };
+    CheckInProposalSummary: {
+      /** Format: int64 */
+      auto_accepted: number;
+      /** Format: int64 */
+      waiting: number;
     };
     CheckInToolCall: {
       access: string;
@@ -11540,6 +11548,9 @@ export interface components {
       actions: components["schemas"]["ActionDecl"][];
       check_ins: components["schemas"]["CheckInsPolicy"];
       digest: string;
+      read_only_tools?: {
+        [key: string]: string[];
+      };
       status: string;
     };
     HeartbeatConfigProvenancePayload: {

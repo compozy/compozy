@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -65,7 +66,10 @@ func (e *instanceCheckEnvironment) BeforeCheck(
 	if err != nil || reason != "" {
 		return reason, err
 	}
-	return "", e.notifyCheckInAuthority(ctx, target)
+	if err := e.notifyCheckInAuthority(ctx, target); err != nil {
+		slog.WarnContext(ctx, "heartbeat.authority.notice_failed", "instance_id", target.Instance.ID, "error", err)
+	}
+	return "", nil
 }
 
 func (e *instanceCheckEnvironment) ReconcileSourcePolicy(ctx context.Context, target *heartbeat.CheckTarget) error {

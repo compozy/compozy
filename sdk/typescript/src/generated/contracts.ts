@@ -1969,6 +1969,7 @@ export interface CheckInsPolicy {
 }
 
 export interface HeartbeatAuthorityPayload {
+  read_only_tools?: Record<string, string[]>;
   actions: ActionDecl[];
   digest: string;
   status: string;

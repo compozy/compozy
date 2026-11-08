@@ -4,6 +4,7 @@ package tools
 type ReasonCode string
 
 const (
+	ReasonCheckInNoMainSession ReasonCode = "check_in_no_main_session"
 	// ReasonIDEmpty reports an empty id.
 	ReasonIDEmpty ReasonCode = "id_empty"
 	// ReasonIDEmptySegment reports a missing namespace segment.
@@ -212,6 +213,7 @@ const (
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
+	ReasonCheckInNoMainSession:       {},
 	ReasonCheckInWriteNotAllowed:     {},
 	ReasonCheckInToolNotWritable:     {},
 	ReasonCheckInWriteNeedsApproval:  {},

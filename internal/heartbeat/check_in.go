@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type CheckInsPolicy struct {
@@ -18,29 +20,55 @@ type CheckInsPolicy struct {
 
 type AuthorityAction struct {
 	ID           string `json:"id"`
+	Title        string `json:"title"`
 	Instructions string `json:"instructions"`
 	AutoAccept   bool   `json:"auto_accept"`
 }
 
-func AuthorityDigest(policy CheckInsPolicy, actions []AuthorityAction) (string, error) {
-	approvedActions := make([]AuthorityAction, 0)
-	for _, action := range actions {
-		if action.AutoAccept {
-			approvedActions = append(approvedActions, action)
+func AuthorityOverrides(servers []compozyconfig.MCPServer) map[string][]string {
+	out := map[string][]string{}
+	for _, server := range servers {
+		if len(server.ReadOnlyTools) > 0 {
+			names := slices.Clone(server.ReadOnlyTools)
+			slices.Sort(names)
+			out[server.EffectiveRuntimeName()] = slices.Compact(names)
 		}
 	}
-	if len(policy.AllowWrites) == 0 && policy.MaxToolCalls == nil && policy.MaxWriteCalls == nil &&
-		len(approvedActions) == 0 {
+	return out
+}
+
+func AuthorityDigest(
+	policy CheckInsPolicy,
+	actions []AuthorityAction,
+	overrides ...map[string][]string,
+) (string, error) {
+	selected := make(map[string][]string)
+	for _, block := range overrides {
+		for server, tools := range block {
+			names := slices.Clone(tools)
+			slices.Sort(names)
+			if len(names) > 0 {
+				selected[server] = slices.Compact(names)
+			}
+		}
+	}
+	if len(policy.AllowWrites) == 0 && policy.MaxToolCalls == nil && policy.MaxWriteCalls == nil && len(actions) == 0 &&
+		len(selected) == 0 {
 		return "", nil
 	}
 	policy.AllowWrites = slices.Clone(policy.AllowWrites)
 	slices.Sort(policy.AllowWrites)
 	policy.AllowWrites = slices.Compact(policy.AllowWrites)
-	slices.SortFunc(approvedActions, func(a, b AuthorityAction) int { return strings.Compare(a.ID, b.ID) })
+	actions = slices.Clone(actions)
+	if actions == nil {
+		actions = []AuthorityAction{}
+	}
+	slices.SortFunc(actions, func(a, b AuthorityAction) int { return strings.Compare(a.ID, b.ID) })
 	data, err := json.Marshal(struct {
-		CheckIns CheckInsPolicy    `json:"check_ins"`
-		Actions  []AuthorityAction `json:"actions"`
-	}{policy, approvedActions})
+		CheckIns      CheckInsPolicy      `json:"check_ins"`
+		Actions       []AuthorityAction   `json:"actions"`
+		ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
+	}{policy, actions, selected})
 	if err != nil {
 		return "", err
 	}

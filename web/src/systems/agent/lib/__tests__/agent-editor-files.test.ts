@@ -441,11 +441,15 @@ Prefer short status updates.
 describe("check-in activity", () => {
   const now = new Date(2026, 10, 1, 14, 12);
   const at = (hour: number, minute = 0) => new Date(2026, 10, 1, hour, minute).toISOString();
-  type Row = Omit<AgentInstanceCheckIn, "occurrence_id" | "tool_calls" | "tools_status"> &
+  type Row = Omit<
+    AgentInstanceCheckIn,
+    "occurrence_id" | "tool_calls" | "tools_status" | "proposals"
+  > &
     Partial<AgentInstanceCheckIn>;
   const rows = (items: readonly Row[]): AgentInstanceCheckIn[] =>
     items.map(item => ({
       occurrence_id: `occ-${item.id}`,
+      proposals: { auto_accepted: 0, waiting: 0 },
       tool_calls: [],
       tools_status: "enabled",
       ...item,

@@ -120,7 +120,15 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			approvalHash, err := reviewHeartbeatWriteAuthority(cmd, deps, body, approveAuthority, yes)
+			approvalHash, err := reviewHeartbeatWriteAuthority(
+				cmd,
+				deps,
+				body,
+				args[0],
+				AgentQuery{Workspace: workspace},
+				approveAuthority,
+				yes,
+			)
 			if err != nil {
 				return err
 			}

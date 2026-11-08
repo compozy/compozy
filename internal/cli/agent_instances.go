@@ -242,11 +242,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		if err != nil {
 			return err
 		}
-		var text strings.Builder
-		for _, report := range result.Reports {
-			fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
-		}
-		return writeInstanceOutput(cmd, result, text.String())
+		return writeInstanceOutput(cmd, result, instanceReportsText(result))
 	}
 	return mutateAgentInstance(cmd, client, action, id)
 }
@@ -389,3 +385,35 @@ const (
 	agentInstanceReportsAction  = "reports"
 	agentInstanceCheckInsAction = "check-ins"
 )
+
+func instanceReportsText(result contract.AgentInstanceReportsResponse) string {
+	var text strings.Builder
+	for _, report := range result.Reports {
+		fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
+		for index, proposal := range report.Proposals {
+			state := "waiting"
+			for _, pick := range report.Picks {
+				if pick.ProposalIndex == index {
+					state = pick.State
+				}
+			}
+			fmt.Fprintf(
+				&text,
+				"  %d %s [%s; auto_accept_status=%s]\n",
+				index+1,
+				proposal.Title,
+				state,
+				proposal.AutoAcceptStatus,
+			)
+		}
+		fmt.Fprintf(
+			&text,
+			"  tools: %d (%d writes done, %d writes maybe, %d denied)\n",
+			report.ToolCalls.Total,
+			report.ToolCalls.WritesDone,
+			report.ToolCalls.WritesMaybe,
+			report.ToolCalls.Denied,
+		)
+	}
+	return text.String()
+}

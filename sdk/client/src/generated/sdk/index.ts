@@ -445,6 +445,7 @@ export type {
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponse,
   CheckAgentInstanceResponses,
+  CheckInProposalSummary,
   CheckInsPolicy,
   CheckInToolCall,
   CheckInToolSummary,

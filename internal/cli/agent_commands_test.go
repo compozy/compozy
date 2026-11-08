@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -1362,6 +1363,43 @@ func TestAgentInstanceCommands(t *testing.T) {
 }
 
 func TestAgentReadCommands(t *testing.T) {
+	t.Run("Should render proposal state and tool summaries in CLI text", func(t *testing.T) {
+		t.Parallel()
+		reports := instanceReportsText(
+			contract.AgentInstanceReportsResponse{
+				Reports: []contract.AgentInstanceReportPayload{
+					{
+						ID:    "report",
+						Kind:  "proposal",
+						State: "published",
+						Proposals: []contract.AgentInstanceProposal{
+							{Title: "Review", AutoAcceptStatus: contract.AutoAcceptPicked},
+						},
+						Picks:     []agentinstance.Pick{{ProposalIndex: 0, Actor: "auto_accept", State: "queued"}},
+						ToolCalls: agentinstance.CheckInToolSummary{Total: 3, WritesDone: 1, WritesMaybe: 1, Denied: 1},
+					},
+				},
+			},
+		)
+		for _, want := range []string{"1 Review [queued; auto_accept_status=picked]", "tools: 3 (1 writes done, 1 writes maybe, 1 denied)"} {
+			if !strings.Contains(reports, want) {
+				t.Fatalf("missing %q in %s", want, reports)
+			}
+		}
+		checks := instanceCheckInsText(
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{
+					{Result: "reported", Proposals: agentinstance.CheckInProposalSummary{AutoAccepted: 1, Waiting: 1}},
+				},
+			},
+		)
+		for _, want := range []string{"WHEN\tOUTCOME\tTOOLS\tPROPOSALS", "1 auto-accepted, 1 waiting"} {
+			if !strings.Contains(checks, want) {
+				t.Fatalf("missing %q in %s", want, checks)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name, method, path, body string
 		args                     []string

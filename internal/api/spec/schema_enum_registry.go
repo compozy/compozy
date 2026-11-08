@@ -30,6 +30,14 @@ const (
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[contract.AutoAcceptStatus](): {
+			"picked",
+			"limit",
+			"queue_full",
+			"unapproved",
+			"no_main",
+			"none",
+		},
 		reflect.TypeFor[contract.SessionProcessAttribution](): {"env", "lineage"},
 		reflect.TypeFor[contract.SessionProcessPolicy]():      {"keep", "terminate"},
 		reflect.TypeFor[contract.SessionProcessKind]():        {"background", "tool", "terminal"},

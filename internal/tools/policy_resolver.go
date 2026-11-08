@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"maps"
 	"strings"
 )
 
@@ -55,6 +56,7 @@ func (r *staticPolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyI
 
 func clonePolicyInputs(src PolicyInputs) PolicyInputs {
 	cloned := src
+	cloned.MCPReadOnlyTools = maps.Clone(src.MCPReadOnlyTools)
 	if src.CheckIn != nil {
 		policy := *src.CheckIn
 		policy.AllowWrites = append([]string(nil), src.CheckIn.AllowWrites...)

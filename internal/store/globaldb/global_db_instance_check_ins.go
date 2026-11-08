@@ -33,15 +33,28 @@ func (r *InstanceRepo) ListCheckIns(
 		if err != nil {
 			return nil, err
 		}
+		proposals, err := r.readQueries.CountCheckInProposalStates(
+			ctx,
+			sqlcgen.CountCheckInProposalStatesParams{InstanceID: id, SourceKey: "occ:" + row.OccurrenceID},
+		)
+		if err != nil {
+			return nil, err
+		}
 		result = append(
 			result,
 			agentinstance.CheckIn{
-				ID:           row.ID,
-				OccurrenceID: row.OccurrenceID, ToolsStatus: row.ToolsStatus, ToolCalls: calls,
-				Result:    row.Result,
-				Reason:    row.Reason,
-				Detail:    row.Detail,
-				CreatedAt: at,
+				ID: row.ID,
+				Proposals: agentinstance.CheckInProposalSummary{
+					AutoAccepted: proposals.AutoAccepted,
+					Waiting:      proposals.Waiting,
+				},
+				OccurrenceID: row.OccurrenceID,
+				ToolsStatus:  row.ToolsStatus,
+				ToolCalls:    calls,
+				Result:       row.Result,
+				Reason:       row.Reason,
+				Detail:       row.Detail,
+				CreatedAt:    at,
 			},
 		)
 	}

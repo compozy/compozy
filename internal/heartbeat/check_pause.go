@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 )
@@ -21,7 +22,7 @@ func (s *CheckService) finish(ctx context.Context, req FinishRequest) error {
 	}
 	if len(result.Picks) > 0 && s.afterPicks != nil {
 		if err := s.afterPicks(ctx, result.Picks); err != nil {
-			return err
+			slog.WarnContext(ctx, "agent.instance.pick.effects_failed", "instance_id", req.InstanceID, "error", err)
 		}
 	}
 	if result.Paused == nil || s.afterPause == nil {

@@ -23,15 +23,23 @@ func (e *EffectivePolicyEvaluator) Evaluate(
 }
 
 func (e *EffectivePolicyEvaluator) evaluateIndexed(
-	_ context.Context,
+	ctx context.Context,
 	_ Scope,
 	d Descriptor,
 ) (EffectiveToolDecision, error) {
-	return e.evaluateCall(d, nil)
+	return e.evaluateCallContext(ctx, d, nil)
 }
 
 // evaluateCall keeps all policy restrictions and only refines the approval ceiling.
 func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMessage) (EffectiveToolDecision, error) {
+	return e.evaluateCallContext(context.Background(), d, input)
+}
+
+func (e *EffectivePolicyEvaluator) evaluateCallContext(
+	ctx context.Context,
+	d Descriptor,
+	input json.RawMessage,
+) (EffectiveToolDecision, error) {
 	decision := EffectiveToolDecision{
 		VisibleToOperator:    true,
 		VisibleToSession:     true,
@@ -69,7 +77,7 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 		e.applyPermissionCeiling(d, &decision)
 	}
 	if e.inputs.CheckIn != nil {
-		if reason := e.inputs.CheckIn.denial(d, input); reason != "" {
+		if reason := e.inputs.CheckIn.denial(ctx, d, input); reason != "" {
 			denyDecision(&decision, reason)
 		}
 	}

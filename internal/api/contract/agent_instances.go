@@ -101,7 +101,7 @@ type AgentInstanceReportsResponse struct {
 
 type AgentInstanceProposal struct {
 	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
-	AutoAcceptStatus string                        `json:"auto_accept_status"`
+	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
 	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
 	Title            string                        `json:"title"`
 	Body             string                        `json:"body"`
@@ -145,14 +145,15 @@ type AgentInstanceSeenResponse struct {
 }
 
 type AgentInstanceCheckInPayload struct {
-	OccurrenceID string                          `json:"occurrence_id"`
-	ToolsStatus  string                          `json:"tools_status"`
-	ToolCalls    []agentinstance.CheckInToolCall `json:"tool_calls"`
-	ID           string                          `json:"id"`
-	Result       string                          `json:"result"`
-	Reason       string                          `json:"reason"`
-	Detail       string                          `json:"detail,omitempty"`
-	CreatedAt    time.Time                       `json:"created_at"`
+	Proposals    agentinstance.CheckInProposalSummary `json:"proposals"`
+	OccurrenceID string                               `json:"occurrence_id"`
+	ToolsStatus  string                               `json:"tools_status"`
+	ToolCalls    []agentinstance.CheckInToolCall      `json:"tool_calls"`
+	ID           string                               `json:"id"`
+	Result       string                               `json:"result"`
+	Reason       string                               `json:"reason"`
+	Detail       string                               `json:"detail,omitempty"`
+	CreatedAt    time.Time                            `json:"created_at"`
 }
 
 type AgentInstanceCheckInsResponse struct {
@@ -197,3 +198,14 @@ type AgentInstanceProposalAction struct {
 	Title      string `json:"title"`
 	AutoAccept bool   `json:"auto_accept"`
 }
+
+type AutoAcceptStatus string
+
+const (
+	AutoAcceptPicked     AutoAcceptStatus = "picked"
+	AutoAcceptLimit      AutoAcceptStatus = "limit"
+	AutoAcceptQueueFull  AutoAcceptStatus = "queue_full"
+	AutoAcceptUnapproved AutoAcceptStatus = "unapproved"
+	AutoAcceptNoMain     AutoAcceptStatus = "no_main"
+	AutoAcceptNone       AutoAcceptStatus = "none"
+)

@@ -22,18 +22,26 @@ func AccessOf(d Descriptor) Access {
 }
 
 type CheckInPolicy struct {
-	Disabled       bool
-	OccurrenceID   string
-	InstanceID     string
-	AllowWrites    []string
-	MaxToolCalls   int
-	MaxWriteCalls  int
-	Ceiling        func(Descriptor, json.RawMessage) bool
-	RunsUnattended func(context.Context, Descriptor, json.RawMessage) bool
+	AuthorityApproved bool
+	NoMainSession     bool
+	Disabled          bool
+	OccurrenceID      string
+	InstanceID        string
+	AllowWrites       []string
+	MaxToolCalls      int
+	MaxWriteCalls     int
+	Ceiling           func(Descriptor, json.RawMessage) bool
+	RunsUnattended    func(context.Context, Descriptor, json.RawMessage) bool
 }
 
 func IsCheckInWritable(id ToolID) bool { return id == ToolIDNotify }
-func (p *CheckInPolicy) denial(d Descriptor, input json.RawMessage) ReasonCode {
+func (p *CheckInPolicy) denial(ctx context.Context, d Descriptor, input json.RawMessage) ReasonCode {
+	if p.NoMainSession {
+		return ReasonCheckInNoMainSession
+	}
+	if d.ID == ToolIDClarify || d.RequiresInteraction {
+		return ReasonCheckInToolNotWritable
+	}
 	if p.Disabled &&
 		(AccessOf(d) != AccessRead || d.Source.Kind != SourceBuiltin || strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
 		return ReasonPolicyDenied
@@ -43,9 +51,6 @@ func (p *CheckInPolicy) denial(d Descriptor, input json.RawMessage) ReasonCode {
 	}
 	if AccessOf(d) == AccessRead {
 		return ""
-	}
-	if p.RunsUnattended == nil {
-		return ReasonCheckInWriteNeedsApproval
 	}
 	if d.Backend.Kind != BackendMCP && !IsCheckInWritable(d.ID) {
 		return ReasonCheckInToolNotWritable
@@ -58,7 +63,7 @@ func (p *CheckInPolicy) denial(d Descriptor, input json.RawMessage) ReasonCode {
 	if !matched {
 		return ReasonCheckInWriteNotAllowed
 	}
-	if p.RunsUnattended == nil || !p.RunsUnattended(context.Background(), d, input) {
+	if p.RunsUnattended == nil || !p.RunsUnattended(ctx, d, input) {
 		return ReasonCheckInWriteNeedsApproval
 	}
 	return ""

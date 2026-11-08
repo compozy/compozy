@@ -449,7 +449,7 @@ gateway. The current main session's permissions and grants bound every call.
 Only `compozy__notify` is an eligible native write. Other native mutations remain
 proposals for the main session. MCP writes require a matching selector and must run
 without an approval under the main session's permissions. `compozy__clarify` and
-other interaction tools are always denied. With no main session, every check-in
+other interaction tools are always denied `check_in_tool_not_writable`. With no main session, every check-in
 call is denied `check_in_no_main_session`.
 
 The operator approves the exact block digest with `agent heartbeat authority

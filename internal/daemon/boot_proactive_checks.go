@@ -83,6 +83,25 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		if err != nil {
 			return nil, err
 		}
+		hash, err := heartbeat.AuthorityDigest(
+			target.Policy.Frontmatter.CheckIns,
+			heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
+			target.ReadOnlyTools,
+		)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := filepath.EvalSymlinks(target.DefinitionDir)
+		if err != nil {
+			return nil, err
+		}
+		approved, err := provider.Instances().ApprovedAuthority(ctx, target.Instance.ProfileID, dir)
+		if err != nil {
+			return nil, err
+		}
+		if hash == "" || approved != hash {
+			return nil, nil
+		}
 		actions := make([]agentinstance.ActionSnapshot, 0, len(target.Policy.Frontmatter.Actions))
 		for _, a := range target.Policy.Frontmatter.Actions {
 			actions = append(
@@ -101,29 +120,14 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		target, err := environment.ResolveCheck(ctx, id)
 		if err != nil || target.DefinitionDir == "" {
 			return provider.InstanceReports().
-				ProjectPicks(ctx, report, false, cfg.AutoAcceptPerDay, state.cfg.Session.BusyInput.QueueCap)
-		}
-		hash, err := heartbeat.AuthorityDigest(
-			target.Policy.Frontmatter.CheckIns,
-			heartbeat.AuthorityActions(target.Policy.Frontmatter.Actions),
-		)
-		if err != nil {
-			return err
-		}
-		dir, err := filepath.EvalSymlinks(target.DefinitionDir)
-		if err != nil {
-			return err
-		}
-		approved, err := provider.Instances().ApprovedAuthority(ctx, target.Instance.ProfileID, dir)
-		if err != nil {
-			return err
+				ProjectPicks(ctx, report)
 		}
 		actions, err := state.agentInstances.PickActions(ctx, id)
 		if err != nil {
 			return err
 		}
 		return provider.InstanceReports().
-			ProjectPicks(ctx, report, hash != "" && approved == hash, cfg.AutoAcceptPerDay, state.cfg.Session.BusyInput.QueueCap, actions...)
+			ProjectPicks(ctx, report, actions...)
 	}
 	service.SetPickHandler(func(ctx context.Context, picks []agentinstance.Pick) error {
 		return state.agentInstances.AfterPicks(ctx, picks[0].InstanceID, picks)

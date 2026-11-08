@@ -123,7 +123,7 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 
 func instanceCheckInsText(result contract.AgentInstanceCheckInsResponse) string {
 	var text strings.Builder
-	fmt.Fprintln(&text, "WHEN\tOUTCOME\tTOOLS")
+	fmt.Fprintln(&text, "WHEN\tOUTCOME\tTOOLS\tPROPOSALS")
 	for _, check := range result.CheckIns {
 		writes, denied := 0, 0
 		for _, call := range check.ToolCalls {
@@ -136,12 +136,12 @@ func instanceCheckInsText(result contract.AgentInstanceCheckInsResponse) string 
 		}
 		fmt.Fprintf(
 			&text,
-			"%s\t%s\t%d (%d writes, %d denied)\n",
+			"%s\t%s\t%d (%d writes, %d denied)\t%d auto-accepted, %d waiting\n",
 			check.CreatedAt.Format(time.RFC3339),
 			check.Result,
 			len(check.ToolCalls),
 			writes,
-			denied,
+			denied, check.Proposals.AutoAccepted, check.Proposals.Waiting,
 		)
 		for _, call := range check.ToolCalls {
 			fmt.Fprintf(&text, "  %d %s %s %s %s\n", call.Seq, call.ToolID, call.Access, call.Outcome, call.DenyReason)

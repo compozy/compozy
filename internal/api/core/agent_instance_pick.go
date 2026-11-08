@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -90,8 +91,16 @@ func (h *BaseHandlers) PickAgentInstanceProposal(c *gin.Context) {
 			instance.ID,
 			[]agentinstance.Pick{pick},
 		); err != nil {
-			h.respondError(c, 500, err)
-			return
+			slog.WarnContext(
+				c.Request.Context(),
+				"agent.instance.pick.effects_failed",
+				"instance_id",
+				instance.ID,
+				"report_id",
+				pick.ReportID,
+				"error",
+				err,
+			)
 		}
 	}
 	c.JSON(200, contract.AgentInstancePickResponse{Pick: pick})

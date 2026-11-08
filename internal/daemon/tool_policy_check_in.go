@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
-	"slices"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -109,7 +108,7 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 	}
 	digest, err := heartbeat.AuthorityDigest(
 		authored.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(authored.Frontmatter.Actions),
+		heartbeat.AuthorityActions(authored.Frontmatter.Actions), heartbeat.AuthorityOverrides(agent.MCPServers),
 	)
 	if err != nil {
 		return err
@@ -123,6 +122,7 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 		return err
 	}
 	if digest != "" && approved == digest {
+		policy.AuthorityApproved = true
 		policy.AllowWrites = authored.Frontmatter.CheckIns.AllowWrites
 		if v := authored.Frontmatter.CheckIns.MaxToolCalls; v != nil && *v < policy.MaxToolCalls {
 			policy.MaxToolCalls = *v
@@ -141,6 +141,7 @@ func (r *nativeToolPolicyResolver) bindMainCheckInCeiling(
 	scope toolspkg.Scope,
 ) error {
 	if mainSessionID == "" {
+		policy.NoMainSession = true
 		return nil
 	}
 	mainScope := scope
@@ -159,17 +160,25 @@ func (r *nativeToolPolicyResolver) bindMainCheckInCeiling(
 	for _, d := range descriptors {
 		ids = append(ids, d.ID)
 	}
-	evaluate := func(d toolspkg.Descriptor, input json.RawMessage, readsOnly bool) bool {
-		selected := mainInputs
-		if selected.SystemPermissionMode == toolspkg.PermissionModeDenyAll {
+	mainEvaluator, err := toolspkg.NewEffectivePolicyEvaluator(mainInputs, catalog, ids)
+	if err != nil {
+		return err
+	}
+	ceilingInputs := mainInputs
+	if ceilingInputs.SystemPermissionMode != toolspkg.PermissionModeDenyAll {
+		ceilingInputs.SystemPermissionMode = toolspkg.PermissionModeApproveAll
+	}
+	ceilingEvaluator, err := toolspkg.NewEffectivePolicyEvaluator(ceilingInputs, catalog, ids)
+	if err != nil {
+		return err
+	}
+	evaluate := func(callCtx context.Context, d toolspkg.Descriptor, input json.RawMessage, readsOnly bool) bool {
+		if callCtx.Err() != nil {
 			return false
 		}
+		evaluator := mainEvaluator
 		if readsOnly && toolspkg.AccessOf(d) == toolspkg.AccessWrite {
-			selected.SystemPermissionMode = toolspkg.PermissionModeApproveAll
-		}
-		evaluator, err := toolspkg.NewEffectivePolicyEvaluator(selected, catalog, append(slices.Clone(ids), d.ID))
-		if err != nil {
-			return false
+			evaluator = ceilingEvaluator
 		}
 		decision, err := evaluator.EvaluateInput(d, input)
 		if err != nil || !decision.Callable {
@@ -185,12 +194,49 @@ func (r *nativeToolPolicyResolver) bindMainCheckInCeiling(
 		if err != nil {
 			return false
 		}
-		grant, found, err := r.approvalGrants.LookupApprovalGrant(ctx, key)
+		grant, found, err := r.approvalGrants.LookupApprovalGrant(callCtx, key)
 		return err == nil && found && grant.Decision == toolspkg.ApprovalGrantAllow
 	}
-	policy.Ceiling = func(d toolspkg.Descriptor, input json.RawMessage) bool { return evaluate(d, input, true) }
-	policy.RunsUnattended = func(_ context.Context, d toolspkg.Descriptor, input json.RawMessage) bool {
-		return evaluate(d, input, false)
+	policy.Ceiling = func(d toolspkg.Descriptor, input json.RawMessage) bool { return evaluate(ctx, d, input, true) }
+	policy.RunsUnattended = func(callCtx context.Context, d toolspkg.Descriptor, input json.RawMessage) bool {
+		return evaluate(callCtx, d, input, false)
+	}
+	return nil
+}
+
+func (r *nativeToolPolicyResolver) applyAgentMCPReadAuthority(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	info *session.Info,
+	workspace *workspacepkg.ResolvedAgentConfig,
+	cfg *compozyconfig.Config,
+) error {
+	agent, err := r.resolveAgent(info.AgentName, workspace)
+	if err != nil {
+		return err
+	}
+	overrides := heartbeat.AuthorityOverrides(agent.MCPServers)
+	if len(overrides) == 0 {
+		return nil
+	}
+	policy := &toolspkg.CheckInPolicy{}
+	repo, ok := r.instanceCallers.(checkInPolicyStore)
+	approved := false
+	if ok {
+		if err := r.applyCheckInAuthority(ctx, policy, info, workspace, cfg, repo); err != nil {
+			return err
+		}
+		approved = policy.AuthorityApproved
+	}
+	inputs.MCPReadOnlyTools = map[string]bool{}
+	for server, names := range overrides {
+		for _, name := range names {
+			id, err := toolspkg.Canonicalize(server, name)
+			if err != nil {
+				return err
+			}
+			inputs.MCPReadOnlyTools[string(id)] = approved
+		}
 	}
 	return nil
 }

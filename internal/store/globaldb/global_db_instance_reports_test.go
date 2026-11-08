@@ -1377,7 +1377,7 @@ func TestCheckInActivityReports(t *testing.T) {
 }
 
 func TestInstanceProposalPicks(t *testing.T) {
-	for _, mode := range []string{"auto", "operator", "unapproved", "limit", "queue_full", "unattended", "cancelled"} {
+	for _, mode := range []string{"auto", "operator", "unapproved", "limit", "queue_full", "no_main", "unattended", "cancelled"} {
 		t.Run("Should enforce pick transaction and lifecycle for "+mode+" [IT-003 IT-004]", func(t *testing.T) {
 			db := openTestGlobalDB(t)
 			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "picks", "sess-picks")
@@ -1404,6 +1404,9 @@ func TestInstanceProposalPicks(t *testing.T) {
 			}
 			actions := []heartbeat.ActionDecl{
 				{ID: "report", Title: "Report", Instructions: "Write a report.", AutoAccept: true},
+			}
+			if mode == "operator" {
+				actions[0].AutoAccept = false
 			}
 			digest, err := heartbeat.AuthorityDigest(heartbeat.CheckInsPolicy{}, heartbeat.AuthorityActions(actions))
 			if err != nil {
@@ -1474,6 +1477,12 @@ func TestInstanceProposalPicks(t *testing.T) {
 			}
 			if mode == "cancelled" {
 				if _, err := repo.Pause(t.Context(), instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "no_main" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=NULL WHERE id=?", instance.ID); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1559,7 +1568,7 @@ func TestInstanceProposalPicks(t *testing.T) {
 				}
 			}
 			if err := db.InstanceReports().
-				ProjectPicks(t.Context(), &proposalReport, mode != "unapproved", limit, cap, actionSnapshots(actions)...); err != nil {
+				ProjectPicks(t.Context(), &proposalReport, actionSnapshots(actions)...); err != nil {
 				t.Fatal(err)
 			}
 			var projection struct {
@@ -1568,9 +1577,37 @@ func TestInstanceProposalPicks(t *testing.T) {
 			if err := json.Unmarshal(proposalReport.Payload, &projection); err != nil {
 				t.Fatal(err)
 			}
-			expectedStatus := map[string]string{"auto": "picked", "limit": "limit", "queue_full": "queue_full", "unapproved": "unapproved"}[mode]
+			expectedStatus := map[string]string{"auto": "picked", "limit": "limit", "queue_full": "queue_full", "unapproved": "unapproved", "no_main": "no_main", "operator": "none"}[mode]
 			if expectedStatus != "" && projection.Proposals[0].AutoAcceptStatus != expectedStatus {
 				t.Fatalf("projection=%+v", projection)
+			}
+			if mode == "queue_full" || mode == "limit" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE session_input_queue SET status='canceled' WHERE session_id=?", main); err != nil {
+					t.Fatal(err)
+				}
+				reader := db.InstanceReports()
+				reader.now = func() time.Time { return now.Add(25 * time.Hour) }
+				reread, err := reader.ListReports(
+					t.Context(),
+					agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, report := range reread {
+					if report.ID == proposalReport.ID {
+						var again struct {
+							Proposals []agentinstance.ProposalPayload `json:"proposals"`
+						}
+						if err := json.Unmarshal(report.Payload, &again); err != nil {
+							t.Fatal(err)
+						}
+						if again.Proposals[0].AutoAcceptStatus != expectedStatus {
+							t.Fatalf("skip lost: %+v", again)
+						}
+					}
+				}
 			}
 			if mode == "operator" {
 				pickReq := agentinstance.PickRequest{
@@ -1587,12 +1624,33 @@ func TestInstanceProposalPicks(t *testing.T) {
 				if _, err := repo.PickProposal(t.Context(), pickReq); !errors.Is(err, agentinstance.ErrAlreadyPicked) {
 					t.Fatalf("repeat=%v", err)
 				}
+				if err := db.InstanceReports().ProjectPicks(t.Context(), &proposalReport); err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(proposalReport.Payload, []byte(`"auto_accept_status":"picked"`)) {
+					t.Fatal("operator pick mislabeled auto")
+				}
 				entry, err := db.GetSessionInputQueueEntry(t.Context(), main, pick.QueueEntryID)
 				if err != nil || entry.OriginClass != "human" {
 					t.Fatalf("entry=%+v err=%v", entry, err)
 				}
 			}
 			if mode == "auto" {
+				metrics, err := repo.Metrics(t.Context(), instance.ProfileID, instance.WorkspaceID)
+				if err != nil || metrics.Picks["auto_accept"] != 1 {
+					t.Fatalf("pick metrics=%+v %v", metrics, err)
+				}
+				checks, err := repo.ListCheckIns(t.Context(), instance.ID, "", 100)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var autoCount int64
+				for _, check := range checks {
+					autoCount += check.Proposals.AutoAccepted
+				}
+				if autoCount != 1 {
+					t.Fatalf("check-in proposals=%+v", checks)
+				}
 				pick := result.Picks[0]
 				entry, err := db.GetSessionInputQueueEntry(t.Context(), main, pick.QueueEntryID)
 				if err != nil || entry.OwnerKind != "synthetic" || entry.OriginClass != "synthetic" ||

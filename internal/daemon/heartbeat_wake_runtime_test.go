@@ -1048,7 +1048,7 @@ func newHeartbeatSourceRuntime(
 			Turns: []acpmock.TurnFixture{
 				{
 					Name:  "source-check",
-					Match: acpmock.TurnMatch{RawUserTextContains: "Perform a read-only proactive check."},
+					Match: acpmock.TurnMatch{RawUserTextContains: "Perform a proactive check."},
 					Steps: []acpmock.Step{
 						{
 							Kind: acpmock.StepKindAssistant,
@@ -2273,7 +2273,7 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 		}
 		promptCtx, cancelPrompt := context.WithCancel(t.Context())
 		defer cancelPrompt()
-		events, err := h.manager.Prompt(promptCtx, triage.ID, "Perform a read-only proactive check.")
+		events, err := h.manager.Prompt(promptCtx, triage.ID, "Perform a proactive check.")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2738,7 +2738,33 @@ func (f checkInGatewayFixture) Dispatch(
 	})
 }
 func TestCheckInToolAuthorityIntegration(t *testing.T) {
-	for _, mode := range []string{"approved", "narrowed", "no-main"} {
+	t.Run("Should retry an authority notice after publication fails without skipping the check", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target.Policy.Frontmatter.CheckIns.AllowWrites = []string{"compozy__notify"}
+		digest, err := heartbeat.AuthorityDigest(target.Policy.Frontmatter.CheckIns, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := &instanceCheckEnvironment{instanceDigestCollector: instanceDigestCollector{instances: h.db.Instances()}}
+		if err := env.notifyCheckInAuthority(t.Context(), &target); err == nil {
+			t.Fatal("expected publication failure")
+		}
+		sent, err := h.db.Instances().
+			AuthorityNoticeSent(t.Context(), target.Instance.ProfileID, target.DefinitionDir, digest)
+		if err != nil || sent {
+			t.Fatalf("failed notice was marked: %v %v", sent, err)
+		}
+		reason, err := env.BeforeCheck(t.Context(), &target, "timer")
+		if err != nil || reason != "" {
+			t.Fatalf("notice failure skipped check: %s %v", reason, err)
+		}
+	})
+
+	for _, mode := range []string{"approved", "narrowed", "no-main", "semantic-error", "override-unapproved"} {
 		t.Run("Should enforce current main authority and project MCP audit for "+mode+" [IT-006]", func(t *testing.T) {
 			permission := compozyconfig.PermissionModeApproveAll
 			if mode == "narrowed" {
@@ -2759,6 +2785,15 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				AddTool(&sdkmcp.Tool{Name: "unannotated", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 					return &sdkmcp.CallToolResult{}, nil
 				})
+			if mode == "semantic-error" {
+				remoteFixture.Server().
+					AddTool(&sdkmcp.Tool{Name: "echo", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+						return &sdkmcp.CallToolResult{
+							IsError: true,
+							Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "failed"}},
+						}, nil
+					})
+			}
 			remote := remoteFixture.StartHTTP(t)
 			executor, err := mcppkg.NewMCPCallExecutor(
 				mcppkg.ServerResolverFunc(
@@ -2869,6 +2904,9 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if mode == "override-unapproved" {
+				def.MCPServers[0].ReadOnlyTools = []string{"unannotated"}
+			}
 			resolver, err := newNativeToolPolicyResolver(
 				nativeToolPolicyResolverDeps{
 					Config:            &workspace.Config,
@@ -2893,6 +2931,33 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
+			if mode == "override-unapproved" {
+				views, err := registry.DiagnosticProjection(
+					t.Context(),
+					toolspkg.Scope{
+						SessionID:   h.instance.MainSessionID,
+						ProfileID:   h.instance.ProfileID,
+						WorkspaceID: h.instance.WorkspaceID,
+						AgentName:   h.instance.AgentName,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, view := range views {
+					if view.Descriptor.ID == "mcp__fixture__unannotated" {
+						found = true
+						if toolspkg.AccessOf(view.Descriptor) != toolspkg.AccessWrite {
+							t.Fatalf("main override applied without approval: %+v", view)
+						}
+					}
+				}
+				if !found {
+					t.Fatal("main tool missing")
+				}
+			}
 			fixture := checkInGatewayFixture{
 				inner: &session.TriageDispatcher{
 					Manager:      h.manager,
@@ -2911,7 +2976,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 						ctx,
 						scope,
 						toolspkg.CallRequest{ToolID: "mcp__fixture__read", Input: []byte(`{}`)},
-					); err != nil {
+					); (err == nil) != (mode != "no-main") {
 						return fmt.Errorf("fixture read: %w", err)
 					}
 					if _, err := registry.Call(
@@ -2929,7 +2994,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 							Input:  []byte(`{"message":"fixture write"}`),
 						},
 					)
-					if (err == nil) != (mode == "approved") {
+					if (err == nil) != (mode == "approved" || mode == "semantic-error") {
 						return fmt.Errorf("write at %s: %v", mode, err)
 					}
 					return nil
@@ -2958,14 +3023,39 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatalf("checks=%+v err=%v", checksRows, err)
 			}
 			calls := checksRows[0].ToolCalls
-			if calls[0].Outcome != "ok" || calls[0].Access != "read" {
+			metrics, err := h.db.Instances().Metrics(t.Context(), h.instance.ProfileID, h.instance.WorkspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var total int64
+			for _, decisions := range metrics.CheckInToolCalls {
+				for _, count := range decisions {
+					total += count
+				}
+			}
+			if total != 3 {
+				t.Fatalf("tool-call metrics=%+v", metrics.CheckInToolCalls)
+			}
+
+			if mode == "semantic-error" && (calls[2].Outcome != "error" || calls[2].Effect != "maybe") {
+				t.Fatalf("semantic MCP failure=%+v", calls[2])
+			}
+			if mode == "override-unapproved" && calls[2].DenyReason != "check_in_write_not_allowed" {
+				t.Fatalf("unapproved override widened writes: %+v", calls[2])
+			}
+
+			if mode == "no-main" {
+				if calls[0].DenyReason != "check_in_no_main_session" {
+					t.Fatalf("read=%+v", calls[0])
+				}
+			} else if calls[0].Outcome != "ok" || calls[0].Access != "read" {
 				t.Fatalf("read=%+v", calls[0])
 			}
 			if calls[1].Decision != "denied" || calls[1].Access != "write" || calls[1].Effect != "none" {
 				t.Fatalf("unannotated=%+v", calls[1])
 			}
-			if mode != "approved" &&
-				(calls[2].Decision != "denied" || calls[2].DenyReason != "check_in_write_needs_approval") {
+			if mode != "approved" && mode != "semantic-error" && mode != "override-unapproved" &&
+				(calls[2].Decision != "denied" || calls[2].DenyReason != map[bool]string{true: "check_in_no_main_session", false: "check_in_write_needs_approval"}[mode == "no-main"]) {
 				t.Fatalf("denied write=%+v", calls[2])
 			}
 			reports, err := h.db.InstanceReports().
@@ -2980,6 +3070,46 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 // Invariant: committed auto picks use the real session queue, including a released main.
 // Owning layer and canonical suite: daemon heartbeat wake runtime integration.
 func TestAutoPickQueueDelivery(t *testing.T) {
+	t.Run("Should keep durable publication unchanged when pick projections change", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		report, err := h.db.InstanceReports().
+			AppendReport(t.Context(), h.instance.ID, agentinstance.ReportInput{SourceKey: "occ:immutable", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review","body":"Evidence","item_keys":[]}]}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		report.EventSessionID = h.instance.MainSessionID
+		state := "queued"
+		writer := instanceReportEventWriter{
+			sessions: h.manager,
+			project: func(_ context.Context, _ string, report *agentinstance.Report) error {
+				payload, err := json.Marshal(
+					map[string]any{
+						"proposals": []map[string]any{
+							{
+								"title":              "Review",
+								"body":               "Evidence",
+								"item_keys":          []string{},
+								"auto_accept_status": "picked",
+							},
+						},
+						"picks": []map[string]any{{"actor": "auto_accept", "state": state}},
+					},
+				)
+				report.Payload = payload
+				return err
+			},
+		}
+		first, err := writer.Publish(t.Context(), h.instance.MainSessionID, report)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state = "delivered"
+		second, err := writer.Publish(t.Context(), h.instance.MainSessionID, report)
+		if err != nil || first != second {
+			t.Fatalf("replay changed: first=%d second=%d err=%v", first, second, err)
+		}
+	})
+
 	for _, released := range []bool{false, true} {
 		t.Run(
 			fmt.Sprintf("Should deliver one auto pick to released=%v main [IT-007 IT-010]", released),

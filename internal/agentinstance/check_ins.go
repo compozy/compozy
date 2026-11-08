@@ -5,7 +5,12 @@ import (
 	"time"
 )
 
+type CheckInProposalSummary struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
 type CheckIn struct {
+	Proposals    CheckInProposalSummary
 	OccurrenceID string
 	ToolsStatus  string
 	ToolCalls    []CheckInToolCall

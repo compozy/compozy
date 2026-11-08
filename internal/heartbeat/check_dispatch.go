@@ -54,7 +54,7 @@ func (s *CheckService) dispatch(
 	now := s.now()
 	authorityDigest, digestErr := AuthorityDigest(
 		target.Policy.Frontmatter.CheckIns,
-		AuthorityActions(target.Policy.Frontmatter.Actions),
+		AuthorityActions(target.Policy.Frontmatter.Actions), target.ReadOnlyTools,
 	)
 	if digestErr != nil {
 		outcome = failedTriage("triage_failed")

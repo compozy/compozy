@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -22,6 +23,7 @@ func (r *RuntimeRegistry) dispatch(
 	scope Scope,
 	req CallRequest,
 ) (result ToolResult, callErr error) {
+	ctx = withPolicyResolutionCache(ctx)
 	inputs, err := r.policyInputsFor(ctx, scope)
 	audit := &checkInDispatch{
 		recorder:   r.checkInRecorder,
@@ -139,7 +141,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	}
 	// Hooks may change dry-run or checks-off into a mutating operation.
 	if target.evaluator != nil {
-		decision, err := target.evaluator.evaluateCall(target.descriptor, patchedReq.Input)
+		decision, err := target.evaluator.evaluateCallContext(ctx, target.descriptor, patchedReq.Input)
 		if err != nil {
 			return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 		}
@@ -169,6 +171,9 @@ func (r *RuntimeRegistry) invokeDispatchTarget(
 		target.audit.invoked = true
 	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)
+	if target.audit != nil {
+		target.audit.semanticError = bytes.Equal(providerResult.Metadata["is_error"], []byte("true"))
+	}
 	if contextError := contextErr(ctx, target.descriptor.ID); contextError != nil {
 		err = contextError
 	}
@@ -304,7 +309,7 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 	effective, isEffective := evaluator.(*EffectivePolicyEvaluator)
 	var decision EffectiveToolDecision
 	if isEffective && effective != nil {
-		decision, err = effective.evaluateCall(entry.descriptor, req.Input)
+		decision, err = effective.evaluateCallContext(ctx, entry.descriptor, req.Input)
 	} else {
 		decision, err = evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 	}

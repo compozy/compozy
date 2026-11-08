@@ -264,6 +264,7 @@ export type AgentInstanceCheckInPayload = {
   detail?: string;
   id: string;
   occurrence_id: string;
+  proposals: CheckInProposalSummary;
   reason: string;
   result: string;
   tool_calls: Array<CheckInToolCall>;
@@ -364,7 +365,7 @@ export type AgentInstancePickResponse = {
 
 export type AgentInstanceProposal = {
   action?: AgentInstanceProposalAction | null;
-  auto_accept_status: string;
+  auto_accept_status: "picked" | "limit" | "queue_full" | "unapproved" | "no_main" | "none";
   body: string;
   item_keys: Array<string>;
   sources?: Array<AgentInstanceProposalSource>;
@@ -1271,6 +1272,11 @@ export type ChangeTotalsPayload = {
   deletions: number;
   files: number;
   partial?: boolean;
+};
+
+export type CheckInProposalSummary = {
+  auto_accepted: number;
+  waiting: number;
 };
 
 export type CheckInToolCall = {
@@ -3565,6 +3571,9 @@ export type HeartbeatAuthorityPayload = {
   actions: Array<ActionDecl>;
   check_ins: CheckInsPolicy;
   digest: string;
+  read_only_tools?: {
+    [key: string]: Array<string>;
+  };
   status: string;
 };
 

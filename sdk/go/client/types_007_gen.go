@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ExtensionPlacementPayload is a daemon API value.
+type ExtensionPlacementPayload struct {
+	Kind         string `json:"kind"`
+	Resource     string `json:"resource"`
+	Profile      string `json:"profile,omitempty"`
+	Dormant      bool   `json:"dormant"`
+	CreateAction string `json:"create_action,omitempty"`
+}
+
 // ExtensionProvenancePayload is a daemon API value.
 type ExtensionProvenancePayload struct {
 	SourceName          string                       `json:"source_name,omitempty"`
@@ -435,11 +444,4 @@ type GatewayDeviceRenameRequest struct {
 // GatewayDevicesResponse is a daemon API value.
 type GatewayDevicesResponse struct {
 	Devices []GatewayDevicePayload `json:"devices"`
-}
-
-// GatewayIngressBindRequest is a daemon API value.
-type GatewayIngressBindRequest struct {
-	SubjectKind string `json:"subject_kind"`
-	SubjectID   string `json:"subject_id"`
-	Confirmed   bool   `json:"confirmed"`
 }

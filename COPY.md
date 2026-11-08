@@ -433,7 +433,7 @@ Use those words only when discussing external systems or historical migration co
 
 Terms: **check-in action**, **auto-accept**, **pick**, **check-in authority** (glossary). The UI calls one check-in "a heartbeat"; reports and notifications may say "check-in".
 
-- Notifications: activity report "Your agent made {N} changes" (only uncertain writes: "Your agent may have changed something"); a report whose every proposal was auto-accepted "Your agent acted on a check-in"; unapproved authority "Check-in changes need your approval", once per digest.
+- Notifications: activity report "Your agent made 1 change" / "Your agent made {N} changes" (only uncertain writes: "Your agent may have changed something"); a report whose every proposal was auto-accepted "Your agent acted on a check-in"; unapproved authority "Check-in changes need your approval", once per digest.
 - Report: tool line "Check-in used {N} tools · {M} changes · {K} blocked", hidden at zero tools; activity report "The check-in made {N} change(s)"; effect `maybe` reads "May have changed".
 - Proposals: chip "Auto-accepted" with the action title and no Pick button; waiting reasons "Daily auto-accept limit reached", "The agent is busy; pick it when ready", "Waiting for your approval of check-in changes", each with Pick.
 - Blocked reasons: "Not allowed in check-ins" (`check_in_write_not_allowed`), "Would need your approval" (`check_in_write_needs_approval`), "Not available in check-ins" (`check_in_tool_not_writable`), "Tool limit reached" (`check_in_tool_budget_exhausted`), "Blocked" for other codes.

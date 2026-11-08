@@ -16,14 +16,15 @@ import (
 )
 
 type InstanceReportEvent struct {
-	WritesDone  int64          `json:"-"`
-	WritesMaybe int64          `json:"-"`
-	Republished bool           `json:"-"`
-	ID          string         `json:"report_id"`
-	InstanceID  string         `json:"instance_id"`
-	Kind        string         `json:"kind"`
-	Payload     jsontext.Value `json:"payload"`
-	CreatedAt   time.Time      `json:"created_at"`
+	NotificationPayload jsontext.Value `json:"-"`
+	WritesDone          int64          `json:"-"`
+	WritesMaybe         int64          `json:"-"`
+	Republished         bool           `json:"-"`
+	ID                  string         `json:"report_id"`
+	InstanceID          string         `json:"instance_id"`
+	Kind                string         `json:"kind"`
+	Payload             jsontext.Value `json:"payload"`
+	CreatedAt           time.Time      `json:"created_at"`
 }
 
 func (m *Manager) PublishInstanceReport(
@@ -95,6 +96,9 @@ func (m *Manager) PublishInstanceReport(
 }
 
 func instanceReportNotification(report InstanceReportEvent) (string, string, error) {
+	if len(report.NotificationPayload) > 0 {
+		report.Payload = report.NotificationPayload
+	}
 	if report.Kind == "proposal" {
 		var payload struct {
 			Proposals []jsontext.Value `json:"proposals"`
@@ -117,7 +121,9 @@ func instanceReportNotification(report InstanceReportEvent) (string, string, err
 	}
 	if report.Kind == "activity" {
 		title := fmt.Sprintf("Your agent made %d changes", report.WritesDone)
-		if report.WritesDone == 0 {
+		if report.WritesDone == 1 {
+			title = "Your agent made 1 change"
+		} else if report.WritesDone == 0 {
 			title = "Your agent may have changed something"
 		}
 		return title, fmt.Sprintf(

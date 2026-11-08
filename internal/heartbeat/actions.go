@@ -53,7 +53,10 @@ func parseActions(value any) ([]ActionDecl, error) {
 func AuthorityActions(actions []ActionDecl) []AuthorityAction {
 	out := make([]AuthorityAction, 0, len(actions))
 	for _, a := range actions {
-		out = append(out, AuthorityAction{ID: a.ID, Instructions: a.Instructions, AutoAccept: a.AutoAccept})
+		out = append(
+			out,
+			AuthorityAction{ID: a.ID, Title: a.Title, Instructions: a.Instructions, AutoAccept: a.AutoAccept},
+		)
 	}
 	return out
 }

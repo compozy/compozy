@@ -1994,6 +1994,78 @@ func TestAgentInstanceSourceStatuses(t *testing.T) {
 }
 
 func TestProposalPickOperatorBoundary(t *testing.T) {
+	t.Run("Should return a committed pick when postcommit effects fail", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.RegisterSession(
+			t.Context(),
+			new(
+				store.SessionInfo{
+					ID:            "pick-main",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "coder",
+					Provider:      "codex",
+					State:         "active",
+					RuntimeStatus: store.SessionRuntimeUnbound,
+				},
+			),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instances SET state='active',main_session_id='pick-main' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().
+			AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "occ:pick-postcommit", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review this","body":"Evidence","item_keys":[]}]}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:      db.Instances(),
+			QueueCap:   10,
+			AfterPicks: func(context.Context, string, []agentinstance.Pick) error { return errors.New("release failed") },
+		}
+		fixture.Engine.POST("/instances/:id/reports/:report_id/pick", fixture.Handlers.PickAgentInstanceProposal)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			"POST",
+			"/instances/"+instance.ID+"/reports/"+report.ID+"/pick",
+			[]byte(`{"proposal":0}`),
+		)
+		var result contract.AgentInstancePickResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != 200 || result.Pick.ReportID != report.ID || result.Pick.QueueEntryID == "" {
+			t.Fatalf("pick=%d %s", response.Code, response.Body)
+		}
+		entry, err := db.GetSessionInputQueueEntry(t.Context(), "pick-main", result.Pick.QueueEntryID)
+		if err != nil || entry.Status != "queued" {
+			t.Fatalf("committed queue=%+v %v", entry, err)
+		}
+	})
+
 	t.Run("Should reject agent credentials before target lookup [IT-009]", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,

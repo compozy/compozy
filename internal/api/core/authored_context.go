@@ -30,6 +30,7 @@ var (
 )
 
 type authoredAgentTarget struct {
+	readOnlyTools       map[string][]string
 	profileID           string
 	profileName         string
 	workspaceID         string

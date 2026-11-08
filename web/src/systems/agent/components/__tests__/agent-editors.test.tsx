@@ -386,6 +386,7 @@ describe("Heartbeat", () => {
         {
           id: "c1",
           occurrence_id: "occ-1",
+          proposals: { auto_accepted: 0, waiting: 0 },
           result: "failed",
           reason: "triage_timeout",
           created_at: now.toISOString(),

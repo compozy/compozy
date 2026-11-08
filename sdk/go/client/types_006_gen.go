@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// DetailBody is a daemon API value.
+type DetailBody struct {
+	IsLoading bool        `json:"is_loading,omitempty"`
+	Markdown  string      `json:"markdown,omitempty"`
+	Metadata  []MetaField `json:"metadata,omitempty"`
+	Actions   []RowAction `json:"actions,omitempty"`
+}
+
+// DevLinkExtensionRequest is a daemon API value.
+type DevLinkExtensionRequest struct {
+	OriginPath           string `json:"origin_path"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
 // Diagnostic is a daemon API value.
 type Diagnostic struct {
 	Code    string `json:"code"`
@@ -426,13 +441,4 @@ type ExtensionPayload struct {
 	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
 	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
 	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
-}
-
-// ExtensionPlacementPayload is a daemon API value.
-type ExtensionPlacementPayload struct {
-	Kind         string `json:"kind"`
-	Resource     string `json:"resource"`
-	Profile      string `json:"profile,omitempty"`
-	Dormant      bool   `json:"dormant"`
-	CreateAction string `json:"create_action,omitempty"`
 }

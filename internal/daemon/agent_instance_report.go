@@ -23,6 +23,7 @@ func (w instanceReportEventWriter) Publish(
 	sessionID string,
 	report agentinstance.Report,
 ) (int64, error) {
+	payload := report.Payload
 	if w.project != nil {
 		if err := w.project(ctx, report.InstanceID, &report); err != nil {
 			return 0, err
@@ -33,12 +34,13 @@ func (w instanceReportEventWriter) Publish(
 		sessionID,
 		session.InstanceReportEvent{
 			WritesDone: report.ToolCalls.WritesDone, WritesMaybe: report.ToolCalls.WritesMaybe,
-			Republished: report.EventSessionID != "",
-			ID:          report.ID,
-			InstanceID:  report.InstanceID,
-			Kind:        report.Kind,
-			Payload:     report.Payload,
-			CreatedAt:   report.CreatedAt,
+			Republished:         report.EventSessionID != "",
+			ID:                  report.ID,
+			InstanceID:          report.InstanceID,
+			Kind:                report.Kind,
+			Payload:             payload,
+			NotificationPayload: report.Payload,
+			CreatedAt:           report.CreatedAt,
 		},
 	)
 }

@@ -4,18 +4,15 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
-	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func (r *InstanceReportRepo) ProjectPicks(
 	ctx context.Context,
 	report *agentinstance.Report,
-	approved bool,
-	limit, cap int, actions ...agentinstance.ActionSnapshot,
+	actions ...agentinstance.ActionSnapshot,
 ) error {
 	rows, err := r.readQueries.ListProposalPicks(ctx, report.ID)
 	if err != nil {
@@ -42,7 +39,7 @@ func (r *InstanceReportRepo) ProjectPicks(
 				PickedAt:      at,
 			},
 		)
-		picked[int(row.ProposalIndex)] = true
+		picked[int(row.ProposalIndex)] = row.Actor == "auto_accept"
 	}
 	var payload map[string]jsontext.Value
 	if err := json.Unmarshal(report.Payload, &payload); err != nil {
@@ -55,20 +52,6 @@ func (r *InstanceReportRepo) ProjectPicks(
 	if report.Kind == "proposal" {
 		var proposals []map[string]jsontext.Value
 		if err := json.Unmarshal(payload["proposals"], &proposals); err != nil {
-			return err
-		}
-		count, err := r.readQueries.CountAutoPicks(
-			ctx,
-			sqlcgen.CountAutoPicksParams{
-				InstanceID: report.InstanceID,
-				PickedAt:   store.FormatTimestamp(r.now().Add(-24 * time.Hour)),
-			},
-		)
-		if err != nil {
-			return err
-		}
-		instance, err := r.readQueries.GetAgentInstance(ctx, report.InstanceID)
-		if err != nil {
 			return err
 		}
 		for i, p := range proposals {
@@ -100,26 +83,13 @@ func (r *InstanceReportRepo) ProjectPicks(
 					return err
 				}
 			}
-			switch {
-			case picked[i]:
-				status = "picked"
-			case action.AutoAccept && !approved:
-				status = "unapproved"
-			case action.AutoAccept && count >= int64(limit):
-				status = "limit"
-			case action.AutoAccept && instance.MainSessionID.Valid:
-				pending, err := countPendingSessionInputs(
-					ctx,
-					r.readDB,
-					instance.MainSessionID.String,
-					store.SessionInputOriginClassSynthetic,
-				)
-				if err != nil {
+			if raw := p["auto_accept_skip"]; len(raw) > 0 {
+				if err := json.Unmarshal(raw, &status); err != nil {
 					return err
 				}
-				if pending >= cap {
-					status = "queue_full"
-				}
+			}
+			if picked[i] {
+				status = "picked"
 			}
 			p["auto_accept_status"], err = json.Marshal(status)
 			if err != nil {

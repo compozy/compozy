@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/heartbeat/source"
@@ -1932,6 +1933,25 @@ func TestCheckInAuthorityPolicy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		for _, mutate := range []func(*AuthorityAction){func(a *AuthorityAction) { a.AutoAccept = false }, func(a *AuthorityAction) { a.Title = "Changed" }, func(a *AuthorityAction) { a.ID = "other" }} {
+			altered := actions[0]
+			mutate(&altered)
+			changed, err := AuthorityDigest(first, []AuthorityAction{altered})
+			if err != nil || changed == d {
+				t.Fatalf("action change not covered: %s %v", changed, err)
+			}
+		}
+		manual, err := AuthorityDigest(
+			CheckInsPolicy{},
+			[]AuthorityAction{{ID: "manual", Title: "Manual", Instructions: "Do it"}},
+		)
+		if err != nil || manual == "" {
+			t.Fatalf("manual authority %s %v", manual, err)
+		}
+		override, err := AuthorityDigest(first, actions, map[string][]string{"fixture": {"write"}})
+		if err != nil || override == d {
+			t.Fatalf("override authority %s %v", override, err)
+		}
 		if c == d || c == a {
 			t.Fatal("auto action instructions missing from authority digest")
 		}
@@ -1939,6 +1959,19 @@ func TestCheckInAuthorityPolicy(t *testing.T) {
 }
 
 func TestCheckInActions(t *testing.T) {
+	t.Run("Should run pause effects even when pick effects fail after commit", func(t *testing.T) {
+		t.Parallel()
+		paused := false
+		service := CheckService{store: finishedCheckStore{}}
+		service.SetPickHandler(
+			func(context.Context, []agentinstance.Pick) error { return errors.New("release failed") },
+		)
+		service.SetPauseHandler(func(context.Context, agentinstance.Instance) error { paused = true; return nil })
+		if err := service.finish(t.Context(), FinishRequest{InstanceID: "instance"}); err != nil || !paused {
+			t.Fatalf("postcommit effects: paused=%v err=%v", paused, err)
+		}
+	})
+
 	t.Run("Should validate action declarations and authority [UT-011]", func(t *testing.T) {
 		cases := []struct{ name, content, code string }{
 			{
@@ -2019,4 +2052,15 @@ func TestCheckInActions(t *testing.T) {
 			}
 		}
 	})
+}
+
+type finishedCheckStore struct{ InstanceWakeStore }
+
+var _ InstanceWakeStore = finishedCheckStore{}
+
+func (finishedCheckStore) Finish(context.Context, FinishRequest) (FinishResult, error) {
+	return FinishResult{
+		Picks:  []agentinstance.Pick{{InstanceID: "instance"}},
+		Paused: &agentinstance.Instance{ID: "instance"},
+	}, nil
 }

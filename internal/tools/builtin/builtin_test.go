@@ -3987,6 +3987,20 @@ func TestCheckInWritableInventory(t *testing.T) {
 		found := false
 		for _, descriptor := range NativeDescriptors() {
 			if toolspkg.AccessOf(descriptor) == toolspkg.AccessRead {
+				if descriptor.RequiresInteraction || descriptor.ID == toolspkg.ToolIDClarify {
+					evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+						toolspkg.PolicyInputs{CheckIn: &toolspkg.CheckInPolicy{}},
+						toolspkg.ToolsetCatalog{},
+						[]toolspkg.ToolID{descriptor.ID},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+					if err != nil || decision.Callable {
+						t.Fatalf("interaction tool allowed: %s %v", descriptor.ID, err)
+					}
+				}
 				continue
 			}
 			expected, known := classified[descriptor.ID]

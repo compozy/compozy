@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// CompleteTaskRunRequest is a daemon API value.
+type CompleteTaskRunRequest struct {
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
+}
+
+// ConcurrencyPolicy is a daemon API value.
+type ConcurrencyPolicy string
+
 // ConfigApplyRecordPayload is a daemon API value.
 type ConfigApplyRecordPayload struct {
 	ID                string                  `json:"id"`
@@ -432,18 +441,3 @@ type DesktopID string
 
 // DesktopTransition is a daemon API value.
 type DesktopTransition string
-
-// DetailBody is a daemon API value.
-type DetailBody struct {
-	IsLoading bool        `json:"is_loading,omitempty"`
-	Markdown  string      `json:"markdown,omitempty"`
-	Metadata  []MetaField `json:"metadata,omitempty"`
-	Actions   []RowAction `json:"actions,omitempty"`
-}
-
-// DevLinkExtensionRequest is a daemon API value.
-type DevLinkExtensionRequest struct {
-	OriginPath           string `json:"origin_path"`
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
-}

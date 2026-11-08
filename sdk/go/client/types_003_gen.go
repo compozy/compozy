@@ -338,6 +338,9 @@ type AuthoredDiagnosticSeverity string
 // AuthoredValidationStatus is a daemon API value.
 type AuthoredValidationStatus string
 
+// AutoAcceptStatus is a daemon API value.
+type AutoAcceptStatus string
+
 // AutomationHealthPayload is a daemon API value.
 type AutomationHealthPayload struct {
 	Enabled          bool                              `json:"enabled"`

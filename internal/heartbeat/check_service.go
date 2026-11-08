@@ -17,6 +17,7 @@ import (
 )
 
 type CheckTarget struct {
+	ReadOnlyTools          map[string][]string
 	DefinitionDir, RootDir string
 	UntrustedScripts       bool
 	Instance               agentinstance.Instance

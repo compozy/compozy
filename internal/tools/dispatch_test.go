@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1953,14 +1954,16 @@ var _ CheckInRecorder = (*checkInRecorderProbe)(nil)
 
 func TestCheckInDispatchAccounting(t *testing.T) {
 	for _, tc := range []struct {
-		name, input  string
-		auditFails   bool
-		hookMode     string
-		cancelAfter  bool
-		backendError error
-		wantError    bool
-		wantCalls    int
+		name, input   string
+		auditFails    bool
+		hookMode      string
+		cancelAfter   bool
+		semanticError bool
+		backendError  error
+		wantError     bool
+		wantCalls     int
 	}{
+		{name: "Should record semantic MCP failure", semanticError: true, input: `{"query":"ok"}`, wantCalls: 1},
 		{name: "Should record successful backend invocation", input: `{"query":"ok"}`, wantCalls: 1},
 		{name: "Should record invalid input before backend invocation", input: `{}`, wantError: true},
 		{name: "Should record backend failure", input: `{"query":"ok"}`, backendError: errors.New("remote error"), wantError: true, wantCalls: 1},
@@ -2001,7 +2004,11 @@ func TestCheckInDispatchAccounting(t *testing.T) {
 						if tc.cancelAfter {
 							cancel()
 						}
-						return ToolResult{}, tc.backendError
+						return ToolResult{
+							Metadata: map[string]json.RawMessage{
+								"is_error": json.RawMessage(strconv.FormatBool(tc.semanticError)),
+							},
+						}, tc.backendError
 					},
 				},
 			)
@@ -2040,7 +2047,7 @@ func TestCheckInDispatchAccounting(t *testing.T) {
 			wantOutcome := "denied"
 			if tc.wantCalls > 0 {
 				wantOutcome = "ok"
-				if tc.backendError != nil {
+				if tc.backendError != nil || tc.semanticError {
 					wantOutcome = "error"
 				}
 				if tc.cancelAfter || errors.Is(tc.backendError, context.Canceled) {

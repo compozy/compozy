@@ -110,10 +110,11 @@ type HeartbeatActorPayload struct {
 }
 
 type HeartbeatAuthorityPayload struct {
-	Actions  []ActionDecl   `json:"actions"`
-	Digest   string         `json:"digest"`
-	Status   string         `json:"status"`
-	CheckIns CheckInsPolicy `json:"check_ins"`
+	ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
+	Actions       []ActionDecl        `json:"actions"`
+	Digest        string              `json:"digest"`
+	Status        string              `json:"status"`
+	CheckIns      CheckInsPolicy      `json:"check_ins"`
 }
 
 type HeartbeatConfigProvenancePayload struct {

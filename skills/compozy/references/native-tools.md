@@ -1216,6 +1216,9 @@ status, `scripts_enabled`, and effective `limits`. It returns the same catalog J
 projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
 (`read` or `write`). Each attempt records decision, outcome, redacted argument
 preview and effect (`none`, `done`, `maybe`); tool results are never stored.
+CLI `instance reports` text prints per-proposal pick state and `auto_accept_status`
+plus the tool summary. `instance check-ins` text has WHEN, OUTCOME, TOOLS and
+PROPOSALS columns, with counts such as `1 auto-accepted, 1 waiting`.
 An otherwise silent check-in with completed or uncertain writes publishes an
 `activity` report. Cancellation retains its outcome and discards pending source state.
 Check-ins never create approval or clarify requests: `compozy__clarify` and other

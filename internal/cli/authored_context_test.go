@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1030,6 +1031,48 @@ func TestHeartbeatSourceCatalogOutput(t *testing.T) {
 }
 
 func TestHeartbeatAuthorityWriteCommand(t *testing.T) {
+	t.Run("Should save unchanged approved authority without prompting", func(t *testing.T) {
+		t.Parallel()
+		body := "---\nversion: 1\ncheck_ins:\n  allow_writes: [compozy__notify]\n---\nCheck issues.\n"
+		path := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		digest, err := heartbeat.AuthorityDigest(
+			heartbeat.CheckInsPolicy{AllowWrites: []string{"compozy__notify"}},
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &stubClient{
+			heartbeatAuthorityFn: func(context.Context, string, AgentQuery) (contract.HeartbeatAuthorityPayload, error) {
+				return contract.HeartbeatAuthorityPayload{Digest: digest, Status: "approved"}, nil
+			},
+			putAgentHeartbeatFn: func(context.Context, string, AgentHeartbeatPutRequest) (AgentHeartbeatMutationRecord, error) {
+				return AgentHeartbeatMutationRecord{}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(string) string { return "" }
+		_, stderr, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"heartbeat",
+			"write",
+			"coder",
+			"--file",
+			path,
+			"--workspace",
+			"checkout-api",
+			"--json",
+		)
+		if err != nil || strings.Contains(stderr, "Approve these") {
+			t.Fatalf("unchanged approval: %s %v", stderr, err)
+		}
+	})
+
 	for _, approve := range []bool{false, true} {
 		name := "Should save without granting authority"
 		if approve {

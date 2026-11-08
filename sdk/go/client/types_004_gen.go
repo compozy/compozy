@@ -176,6 +176,12 @@ type ChangeTotalsPayload struct {
 	Partial   bool `json:"partial,omitzero"`
 }
 
+// CheckInProposalSummary is a daemon API value.
+type CheckInProposalSummary struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
+
 // CheckInToolCall is a daemon API value.
 type CheckInToolCall struct {
 	Seq         int64  `json:"seq"`
@@ -439,12 +445,3 @@ const (
 
 // CommandID is a daemon API value.
 type CommandID string
-
-// CompleteTaskRunRequest is a daemon API value.
-type CompleteTaskRunRequest struct {
-	Result         json.RawMessage `json:"result,omitempty"`
-	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
-}
-
-// ConcurrencyPolicy is a daemon API value.
-type ConcurrencyPolicy string

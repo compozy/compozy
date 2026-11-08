@@ -35,16 +35,17 @@ func (h *BaseHandlers) authorityPayload(
 ) (contract.HeartbeatAuthorityPayload, error) {
 	digest, err := heartbeat.AuthorityDigest(
 		policy.Frontmatter.CheckIns,
-		heartbeat.AuthorityActions(policy.Frontmatter.Actions),
+		heartbeat.AuthorityActions(policy.Frontmatter.Actions), target.readOnlyTools,
 	)
 	if err != nil {
 		return contract.HeartbeatAuthorityPayload{}, err
 	}
 	result := contract.HeartbeatAuthorityPayload{
-		Digest:   digest,
-		Status:   "none",
-		CheckIns: policy.Frontmatter.CheckIns,
-		Actions:  policy.Frontmatter.Actions,
+		ReadOnlyTools: target.readOnlyTools,
+		Digest:        digest,
+		Status:        "none",
+		CheckIns:      policy.Frontmatter.CheckIns,
+		Actions:       policy.Frontmatter.Actions,
 	}
 	if digest == "" {
 		return result, nil
@@ -228,7 +229,7 @@ func (h *BaseHandlers) validateHeartbeatWriteAuthority(
 		}
 		digest, err := heartbeat.AuthorityDigest(
 			checked.Policy.Frontmatter.CheckIns,
-			heartbeat.AuthorityActions(checked.Policy.Frontmatter.Actions),
+			heartbeat.AuthorityActions(checked.Policy.Frontmatter.Actions), target.readOnlyTools,
 		)
 		if err != nil {
 			h.respondError(c, 500, err)

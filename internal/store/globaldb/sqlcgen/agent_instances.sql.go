@@ -93,6 +93,32 @@ func (q *Queries) CountActiveAgentInstances(ctx context.Context, profileID strin
 	return count, err
 }
 
+const countCheckInProposalStates = `-- name: CountCheckInProposalStates :one
+SELECT
+ CAST(COALESCE(SUM(CASE WHEN p.actor = 'auto_accept' THEN 1 ELSE 0 END),0) AS INTEGER) AS auto_accepted,
+ CAST(COALESCE(SUM(CASE WHEN p.report_id IS NULL THEN 1 ELSE 0 END),0) AS INTEGER) AS waiting
+FROM agent_instance_reports r, json_each(r.payload, '$.proposals') proposal
+LEFT JOIN agent_instance_proposal_picks p ON p.report_id = r.id AND p.proposal_index = CAST(proposal.key AS INTEGER)
+WHERE r.instance_id = ?1 AND r.source_key = ?2 AND r.kind = 'proposal'
+`
+
+type CountCheckInProposalStatesParams struct {
+	InstanceID string `json:"instance_id"`
+	SourceKey  string `json:"source_key"`
+}
+
+type CountCheckInProposalStatesRow struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
+
+func (q *Queries) CountCheckInProposalStates(ctx context.Context, arg CountCheckInProposalStatesParams) (CountCheckInProposalStatesRow, error) {
+	row := q.db.QueryRowContext(ctx, countCheckInProposalStates, arg.InstanceID, arg.SourceKey)
+	var i CountCheckInProposalStatesRow
+	err := row.Scan(&i.AutoAccepted, &i.Waiting)
+	return i, err
+}
+
 const countInstanceHeldWakes = `-- name: CountInstanceHeldWakes :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -160,6 +186,46 @@ func (q *Queries) CountInstancePausesByReason(ctx context.Context, arg CountInst
 	return items, nil
 }
 
+const countScopedCheckInCalls = `-- name: CountScopedCheckInCalls :many
+SELECT c.access, c.decision, COUNT(*) AS count FROM agent_instance_check_tool_calls c
+JOIN agent_instances i ON i.id = c.instance_id
+WHERE i.profile_id = ?1 AND i.workspace_id = ?2 GROUP BY c.access, c.decision
+`
+
+type CountScopedCheckInCallsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type CountScopedCheckInCallsRow struct {
+	Access   string `json:"access"`
+	Decision string `json:"decision"`
+	Count    int64  `json:"count"`
+}
+
+func (q *Queries) CountScopedCheckInCalls(ctx context.Context, arg CountScopedCheckInCallsParams) ([]CountScopedCheckInCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countScopedCheckInCalls, arg.ProfileID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountScopedCheckInCallsRow{}
+	for rows.Next() {
+		var i CountScopedCheckInCallsRow
+		if err := rows.Scan(&i.Access, &i.Decision, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countScopedInstanceHeldInputs = `-- name: CountScopedInstanceHeldInputs :one
 WITH RECURSIVE instance_sessions(id, profile_id) AS (
  SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
@@ -191,6 +257,45 @@ func (q *Queries) CountScopedInstanceHeldInputs(ctx context.Context, arg CountSc
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const countScopedInstancePicks = `-- name: CountScopedInstancePicks :many
+SELECT p.actor, COUNT(*) AS count FROM agent_instance_proposal_picks p
+JOIN agent_instances i ON i.id = p.instance_id
+WHERE i.profile_id = ?1 AND i.workspace_id = ?2 GROUP BY p.actor
+`
+
+type CountScopedInstancePicksParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type CountScopedInstancePicksRow struct {
+	Actor string `json:"actor"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) CountScopedInstancePicks(ctx context.Context, arg CountScopedInstancePicksParams) ([]CountScopedInstancePicksRow, error) {
+	rows, err := q.db.QueryContext(ctx, countScopedInstancePicks, arg.ProfileID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountScopedInstancePicksRow{}
+	for rows.Next() {
+		var i CountScopedInstancePicksRow
+		if err := rows.Scan(&i.Actor, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteUnstartedAgentInstance = `-- name: DeleteUnstartedAgentInstance :execrows

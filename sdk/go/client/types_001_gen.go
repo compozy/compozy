@@ -306,14 +306,15 @@ type AgentInstanceCheckDigest struct {
 
 // AgentInstanceCheckInPayload is a daemon API value.
 type AgentInstanceCheckInPayload struct {
-	OccurrenceID string            `json:"occurrence_id"`
-	ToolsStatus  string            `json:"tools_status"`
-	ToolCalls    []CheckInToolCall `json:"tool_calls"`
-	ID           string            `json:"id"`
-	Result       string            `json:"result"`
-	Reason       string            `json:"reason"`
-	Detail       string            `json:"detail,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
+	Proposals    CheckInProposalSummary `json:"proposals"`
+	OccurrenceID string                 `json:"occurrence_id"`
+	ToolsStatus  string                 `json:"tools_status"`
+	ToolCalls    []CheckInToolCall      `json:"tool_calls"`
+	ID           string                 `json:"id"`
+	Result       string                 `json:"result"`
+	Reason       string                 `json:"reason"`
+	Detail       string                 `json:"detail,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
 }
 
 // AgentInstanceCheckInsResponse is a daemon API value.
@@ -420,7 +421,7 @@ type AgentInstancePickResponse struct {
 // AgentInstanceProposal is a daemon API value.
 type AgentInstanceProposal struct {
 	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
-	AutoAcceptStatus string                        `json:"auto_accept_status"`
+	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
 	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
 	Title            string                        `json:"title"`
 	Body             string                        `json:"body"`

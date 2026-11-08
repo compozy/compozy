@@ -383,8 +383,9 @@ type HeartbeatStatusResponse struct {
 type SessionPayloadHealth = SessionHealthPayload
 
 type HeartbeatAuthorityPayload struct {
-	Actions  []heartbeatpkg.ActionDecl   `json:"actions"`
-	Digest   string                      `json:"digest"`
-	Status   string                      `json:"status"`
-	CheckIns heartbeatpkg.CheckInsPolicy `json:"check_ins"`
+	ReadOnlyTools map[string][]string         `json:"read_only_tools,omitempty"`
+	Actions       []heartbeatpkg.ActionDecl   `json:"actions"`
+	Digest        string                      `json:"digest"`
+	Status        string                      `json:"status"`
+	CheckIns      heartbeatpkg.CheckInsPolicy `json:"check_ins"`
 }

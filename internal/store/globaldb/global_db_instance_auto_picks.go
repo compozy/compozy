@@ -75,26 +75,19 @@ func autoPickFinishedReport(
 	if err != nil {
 		return nil, err
 	}
-	if instance.State != "active" || instance.ArchivedAt.Valid || !instance.MainSessionID.Valid ||
-		req.AuthorityDigest == "" {
-		return nil, nil
-	}
-	dir, err := filepath.EvalSymlinks(req.DefinitionDir)
-	if err != nil {
-		return nil, err
-	}
-	approved, err := q.GetHeartbeatAuthorityApproval(
-		ctx,
-		sqlcgen.GetHeartbeatAuthorityApprovalParams{ProfileID: instance.ProfileID, DefinitionDir: dir},
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if approved != req.AuthorityDigest {
-		return nil, nil
+	approvedDigest := ""
+	if req.AuthorityDigest != "" {
+		dir, err := filepath.EvalSymlinks(req.DefinitionDir)
+		if err != nil {
+			return nil, err
+		}
+		approvedDigest, err = q.GetHeartbeatAuthorityApproval(
+			ctx,
+			sqlcgen.GetHeartbeatAuthorityApprovalParams{ProfileID: instance.ProfileID, DefinitionDir: dir},
+		)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 	}
 	report, err := q.GetAgentInstanceReportBySource(
 		ctx,
@@ -117,9 +110,33 @@ func autoPickFinishedReport(
 	if err != nil {
 		return nil, err
 	}
+	var fields map[string]jsontext.Value
+	if err := json.Unmarshal([]byte(report.Payload), &fields); err != nil {
+		return nil, err
+	}
+	var stored []map[string]jsontext.Value
+	if err := json.Unmarshal(fields["proposals"], &stored); err != nil {
+		return nil, err
+	}
 	picks := []agentinstance.Pick{}
 	for index, p := range proposals {
-		if p.Action == nil || !p.Action.AutoAccept || count >= int64(req.AutoAcceptPerDay) {
+		if p.Action == nil || !p.Action.AutoAccept {
+			continue
+		}
+		skip := ""
+		switch {
+		case req.AuthorityDigest == "" || approvedDigest != req.AuthorityDigest:
+			skip = "unapproved"
+		case !instance.MainSessionID.Valid:
+			skip = "no_main"
+		case instance.State != "active" || instance.ArchivedAt.Valid || count >= int64(req.AutoAcceptPerDay):
+			skip = "limit"
+		}
+		if skip != "" {
+			stored[index]["auto_accept_skip"], err = json.Marshal(skip)
+			if err != nil {
+				return nil, err
+			}
 			continue
 		}
 		pick, err := insertInstancePick(
@@ -136,6 +153,7 @@ func autoPickFinishedReport(
 			req.Now,
 		)
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
+			stored[index]["auto_accept_skip"] = jsontext.Value(`"queue_full"`)
 			continue
 		}
 		if err != nil {
@@ -144,5 +162,17 @@ func autoPickFinishedReport(
 		picks = append(picks, pick)
 		count++
 	}
-	return picks, nil
+	fields["proposals"], err = json.Marshal(stored)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(fields)
+	if err != nil {
+		return nil, err
+	}
+	err = q.UpdateInstanceReportPickDecisions(
+		ctx,
+		sqlcgen.UpdateInstanceReportPickDecisionsParams{Payload: string(payload), ID: report.ID},
+	)
+	return picks, err
 }

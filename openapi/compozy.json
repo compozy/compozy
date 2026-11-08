@@ -890,6 +890,9 @@
           "occurrence_id": {
             "type": "string"
           },
+          "proposals": {
+            "$ref": "#/components/schemas/CheckInProposalSummary"
+          },
           "reason": {
             "type": "string"
           },
@@ -910,6 +913,7 @@
           "created_at",
           "id",
           "occurrence_id",
+          "proposals",
           "reason",
           "result",
           "tool_calls",
@@ -1267,6 +1271,14 @@
             ]
           },
           "auto_accept_status": {
+            "enum": [
+              "picked",
+              "limit",
+              "queue_full",
+              "unapproved",
+              "no_main",
+              "none"
+            ],
             "type": "string"
           },
           "body": {
@@ -4471,6 +4483,23 @@
           "additions",
           "deletions",
           "files"
+        ],
+        "type": "object"
+      },
+      "CheckInProposalSummary": {
+        "properties": {
+          "auto_accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waiting": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "auto_accepted",
+          "waiting"
         ],
         "type": "object"
       },
@@ -12734,6 +12763,15 @@
           },
           "digest": {
             "type": "string"
+          },
+          "read_only_tools": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
           },
           "status": {
             "type": "string"

@@ -451,7 +451,11 @@ per digest.
 
 Each tool attempt is audited with its access class, outcome and redacted arguments;
 results are not retained. `instance check-ins <agent> --occurrence <id> -o json`
-lists calls. Reports include call counts. An otherwise quiet check-in that wrote
+lists calls. Without JSON output, `instance check-ins` includes WHEN, OUTCOME,
+TOOLS and PROPOSALS columns; the proposal summary reads, for example,
+`1 auto-accepted, 1 waiting`. `instance reports` text includes each proposal's pick
+state and `auto_accept_status`, plus total tools, completed/uncertain writes and
+denials. An otherwise quiet check-in that wrote
 publishes an activity report, including calls that may have changed something.
 Cancellation still discards pending source state.
 
