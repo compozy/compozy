@@ -144,6 +144,9 @@ func (m *Manager) catchUpDurablePromptDelivery(
 			Limit:         promptDeliveryPageSize,
 			Forward:       true,
 		})
+		if errors.Is(err, store.ErrClosed) {
+			return
+		}
 		if err != nil {
 			m.sessionLogger(session).WarnContext(ctx, "session: query prompt delivery catch-up failed", "error", err)
 		} else {

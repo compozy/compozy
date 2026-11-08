@@ -76,3 +76,5 @@ On a later prompt in the same session, contiguous live events must retain live d
 entering periodic catch-up queries merely because earlier turns have larger session sequences.
 If a catch-up read fails after persistence completes, retain the cursor and retry the read; a
 transient read failure must not be reported as a missing terminal in the durable transcript.
+Stopping the session closes its recorder and must end catch-up immediately, without a recurring
+read-error warning or a stream held open until manager shutdown.
