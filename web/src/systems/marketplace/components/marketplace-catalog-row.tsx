@@ -4,11 +4,7 @@ import { CircleAlert } from "@compozy/ui/icons";
 import { Button } from "@compozy/ui";
 
 import type { InstalledExtensionView } from "@/systems/extensions";
-import {
-  deriveMCPAuthFilter,
-  MCPAuthorizeDialog,
-  useMCPDefinitionAuthorization,
-} from "@/systems/settings";
+import { deriveMCPAuthFilter } from "@/systems/settings";
 
 import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
 import { catalogDetailSearch } from "../lib/marketplace-installed-view";
@@ -124,7 +120,12 @@ function MarketplaceCatalogRow({
             },
             setUpAction:
               state === "setup" && item ? (
-                <MarketplaceSetUpAction detailSearch={detailSearch} entry={entry} item={item} />
+                <MarketplaceSetUpAction
+                  detailSearch={detailSearch}
+                  entry={entry}
+                  item={item}
+                  requestAuthorize={actions.requestAuthorize}
+                />
               ) : null,
           }}
         />
@@ -143,10 +144,12 @@ function MarketplaceSetUpAction({
   entry,
   item,
   detailSearch,
+  requestAuthorize,
 }: {
   entry: MarketplaceCatalogListing;
   item: InstalledExtensionView;
   detailSearch: ReturnType<typeof catalogDetailSearch> & { q?: string; category?: string };
+  requestAuthorize: MarketplaceActionController["requestAuthorize"];
 }) {
   const navigate = useNavigate();
   const needs = installedSetupNeeds(item);
@@ -157,12 +160,11 @@ function MarketplaceSetUpAction({
   // Read in the background, never awaited: Set up is usable from the inventory right away, and a
   // press before the live server answers opens the detail's setup instead of waiting on it.
   const live = useMarketplaceExtensionMCPServer(target, target !== undefined);
-  const authorization = useMCPDefinitionAuthorization();
   const setUp = () => {
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
     if (target && server && filter) {
-      authorization.authorize.requestAuthorize(filter, server);
+      requestAuthorize(filter, server);
       return;
     }
     void navigate({
@@ -171,27 +173,19 @@ function MarketplaceSetUpAction({
       to: "/marketplace/$entryId",
     });
   };
+  // The sign-in dialog belongs to the page's action dialogs, which outlive this row.
   return (
-    <>
-      <Button
-        aria-label={`Set up ${entry.name}`}
-        data-testid={`marketplace-setup-${entry.entry_id}`}
-        onClick={setUp}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
-        Set up
-      </Button>
-      {target ? (
-        <MCPAuthorizeDialog
-          authorize={authorization.authorize}
-          scope={authorization.scope}
-          server={authorization.server}
-        />
-      ) : null}
-    </>
+    <Button
+      aria-label={`Set up ${entry.name}`}
+      data-testid={`marketplace-setup-${entry.entry_id}`}
+      onClick={setUp}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      <CircleAlert aria-hidden="true" className="size-3.5 text-warning" />
+      Set up
+    </Button>
   );
 }
 
