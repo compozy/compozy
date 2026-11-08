@@ -1527,6 +1527,15 @@ func TestSharedSessionStopOperation(t *testing.T) {
 					countEventType(streamed, EventTypeSessionStopped) != 1 {
 					t.Fatalf("persisted failure events lost from sequence stream: %#v", streamed)
 				}
+				for _, event := range streamed {
+					if event.Type != acp.EventTypeError && event.Type != EventTypeSessionStopped {
+						continue
+					}
+					index := slices.IndexFunc(events, func(row store.SessionEvent) bool { return row.ID == event.ID })
+					if index < 0 || event.Sequence <= 0 || events[index].Sequence != event.Sequence {
+						t.Fatalf("streamed terminal event does not match its persisted sequence: %+v", event)
+					}
+				}
 				if _, active := h.manager.Get(accepted.session.ID); active {
 					t.Fatal("settled failed start retained active ownership")
 				}
