@@ -89,7 +89,7 @@ type StartOpts struct {
 	Command           string
 	Cwd               string
 	AdditionalDirs    []string
-	// Env inherits when nil; an explicit empty slice inherits nothing.
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
 	Env                    []string
 	MCPServers             []compozyconfig.MCPServer
 	Permissions            compozyconfig.PermissionMode

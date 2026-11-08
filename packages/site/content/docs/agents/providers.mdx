@@ -256,6 +256,8 @@ An explicitly supplied empty launch environment stays empty instead of restoring
 variables; only an unspecified (`nil`) environment inherits. ACP preparation still adds
 `COMPOZY_BIN` and its binary directory to `PATH` when executable discovery succeeds.
 Missing optional targets are removed without restoring operator credentials.
+On Windows, Go retains its documented `SYSTEMROOT` addition when that required system
+variable is absent; an explicitly supplied value is preserved.
 `COMPOZY_` names are reserved for managed runtime identity.
 
 The configuration CLI accepts a reference for a single binding or JSON for a structured binding:

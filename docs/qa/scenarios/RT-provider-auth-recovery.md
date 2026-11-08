@@ -80,3 +80,5 @@ remain absent in ordinary children. Terminal maps remain overlays on filtered in
 This focused subprocess evidence does not re-walk the OAuth recovery scenario above.
 
 Model-discovery follow-up: `go test ./internal/modelcatalog -run TestLiveDiscoveryEnvironmentInheritance -count=1` verifies explicit empty `BaseEnv` through source construction and filtering, plus direct executor launches, using real children. Only unspecified discovery input inherits the parent sentinel.
+
+Discovery coverage also checks direct nil-environment inheritance and a real ACP inspection with the canonical fixture driver. Windows retains Go's documented critical `SYSTEMROOT` addition; empty-environment isolation does not disable required OS startup variables.
