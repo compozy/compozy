@@ -66,7 +66,6 @@ agent-browser.
 
 ## Known ceilings
 
-- Provider inventories (`GET /api/providers`, `compozy provider list --profile`) report the global
-  layer's `enabled` state. The launch gate, workspace detail and role resolution are profile-aware.
-  This is the same global active-config ceiling as the model catalog routes; a profile-aware
-  inventory is a follow-up.
+- Resolved after QA: provider inventories (`GET /api/providers[/{id}]`, `compozy provider list
+  [--profile]`) now report `enabled` for the selected profile (active global snapshot plus that
+  profile's override), owned by `TestProviderInventoryEnabled` and the `provider list` profile case.

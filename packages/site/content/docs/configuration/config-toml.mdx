@@ -1881,8 +1881,8 @@ recovery is needed (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, o
 ### Turn off a provider
 
 Set `enabled = false` on a provider you don't use. CompozyOS keeps it in inventories (`compozy provider
-list`, `GET /api/providers`, Settings → Providers) with `enabled: false`, and removes it from every
-selection surface: chat and runtime pickers, the model catalog, subagent capabilities and usage views.
+list`, `GET /api/providers`, Settings → Providers) with `enabled: false`, reported for the selected
+profile, and removes it from every selection surface: chat and runtime pickers, the model catalog, subagent capabilities and usage views.
 
 ```toml
 [providers.gemini]

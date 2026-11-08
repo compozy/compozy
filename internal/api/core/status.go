@@ -193,7 +193,7 @@ func aggregateSessionInfos(infos []*session.Info) contract.SessionAggregatePaylo
 }
 
 func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.ProviderStatusPayload, error) {
-	response, err := h.providerListResponse(ctx)
+	response, err := h.providerListResponse(ctx, defaultProfileReadScope)
 	if err != nil {
 		return nil, err
 	}

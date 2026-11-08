@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,8 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -43,15 +46,26 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 		}
 		return resolved.Config, nil
 	}
+	return h.profileProviderConfig(ctx, selection)
+}
+
+// defaultProfileReadScope is the selection of a daemon-level read with no caller profile, matching
+// a request that names no profile.
+var defaultProfileReadScope = resolvedProfileReadScope{
+	Scope:       profilepkg.ReadScope{ProfileID: store.DefaultProfileID},
+	ProfileName: profileDefaultName,
+}
+
+// profileProviderConfig is the active global snapshot plus the selected profile's own
+// providers.<id>.enabled overrides: pending global edits stay isolated (B-013) and every profile,
+// default included, keeps its overrides (BR-2). Reads without one profile see the global layer.
+func (h *BaseHandlers) profileProviderConfig(
+	ctx context.Context,
+	selection resolvedProfileReadScope,
+) (compozyconfig.Config, error) {
 	active, err := h.activeConfig(ctx)
 	if err != nil {
 		return compozyconfig.Config{}, err
 	}
-	// The active global snapshot plus the selected profile's own enabled overrides: pending global
-	// edits stay isolated (B-013) and every profile, default included, keeps its overrides (BR-2).
-	scoped, err := compozyconfig.WithProfileProviderEnabled(&active, h.HomePaths, selection.ProfileName)
-	if err != nil {
-		return compozyconfig.Config{}, err
-	}
-	return scoped, nil
+	return compozyconfig.WithProfileProviderEnabled(&active, h.HomePaths, selection.ProfileName)
 }

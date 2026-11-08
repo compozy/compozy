@@ -24,7 +24,12 @@ var (
 
 // ListProviders returns the canonical provider inventory and declared auth readiness.
 func (h *BaseHandlers) ListProviders(c *gin.Context) {
-	response, err := h.providerListResponse(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	response, err := h.providerListResponse(c.Request.Context(), selection)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
@@ -34,7 +39,12 @@ func (h *BaseHandlers) ListProviders(c *gin.Context) {
 
 // GetProvider returns one canonical provider summary.
 func (h *BaseHandlers) GetProvider(c *gin.Context) {
-	cfg, err := h.activeConfig(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	cfg, err := h.profileProviderConfig(c.Request.Context(), selection)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -250,8 +260,12 @@ func (h *BaseHandlers) respondProviderAuthStatus(
 	})
 }
 
-func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.ProviderListResponse, error) {
-	cfg, err := h.activeConfig(ctx)
+// providerListResponse reports each provider's enabled state for the selected profile (BR-2).
+func (h *BaseHandlers) providerListResponse(
+	ctx context.Context,
+	selection resolvedProfileReadScope,
+) (contract.ProviderListResponse, error) {
+	cfg, err := h.profileProviderConfig(ctx, selection)
 	if err != nil {
 		return contract.ProviderListResponse{}, err
 	}

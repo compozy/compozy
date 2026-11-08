@@ -197,7 +197,8 @@ usage scenarios updated by the spec's QA task.
 - Native tools: `compozy__config_set`/`compozy__config_get` accept the bool path; selection tools
   (`compozy__provider_models_list`, `compozy__subagent_capabilities`) omit disabled providers;
   session create/spawn and loop/goal starts return `provider_disabled`. No tool ID changes.
-- HTTP/UDS (additive): `enabled` on provider inventory and settings payloads; new
+- HTTP/UDS (additive): `enabled` on provider inventory (reported for the selected profile) and
+  settings payloads; new
   `PATCH /api/settings/providers/{name}/enabled`; workspace provider options and model catalog
   routes omit disabled providers. CLI `provider list` gains an `ENABLED` column / `enabled` field;
   `config set` output gains additive `warnings`.

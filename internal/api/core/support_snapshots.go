@@ -28,7 +28,7 @@ func (h *BaseHandlers) DoctorSnapshot(ctx context.Context) (contract.DoctorPaylo
 
 // ProviderListSnapshot returns the same provider inventory payload used by /api/providers.
 func (h *BaseHandlers) ProviderListSnapshot(ctx context.Context) (contract.ProviderListResponse, error) {
-	return h.providerListResponse(ctx)
+	return h.providerListResponse(ctx, defaultProfileReadScope)
 }
 
 // ConfigApplyRecordsSnapshot returns recent config apply records for support bundles.

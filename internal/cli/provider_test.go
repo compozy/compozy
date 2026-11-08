@@ -549,6 +549,41 @@ func TestProviderDaemonCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list providers for the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		var gotProfile string
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{
+				listProvidersFn: func(ctx context.Context) (contract.ProviderListResponse, error) {
+					gotProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
+					return contract.ProviderListResponse{}, nil
+				},
+			}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"--profile",
+			"marketing",
+			"provider",
+			"list",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("provider list error = %v", err)
+		}
+		if gotProfile != "marketing" {
+			t.Fatalf("provider list profile query = %q, want marketing", gotProfile)
+		}
+	})
+
 	t.Run("Should run remote auth status through daemon client", func(t *testing.T) {
 		t.Parallel()
 
