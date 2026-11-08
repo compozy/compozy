@@ -312,7 +312,6 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		clearPromptState(session, "setup-turn")
 		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "setup-turn")
 		if err != nil {
 			t.Fatal(err)
