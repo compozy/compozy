@@ -101,7 +101,7 @@ func (s *ScriptRunner) Poll(ctx context.Context, ref Ref, req Request) (Result, 
 	defer cancel()
 	path := filepath.Join(private, ref.Script)
 	if err := writePrivateScript(lifetime, path, data); err != nil {
-		if lifetime.Err() != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return Result{}, Failure("source_timeout", "script poll canceled or timed out")
 		}
 		return Result{}, err

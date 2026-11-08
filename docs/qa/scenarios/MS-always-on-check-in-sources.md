@@ -59,7 +59,8 @@ Linux Go vforks to finish. It briefly acquires/releases the fork read lock after
 inherited CLOEXEC writers have closed at exec before the source starts. Filesystem I/O never runs
 under that process-wide lock. The wait observes the poll timeout and cancellation, returns
 `source_timeout` when canceled, and leaves unrelated child launches free to proceed.
-The Linux `TestScriptRunner` regressions coordinate the in-flight-fork lock to verify that the
+The Linux `TestScriptRunner` regressions run in isolated test subprocesses and coordinate the
+in-flight-fork lock to verify that the
 copy is written before the wait, cancellation finishes before that lock is released, and the
 completed copy really executes after release. No test sleeps are used.
 Run `CGO_ENABLED=1 go test -race -count=50 -run '^TestScriptRunner$' ./internal/heartbeat/source`

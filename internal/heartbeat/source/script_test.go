@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -44,6 +45,19 @@ func TestScriptRunner(t *testing.T) {
 			t.Parallel()
 			if runtime.GOOS != "linux" {
 				t.Skip("Linux Go child launches use vfork")
+			}
+			if os.Getenv("COMPOZY_TEST_SCRIPT_FORK_LOCK") != t.Name() {
+				cmd := exec.CommandContext(
+					t.Context(),
+					os.Args[0],
+					"-test.run=^"+regexp.QuoteMeta(t.Name())+"$",
+					"-test.count=1",
+				)
+				cmd.Env = append(os.Environ(), "COMPOZY_TEST_SCRIPT_FORK_LOCK="+t.Name())
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("isolated fork-lock test: %v\n%s", err, output)
+				}
+				return
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
