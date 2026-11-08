@@ -2226,8 +2226,11 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		if !accepted.cleanupPending {
 			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
 		}
-		if err := <-result; err == nil {
-			t.Fatal("Goal preflight ignored canceled startup")
+		if _, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-result; !errors.Is(err, ErrSessionNotActive) {
+			t.Fatalf("Goal preflight error = %v, want ErrSessionNotActive", err)
 		}
 		if !isProcessDone(proc.handle) || !signalClosed(accepted.run.done) {
 			t.Fatal("preflight escaped startup cancellation cleanup")

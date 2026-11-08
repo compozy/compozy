@@ -157,8 +157,14 @@ func recordRetainedSessionEvent(
 		if err := recorder.Record(ctx, event); err != nil {
 			return store.SessionEvent{}, err
 		}
-		// Record's acknowledgment owns this append; Query is needed only when resuming it.
-		return event, nil
+		rows, err = recorder.Query(ctx, store.EventQuery{ID: event.ID, Limit: 1})
+		if err != nil {
+			return store.SessionEvent{}, err
+		}
+		if len(rows) == 0 {
+			// Unsequenced recorders retain the mandatory Record acknowledgment contract.
+			return event, nil
+		}
 	}
 	if len(rows) != 1 || rows[0].Type != event.Type || rows[0].TurnID != event.TurnID ||
 		rows[0].Content != event.Content {
@@ -171,7 +177,7 @@ func recordRetainedSessionEvent(
 }
 
 // stopFailedStartProcess releases its captured process only after exit verification.
-func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, error) {
+func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart, yieldToStop bool) (bool, error) {
 	if accepted.proc == nil {
 		return true, nil
 	}
@@ -181,7 +187,7 @@ func (m *Manager) stopFailedStartProcess(accepted *acceptedSessionStart) (bool, 
 		accepted.processStopPending = m.startStopAction(ctx, accepted.proc, m.driver.Stop)
 	}
 	var stopRequested <-chan struct{}
-	if accepted.run != nil && accepted.retainedFailure == nil {
+	if yieldToStop && accepted.run != nil && accepted.retainedFailure == nil {
 		stopRequested = accepted.run.stopRequested
 	}
 	var stopErr error
@@ -208,7 +214,7 @@ func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *accepted
 		if yieldToStop && accepted.retainedFailure == nil && accepted.session.stopWasRequested() {
 			return nil
 		}
-		verified, err := m.stopFailedStartProcess(accepted)
+		verified, err := m.stopFailedStartProcess(accepted, yieldToStop)
 		if verified {
 			return errors.Join(previous, err)
 		}
