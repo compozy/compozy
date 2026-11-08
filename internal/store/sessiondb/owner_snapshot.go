@@ -1,12 +1,14 @@
 package sessiondb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
@@ -61,69 +63,146 @@ func ownerGuardSnapshotWithCopy(
 
 var errOwnerGuardSnapshotChanged = errors.New("store: session database changed during owner snapshot")
 
+// sqliteWALHeaderSize is the WAL header length; a WAL restart rewrites its salts.
+const sqliteWALHeaderSize = 32
+
 func copyOwnerGuardFamily(ctx context.Context, path, snapshot string) error {
-	type copiedFile struct {
-		path string
-		info os.FileInfo
+	copied, err := copyOwnerGuardFamilyFiles(ctx, path, snapshot)
+	if err != nil {
+		return err
 	}
-	files := make([]copiedFile, 0, 2)
-	for _, suffix := range []string{"", "-wal"} {
-		info, err := copyOwnerGuardFile(ctx, path+suffix, snapshot+suffix)
-		if err != nil {
-			if suffix == "-wal" && errors.Is(err, os.ErrNotExist) {
-				return errors.Join(errOwnerGuardSnapshotChanged, err)
-			}
-			return err
-		}
-		files = append(files, copiedFile{path: path + suffix, info: info})
+	return copied.requireCurrent(path)
+}
+
+// ownerGuardFamilyCopy records what a snapshot copied so it can be validated.
+type ownerGuardFamilyCopy struct {
+	main      os.FileInfo
+	wal       os.FileInfo
+	walHeader []byte
+}
+
+func copyOwnerGuardFamilyFiles(ctx context.Context, path, snapshot string) (ownerGuardFamilyCopy, error) {
+	main, _, err := copyOwnerGuardFile(ctx, path, snapshot)
+	if err != nil {
+		return ownerGuardFamilyCopy{}, err
 	}
-	// Writers can append or reset WAL while the family lease excludes checkpoints.
-	for _, file := range files {
-		current, err := os.Stat(file.path)
-		if err != nil {
-			if file.path == path+"-wal" && errors.Is(err, os.ErrNotExist) {
-				return errors.Join(errOwnerGuardSnapshotChanged, err)
-			}
-			return err
+	wal, walHeader, err := copyOwnerGuardFile(ctx, path+"-wal", snapshot+"-wal")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ownerGuardFamilyCopy{}, errors.Join(errOwnerGuardSnapshotChanged, err)
 		}
-		if !os.SameFile(file.info, current) || file.info.Size() != current.Size() ||
-			!file.info.ModTime().Equal(current.ModTime()) ||
-			sessionDBFileChangeToken(file.info) != sessionDBFileChangeToken(current) {
+		return ownerGuardFamilyCopy{}, err
+	}
+	return ownerGuardFamilyCopy{main: main, wal: wal, walHeader: walHeader}, nil
+}
+
+// requireCurrent proves the copy is a consistent family snapshot. The family
+// lease excludes checkpoints and wal_autocheckpoint is off, so only the
+// last-connection close can rewrite the main file during the copy.
+func (c ownerGuardFamilyCopy) requireCurrent(path string) error {
+	current, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(c.main, current) || c.main.Size() != current.Size() ||
+		!c.main.ModTime().Equal(current.ModTime()) ||
+		sessionDBFileChangeToken(c.main) != sessionDBFileChangeToken(current) {
+		return errOwnerGuardSnapshotChanged
+	}
+	return requireOwnerGuardWALPrefix(path+"-wal", c.wal, c.walHeader)
+}
+
+// requireOwnerGuardWALPrefix accepts frames appended by a live writer after
+// the copy started. The copied prefix is still a valid WAL: SQLite recovery
+// stops at the first frame whose cumulative checksum fails or that follows
+// the last commit, so a torn tail or uncommitted frames are ignored. A restart
+// (new header salts), truncation, or replacement invalidates the copy.
+func requireOwnerGuardWALPrefix(path string, copied os.FileInfo, copiedHeader []byte) error {
+	current, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errors.Join(errOwnerGuardSnapshotChanged, err)
+		}
+		return err
+	}
+	if !os.SameFile(copied, current) || current.Size() < copied.Size() {
+		return errOwnerGuardSnapshotChanged
+	}
+	if len(copiedHeader) < sqliteWALHeaderSize {
+		// A partial header cannot identify the WAL generation; require no change.
+		if current.Size() != copied.Size() || !copied.ModTime().Equal(current.ModTime()) {
 			return errOwnerGuardSnapshotChanged
 		}
+		return nil
+	}
+	header, err := readOwnerGuardWALHeader(path, current)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(header, copiedHeader) {
+		return errOwnerGuardSnapshotChanged
 	}
 	return nil
 }
 
-func copyOwnerGuardFile(ctx context.Context, source, target string) (info os.FileInfo, retErr error) {
-	input, err := fileutil.OpenRegularFile(source)
+func readOwnerGuardWALHeader(path string, expected os.FileInfo) (header []byte, retErr error) {
+	file, err := fileutil.OpenRegularFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, errors.Join(errOwnerGuardSnapshotChanged, err)
+		}
+		return nil, err
+	}
+	defer func() { retErr = errors.Join(retErr, file.Close()) }()
+	info, err := file.Stat()
 	if err != nil {
 		return nil, err
+	}
+	if !os.SameFile(expected, info) {
+		return nil, errOwnerGuardSnapshotChanged
+	}
+	header = make([]byte, sqliteWALHeaderSize)
+	if _, err := io.ReadFull(file, header); err != nil {
+		return nil, errors.Join(errOwnerGuardSnapshotChanged, err)
+	}
+	return header, nil
+}
+
+func copyOwnerGuardFile(
+	ctx context.Context,
+	source, target string,
+) (info os.FileInfo, header []byte, retErr error) {
+	input, err := fileutil.OpenRegularFile(source)
+	if err != nil {
+		return nil, nil, err
 	}
 	defer func() { retErr = errors.Join(retErr, input.Close()) }()
 	info, err = input.Stat()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() { retErr = errors.Join(retErr, output.Close()) }()
 	buffer := make([]byte, 128*1024)
 	remaining := info.Size()
 	for remaining > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		n, err := io.ReadFull(input, buffer[:min(int64(len(buffer)), remaining)])
 		if err != nil {
-			return nil, errors.Join(errOwnerGuardSnapshotChanged, err)
+			return nil, nil, errors.Join(errOwnerGuardSnapshotChanged, err)
+		}
+		if header == nil {
+			header = slices.Clone(buffer[:min(n, sqliteWALHeaderSize)])
 		}
 		if _, err := output.Write(buffer[:n]); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		remaining -= int64(n)
 	}
-	return info, nil
+	return info, header, nil
 }

@@ -70,3 +70,12 @@ an integrity-confirmed refusal, and no transient-retry marker.
 2026-10-21 User scope coverage:
 
 For a User session, verify the immutable creation witness names `@user` and its profile. Present the same session ID under another profile and verify rejection before opening history. `TestGlobalDBUserSessionOwner` covers witness/profile mismatch; `TestManagerIntegrationUserLifecycle` covers valid reopen. Keep legacy creation-profile canonical bytes unchanged.
+
+2026-11-07 (#1345), owner snapshot under a live writer: scoped storage evidence, not a public
+persona walk. A new pooled read connection copies the database family before it opens it. Before
+this fix, the copy was retried whenever the active session writer appended WAL frames, so a session
+writing continuously could hold a transcript read past its deadline. The guard now accepts frames
+appended after the copy began: the copied WAL prefix recovers to its last complete commit. It
+still retries when the WAL restarts (new header salts), shrinks, or is replaced, and when the main
+file changes. `TestOpenSessionDBCreatesSchemaAndEnablesWAL` covers both cases with real SQLite.
+Owner and identity refusal are unchanged.
