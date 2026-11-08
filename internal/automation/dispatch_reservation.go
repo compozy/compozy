@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 )
 
@@ -117,10 +118,18 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 	if scheduledAdmissionInterrupted(req, runErr) {
 		return cloneRun(run), errors.Join(errScheduledAdmissionDeferred, runErr)
 	}
-	return d.finishRun(ctx, run, classifyDispatchError(runErr), runErr)
+	status := classifyDispatchError(runErr)
+	if _, accepted := errors.AsType[*acp.FailureError](runErr); accepted {
+		status = RunFailed
+	}
+	return d.finishRun(ctx, run, status, runErr)
 }
 
 func scheduledAdmissionInterrupted(req DispatchRequest, err error) bool {
+	// Accepted startup failures retain wrapped timeout errors but must consume the fire.
+	if _, accepted := errors.AsType[*acp.FailureError](err); accepted {
+		return false
+	}
 	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
 		(errors.Is(err, admission.ErrDraining) || errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded))

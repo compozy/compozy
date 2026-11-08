@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -712,4 +713,103 @@ type schedulerFailureLogCounter struct{ count atomic.Int32 }
 func (w *schedulerFailureLogCounter) Write(data []byte) (int, error) {
 	w.count.Add(1)
 	return len(data), nil
+}
+
+// Invariant: accepted startup failures settle one fire using only its configured retries.
+// Owner: durable automation scheduler/dispatcher integration suite.
+func TestSchedulerIntegrationStartupFailure(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		cause   error
+		retries int
+	}{
+		{name: "Should settle a handshake timeout without retry", cause: context.DeadlineExceeded},
+		{name: "Should settle a cancelled provider startup without retry", cause: context.Canceled},
+		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openAutomationIntegrationDB(t, ctx)
+			clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC))
+			startErr := acp.WrapFailure(store.FailureHandshake, "ACP initialize failed", tc.cause)
+			plans := make([]sessionAttemptPlan, tc.retries+1)
+			for i := range plans {
+				plans[i].createErr = startErr
+			}
+			creator := newRecordingSessionCreator(plans...)
+			var delays []time.Duration
+			hooks := &recordingAutomationHooks{}
+			dispatcher := newTestDispatcher(t, creator, db, WithDispatcherNow(clock.Now), WithDispatcherHooks(hooks),
+				WithDispatcherSleep(func(_ context.Context, delay time.Duration) error {
+					delays = append(delays, delay)
+					return nil
+				}))
+			job := testJob(AutomationScopeGlobal, "startup-failure", "")
+			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: clock.Now().Add(time.Minute).Format(time.RFC3339)}
+			if tc.retries > 0 {
+				job.Retry = RetryConfig{Strategy: RetryStrategyBackoff, MaxRetries: tc.retries, BaseDelay: "1s"}
+			}
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
+			if _, err := scheduler.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(time.Minute)
+			if err := scheduler.executeScheduledJob(ctx, job.ID); !errors.Is(err, tc.cause) {
+				t.Fatalf("dispatch error = %v, want startup failure", err)
+			}
+			for range 3 {
+				clock.Advance(2 * time.Minute)
+				if err := scheduler.executeScheduledJob(ctx, job.ID); !errors.Is(err, ErrScheduledJobNotFound) {
+					t.Fatalf("settled fire remains eligible: %v", err)
+				}
+			}
+			runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(runs) != 1 {
+				t.Fatalf("runs = %d, want 1", len(runs))
+			}
+			run := runs[0]
+			if run.Status != RunFailed || run.Attempt != tc.retries+1 || run.EndedAt == nil || run.Error == "" {
+				t.Fatalf("unsettled startup failure: %+v", run)
+			}
+			if got := len(creator.createCalls()); got != tc.retries+1 {
+				t.Fatalf("startup attempts = %d", got)
+			}
+			terminalFailures := 0
+			for _, failure := range hooks.runFailed {
+				if failure.RunID != run.ID {
+					t.Fatalf("failure linked to another run: %+v", failure)
+				}
+				if !failure.WillRetry {
+					terminalFailures++
+				}
+			}
+			if terminalFailures != 1 {
+				t.Fatalf("terminal failure hooks = %d, want 1", terminalFailures)
+			}
+			if len(delays) != tc.retries {
+				t.Fatalf("retry delays = %v", delays)
+			}
+			for i, delay := range delays {
+				if want := time.Second << i; delay != want {
+					t.Fatalf("retry delay = %s, want %s", delay, want)
+				}
+			}
+			state, err := db.GetSchedulerState(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.DeferredUntil != nil || state.NextRunAt != nil {
+				t.Fatalf("fire remains pending: %+v", state)
+			}
+		})
+	}
 }
