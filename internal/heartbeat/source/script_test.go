@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -20,6 +22,84 @@ func (a approvalHash) ApprovedHash(context.Context, string, string, string) (str
 	return string(a), nil
 }
 func TestScriptRunner(t *testing.T) {
+	t.Run("Should recover from a busy executable on Linux", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("Linux denies exec while a write descriptor is open")
+		}
+		path := filepath.Join(t.TempDir(), "poll")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf ok\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := os.OpenFile(path, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				t.Error(err)
+			}
+		})
+		var cmd *exec.Cmd
+		var output strings.Builder
+		attempts := 0
+		err = startScriptCommand(t.Context(), func() error {
+			attempts++
+			cmd = exec.CommandContext(t.Context(), path)
+			cmd.Stdout = &output
+			err := cmd.Start()
+			if attempts == 1 {
+				if !errors.Is(err, syscall.ETXTBSY) {
+					t.Errorf("first start = %v, want ETXTBSY", err)
+				}
+				if closeErr := writer.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		if attempts != 2 || output.String() != "ok" {
+			t.Fatalf("attempts=%d output=%q", attempts, output.String())
+		}
+	})
+	t.Run("Should bound busy retries and preserve other start failures", func(t *testing.T) {
+		t.Parallel()
+		for _, cause := range []error{syscall.ETXTBSY, os.ErrPermission} {
+			calls := 0
+			err := startScriptCommand(t.Context(), func() error {
+				calls++
+				return &os.PathError{Op: "fork/exec", Path: "poll", Err: cause}
+			})
+			want := 1
+			if errors.Is(cause, syscall.ETXTBSY) {
+				want = 6
+			}
+			if !errors.Is(err, cause) || calls != want {
+				t.Fatalf("error=%v calls=%d want=%d", err, calls, want)
+			}
+		}
+	})
+	t.Run("Should stop busy retries on cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		calls := 0
+		err := startScriptCommand(ctx, func() error {
+			calls++
+			cancel()
+			return syscall.ETXTBSY
+		})
+		if !errors.Is(err, context.Canceled) || calls != 1 {
+			t.Fatalf("error=%v calls=%d", err, calls)
+		}
+	})
+
 	t.Run("Should reject named pipes without waiting for a writer", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

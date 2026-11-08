@@ -114,18 +114,23 @@ func (s *ScriptRunner) Poll(ctx context.Context, ref Ref, req Request) (Result, 
 	}
 	lifetime, cancel := context.WithTimeout(ctx, s.Timeout)
 	defer cancel()
-	cmd := exec.CommandContext(lifetime, path)
-	cmd.Dir = req.Workspace.RootDir
-	cmd.Stdin = bytes.NewReader(input)
-	cmd.Env = scriptEnv(s.EnvAllow, ref.ID, s.Agent)
-	procutil.ConfigureCommandProcessGroup(cmd)
-	cmd.Cancel = func() error { return procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL) }
-	cmd.WaitDelay = time.Second
 	stdout := &boundedOutput{limit: s.MaxOutputBytes, cancel: cancel}
 	stderr := &tailOutput{}
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Start(); err != nil {
+	var cmd *exec.Cmd
+	if err := startScriptCommand(lifetime, func() error {
+		cmd = exec.CommandContext(lifetime, path)
+		cmd.Dir = req.Workspace.RootDir
+		cmd.Stdin = bytes.NewReader(input)
+		cmd.Env = scriptEnv(s.EnvAllow, ref.ID, s.Agent)
+		procutil.ConfigureCommandProcessGroup(cmd)
+		cmd.Cancel = func() error { return procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL) }
+		cmd.WaitDelay = time.Second
+		cmd.Stdout, cmd.Stderr = stdout, stderr
+		return cmd.Start()
+	}); err != nil {
+		if lifetime.Err() != nil {
+			return Result{}, Failure("source_timeout", "script poll canceled or timed out")
+		}
 		return Result{}, Failure("source_exit_nonzero", diagnostics.RedactAndBound(err.Error(), 500))
 	}
 	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
@@ -243,4 +248,24 @@ func ApprovedScript(
 		return nil, "", false, err
 	}
 	return data, hash, stored == hash, nil
+}
+
+func startScriptCommand(ctx context.Context, start func() error) error {
+	for attempt := 0; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := start()
+		if !errors.Is(err, syscall.ETXTBSY) || attempt == 5 {
+			return err
+		}
+		// A concurrent fork can retain the private copy's write descriptor until exec.
+		timer := time.NewTimer(10 * time.Millisecond << attempt)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

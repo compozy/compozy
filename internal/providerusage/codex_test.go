@@ -59,10 +59,6 @@ func collectFixture(t *testing.T, c *CodexCollector, target Target) (Snapshot, e
 	return c.Collect(t.Context(), target, IntentBackground, id)
 }
 
-type codexFixtureTransport func(*http.Request) (*http.Response, error)
-
-func (f codexFixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
 func TestCodexCollector(t *testing.T) {
 	t.Run("Should preserve the default ChatGPT usage endpoint", func(t *testing.T) {
 		t.Parallel()
@@ -74,7 +70,7 @@ func TestCodexCollector(t *testing.T) {
 		})
 		local, err := url.Parse(server.URL)
 		requireNoError(t, err)
-		transport := codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+		transport := fixtureTransport(func(r *http.Request) (*http.Response, error) {
 			requireEqual(t, "https://chatgpt.com/backend-api/wham/usage", r.URL.String())
 			request := r.Clone(r.Context())
 			request.URL.Scheme, request.URL.Host = local.Scheme, local.Host
@@ -112,7 +108,7 @@ func TestCodexCollector(t *testing.T) {
 			}
 			local, err := url.Parse(server.URL)
 			requireNoError(t, err)
-			transport := codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+			transport := fixtureTransport(func(r *http.Request) (*http.Response, error) {
 				request := r.Clone(r.Context())
 				request.URL.Scheme, request.URL.Host = local.Scheme, local.Host
 				return http.DefaultTransport.RoundTrip(request)
