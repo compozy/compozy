@@ -528,7 +528,7 @@ func TestNativeExtensionToolsPortableContract(t *testing.T) {
 		unrelated := t.TempDir()
 		if err := os.WriteFile(
 			filepath.Join(unrelated, "plugin.json"),
-			[]byte(`{"name":"npm-package"}`),
+			[]byte(`{"$schema":"https://example.com/npm-package.schema.json","name":"npm-package"}`),
 			0o600,
 		); err != nil {
 			t.Fatalf("os.WriteFile(unrelated plugin.json) error = %v", err)
