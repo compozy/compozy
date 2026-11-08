@@ -36,6 +36,12 @@ func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, 
 			"error",
 			err,
 		)
+		if m.attentionStore != nil {
+			m.PublishPendingInteractionCommits([]store.SessionAttentionCommit{{
+				Before:      commit.Before,
+				Interaction: &store.PendingInteraction{SessionID: sessionID},
+			}}, nil)
+		}
 	}
 }
 
@@ -71,23 +77,7 @@ func (m *Manager) emitAttentionCommit(
 // publishAttentionEdge publishes the catalog row and, when the badge changed, the
 // canonical attention edge with its hooks. Creator wakes stay with the caller.
 func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after *Info) (Badge, bool) {
-	// Keep the baseline aligned with direct lifecycle edges as well as interaction publications.
-	m.attentionCommitMu.Lock()
-	if m.attentionPublished == nil {
-		m.attentionPublished = make(map[string]store.SessionAttention)
-	}
-	m.attentionPublished[after.ID] = store.SessionAttention{
-		PendingPermissionCount: after.PendingPermissionCount,
-		PendingClarifyCount:    after.PendingClarifyCount,
-		AttentionRevision:      after.AttentionRevision,
-		LastSettledRevision:    after.LastSettledRevision,
-		LastSeenRevision:       after.LastSeenRevision,
-		LastSeenAt:             cloneTimePointer(after.LastSeenAt),
-		AttentionChangedAt:     cloneTimePointer(after.AttentionChangedAt),
-		EndedEarlyTurnID:       after.EndedEarlyTurnID,
-		FailureSeenAt:          cloneTimePointer(after.FailureSeenAt),
-	}
-	m.attentionCommitMu.Unlock()
+	m.rememberPublishedAttention(after)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
@@ -113,6 +103,26 @@ func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after 
 	}
 	m.dispatchSessionAttentionChanged(ctx, after, event)
 	return to, true
+}
+
+func (m *Manager) rememberPublishedAttention(after *Info) {
+	// Keep the baseline aligned with direct lifecycle edges as well as interaction publications.
+	m.attentionCommitMu.Lock()
+	if m.attentionPublished == nil {
+		m.attentionPublished = make(map[string]store.SessionAttention)
+	}
+	m.attentionPublished[after.ID] = store.SessionAttention{
+		PendingPermissionCount: after.PendingPermissionCount,
+		PendingClarifyCount:    after.PendingClarifyCount,
+		AttentionRevision:      after.AttentionRevision,
+		LastSettledRevision:    after.LastSettledRevision,
+		LastSeenRevision:       after.LastSeenRevision,
+		LastSeenAt:             cloneTimePointer(after.LastSeenAt),
+		AttentionChangedAt:     cloneTimePointer(after.AttentionChangedAt),
+		EndedEarlyTurnID:       after.EndedEarlyTurnID,
+		FailureSeenAt:          cloneTimePointer(after.FailureSeenAt),
+	}
+	m.attentionCommitMu.Unlock()
 }
 
 func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {

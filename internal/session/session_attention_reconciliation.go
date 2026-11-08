@@ -122,8 +122,11 @@ func (m *Manager) publishPendingInteractionCommit(ctx context.Context, commit st
 			if err := m.refreshPendingInteractions(attemptCtx, id); err != nil {
 				return commit, err
 			}
-			commit.After = current
-			return commit, nil
+			refreshed := commit
+			refreshed.After = current
+			// The refreshed list already owns interaction state; never reapply the old record.
+			refreshed.Interaction = nil
+			return refreshed, nil
 		})
 		if err == nil {
 			wake, publishErr := m.emitAttentionCommit(attemptCtx, id, refreshed)

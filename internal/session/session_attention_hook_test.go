@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,101 @@ import (
 
 func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should clear an unseen completed turn after an earlier permission publication", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		ctx := t.Context()
+		created, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+			SessionID: sess.ID, InteractionID: "first-permission", ProviderRequestID: "first-permission",
+			Kind: store.PendingInteractionKindPermission,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.transitionPendingInteraction(ctx, sess.ID, store.PendingInteractionTransition{
+			InteractionID: created.Interaction.InteractionID, Status: store.PendingInteractionStatusResolved,
+			Resolution: "allow", ResolvedBy: "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		if err := h.manager.settleSessionAttention(ctx, sess.ID, h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.publishLifecycleAttentionTransitionWake(ctx, before, sess.Info(), true, "first-turn")
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		if _, err := h.manager.SessionPresence(ctx, sess.ID, "", true); err != nil {
+			t.Fatal(err)
+		}
+		if len(edges) != 1 || edges[0].From != string(BadgeDone) || edges[0].To != string(BadgeIdle) {
+			t.Fatalf("lost completion clearing edge: %+v", edges)
+		}
+	})
+	t.Run("Should retry ordinary publication read failure without losing the creator wake", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		registerMentionCatalogSession(t, db, "retry-child", h.workspaceID)
+		h.manager.sessions["retry-child"] = &Session{ID: "retry-child", ProfileID: store.DefaultProfileID,
+			State: StateActive, Lineage: &store.SessionLineage{ParentSessionID: "creator", NotifyCreator: true}}
+		wrapped := &failingPublicationReadStore{SessionAttentionStore: h.manager.attentionStore}
+		h.manager.attentionStore = wrapped
+		wakes := make(chan SpawnWakeEvent, 2)
+		h.manager.spawnWakeNotifier = attentionWakeFunc(func(_ context.Context, _ string, event SpawnWakeEvent) error {
+			wakes <- event
+			return nil
+		})
+		hooks := make(chan hookspkg.SessionAttentionChangedPayload, 2)
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				hooks <- p
+				return p, nil
+			},
+		)
+		wrapped.fail.Store(true)
+		commit, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+			SessionID: "retry-child", InteractionID: "retry-permission", ProviderRequestID: "retry-permission",
+			Kind: store.PendingInteractionKindPermission,
+		})
+		if err != nil || commit.Interaction == nil {
+			t.Fatalf("committed creation: %+v, %v", commit, err)
+		}
+		select {
+		case event := <-hooks:
+			if event.From != string(BadgeIdle) || event.To != string(BadgeWaitingForAuth) {
+				t.Fatalf("retry hook: %+v", event)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("committed permission lost its hook")
+		}
+		select {
+		case event := <-wakes:
+			if event.Badge != BadgeWaitingForAuth {
+				t.Fatalf("retry wake: %+v", event)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("committed permission lost its wake")
+		}
+		h.manager.stopAttentionReconciliation()
+		select {
+		case event := <-hooks:
+			t.Fatalf("duplicate retry hook: %+v", event)
+		default:
+		}
+		select {
+		case event := <-wakes:
+			t.Fatalf("duplicate retry wake: %+v", event)
+		default:
+		}
+	})
 
 	t.Run("Should let a synchronous creator wake call child presence after publication", func(t *testing.T) {
 		t.Parallel()
@@ -941,4 +1037,19 @@ type attentionWakeFunc func(context.Context, string, SpawnWakeEvent) error
 
 func (f attentionWakeFunc) WakeSpawnCreator(ctx context.Context, creator string, event SpawnWakeEvent) error {
 	return f(ctx, creator, event)
+}
+
+type failingPublicationReadStore struct {
+	store.SessionAttentionStore
+	fail atomic.Bool
+}
+
+func (s *failingPublicationReadStore) GetSessionAttention(
+	ctx context.Context,
+	id string,
+) (store.SessionAttention, error) {
+	if s.fail.Swap(false) {
+		return store.SessionAttention{}, errors.New("transient publication read failure")
+	}
+	return s.SessionAttentionStore.GetSessionAttention(ctx, id)
 }
