@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Canvas } from "../manual/formats/canvas";
+import { Composition } from "../manual/formats/composition";
+import { Grid } from "../manual/formats/grid";
+import { SafeAreas } from "../manual/formats/safe-areas";
+import { Surfaces } from "../manual/formats/surfaces";
 import { chapterHead } from "../manual/head";
 import { ChapterPage } from "../manual/parts/chapter-page";
 
@@ -11,7 +16,6 @@ export const Route = createFileRoute("/formats")({
   component: FormatsChapter,
 });
 
-// Cover and intro are ported; the sections arrive with slice S4.
 function FormatsChapter() {
   return (
     <ChapterPage
@@ -22,6 +26,12 @@ function FormatsChapter() {
         </>
       }
       intro="Sizes, margins, columns and safe areas for every channel, and the three surfaces a piece can stand on. Decide these first; the design comes after."
-    />
+    >
+      <Canvas />
+      <Grid />
+      <SafeAreas />
+      <Composition />
+      <Surfaces />
+    </ChapterPage>
   );
 }

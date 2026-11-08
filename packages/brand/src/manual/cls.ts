@@ -7,13 +7,23 @@ export const lab = "mono-label font-medium text-(--b-muted)";
 /** default card: sits on any band */
 export const card = "min-w-0 rounded-card border border-(--b-line) bg-(--b-card) p-[22px] sm:p-7";
 
+/** flat card without border, for dense grids */
+export const cardFlat = "min-w-0 rounded-card bg-(--b-card) p-[22px] sm:p-7";
+
 /** h3 in display face */
 export const h3 =
   "mb-2 font-display text-[22px] font-medium leading-[1.2] tracking-[-0.02em] text-(--b-fg)";
 
+/** small caption under a figure */
+export const cap = "mt-2.5 text-sm text-(--b-muted)";
+
 /** bulleted list */
 export const rules =
   "m-0 list-disc pl-[18px] marker:text-(--b-accent) [&_li]:mb-2 [&_strong]:font-semibold";
+
+/** definition rows: <dl className={specs}><div><dt/><dd/></div></dl> */
+export const specs =
+  "m-0 grid gap-0 [&>div]:grid [&>div]:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] [&>div]:gap-4 [&>div]:border-b [&>div]:border-(--b-line) [&>div]:py-2.5 [&_dt]:font-mono [&_dt]:text-[13px] [&_dt]:text-(--b-muted) [&_dd]:m-0 [&_dd]:text-[15px]";
 
 /** buttons */
 export const btn =
@@ -23,6 +33,10 @@ export const btnSecondary =
   "border-(--b-line) bg-transparent text-(--b-fg) hover:border-(--b-accent)";
 /** the volt action fill (brand palette token from @compozy/ui) */
 export const voltFill = "bg-(--color-brand-volt) text-(--color-brand-ink)";
+
+/** inline code chip */
+export const chip =
+  "inline-flex items-center rounded-md border border-(--b-line) px-2 py-0.5 font-mono text-[12px] text-(--b-accent)";
 
 /** full-width section band */
 export const band = "py-[clamp(64px,8vw,120px)] scroll-mt-28";
