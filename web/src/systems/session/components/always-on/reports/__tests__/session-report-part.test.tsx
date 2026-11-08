@@ -1,4 +1,5 @@
-// Invariant: a report starts nothing; only choosing sends, and it sends an ordinary prompt.
+// Invariant: a report starts nothing. Picking a proposal goes through the daemon's pick route;
+// its state (picked, auto-accepted, tool calls) reads from the instance's projected reports.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -8,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@compozy/ui";
 
 import type { AgentInstanceAway, AgentInstancePayload, AgentInstanceReport } from "@/systems/agent";
+import { invalidateAgentInstanceReads } from "@/systems/agent";
+import { AgentInstanceApiError } from "@/systems/agent/adapters/agent-instance-api";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
 
 import { newestUnattendedPauses } from "../../../../lib/session-report";
@@ -21,6 +24,9 @@ const reads = vi.hoisted(() => ({
   messages: [] as unknown[],
   instances: vi.fn(async () => [] as AgentInstancePayload[]),
   reports: vi.fn(async () => [] as AgentInstanceReport[]),
+  projected: vi.fn(async () => [] as AgentInstanceReport[]),
+  pick: vi.fn(async () => ({}) as unknown),
+  occurrence: vi.fn(async () => null as unknown),
   away: vi.fn(async () => null as AgentInstanceAway | null),
   resume: vi.fn(async () => undefined as unknown),
 }));
@@ -29,6 +35,9 @@ vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => (
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
   fetchAgentInstances: async () => ({ instances: await reads.instances(), capacity: {} }),
   fetchAgentInstanceReports: reads.reports,
+  fetchAgentInstanceProjectedReports: reads.projected,
+  pickAgentInstanceProposal: reads.pick,
+  fetchAgentInstanceOccurrenceCheckIn: reads.occurrence,
   fetchAgentInstanceAway: reads.away,
   resumeAgentInstance: reads.resume,
 }));
@@ -67,9 +76,9 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
   useNavigate: () => reads.navigate,
 }));
 
-function harness(send: ((text: string) => void) | null) {
+function harness(send: ((text: string) => void) | null, shared?: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const client = shared ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return (
       <QueryClientProvider client={client}>
         <UIProvider reducedMotion="never" skipAnimations>
@@ -123,18 +132,28 @@ describe("SessionReportPart", () => {
     reads.messages = [];
     reads.instances.mockResolvedValue([INSTANCE]);
     reads.reports.mockResolvedValue([]);
+    reads.projected.mockReset().mockResolvedValue([]);
+    reads.pick.mockReset().mockResolvedValue({});
+    reads.occurrence.mockReset().mockResolvedValue(null);
     reads.away.mockResolvedValue(null);
   });
 
-  it("Should send nothing until a choice is picked, then its title as a prompt [UT-106]", async () => {
+  it("Should pick through the daemon and send no prompt itself [UT-106] [UT-040]", async () => {
     const send = vi.fn();
     render(<SessionReportPart data={PROPOSAL} />, { wrapper: harness(send) });
 
-    expect(send).not.toHaveBeenCalled();
+    expect(reads.pick).not.toHaveBeenCalled();
     await userEvent.click(
-      await screen.findByRole("button", { name: /Unblock the token migration/ })
+      await screen.findByRole("button", { name: /Close the stale design issue/ })
     );
-    expect(send).toHaveBeenCalledExactlyOnceWith("Unblock the token migration");
+    expect(reads.pick).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "ainst-1" }),
+      "arpt-1",
+      1
+    );
+    expect(send).not.toHaveBeenCalled();
+    expect(await screen.findByText("Close the stale design issue")).toBeInTheDocument();
+    expect(screen.getByText(/You picked/)).toBeInTheDocument();
   });
 
   it("Should offer no way to send from a conversation that moved on", async () => {
@@ -874,5 +893,239 @@ describe("SessionReportPart source proposal", () => {
       expect.anything(),
       INSTANCE.profile_name || "default"
     );
+  });
+});
+
+describe("check-in picks and tool calls", () => {
+  const TRACKED: SessionReportData = {
+    ...PROPOSAL,
+    payload: { ...(PROPOSAL.payload as object), picks_tracked: true },
+  };
+  const projected = (fields: Partial<AgentInstanceReport> & Record<string, unknown> = {}) =>
+    ({
+      id: "arpt-1",
+      kind: "proposal",
+      state: "delivered",
+      created_at: PROPOSAL.created_at,
+      picks_tracked: true,
+      picks: [],
+      proposals: [
+        { title: "Unblock the token migration", body: "Run 12 waits on a review." },
+        { title: "Close the stale design issue", body: "#918 was fixed in #931." },
+      ],
+      tool_calls: { total: 0, writes_done: 0, writes_maybe: 0, denied: 0 },
+      ...fields,
+    }) as AgentInstanceReport;
+  const pick = (index: number, actor: string) => ({
+    report_id: "arpt-1",
+    proposal_index: index,
+    actor,
+    state: "queued",
+    picked_at: PROPOSAL.created_at,
+    queue_entry_id: "q-1",
+    target_session_id: "sess-main",
+  });
+
+  beforeEach(() => {
+    reads.messages = [];
+    reads.instances.mockResolvedValue([INSTANCE]);
+    reads.reports.mockResolvedValue([]);
+    reads.away.mockResolvedValue(null);
+    reads.projected.mockReset().mockResolvedValue([]);
+    reads.pick.mockReset().mockResolvedValue({});
+    reads.occurrence.mockReset().mockResolvedValue(null);
+  });
+
+  it("Should show the pick the daemon projects, and reread on the instance event [UT-040]", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    reads.projected.mockResolvedValue([projected()]);
+    render(<SessionReportPart data={TRACKED} />, { wrapper: harness(vi.fn(), client) });
+    expect(await screen.findByRole("button", { name: /Unblock the token migration/ })).toBeTruthy();
+
+    reads.projected.mockResolvedValue([projected({ picks: [pick(1, "operator")] })]);
+    invalidateAgentInstanceReads(client, "ainst-1");
+
+    expect(await screen.findByText(/You picked/)).toHaveTextContent(
+      "You picked Close the stale design issue"
+    );
+  });
+
+  it("Should keep reading the pick from the chat for reports without picks_tracked [UT-040]", async () => {
+    reads.messages = [
+      {
+        role: "user",
+        createdAt: new Date("2026-10-31T23:40:00Z"),
+        content: [{ type: "text", text: "Unblock the token migration" }],
+      },
+    ];
+    render(<SessionReportPart data={PROPOSAL} />, { wrapper: harness(vi.fn()) });
+
+    expect(await screen.findByText(/You picked/)).toHaveTextContent(
+      "You picked Unblock the token migration"
+    );
+    expect(reads.projected).not.toHaveBeenCalled();
+  });
+
+  it("Should say why a pick failed, with its code [UT-040]", async () => {
+    reads.pick.mockRejectedValue(
+      new AgentInstanceApiError("busy", 409, "session_input_queue_full")
+    );
+    render(<SessionReportPart data={TRACKED} />, { wrapper: harness(vi.fn()) });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Unblock the token migration/ })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The agent is busy; pick it when ready. (session_input_queue_full)"
+    );
+    expect(screen.getByRole("button", { name: /Unblock the token migration/ })).toBeEnabled();
+  });
+
+  it("Should show an auto-accepted proposal without Pick, and why others wait [UT-041]", async () => {
+    const action = { id: "triage", title: "Triage new issues", auto_accept: true };
+    reads.projected.mockResolvedValue([
+      projected({
+        picks: [pick(0, "auto_accept")],
+        proposals: [
+          { title: "Label #1201", body: "New bug.", action, auto_accept_status: "picked" },
+          { title: "Label #1202", body: "New bug.", action, auto_accept_status: "limit" },
+          { title: "Label #1203", body: "New bug.", action, auto_accept_status: "unapproved" },
+          { title: "Label #1204", body: "New bug.", action, auto_accept_status: "queue_full" },
+        ],
+      }),
+    ]);
+    render(<SessionReportPart data={TRACKED} />, { wrapper: harness(vi.fn()) });
+
+    const auto = await screen.findByTestId("auto-accepted-choice");
+    expect(within(auto).getByText("Auto-accepted")).toBeTruthy();
+    expect(within(auto).getByText("Triage new issues")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Label #1201/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Label #1202/ })).toHaveTextContent(
+      "Daily auto-accept limit reached"
+    );
+    expect(screen.getByRole("button", { name: /Label #1203/ })).toHaveTextContent(
+      "Waiting for your approval of check-in changes"
+    );
+    expect(screen.getByRole("button", { name: /Label #1204/ })).toHaveTextContent(
+      "The agent is busy; pick it when ready"
+    );
+  });
+
+  it("Should count tool calls and list them on request, in plain words [UT-042]", async () => {
+    reads.projected.mockResolvedValue([
+      projected({
+        occurrence_id: "occ-9",
+        tool_calls: { total: 3, writes_done: 1, writes_maybe: 1, denied: 1 },
+      }),
+    ]);
+    reads.occurrence.mockResolvedValue({
+      id: "ci-9",
+      occurrence_id: "occ-9",
+      result: "reported",
+      reason: "reported",
+      created_at: PROPOSAL.created_at,
+      tools_status: "enabled",
+      tool_calls: [
+        {
+          seq: 1,
+          tool_id: "mcp__github__list_issues",
+          backend: "mcp",
+          mcp_server: "github",
+          access: "read",
+          decision: "allowed",
+          outcome: "ok",
+          effect: "none",
+          duration_ms: 120,
+        },
+        {
+          seq: 2,
+          tool_id: "mcp__github__add_label",
+          backend: "mcp",
+          mcp_server: "github",
+          access: "write",
+          decision: "allowed",
+          outcome: "error",
+          effect: "maybe",
+          duration_ms: 1500,
+        },
+        {
+          seq: 3,
+          tool_id: "compozy__session_prompt",
+          backend: "native_go",
+          access: "write",
+          decision: "denied",
+          deny_reason: "check_in_write_needs_approval",
+          outcome: "denied",
+          effect: "none",
+          duration_ms: 0,
+        },
+      ],
+    });
+    render(<SessionReportPart data={TRACKED} />, { wrapper: harness(vi.fn()) });
+
+    const line = await screen.findByRole("button", {
+      name: "Check-in used 3 tools · 2 changes · 1 blocked",
+    });
+    expect(line).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(line);
+    const list = await screen.findByRole("list", { name: "Tool calls" });
+    expect(reads.occurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ainst-1" }),
+      "occ-9",
+      expect.anything()
+    );
+    expect(within(list).getByText("list issues")).toBeTruthy();
+    expect(within(list).getByText("May have changed")).toBeTruthy();
+    expect(within(list).getByText("Would need your approval")).toBeTruthy();
+    expect(within(list).getAllByText("Change")).toHaveLength(2);
+  });
+
+  it("Should hide the tool line when the check-in used none [UT-042]", async () => {
+    reads.projected.mockResolvedValue([projected({ occurrence_id: "occ-1" })]);
+    render(<SessionReportPart data={TRACKED} />, { wrapper: harness(vi.fn()) });
+
+    await screen.findByRole("button", { name: /Unblock the token migration/ });
+    await waitFor(() => expect(reads.projected).toHaveBeenCalled());
+    expect(screen.queryByText(/Check-in used/)).toBeNull();
+  });
+
+  it("Should tell an activity report's changes with the list open and no proposals [UT-042]", async () => {
+    reads.projected.mockResolvedValue([
+      projected({
+        kind: "activity",
+        proposals: undefined,
+        occurrence_id: "occ-2",
+        tool_calls: { total: 1, writes_done: 1, writes_maybe: 0, denied: 0 },
+      }),
+    ]);
+    reads.occurrence.mockResolvedValue({
+      id: "ci-2",
+      occurrence_id: "occ-2",
+      result: "reported",
+      reason: "reported",
+      created_at: PROPOSAL.created_at,
+      tools_status: "enabled",
+      tool_calls: [
+        {
+          seq: 1,
+          tool_id: "compozy__notify",
+          backend: "native_go",
+          access: "write",
+          decision: "allowed",
+          outcome: "ok",
+          effect: "done",
+          duration_ms: 40,
+        },
+      ],
+    });
+    render(<SessionReportPart data={{ ...PROPOSAL, kind: "activity", payload: {} }} />, {
+      wrapper: harness(vi.fn()),
+    });
+
+    expect(await screen.findByRole("article", { name: "The check-in made 1 change" })).toBeTruthy();
+    expect(await screen.findByRole("list", { name: "Tool calls" })).toBeTruthy();
+    expect(screen.getByText("notify")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Unblock/ })).toBeNull();
   });
 });

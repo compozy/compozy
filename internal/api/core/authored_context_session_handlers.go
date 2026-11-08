@@ -181,7 +181,7 @@ func (h *BaseHandlers) validateSoulTarget(c *gin.Context, target authoredAgentTa
 func (h *BaseHandlers) inspectHeartbeatTarget(c *gin.Context, target authoredAgentTarget) {
 	if target.packageOwned && h.HeartbeatStatus == nil {
 		policy, err := target.resolvePackageOwnedHeartbeat(c.Request.Context(), nil)
-		h.respondHeartbeatPolicy(c, target.agentName, &policy, "", err)
+		h.respondHeartbeatPolicy(c, target, target.agentName, &policy, "", err)
 		return
 	}
 	if h.HeartbeatStatus == nil {
@@ -199,7 +199,7 @@ func (h *BaseHandlers) inspectHeartbeatTarget(c *gin.Context, target authoredAge
 	if result.Snapshot != nil {
 		snapshotID = result.Snapshot.ID
 	}
-	h.respondHeartbeatPolicy(c, result.AgentName, &result.Policy, snapshotID, nil)
+	h.respondHeartbeatPolicy(c, target, result.AgentName, &result.Policy, snapshotID, nil)
 }
 
 func (h *BaseHandlers) respondSoulPayload(
@@ -247,6 +247,7 @@ func (h *BaseHandlers) respondSoulMutation(
 
 func (h *BaseHandlers) respondHeartbeatPolicy(
 	c *gin.Context,
+	target authoredAgentTarget,
 	agentName string,
 	policy *heartbeat.ResolvedPolicy,
 	snapshotID string,
@@ -266,18 +267,16 @@ func (h *BaseHandlers) respondHeartbeatPolicy(
 		status = http.StatusUnprocessableEntity
 	}
 	if policy != nil && policy.Valid {
-		target, targetErr := h.resolveAuthoredAgentTargetForRequest(c, authoredWorkspaceRefFromQuery(c), agentName)
-		if targetErr == nil {
-			authority, authorityErr := h.authorityPayload(c.Request.Context(), target, *policy)
-			if authorityErr != nil {
-				h.respondError(c, 503, authorityErr)
-				return
-			}
-			payload.Authority = authority
-			payload.Diagnostics = append(
-				payload.Diagnostics,
-				h.heartbeatSelectorWarnings(c, target, policy.Frontmatter.CheckIns)...)
+		// The caller's resolved target: validate and write name their workspace in the body.
+		authority, authorityErr := h.authorityPayload(c.Request.Context(), target, *policy)
+		if authorityErr != nil {
+			h.respondError(c, 503, authorityErr)
+			return
 		}
+		payload.Authority = authority
+		payload.Diagnostics = append(
+			payload.Diagnostics,
+			h.heartbeatSelectorWarnings(c, target, policy.Frontmatter.CheckIns)...)
 	}
 	h.respondAuthoredJSON(c, status, payload)
 }
@@ -291,7 +290,7 @@ func (h *BaseHandlers) respondHeartbeatMutation(
 	if err != nil {
 		if errors.Is(err, heartbeat.ErrInvalid) {
 			if result != nil {
-				h.respondHeartbeatPolicy(c, target.agentName, &result.Policy, "", err)
+				h.respondHeartbeatPolicy(c, target, target.agentName, &result.Policy, "", err)
 				return
 			}
 		}

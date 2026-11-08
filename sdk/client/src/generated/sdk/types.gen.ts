@@ -398,6 +398,7 @@ export type AgentInstanceReportPayload = {
   expired_by?: string;
   id: string;
   kind: string;
+  occurrence_id?: string;
   picks: Array<Pick>;
   picks_tracked: boolean;
   proposals?: Array<AgentInstanceProposal>;

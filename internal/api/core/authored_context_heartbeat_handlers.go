@@ -54,7 +54,7 @@ func (h *BaseHandlers) ValidateAgentHeartbeat(c *gin.Context) {
 	if target.packageOwned {
 		body := req.Body
 		policy, policyErr := target.resolvePackageOwnedHeartbeat(c.Request.Context(), &body)
-		h.respondHeartbeatPolicy(c, target.agentName, &policy, "", policyErr)
+		h.respondHeartbeatPolicy(c, target, target.agentName, &policy, "", policyErr)
 		return
 	}
 	body := req.Body
@@ -62,7 +62,7 @@ func (h *BaseHandlers) ValidateAgentHeartbeat(c *gin.Context) {
 		Target: target.heartbeatAuthoringTarget(),
 		Body:   &body,
 	})
-	h.respondHeartbeatPolicy(c, target.agentName, &result.Policy, "", err)
+	h.respondHeartbeatPolicy(c, target, target.agentName, &result.Policy, "", err)
 }
 
 // PutAgentHeartbeat creates or replaces HEARTBEAT.md through the managed authoring service.

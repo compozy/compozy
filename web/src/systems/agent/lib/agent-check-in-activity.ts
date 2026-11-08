@@ -1,4 +1,5 @@
 import type { AgentInstanceCheckIn, AgentInstancePayload } from "../types";
+import { toolsStatusLabel } from "./agent-check-in-tool-calls";
 
 export type DayCell = "quiet" | "told" | "failed" | "next" | "later";
 
@@ -14,6 +15,10 @@ export interface RecentCheckIn {
   description?: string;
   told?: boolean;
   failed?: boolean;
+  /** The audited calls its tools made, for the tools badge and list. */
+  toolCalls?: AgentInstanceCheckIn["tool_calls"];
+  /** "Tools off" or "Tools unavailable" when the check-in ran without them. */
+  tools?: string;
 }
 
 export interface CheckInActivity {
@@ -91,8 +96,22 @@ export function clockAt(at: string) {
   return CLOCK.format(new Date(at));
 }
 
+/** A check-in that used tools, or ran without them, keeps its own row. */
+function toolFacts(checkIn: AgentInstanceCheckIn) {
+  const calls = checkIn.tool_calls ?? [];
+  const tools = toolsStatusLabel(checkIn.tools_status);
+  return {
+    ...(calls.length > 0 ? { toolCalls: calls } : {}),
+    ...(tools ? { tools } : {}),
+  };
+}
+
 function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
-  const base = { key: checkIn.id, time: clockAt(checkIn.created_at) };
+  const base = {
+    key: checkIn.id,
+    time: clockAt(checkIn.created_at),
+    ...toolFacts(checkIn),
+  };
   const sentence = checkInReason(checkIn.reason);
   if (checkIn.result === "failed") {
     // A configuration diagnostic leads with the advice; the provider's detail follows it.
@@ -135,7 +154,7 @@ export function checkInActivity(
     run = [];
   };
   for (const item of today) {
-    if (cellOf(item) === "quiet") {
+    if (cellOf(item) === "quiet" && Object.keys(toolFacts(item)).length === 0) {
       run.push(item);
       continue;
     }

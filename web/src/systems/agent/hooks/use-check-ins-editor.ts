@@ -15,9 +15,11 @@ import {
   countCheckInChanges,
   floorStop,
   hourInZone,
+  parseCheckInsFile,
   previewNextCheckIn,
   scheduledNextCheckIn,
 } from "../lib/agent-check-in-form";
+import { countAuthorityChanges } from "../lib/agent-check-in-authority";
 import type { CheckInSource } from "../lib/agent-check-in-sources";
 import { fileProblem } from "../lib/agent-frontmatter";
 import { agentHeartbeatOptions } from "../lib/query-options";
@@ -32,6 +34,7 @@ import {
 import { useAgentInstanceActions, useAgentDefinitionInstances } from "./use-agent-instances";
 import { useEditorDocument } from "./use-editor-document";
 import { useApproveHeartbeatScript, useHeartbeatSourceCatalogQuery } from "./use-heartbeat-sources";
+import { useCheckInAuthority, type CheckInAuthorityModel } from "./use-check-in-authority";
 import { useMinuteClock } from "./use-minute-clock";
 
 function matchesWorkspace(instance: AgentInstancePayload, workspace: string | null) {
@@ -52,7 +55,8 @@ function pickInstance(
 function useCheckInsDocument(
   agent: AgentPayload,
   workspace: string | null,
-  payload: AgentHeartbeatPayload
+  payload: AgentHeartbeatPayload,
+  confirmSave: CheckInAuthorityModel["confirmSave"]
 ) {
   const queryClient = useQueryClient();
   const { destination } = useProfileReadScope();
@@ -60,6 +64,22 @@ function useCheckInsDocument(
   const validate = useValidateAgentHeartbeat();
   const scope = { name: agent.name, cacheWorkspace: workspace, profile: destination };
   const selector = workspace ? { workspace_id: workspace } : {};
+
+  const saved = checkInsFromPayload(payload).form.authority;
+
+  /** The digest to approve with this save: only one the operator saw and confirmed. */
+  const approval = async (body: string) => {
+    // A save that leaves the block as it was asks nothing; the daemon keeps its approval.
+    const parsed = parseCheckInsFile(body, { defaultStop: 0, timezone: "UTC" });
+    if (!parsed.block && countAuthorityChanges(parsed.settings.authority, saved) === 0) {
+      return undefined;
+    }
+    const candidate = await validate
+      .mutateAsync({ ...scope, params: { body, ...selector } })
+      .then(result => result.authority)
+      .catch(() => undefined);
+    return (await confirmSave(candidate)) ? candidate?.digest : undefined;
+  };
 
   return useEditorDocument({
     resourceKey: buildAuthoredFileResourceKey(workspace, agent.name, "heartbeat", destination),
@@ -74,9 +94,15 @@ function useCheckInsDocument(
         : (fileProblem(result.diagnostics) ?? "Fix the file to save.");
     },
     write: async (body, expected_digest) => {
+      const approve = await approval(body);
       const result = await put.mutateAsync({
         ...scope,
-        params: { body, expected_digest, ...selector },
+        params: {
+          body,
+          expected_digest,
+          ...selector,
+          ...(approve ? { approve_authority_sha256: approve } : {}),
+        },
       });
       return checkInsFromPayload(result.heartbeat);
     },
@@ -172,7 +198,15 @@ export function useCheckInsEditor(
   readOnly: boolean,
   openScript?: (path: string) => void
 ) {
-  const document = useCheckInsDocument(agent, workspace, payload);
+  const { destination } = useProfileReadScope();
+  const authority = useCheckInAuthority(
+    agent.name,
+    workspace,
+    destination,
+    payload.authority,
+    !readOnly
+  );
+  const document = useCheckInsDocument(agent, workspace, payload, authority.confirmSave);
   const sources = useCheckInSources(
     agent,
     workspace,
@@ -234,6 +268,13 @@ export function useCheckInsEditor(
     activity: checkIns === null ? null : checkInActivity(checkIns, now),
     tryCheck,
     catalog: sources.catalog,
+    authority: {
+      ...authority,
+      /** The daemon's warnings about write selectors, such as one that matches no write tool. */
+      writeWarnings: (payload.diagnostics ?? []).flatMap(item =>
+        item.field === "check_ins.allow_writes" ? [item.message] : []
+      ),
+    },
     sources: sources.actions,
     /** The minute clock the page reads relative times against. */
     now,

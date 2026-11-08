@@ -9,6 +9,7 @@ import type {
   AgentInstanceCheckResponse,
   AgentInstanceOccurrence,
   AgentInstancePayload,
+  AgentInstanceProposalPick,
   AgentInstanceReport,
   AgentInstanceReportsResponse,
   AgentInstanceReportState,
@@ -246,6 +247,55 @@ export async function fetchAgentInstanceReports(
     { signal, fallback: "Failed to fetch this agent's reports" }
   );
   return reports;
+}
+
+/** Enough pages for every report an instance keeps before the delivery sweep. */
+const PROJECTED_REPORT_PAGES = 10;
+
+/** Every kept report with its live projection (picks, tool calls), following the cursor. */
+export async function fetchAgentInstanceProjectedReports(
+  ref: AgentInstanceRef,
+  signal?: AbortSignal
+): Promise<AgentInstanceReport[]> {
+  const reports: AgentInstanceReport[] = [];
+  let cursor = "";
+  for (let page = 0; page < PROJECTED_REPORT_PAGES; page += 1) {
+    const query: Record<string, string> = { limit: String(REPORTS_READ_LIMIT) };
+    if (cursor) query.cursor = cursor;
+    const read = await request<AgentInstanceReportsResponse>(instancePath(ref, "/reports", query), {
+      signal,
+      fallback: "Failed to fetch this agent's reports",
+    });
+    reports.push(...read.reports);
+    cursor = read.next_cursor;
+    if (!cursor) break;
+  }
+  return reports;
+}
+
+/** One operator pick: the daemon queues the proposal into the main session. */
+export function pickAgentInstanceProposal(
+  ref: AgentInstanceRef,
+  reportId: string,
+  proposal: number
+) {
+  return request<{ pick: AgentInstanceProposalPick }>(
+    instancePath(ref, `/reports/${encodeURIComponent(reportId)}/pick`),
+    { method: "POST", body: { proposal }, fallback: "Couldn't pick this" }
+  );
+}
+
+/** One check-in with its audited tool calls. */
+export async function fetchAgentInstanceOccurrenceCheckIn(
+  ref: AgentInstanceRef,
+  occurrence: string,
+  signal?: AbortSignal
+) {
+  const { check_ins } = await request<AgentInstanceCheckInsResponse>(
+    instancePath(ref, "/check-ins", { occurrence }),
+    { signal, fallback: "Failed to read this check-in" }
+  );
+  return check_ins[0] ?? null;
 }
 
 /** Reads newest-first up to `limit`, following the daemon's page cap. */

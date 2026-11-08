@@ -111,7 +111,7 @@ func TestAgentInstanceReports(t *testing.T) {
 		if status != 200 || len(page.Reports) != 1 || page.NextCursor == "" {
 			t.Fatalf("first page: %d %#v", status, page)
 		}
-		if page.Reports[0].Detail != "provider exited" {
+		if page.Reports[0].Detail != "provider exited" || page.Reports[0].OccurrenceID != "first" {
 			t.Fatalf("payload: %#v", page.Reports[0])
 		}
 		status, _ = read("/instances/" + first.ID + "/reports?state=pending&cursor=" + page.NextCursor)

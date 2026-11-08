@@ -363,6 +363,7 @@ export {
 } from "./lib/agent-identity";
 export {
   applyAgentInstanceUpdate,
+  invalidateAgentInstanceReads,
   invalidateAgentInstances,
   useAgentInstanceActions,
   useResumeAgentInstances,
@@ -375,6 +376,7 @@ export {
 } from "./hooks/use-agent-instances";
 export {
   agentPauseCopy,
+  agentAuthorityCopy,
   agentUnattendedSteps,
   agentNextWakeLine,
   agentInstancePausedUnattended,
@@ -400,8 +402,16 @@ export {
   agentInstanceAwayOptions,
   agentInstanceCheckInsOptions,
   agentInstanceIndeterminateReportsOptions,
+  agentInstanceProjectedReportsOptions,
   agentInstanceReportsOptions,
 } from "./lib/query-options";
+export { proposalPickFailure, useProposalPick } from "./hooks/use-proposal-pick";
+export {
+  CheckInToolCallRows,
+  CheckInToolCallsDisclosure,
+  ReportToolCalls,
+} from "./components/check-in-tool-calls";
+export { blockedReason, toolCallLine } from "./lib/agent-check-in-tool-calls";
 export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-instance-api";
 
 export { AgentIdentityScopeContext } from "./lib/agent-identity-context";

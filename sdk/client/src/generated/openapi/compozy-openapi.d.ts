@@ -8391,6 +8391,7 @@ export interface components {
       expired_by?: string;
       id: string;
       kind: string;
+      occurrence_id?: string;
       picks: components["schemas"]["Pick"][];
       picks_tracked: boolean;
       proposals?: components["schemas"]["AgentInstanceProposal"][];

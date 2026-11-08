@@ -7,6 +7,7 @@ import "time"
 // AgentInstanceReportPayload is a daemon API value.
 type AgentInstanceReportPayload struct {
 	Diagnostics   []string                   `json:"diagnostics,omitempty"`
+	OccurrenceID  string                     `json:"occurrence_id,omitempty"`
 	PicksTracked  bool                       `json:"picks_tracked"`
 	Picks         []Pick                     `json:"picks"`
 	ToolCalls     CheckInToolSummary         `json:"tool_calls"`

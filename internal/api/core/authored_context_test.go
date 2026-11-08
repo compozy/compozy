@@ -2468,6 +2468,32 @@ func TestHeartbeatAuthorityHTTP(t *testing.T) {
 			if authority.Status != "approved" {
 				t.Fatalf("explicit approval: %s", shown.Body)
 			}
+			// The Web validates a candidate before saving; its workspace rides in the body.
+			engine.POST("/agents/:name/heartbeat/validate", handlers.ValidateAgentHeartbeat)
+			validate := func(content string) contract.HeartbeatAuthorityPayload {
+				t.Helper()
+				data, err := json.Marshal(map[string]string{"body": content, "workspace_id": "ws"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				response := performRequest(t, engine, http.MethodPost, "/agents/coder/heartbeat/validate", data)
+				var policy contract.HeartbeatPolicyPayload
+				decodeJSON(t, response.Body.Bytes(), &policy)
+				if response.Code != 200 {
+					t.Fatalf("validate=%d %s", response.Code, response.Body)
+				}
+				return policy.Authority
+			}
+			if candidate := validate(unrelated); candidate.Status != "approved" ||
+				candidate.Digest != authority.Digest {
+				t.Fatalf("validated approved block: %#v", candidate)
+			}
+			if candidate := validate(
+				strings.Replace(unrelated, "[mcp__fixture__write]", "[compozy__notify]", 1),
+			); candidate.Status != "unapproved" ||
+				candidate.Digest == authority.Digest {
+				t.Fatalf("validated changed block: %#v", candidate)
+			}
 
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -98,6 +99,10 @@ func (api *AgentInstanceAPI) ReportsPage(
 			return result, err
 		}
 		payload.ID, payload.Kind, payload.State, payload.CreatedAt = report.ID, report.Kind, report.State, report.CreatedAt
+		// The check-in behind the report, so a reader can open its tool calls.
+		if occurrence, ok := strings.CutPrefix(report.SourceKey, "occ:"); ok {
+			payload.OccurrenceID = occurrence
+		}
 		result.Reports = append(result.Reports, payload)
 	}
 	if len(rows) == query.Limit {

@@ -296,3 +296,66 @@ export async function approveAgentHeartbeatScript(
   }
   return requireResponseData(data, response, fallback);
 }
+
+/** Approves the exact check-in authority digest the operator was shown (operator only). */
+export async function approveAgentHeartbeatAuthority(
+  name: string,
+  sha256: string,
+  workspaceId?: string | null,
+  profile?: string
+) {
+  const { data, error, response } = await apiClient.POST(
+    "/api/agents/{name}/heartbeat/authority/approve",
+    {
+      params: {
+        path: { name },
+        query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+      },
+      body: { sha256 },
+    }
+  );
+  const fallback = `Failed to approve check-in changes for "${name}"`;
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(defaultApiErrorMessage(fallback, response, error), response.status);
+  }
+  return requireResponseData(data, response, fallback);
+}
+
+/** One tool the agent can see, reduced to what the check-in write list needs. */
+export interface AgentToolChoice {
+  tool_id: string;
+  title: string;
+  access: string;
+  backend: string;
+  server?: string;
+}
+
+/** The tools the agent sees in this scope, as the daemon's registry resolves them. */
+export async function fetchAgentTools(
+  name: string,
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  profile?: string
+): Promise<AgentToolChoice[]> {
+  const { data, error, response } = await apiClient.GET("/api/tools", {
+    params: {
+      query: {
+        agent_name: name,
+        ...workspaceIdQuery(workspaceId),
+        ...(profile ? { profile } : {}),
+      },
+    },
+    signal,
+  });
+  const fallback = `Failed to list the tools of "${name}"`;
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(defaultApiErrorMessage(fallback, response, error), response.status);
+  }
+  return requireResponseData(data, response, fallback).tools.map(({ descriptor }) => ({
+    tool_id: descriptor.tool_id,
+    title: descriptor.display_title || descriptor.tool_id,
+    access: descriptor.access,
+    backend: descriptor.backend.kind,
+    server: descriptor.backend.mcp_server,
+  }));
+}

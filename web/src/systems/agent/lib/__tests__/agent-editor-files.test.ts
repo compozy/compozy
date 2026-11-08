@@ -3,7 +3,11 @@
 // Owner: the pure file libs; canonical suite for UT-076 and the parsing half of UT-078.
 import { describe, expect, it } from "vitest";
 
+import type { AgentInstanceCheckIn } from "../../types";
+
 import { checkInActivity, checkInReason } from "../agent-check-in-activity";
+import { actionIdFor } from "../agent-check-in-authority";
+import { agentAuthorityCopy } from "../agent-instance";
 import {
   LOOK_AT_IDS,
   blankCheckIns,
@@ -101,6 +105,79 @@ describe("HEARTBEAT.md form", () => {
     const source = "---\nversion: 1\nenabled: true\n---\nJust watch things.\n";
     const composed = composeCheckInsFile(settingsOf(source));
     expect(composed).toBe(source);
+  });
+
+  // UT-043: check-in authority keys stay in the form instead of forcing the raw view.
+  const AUTHORITY_FILE = `---
+version: 1
+enabled: true
+check_ins:
+  allow_writes:
+    - "mcp__github__*"
+  max_tool_calls: 5
+actions:
+  - id: "triage"
+    title: "Triage new issues"
+    instructions: "Label each new issue.\\nSay which need me."
+    auto_accept: true
+---
+Watch issues.
+`;
+
+  it("Should round-trip check_ins and actions through the form, caps untouched [UT-043]", () => {
+    const settings = settingsOf(AUTHORITY_FILE);
+    expect(settings.authority).toEqual({
+      writes: ["mcp__github__*"],
+      caps: { max_tool_calls: 5 },
+      actions: [
+        {
+          id: "triage",
+          title: "Triage new issues",
+          instructions: "Label each new issue.\nSay which need me.",
+          autoAccept: true,
+        },
+      ],
+    });
+    const edited: CheckInSettings = {
+      ...settings,
+      authority: {
+        ...settings.authority,
+        writes: ["mcp__github__*", "compozy__notify"],
+        actions: [
+          ...settings.authority.actions,
+          { id: "close-stale", title: "Close stale", instructions: "Close it.", autoAccept: false },
+        ],
+      },
+    };
+    const composed = composeCheckInsFile(edited);
+    expect(composed).toContain("  max_tool_calls: 5");
+    expect(settingsOf(composed).authority).toEqual(edited.authority);
+    expect(composeCheckInsFile(settings)).toBe(AUTHORITY_FILE);
+  });
+
+  it.each([
+    ["an unknown check_ins key", "---\ncheck_ins:\n  allow_reads: [x]\n---\n"],
+    ["allow_writes that isn't a list", "---\ncheck_ins:\n  allow_writes: compozy__notify\n---\n"],
+    [
+      "an action with an unknown key",
+      '---\nactions:\n  - id: "a"\n    title: "A"\n    instructions: "B"\n    when: "now"\n---\n',
+    ],
+  ])("Should send %s to the raw file [UT-043]", (_name, source) => {
+    expect(parseCheckInsFile(source, DEFAULTS).block).toBe("settings");
+  });
+
+  it("Should say when check-in changes wait for approval, and nothing otherwise [UT-043]", () => {
+    expect(agentAuthorityCopy({ authority_status: "unapproved" })).toBe(
+      "Check-in changes need your approval"
+    );
+    expect(agentAuthorityCopy({ authority_status: "approved" })).toBe("");
+    expect(agentAuthorityCopy({ authority_status: "none" })).toBe("");
+  });
+
+  it("Should give a new action an id the file accepts, never a taken one", () => {
+    expect(actionIdFor("Triage new issues!", [])).toBe("triage-new-issues");
+    expect(actionIdFor("42 things", ["things"])).toBe("things-2");
+    expect(actionIdFor("", [])).toBe("action");
   });
 
   it.each([
@@ -364,10 +441,19 @@ Prefer short status updates.
 describe("check-in activity", () => {
   const now = new Date(2026, 10, 1, 14, 12);
   const at = (hour: number, minute = 0) => new Date(2026, 10, 1, hour, minute).toISOString();
+  type Row = Omit<AgentInstanceCheckIn, "occurrence_id" | "tool_calls" | "tools_status"> &
+    Partial<AgentInstanceCheckIn>;
+  const rows = (items: readonly Row[]): AgentInstanceCheckIn[] =>
+    items.map(item => ({
+      occurrence_id: `occ-${item.id}`,
+      tool_calls: [],
+      tools_status: "enabled",
+      ...item,
+    }));
 
   it("Should not call a skipped heartbeat quiet", () => {
     const { recent } = checkInActivity(
-      [{ id: "c1", result: "skipped", reason: "heartbeat_invalid", created_at: at(9) }],
+      rows([{ id: "c1", result: "skipped", reason: "heartbeat_invalid", created_at: at(9) }]),
       now
     );
     expect(recent.map(item => item.title)).toEqual(["Skipped"]);
@@ -375,7 +461,7 @@ describe("check-in activity", () => {
 
   it("Should fold quiet runs and keep what mattered", () => {
     const { recent, past } = checkInActivity(
-      [
+      rows([
         { id: "c1", result: "quiet", reason: "digest_empty", created_at: at(9) },
         { id: "c2", result: "quiet", reason: "digest_unchanged", created_at: at(9, 30) },
         {
@@ -392,7 +478,7 @@ describe("check-in activity", () => {
           reason: "digest_empty",
           created_at: new Date(2026, 9, 31, 9).toISOString(),
         },
-      ],
+      ]),
       now
     );
     expect(past.map(item => item.cell)).toEqual(["quiet", "quiet", "told", "failed"]);
@@ -407,7 +493,7 @@ describe("check-in activity", () => {
 
   it("Should lead a configuration diagnostic with its advice and keep the provider detail", () => {
     const { recent } = checkInActivity(
-      [
+      rows([
         {
           id: "c1",
           result: "failed",
@@ -415,13 +501,53 @@ describe("check-in activity", () => {
           detail: 'acp: model "haiku" is unavailable',
           created_at: at(9),
         },
-      ],
+      ]),
       now
     );
     expect(recent[0]?.description).toBe(
       "Its heartbeat model or runtime options were rejected. Check its model settings. " +
         'acp: model "haiku" is unavailable'
     );
+  });
+
+  // Invariant (U5): a check-in that used tools, or ran without them, keeps its own history row.
+  it("Should keep a check-in with tool calls or tools off out of a quiet run", () => {
+    const call = {
+      seq: 1,
+      tool_id: "mcp__github__create_issue_comment",
+      backend: "mcp",
+      mcp_server: "github",
+      access: "write",
+      decision: "allowed",
+      outcome: "ok",
+      effect: "done",
+      duration_ms: 420,
+    };
+    const { recent } = checkInActivity(
+      rows([
+        { id: "c1", result: "quiet", reason: "digest_empty", created_at: at(9) },
+        {
+          id: "c2",
+          result: "quiet",
+          reason: "digest_empty",
+          created_at: at(9, 30),
+          tool_calls: [call],
+        },
+        {
+          id: "c3",
+          result: "quiet",
+          reason: "digest_empty",
+          created_at: at(10),
+          tools_status: "unavailable",
+        },
+        { id: "c4", result: "quiet", reason: "digest_empty", created_at: at(10, 30) },
+      ]),
+      now
+    );
+    expect(recent.map(item => item.key)).toEqual(["c4", "c3", "c2", "c1"]);
+    expect(recent[1]?.tools).toBe("Tools unavailable");
+    expect(recent[2]?.toolCalls).toEqual([call]);
+    expect(recent[0]?.tools ?? recent[0]?.toolCalls).toBeUndefined();
   });
 
   it("Should turn every reason into a sentence, and an unknown one into a safe default", () => {

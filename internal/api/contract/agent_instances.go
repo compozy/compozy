@@ -73,6 +73,7 @@ type AgentInstanceAdoptRequest struct {
 }
 type AgentInstanceReportPayload struct {
 	Diagnostics   []string                         `json:"diagnostics,omitempty"`
+	OccurrenceID  string                           `json:"occurrence_id,omitempty"`
 	PicksTracked  bool                             `json:"picks_tracked"`
 	Picks         []agentinstance.Pick             `json:"picks"`
 	ToolCalls     agentinstance.CheckInToolSummary `json:"tool_calls"`

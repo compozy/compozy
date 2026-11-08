@@ -1384,6 +1384,9 @@
           "kind": {
             "type": "string"
           },
+          "occurrence_id": {
+            "type": "string"
+          },
           "picks": {
             "items": {
               "$ref": "#/components/schemas/Pick"

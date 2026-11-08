@@ -1,3 +1,5 @@
+import { agentKeys } from "@/systems/agent/lib/query-keys";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { notificationKeys } from "@/systems/notifications";
 import {
   QueryClient,
@@ -390,6 +392,38 @@ describe("useSessionCatalogStreams", () => {
 
     unmount();
     client.clear();
+  });
+
+  // UT-040: a pick, an auto pick or a finished check-in rereads that instance's report state.
+  it("Should mark an updated instance's reports and check-ins stale, and only that instance's", () => {
+    const queryClient = new QueryClient();
+    const own = [
+      agentKeys.instanceProjectedReports("ainst-1"),
+      agentKeys.instanceCheckIns("ainst-1"),
+    ];
+    const other = agentKeys.instanceProjectedReports("ainst-2");
+    for (const key of [...own, other]) queryClient.setQueryData(key, []);
+    const sources: FakeCatalogEventSource[] = [];
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams({
+          eventSourceFactory: url => {
+            const source = new FakeCatalogEventSource(url);
+            sources.push(source);
+            return source;
+          },
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    const live = sources.find(source => !source.closed);
+    act(() => {
+      live?.emit("agent_instance.updated", agentInstanceFixture({ id: "ainst-1" }));
+    });
+
+    for (const key of own) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    unmount();
   });
 
   it("Should keep late source status events behind the current connection generation", () => {
