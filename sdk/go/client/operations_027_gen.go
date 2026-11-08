@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// PrepareWorktreeExitPlanParams carries the path, query, and header parameters.
+type PrepareWorktreeExitPlanParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
 // PrepareWorktreeExitPlan Resolve forge capabilities and prepare the worktree exit plan
 func (c *Client) PrepareWorktreeExitPlan(ctx context.Context, params PrepareWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare"

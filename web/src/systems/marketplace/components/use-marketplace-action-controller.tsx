@@ -14,6 +14,7 @@ import {
   type ExtensionInstanceScope,
   useToggleExtension,
 } from "@/systems/extensions";
+import { useMCPDefinitionAuthorization, type UseMCPAuthorizeReturn } from "@/systems/settings";
 
 import {
   useInstallMarketplaceExtension,
@@ -71,6 +72,11 @@ interface MarketplaceActionController {
   isEntryEnabling: (entry: MarketplaceCatalogListing) => boolean;
   retryEnable: (entry: MarketplaceCatalogListing) => void;
   turnOn: (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => void;
+  /**
+   * Set up's sign-in. The page owns its dialog, so a confirmed sign-in that turns the row Ready,
+   * or a refresh that drops the row, cannot unmount it before the operator presses Done.
+   */
+  requestAuthorize: UseMCPAuthorizeReturn["requestAuthorize"];
   /** Catalog row Update, addressed by the daemon-joined installed name. */
   update: (entry: MarketplaceCatalogListing) => void;
   /** Installed row Update, addressed by the local installed name. */
@@ -109,6 +115,7 @@ function useMarketplaceActionController(
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
+  const authorization = useMCPDefinitionAuthorization();
   const [announcement, setAnnouncement] = useState("");
   const enableRecovery = useMarketplaceEnableRecovery(destination, setAnnouncement);
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
@@ -379,6 +386,7 @@ function useMarketplaceActionController(
 
   const dialogs = (
     <MarketplaceActionDialogs
+      authorization={authorization}
       install={
         installPreview
           ? {
@@ -434,6 +442,7 @@ function useMarketplaceActionController(
     isEntryPending: pending.isEntryPending,
     isItemFlashing: pending.isItemFlashing,
     isItemPending: pending.isItemPending,
+    requestAuthorize: authorization.authorize.requestAuthorize,
     toggleEnabled,
     trackInstalledItems: pending.trackItems,
     update,

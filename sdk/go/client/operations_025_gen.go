@@ -440,13 +440,3 @@ func (c *Client) MintGatewayPairing(ctx context.Context) (*GatewayPairingArtifac
 	}
 	return &out, nil
 }
-
-// MintGatewayStreamTicket Mint a short-lived single-use stream ticket
-func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTicketPayload, error) {
-	path := "/api/gateway/stream-tickets"
-	var out GatewayStreamTicketPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}

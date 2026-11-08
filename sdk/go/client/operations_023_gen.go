@@ -427,26 +427,3 @@ type ListSkillsParams struct {
 	Profile   *string `url:"profile"`
 	ForAgent  *string `url:"for_agent"`
 }
-
-// ListSkills List effective skills for the selected global, workspace, or agent scope
-func (c *Client) ListSkills(ctx context.Context, params ListSkillsParams) (*SkillsResponse, error) {
-	path := "/api/skills"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
