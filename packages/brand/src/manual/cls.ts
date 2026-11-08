@@ -43,18 +43,8 @@ export const band = "py-[clamp(64px,8vw,120px)] scroll-mt-28";
 
 // Ported with the chapter bodies (S4); names match the Astro source cls.ts.
 
-/** flat card without border, for dense grids */
-export const cardFlat = "min-w-0 rounded-card bg-(--b-card) p-[22px] sm:p-7";
-
 /** body text that is secondary */
 export const muted = "text-(--b-muted)";
-
-/** small caption under a figure */
-export const cap = "mt-2.5 text-sm text-(--b-muted)";
-
-/** definition rows: <dl className={specs}><div><dt/><dd/></div></dl> */
-export const specs =
-  "m-0 grid gap-0 [&>div]:grid [&>div]:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] [&>div]:gap-4 [&>div]:border-b [&>div]:border-(--b-line) [&>div]:py-2.5 [&_dt]:font-mono [&_dt]:text-[13px] [&_dt]:text-(--b-muted) [&_dd]:m-0 [&_dd]:text-[15px]";
 
 /** grids */
 export const grid2 = "grid gap-4 md:grid-cols-2";
@@ -63,7 +53,3 @@ export const grid4 = "grid gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
 export const btnMd = "min-h-11 px-5 text-[15px]";
 export const btnPrimary = `${voltFill} hover:bg-(--color-brand-hover)`;
-
-/** inline code chip */
-export const chip =
-  "inline-flex items-center rounded-md border border-(--b-line) px-2 py-0.5 font-mono text-[12px] text-(--b-accent)";
