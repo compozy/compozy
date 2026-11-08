@@ -3,6 +3,10 @@
   "generated_at": "2026-09-12T10:00:00Z",
   "entries": [
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false
+      },
       "entry_id": "herdr-bridge",
       "name": "herdr bridge",
       "description": "Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup",
@@ -17,6 +21,14 @@
       "repository": "https://github.com/AlexandreAkao/herdr-bridge-compozy"
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": true,
+        "supersedes": [
+          "compozy-plugins/context7",
+          "claude-plugins-official/context7"
+        ]
+      },
       "entry_id": "context7",
       "name": "Context7",
       "description": "Fetch current, version-specific library documentation and code examples.",
@@ -43,6 +55,14 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": true,
+        "supersedes": [
+          "compozy-plugins/github",
+          "claude-plugins-official/github"
+        ]
+      },
       "entry_id": "github",
       "name": "GitHub",
       "description": "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.",
@@ -69,6 +89,14 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "productivity",
+        "featured": true,
+        "supersedes": [
+          "compozy-plugins/linear",
+          "claude-plugins-official/linear"
+        ]
+      },
       "entry_id": "linear",
       "name": "Linear",
       "description": "Work with Linear issues, projects, and team knowledge through its hosted MCP server.",
@@ -83,6 +111,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/linear.svg"
     },
     {
+      "x-compozy": {
+        "category": "productivity",
+        "featured": true,
+        "supersedes": [
+          "compozy-plugins/notion",
+          "claude-plugins-official/notion"
+        ]
+      },
       "entry_id": "notion",
       "name": "Notion",
       "description": "Search and manage Notion workspace content through Notion's hosted MCP server.",
@@ -97,6 +133,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/notion.png"
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/sentry",
+          "claude-plugins-official/sentry"
+        ]
+      },
       "entry_id": "sentry",
       "name": "Sentry",
       "description": "Investigate Sentry issues, events, projects, and releases through its hosted MCP server.",
@@ -111,6 +155,10 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/sentry.svg"
     },
     {
+      "x-compozy": {
+        "category": "data",
+        "featured": false
+      },
       "entry_id": "postgres",
       "name": "PostgreSQL (Yaw Labs)",
       "description": "Query PostgreSQL with Yaw Labs' maintained MCP server; it is read-only by default.",
@@ -137,6 +185,13 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "data",
+        "featured": false,
+        "supersedes": [
+          "claude-plugins-official/supabase"
+        ]
+      },
       "entry_id": "supabase",
       "name": "Supabase",
       "description": "Work with a selected Supabase project through Supabase's hosted MCP server in read-only mode.",
@@ -163,6 +218,10 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "research",
+        "featured": false
+      },
       "entry_id": "brave-search",
       "name": "Brave Search",
       "description": "Search the web through Brave's official MCP server.",
@@ -189,6 +248,14 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/playwright",
+          "claude-plugins-official/playwright"
+        ]
+      },
       "entry_id": "playwright",
       "name": "Playwright",
       "description": "Automate browser workflows with Microsoft's Playwright MCP server in headless mode.",
@@ -203,6 +270,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/playwright.png"
     },
     {
+      "x-compozy": {
+        "category": "finance",
+        "featured": true,
+        "supersedes": [
+          "compozy-plugins/stripe",
+          "claude-plugins-official/stripe"
+        ]
+      },
       "entry_id": "stripe",
       "name": "Stripe",
       "description": "Inspect Stripe customers, payments, invoices, and subscriptions through Stripe's hosted MCP server.",
@@ -217,6 +292,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/stripe.svg"
     },
     {
+      "x-compozy": {
+        "category": "data",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/posthog",
+          "claude-plugins-official/posthog"
+        ]
+      },
       "entry_id": "posthog",
       "name": "PostHog",
       "description": "Analyze product data, feature flags, and observability signals through PostHog's hosted MCP server.",
@@ -231,6 +314,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/posthog.svg"
     },
     {
+      "x-compozy": {
+        "category": "productivity",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/airtable",
+          "claude-plugins-official/airtable"
+        ]
+      },
       "entry_id": "airtable",
       "name": "Airtable",
       "description": "Search and manage Airtable bases through Airtable's hosted MCP server.",
@@ -245,6 +336,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/airtable.png"
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/gitlab",
+          "claude-plugins-official/gitlab"
+        ]
+      },
       "entry_id": "gitlab",
       "name": "GitLab",
       "description": "Work with GitLab projects, issues, merge requests, and pipelines through GitLab's hosted MCP server.",
@@ -259,6 +358,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/gitlab.png"
     },
     {
+      "x-compozy": {
+        "category": "productivity",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/atlassian",
+          "claude-plugins-official/atlassian"
+        ]
+      },
       "entry_id": "atlassian",
       "name": "Atlassian",
       "description": "Work with Atlassian products through Atlassian's hosted MCP server.",
@@ -273,6 +380,16 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/atlassian.svg"
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/grafana-mcp",
+          "compozy-plugins/grafana-cloud-mcp",
+          "claude-plugins-official/grafana-mcp",
+          "claude-plugins-official/grafana-cloud-mcp"
+        ]
+      },
       "entry_id": "grafana",
       "name": "Grafana",
       "description": "Inspect Grafana dashboards, metrics, logs, traces, and alerts with write tools disabled.",
@@ -309,6 +426,10 @@
       ]
     },
     {
+      "x-compozy": {
+        "category": "productivity",
+        "featured": false
+      },
       "entry_id": "calcom",
       "name": "Cal.com",
       "description": "Manage Cal.com scheduling through Cal.com's hosted MCP server.",
@@ -323,6 +444,14 @@
       "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/calcom.png"
     },
     {
+      "x-compozy": {
+        "category": "development",
+        "featured": false,
+        "supersedes": [
+          "compozy-plugins/cloudflare",
+          "claude-plugins-official/cloudflare"
+        ]
+      },
       "entry_id": "cloudflare",
       "name": "Cloudflare Code Mode",
       "description": "Use Cloudflare's Code Mode MCP server to progressively discover and call Cloudflare APIs.",

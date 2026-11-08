@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -38,6 +39,9 @@ type Document struct {
 }
 
 type Plugin struct {
+	CompozyCategory                                                                   string
+	Featured                                                                          bool
+	Supersedes                                                                        []string
 	Name, Description, Version, Author, Homepage, Repository, License, Category, Icon string
 	Keywords                                                                          []string
 	Source                                                                            PluginSource
@@ -46,9 +50,11 @@ type Plugin struct {
 type Kind string
 
 const (
-	SourceRelative Kind = "relative"
-	SourceGitHub   Kind = "github"
-	SourceHTTPS    Kind = "https"
+	SourceRelative  Kind = "relative"
+	SourceGitHub    Kind = "github"
+	SourceHTTPS     Kind = "https"
+	SourceURL       Kind = "url"
+	SourceGitSubdir Kind = "git-subdir"
 )
 
 type PluginSource struct {
@@ -120,13 +126,31 @@ func decodePlugin(raw json.RawMessage) (Plugin, *Diagnostic) {
 			Message: err.Error(),
 		}
 	}
+	var curation map[string]json.RawMessage
+	// Optional publisher metadata never invalidates an otherwise usable plugin.
+	if rawCuration := fields["x-compozy"]; len(rawCuration) > 0 {
+		if err := json.Unmarshal(rawCuration, &curation); err != nil {
+			curation = nil
+		}
+	}
+	featured := string(curation["featured"]) == "true"
 	return Plugin{
-		Name: name, Source: source,
-		Description: optionalString(fields["description"]), Version: optionalString(fields["version"]),
-		Author: authorName(fields["author"]), Homepage: optionalString(fields["homepage"]),
-		Repository: optionalString(fields["repository"]), License: optionalString(fields["license"]),
-		Category: optionalString(fields["category"]), Icon: optionalString(fields["icon"]),
-		Keywords: optionalStrings(fields["keywords"]),
+		CompozyCategory: optionalString(
+			curation["category"],
+		),
+		Featured:    featured,
+		Supersedes:  optionalStrings(curation["supersedes"]),
+		Name:        name,
+		Source:      source,
+		Description: optionalString(fields["description"]),
+		Version:     optionalString(fields["version"]),
+		Author:      authorName(fields["author"]),
+		Homepage:    optionalString(fields["homepage"]),
+		Repository:  optionalString(fields["repository"]),
+		License:     optionalString(fields["license"]),
+		Category:    optionalString(fields["category"]),
+		Icon:        optionalString(fields["icon"]),
+		Keywords:    optionalStrings(fields["keywords"]),
 	}, nil
 }
 
@@ -138,17 +162,55 @@ func decodePluginSource(raw json.RawMessage) (PluginSource, error) {
 	var source struct {
 		Source string `json:"source"`
 		Repo   string `json:"repo"`
+		URL    string `json:"url"`
 		Ref    string `json:"ref"`
+		SHA    string `json:"sha"`
 		Path   string `json:"path"`
 	}
-	if err := json.Unmarshal(raw, &source); err != nil || source.Source != "github" {
-		return PluginSource{}, errors.New("source must be a relative path, GitHub object, or HTTPS URL")
+	if err := json.Unmarshal(raw, &source); err != nil {
+		return PluginSource{}, errors.New(
+			"source must be a relative path, GitHub object, HTTPS URL, url or git-subdir object",
+		)
+	}
+	if source.SHA != "" {
+		source.Ref = source.SHA
+	}
+	switch source.Source {
+	case "url", "git-subdir":
+		if err := gitsrc.ValidateRepositoryRef(source.URL); err != nil {
+			return PluginSource{}, errors.New(
+				"repository source must be public HTTPS with no credentials, query or fragment",
+			)
+		}
+		relative := ""
+		if source.Source == "git-subdir" {
+			if !validSubdirectory(source.Path) {
+				return PluginSource{}, errors.New("git-subdir source requires a contained relative path")
+			}
+			relative = source.Path
+		}
+		return PluginSource{Kind: Kind(source.Source), Ref: source.URL, GitRef: source.Ref, Path: relative}, nil
+	case "github":
+	default:
+		return PluginSource{}, errors.New("unsupported plugin source kind")
 	}
 	reference, err := normalizeGitHubRepository(source.Repo)
 	if err != nil {
 		return PluginSource{}, errors.New("GitHub source requires an owner/repository")
 	}
 	return PluginSource{Kind: SourceGitHub, Ref: reference, GitRef: source.Ref, Path: source.Path}, nil
+}
+
+func validSubdirectory(value string) bool {
+	if strings.TrimSpace(value) == "" || strings.ContainsAny(value, "\\\x00:") || path.IsAbs(value) {
+		return false
+	}
+	for part := range strings.SplitSeq(value, "/") {
+		if part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func decodeStringSource(value string) (PluginSource, error) {

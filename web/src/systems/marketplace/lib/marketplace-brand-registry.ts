@@ -58,5 +58,22 @@ export function marketplaceBrandKeyFor(entry: {
   return null;
 }
 
+/**
+ * Monochrome marks drawn in `currentColor`. A feed image of one of these carries a fixed ink (the
+ * catalog ships them white) that vanishes on one of the two themes, so the theme-following mark
+ * outranks the feed image for them.
+ */
+const THEME_FOLLOWING_BRANDS: ReadonlySet<MarketplaceBrandKey> = new Set<MarketplaceBrandKey>([
+  "github",
+  "linear",
+  "openai",
+  "vercel",
+]);
+
+/** True when the brand mark follows the text color and must win over a fixed-ink feed image. */
+export function marketplaceBrandFollowsTheme(key: MarketplaceBrandKey | null): boolean {
+  return key !== null && THEME_FOLLOWING_BRANDS.has(key);
+}
+
 export { marketplaceBrandRegistry };
 export type { MarketplaceBrandKey };

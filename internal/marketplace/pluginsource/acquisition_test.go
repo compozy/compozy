@@ -217,6 +217,76 @@ func TestResolveRemotePackages(t *testing.T) {
 			assertAcquisitionClean(t, resolver)
 		})
 	}
+	for _, ref := range []string{"abcdef1", "main", ""} {
+		t.Run("Should use Git rather than REST for GitHub ref "+ref, func(t *testing.T) {
+			t.Parallel()
+			lookedUp := false
+			sources := Sources{
+				TempDir: t.TempDir(),
+				GitOptions: []gitsrc.Option{gitsrc.WithLookPath(func(string) (string, error) {
+					lookedUp = true
+					return "", errors.New("fixture Git unavailable")
+				})},
+				HTTPClient: &http.Client{
+					Transport: marketplaceRoundTripper(func(*http.Request) (*http.Response, error) {
+						t.Error("unexpected HTTP API request")
+						return nil, errors.New("unexpected HTTP request")
+					}),
+				},
+			}
+			snapshot, err := sources.openPlugin(
+				t.Context(),
+				PluginSource{Kind: SourceURL, Ref: "https://github.com/owner/repository.git", GitRef: ref},
+			)
+			if snapshot != nil || err == nil || !lookedUp {
+				t.Fatalf("snapshot=%v err=%v Git lookup=%v", snapshot, err, lookedUp)
+			}
+		})
+	}
+
+	t.Run("Should acquire a pinned GitHub subdirectory without REST API requests", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeMarketplaceDocument(t, root, "repo/tool/.claude-plugin/plugin.json", []byte(`{"name":"tool"}`))
+		archive := githubSnapshotArchive(t, root)
+		requests := 0
+		client := &http.Client{Transport: marketplaceRoundTripper(func(req *http.Request) (*http.Response, error) {
+			requests++
+			if req.URL.String() != "https://github.com/owner/repository/archive/"+commit+".tar.gz" {
+				t.Errorf("unexpected URL: %s", req.URL)
+			}
+			response := marketplaceHTTPResponse(t, req, http.StatusOK, string(archive))
+			response.Header.Set("Content-Type", "application/gzip")
+			return response, nil
+		})}
+		resolver := &Resolver{
+			Cache:   &PackageCache{Root: t.TempDir()},
+			Sources: Sources{TempDir: t.TempDir(), HTTPClient: client},
+		}
+		record, err := resolver.Resolve(
+			t.Context(),
+			Document{SourceRef: "github:team/gallery"},
+			nil,
+			Plugin{
+				Name: "tool",
+				Source: PluginSource{
+					Kind:   SourceGitSubdir,
+					Ref:    "https://github.com/owner/repository.git",
+					GitRef: commit,
+					Path:   "tool",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if requests != 1 || record.ResolvedRef != "github:owner/repository@"+commit {
+			t.Fatalf("record=%+v requests=%d", record, requests)
+		}
+		assertAcquiredPackage(t, resolver, record)
+		assertAcquisitionClean(t, resolver)
+	})
+
 	t.Run("Should remove extracted archives when the HTTP reader fails to close", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -330,6 +400,7 @@ func TestGitSourceSnapshot(t *testing.T) {
 			[]byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`),
 		)
 		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"1.0.0"}`))
+		writeMarketplaceDocument(t, fixture, "plugin.json", []byte(`{"name":"whole"}`))
 		commands := [][]string{
 			{"init", "-b", "main", fixture},
 			{"-C", fixture, "add", "."},
@@ -341,6 +412,11 @@ func TestGitSourceSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		bare := filepath.Join(t.TempDir(), "fixture.git")
+		if err := runFixtureGit(t.Context(), t, executable, "clone", "--bare", fixture, bare); err != nil {
+			t.Fatal(err)
+		}
+
 		temporary := t.TempDir()
 		repository := "https://8.8.8.8/owner/repo"
 		source, err := NewGitSource("git+"+repository,
@@ -349,7 +425,7 @@ func TestGitSourceSnapshot(t *testing.T) {
 			gitsrc.WithRunner(func(ctx context.Context, executable string, args ...string) error {
 				for index, arg := range args {
 					if arg == repository {
-						args[index] = fixture
+						args[index] = bare
 					}
 				}
 				return runFixtureGit(
@@ -415,6 +491,23 @@ func TestGitSourceSnapshot(t *testing.T) {
 		if _, err := source.OpenSnapshot(t.Context(), unpinned, temporary); err == nil {
 			t.Fatal("accepted a branch in a resolved repository revision")
 		}
+		_, commit, _ := strings.CutLast(record.ResolvedRef, "@")
+		for _, ref := range []string{commit, commit[:8], "main", ""} {
+			external, err := resolver.Resolve(
+				t.Context(),
+				document,
+				nil,
+				Plugin{
+					Name:   "tool",
+					Source: PluginSource{Kind: SourceGitSubdir, Ref: repository, GitRef: ref, Path: "tool"},
+				},
+			)
+			if err != nil || external.DigestSHA256 != record.DigestSHA256 ||
+				external.ResolvedRef != record.ResolvedRef {
+				t.Fatalf("ref %q = %+v, %v", ref, external, err)
+			}
+		}
+
 		externalDoc := Document{SourceRef: "github:team/gallery"}
 		external, err := resolver.Resolve(t.Context(), externalDoc, nil, Plugin{
 			Name: "tool", Source: PluginSource{Kind: SourceHTTPS, Ref: repository, Path: "tool"},
@@ -423,6 +516,67 @@ func TestGitSourceSnapshot(t *testing.T) {
 			external.ResolvedRef != record.ResolvedRef || external.DigestSHA256 != record.DigestSHA256 {
 			t.Fatalf("external Git acquisition = %+v, %v", external, err)
 		}
+		commit = strings.TrimPrefix(record.ResolvedRef, source.ref+"@")
+		// Advance the branch so the pinned subdirectory must retain the original bytes.
+		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"2.0.0"}`))
+		for _, args := range [][]string{
+			{"-C", fixture, "add", "."},
+			{"-C", fixture, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "core.hooksPath=" + os.DevNull, "commit", "--no-gpg-sign", "-m", "advance"},
+			{"-C", fixture, "push", bare, "main"},
+		} {
+			if err := runFixtureGit(t.Context(), t, executable, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, kind := range []Kind{SourceGitSubdir, SourceURL} {
+			path := "tool"
+			if kind == SourceURL {
+				path = ""
+			}
+			external, err := resolver.Resolve(
+				t.Context(),
+				externalDoc,
+				nil,
+				Plugin{Name: "tool", Source: PluginSource{Kind: kind, Ref: repository, GitRef: commit, Path: path}},
+			)
+			if err != nil || external.ResolvedRef != record.ResolvedRef {
+				t.Fatalf("%s acquisition = %+v, %v", kind, external, err)
+			}
+			if kind == SourceGitSubdir &&
+				(external.PackagePath != "tool" || external.DigestSHA256 != record.DigestSHA256) {
+				t.Fatalf("pinned subtree = %+v", external)
+			}
+			reader, err := resolver.Cache.Open(t.Context(), external.DigestSHA256)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, readErr := io.ReadAll(reader)
+			if err := errors.Join(readErr, reader.Close()); err != nil {
+				t.Fatal(err)
+			}
+			archive := tar.NewReader(bytes.NewReader(raw))
+			found := false
+			for {
+				header, err := archive.Next()
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if header.Name == "plugin.json" {
+					found = true
+				}
+				if kind == SourceGitSubdir && header.Name != "plugin.json" {
+					t.Fatalf("subtree included %q", header.Name)
+				}
+			}
+			if !found {
+				t.Fatal("package root has no manifest")
+			}
+			assertAcquisitionClean(t, resolver)
+		}
+
 		assertAcquisitionClean(t, resolver)
 	})
 }
@@ -713,4 +867,167 @@ func TestCapturePackage(t *testing.T) {
 		}
 		assertCacheEmpty(t, cache)
 	})
+}
+
+func TestPackageSymlinks(t *testing.T) {
+	t.Parallel()
+	for _, replace := range []string{"package", "ancestor"} {
+		t.Run("Should reject a replaced "+replace+" after validation", func(t *testing.T) {
+			t.Parallel()
+			checkout := t.TempDir()
+			writeMarketplaceDocument(t, checkout, "parent/package/file", []byte("approved"))
+			outside := t.TempDir()
+			writeMarketplaceDocument(t, outside, "package/file", []byte("secret"))
+			packagePath := filepath.Join(checkout, "parent", "package")
+			directory, err := fileutil.OpenDirectory(packagePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := directory.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			swapPath, target := packagePath, filepath.Join(outside, "package")
+			if replace == "ancestor" {
+				swapPath, target = filepath.Dir(packagePath), outside
+			}
+			if err := os.Rename(swapPath, swapPath+"-held"); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, swapPath); err != nil {
+				t.Skipf("Symlink unavailable: %v", err)
+			}
+			spool := t.TempDir()
+			archive, err := capturePackageDirectory(t.Context(), directory, packagePath, 1<<20, spool)
+			if archive != nil {
+				if closeErr := archive.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+				t.Fatal("replaced package returned publishable bytes")
+			}
+			if !errors.Is(err, fileutil.ErrSymlink) {
+				t.Fatalf("capture replaced package = %v, want identity rejection", err)
+			}
+			entries, err := os.ReadDir(spool)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("failed capture left spool entries: %v, %v", entries, err)
+			}
+		})
+	}
+	for _, format := range []string{"tar", "gzip", "checkout"} {
+		for _, fixture := range []struct {
+			name   string
+			target string
+			second string
+			want   string
+			reject bool
+		}{
+			{name: "Should materialize an internal file", target: "data/file", want: "alias"},
+			{name: "Should materialize an internal directory", target: "data", want: "alias/file"},
+			{name: "Should materialize a link chain", target: "second", second: "data/file", want: "alias"},
+			{name: "Should reject a sibling package target", target: "../sibling/file", reject: true},
+			{name: "Should reject an archive escape", target: "../../../outside", reject: true},
+			{name: "Should reject an absolute target", target: "/etc/passwd", reject: true},
+			{name: "Should reject a dangling target", target: "missing", reject: true},
+			{name: "Should reject a link cycle", target: "second", second: "alias", reject: true},
+			{name: "Should reject a recursive directory", target: ".", reject: true},
+		} {
+			t.Run(fixture.name+" from "+format, func(t *testing.T) {
+				t.Parallel()
+				checkout := t.TempDir()
+				writeMarketplaceDocument(t, checkout, "repo/package/data/file", []byte("payload"))
+				writeMarketplaceDocument(t, checkout, "repo/sibling/file", []byte("secret"))
+				if err := os.Symlink(fixture.target, filepath.Join(checkout, "repo", "package", "alias")); err != nil {
+					t.Fatal(err)
+				}
+				if fixture.second != "" {
+					if err := os.Symlink(
+						fixture.second,
+						filepath.Join(checkout, "repo", "package", "second"),
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				root := checkout
+				var extractErr error
+				if format != "checkout" {
+					var raw bytes.Buffer
+					contentType := registry.TarContentType
+					if format == "gzip" {
+						raw.Write(githubSnapshotArchive(t, checkout))
+						contentType = "application/gzip"
+					} else {
+						if _, err := fileutil.WriteTarDirectory(
+							t.Context(),
+							&raw,
+							checkout,
+							nil,
+							fileutil.TarLimits{},
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+					root = t.TempDir()
+					extractErr = extractSnapshot(
+						t.Context(),
+						root,
+						&registry.DownloadResult{
+							Reader:      io.NopCloser(bytes.NewReader(raw.Bytes())),
+							ContentType: contentType,
+						},
+					)
+				}
+				cache := &PackageCache{Root: t.TempDir()}
+				var digest string
+				err := extractErr
+				if err == nil {
+					digest, err = CapturePackage(t.Context(), root, "repo/package", cache)
+				}
+				if fixture.reject {
+					if err == nil {
+						t.Fatal("unsafe link accepted")
+					}
+					assertCacheEmpty(t, cache)
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				reader, err := cache.Open(t.Context(), digest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := reader.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				archive := tar.NewReader(reader)
+				found := false
+				for {
+					header, err := archive.Next()
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if header.Typeflag == tar.TypeSymlink {
+						t.Fatal("cached package retained a symlink")
+					}
+					if header.Name == fixture.want {
+						content, err := io.ReadAll(archive)
+						if err != nil || string(content) != "payload" {
+							t.Fatalf("materialized content = %q, %v", content, err)
+						}
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("missing materialized entry %q", fixture.want)
+				}
+			})
+		}
+	}
 }

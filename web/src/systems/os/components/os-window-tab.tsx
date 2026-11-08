@@ -69,7 +69,7 @@ export function OsWindowTab({
   const isSession = win.app === "session";
   const isNewTab = win.app === "new-tab";
   const sessionTitle = isSession && session ? getSessionDisplayTitle(session) : null;
-  const label: React.ReactNode = sessionTitle ?? slot?.crumb ?? app.title;
+  const label: React.ReactNode = sessionTitle ?? slot?.tabLabel ?? slot?.crumb ?? app.title;
 
   const closeTab = (event: React.MouseEvent) => {
     event.stopPropagation();

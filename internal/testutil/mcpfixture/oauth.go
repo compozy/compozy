@@ -1,6 +1,7 @@
 package mcpfixture
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,6 +32,7 @@ const (
 
 // OAuthConfig configures the optional local OAuth surface around an MCP fixture.
 type OAuthConfig struct {
+	ResourceURL                                string
 	MCPPath                                    string
 	Scopes                                     []string
 	StepUpScope                                string
@@ -245,12 +247,13 @@ func (s *OAuthHTTPServer) serveToken(writer http.ResponseWriter, request *http.R
 	switch values.Get("grant_type") {
 	case authorizationCodeGrant:
 		if values.Get(authorizationCodeParam) != AuthorizationCode || values.Get("code_verifier") == "" ||
-			values.Get(resourceParameter) != endpoints.MCPURL {
+			values.Get(resourceParameter) != cmp.Or(s.config.ResourceURL, endpoints.MCPURL) {
 			http.Error(writer, "invalid authorization code request", http.StatusBadRequest)
 			return
 		}
 	case refreshTokenGrant:
-		if values.Get("refresh_token") != RefreshToken || values.Get(resourceParameter) != endpoints.MCPURL {
+		if values.Get("refresh_token") != RefreshToken ||
+			values.Get(resourceParameter) != cmp.Or(s.config.ResourceURL, endpoints.MCPURL) {
 			http.Error(writer, "invalid refresh request", http.StatusBadRequest)
 			return
 		}

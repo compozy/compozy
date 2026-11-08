@@ -241,7 +241,7 @@ func (r *Registry) currentGatewayRequirementDigest(key InstanceKey) (string, err
 		if err != nil {
 			return "", err
 		}
-		manifest, err = LoadManifest(installDir)
+		manifest, err = loadManifest(installDir, "", info.Name)
 		if err != nil {
 			return "", err
 		}

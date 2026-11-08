@@ -4,10 +4,43 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// UnmarshalJSON retains the complete event payload.
+func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *InvokeToolFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
+func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
+	var out ToolInvokeResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsToolErrorResponse decodes this payload as ToolErrorResponse.
+func (f InvokeToolFrame) AsToolErrorResponse() (*ToolErrorResponse, error) {
+	var out ToolErrorResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // InvokeTool Invoke a registry tool through executable dispatch
 func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body ToolInvokeRequest) (*InvokeToolFrame, error) {
@@ -391,55 +424,4 @@ type ListAgentsAggregateParams struct {
 	Cursor        *string   `url:"cursor"`
 	Limit         *int      `url:"limit"`
 	Profile       *string   `url:"profile"`
-}
-
-// ListAgentsAggregate List a filtered agent fleet with exact session metrics
-func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggregateParams) (*AgentCatalogResponse, error) {
-	path := "/api/agents/aggregate"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Group != nil {
-		query.Set("group", *params.Group)
-	}
-	if params.Name != nil {
-		query.Set("name", *params.Name)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Category != nil {
-		query.Set("category", *params.Category)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAppTokensParams carries the path, query, and header parameters.
-type ListAppTokensParams struct {
-	State *string `url:"state"`
 }

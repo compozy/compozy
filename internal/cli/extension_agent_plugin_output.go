@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/spf13/cobra"
 )
 
 const extensionAgentPluginDiagnosticPrefix = "extension_agent_plugin_"
@@ -103,14 +104,27 @@ func extensionDiagnosticReason(item contract.DiagnosticItem, scope string) strin
 
 func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
 	bundle := extensionBundle(item)
+	if item.InstallEnableError != nil {
+		response := contract.InstallExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
+		bundle.jsonValue = response
+		bundle.jsonl = func(cmd *cobra.Command) error { return writeJSONLine(cmd, response) }
+	}
 	bundle.human = func() (string, error) {
 		portable := strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin)
 		blocks := []string{fmt.Sprintf("✓ install %s", strings.TrimSpace(item.Name))}
+		if item.InstallEnableError != nil {
+			blocks = append(
+				blocks,
+				"Couldn't turn on: "+item.InstallEnableError.Code+": "+item.InstallEnableError.Error,
+				"Retry: compozy extension enable "+item.Name,
+			)
+		}
 		if portable {
 			if report == nil {
-				return "", fmt.Errorf("cli: portable install report is unavailable for %q", item.Name)
+				blocks = append(blocks, "warning: validation report is unavailable for "+item.Name)
+			} else {
+				blocks = append(blocks, extensionPortableInstallReportHuman(report))
 			}
-			blocks = append(blocks, extensionPortableInstallReportHuman(report))
 		} else if report != nil && report.DualManifest {
 			blocks = append(blocks,
 				"note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension "+
@@ -215,4 +229,24 @@ func extensionPortableValidationToon(report *extensionpkg.ValidationReport) (str
 	}, []string{
 		report.Status, report.Format, report.Name, report.Version, string(wouldIngest), string(issues),
 	}), nil
+}
+
+func extensionInstallResultBundle(
+	item *ExtensionRecord, report *extensionpkg.ValidationReport, enable bool,
+) outputBundle {
+	bundle := extensionInstallSuccessBundle(item, report)
+	if !enable {
+		return bundle
+	}
+	response := contract.InstallExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
+	bundle.jsonValue = response
+	bundle.jsonl = func(cmd *cobra.Command) error { return writeJSONLine(cmd, response) }
+	if item.InstallEnableError == nil {
+		baseHuman := bundle.human
+		bundle.human = func() (string, error) {
+			text, err := baseHuman()
+			return fmt.Sprintf("Installed %s %s and turned it on.\n%s", item.Name, item.Version, text), err
+		}
+	}
+	return bundle
 }

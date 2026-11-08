@@ -312,10 +312,48 @@ function TopbarTitle({
   );
 }
 
+/** Status meta, then the published actions, at the end of the head. */
+function TopbarTrail({ slot }: { slot: TopbarSlotValue | null }) {
+  if (!slot?.status && !slot?.actions) return null;
+  return (
+    // Width goes to the identity and the actions first; the status meta only
+    // gets what is left. Its inline-size containment keeps it out of the
+    // trail's intrinsic width, so the title never truncates while status
+    // items still fit, and the status sheds or clips its own items instead.
+    <div
+      data-slot="topbar-trailing"
+      className={cn(
+        "flex items-center justify-end gap-2",
+        slot.status ? "flex-1" : "min-w-0 shrink-0"
+      )}
+    >
+      {slot.status ? (
+        <div
+          data-slot="topbar-status"
+          className="flex min-w-0 flex-1 items-center justify-end gap-1.5 overflow-hidden [contain:inline-size]"
+        >
+          {slot.status}
+        </div>
+      ) : null}
+      {slot.status && slot.actions ? (
+        <span
+          aria-hidden="true"
+          data-slot="topbar-vsep"
+          className="h-3.5 w-px shrink-0 bg-line-strong"
+        />
+      ) : null}
+      {slot.actions ? (
+        <div data-slot="topbar-actions" className="flex shrink-0 items-center gap-1.5">
+          {slot.actions}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Topbar({ controls, title, titleRef, glyph, leading, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
   const hasControls = controls != null;
-  const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions);
   const lead = slot?.leading ?? leading;
 
   return (
@@ -333,44 +371,20 @@ function Topbar({ controls, title, titleRef, glyph, leading, className, ...props
         </div>
       ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />
+      {slot?.context != null ? (
+        <div
+          data-slot="topbar-context"
+          // The identity keeps its name; the pickers yield all the width they can first.
+          className="flex min-w-0 shrink-[100] items-center"
+        >
+          {slot.context}
+        </div>
+      ) : null}
       <div
         data-slot="topbar-flex"
         className={cn("min-h-full min-w-2 self-stretch", slot?.status ? "flex-none" : "flex-1")}
       />
-      {hasTrail ? (
-        // Width goes to the identity and the actions first; the status meta only
-        // gets what is left. Its inline-size containment keeps it out of the
-        // trail's intrinsic width, so the title never truncates while status
-        // items still fit, and the status sheds or clips its own items instead.
-        <div
-          data-slot="topbar-trailing"
-          className={cn(
-            "flex items-center justify-end gap-2",
-            slot?.status ? "flex-1" : "min-w-0 shrink-0"
-          )}
-        >
-          {slot?.status ? (
-            <div
-              data-slot="topbar-status"
-              className="flex min-w-0 flex-1 items-center justify-end gap-1.5 overflow-hidden [contain:inline-size]"
-            >
-              {slot.status}
-            </div>
-          ) : null}
-          {slot?.status && slot.actions ? (
-            <span
-              aria-hidden="true"
-              data-slot="topbar-vsep"
-              className="h-3.5 w-px shrink-0 bg-line-strong"
-            />
-          ) : null}
-          {slot?.actions ? (
-            <div data-slot="topbar-actions" className="flex shrink-0 items-center gap-1.5">
-              {slot.actions}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <TopbarTrail slot={slot} />
       {hasControls ? (
         <>
           <span

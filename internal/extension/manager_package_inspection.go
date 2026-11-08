@@ -23,7 +23,7 @@ func (m *Manager) InspectPackageResources(ctx context.Context, name string) (*Ex
 		return nil, err
 	}
 	rootDir := PackageRootFromManifest(strings.TrimSpace(info.ManifestPath))
-	manifest, err := LoadManifest(rootDir)
+	manifest, err := LoadInstalledManifest(info)
 	if err != nil {
 		return nil, err
 	}

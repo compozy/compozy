@@ -7,6 +7,49 @@ import (
 	"time"
 )
 
+// UpdateTaskRequest is a daemon API value.
+type UpdateTaskRequest struct {
+	Title              *string          `json:"title,omitempty"`
+	Description        *string          `json:"description,omitempty"`
+	Priority           *Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	Owner              *Ownership       `json:"owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitempty"`
+}
+
+// UpdateTriggerRequest is a daemon API value.
+type UpdateTriggerRequest struct {
+	TargetInstanceScope *string           `json:"target_instance_scope,omitempty"`
+	Name                *string           `json:"name,omitempty"`
+	Prompt              *string           `json:"prompt,omitempty"`
+	Event               *string           `json:"event,omitempty"`
+	Filter              map[string]string `json:"filter,omitempty"`
+	LoopTarget          *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled             *bool             `json:"enabled,omitempty"`
+	Retry               *RetryConfig      `json:"retry,omitempty"`
+	FireLimit           *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID           *string           `json:"webhook_id,omitempty"`
+	EndpointSlug        *string           `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue  *string           `json:"webhook_secret_value,omitempty"`
+}
+
+// UpdateWorkspaceRequest is a daemon API value.
+type UpdateWorkspaceRequest struct {
+	Name         *string   `json:"name"`
+	AddDirs      *[]string `json:"add_dirs"`
+	DefaultAgent *string   `json:"default_agent"`
+}
+
+// UsageSignal is a daemon API value.
+type UsageSignal struct {
+	CommandID  CommandID `json:"command_id"`
+	Weight     float64   `json:"weight"`
+	LastUsedAt int64     `json:"last_used_at"`
+}
+
 // ValidateLoopRequest is a daemon API value.
 type ValidateLoopRequest struct {
 	Definition LoopDefinitionDocument `json:"definition"`
@@ -403,42 +446,4 @@ type WorkCandidate struct {
 	Title          string `json:"title,omitempty"`
 	URL            string `json:"url,omitempty"`
 	State          string `json:"state,omitempty"`
-}
-
-// WorkCandidates is a daemon API value.
-type WorkCandidates struct {
-	Items               []WorkCandidate `json:"items"`
-	HasMore             bool            `json:"has_more"`
-	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
-	Repository          string          `json:"repository,omitempty"`
-}
-
-// WorkSignal is a daemon API value.
-type WorkSignal struct {
-	HeldReason     string         `json:"held_reason,omitempty"`
-	HeldInstanceID string         `json:"held_instance_id,omitempty"`
-	Kind           WorkSignalKind `json:"kind"`
-	Since          time.Time      `json:"since"`
-	Ref            string         `json:"ref,omitempty"`
-}
-
-// WorkSignalKind is a daemon API value.
-type WorkSignalKind string
-
-// WorkerMode is a daemon API value.
-type WorkerMode string
-
-// WorkerProfile is a daemon API value.
-type WorkerProfile struct {
-	Mode                  WorkerMode           `json:"mode"`
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
 }

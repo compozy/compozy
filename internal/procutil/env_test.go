@@ -169,14 +169,33 @@ printf clean
 func TestLaunchSandboxFiltersFallbackEnvironment(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-launch-secret")
 	t.Setenv("COMPOZY_HOME", "/tmp/compozy")
+	t.Setenv("COMPOZY_INTERNAL_RESTART_OPERATION_ID", "inherited-restart")
 
-	t.Run("Should filter inherited daemon secrets", func(t *testing.T) {
+	t.Run("Should filter inherited daemon secrets and handoff variables", func(t *testing.T) {
 		env := launchSandbox(nil)
 		if hasEnvPrefix(env, "OPENAI_API_KEY=") {
 			t.Fatalf("launchSandbox(nil) leaked OPENAI_API_KEY in %#v", env)
 		}
+		if hasEnvPrefix(env, "COMPOZY_INTERNAL_RESTART_OPERATION_ID=") {
+			t.Fatalf("launchSandbox(nil) leaked inherited restart handoff in %#v", env)
+		}
 		if !hasEnvPrefix(env, "COMPOZY_HOME=/tmp/compozy") {
 			t.Fatalf("launchSandbox(nil) missing COMPOZY_HOME in %#v", env)
+		}
+	})
+
+	t.Run("Should keep explicit internal handoff variables only for detached launches", func(t *testing.T) {
+		const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1"
+		base := []string{"PATH=/usr/bin", handoff}
+
+		if !containsEnvEntry(launchSandbox(base), handoff) {
+			t.Fatalf("launchSandbox() dropped explicit handoff %q", handoff)
+		}
+		if containsEnvEntry(FilteredDaemonEnv(base), handoff) {
+			t.Fatalf("FilteredDaemonEnv() leaked handoff %q", handoff)
+		}
+		if containsEnvEntry(WithoutInternalHandoffEnv(base), handoff) {
+			t.Fatalf("WithoutInternalHandoffEnv() kept handoff %q", handoff)
 		}
 	})
 }

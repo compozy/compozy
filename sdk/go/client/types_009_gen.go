@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// HeartbeatRollbackByPathRequest is a daemon API value.
+type HeartbeatRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatScriptApprovalPayload is a daemon API value.
+type HeartbeatScriptApprovalPayload struct {
+	Script     string    `json:"script"`
+	SHA256     string    `json:"sha256"`
+	ApprovedAt time.Time `json:"approved_at"`
+}
+
 // HeartbeatScriptApprovalRequest is a daemon API value.
 type HeartbeatScriptApprovalRequest struct {
 	SHA256 string `json:"sha256"`
@@ -270,6 +286,7 @@ type InputType string
 
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
+	Enable               bool                   `json:"enable,omitzero"`
 	Scope                string                 `json:"scope,omitempty"`
 	WorkspaceID          string                 `json:"workspace_id,omitempty"`
 	Profile              string                 `json:"profile,omitempty"`
@@ -281,6 +298,12 @@ type InstallExtensionRequest struct {
 	Asset                string                 `json:"asset,omitempty"`
 	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
 	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
+}
+
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
 }
 
 // InstallExtensionSource is a daemon API value.
@@ -424,23 +447,4 @@ type LoopBudget struct {
 	Tokens       int                `json:"tokens"`
 	WallClockSec int                `json:"wall_clock_sec"`
 	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// LoopBudgetExceeded is a daemon API value.
-type LoopBudgetExceeded string
-
-// LoopCatalogAggregateEntryPayload is a daemon API value.
-type LoopCatalogAggregateEntryPayload struct {
-	WorkspaceID   string                      `json:"workspace_id,omitempty"`
-	Name          string                      `json:"name"`
-	Version       int                         `json:"version"`
-	Description   string                      `json:"description,omitempty"`
-	Source        LoopCatalogSourcePayload    `json:"source"`
-	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
-	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
-	Start         []LoopStartBinding          `json:"start,omitempty"`
-	Contract      LoopContract                `json:"contract"`
-	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
-	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
-	SuccessRate30 float64                     `json:"success_rate_30d"`
 }

@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
 
 import type { DiffViewerHandle } from "@compozy/ui";
 
 import { fileViewerTarget } from "@/systems/files";
 
+import type { OpenInFilesApp } from "./use-open-in-files-app";
+
 import type { SessionChangesSummary } from "../adapters/session-changes-api";
 import { focusedChangeRoute, type SessionChangeItem } from "../lib/session-changes";
-import {
-  requestSessionReviewFile,
-  type SessionChangeFocus,
-} from "./use-session-review-panel-state";
+import type { SessionChangeFocus } from "./use-session-review-panel-state";
 
 /** The base selector's open state; a chosen base that no longer exists reopens it (US-008.EC-1). */
 export function useBaseSelectorOpen(errorCode: string | null) {
@@ -48,23 +47,24 @@ export function useMissingBaseFallback(
 
 /**
  * The selected changed file: tree clicks, `[`/`]` steps, scrolling the diffs, and a
- * changed-file row's focus request (US-005.AC-6). A file that leaves the summary hands its
- * selection to the file now at its place (US-010.EC-1).
+ * changed-file row's focus request (US-005.AC-6), which opens the Files window instead when
+ * the summary doesn't list the file. A file that leaves the summary hands its selection to the
+ * file now at its place (US-010.EC-1).
  */
 export function useSessionChangeSelection({
-  sessionId,
   summary,
   items,
   large,
   focus,
   diffRef,
+  openInFiles,
 }: {
-  sessionId: string;
   summary: SessionChangesSummary | undefined;
   items: readonly SessionChangeItem[];
   large: boolean;
   focus: SessionChangeFocus | null;
   diffRef: RefObject<DiffViewerHandle | null>;
+  openInFiles: OpenInFilesApp | null;
 }) {
   const [selection, setSelection] = useState<{ path: string | null; index: number }>({
     path: null,
@@ -90,19 +90,22 @@ export function useSessionChangeSelection({
     if (index >= 0) setSelection({ path: focus.path, index });
   }
   const handledFocus = useRef<number | null>(null);
+  // An event, not a dependency: the owner's callback is fresh every render, and re-running the
+  // effect would cancel the pending scroll of a focus that is already handled.
+  const openUnlisted = useEffectEvent((path: string) => openInFiles?.(fileViewerTarget(path)));
   useEffect(() => {
     if (!focus || !summary || appliedFocus !== focus.nonce) return;
     if (handledFocus.current === focus.nonce) return;
     handledFocus.current = focus.nonce;
     if (focusedChangeRoute(summary.files, focus.path) === "files") {
-      requestSessionReviewFile(sessionId, fileViewerTarget(focus.path));
+      openUnlisted(focus.path);
       return;
     }
     if (large) return;
     // The diff list renders the new selection first; scroll on the next frame.
     const frame = requestAnimationFrame(() => diffRef.current?.scrollToItem(focus.path));
     return () => cancelAnimationFrame(frame);
-  }, [appliedFocus, diffRef, focus, large, sessionId, summary]);
+  }, [appliedFocus, diffRef, focus, large, summary]);
 
   return {
     selectedIndex,

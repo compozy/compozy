@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Search filters the single catalog across its sources. Source diagnostics distinguish unavailable data from an empty match; clearing search restores the catalog. Pagination restarts after a content-revision change without mixing old and new pages.
 entry_points: /marketplace?q=<query>; Marketplace search field
-qa_status: skipped
+qa_status: pass
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
-retest_status: untested
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-stale-served.png;/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+evidence: /tmp/mpc-shots/final/search-results.png
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-landing-browse
 ---
@@ -55,3 +55,26 @@ QA impact 2026-08-20: Marketplace kind ListingToolbar search height now uses `--
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## QA impact 2026-11-07 — marketplace plugin catalog (spec `marketplace-plugin-catalog`, S8)
+
+Top search still replaces the category sections with one flat result list across the whole
+catalog (US-003). Each result now shows its category word (`category_label`) instead of tier/author
+for official entries; community entries keep their tier word. Search with a category word (for
+example "design") and verify matches still come from name and description, not from the category
+id, and that clearing search restores the sections. Capture the flat results.
+
+### Walk result 2026-11-07 (S8 integrated lab, `feat/mpc-s8` with S1–S7 + S9)
+
+Isolated lab (own home, ports 49760/49761, worktree web dev server), default sources plus a local `lab-plugins` folder source; cold refresh of the default sources took ~65.7 s (compozy-catalog 18, claude-plugins-official 316, compozy-plugins 333). Screenshots and CLI captures are lab-local in `/tmp/mpc-shots/s8/` (not committed).
+
+PASS — `/marketplace?q=payments` replaces the sections with five flat results across sources, each
+showing its category word (Finance & Payments, Cloud & Infrastructure, More); matches come from name
+and description.
+
+### Re-walk 2026-11-07 (integration 30fcdfee8, fresh isolated lab)
+
+Cold refresh of the default sources took ~87.2 s (compozy-catalog 18 from a generator-regenerated temp feed, claude-plugins-official 316, compozy-plugins 333). Evidence is lab-local in `/tmp/mpc-shots/final/` (not committed).
+
+PASS — `/marketplace?q=design` returns 25 flat results with category words; rows that cannot load
+read Blocked (BUG-20261107-plugin-archive-symlink-unsupported).

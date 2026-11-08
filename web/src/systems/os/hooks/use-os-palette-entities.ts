@@ -396,9 +396,8 @@ function projectPaletteTabs(
       const label =
         app === "session" && session
           ? getSessionDisplayTitle(session)
-          : typeof slot?.crumb === "string"
-            ? slot.crumb
-            : getOsAppDescriptor(app).title;
+          : (slot?.tabLabel ??
+            (typeof slot?.crumb === "string" ? slot.crumb : getOsAppDescriptor(app).title));
       tabs.push({
         windowId: win.id,
         app,

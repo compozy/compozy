@@ -690,6 +690,11 @@ func TestTriageDispatcher(t *testing.T) {
 				MaxProposals: 2,
 				StopTimeout:  time.Second,
 			}
+			if tc.primaryFailure {
+				// A configured stop budget shorter than the termination ladder must not
+				// abandon a stop the manager is still completing.
+				dispatcher.StopTimeout = time.Nanosecond
+			}
 			var hidden string
 			var exited <-chan struct{}
 			primary := errors.New("occurrence binding failed")

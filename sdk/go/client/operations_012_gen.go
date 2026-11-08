@@ -5,10 +5,52 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetOpenAPIDocument Get the running daemon's OpenAPI document
+func (c *Client) GetOpenAPIDocument(ctx context.Context, params GetOpenAPIDocumentParams) (*json.RawMessage, error) {
+	path := "/api/openapi.json"
+	headers := http.Header{}
+	if params.IfNoneMatch != nil {
+		headers.Set("If-None-Match", *params.IfNoneMatch)
+	}
+	if params.AcceptEncoding != nil {
+		headers.Set("Accept-Encoding", *params.AcceptEncoding)
+	}
+	var out json.RawMessage
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetPendingToolApprovalParams carries the path, query, and header parameters.
+type GetPendingToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// GetPendingToolApproval Get one pending tool approval lifecycle
+func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
+	path := "/api/tools/approvals/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetPermissionRollupParams carries the path, query, and header parameters.
 type GetPermissionRollupParams struct {
@@ -382,54 +424,4 @@ type GetSessionChangeContentsParams struct {
 	Reveal      *bool   `url:"reveal"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionChangeContents Read session changes
-func (c *Client) GetSessionChangeContents(ctx context.Context, params GetSessionChangeContentsParams) (*SessionChangeContentsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Base != nil {
-		query.Set("base", *params.Base)
-	}
-	query.Set("revision", params.Revision)
-	query.Set("path", params.Path)
-	if params.OldPath != nil {
-		query.Set("old_path", *params.OldPath)
-	}
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionChangeContentsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionChangePatchesParams carries the path, query, and header parameters.
-type GetSessionChangePatchesParams struct {
-	WorkspaceID string    `url:"workspace_id"`
-	SessionID   string    `url:"session_id"`
-	Scope       *string   `url:"scope"`
-	Base        *string   `url:"base"`
-	Revision    string    `url:"revision"`
-	Path        []string  `url:"path"`
-	OldPath     *[]string `url:"old_path"`
-	Reveal      *bool     `url:"reveal"`
-	Profile     *string   `url:"profile"`
-	AllProfiles *bool     `url:"all_profiles"`
 }

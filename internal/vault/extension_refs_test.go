@@ -62,3 +62,22 @@ func TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames(t *testing.T)
 		}
 	})
 }
+
+func TestExtensionOAuthClientSecretOwnership(t *testing.T) {
+	t.Parallel()
+	t.Run("Should accept only the owning extension client secret reference", func(t *testing.T) {
+		t.Parallel()
+		ref := ExtensionSecretRef("client", "", "CLIENT_SECRET")
+		for _, owner := range []string{"extension:client", "extension:other", ""} {
+			target := MCPSecretTarget{Owner: owner, Scope: MCPUserScope, ServerName: "remote"}
+			got, err := NormalizeMCPClientSecretRef(ref, target)
+			if owner == "extension:client" {
+				if err != nil || got != ref {
+					t.Fatalf("owned ref = %q, %v", got, err)
+				}
+			} else if err == nil {
+				t.Fatalf("accepted ref for owner %q", owner)
+			}
+		}
+	})
+}

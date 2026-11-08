@@ -2,7 +2,7 @@ import { delay, HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
-import { extensionFixtures, type ExtensionEntry } from "@/systems/extensions";
+import type { ExtensionEntry } from "@/systems/extensions";
 import type {
   MarketplaceCatalogListing,
   MarketplaceCatalogResponse,
@@ -10,6 +10,10 @@ import type {
 } from "@/systems/marketplace";
 import {
   marketplaceCatalogFixture,
+  marketplaceCategoryCounts,
+  marketplaceCategoryFixtures,
+  marketplaceCategoryItems,
+  marketplaceSectionsFromCatalog,
   marketplaceSourceFixtures,
   marketplaceSourceHandlers,
 } from "@/systems/marketplace/mocks";
@@ -45,6 +49,7 @@ function catalogEntry(
     installed_name: undefined,
     installed_version: undefined,
     update_available: false,
+    featured: false,
     ...overrides,
     install_slug: `compozy/${overrides.entry_id ?? base.entry_id}`,
   };
@@ -52,7 +57,10 @@ function catalogEntry(
 
 /** Today's catalog as the stories see it: real feed names, every logo rung represented. */
 export const storyCatalog = {
-  otelBridge: catalogEntry(otelBridge, {}),
+  otelBridge: catalogEntry(otelBridge, {
+    category: "cloud",
+    category_label: "Cloud & Infrastructure",
+  }),
   slackNotify: catalogEntry(slackNotify, {}),
   policyBlocked: catalogEntry(policyBlocked, {}),
   acmeTools: catalogEntry(acmeTools, {}),
@@ -60,6 +68,9 @@ export const storyCatalog = {
     author: "CompozyOS",
     description:
       "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.",
+    category: "development",
+    category_label: "Development",
+    featured: true,
     entry_id: "github",
     name: "GitHub",
     tier: "official",
@@ -68,6 +79,9 @@ export const storyCatalog = {
   context7: catalogEntry(otelBridge, {
     author: "CompozyOS",
     description: "Fetch current, version-specific library documentation and code examples.",
+    category: "research",
+    category_label: "Research & Learning",
+    featured: true,
     entry_id: "context7",
     icon: STORY_FEED_ICON,
     name: "Context7",
@@ -78,6 +92,8 @@ export const storyCatalog = {
     author: "Alexandre Akira",
     description:
       "Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup",
+    category: "ai-agents",
+    category_label: "AI & Agents",
     entry_id: "herdr-bridge",
     name: "herdr bridge",
     tier: "community",
@@ -86,6 +102,8 @@ export const storyCatalog = {
   grafana: catalogEntry(otelBridge, {
     author: "Grafana Labs",
     description: "Query dashboards, alerts, and logs from your Grafana instance",
+    category: "data",
+    category_label: "Data & Analytics",
     entry_id: "grafana",
     name: "Grafana",
     tier: "community",
@@ -95,6 +113,8 @@ export const storyCatalog = {
     author: "CompozyOS",
     description:
       "Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths",
+    category: "development",
+    category_label: "Development",
     entry_id: "repository-orientation",
     name: "Repository Orientation",
     tier: "official",
@@ -103,6 +123,9 @@ export const storyCatalog = {
   postgres: catalogEntry(otelBridge, {
     author: "CompozyOS",
     description: "Query and inspect PostgreSQL databases with read-only access by default.",
+    category: "data",
+    category_label: "Data & Analytics",
+    featured: true,
     entry_id: "postgres",
     name: "PostgreSQL (Yaw Labs)",
     tier: "official",
@@ -187,67 +210,6 @@ export function catalogSourceSummaries(
   return summaries;
 }
 
-/** The daemon-joined installed state of a listing: origin match, never a name match. */
-export function installedListing(
-  listing: MarketplaceCatalogListing,
-  options: { installedVersion?: string; updateAvailable?: boolean } = {}
-): MarketplaceCatalogListing {
-  return {
-    ...listing,
-    installed: true,
-    installed_name: listing.entry_id,
-    installed_version: options.installedVersion ?? listing.version,
-    update_available: options.updateAvailable ?? false,
-  };
-}
-
-const [extensionBase] = extensionFixtures as [ExtensionEntry, ...ExtensionEntry[]];
-
-/** An installed extension row carrying the origin the listing was joined by. */
-export function installedExtension(
-  listing: MarketplaceCatalogListing,
-  overrides: Partial<ExtensionEntry> = {}
-): ExtensionEntry {
-  return {
-    ...extensionBase,
-    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
-    enabled: true,
-    marketplace: listing,
-    name: listing.installed_name ?? listing.entry_id,
-    origin: {
-      entry_id: listing.entry_id,
-      source: listing.source,
-      source_ref: listing.source_ref ?? "catalog:compozy",
-    },
-    remote_version: listing.update_available ? listing.version : undefined,
-    update_available: listing.update_available,
-    version: listing.installed_version ?? listing.version ?? extensionBase.version,
-    ...overrides,
-  };
-}
-
-/** A sideloaded extension with no catalog origin: it stays visible in Installed as itself. */
-export function localExtension(
-  name: string,
-  overrides: Partial<ExtensionEntry> = {}
-): ExtensionEntry {
-  return {
-    ...extensionBase,
-    contents: { agents: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
-    enabled: true,
-    marketplace: null,
-    name,
-    origin: null,
-    provenance: undefined,
-    remote_version: undefined,
-    source: "local_path",
-    trust: undefined,
-    update_available: false,
-    version: "0.1.0",
-    ...overrides,
-  };
-}
-
 export function catalogResponse(
   items: MarketplaceCatalogListing[],
   overrides: Partial<MarketplaceCatalogResponse> = {}
@@ -290,8 +252,10 @@ export function marketplaceStoryHandlers(options: {
   sources?: readonly MarketplaceSource[];
   /** The MCPs view's managed server list (`/api/settings/mcp-servers`); omitted keeps the default. */
   mcpServers?: SettingsMCPServerEntry[];
+  /** Add installs but its enable fails: the row reads Couldn't turn on with Retry. */
+  installEnableError?: { code: string; error: string };
 }) {
-  const catalog = options.catalog ?? [];
+  let catalog = options.catalog ?? [];
   let extensions = options.extensions ?? [];
   const installResult = options.installResult;
   const pendingUpdates = new Set(options.pendingUpdates);
@@ -309,13 +273,40 @@ export function marketplaceStoryHandlers(options: {
             { status: options.catalogStatus }
           );
         }
-        const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-        const items = catalog.filter(entry => matchesQuery(entry, query));
+        const params = new URL(request.url).searchParams;
+        const query = params.get("q")?.trim() ?? "";
+        const category = params.get("category")?.trim() ?? "";
+        if (category && !marketplaceCategoryFixtures.some(item => item.id === category)) {
+          return HttpResponse.json(
+            { code: "marketplace_category_unknown", error: `unknown category "${category}"` },
+            { status: 400 }
+          );
+        }
+        const matches = catalog.filter(entry => matchesQuery(entry, query));
+        const items = category ? marketplaceCategoryItems(matches, category) : matches;
         return HttpResponse.json(
           catalogResponse(items, {
             ...options.catalogOverrides,
+            categories: marketplaceCategoryCounts(matches),
             sources: catalogSourceSummaries(sources, catalog),
           })
+        );
+      }),
+      compozyApiMock.get("/api/marketplace/sections", async () => {
+        if (options.catalogDelay === "infinite") await delay("infinite");
+        if (options.catalogStatus) {
+          return HttpResponse.json(
+            { error: "catalog fetch: dial tcp: lookup raw.githubusercontent.com: no such host" },
+            { status: options.catalogStatus }
+          );
+        }
+        return HttpResponse.json(
+          marketplaceSectionsFromCatalog(
+            catalogResponse(catalog, {
+              ...options.catalogOverrides,
+              sources: catalogSourceSummaries(sources, catalog),
+            })
+          )
         );
       }),
       ...marketplaceSourceHandlers(sources),
@@ -342,9 +333,27 @@ export function marketplaceStoryHandlers(options: {
     extensions: [
       ...(installResult
         ? [
-            compozyApiMock.post("/api/extensions", () =>
-              HttpResponse.json({ extension: installResult })
-            ),
+            compozyApiMock.post("/api/extensions", async ({ request }) => {
+              // Add lands like the daemon reports it: the row is installed, the inventory has it.
+              const { ref } = (await request.json()) as { ref?: string };
+              const enabled = !options.installEnableError;
+              const extension = { ...installResult, enabled };
+              catalog = catalog.map(entry =>
+                entry.install_slug === ref
+                  ? { ...entry, installed: true, installed_name: installResult.name }
+                  : entry
+              );
+              extensions = [...extensions.filter(item => item.name !== extension.name), extension];
+              return HttpResponse.json(
+                {
+                  extension,
+                  ...(options.installEnableError
+                    ? { enable_error: options.installEnableError }
+                    : {}),
+                },
+                { status: 201 }
+              );
+            }),
           ]
         : []),
       compozyApiMock.get("/api/extensions", async () => {

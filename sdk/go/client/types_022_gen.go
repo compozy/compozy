@@ -7,6 +7,47 @@ import (
 	"time"
 )
 
+// SettingsProviderSecretWritePayload is a daemon API value.
+type SettingsProviderSecretWritePayload struct {
+	Name      string `json:"name,omitempty"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Value     string `json:"value"`
+}
+
+// SettingsProviderSettingsPayload is a daemon API value.
+type SettingsProviderSettingsPayload struct {
+	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
+	SteerCapability  SteerCapability                         `json:"steer_capability,omitempty"`
+	Command          string                                  `json:"command,omitempty"`
+	CommandInherited bool                                    `json:"command_inherited,omitempty"`
+	DisplayName      string                                  `json:"display_name,omitempty"`
+	Models           *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness          string                                  `json:"harness,omitempty"`
+	RuntimeProvider  string                                  `json:"runtime_provider,omitempty"`
+	Transport        string                                  `json:"transport,omitempty"`
+	BaseURL          string                                  `json:"base_url,omitempty"`
+	AuthMode         string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy        string                                  `json:"env_policy,omitempty"`
+	HomePolicy       string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd    string                                  `json:"auth_status_command,omitempty"`
+	AuthACPMethod    string                                  `json:"auth_acp_method,omitempty"`
+	CredentialSlots  []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+// SettingsProviderUsagePayload is a daemon API value.
+type SettingsProviderUsagePayload struct {
+	Enabled         bool                                            `json:"enabled"`
+	RefreshInterval string                                          `json:"refresh_interval"`
+	Providers       map[string]SettingsProviderUsageProviderPayload `json:"providers"`
+}
+
+// SettingsProviderUsageProviderPayload is a daemon API value.
+type SettingsProviderUsageProviderPayload struct {
+	Enabled        *bool `json:"enabled,omitempty"`
+	KeychainAccess *bool `json:"keychain_access,omitempty"`
+}
+
 // SettingsProviderUsageResponse is a daemon API value.
 type SettingsProviderUsageResponse struct {
 	KeychainSupported bool                         `json:"keychain_supported"`
@@ -405,46 +446,3 @@ type SettingsUpdateResponse struct {
 	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
 	App       *SettingsUpdateAppPayload       `json:"app"`
 }
-
-// SettingsUpdateRuntimePayload is a daemon API value.
-type SettingsUpdateRuntimePayload struct {
-	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
-	Status          SettingsUpdateStatusKind    `json:"status"`
-	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
-	Managed         bool                        `json:"managed"`
-	CurrentVersion  string                      `json:"current_version"`
-	LatestVersion   string                      `json:"latest_version"`
-	ReleaseURL      string                      `json:"release_url"`
-	Recommendation  string                      `json:"recommendation"`
-	RestoredVersion string                      `json:"restored_version"`
-	DaemonRestarted bool                        `json:"daemon_restarted"`
-	Message         string                      `json:"message"`
-	LastError       string                      `json:"last_error"`
-}
-
-// SettingsUpdateStatusKind is a daemon API value.
-type SettingsUpdateStatusKind string
-
-// SettingsUpdateTarget is a daemon API value.
-type SettingsUpdateTarget string
-
-// SettingsUpdateWaitingState is a daemon API value.
-type SettingsUpdateWaitingState string
-
-// SettingsUserScopeKind is a daemon API value.
-type SettingsUserScopeKind string
-
-// SettingsWindowBindingAction is a daemon API value.
-type SettingsWindowBindingAction string
-
-// SettingsWindowDesktopTransition is a daemon API value.
-type SettingsWindowDesktopTransition string
-
-// SettingsWindowDragAwayPolicy is a daemon API value.
-type SettingsWindowDragAwayPolicy string
-
-// SettingsWindowDragModifier is a daemon API value.
-type SettingsWindowDragModifier string
-
-// SettingsWindowFocusPolicy is a daemon API value.
-type SettingsWindowFocusPolicy string

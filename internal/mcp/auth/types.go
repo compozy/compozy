@@ -137,6 +137,7 @@ type ServerConfig struct {
 	Target                  Target
 	Transport               string
 	RemoteURL               string
+	DisplayRemoteURL        string
 	CatalogEntry            string
 	Type                    string
 	IssuerURL               string
@@ -478,4 +479,11 @@ func issuersEqual(left string, right string) bool {
 		strings.TrimSpace(right),
 		"/",
 	)
+}
+
+func (c ServerConfig) publicRemoteURL() string {
+	if c.DisplayRemoteURL != "" {
+		return strings.TrimSpace(c.DisplayRemoteURL)
+	}
+	return strings.TrimSpace(c.RemoteURL)
 }

@@ -135,7 +135,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDExtensionsInstall,
 		"extensions_install",
 		"Extensions Install",
-		"Install one extension through the managed local or marketplace lifecycle.",
+		"Install one extension and optionally enable it; enable failures retain the installed package.",
 		extensionInstallInputSchema,
 		extensionSingleOutputSchema,
 		toolspkg.RiskMutating,
@@ -298,6 +298,7 @@ const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
 	"properties":{
+		"enable":{"type":"boolean","default":false},
 		"source":{"type":"string","enum":["curated","marketplace","github","git","local_path"]},
 		"ref":{"type":"string","minLength":1},
 		"scope":{"type":"string","enum":["global","workspace"],

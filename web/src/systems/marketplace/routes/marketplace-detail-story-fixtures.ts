@@ -69,6 +69,9 @@ export function kitDetailHandlers(refuseUpdate = false) {
       compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
         HttpResponse.json({
           entry: {
+            category: "development",
+            category_label: "Development",
+            featured: false,
             description: "Dependency review agents, a weekly sweep, and a review board layout.",
             digest_sha256: "a".repeat(64),
             entry_id: "dep-kit-ops",

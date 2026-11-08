@@ -134,7 +134,7 @@ export function changeStatusLetter(status: string): string {
   }
 }
 
-/** The first new-side line a patch changes; Open in viewer lands there (US-007.AC-4). */
+/** The first new-side line a patch changes; Open in Files lands there (US-007.AC-4). */
 export function firstChangedLine(patch: string): number | undefined {
   let line: number | null = null;
   for (const text of patch.split("\n")) {
@@ -153,7 +153,7 @@ export function firstChangedLine(patch: string): number | undefined {
 
 /**
  * Where a changed-file click lands (US-005.AC-6): Changes at that file when the summary lists
- * it, else Files at that path.
+ * it, else the Files window at that path.
  */
 export function focusedChangeRoute(
   files: readonly SessionChangeFile[],

@@ -8206,6 +8206,21 @@
         ],
         "type": "object"
       },
+      "ExtensionEnableError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error"
+        ],
+        "type": "object"
+      },
       "ExtensionEnablePreviewPayload": {
         "properties": {
           "agent_conflicts": {
@@ -9132,6 +9147,12 @@
           },
           "format": {
             "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceInputPayload"
+            },
+            "type": "array"
           },
           "issues": {
             "items": {
@@ -13881,6 +13902,11 @@
           "confirm_gateway_digest": {
             "type": "string"
           },
+          "enable": {
+            "default": false,
+            "description": "Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.",
+            "type": "boolean"
+          },
           "expected_digest": {
             "pattern": "^[a-fA-F0-9]{64}$",
             "type": "string"
@@ -13931,11 +13957,36 @@
         ],
         "type": "object"
       },
+      "InstallExtensionResponse": {
+        "properties": {
+          "enable_error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExtensionEnableError"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "extension": {
+            "$ref": "#/components/schemas/ExtensionPayload"
+          }
+        },
+        "required": [
+          "extension"
+        ],
+        "type": "object"
+      },
       "IssueSeverity": {
         "enum": [
           "error",
           "warning",
-          "warn"
+          "warn",
+          "info"
         ],
         "type": "string"
       },
@@ -17940,6 +17991,25 @@
         ],
         "type": "object"
       },
+      "MarketplaceCategoryCount": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "id",
+          "label"
+        ],
+        "type": "object"
+      },
       "MarketplaceCursorStalePayload": {
         "properties": {
           "code": {
@@ -18079,6 +18149,12 @@
       },
       "MarketplaceListResponse": {
         "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceCategoryCount"
+            },
+            "type": "array"
+          },
           "error": {
             "type": "string"
           },
@@ -18114,6 +18190,7 @@
           }
         },
         "required": [
+          "categories",
           "items",
           "revision",
           "sources",
@@ -18127,6 +18204,12 @@
           "author": {
             "type": "string"
           },
+          "category": {
+            "type": "string"
+          },
+          "category_label": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
@@ -18135,6 +18218,9 @@
           },
           "entry_id": {
             "type": "string"
+          },
+          "featured": {
+            "type": "boolean"
           },
           "format": {
             "type": "string"
@@ -18222,9 +18308,12 @@
           }
         },
         "required": [
+          "category",
+          "category_label",
           "description",
           "digest_sha256",
           "entry_id",
+          "featured",
           "install_slug",
           "installable",
           "installed",
@@ -18289,6 +18378,70 @@
           "entry_count",
           "outcome",
           "source",
+          "stale"
+        ],
+        "type": "object"
+      },
+      "MarketplaceSection": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceListingPayload"
+            },
+            "type": "array"
+          },
+          "label": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "items",
+          "label",
+          "total"
+        ],
+        "type": "object"
+      },
+      "MarketplaceSectionsResponse": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "error_class": {
+            "type": "string"
+          },
+          "refreshing": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceSection"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceSourceSummary"
+            },
+            "type": "array"
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revision",
+          "sections",
+          "sources",
           "stale"
         ],
         "type": "object"
@@ -44011,6 +44164,9 @@
       },
       "ValidationIssue": {
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "column": {
             "type": "integer"
           },
@@ -44033,7 +44189,8 @@
             "enum": [
               "error",
               "warning",
-              "warn"
+              "warn",
+              "info"
             ],
             "type": "string"
           }
@@ -61154,7 +61311,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExtensionResponse"
+                  "$ref": "#/components/schemas/InstallExtensionResponse"
                 }
               }
             },
@@ -65054,6 +65211,14 @@
             }
           },
           {
+            "description": "Optional CompozyOS category id",
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Maximum results from 1 to 100",
             "in": "query",
             "name": "limit",
@@ -65351,6 +65516,110 @@
           }
         },
         "summary": "Refresh the extension catalog",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/marketplace/sections": {
+      "get": {
+        "operationId": "getMarketplaceSections",
+        "parameters": [
+          {
+            "description": "Optional catalog search query",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Entries per section from 1 to 12; default 6",
+            "in": "query",
+            "name": "per_section",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Installed-state projection scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "global",
+                "profile",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required for profile scope",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required for workspace scope",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceSectionsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Catalog dependency is not configured"
+          }
+        },
+        "summary": "Browse Featured and category sections",
         "tags": [
           "marketplace"
         ],

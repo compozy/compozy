@@ -4,6 +4,52 @@ package client
 
 import "time"
 
+// SessionStatusResponse is a daemon API value.
+type SessionStatusResponse struct {
+	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
+	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
+	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
+	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
+	SessionID           string                           `json:"session_id"`
+	WorkspaceID         string                           `json:"workspace_id"`
+	AgentName           string                           `json:"agent_name"`
+	State               SessionHealthState               `json:"state"`
+	Badge               Badge                            `json:"badge"`
+	Health              SessionHealthStatus              `json:"health"`
+	ActivePrompt        bool                             `json:"active_prompt"`
+	Attachable          bool                             `json:"attachable"`
+	EligibleForWake     bool                             `json:"eligible_for_wake"`
+	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
+	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
+	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
+	Lineage             *SessionLineagePayload           `json:"lineage,omitempty"`
+	Derivation          *SessionDerivationPayload        `json:"derivation,omitempty"`
+	UpdatedAt           time.Time                        `json:"updated_at"`
+}
+
+// SessionStopPayload is a daemon API value.
+type SessionStopPayload struct {
+	SessionID    string    `json:"session_id"`
+	Status       string    `json:"status"`
+	State        State     `json:"state"`
+	Verified     bool      `json:"verified"`
+	Escalated    bool      `json:"escalated"`
+	StopCause    string    `json:"stop_cause,omitempty"`
+	Phase        StopPhase `json:"phase,omitempty"`
+	StoppedAfter string    `json:"stopped_after,omitempty"`
+	Attention    string    `json:"attention,omitempty"`
+}
+
+// SessionTranscriptFences is a daemon API value.
+type SessionTranscriptFences struct {
+	Epoch       int64 `json:"epoch"`
+	Generation  int64 `json:"generation"`
+	MaxSequence int64 `json:"max_sequence"`
+}
+
 // SessionTranscriptResponse is a daemon API value.
 type SessionTranscriptResponse struct {
 	Entries            []Entry `json:"entries"`
@@ -400,49 +446,4 @@ type SettingsGlobalShortcutPayload struct {
 	Status        SettingsGlobalShortcutStatus `json:"status,omitempty"`
 	Reason        string                       `json:"reason,omitempty"`
 	SettingsURL   string                       `json:"settings_url,omitempty"`
-}
-
-// SettingsGlobalShortcutStatus is a daemon API value.
-type SettingsGlobalShortcutStatus string
-
-// SettingsHTTPPayload is a daemon API value.
-type SettingsHTTPPayload struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
-
-// SettingsHookDeclarationPayload is a daemon API value.
-type SettingsHookDeclarationPayload struct {
-	Name         string            `json:"name"`
-	Event        HookEvent         `json:"event"`
-	Mode         HookMode          `json:"mode,omitempty"`
-	Required     bool              `json:"required,omitzero"`
-	Enabled      *bool             `json:"enabled,omitzero"`
-	Priority     int               `json:"priority,omitzero"`
-	Timeout      string            `json:"timeout,omitempty"`
-	Matcher      HookMatcher       `json:"matcher"`
-	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty"`
-	Command      string            `json:"command,omitempty"`
-	Args         []string          `json:"args,omitempty"`
-	Env          map[string]string `json:"env,omitempty"`
-	SecretEnv    map[string]string `json:"secret_env,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-}
-
-// SettingsHookItemPayload is a daemon API value.
-type SettingsHookItemPayload struct {
-	Name           string                         `json:"name"`
-	Declaration    SettingsHookDeclarationPayload `json:"declaration"`
-	SourceMetadata SettingsSourceMetadataPayload  `json:"source_metadata"`
-}
-
-// SettingsHooksExtensionsResponse is a daemon API value.
-type SettingsHooksExtensionsResponse struct {
-	Section         SettingsSectionName                 `json:"section"`
-	Scope           SettingsUserScopeKind               `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
-	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
-	Config          SettingsExtensionsConfigPayload     `json:"config"`
-	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
-	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
 }

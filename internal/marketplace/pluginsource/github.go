@@ -78,7 +78,7 @@ func (s *GitHubSource) Fetch(ctx context.Context) (Document, error) {
 	if err != nil {
 		return Document{}, remoteSourceError(err)
 	}
-	for _, path := range []string{rootDocumentPath, clientDocumentPath} {
+	for _, path := range []string{rootDocumentPath, clientDocumentPath, codexDocumentPath} {
 		raw, err := s.client.ReadFile(ctx, s.repo, commit, path, MaxDocumentBytes)
 		if errors.Is(err, registry.ErrPackageNotFound) {
 			continue

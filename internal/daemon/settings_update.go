@@ -10,6 +10,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/procutil"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 )
@@ -228,7 +229,7 @@ func spawnDetachedUpdateCoordinator(
 			"--operation-id", operation.ID,
 			"--executor-generation", operation.Holder.ExecutorGeneration,
 		},
-		sandbox: os.Environ(),
+		sandbox: procutil.WithoutInternalHandoffEnv(os.Environ()),
 		logPath: d.homePaths.LogFile,
 	})
 	if err != nil {

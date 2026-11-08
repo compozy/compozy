@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -297,7 +298,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
-	t.Run("Should discover operator configured OAuth metadata on loopback", func(t *testing.T) {
+	t.Run("Should render template inputs through OAuth begin status and callback", func(t *testing.T) {
 		t.Parallel()
 
 		var requests atomic.Int32
@@ -306,6 +307,14 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
+			if request.URL.Path == "/token" {
+				writer.Header().Set("Content-Type", "application/json")
+				payload := []byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`)
+				if _, err := writer.Write(payload); err != nil {
+					t.Error(err)
+				}
+				return
+			}
 			requests.Add(1)
 			if request.URL.Path != "/.well-known/oauth-authorization-server" {
 				http.NotFound(writer, request)
@@ -348,12 +357,13 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		}
 		target := globalMCPTestTarget("local-oauth")
 		server := compozyconfig.MCPServer{
-			Name:      target.ServerName,
-			Transport: compozyconfig.MCPServerTransportHTTP,
-			URL:       authorizationServer.URL + "/mcp",
+			Name:        target.ServerName,
+			Transport:   compozyconfig.MCPServerTransportHTTP,
+			URL:         "${BASE}/mcp",
+			InputValues: map[string]compozyconfig.MCPInputValue{"BASE": {Value: authorizationServer.URL}},
 			Auth: compozyconfig.MCPAuthConfig{
 				Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
-				IssuerURL:    authorizationServer.URL,
+				IssuerURL:    "${BASE}",
 				ClientID:     "compozy-local",
 			},
 		}
@@ -370,6 +380,24 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		}
 		if !strings.HasPrefix(result.AuthorizationURL, authorizationServer.URL+"/authorize?") {
 			t.Fatalf("AuthorizationURL = %q, want local authorization endpoint", result.AuthorizationURL)
+		}
+		status, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || status.RemoteURL != authorizationServer.URL+"/mcp" {
+			t.Fatalf("status = %+v, error = %v", status, err)
+		}
+		authorize, err := url.Parse(result.AuthorizationURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		callback := "http://127.0.0.1:2123/api/mcp/oauth/callback?code=test-code&state=" + url.QueryEscape(
+			authorize.Query().Get("state"),
+		)
+		status, err = surface.MCPAuthCompleteCallback(ctx, target, server, callback)
+		if err != nil || status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("callback status = %+v, error = %v", status, err)
+		}
+		if server.URL != "${BASE}/mcp" || server.Auth.IssuerURL != "${BASE}" {
+			t.Fatalf("auth mutated published templates: %+v", server)
 		}
 		if got := requests.Load(); got != 1 {
 			t.Fatalf("authorization metadata requests = %d, want 1", got)
@@ -1613,4 +1641,75 @@ func daemonSettingsOperationRequest(
 		}
 	}
 	return request
+}
+
+func TestSettingsMCPSecretURLStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain URL secrets only in private auth requests", func(t *testing.T) {
+		t.Parallel()
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		manager, err := newSettingsMCPAuthManagerWithConfig(db, nil, db, nil, compozyconfig.MCPOAuthConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			mcpAuthManager: manager,
+			secretResolver: func(context.Context, string) (string, error) { return "private-api-key", nil },
+		}
+		target := globalMCPTestTarget("secret-url")
+		server := compozyconfig.MCPServer{
+			Name:      target.ServerName,
+			Owner:     "extension:client",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       "https://example.com/mcp?key=${API_KEY}",
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"API_KEY": {SecretRef: "vault:extensions/global/client/env/API_KEY"},
+			},
+		}
+		cfg, err := surface.mcpAuthServerConfig(t.Context(), target, server)
+		if err != nil || cfg.RemoteURL != "https://example.com/mcp?key=private-api-key" {
+			t.Fatal("private auth URL was not rendered", err)
+		}
+		for _, available := range []bool{true, false} {
+			if !available {
+				surface.mcpAuthManager = nil
+			}
+			status, err := surface.MCPAuthStatus(t.Context(), target, server)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.RemoteURL != server.URL || strings.Contains(string(encoded), "private-api-key") {
+				t.Fatal("public auth status exposed a secret")
+			}
+		}
+	})
+}
+
+func TestDaemonMCPCloneInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve isolated input values through runtime rendering", func(t *testing.T) {
+		t.Parallel()
+		original := compozyconfig.MCPServer{
+			Headers:     map[string]string{"X-Tenant": "${TENANT}"},
+			InputValues: map[string]compozyconfig.MCPInputValue{"TENANT": {Value: "tenant-a"}},
+		}
+		cloned := cloneDaemonMCPServer(original)
+		original.InputValues["TENANT"] = compozyconfig.MCPInputValue{Value: "tenant-b"}
+		rendered, _, err := cloned.RenderInputs(nil)
+		if err != nil || rendered.Headers["X-Tenant"] != "tenant-a" {
+			t.Fatalf("clone rendering failed: %v", err)
+		}
+	})
 }

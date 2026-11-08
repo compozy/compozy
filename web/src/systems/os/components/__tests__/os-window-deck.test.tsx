@@ -275,6 +275,11 @@ describe("OsWindowDeck", () => {
       tasksSlot.publishSlot({}, { crumb: "incident-42", crumbs: [] });
     });
     expect(screen.getByRole("tab", { name: /incident-42/ })).toBeInTheDocument();
+    // A published tab label names the tab while the head keeps its own title.
+    await act(async () => {
+      tasksSlot.publishSlot({}, { crumb: "Tasks", tabLabel: "incident-42.md" });
+    });
+    expect(screen.getByRole("tab", { name: /incident-42\.md/ })).toBeInTheDocument();
   });
 
   it("Should expose no rename affordance in the tab or its context menu (UT-092)", () => {

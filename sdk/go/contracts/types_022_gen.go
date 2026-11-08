@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type TaskInbox struct {
+	UnreadTotal   int                         `json:"unread_total"`
+	ArchivedTotal int                         `json:"archived_total"`
+	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
+	Page          CountedCursorPagePayload    `json:"page"`
+	Facets        TaskInboxFacetsPayload      `json:"facets"`
+}
+
+type TaskInboxFacetsPayload struct {
+	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
+	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
+}
+
 type TaskInboxItemPayload struct {
 	Task             TaskInboxTaskPayload   `json:"task"`
 	Lane             TaskInboxLane          `json:"lane"`
@@ -273,17 +286,4 @@ type TaskRunContext struct {
 	LeaseUntil      time.Time `json:"lease_until"`
 	ReleaseReason   string    `json:"release_reason,omitempty"`
 	Error           string    `json:"error,omitempty"`
-}
-
-type TaskRunDetail struct {
-	Run     TaskRun                          `json:"run"`
-	Task    *TaskReferencePayload            `json:"task,omitempty"`
-	Session *TaskRunSessionPayload           `json:"session,omitempty"`
-	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-}
-
-type TaskRunEnqueueParams struct {
-	TaskID         string          `json:"task_id"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }

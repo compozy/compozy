@@ -27,6 +27,7 @@ var (
 )
 
 type marketplaceReadScope struct {
+	category    string
 	scope       settingspkg.ScopeKind
 	workspaceID string
 	profileName string
@@ -92,6 +93,16 @@ func normalizeCuratedMarketplaceError(err error) error {
 }
 
 func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {
+	if errors.Is(err, marketplacepkg.ErrUnknownCategory) {
+		c.JSON(
+			http.StatusBadRequest,
+			contract.ErrorPayload{
+				Error: strings.TrimPrefix(err.Error(), marketplacepkg.ErrUnknownCategory.Error()+": "),
+				Code:  marketplacepkg.ErrUnknownCategory.Error(),
+			},
+		)
+		return
+	}
 	if errors.Is(err, extensionpkg.ErrExtensionSourceChanged) {
 		h.respondExtensionError(c, http.StatusConflict, err)
 		return

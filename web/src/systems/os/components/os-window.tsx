@@ -6,13 +6,17 @@ import {
   type TopbarSlotStore,
 } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
-import { memo, Suspense, useDeferredValue, useState } from "react";
+import { memo, Suspense, useDeferredValue, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 
 import { cn } from "@/lib/utils";
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
-import { WindowDataBindingContext, WorkspaceBadge } from "@/systems/workspace";
+import {
+  WindowDataBindingContext,
+  WorkspaceBadge,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
 
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
 import {
@@ -275,15 +279,7 @@ function OsWindowMember({
       // Root heads show the app in the identity well until the surface
       // publishes its own glyph (or a drill-in trail replaces it).
       glyph={<AppIcon />}
-      leading={
-        windowBinding.badge ? (
-          <WorkspaceBadge
-            identity={windowBinding.badge}
-            variant="chrome"
-            data-testid={`os-window-project-${windowId}`}
-          />
-        ) : undefined
-      }
+      leading={projectBadgeLead(app, windowBinding.badge, windowId)}
       focused={focused}
       controls={controls}
       onTrafficLight={controls === "head" ? onTrafficLight : undefined}
@@ -353,5 +349,24 @@ function OsWindowMember({
         className="contain-paint pointer-events-none absolute inset-0 z-40 [&:not(:empty)]:pointer-events-auto"
       />
     </OsWindowSurface>
+  );
+}
+
+/**
+ * The bound item's project in the chrome on the All projects desktop, unless the app names its
+ * project in its own head. Absent (not an empty node) so the head keeps no leading zone.
+ */
+function projectBadgeLead(
+  app: { hidesProjectBadge?: true },
+  identity: WorkspaceBadgeIdentity | null,
+  windowId: string
+): ReactNode {
+  if (identity === null || app.hidesProjectBadge) return undefined;
+  return (
+    <WorkspaceBadge
+      identity={identity}
+      variant="chrome"
+      data-testid={`os-window-project-${windowId}`}
+    />
   );
 }

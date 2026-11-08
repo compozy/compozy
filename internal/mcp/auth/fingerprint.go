@@ -95,7 +95,12 @@ func (s *Service) tokenMatchesServerDefinition(
 		return false, nil
 	}
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
-		return issuersEqual(token.Issuer, cfg.IssuerURL) &&
+		issuer := strings.TrimSpace(cfg.IssuerURL)
+		if issuer == "" {
+			// Login verified this issuer; the fingerprint binds the resource and client.
+			issuer = strings.TrimSpace(token.Issuer)
+		}
+		return issuer != "" && issuersEqual(token.Issuer, issuer) &&
 			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil
 	}
 	if s.registrations == nil {

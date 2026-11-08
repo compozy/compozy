@@ -31,7 +31,12 @@ func LoadManifestWithAgentPluginDataDir(dir string, dataDir string) (*Manifest, 
 	return loadManifest(dir, strings.TrimSpace(dataDir))
 }
 
-func loadManifest(dir string, dataDir string) (*Manifest, error) {
+// LoadInstalledManifest retains the approved identity when reloading client plugin bytes.
+func LoadInstalledManifest(info *ExtensionInfo) (*Manifest, error) {
+	return loadManifestAtPath(info.ManifestPath, info.Name)
+}
+
+func loadManifest(dir string, dataDir string, pluginName ...string) (*Manifest, error) {
 	manifestDir := strings.TrimSpace(dir)
 	if manifestDir == "" {
 		return nil, &ManifestValidationError{
@@ -54,7 +59,7 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 		return loadManifestJSON(jsonPath)
 	}
 
-	manifest, err := loadAgentPluginManifest(manifestDir, dataDir)
+	manifest, err := loadAgentPluginManifest(manifestDir, dataDir, pluginName...)
 	if missing, ok := errors.AsType[*agentplugin.NotManifestError](err); ok {
 		return nil, &ManifestNotFoundError{
 			Dir:   manifestDir,

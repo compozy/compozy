@@ -67,7 +67,7 @@ export interface SessionChangeFileHeaderProps {
 
 /**
  * One diff's header (US-007.AC-4): status, path (directory muted, basename emphasised, a
- * rename as `old → new`), `+N −M`, collapse, Open in viewer, Copy path — and the reason a
+ * rename as `old → new`), `+N −M`, collapse, Open in Files, Copy path — and the reason a
  * file shows no diff: binary, sensitive, too large, or a failed load.
  */
 export function SessionChangeFileHeader({
@@ -143,7 +143,7 @@ export function SessionChangeFileHeader({
           <Spinner aria-label="Loading diff" className="size-3" />
         ) : null}
         <ChangesIconAction
-          label="Open in viewer"
+          label="Open in Files"
           testId="changes-open-in-viewer"
           onClick={onOpenInViewer}
         >
@@ -196,7 +196,7 @@ function FileNote({
     },
     too_large: {
       text: "Diff too large to display",
-      button: noteAction("Open in viewer", onOpenInViewer),
+      button: noteAction("Open in Files", onOpenInViewer),
     },
     no_content: { text: "No content changes", button: null },
     too_large_to_expand: { text: "File too large to expand", button: null },

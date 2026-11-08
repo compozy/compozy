@@ -5,7 +5,7 @@ import { Pill, Time } from "@compozy/ui";
 
 import { ExtensionFormatBadge } from "@/systems/extensions";
 
-import { COMPOZY_CATALOG_SOURCE } from "../lib/marketplace-installed-view";
+import { marketplaceSourceLabel } from "../lib/marketplace-installed-view";
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceEntryLogo } from "./marketplace-entry-logo";
 import { marketplaceTierLabel } from "./marketplace-ui";
@@ -16,7 +16,7 @@ interface MarketplaceDetailLedeProps {
 
 /**
  * Page lede: the entry logo at its large rung, the name with the unverified and format tags, one
- * metadata line (author · tier · updated), and the one-sentence description. The version lives in
+ * metadata line (author · source · tier · updated), and the one-sentence description. The version lives in
  * the About card. Window identity and the primary action stay
  * in the OS head.
  */
@@ -81,9 +81,15 @@ function ledeMeta(data: MarketplaceCatalogEntryResponse): LedeMetaItem[] {
   const entry = data.entry;
   const items: LedeMetaItem[] = [];
   if (entry.author) items.push({ key: "author", node: <span>{entry.author}</span> });
-  if (entry.source !== COMPOZY_CATALOG_SOURCE) {
-    items.push({ key: "source", node: <span>{entry.source}</span> });
-  }
+  // Source attribution stays visible now that Browse groups by category (US-013.AC-2).
+  items.push({
+    key: "source",
+    node: (
+      <span data-testid="marketplace-detail-source" title={entry.source}>
+        From {marketplaceSourceLabel(entry.source)}
+      </span>
+    ),
+  });
   items.push({ key: "tier", node: <span>{marketplaceTierLabel(entry.tier)}</span> });
   if (entry.updated_at) {
     items.push({

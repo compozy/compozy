@@ -1272,7 +1272,8 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   the normal action; `ghost` / `quiet` are icon buttons and low-emphasis
   actions; text links ("Edit ›", "View all ›") are `link` or `quiet` at `sm`,
   `muted-foreground` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
-  the `surface-2` plate, never a ring. New callsites should not use outline as
+  the `surface-2` plate, never a ring; a pressed `quiet` icon toggle (window and
+  session head toggles) is its glyph in `brand` ink with no plate. New callsites should not use outline as
   the default secondary choice.
 - `<Pill>`: compact status/category chip. Neutral pills are tint-only.
   Status indicators ("Idle", "Running") use `form="plain"` — dot + 12px

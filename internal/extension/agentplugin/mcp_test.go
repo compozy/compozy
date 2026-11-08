@@ -501,3 +501,194 @@ func TestLoadMCPDuplicateKeysAndVersion(t *testing.T) {
 		}
 	})
 }
+
+func TestClientMCPCompatibility(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expand vendor root and data placeholders in contained paths", func(t *testing.T) {
+		t.Parallel()
+		root := canonicalPathForTest(t, t.TempDir())
+		data := canonicalPathForTest(t, t.TempDir())
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".claude-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"local": map[string]any{
+					"command": "${CLAUDE_PLUGIN_ROOT}/bin/s",
+					"args":    []string{"${CURSOR_PLUGIN_ROOT}/x", "${CLAUDE_PLUGIN_DATA}/c"},
+					"env":     map[string]string{"CACHE": "${CLAUDE_PLUGIN_DATA}/cache"},
+					"cwd":     "${CURSOR_PLUGIN_ROOT}/work",
+				},
+			}},
+		)
+		pkg, err := Load(root, LoadOptions{DataDir: data})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pkg.Servers) != 1 {
+			t.Fatalf("package = %#v", pkg)
+		}
+		server := pkg.Servers[0]
+		if server.Command != filepath.Join(root, "bin", "s") || server.Args[0] != filepath.Join(root, "x") ||
+			server.Args[1] != filepath.Join(data, "c") ||
+			server.Env["CACHE"] != filepath.Join(data, "cache") ||
+			server.CWD != filepath.Join(root, "work") {
+			t.Fatalf("server = %#v", server)
+		}
+	})
+	for _, field := range []string{"command", "cwd"} {
+		t.Run("Should reject escaping vendor root in "+field, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			server := map[string]any{"command": "node", field: "${CLAUDE_PLUGIN_ROOT}/../outside"}
+			writeJSONFile(
+				t,
+				filepath.Join(root, ".cursor-plugin", "plugin.json"),
+				map[string]any{"name": "client", "mcpServers": map[string]any{"bad": server}},
+			)
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 0 || !hasDiagnostic(pkg.Diagnostics, "mcp:bad", "root") {
+				t.Fatalf("package = %#v", pkg)
+			}
+		})
+	}
+	t.Run("Should ignore unknown client fields individually on both transports", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"local": map[string]any{
+					"command":   "node",
+					"placement": "local",
+					"_meta":     map[string]any{},
+					"note":      42,
+				},
+				"remote": map[string]any{
+					"url":  "https://example.com/mcp",
+					"auth": map[string]any{"unsupported": "client"},
+				},
+			}},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 2 || len(pkg.Diagnostics) != 4 {
+			t.Fatalf("package = %#v", pkg)
+		}
+		for _, d := range pkg.Diagnostics {
+			if d.Code != ClientFieldIgnored {
+				t.Fatalf("diagnostic = %#v", d)
+			}
+		}
+		for _, field := range []string{"placement", "_meta", "note"} {
+			if !hasDiagnostic(pkg.Diagnostics, "mcp:local", field) {
+				t.Fatalf("missing field %s: %#v", field, pkg.Diagnostics)
+			}
+		}
+		for _, server := range pkg.Servers {
+			if server.Name == "remote" && server.Auth != nil {
+				t.Fatal("ignored auth enabled OAuth")
+			}
+		}
+		if !hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth") {
+			t.Fatal("missing auth diagnostic")
+		}
+	})
+}
+
+func TestClientDerivedInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should discard an unusable client secret when the client id cannot map", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{
+				"name": "client",
+				"mcpServers": map[string]any{
+					"remote": map[string]any{
+						"url":  "https://example.com/mcp",
+						"auth": map[string]any{"CLIENT_ID": "${bad-name}", "CLIENT_SECRET": "${CLIENT_SECRET}"},
+					},
+				},
+			},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 1 || len(pkg.Inputs) != 0 || pkg.Servers[0].Auth.ClientSecret != "" ||
+			!hasDiagnostic(pkg.Diagnostics, "mcp:remote", "auth.CLIENT_SECRET") {
+			t.Fatalf("package = %+v", pkg)
+		}
+	})
+
+	t.Run("Should derive OAuth and typed inputs and deduplicate their server owners", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".cursor-plugin", "plugin.json"),
+			map[string]any{"name": "client", "mcpServers": map[string]any{
+				"remote": map[string]any{
+					"url":     "https://${HOST}/mcp",
+					"headers": map[string]string{"Authorization": "Bearer ${LINEAR_API_KEY}"},
+				},
+				"other": map[string]any{
+					"url": "https://${HOST}/mcp",
+					"auth": map[string]any{
+						"CLIENT_ID":     "abc",
+						"CLIENT_SECRET": "${CLIENT_SECRET}",
+						"scopes":        []string{"s"},
+					},
+				},
+				"local": map[string]any{
+					"command": "node",
+					"env":     map[string]string{"R": "${REGION:-us-east-1}"},
+					"args":    []string{"${host-name}"},
+				},
+			}},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Servers) != 3 || len(pkg.Inputs) != 4 {
+			t.Fatalf("package = %+v", pkg)
+		}
+		want := []DerivedInput{
+			{ID: "CLIENT_SECRET", Secret: true, Required: true, Servers: []string{"other"}},
+			{ID: "HOST", Required: true, Servers: []string{"other", "remote"}},
+			{ID: "LINEAR_API_KEY", Secret: true, Required: true, Servers: []string{"remote"}},
+			{ID: "REGION", Default: "us-east-1", Servers: []string{"local"}},
+		}
+		if !reflect.DeepEqual(pkg.Inputs, want) {
+			t.Fatalf("inputs = %+v, want %+v", pkg.Inputs, want)
+		}
+		auth := pkg.Servers[1].Auth
+		if auth == nil || auth.ClientID != "abc" || auth.ClientSecret != "${CLIENT_SECRET}" ||
+			!reflect.DeepEqual(auth.Scopes, []string{"s"}) {
+			t.Fatalf("auth = %+v", auth)
+		}
+		if pkg.Servers[0].Args[0] != "${host-name}" || len(pkg.Diagnostics) != 1 ||
+			pkg.Diagnostics[0].Code != ClientPlaceholderInvalid {
+			t.Fatalf("invalid placeholder = %+v", pkg)
+		}
+	})
+}
+
+func TestClientEndpointInputs(t *testing.T) {
+	t.Parallel()
+	for _, endpoint := range []string{"https://api.example.com:${PORT}/mcp", "${MCP_URL}"} {
+		t.Run("Should load endpoint "+endpoint, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeJSONFile(
+				t,
+				filepath.Join(root, ".cursor-plugin", "plugin.json"),
+				map[string]any{
+					"name":       "client",
+					"mcpServers": map[string]any{"remote": map[string]any{"url": endpoint}},
+				},
+			)
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 1 || len(pkg.Inputs) != 1 {
+				t.Fatalf("endpoint inputs = %+v", pkg)
+			}
+		})
+	}
+}

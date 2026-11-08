@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// LoopStartBinding is a daemon API value.
+type LoopStartBinding struct {
+	Kind         string            `json:"kind"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
+// LoopTarget is a daemon API value.
+type LoopTarget struct {
+	WorkspaceID  string            `json:"workspace_id"`
+	LoopName     string            `json:"loop_name"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
 // LoopValidationResponse is a daemon API value.
 type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
@@ -86,6 +101,13 @@ type ManagedExtensionUpdatePayload struct {
 	Error          *DiagnosticItem  `json:"error,omitzero"`
 }
 
+// MarketplaceCategoryCount is a daemon API value.
+type MarketplaceCategoryCount struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
 // MarketplaceEntryResponse is a daemon API value.
 type MarketplaceEntryResponse struct {
 	Entry     MarketplaceListingPayload          `json:"entry"`
@@ -124,6 +146,7 @@ type MarketplaceInputPayload struct {
 
 // MarketplaceListResponse is a daemon API value.
 type MarketplaceListResponse struct {
+	Categories []MarketplaceCategoryCount  `json:"categories"`
 	Refreshing bool                        `json:"refreshing,omitzero"`
 	Total      int                         `json:"total"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
@@ -137,6 +160,9 @@ type MarketplaceListResponse struct {
 
 // MarketplaceListingPayload is a daemon API value.
 type MarketplaceListingPayload struct {
+	Category         string                       `json:"category"`
+	CategoryLabel    string                       `json:"category_label"`
+	Featured         bool                         `json:"featured"`
 	SourceRef        string                       `json:"source_ref,omitempty"`
 	Icon             string                       `json:"icon,omitempty"`
 	Layout           string                       `json:"layout,omitempty"`
@@ -182,6 +208,25 @@ type MarketplaceRefreshSourcePayload struct {
 	EntryCount int    `json:"entry_count"`
 	Stale      bool   `json:"stale"`
 	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceSection is a daemon API value.
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceSectionsResponse is a daemon API value.
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
 }
 
 // MarketplaceServerPayload is a daemon API value.
@@ -400,47 +445,4 @@ type Node struct {
 	Parse          FileParseKind       `json:"parse,omitempty"`
 	WatchSpec      map[string]any      `json:"watch,omitempty"`
 	Events         []EventSubscription `json:"events,omitempty"`
-}
-
-// NodeAttemptView is a daemon API value.
-type NodeAttemptView struct {
-	Attempt      int        `json:"attempt"`
-	State        NodeState  `json:"state"`
-	FailureClass string     `json:"failure_class,omitempty"`
-	Disposition  string     `json:"disposition"`
-	StartedAt    time.Time  `json:"started_at"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-}
-
-// NodeCancellation is a daemon API value.
-type NodeCancellation struct {
-	Disposition string `json:"disposition"`
-	ActorKind   string `json:"actor_kind,omitempty"`
-	ActorRef    string `json:"actor_ref,omitempty"`
-	Cause       string `json:"cause,omitempty"`
-}
-
-// NodeClass is a daemon API value.
-type NodeClass string
-
-// NodeID is a daemon API value.
-type NodeID string
-
-// NodeKind is a daemon API value.
-type NodeKind string
-
-// NodeState is a daemon API value.
-type NodeState string
-
-// NodeUsage is a daemon API value.
-type NodeUsage struct {
-	Tokens int64 `json:"tokens"`
-}
-
-// NormalizedRect is a daemon API value.
-type NormalizedRect struct {
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
 }

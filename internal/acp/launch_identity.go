@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
@@ -181,6 +182,9 @@ func (l *localLauncher) PrepareLaunch(
 	}
 	for _, assignment := range parsed.Environment {
 		key, value, _ := strings.Cut(assignment, "=")
+		if procutil.InternalHandoffEnvName(key) {
+			continue
+		}
 		next.Env = setEnvValue(next.Env, key, value)
 	}
 	command, args := parsed.Executable, parsed.Args

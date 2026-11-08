@@ -1482,7 +1482,7 @@ func TestUsageFenceAndWait(t *testing.T) {
 		f.service.options.Collectors[codexProviderID] = NewCodexCollector(
 			CodexOptions{
 				Now: f.clock.Now,
-				Transport: codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+				Transport: fixtureTransport(func(r *http.Request) (*http.Response, error) {
 					close(entered)
 					<-r.Context().Done()
 					<-release

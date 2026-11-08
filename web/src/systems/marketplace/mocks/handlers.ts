@@ -3,6 +3,10 @@ import type { OperationResponse } from "@/lib/api-contract";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import type { AddMarketplaceSourceRequest, MarketplaceSource } from "../types";
 import {
+  marketplaceCategoryCounts,
+  marketplaceCategoryFixtures,
+  marketplaceCategoryItems,
+  marketplaceSectionsFromCatalog,
   marketplaceCatalogFixture,
   marketplaceCatalogDetailFixture,
   marketplaceSourceAddedFixture,
@@ -145,11 +149,27 @@ export function marketplaceSourceHandlers(
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/marketplace", ({ request }) => {
     const query = queryText(request);
-    const items = marketplaceCatalogFixture.items.filter(item =>
+    const category = new URL(request.url).searchParams.get("category")?.trim() ?? "";
+    if (category && !marketplaceCategoryFixtures.some(item => item.id === category)) {
+      return HttpResponse.json(
+        { code: "marketplace_category_unknown", error: `unknown category "${category}"` },
+        { status: 400 }
+      );
+    }
+    const matches = marketplaceCatalogFixture.items.filter(item =>
       matchesQuery(item.name, item.description, query)
     );
-    return HttpResponse.json({ ...marketplaceCatalogFixture, items, total: items.length });
+    const items = category ? marketplaceCategoryItems(matches, category) : matches;
+    return HttpResponse.json({
+      ...marketplaceCatalogFixture,
+      categories: marketplaceCategoryCounts(matches),
+      items,
+      total: items.length,
+    });
   }),
+  compozyApiMock.get("/api/marketplace/sections", () =>
+    HttpResponse.json(marketplaceSectionsFromCatalog(marketplaceCatalogFixture))
+  ),
   compozyApiMock.get("/api/marketplace/entries/{entry_id}", ({ params }) => {
     const detail = marketplaceCatalogDetailFixture(String(params.entry_id));
     return detail
