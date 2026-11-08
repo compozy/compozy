@@ -130,7 +130,10 @@ and every acceptance threshold remain unchanged. This moves the filesystem
 pause out of application transactions; it does not guarantee a wall-clock
 deadline for writes queued behind slow storage. The extra unchanged header-page
 write per size-triggered restart and two read connections during snapshot
-handover are the cost. No persisted version, schema,
+handover are the cost. A restart's remaining PASSIVE tail can also synchronize
+the WAL and database while admission is held, before the new header sync;
+queued writers can therefore span up to three sync barriers per restart.
+No persisted version, schema,
 application row, migration, or public contract changes. Session and telemetry
 durability policies are unchanged. WAL salts in `TestStoreSQLiteHelpers` prove
 the old foreground-restart control and maintenance-owned reuse over repeated

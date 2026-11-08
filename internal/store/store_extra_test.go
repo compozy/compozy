@@ -187,6 +187,33 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		})
 		admission, unregister := registerWriteAdmission(db)
 		defer unregister()
+		startupWriter, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := startupWriter.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := startupWriter.ExecContext(ctx, "INSERT INTO items VALUES (3)"); err != nil {
+			t.Fatal(err)
+		}
+		startupGuard, err := openWALRestartGuard(ctx, ctx, checkpointDB, path)
+		if err != nil {
+			t.Fatalf("open while an external writer holds SQLite BUSY = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := startupGuard.close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := startupGuard.close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := startupWriter.Rollback(); err != nil {
+			t.Fatal(err)
+		}
 		release, err := admission.acquire(ctx, false)
 		if err != nil {
 			t.Fatal(err)
