@@ -1391,6 +1391,33 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 				t.Fatalf("triage prompt missing %q", fragment)
 			}
 		}
+		const jsonFence = "\n```json\n"
+		start := strings.LastIndex(prompts[0].Prompt, jsonFence)
+		if start < 0 {
+			t.Fatal("triage prompt missing source JSON")
+		}
+		var digest struct {
+			Items []struct {
+				Key     string `json:"key"`
+				Summary string `json:"summary"`
+			} `json:"items"`
+		}
+		if err := json.NewDecoder(strings.NewReader(prompts[0].Prompt[start+len(jsonFence):])).
+			Decode(&digest); err != nil {
+			t.Fatalf("decode triage source JSON: %v", err)
+		}
+		summaries := make(map[string]string, len(digest.Items))
+		for _, item := range digest.Items {
+			summaries[item.Key] = item.Summary
+		}
+		for key, title := range map[string]string{
+			"source:incoming:1": "Incoming evidence",
+			"source:incoming:2": "Separate evidence",
+		} {
+			if !strings.Contains(summaries[key], title) {
+				t.Fatalf("triage item %q summary = %q, want title %q", key, summaries[key], title)
+			}
+		}
 		var picked compozycontract.AgentInstancePickResponse
 		run(&picked, "agent", "instance", "pick", instance.Instance.ID, reports.Reports[0].ID, "2", "-o", "json")
 		if picked.Pick.Actor != "operator" || picked.Pick.ProposalIndex != 1 {
