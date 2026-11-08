@@ -157,6 +157,7 @@ func sessionNotificationQueryItems(
 				),
 				Kind: "session", SourceID: info.ID, WorkspaceID: info.WorkspaceID, Title: title,
 				Detail: reason, Badge: string(badge), AgentName: info.AgentName, OccurredAt: at,
+				SessionType: string(info.Type), InstanceID: info.InstanceID,
 				Finished: class == session.AttentionFinished,
 			})
 		}

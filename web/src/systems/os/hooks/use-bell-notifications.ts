@@ -85,11 +85,14 @@ function notificationRow(
       return {
         ...common,
         kind: "session",
-        // The daemon titles an untitled session by its id; show it as its window does.
+        // The daemon titles an untitled session by its id; show it as its window does, naming
+        // an automation or always-on origin rather than "New session".
         title: getSessionDisplayTitle({
           id: item.source_id,
           name: item.title,
           agent_name: item.agent_name,
+          type: item.session_type,
+          instance_id: item.instance_id,
         }),
         badge: toSessionBadge(item.badge),
         agentName: item.agent_name ?? "",

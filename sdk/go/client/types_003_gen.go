@@ -295,6 +295,8 @@ type AttentionNotificationPayload struct {
 	RequestKind    string    `json:"request_kind,omitempty"`
 	TerminalID     string    `json:"terminal_id,omitempty"`
 	Redacted       bool      `json:"redacted"`
+	SessionType    string    `json:"session_type,omitempty"`
+	InstanceID     string    `json:"instance_id,omitempty"`
 }
 
 // AttentionNotificationsResponse is a daemon API value.
@@ -441,9 +443,3 @@ type BackoffSpec struct {
 
 // Badge is a daemon API value.
 type Badge string
-
-// BindSessionWorktreeRequest is a daemon API value.
-type BindSessionWorktreeRequest struct {
-	Worktree           string  `json:"worktree"`
-	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
-}

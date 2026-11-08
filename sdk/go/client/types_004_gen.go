@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// BindSessionWorktreeRequest is a daemon API value.
+type BindSessionWorktreeRequest struct {
+	Worktree           string  `json:"worktree"`
+	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
+}
+
 // BindingsConfig is a daemon API value.
 type BindingsConfig struct {
 	TopCenter    string `json:"top_center"`
@@ -442,6 +448,3 @@ const (
 	CommandFlagTypeInteger CommandFlagType = "integer"
 	CommandFlagTypeNumber  CommandFlagType = "number"
 )
-
-// CommandID is a daemon API value.
-type CommandID string

@@ -48,8 +48,8 @@ on their automated suites.
 
 QA impact 2026-11-08 (#1388): a run shown with "Show automation runs" is titled by its job (for
 example `issue-triage`), not "New session", even when the job and its agent share a name; an
-always-on agent's untitled main shows its agent; an operator's untitled session still reads "New
-session". Each row's compact time keeps counting while the list stays open (it used to freeze at
+always-on agent's untitled main and an untitled child another agent spawned show their agent; an
+operator's untitled session still reads "New session". Each row's compact time keeps counting while the list stays open (it used to freeze at
 the value it first rendered). Owners: `session-list.test.tsx` ("SessionList row title") and the
 `Time` tick tests in `packages/ui`, which now run under the React Compiler. Verified in the
 compiled `SessionSidebar/SessionOrigins` story with a Playwright clock advanced two hours: before,

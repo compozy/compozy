@@ -3554,6 +3554,9 @@
           "id": {
             "type": "string"
           },
+          "instance_id": {
+            "type": "string"
+          },
           "item_index": {
             "type": "integer"
           },
@@ -3577,6 +3580,9 @@
             "type": "string"
           },
           "run_id": {
+            "type": "string"
+          },
+          "session_type": {
             "type": "string"
           },
           "source_id": {
