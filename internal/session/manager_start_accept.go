@@ -17,6 +17,8 @@ type acceptedSessionStart struct {
 	proc           *AgentProcess
 	async          bool
 	persistFailure bool
+	// cleanupPending transfers start-run completion to recorder cleanup.
+	cleanupPending bool
 }
 
 // acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.

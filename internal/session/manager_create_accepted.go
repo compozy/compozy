@@ -42,7 +42,9 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 		return errors.New("session: accepted logical session is required")
 	}
 	defer func() {
-		m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		if !accepted.cleanupPending {
+			m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		}
 	}()
 
 	ctx := accepted.run.ctx

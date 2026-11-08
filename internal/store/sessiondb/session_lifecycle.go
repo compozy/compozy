@@ -14,6 +14,22 @@ func (s *SessionDB) CleanupComplete() bool {
 	return s == nil || s.state.Load() == sessionStateClosed
 }
 
+// WaitForCleanup joins resource release independently of an earlier caller's drain error.
+func (s *SessionDB) WaitForCleanup(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("store: wait for session cleanup context is required")
+	}
+	select {
+	case <-s.closeDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Close drains queued writes, checkpoints the WAL, and closes the database.
 // If its deadline expires, cleanup retains ownership until active I/O stops;
 // another Close can join that cleanup with its own waiting deadline.

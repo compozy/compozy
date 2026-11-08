@@ -110,6 +110,10 @@ Repeat with catalog deletion failing. Rollback must restore the directory and
 retain one startup diagnostic and one terminal event, without clearing history.
 Also fail the first recorder close, then let cleanup finish. Join that cleanup
 before reopening; preserve the close error, prior history and both failure events.
+Keep cleanup blocked across both bounded close attempts: the start must remain
+pending, with its existing lifecycle owner tracked. Release I/O and require failure
+history and stopped state to settle. Repeat after a stop has detached the session's
+recorder; deletion must still join the recorder captured by startup.
 The canonical triage dispatcher suite owns these failed-start cleanup cases.
 
 Restart the daemon after a recovered process exits but terminal metadata/catalog persistence

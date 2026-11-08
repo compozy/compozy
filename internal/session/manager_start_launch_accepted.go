@@ -22,7 +22,9 @@ func (m *Manager) runAcceptedSessionStart(accepted *acceptedSessionStart) (err e
 		return errors.New("session: accepted start is required")
 	}
 	defer func() {
-		m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		if !accepted.cleanupPending {
+			m.finishSessionStartRun(accepted.spec.sessionID, accepted.run, err)
+		}
 	}()
 
 	err = m.launchAcceptedSessionStart(accepted)
@@ -166,6 +168,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	return errors.Join(startErr, persistErr, cleanupErr)
 }
 
+// discardAcceptedSessionStart closes the captured recorder before acquiring a deletion capability.
 func (m *Manager) discardAcceptedSessionStart(
 	ctx context.Context,
 	accepted *acceptedSessionStart,
@@ -182,7 +185,9 @@ func (m *Manager) discardAcceptedSessionStart(
 	session := accepted.session
 	// Staging retains the database-family lease. Close the recorder before
 	// acquiring it, so final backfill cannot wait on our own deletion capability.
-	if err := m.closeSessionRecorder(session); err != nil {
+	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+	session.setRecorder(nil)
+	if closeErr != nil {
 		// Join a timed-out close before reopening; the old writer still owns cleanup.
 		joinErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
 		complete := joinErr == nil
@@ -191,10 +196,13 @@ func (m *Manager) discardAcceptedSessionStart(
 		}
 		if complete {
 			accepted.storage.recorder = nil
+		} else {
+			failure := errors.Join(startErr, closeErr, joinErr)
+			return m.deferFailedStartCleanup(accepted, failure)
 		}
 		retainCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
-		return errors.Join(startErr, err, joinErr,
+		return errors.Join(startErr, closeErr, joinErr,
 			m.retainAcceptedSessionAfterDiscardFailure(retainCtx, accepted, startErr))
 	}
 	accepted.storage.recorder = nil
@@ -239,6 +247,38 @@ func (m *Manager) discardAcceptedSessionStart(
 	return errors.Join(startErr, cleanupErr, directoryErr)
 }
 
+// deferFailedStartCleanup keeps the existing start run pending until its recorder releases ownership.
+func (m *Manager) deferFailedStartCleanup(accepted *acceptedSessionStart, failure error) error {
+	waiter, ok := accepted.storage.recorder.(interface{ WaitForCleanup(context.Context) error })
+	if !ok || accepted.run == nil {
+		return errors.Join(failure, ErrRecoveryPersistence)
+	}
+	accepted.cleanupPending = true
+	go func() {
+		var settlementErr error
+		defer func() {
+			m.finishSessionStartRun(accepted.session.ID, accepted.run, errors.Join(failure, settlementErr))
+		}()
+		processErr := m.cleanupFailedStart("", nil, accepted.proc)
+		if processErr == nil {
+			accepted.proc = nil
+		}
+		if waitErr := waiter.WaitForCleanup(m.lifecycleCtx); waitErr != nil {
+			settlementErr = errors.Join(processErr, waitErr)
+			return
+		}
+		accepted.storage.recorder = nil
+		ctx, cancel := m.lifecycleCleanupContext()
+		defer cancel()
+		settlementErr = errors.Join(processErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, failure))
+		if settlementErr != nil {
+			m.sessionLogger(accepted.session).
+				Error("session: settle failed start after recorder cleanup", "error", settlementErr)
+		}
+	}()
+	return failure
+}
+
 // discardUncommittedSessionStart sweeps a start whose catalog registration never
 // committed (a derived child whose registration transaction failed or lost a race):
 // only its reserved directory exists, so it is removed like a failed accept.
@@ -253,6 +293,7 @@ func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart,
 	return errors.Join(startErr, cleanupErr)
 }
 
+// retainAcceptedSessionAfterDiscardFailure preserves history when deletion rolls back.
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	ctx context.Context,
 	accepted *acceptedSessionStart,

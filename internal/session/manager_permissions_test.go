@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -805,18 +806,22 @@ func TestTriageDispatcher(t *testing.T) {
 	})
 	// Invariant: discard rollback retains failed-start history after closing the original recorder.
 	// Owner: temporary triage lifecycle; canonical triage dispatcher suite.
-	for _, catalogFailure := range []bool{true, false} {
-		name := "Should retain failed triage history when catalog deletion fails"
-		if !catalogFailure {
-			name = "Should retain failed triage history after joining a failed recorder close"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name                                     string
+		catalogFailure, pendingCleanup, detached bool
+	}{
+		{"Should retain failed triage history when catalog deletion fails", true, false, false},
+		{"Should retain failed triage history after joining a failed recorder close", false, false, false},
+		{"Should defer failed triage settlement until recorder cleanup completes", false, true, false},
+		{"Should join a detached recorder before failed triage deletion", false, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			catalog := newRecordingSessionCatalog()
 			deleteErr := errors.New("catalog delete unavailable")
 			closeErr := errors.New("recorder close interrupted")
 			wantErr := closeErr
-			if catalogFailure {
+			if tc.catalogFailure {
 				catalog.deleteErr = deleteErr
 				wantErr = deleteErr
 			}
@@ -830,7 +835,9 @@ func TestTriageDispatcher(t *testing.T) {
 			opener := h.manager.openStore
 			var opened atomic.Int32
 			var fail atomic.Bool
-			fail.Store(!catalogFailure)
+			fail.Store(!tc.catalogFailure)
+			var lease *sessiondb.FamilyLease
+			defer func() { lease.Release() }()
 			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
 				recorder, err := opener(ctx, owner, path)
 				if err != nil {
@@ -845,16 +852,36 @@ func TestTriageDispatcher(t *testing.T) {
 					}); err != nil {
 						return nil, errors.Join(err, recorder.Close(ctx))
 					}
-					if !catalogFailure {
+					if !tc.catalogFailure {
+						var closeContext context.Context
+						if tc.pendingCleanup {
+							lease, err = sessiondb.AcquireFamilyLease(ctx, path)
+							if err != nil {
+								return nil, errors.Join(err, recorder.Close(ctx))
+							}
+							var cancel context.CancelFunc
+							closeContext, cancel = context.WithCancel(ctx)
+							cancel()
+						}
 						return &terminalCloseFailingRecorder{
 							EventRecorder: recorder, fail: &fail, closeErr: closeErr, terminal: true,
 							persistentCloseErr: true,
+							closeContext:       closeContext,
 						}, nil
 					}
 				}
 				return recorder, nil
 			}
 			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+				if tc.detached {
+					active, ok := h.manager.Get("sess-1")
+					if !ok {
+						return nil, errors.New("starting session missing")
+					}
+					if err := h.manager.closeSessionRecorder(active); !errors.Is(err, closeErr) {
+						return nil, fmt.Errorf("detach recorder: %w", err)
+					}
+				}
 				return nil, errors.New("provider start unavailable")
 			}
 			dispatcher := &TriageDispatcher{
@@ -868,6 +895,20 @@ func TestTriageDispatcher(t *testing.T) {
 			})
 			if !errors.Is(err, wantErr) {
 				t.Fatalf("discard error = %v, want %v", err, wantErr)
+			}
+			if tc.pendingCleanup {
+				infos, err := h.manager.ListAll(t.Context())
+				if err != nil || len(infos) != 1 || infos[0].State == StateStopped {
+					t.Fatalf("cleanup settled before releasing its recorder: %#v, %v", infos, err)
+				}
+				run := h.manager.sessionStartRun(infos[0].ID)
+				if run == nil {
+					t.Fatal("failed start lost its cleanup owner")
+				}
+				lease.Release()
+				if err := waitForSessionStartRun(testutil.Context(t), run); !errors.Is(err, closeErr) {
+					t.Fatalf("deferred settlement = %v, want original close error", err)
+				}
 			}
 			infos, err := h.manager.ListAll(t.Context())
 			if err != nil || len(infos) != 1 || infos[0].State != StateStopped {

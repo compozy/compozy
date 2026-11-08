@@ -2830,6 +2830,7 @@ type terminalCloseFailingRecorder struct {
 	terminal           bool
 	beforeClose        func()
 	persistentCloseErr bool
+	closeContext       context.Context
 }
 
 type terminalWriteFailingRecorder struct {
@@ -2870,6 +2871,9 @@ func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {
 	if r.terminal && r.fail.Load() && r.beforeClose != nil {
 		r.beforeClose()
 	}
+	if r.closeContext != nil {
+		ctx = r.closeContext
+	}
 	err := r.EventRecorder.Close(ctx)
 	if r.terminal && (r.persistentCloseErr || r.fail.CompareAndSwap(true, false)) {
 		return errors.Join(err, r.closeErr)
@@ -2880,6 +2884,10 @@ func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {
 func (r *terminalCloseFailingRecorder) CleanupComplete() bool {
 	cleanup, ok := r.EventRecorder.(interface{ CleanupComplete() bool })
 	return ok && cleanup.CleanupComplete()
+}
+
+func (r *terminalCloseFailingRecorder) WaitForCleanup(ctx context.Context) error {
+	return r.EventRecorder.(interface{ WaitForCleanup(context.Context) error }).WaitForCleanup(ctx)
 }
 
 func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {

@@ -51,6 +51,9 @@ without clearing history before persisting the startup diagnostic and terminal e
 A failed first close is joined with a fresh cleanup budget before reopening;
 reopening depends on cleanup completion rather than a historical drain error.
 Incomplete cleanup retains its resources and every close error remains explicit.
+The existing start run stays tracked until that cleanup finishes, then reopens the
+recorder and settles failure history. A concurrent stop detaching the session's
+handle does not discard startup's captured recorder or bypass its cleanup.
 Existing pooled reads and writes remain independent. Idle maintenance also schedules PASSIVE backfill on this worker; only its
 TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
 attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
