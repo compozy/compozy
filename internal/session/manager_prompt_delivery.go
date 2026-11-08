@@ -23,7 +23,7 @@ type durablePromptDelivery struct {
 	cancel          context.CancelFunc
 }
 
-// openDurablePromptDelivery anchors live delivery before the provider can append this turn's output.
+// openDurablePromptDelivery anchors live delivery while retaining this turn's setup output.
 func (m *Manager) openDurablePromptDelivery(
 	ctx context.Context,
 	session *Session,
@@ -36,6 +36,13 @@ func (m *Manager) openDurablePromptDelivery(
 	afterSequence, err := recorder.MaxEventSequence(ctx)
 	if err != nil {
 		return durablePromptDelivery{}, err
+	}
+	setup, err := recorder.Query(ctx, store.EventQuery{TurnID: turnID, Limit: 1, Forward: true})
+	if err != nil {
+		return durablePromptDelivery{}, err
+	}
+	if len(setup) > 0 && setup[0].Sequence > 0 {
+		afterSequence = min(afterSequence, setup[0].Sequence-1)
 	}
 	deliveryCtx, cancel := context.WithCancel(ctx)
 	persisted, unsubscribe, err := m.subscribePersistedSessionEvents(deliveryCtx, session.ID, afterSequence)

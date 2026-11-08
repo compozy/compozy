@@ -83,3 +83,5 @@ Persistent read failures after persistence completes must end after bounded retr
 terminal. The response contains no raw storage error details.
 An unpublished same-session hook event may create a sequence gap: recover through the observed
 watermark once, then resume live delivery. A following contiguous event must not trigger polling.
+Warnings persisted for the current turn during runtime setup, including Pi native-tool fallback
+guidance, must appear before its response and terminal. Prior-turn warnings must not be replayed.

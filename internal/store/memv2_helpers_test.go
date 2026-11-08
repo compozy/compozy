@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,8 +14,10 @@ func TestSessionFailureHelpers(t *testing.T) {
 			t.Fatalf("Validate(prompt delivery read failure) = %v", err)
 		}
 		failure.Kind = FailurePrompt
-		if err := failure.Validate(); err == nil {
-			t.Fatal("Validate(non-transport read failure) = nil, want incompatible kind error")
+		if err := failure.Validate(); err == nil || !strings.Contains(
+			err.Error(), `reason code "prompt_delivery_read_failed" requires kind "transport_failure"`,
+		) {
+			t.Fatalf("Validate(non-transport read failure) = %v, want incompatible kind diagnostic", err)
 		}
 	})
 	t.Run("Should normalize validate and clone supported failures", func(t *testing.T) {

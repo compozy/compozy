@@ -290,6 +290,50 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatalf("contiguous terminal delivery made %d catch-up queries", queries)
 		}
 	})
+	t.Run("Should preserve current turn warnings recorded during setup", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeRuntimeWarning, TurnID: "prior-turn", Text: "prior warning",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		session.setCurrentTurnID("setup-turn")
+		if err := h.manager.recordPiBridgeWarning(
+			ctx,
+			session,
+			"claude",
+			"pi_native_tools_materialization_failed",
+		); err != nil {
+			t.Fatal(err)
+		}
+		session.setCurrentTurnID("")
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "setup-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone} {
+			if err := h.manager.recordEvent(
+				ctx,
+				session,
+				acp.AgentEvent{Type: eventType, TurnID: "setup-turn"},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		close(delivery.persistenceDone)
+		events := collectEvents(t, delivery.events)
+		if len(events) != 3 || events[0].Type != acp.EventTypeRuntimeWarning ||
+			events[0].Text != "Pi native tools are unavailable; using CLI guidance." ||
+			events[1].Type != acp.EventTypeAgentMessage || events[2].Type != acp.EventTypeDone {
+			t.Fatalf("setup output = %#v, want current warning, message and terminal in order", events)
+		}
+	})
 	t.Run("Should keep later prompts on live delivery without catch-up queries", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -309,6 +353,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer delivery.cancel()
+		setupQueries := recorder.queries.Load()
 		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
 			Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: "reply",
 		}); err != nil {
@@ -318,7 +363,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		if first.Type != acp.EventTypeAgentMessage || first.Text != "reply" {
 			t.Fatalf("live event = %#v", first)
 		}
-		if queries := recorder.queries.Load(); queries != 0 {
+		if queries := recorder.queries.Load() - setupQueries; queries != 0 {
 			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
 		}
 		if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
@@ -334,12 +379,13 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 				t.Fatal(err)
 			}
 			event := receivePromptEvent(t, delivery.events)
-			if event.Type != acp.EventTypeAgentMessage || event.Text != text || recorder.queries.Load() != 1 {
+			if event.Type != acp.EventTypeAgentMessage || event.Text != text ||
+				recorder.queries.Load()-setupQueries != 1 {
 				t.Fatalf(
 					"delivery %d = %#v, queries = %d; want resumed live delivery",
 					index,
 					event,
-					recorder.queries.Load(),
+					recorder.queries.Load()-setupQueries,
 				)
 			}
 		}
