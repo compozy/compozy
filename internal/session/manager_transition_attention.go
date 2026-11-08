@@ -51,6 +51,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if after == nil {
 		return
 	}
+	m.rememberPublishedAttention(after)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
