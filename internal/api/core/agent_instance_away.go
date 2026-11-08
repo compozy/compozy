@@ -107,6 +107,7 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.AgentInstanceSeenResponse{LastSeenAt: at})
 }
 
+// MarkSeen keeps operator acknowledgement separate from provider report delivery.
 func (api *AgentInstanceAPI) MarkSeen(ctx context.Context, id string, now time.Time) (time.Time, error) {
 	reader, ok := api.Store.(agentinstance.SeenStore)
 	if !ok {

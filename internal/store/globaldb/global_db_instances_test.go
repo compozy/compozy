@@ -5033,6 +5033,16 @@ func TestInstanceSeen(t *testing.T) {
 			if _, err := repo.MarkSeen(ctx, instance.ID, agentinstance.LocalOperator, at); err != nil {
 				t.Fatal(err)
 			}
+			for _, want := range []string{"pending", "orphaned"} {
+				var got string
+				if err := db.DB().
+					QueryRowContext(ctx, "SELECT status FROM session_pending_interactions WHERE interaction_id=?", want).
+					Scan(&got); err != nil ||
+					got != want {
+					t.Fatalf("live interaction %s status=%q, %v", want, got, err)
+				}
+			}
+
 			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
 				t.Fatalf("live attention=%v, %v", attention, err)
 			}

@@ -78,6 +78,7 @@ describe("AlwaysOnRow", () => {
       keys: "[MouseRight]",
       target: screen.getByTestId(`always-on-seat-${instance.id}`),
     });
+    expect(await screen.findByRole("menuitem", { name: "Archive" })).toBeVisible();
     expect(screen.queryByRole("menuitem", { name: "Mark as seen" })).toBeNull();
   });
 

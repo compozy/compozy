@@ -89,6 +89,7 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		commit.Interaction.Status = store.PendingInteractionStatusCanceled
 		attentionStore.listErr = nil
 		attentionStore.requireBoundedRead = true
+		attentionStore.readFailures = 1
 		next := commit
 		next.Interaction = new(*commit.Interaction)
 		next.Interaction.InteractionID = "interaction-hook-other"
@@ -196,6 +197,7 @@ func (f attentionHookFunc) DispatchSessionAttentionChanged(
 
 type committingAttentionStore struct {
 	requireBoundedRead bool
+	readFailures       int
 	mu                 sync.Mutex
 	at                 time.Time
 	committed          bool
@@ -210,6 +212,10 @@ func (s *committingAttentionStore) GetSessionAttention(
 		if _, bounded := ctx.Deadline(); !bounded {
 			return store.SessionAttention{}, errors.New("post-commit read has no deadline")
 		}
+	}
+	if s.readFailures > 0 {
+		s.readFailures--
+		return store.SessionAttention{}, errors.New("transient attention read failure")
 	}
 	return store.SessionAttention{}, ctx.Err()
 }

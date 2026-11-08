@@ -335,17 +335,24 @@ func (m *Manager) PublishPendingInteractionCommits(ctx context.Context, commits 
 			continue
 		}
 		seen[id] = true
-		refreshed, err := m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
-			current, err := m.attentionStore.GetSessionAttention(ctx, id)
-			if err != nil {
-				return commit, err
+		var refreshed store.SessionAttentionCommit
+		var err error
+		for range 2 {
+			refreshed, err = m.commitAttention(id, func() (store.SessionAttentionCommit, error) {
+				current, err := m.attentionStore.GetSessionAttention(ctx, id)
+				if err != nil {
+					return commit, err
+				}
+				if err := m.refreshPendingInteractions(ctx, id); err != nil {
+					return commit, err
+				}
+				commit.After = current
+				return commit, nil
+			})
+			if err == nil {
+				break
 			}
-			if err := m.refreshPendingInteractions(ctx, id); err != nil {
-				return commit, err
-			}
-			commit.After = current
-			return commit, nil
-		})
+		}
 		if err != nil {
 			m.logger.WarnContext(
 				ctx,

@@ -69,3 +69,10 @@ Greptile review `discussion_r4507284015` identified request cancellation after t
 acknowledgement. Publication now detaches its reads from caller cancellation and bounds them with
 the existing lifecycle timeout. The canonical hook suite cancels the request before publication,
 requires a deadline at the storage read, and verifies the attention edge and resident state still clear.
+
+CodeRabbit review `5819097846` / thread `discussion_r4507306377` requested transient-read retry;
+publication now makes the same bounded two-attempt retry used by the nearby permission lifecycle.
+The hook suite injects a failed first read and verifies recovery. Both embedded test nitpicks were
+applied: individual live interaction statuses remain unchanged, and the non-dismissible menu test
+first proves an existing action is visible. The two new public query/API methods now explain their
+non-obvious acknowledgement boundaries in one-line comments.
