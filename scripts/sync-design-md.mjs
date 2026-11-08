@@ -21,7 +21,7 @@ const colorGroups = {
   "text-ladder": "fg fg-strong fg-2 fg-3 muted-foreground subtle faint",
   primary: "primary primary-hover primary-foreground",
   brand:
-    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow attn",
+    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow brand-volt brand-sky brand-teal brand-cyan brand-glint brand-deep attn attn-tint",
   "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
@@ -83,6 +83,10 @@ function replaceGeneratedSections(text) {
   const sections = [
     ...Object.entries(colorGroups).map(([id, stems]) => [id, themedTable(colorNames(stems))]),
     ["signal", signalTable()],
+    [
+      "gradients",
+      themedTable(namedRows(runtimeDecls, /^gradient-/).map(([name]) => name.slice(2))),
+    ],
     ["owner-avatar", themedTable(prefixNames(runtimeTheme, "color-avatar-"))],
     ["terminal-ansi", themedTable(terminalRampNames())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],

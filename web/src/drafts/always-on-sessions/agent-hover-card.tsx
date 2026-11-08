@@ -10,7 +10,7 @@ import { checksOf, doingOf, type CheckMark } from "../always-on-agents-shared/se
 import { openMainSession } from "./open-main";
 
 const STATE_TONE: Partial<Record<AgentState, PillTone>> = {
-  "needs-you": "brand",
+  "needs-you": "attn",
   working: "success",
   failed: "destructive",
 };

@@ -22,7 +22,7 @@ export function ListBody() {
           key={title}
           className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5 last:border-0"
         >
-          <Pill.Dot size="sm" tone={detail === "Needs you" ? "brand" : "success"} />
+          <Pill.Dot size="sm" tone={detail === "Needs you" ? "attn" : "success"} />
           <span className="min-w-0 flex-1 truncate text-small-body font-medium text-fg">
             {title}
           </span>

@@ -6,7 +6,8 @@ const pillVariants = cva(
     variants: {
       tone: {
         neutral: "bg-neutral-tint text-neutral-ink",
-        brand: "bg-brand-tint text-brand",
+        brand: "bg-brand-tint text-brand-strong",
+        attn: "bg-attn-tint text-attn",
         success: "bg-success-tint text-success",
         warning: "bg-warning-tint text-warning",
         destructive: "bg-destructive-tint text-destructive",
@@ -40,6 +41,7 @@ const pillVariants = cva(
       { size: "count", className: "text-count font-semibold" },
       { solid: true, tone: "neutral", className: "bg-muted-foreground text-canvas" },
       { solid: true, tone: "brand", className: "bg-brand text-brand-ink" },
+      { solid: true, tone: "attn", className: "bg-attn text-canvas" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },
       { solid: true, tone: "warning", className: "bg-warning text-canvas" },
       { solid: true, tone: "destructive", className: "bg-destructive text-canvas" },

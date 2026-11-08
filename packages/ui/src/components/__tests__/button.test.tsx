@@ -59,7 +59,7 @@ describe("Button", () => {
     );
     const quiet = screen.getByRole("button", { name: "Changes" });
     expect(quiet).toHaveAttribute("aria-pressed", "true");
-    expect(quiet).toHaveClass("aria-pressed:text-brand", "aria-pressed:bg-transparent");
+    expect(quiet).toHaveClass("aria-pressed:text-brand-strong", "aria-pressed:bg-transparent");
     expect(quiet.className).not.toContain("aria-pressed:bg-surface-2");
     expect(screen.getByRole("button", { name: "Ghost" })).toHaveClass("aria-pressed:bg-surface-2");
   });

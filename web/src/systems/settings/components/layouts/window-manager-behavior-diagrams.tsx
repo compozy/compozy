@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
  * The behaviour options, drawn. Each picture keeps the full `fg` ink for one
  * thing — "the window this is about" — against `subtle` panes, so selecting an
  * option never repaints the drawing: the emphasis is information and means the
- * same in every state. (Orange stays reserved for needs-you.)
+ * same in every state. (Amber stays reserved for needs-you.)
  */
 function Diagram({ children }: { children: ReactNode }) {
   return (

@@ -88,7 +88,7 @@ function DashboardBody() {
       <div className="rounded-md border border-line bg-canvas-soft p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-small-body font-semibold text-fg-strong">Working now</span>
-          <span className="flex items-center gap-1.5 text-micro font-semibold text-brand">
+          <span className="flex items-center gap-1.5 text-micro font-semibold text-brand-strong">
             <span className="size-[7px] rounded-full bg-brand" />
             live
           </span>

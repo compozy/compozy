@@ -251,13 +251,13 @@ describe("Pill.Dot", () => {
 });
 
 describe("Pill.Count", () => {
-  it("Should render a solid accent count badge", () => {
+  it("Should render a solid needs-you count badge", () => {
     render(<Pill.Count count={3} data-testid="count" />);
     const badge = screen.getByTestId("count");
     expect(badge).toHaveTextContent("3");
     expect(badge).toHaveAttribute("data-size", "count");
     expect(badge).toHaveAttribute("data-solid", "true");
-    expect(badge).toHaveAttribute("data-tone", "brand");
+    expect(badge).toHaveAttribute("data-tone", "attn");
   });
 
   it("Should cap counts above max", () => {

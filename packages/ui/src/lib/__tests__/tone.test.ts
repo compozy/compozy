@@ -17,9 +17,9 @@ describe("tone", () => {
     expect(toneSolid("brand")).toBe("bg-brand text-brand-ink");
   });
 
-  it("Should define all six signal tones", () => {
+  it("Should define every signal tone, needs-you amber included", () => {
     expect(Object.keys(TONE_CLASSES).sort()).toEqual(
-      ["brand", "destructive", "info", "neutral", "success", "warning"].sort()
+      ["attn", "brand", "destructive", "info", "neutral", "success", "warning"].sort()
     );
   });
 });

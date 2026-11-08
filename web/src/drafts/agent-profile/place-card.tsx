@@ -26,7 +26,7 @@ const DOT: Partial<Record<AgentState, StatusDotTone>> = {
   failed: "destructive",
   paused: "faint",
   idle: "faint",
-  "needs-you": "brand",
+  "needs-you": "attn",
 };
 
 function status(place: ProfilePlace) {

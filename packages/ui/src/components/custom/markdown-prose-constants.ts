@@ -22,7 +22,7 @@ export const PROSE_TYPE_COMPACT = {
 
 // Link ink: the underline is the non-color cue, so it shares the text color and its contrast.
 export const PROSE_LINK = {
-  // Orange is reserved for needs-you; links read as ink with the underline cue.
+  // Amber is reserved for needs-you; links read as ink with the underline cue.
   text: "text-fg-2",
   underline: "decoration-fg-2",
 } as const;

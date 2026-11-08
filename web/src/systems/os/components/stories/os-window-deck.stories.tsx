@@ -121,8 +121,8 @@ function runningStatus(label: string) {
 
 function attentionStatus(label: string) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-small-body text-brand-strong">
-      <Pill.Dot size="sm" tone="brand" />
+    <span className="inline-flex items-center gap-1.5 text-small-body text-attn">
+      <Pill.Dot size="sm" tone="attn" />
       {label}
     </span>
   );

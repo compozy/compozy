@@ -90,7 +90,7 @@ export function ButtonsAndPillsSection() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone="neutral">Neutral</Pill>
-          <Pill tone="brand">Needs you</Pill>
+          <Pill tone="attn">Needs you</Pill>
           <Pill tone="success">Stable</Pill>
           <Pill tone="warning">Pending</Pill>
           <Pill tone="destructive">Error</Pill>
@@ -203,7 +203,7 @@ export function InputsAndSearchSection() {
   );
 }
 
-// Mint ring = in progress, dashed = queued, filled mint check = done, orange = needs you.
+// Mint ring = in progress, dashed = queued, filled mint check = done, amber = needs you.
 const STATE_GLYPH_DEMO: ReadonlyArray<readonly [StateGlyphState, string]> = [
   ["running", "In progress"],
   ["queued", "Queued"],

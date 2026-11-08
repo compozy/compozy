@@ -12,7 +12,7 @@ const DESKTOPS: DesktopPagerItem[] = [
   { id: "research", name: "Research" },
 ];
 
-/** Research holds a session that needs you: an orange dot until it is the active desktop. */
+/** Research holds a session that needs you: an amber dot until it is the active desktop. */
 const NEEDS_YOU_DESKTOPS: DesktopPagerItem[] = DESKTOPS.map(desktop =>
   desktop.id === "research" ? { ...desktop, needsYou: true } : desktop
 );
@@ -69,7 +69,7 @@ const meta: Meta<typeof DesktopPager> = {
     docs: {
       description: {
         component:
-          "Topbar desktop navigation in the tray: 6px dots, the active desktop as an 18px pill, an orange dot for an off-screen desktop that needs you, arrow-key navigation, and ±2 overflow controls that open the desktops overview. Dots only select.",
+          "Topbar desktop navigation in the tray: 6px dots, the active desktop as an 18px pill, an amber dot for an off-screen desktop that needs you, arrow-key navigation, and ±2 overflow controls that open the desktops overview. Dots only select.",
       },
     },
   },
@@ -132,7 +132,7 @@ export const OverflowAtEnd: Story = {
   ),
 };
 
-/** An off-screen desktop that needs you shows an orange dot; switching to it clears the mark. */
+/** An off-screen desktop that needs you shows an amber dot; switching to it clears the mark. */
 export const NeedsYouOffScreen: Story = {
   args: {
     desktops: NEEDS_YOU_DESKTOPS,

@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   AA_NON_TEXT_CONTRAST,
   AA_TEXT_CONTRAST,
+  compositeOver,
   contrastRatio,
   parseHexColor,
+  parseRgbaColor,
   type Rgb,
 } from "../lib/contrast";
 import {
@@ -186,15 +188,127 @@ describe("brand, destructive and muted token names", () => {
     expect(declared.filter(name => LEGACY_NAME.test(name))).toEqual([]);
   });
 
-  it("Should alias attention to the brand color", () => {
-    expect(themeBlock(TOKENS_CSS)).toMatch(/--color-attn:\s*var\(--color-brand\);/);
-    expect(parseHexColor(readToken("color-brand", "dark"))).toEqual(parseHexColor("#e8572a"));
-  });
-
   it.each<[Theme, string]>([
-    ["dark", "#a3a3a3"],
+    ["dark", "#989898"],
     ["light", "#6b6b6b"],
   ])("Should keep the secondary-text gray in %s", (theme, gray) => {
     expect(parseHexColor(readToken("color-muted-foreground", theme))).toEqual(parseHexColor(gray));
   });
+});
+
+/**
+ * Brand identity v1.2 (UT-006). Volt is the brand fill, brand-as-text rides
+ * `brand-strong`, needs-you is its own amber (never an alias of brand), and the
+ * destructive-solid fill keeps the ink the brand fill used to carry.
+ */
+describe("brand identity v1.2 token values", () => {
+  it.each<[string, string, string]>([
+    ["color-brand", "#2f5bff", "#2448e6"],
+    ["color-brand-hover", "#4a70ff", "#1f3fcc"],
+    ["color-brand-strong", "#5b7fff", "#2448e6"],
+    ["color-brand-ink", "#ffffff", "#ffffff"],
+    ["color-attn", "#f5b14c", "#9a5b00"],
+    ["color-destructive-ink", "#17110f", "#ffffff"],
+    ["color-brand-volt", "#2f5bff", "#2f5bff"],
+    ["color-brand-sky", "#1f87fc", "#1f87fc"],
+    ["color-brand-teal", "#1df0d7", "#1df0d7"],
+    ["color-brand-cyan", "#3df2e0", "#3df2e0"],
+    ["color-brand-glint", "#b5faf6", "#b5faf6"],
+    ["color-brand-deep", "#0b31f7", "#0b31f7"],
+  ])("Should hold --%s at %s dark and %s light", (name, dark, light) => {
+    expect(parseHexColor(readToken(name, "dark"))).toEqual(parseHexColor(dark));
+    expect(parseHexColor(readToken(name, "light"))).toEqual(parseHexColor(light));
+  });
+
+  it.each<[string, string, string]>([
+    ["color-brand-tint", "rgba(47, 91, 255, 0.1)", "rgba(36, 72, 230, 0.08)"],
+    ["color-brand-tint-strong", "rgba(47, 91, 255, 0.16)", "rgba(36, 72, 230, 0.14)"],
+    ["color-brand-dim", "rgba(47, 91, 255, 0.24)", "rgba(36, 72, 230, 0.22)"],
+    ["color-brand-glow", "rgba(47, 91, 255, 0.05)", "rgba(36, 72, 230, 0.05)"],
+  ])("Should derive --%s from volt in both themes", (name, dark, light) => {
+    expect(readToken(name, "dark")).toBe(dark);
+    expect(readToken(name, "light")).toBe(light);
+  });
+
+  it("Should give attention its own value, never an alias of brand", () => {
+    expect(TOKENS_CSS).not.toMatch(/--color-attn:\s*var\(--color-brand\)/);
+    expect(TOKENS_LIGHT_CSS).not.toMatch(/--color-attn:\s*var\(/);
+  });
+
+  it("Should keep primary actions inverted, never volt", () => {
+    expect(parseHexColor(readToken("color-primary", "dark"))).toEqual(parseHexColor("#f5f5f5"));
+    expect(parseHexColor(readToken("color-primary", "light"))).toEqual(parseHexColor("#0b0d12"));
+  });
+
+  it("Should declare every brand gradient at 45deg without deep", () => {
+    const gradients = Array.from(
+      TOKENS_CSS.matchAll(/--(gradient-[a-z-]+)\s*:\s*([^;]+);/g),
+      match => [match[1], match[2]] as const
+    );
+    expect(gradients.map(([name]) => name).sort()).toEqual(["gradient-brand", "gradient-live"]);
+    for (const [name, value] of gradients) {
+      expect(value, name).toMatch(/^linear-gradient\(45deg,/);
+      expect(value.toLowerCase(), name).not.toContain("#0b31f7");
+      expect(value, name).not.toContain("brand-deep");
+    }
+    expect(readToken("gradient-brand")).toBe(
+      "linear-gradient(45deg, #1f87fc 0%, #1df0d7 60%, #b5faf6 100%)"
+    );
+    expect(readToken("gradient-live")).toBe("linear-gradient(45deg, #2f5bff, #3df2e0)");
+  });
+});
+
+/**
+ * Brand text pairs (UT-007, ported from the brand manual's contrast pairs onto
+ * product tokens). Each text/background pair clears 4.5:1 — 3:1 where the
+ * pairing is large-only — in every theme it is used; a failure names the pair.
+ * A translucent background is composited over the surface it sits on.
+ */
+type ContrastPair = readonly [fg: string, bg: string, min: number, themes: readonly Theme[]];
+
+const BRAND_TEXT_SURFACES = [
+  "color-canvas",
+  "color-canvas-soft",
+  "color-sunken",
+  "color-rail",
+  "color-elevated",
+] as const;
+
+const BRAND_CONTRAST_PAIRS: readonly ContrastPair[] = [
+  ["color-fg", "color-rail", AA_TEXT_CONTRAST, THEMES],
+  ["color-muted-foreground", "color-rail", AA_TEXT_CONTRAST, THEMES],
+  ["color-brand-ink", "color-brand", AA_TEXT_CONTRAST, THEMES],
+  ["color-destructive-ink", "color-destructive", AA_TEXT_CONTRAST, THEMES],
+  ["color-brand-strong", "color-brand-tint", AA_TEXT_CONTRAST, THEMES],
+  ["color-attn", "color-attn-tint", AA_TEXT_CONTRAST, THEMES],
+  ["color-attn", "color-canvas", AA_TEXT_CONTRAST, THEMES],
+  ["color-attn", "color-rail", AA_TEXT_CONTRAST, THEMES],
+  ...BRAND_TEXT_SURFACES.map(
+    surface => ["color-brand-strong", surface, AA_TEXT_CONTRAST, THEMES] as const
+  ),
+  // Signal labels on ink (dark only: cyan is a dark-ground signal).
+  ["color-brand-cyan", "color-rail", AA_TEXT_CONTRAST, ["dark"]],
+  // Volt itself as text is large-only on ink.
+  ["color-brand", "color-rail", AA_NON_TEXT_CONTRAST, ["dark"]],
+];
+
+function surfaceRgb(name: string, theme: Theme): Rgb {
+  const value = readToken(name, theme);
+  const hex = parseHexColor(value);
+  if (hex) return hex;
+  const rgba = parseRgbaColor(value);
+  if (!rgba) throw new Error(`expected a color for --${name} (${theme}), got "${value}"`);
+  return compositeOver(rgba.rgb, rgba.alpha, readHex("color-canvas", theme));
+}
+
+describe.each(THEMES)("brand text contrast pairs (%s theme)", theme => {
+  for (const [fg, bg, min, themes] of BRAND_CONTRAST_PAIRS) {
+    if (!themes.includes(theme)) continue;
+    it(`Should hold ≥${min}:1 for --${fg} on --${bg}`, () => {
+      const ratio = contrastRatio(readHex(fg, theme), surfaceRgb(bg, theme));
+      expect(ratio, `--${fg} on --${bg} (${theme}) = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        min
+      );
+    });
+  }
 });
