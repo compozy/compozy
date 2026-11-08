@@ -148,8 +148,8 @@ approval-dark.webp 15056
 approval-light.webp 15360
 board-dark.webp 93730
 board-light.webp 97066
-desktop-dark.webp 39786
-desktop-light.webp 39634
+desktop-dark.webp 45224
+desktop-light.webp 45350
 orchestrate-dark.webp 68682
 orchestrate-light.webp 71258
 sessions-dark.webp 40704
