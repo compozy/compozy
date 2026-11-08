@@ -290,8 +290,58 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		if err != nil || framesAfter != framesBefore || salt() != before {
 			t.Fatalf("idle maintenance changed WAL: frames %d -> %d, error=%v", framesBefore, framesAfter, err)
 		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (1)"); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var readCount int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&readCount); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			strings.Repeat("INSERT INTO items VALUES (1);", walRestartFrames),
+		); err != nil {
+			t.Fatal(err)
+		}
+		framesBefore, _, err = walCheckpointProgress(ctx, checkpointDB)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before = salt()
+		for range 3 {
+			if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+				t.Fatal(err)
+			}
+		}
+		framesAfter, _, err = walCheckpointProgress(ctx, checkpointDB)
+		if err != nil || framesAfter != framesBefore || salt() != before {
+			t.Fatalf(
+				"reader-blocked idle maintenance added WAL frames: %d -> %d, error=%v",
+				framesBefore,
+				framesAfter,
+				err,
+			)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
+			t.Fatal(err)
+		}
+		if salt() == before {
+			t.Fatal("maintenance did not restart after the old reader released its snapshot")
+		}
 		var count, version int
-		wantCount := 6 + 8*walRestartFrames
+		wantCount := 7 + 9*walRestartFrames
 		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != wantCount {
 			t.Fatalf("rows = %d, error = %v, want %d", count, err, wantCount)
 		}
@@ -373,6 +423,15 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		if err != nil || len(before) < 32 || len(after) < 32 || !bytes.Equal(before[16:24], after[16:24]) {
 			t.Fatalf("foreground restarted the WAL after external contention: %v", err)
 		}
+		if _, err := db.ExecContext(
+			ctx,
+			strings.Repeat(
+				"INSERT INTO items VALUES (2);",
+				walRestartFrames,
+			)+"DELETE FROM items WHERE rowid > 1;",
+		); err != nil {
+			t.Fatal(err)
+		}
 		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
 			t.Fatalf("backfill after failed restart while admission is occupied = %v", err)
 		}
@@ -383,6 +442,10 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		releaseRetry()
 		if err := guard.checkpoint(ctx, checkpointDB); err != nil {
 			t.Fatalf("retry after contention = %v", err)
+		}
+		after, err = os.ReadFile(path + "-wal")
+		if err != nil || len(after) < 32 || bytes.Equal(before[16:24], after[16:24]) {
+			t.Fatalf("maintenance did not restart after external contention: %v", err)
 		}
 		var count int
 		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 1 {

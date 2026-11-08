@@ -49,8 +49,12 @@ func (g *walRestartGuard) checkpoint(ctx context.Context, db *sql.DB) error {
 		if err := CheckpointPassive(ctx, db); err != nil {
 			return err
 		}
+		_, copied, err = walCheckpointProgress(ctx, db)
+		if err != nil {
+			return err
+		}
 	}
-	if g.primed && frames < walRestartFrames {
+	if g.primed && (frames < walRestartFrames || copied < frames) {
 		return nil
 	}
 	return g.restart(ctx, db)
