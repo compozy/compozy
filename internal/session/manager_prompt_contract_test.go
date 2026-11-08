@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"strings"
@@ -290,10 +291,91 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			t.Fatalf("contiguous terminal delivery made %d catch-up queries", queries)
 		}
 	})
-	t.Run("Should preserve current turn warnings recorded during setup", func(t *testing.T) {
+	t.Run("Should recover an event recorded between cursor capture and subscription", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+		recorder.afterCursorRead = func(ctx context.Context) error {
+			return h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeRuntimeWarning, TurnID: "subscription-turn", Text: "setup race",
+			})
+		}
+		session.setRecorder(recorder)
+		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "subscription-turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer delivery.cancel()
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "subscription-turn", Text: "live reply",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{acp.EventTypeRuntimeWarning, acp.EventTypeAgentMessage} {
+			if event := receivePromptEvent(t, delivery.events); event.Type != want {
+				t.Fatalf("event before persistence completion = %#v, want %s", event, want)
+			}
+		}
+		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+			Type: acp.EventTypeDone, TurnID: "subscription-turn",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		close(delivery.persistenceDone)
+		if events := collectEvents(t, delivery.events); len(events) != 1 || events[0].Type != acp.EventTypeDone {
+			t.Fatalf("remaining events = %#v, want one terminal", events)
+		}
+	})
+	for _, tc := range []struct {
+		name        string
+		failMaximum bool
+	}{
+		{name: "Should release prompt ownership after the maximum sequence read fails", failMaximum: true},
+		{name: "Should release prompt ownership after the setup query fails"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			readErr := errors.New("initial delivery read failed")
+			recorder := &promptDeliveryQueryRecorder{EventRecorder: session.recorderHandle()}
+			if tc.failMaximum {
+				recorder.maxReadError = readErr
+			} else {
+				recorder.readError, recorder.failAlways = readErr, true
+			}
+			session.setRecorder(recorder)
+			if _, err := h.manager.Prompt(t.Context(), session.ID, "first attempt"); !errors.Is(err, readErr) {
+				t.Fatalf("Prompt() error = %v, want initial delivery read error", err)
+			}
+			session.setRecorder(recorder.EventRecorder)
+			next, err := h.manager.Prompt(t.Context(), session.ID, "next attempt")
+			if err != nil {
+				t.Fatalf("Prompt() after recorder recovery = %v", err)
+			}
+			if events := collectEvents(t, next); countAgentEvents(events, acp.EventTypeDone) != 1 {
+				t.Fatalf("recovered prompt events = %#v, want one terminal", events)
+			}
+		})
+	}
+	t.Run("Should preserve current turn warnings recorded during setup", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "pi", Model: "test-model"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		session, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("accepted session is not available")
+		}
 		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
@@ -302,34 +384,30 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		session.setCurrentTurnID("setup-turn")
-		t.Cleanup(func() { clearPromptState(session, "setup-turn") })
-		if err := h.manager.recordPiBridgeWarning(
-			ctx,
-			session,
-			"claude",
-			"pi_native_tools_materialization_failed",
+		if err := os.WriteFile(
+			filepath.Join(session.sessionDir, "provider-runtime"),
+			[]byte("block materialization"),
+			0o600,
 		); err != nil {
 			t.Fatal(err)
 		}
-		delivery, err := h.manager.openDurablePromptDelivery(ctx, session, "setup-turn")
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.FinalizeStartup == nil {
+				return nil, errors.New("Pi startup finalizer is missing")
+			}
+			if _, _, err := opts.FinalizeStartup(ctx); err != nil {
+				return nil, err
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-pi-%d", sequence)), nil
+		}
+		output, err := h.manager.Prompt(ctx, session.ID, "reply with unavailable native tools")
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer delivery.cancel()
-		for _, eventType := range []string{acp.EventTypeAgentMessage, acp.EventTypeDone} {
-			if err := h.manager.recordEvent(
-				ctx,
-				session,
-				acp.AgentEvent{Type: eventType, TurnID: "setup-turn"},
-			); err != nil {
-				t.Fatal(err)
-			}
-		}
-		close(delivery.persistenceDone)
-		events := collectEvents(t, delivery.events)
+		events := collectEvents(t, output)
 		if len(events) != 3 || events[0].Type != acp.EventTypeRuntimeWarning ||
 			events[0].Text != "Pi native tools are unavailable; using CLI guidance." ||
+			events[0].TurnID == "" || events[0].TurnID != events[2].TurnID ||
 			events[1].Type != acp.EventTypeAgentMessage || events[2].Type != acp.EventTypeDone {
 			t.Fatalf("setup output = %#v, want current warning, message and terminal in order", events)
 		}
@@ -4684,10 +4762,24 @@ func (c *profileStartedContext) Done() <-chan struct{} {
 // promptDeliveryQueryRecorder counts replay reads at the recorder I/O boundary.
 type promptDeliveryQueryRecorder struct {
 	EventRecorder
-	queries    atomic.Int64
-	failNext   atomic.Bool
-	readError  error
-	failAlways bool
+	queries         atomic.Int64
+	failNext        atomic.Bool
+	readError       error
+	failAlways      bool
+	maxReadError    error
+	afterCursorRead func(context.Context) error
+	cursorRead      sync.Once
+}
+
+func (r *promptDeliveryQueryRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
+	if r.maxReadError != nil {
+		return 0, r.maxReadError
+	}
+	sequence, err := r.EventRecorder.MaxEventSequence(ctx)
+	if err == nil && r.afterCursorRead != nil {
+		r.cursorRead.Do(func() { err = r.afterCursorRead(ctx) })
+	}
+	return sequence, err
 }
 
 func (r *promptDeliveryQueryRecorder) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
