@@ -93,7 +93,16 @@ func (m *Manager) runDurablePromptDelivery(
 			}
 			// Concurrent publishers can overtake an earlier append; replay before advancing past a gap.
 			if persisted.Sequence > afterSequence+1 {
-				live = nil
+				var finished bool
+				afterSequence, finished = m.catchUpDurablePromptDelivery(
+					ctx, session, turnID, afterSequence, persisted.Sequence, cards, persistenceDone, false, out,
+				)
+				if finished {
+					return
+				}
+				continue
+			}
+			if persisted.Sequence <= afterSequence {
 				continue
 			}
 			terminal, delivered := m.deliverPersistedPromptEvent(
@@ -113,6 +122,7 @@ func (m *Manager) runDurablePromptDelivery(
 		session,
 		turnID,
 		afterSequence,
+		0,
 		cards,
 		persistenceDone,
 		persistenceComplete,
@@ -120,34 +130,36 @@ func (m *Manager) runDurablePromptDelivery(
 	)
 }
 
+// catchUpDurablePromptDelivery replays through a live watermark, or awaits a terminal when it is zero.
 func (m *Manager) catchUpDurablePromptDelivery(
 	ctx context.Context,
 	session *Session,
 	turnID string,
-	afterSequence int64,
+	afterSequence, throughSequence int64,
 	cards *transcript.SessionMessageCards,
 	persistenceDone <-chan struct{},
 	persistenceComplete bool,
 	out chan<- acp.AgentEvent,
-) {
+) (int64, bool) {
 	ticker := time.NewTicker(promptDeliveryCatchUpInterval)
 	defer ticker.Stop()
 	recorder := session.recorderHandle()
 	if recorder == nil {
 		m.deliverPromptProjectionFailure(ctx, session, turnID, out)
-		return
+		return afterSequence, true
 	}
 
 	completedReadFailures := 0
 	for {
-		persisted, err := recorder.Query(ctx, store.EventQuery{
-			TurnID:        turnID,
-			AfterSequence: afterSequence,
-			Limit:         promptDeliveryPageSize,
-			Forward:       true,
-		})
+		query := store.EventQuery{
+			TurnID: turnID, AfterSequence: afterSequence, Limit: promptDeliveryPageSize, Forward: true,
+		}
+		if throughSequence > 0 {
+			query.TurnID = ""
+		}
+		persisted, err := recorder.Query(ctx, query)
 		if errors.Is(err, store.ErrClosed) {
-			return
+			return afterSequence, true
 		}
 		if err != nil {
 			m.sessionLogger(session).WarnContext(ctx, "session: query prompt delivery catch-up failed", "error", err)
@@ -155,22 +167,23 @@ func (m *Manager) catchUpDurablePromptDelivery(
 				completedReadFailures++
 				if completedReadFailures >= promptDeliveryReadAttempts {
 					m.deliverPromptReadFailure(ctx, turnID, out)
-					return
+					return afterSequence, true
 				}
 			}
 		} else {
 			completedReadFailures = 0
 			for _, event := range persisted {
-				terminal, delivered := m.deliverPersistedPromptEvent(
+				terminal, _ := m.deliverPersistedPromptEvent(
 					ctx, session, turnID, event, cards, persistenceDone, out,
 				)
-				if event.Sequence > afterSequence {
-					afterSequence = event.Sequence
-				}
-				if delivered && terminal {
-					return
+				afterSequence = max(afterSequence, event.Sequence)
+				if terminal {
+					return afterSequence, true
 				}
 			}
+		}
+		if err == nil && throughSequence > 0 && afterSequence >= throughSequence {
+			return afterSequence, false
 		}
 		// A completed pump can still have several unread pages. Drain them before
 		// diagnosing a missing terminal record or waiting for another live wake.
@@ -179,12 +192,12 @@ func (m *Manager) catchUpDurablePromptDelivery(
 		}
 		if persistenceComplete && err == nil {
 			m.deliverPromptProjectionFailure(ctx, session, turnID, out)
-			return
+			return afterSequence, true
 		}
 
 		select {
 		case <-ctx.Done():
-			return
+			return afterSequence, true
 		case <-persistenceDone:
 			persistenceDone = nil
 			persistenceComplete = true

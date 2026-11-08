@@ -216,7 +216,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}{
 		{"Should retry a catch-up read failure after persistence completes", errors.New("transient read failure"), false, acp.EventTypeDone, "", 2},
 		{"Should end catch-up when its recorder closes", store.ErrClosed, false, "", "", 1},
-		{"Should end catch-up after persistent completed read failures", errors.New("persistent read failure"), true, acp.EventTypeError, store.FailureReasonPromptDeliveryReadFailed, 0},
+		{"Should end catch-up after persistent completed read failures", errors.New("persistent read failure"), true, acp.EventTypeError, store.FailureReasonPromptDeliveryReadFailed, 3},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -236,7 +236,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 			recorder.failNext.Store(true)
 			session.setRecorder(recorder)
 			out := make(chan acp.AgentEvent, 2)
-			h.manager.catchUpDurablePromptDelivery(ctx, session, "turn-read-retry", 0,
+			h.manager.catchUpDurablePromptDelivery(ctx, session, "turn-read-retry", 0, 0,
 				&transcript.SessionMessageCards{}, nil, true, out)
 			close(out)
 			events := collectEvents(t, out)
@@ -320,6 +320,28 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		}
 		if queries := recorder.queries.Load(); queries != 0 {
 			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
+		}
+		if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
+			TurnID: "later-turn", Type: "hook.dispatch.started", Content: "{}",
+			AgentName: session.Info().AgentName, Timestamp: time.Now().UTC(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for index, text := range []string{"after unpublished row", "live again"} {
+			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, TurnID: "later-turn", Text: text,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			event := receivePromptEvent(t, delivery.events)
+			if event.Type != acp.EventTypeAgentMessage || event.Text != text || recorder.queries.Load() != 1 {
+				t.Fatalf(
+					"delivery %d = %#v, queries = %d; want resumed live delivery",
+					index,
+					event,
+					recorder.queries.Load(),
+				)
+			}
 		}
 		if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{
 			Type: acp.EventTypeDone, TurnID: "later-turn",

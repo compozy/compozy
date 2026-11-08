@@ -81,3 +81,5 @@ read-error warning or a stream held open until manager shutdown.
 Persistent read failures after persistence completes must end after bounded retries with
 `prompt_delivery_read_failed`, rather than leaving the stream open or claiming a verified missing
 terminal. The response contains no raw storage error details.
+An unpublished same-session hook event may create a sequence gap: recover through the observed
+watermark once, then resume live delivery. A following contiguous event must not trigger polling.
