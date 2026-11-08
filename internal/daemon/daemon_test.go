@@ -1821,6 +1821,32 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: terminal discovery withdrawal survives replacement of a failed shutdown attempt.
+	t.Run("Should withdraw discovery on every incomplete terminal shutdown retry", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.sessions = &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		first, _, _, _, err := d.beginShutdownOperation(t.Context(), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first.sessionShutdownIncomplete = true
+		d.completeShutdownOperation(first, context.DeadlineExceeded)
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid()}); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("retry retained stopped daemon discovery: %v", err)
+		}
+	})
+
 	// Invariant: Run's terminal path withdraws discovery even if session cleanup
 	// prevents successful shutdown. Owner: daemon lifecycle; canonical shutdown suite.
 	t.Run("Should withdraw daemon info when Run ends after incomplete shutdown", func(t *testing.T) {

@@ -1046,6 +1046,159 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: Stop accepted during failed-process verification owns the terminal classification.
+	t.Run("Should arbitrate asynchronous startup failure after process verification", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		accepted.persistFailure = true
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-failed-start")
+		h.driver.processes[proc.handle] = proc
+		accepted.proc = proc.handle
+		h.driver.verifyExitHook = func(*AgentProcess) (bool, error) {
+			if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+		startErr := errors.New("provider initialization failed")
+		err := h.manager.settleAcceptedSessionStartFailure(accepted, startErr)
+		h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		outcome, err := h.manager.AwaitStopped(testutil.Context(t), accepted.session.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseUserRequested {
+			t.Fatalf("canceled failed start = %+v, %v", outcome, err)
+		}
+		meta := readMeta(t, accepted.session.MetaPath())
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureCanceled ||
+			meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+			t.Fatalf("stop classification replaced by startup failure: %+v", meta)
+		}
+		if countEventType(readStoredEvents(t, accepted.session), acp.EventTypeError) != 0 {
+			t.Fatal("canceled startup published a failure event")
+		}
+	})
+
+	// Invariant: an uncommitted derived child cannot release its run or directory while its recorder owns it.
+	for _, optionalWaiter := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should join uncommitted derived cleanup with optional waiter %t", optionalWaiter),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				accepted := prepareLifecycleStart(t, h)
+				accepted.spec.deriveReceipt = &store.SessionDerivationReceipt{}
+				lease, err := sessiondb.AcquireFamilyLease(t.Context(), accepted.session.DBPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer lease.Release()
+				closeCtx, cancel := context.WithCancel(t.Context())
+				cancel()
+				fail := new(atomic.Bool)
+				fail.Store(true)
+				wrapped := &terminalCloseFailingRecorder{
+					EventRecorder: accepted.storage.recorder,
+					fail:          fail,
+					closeContext:  closeCtx,
+				}
+				accepted.storage.recorder = wrapped
+				if !optionalWaiter {
+					accepted.storage.recorder = &struct{ EventRecorder }{wrapped}
+				}
+				failure := errors.New("derived registration failed")
+				if err := h.manager.discardAcceptedSessionStart(
+					t.Context(),
+					accepted,
+					failure,
+				); !errors.Is(
+					err,
+					failure,
+				) {
+					t.Fatal(err)
+				}
+				if !accepted.cleanupPending || signalClosed(accepted.run.done) {
+					t.Fatal("uncommitted cleanup lost its start owner")
+				}
+				if _, err := os.Stat(accepted.storage.sessionDir); err != nil {
+					t.Fatalf("live recorder directory removed: %v", err)
+				}
+				lease.Release()
+				if err := waitForSessionStartRun(testutil.Context(t), accepted.run); !errors.Is(err, failure) {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(accepted.storage.sessionDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("uncommitted directory survived completed cleanup: %v", err)
+				}
+			},
+		)
+	}
+
+	// Invariant: manager shutdown cancels an Active replacement whose activation has not committed.
+	t.Run("Should cancel an uncommitted Active replacement during shutdown", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		if err := h.manager.activate(accepted.session); err != nil {
+			t.Fatal(err)
+		}
+		if err := accepted.session.activateWithProcess(nil, h.manager.now(), false, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.persistSessionLifecycleState(t.Context(), accepted.session, true); err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			<-accepted.run.ctx.Done()
+			err := h.manager.settleCanceledSessionStart(context.WithoutCancel(accepted.run.ctx), accepted)
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := h.manager.shutdownSessionStarts(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if accepted.session.Info().State != StateStopped {
+			t.Fatal("shutdown left replacement running")
+		}
+	})
+
+	// Invariant: cancellation during recorder close retains cleanup ownership until process death is verified.
+	t.Run("Should retain canceled startup cleanup until process verification recovers", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		proc := newFakeProcess("coder", "fake-agent", h.workspace, "acp-close-stop")
+		h.driver.processes[proc.handle] = proc
+		accepted.proc = proc.handle
+		var verified atomic.Bool
+		h.driver.verifyExitHook = func(*AgentProcess) (bool, error) { return verified.Load(), nil }
+		fail := new(atomic.Bool)
+		wrapped := &terminalCloseFailingRecorder{
+			EventRecorder: accepted.storage.recorder,
+			fail:          fail,
+			terminal:      true,
+			beforeClose: sync.OnceFunc(func() {
+				if err := h.manager.RequestStop(t.Context(), accepted.session.ID, CauseUserRequested); err != nil {
+					t.Error(err)
+				}
+			}),
+		}
+		fail.Store(true)
+		accepted.storage.recorder = wrapped
+		failure := errors.New("launch failed")
+		err := h.manager.discardAcceptedSessionStart(t.Context(), accepted, failure)
+		if !accepted.cleanupPending || signalClosed(accepted.run.done) || !errors.Is(err, ErrStopVerificationFailed) {
+			t.Fatalf("canceled process owner released: %v", err)
+		}
+		verified.Store(true)
+		if err := waitForSessionStartRun(testutil.Context(t), accepted.run); err != nil {
+			t.Fatal(err)
+		}
+		if accepted.session.Info().State != StateStopped {
+			t.Fatal("canceled cleanup did not converge to stopped")
+		}
+	})
+
 	// Invariant: a previous verified stop cannot prove that a later start owner
 	// has released its resources. Owner: Manager Stop; canonical shared operation suite.
 	t.Run("Should fence a cached stop receipt behind current startup cleanup", func(t *testing.T) {
@@ -1080,6 +1233,42 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: a waiter joins startup cleanup admitted while the old stop is still running.
+	t.Run("Should recheck startup cleanup after waiting for an older stop", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		h.driver.cancelHook = func(proc *fakeProcess) error { close(entered); <-release; proc.exit(); return nil }
+		if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		waitCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		observed := &resumeWaitObservedContext{Context: waitCtx, entered: make(chan struct{})}
+		waited := make(chan error, 1)
+		go func() { _, err := h.manager.AwaitStopped(observed, active.ID); waited <- err }()
+		<-observed.entered
+		start, err := h.manager.newSessionStartRun(h.manager.lifecycleCtx, active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		finish := sync.OnceFunc(func() { h.manager.finishSessionStartRun(active.ID, start, nil) })
+		defer finish()
+		unblock()
+		h.manager.mu.RLock()
+		stop := h.manager.stopRuns[active.ID]
+		h.manager.mu.RUnlock()
+		<-stop.done
+		if err := <-waited; !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("old stop escaped pending startup cleanup: %v", err)
+		}
+		finish()
+	})
+
 	// Invariant: a durably activated session uses normal stop finalization even
 	// while its post-create hook is pending. Owner/canonical suite: shared Manager Stop.
 	for _, tc := range []struct {
@@ -1094,14 +1283,16 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
 			defer unblock()
-			var postStops atomic.Int32
+			var postStops, nativeCreates, nativeStops atomic.Int32
 			hooks := &spyHookDispatcher{
-				dispatchSessionPostCreateFn: func(_ context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
+				dispatchSessionPostCreateFn: func(ctx context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
 					close(entered)
 					<-release
+					ObserveSessionLifecycle(ctx, true, func() { nativeCreates.Add(1) })
 					return payload, nil
 				},
-				dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+				dispatchSessionPostStopFn: func(ctx context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+					ObserveSessionLifecycle(ctx, false, func() { nativeStops.Add(1) })
 					postStops.Add(1)
 					return payload, nil
 				},
@@ -1138,6 +1329,9 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			unblock()
 			if err := <-created; err != nil {
 				t.Fatalf("successful activation: %v", err)
+			}
+			if nativeCreates.Load() != 0 || nativeStops.Load() != 1 {
+				t.Fatalf("native callbacks = created %d stopped %d", nativeCreates.Load(), nativeStops.Load())
 			}
 			h.notifier.mu.Lock()
 			order := append([]string(nil), h.notifier.order...)
@@ -3085,4 +3279,20 @@ func seedRecoveredUnverifiedStop(t *testing.T, h *harness) *Session {
 	delete(h.manager.stopRuns, active.ID)
 	h.manager.mu.Unlock()
 	return active
+}
+
+func prepareLifecycleStart(t *testing.T, h *harness) *acceptedSessionStart {
+	t.Helper()
+	spec, err := h.manager.prepareCreateStart(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := h.manager.acceptSessionStart(t.Context(), h.manager.lifecycleCtx, &spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.manager.prepareAcceptedSessionRecorder(accepted); err != nil {
+		t.Fatal(err)
+	}
+	return accepted
 }

@@ -14,15 +14,19 @@ type daemonShutdownOperation struct {
 	result error
 	// Published with done: terminal Run may withdraw discovery only while this attempt retains the singleton.
 	sessionShutdownIncomplete bool
+	withdrawDiscovery         bool
 }
 
 func (d *Daemon) beginShutdownOperation(
 	ctx context.Context,
+	withdrawDiscovery bool,
 ) (*daemonShutdownOperation, bool, *shutdownTargets, time.Duration, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.shutdown != nil {
+		withdrawDiscovery = withdrawDiscovery || d.shutdown.withdrawDiscovery
+		d.shutdown.withdrawDiscovery = withdrawDiscovery
 		select {
 		case <-d.shutdown.done:
 			if d.shutdown.result == nil || ctx.Err() != nil {
@@ -41,7 +45,7 @@ func (d *Daemon) beginShutdownOperation(
 		return nil, false, nil, 0, errDaemonBootInProgress
 	}
 
-	operation := &daemonShutdownOperation{done: make(chan struct{})}
+	operation := &daemonShutdownOperation{done: make(chan struct{}), withdrawDiscovery: withdrawDiscovery}
 	targets := d.snapshotShutdownTargetsLocked()
 	timeout := d.gracefulShutdownTimeoutLocked()
 	d.shutdown = operation
@@ -70,6 +74,9 @@ func (d *Daemon) completeShutdownOperation(operation *daemonShutdownOperation, r
 
 	if d.shutdown != operation {
 		return
+	}
+	if operation.withdrawDiscovery && operation.sessionShutdownIncomplete {
+		result = errors.Join(result, RemoveInfo(d.homePaths.DaemonInfo))
 	}
 	operation.result = result
 	if result == nil {

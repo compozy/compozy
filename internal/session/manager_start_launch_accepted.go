@@ -164,6 +164,15 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, processErr))
 	}
 	startErr = errors.Join(startErr, processErr)
+	release, err := acquireSessionStartLaunchCommit(cleanupCtx, accepted.run)
+	if err != nil {
+		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, err))
+	}
+	defer release()
+	if session.stopWasRequested() {
+		release()
+		return m.settleCanceledSessionStart(cleanupCtx, accepted)
+	}
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
@@ -234,7 +243,8 @@ func (m *Manager) settleClosedSessionStart(
 	// A later Stop joins the start run instead of appending another terminal event.
 	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
 		releaseCommit()
-		return false, m.settleCanceledSessionStart(settleCtx, accepted)
+		err := m.settleCanceledSessionStart(settleCtx, accepted)
+		return accepted.run.stopOutcome != nil && !accepted.run.stopOutcome.Verified, err
 	}
 	if retain {
 		pending, retainErr := m.retainAcceptedSessionAfterDiscardFailure(settleCtx, accepted, failure)
@@ -369,14 +379,36 @@ func (m *Manager) joinFailedStartRecorder(ctx context.Context, recorder EventRec
 // committed (a derived child whose registration transaction failed or lost a race):
 // only its reserved directory exists, so it is removed like a failed accept.
 func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	verified, processErr := m.stopFailedStartProcess(accepted)
+	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+	complete := closeErr == nil
+	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
+		complete = cleanup.CleanupComplete()
+	}
+	failure := errors.Join(startErr, processErr, closeErr)
+	if !verified || !complete {
+		accepted.cleanupPending = true
+		go func() {
+			ctx := context.WithoutCancel(m.lifecycleCtx)
+			processErr := m.joinFailedStartProcess(ctx, accepted)
+			m.joinFailedStartRecorder(ctx, accepted.storage.recorder)
+			m.finishSessionStartRun(accepted.session.ID, accepted.run,
+				errors.Join(failure, processErr, m.removeUncommittedSessionStart(accepted)))
+		}()
+		return failure
+	}
+	return errors.Join(failure, m.removeUncommittedSessionStart(accepted))
+}
+
+func (m *Manager) removeUncommittedSessionStart(accepted *acceptedSessionStart) error {
 	session := accepted.session
-	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, accepted.storage.recorder, accepted.proc)
+	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, nil, nil)
 	m.remove(session.ID)
 	if m.hostedMCP != nil {
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, cleanupErr)
+	return cleanupErr
 }
 
 // retainAcceptedSessionAfterDiscardFailure preserves history when deletion rolls back.

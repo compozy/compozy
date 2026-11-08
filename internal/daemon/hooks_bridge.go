@@ -148,7 +148,9 @@ func observeSessionCreateExecutor(observer sessionLifecycleObserver) hookspkg.Ex
 			_ hookspkg.RegisteredHook,
 			payload hookspkg.SessionLifecyclePayload,
 		) (hookspkg.SessionPostCreatePatch, error) {
-			observer.OnSessionCreated(ctx, sessionFromHookPayload(payload))
+			session.ObserveSessionLifecycle(ctx, true, func() {
+				observer.OnSessionCreated(ctx, sessionFromHookPayload(payload))
+			})
 			return hookspkg.SessionPostCreatePatch{}, nil
 		},
 	)
@@ -161,7 +163,9 @@ func observeSessionStopExecutor(observer sessionLifecycleObserver) hookspkg.Exec
 			_ hookspkg.RegisteredHook,
 			payload hookspkg.SessionLifecyclePayload,
 		) (hookspkg.SessionPostStopPatch, error) {
-			observer.OnSessionStopped(ctx, sessionFromHookPayload(payload))
+			session.ObserveSessionLifecycle(ctx, false, func() {
+				observer.OnSessionStopped(ctx, sessionFromHookPayload(payload))
+			})
 			return hookspkg.SessionPostStopPatch{}, nil
 		},
 	)

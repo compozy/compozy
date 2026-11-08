@@ -42,12 +42,16 @@ func (m *Manager) prepareStartingStopRun(
 
 func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
 	session := accepted.session
-	if err := session.retainStoppingProcess(accepted.proc, m.now()); err != nil {
+	proc := accepted.proc
+	if proc == nil {
+		proc = session.processHandle()
+	}
+	if err := session.retainStoppingProcess(proc, m.now()); err != nil {
 		return err
 	}
 	persistErr := m.persistSessionLifecycleState(ctx, session, false)
 	cause, _ := session.stopCauseDetail()
-	result, err := m.runTerminationLadder(ctx, accepted.proc, terminationTarget{
+	result, err := m.runTerminationLadder(ctx, proc, terminationTarget{
 		beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
 			return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
 		},
@@ -78,10 +82,14 @@ func canceledStartWaitErr(runCtx context.Context) error {
 
 // waitSessionStopRun fences cached receipts against a newer startup cleanup owner.
 func (m *Manager) waitSessionStopRun(ctx context.Context, id string, run *sessionStopRun) (StopOutcome, error) {
-	if start := m.sessionStartRun(id); signalClosed(run.done) && start != nil && !start.activationCommitted.Load() {
-		if err := waitForSessionStartRun(ctx, start); err != nil {
-			return StopOutcome{}, err
+	outcome, err := waitSessionStopRun(ctx, run)
+	if !signalClosed(run.done) || !outcome.Verified {
+		return outcome, err
+	}
+	if start := m.sessionStartRun(id); start != nil && !start.activationCommitted.Load() {
+		if startErr := waitForSessionStartRun(ctx, start); startErr != nil {
+			return StopOutcome{}, errors.Join(err, startErr)
 		}
 	}
-	return waitSessionStopRun(ctx, run)
+	return outcome, err
 }

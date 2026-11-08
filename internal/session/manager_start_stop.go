@@ -171,7 +171,7 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 		if ok && session != nil {
 			state := session.Info().State
 			if state == StateStarting || state == StateStopping ||
-				(state == StateStopped && !run.activationCommitted.Load()) {
+				((state == StateActive || state == StateStopped) && !run.activationCommitted.Load()) {
 				_, stopErr := m.stopStartingSession(ctx, id, CauseShutdown, "manager shutdown")
 				if errors.Is(stopErr, ErrSessionNotFound) {
 					if waitErr := waitForSessionStartRun(ctx, run); waitErr != nil && !signalClosed(run.done) {
