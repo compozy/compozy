@@ -115,7 +115,7 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 	run *Run,
 	runErr error,
 ) (*Run, error) {
-	if scheduledAdmissionInterrupted(req, runErr) {
+	if scheduledAdmissionInterrupted(ctx, req, runErr) {
 		return cloneRun(run), errors.Join(errScheduledAdmissionDeferred, runErr)
 	}
 	status := classifyDispatchError(runErr)
@@ -125,7 +125,11 @@ func (d *Dispatcher) finishUnstartedSessionRun(
 	return d.finishRun(ctx, run, status, runErr)
 }
 
-func scheduledAdmissionInterrupted(req DispatchRequest, err error) bool {
+// scheduledAdmissionInterrupted preserves the fire when dispatch itself was interrupted.
+func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err error) bool {
+	if req.Kind == DispatchKindSchedule && req.ReservedRun != nil && ctx.Err() != nil {
+		return true
+	}
 	// Accepted startup failures retain wrapped timeout errors but must consume the fire.
 	if _, accepted := errors.AsType[*acp.FailureError](err); accepted {
 		return false
@@ -213,7 +217,7 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 		now,
 	)
 	if err != nil {
-		if reserved.Status == RunScheduled && scheduledAdmissionInterrupted(req, err) {
+		if reserved.Status == RunScheduled && scheduledAdmissionInterrupted(ctx, req, err) {
 			return reserved, errors.Join(errScheduledAdmissionDeferred, err)
 		}
 		return reserved, err

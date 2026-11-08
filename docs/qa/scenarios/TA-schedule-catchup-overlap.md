@@ -51,8 +51,8 @@ QA impact 2026-11-08 — automation startup failure settlement:
   Confirm one failed run at attempt 1, no durable deferral, and no new session or fire on later ticks.
 - Repeat with backoff and two retries: the same run reaches attempt 3 with 1x/2x base delays,
   then emits one terminal failure hook. Provider timeouts must not become admission deferrals.
-- A genuine pre-start admission interruption (draining, cancellation or deadline) still preserves
-  the original reservation for restart recovery.
+- A genuine admission interruption (draining, cancellation or deadline), including shutdown
+  cancellation during ACP initialization, still preserves the original reservation for restart recovery.
 
 Focused verification: `go test -tags integration ./internal/automation -count=1` exercises the
 production scheduler and dispatcher against real SQLite, with session I/O injected at its boundary.
