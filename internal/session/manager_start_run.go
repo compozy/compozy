@@ -10,11 +10,14 @@ import (
 )
 
 type sessionStartRun struct {
-	ctx         context.Context
-	cancel      context.CancelCauseFunc
-	done        chan struct{}
-	err         error
-	stopOutcome *StopOutcome
+	ctx                      context.Context
+	cancel                   context.CancelCauseFunc
+	done                     chan struct{}
+	err                      error
+	stopOutcome              *StopOutcome
+	stopForcedRecorded       atomic.Bool
+	stopKilledRecorded       atomic.Bool
+	stopVerificationRecorded atomic.Bool
 
 	recorderReady     chan struct{}
 	recorderReadyOnce sync.Once

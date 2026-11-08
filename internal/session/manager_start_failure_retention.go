@@ -201,3 +201,20 @@ func (m *Manager) joinFailedStartProcess(ctx context.Context, accepted *accepted
 		}
 	}
 }
+
+// joinFailedStartProcessForSettlement yields cancellation to its full stop ladder without releasing ownership.
+func (m *Manager) joinFailedStartProcessForSettlement(ctx context.Context, accepted *acceptedSessionStart) error {
+	if accepted.session.hasVerifiedStopProcess(accepted.proc) {
+		accepted.proc = nil
+		return nil
+	}
+	joinCtx := ctx
+	if accepted.retainedFailure == nil {
+		joinCtx = accepted.run.ctx
+	}
+	err := m.joinFailedStartProcess(joinCtx, accepted)
+	if accepted.session.stopWasRequested() && accepted.retainedFailure == nil {
+		return nil
+	}
+	return err
+}

@@ -55,11 +55,15 @@ func cloneSessionRawMessage(raw json.RawMessage) json.RawMessage {
 	return append(json.RawMessage(nil), raw...)
 }
 
+type lifecycleSessionContextKey struct{}
+
+// hookDispatchContext carries the captured session and owned cleanup context into lifecycle hooks.
 func hookDispatchContext(ctx context.Context, manager *Manager, session *Session) context.Context {
 	if ctx == nil || session == nil {
 		return ctx
 	}
 
+	ctx = context.WithValue(ctx, lifecycleSessionContextKey{}, session)
 	if manager != nil {
 		ctx = hookspkg.WithDispatchEventEmitter(ctx, hookDispatchEventEmitter{
 			manager: manager,
@@ -81,4 +85,18 @@ func (m *Manager) ToolHookContext(ctx context.Context, sessionID string) context
 		return hookDispatchContext(ctx, m, active)
 	}
 	return ctx
+}
+
+// ObserveSessionLifecycle orders native callbacks against the actual session's terminal transition.
+func ObserveSessionLifecycle(ctx context.Context, created bool, observe func()) {
+	session, ok := ctx.Value(lifecycleSessionContextKey{}).(*Session)
+	if !ok || session == nil {
+		observe()
+		return
+	}
+	session.lifecycleNotifyMu.Lock()
+	defer session.lifecycleNotifyMu.Unlock()
+	if !created || session.Info().State == StateActive {
+		observe()
+	}
 }

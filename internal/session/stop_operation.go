@@ -191,14 +191,31 @@ func (r *sessionStopRun) notifyCommitted() {
 	notify()
 }
 
+// prepareSessionStopRun admits Stop through the current startup gate before shared termination.
 func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun, cause StopCause, detail string) {
-	session, proc, stopped, requested, _, err := m.prepareStopWithCauseMode(
-		ctx, run.session.ID, cause, detail, stopPreparationDefault, run,
-	)
+	var session *Session
+	var proc *AgentProcess
+	var stopped, requested bool
+	var err error
+	for {
+		session, proc, stopped, requested, _, err = m.prepareStopWithCauseMode(
+			ctx, run.session.ID, cause, detail, stopPreparationDefault, run,
+		)
+		if !errors.Is(err, errStopNeedsStartGate) {
+			break
+		}
+		if m.prepareStartingStopRun(ctx, run, cause, detail) {
+			return
+		}
+	}
 	if err != nil {
 		m.failStopPreparation(run, err)
 		return
 	}
+	m.mu.Lock()
+	run.session = session
+	m.mu.Unlock()
+
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
 	}
@@ -223,16 +240,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			if stopProc == nil {
 				stopProc = session.releasedProcessForStop()
 			}
-			target := terminationTarget{
-				promptDone: promptDone,
-				beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
-					return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
-				},
-			}
-			if (cause == CauseCompleted || cause == CauseOwnerReleased) &&
-				(promptDone == nil || signalClosed(promptDone)) {
-				target.cooperative = m.driver.Stop
-			}
+			target := m.sessionStopTerminationTarget(session, promptDone, cause)
 			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
 		}
 		outcome := result.StopOutcome
@@ -263,4 +271,21 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		}
 		run.outcome.Cause, _ = session.stopCauseDetail()
 	})
+}
+
+// sessionStopTerminationTarget preserves prompt completion and escalation observations for normal stops.
+func (m *Manager) sessionStopTerminationTarget(
+	session *Session, promptDone <-chan struct{}, cause StopCause,
+) terminationTarget {
+	target := terminationTarget{
+		promptDone: promptDone,
+		beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
+			return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
+		},
+	}
+	if (cause == CauseCompleted || cause == CauseOwnerReleased) &&
+		(promptDone == nil || signalClosed(promptDone)) {
+		target.cooperative = m.driver.Stop
+	}
+	return target
 }

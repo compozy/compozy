@@ -12,6 +12,8 @@ import (
 // interrupted. It is the requested stop, not a runtime failure of the session.
 var errStartupCanceledByStop = errors.New("session: startup canceled")
 
+var errStopNeedsStartGate = errors.New("session: stop requires the current startup gate")
+
 func (m *Manager) stopStartingSession(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
 	session, run, handled, err := m.prepareStartingSessionStop(ctx, id, cause, detail, nil)
 	if !handled || err != nil {
@@ -20,6 +22,7 @@ func (m *Manager) stopStartingSession(ctx context.Context, id string, cause Stop
 	return true, m.finishStartingSessionStop(ctx, session, run)
 }
 
+// finishStartingSessionStop bounds the caller wait while preserving the startup cleanup owner.
 func (m *Manager) finishStartingSessionStop(ctx context.Context, session *Session, run *sessionStartRun) error {
 	if run == nil {
 		return m.finalizeStopped(ctx, session, nil)
@@ -35,11 +38,13 @@ func (m *Manager) finishStartingSessionStop(ctx context.Context, session *Sessio
 	outcome.Cause, _ = session.stopCauseDetail()
 	diagnosticCtx, cancelDiagnostic := m.lifecycleCleanupContext()
 	defer cancelDiagnostic()
-	return errors.Join(
-		ErrStopVerificationFailed,
-		err,
-		m.recordSessionStopVerificationFailure(diagnosticCtx, session, outcome),
-	)
+	var observationErr error
+	if !session.hasVerifiedStopProcess(session.processHandle()) {
+		observationErr = recordStartStopObservation(&run.stopVerificationRecorded, func() error {
+			return m.recordSessionStopVerificationFailure(diagnosticCtx, session, outcome)
+		})
+	}
+	return errors.Join(ErrStopVerificationFailed, err, observationErr)
 }
 
 func (m *Manager) prepareStartingSessionStop(
@@ -155,6 +160,7 @@ func (m *Manager) startingStopTarget(id string) (*Session, *sessionStartRun) {
 	return session, run
 }
 
+// shutdownSessionStarts cancels uncommitted starts and stops activation that wins the launch gate.
 func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("session: shutdown starts context is required")
@@ -171,8 +177,11 @@ func (m *Manager) shutdownSessionStarts(ctx context.Context) error {
 		if ok && session != nil {
 			state := session.Info().State
 			if state == StateStarting || state == StateStopping ||
-				(state == StateStopped && !run.activationCommitted.Load()) {
-				_, stopErr := m.stopStartingSession(ctx, id, CauseShutdown, "manager shutdown")
+				((state == StateActive || state == StateStopped) && !run.activationCommitted.Load()) {
+				handled, stopErr := m.stopStartingSession(ctx, id, CauseShutdown, "manager shutdown")
+				if !handled && stopErr == nil {
+					stopErr = m.StopWithCause(ctx, id, CauseShutdown, "manager shutdown")
+				}
 				if errors.Is(stopErr, ErrSessionNotFound) {
 					if waitErr := waitForSessionStartRun(ctx, run); waitErr != nil && !signalClosed(run.done) {
 						shutdownErr = errors.Join(shutdownErr, waitErr)

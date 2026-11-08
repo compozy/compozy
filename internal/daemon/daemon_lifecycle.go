@@ -84,44 +84,33 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 	}
 }
 
+// shutdownAfterRunTrigger retains discovery withdrawal while retrying terminal teardown.
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	operation, shutdownErr := d.shutdownWithOperation(context.WithoutCancel(ctx))
-	if operation == nil {
-		return shutdownErr
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.shutdown != operation || !operation.sessionShutdownIncomplete {
-		return shutdownErr
-	}
-	// This exact attempt still owns the singleton. Never remove discovery again
-	// after successful teardown released the lock to a replacement daemon.
-	return errors.Join(shutdownErr, RemoveInfo(d.homePaths.DaemonInfo))
+	return d.shutdownWithOperation(context.WithoutCancel(ctx), true)
 }
 
 // Shutdown gracefully tears down the daemon in the required order.
 func (d *Daemon) Shutdown(ctx context.Context) error {
-	_, err := d.shutdownWithOperation(ctx)
-	return err
+	return d.shutdownWithOperation(ctx, false)
 }
 
-// shutdownWithOperation returns the exact attempt a caller joined, preserving its ownership result.
-func (d *Daemon) shutdownWithOperation(ctx context.Context) (*daemonShutdownOperation, error) {
+// shutdownWithOperation shares teardown while retaining terminal discovery withdrawal across retries.
+func (d *Daemon) shutdownWithOperation(ctx context.Context, withdrawDiscovery bool) error {
 	if d == nil {
-		return nil, errors.New("daemon: shutdown requires a daemon")
+		return errors.New("daemon: shutdown requires a daemon")
 	}
 	if ctx == nil {
-		return nil, errors.New("daemon: shutdown context is required")
+		return errors.New("daemon: shutdown context is required")
 	}
 
-	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx)
+	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx, withdrawDiscovery)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if started {
 		go d.runShutdownOperation(ctx, timeout, operation, targets)
 	}
-	return operation, waitForShutdownOperation(ctx, operation)
+	return waitForShutdownOperation(ctx, operation)
 }
 
 func (d *Daemon) gracefulShutdownTimeout() time.Duration {

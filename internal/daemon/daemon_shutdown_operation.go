@@ -12,17 +12,22 @@ import (
 type daemonShutdownOperation struct {
 	done   chan struct{}
 	result error
-	// Published with done: terminal Run may withdraw discovery only while this attempt retains the singleton.
+	// Published with done; discovery withdrawal also requires current singleton ownership.
 	sessionShutdownIncomplete bool
+	withdrawDiscovery         bool
 }
 
+// beginShutdownOperation carries terminal withdrawal intent across shared teardown attempts.
 func (d *Daemon) beginShutdownOperation(
 	ctx context.Context,
+	withdrawDiscovery bool,
 ) (*daemonShutdownOperation, bool, *shutdownTargets, time.Duration, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.shutdown != nil {
+		withdrawDiscovery = withdrawDiscovery || d.shutdown.withdrawDiscovery
+		d.shutdown.withdrawDiscovery = withdrawDiscovery
 		select {
 		case <-d.shutdown.done:
 			if d.shutdown.result == nil || ctx.Err() != nil {
@@ -41,7 +46,7 @@ func (d *Daemon) beginShutdownOperation(
 		return nil, false, nil, 0, errDaemonBootInProgress
 	}
 
-	operation := &daemonShutdownOperation{done: make(chan struct{})}
+	operation := &daemonShutdownOperation{done: make(chan struct{}), withdrawDiscovery: withdrawDiscovery}
 	targets := d.snapshotShutdownTargetsLocked()
 	timeout := d.gracefulShutdownTimeoutLocked()
 	d.shutdown = operation
@@ -64,12 +69,16 @@ func (d *Daemon) runShutdownOperation(
 	d.completeShutdownOperation(operation, errors.Join(drainErr, checkpointErr, shutdownErr))
 }
 
+// completeShutdownOperation withdraws stale discovery only while the singleton remains owned.
 func (d *Daemon) completeShutdownOperation(operation *daemonShutdownOperation, result error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.shutdown != operation {
 		return
+	}
+	if operation.withdrawDiscovery && operation.sessionShutdownIncomplete && d.lock != nil && !d.lock.released.Load() {
+		result = errors.Join(result, RemoveInfo(d.homePaths.DaemonInfo))
 	}
 	operation.result = result
 	if result == nil {
