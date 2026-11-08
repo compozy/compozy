@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
 
 import type { DiffViewerHandle } from "@compozy/ui";
 
@@ -90,19 +90,22 @@ export function useSessionChangeSelection({
     if (index >= 0) setSelection({ path: focus.path, index });
   }
   const handledFocus = useRef<number | null>(null);
+  // An event, not a dependency: the owner's callback is fresh every render, and re-running the
+  // effect would cancel the pending scroll of a focus that is already handled.
+  const openUnlisted = useEffectEvent((path: string) => openInFiles?.(fileViewerTarget(path)));
   useEffect(() => {
     if (!focus || !summary || appliedFocus !== focus.nonce) return;
     if (handledFocus.current === focus.nonce) return;
     handledFocus.current = focus.nonce;
     if (focusedChangeRoute(summary.files, focus.path) === "files") {
-      openInFiles?.(fileViewerTarget(focus.path));
+      openUnlisted(focus.path);
       return;
     }
     if (large) return;
     // The diff list renders the new selection first; scroll on the next frame.
     const frame = requestAnimationFrame(() => diffRef.current?.scrollToItem(focus.path));
     return () => cancelAnimationFrame(frame);
-  }, [appliedFocus, diffRef, focus, large, openInFiles, summary]);
+  }, [appliedFocus, diffRef, focus, large, summary]);
 
   return {
     selectedIndex,

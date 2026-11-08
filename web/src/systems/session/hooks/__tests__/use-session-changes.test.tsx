@@ -4,6 +4,8 @@ import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DiffViewerHandle } from "@compozy/ui";
+
 import { SessionChangedFilesRowView } from "@/components/assistant-ui/session-changed-files-row";
 import { filesAppPlaceStore } from "@/systems/files/hooks/use-files-app-place";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
@@ -15,6 +17,7 @@ import { sessionChangeItems } from "../../lib/session-changes";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import { useSessionChanges } from "../use-session-changes";
 import { useSessionChangesLiveRefresh } from "../use-session-changes-live-refresh";
+import { useSessionChangeSelection } from "../use-session-change-selection";
 import { useSessionChangesView } from "../use-session-changes-view";
 import { rehydrateStore } from "@xstate/store/persist";
 
@@ -411,6 +414,25 @@ describe("changed-file routing", () => {
       kind: "file",
       path: "missing.go",
     });
+  });
+});
+
+describe("useSessionChangeSelection", () => {
+  // Invariant: a changed-file click's focus scrolls the diff to that file even when the owner
+  // re-renders (a fresh Files-window callback) before the scroll's animation frame runs.
+  it("Should still scroll to the focused file when it re-renders before the next frame", async () => {
+    const summary = changesSummary(["a.go", "b.go"]);
+    const items = sessionChangeItems(summary, { revealed: new Set(), collapsed: {} });
+    const scrollToItem = vi.fn();
+    const diffRef = { current: { scrollToItem } as unknown as DiffViewerHandle };
+    const focus = { path: "b.go", nonce: 1 };
+    const { rerender } = renderHook(
+      ({ openInFiles }) =>
+        useSessionChangeSelection({ summary, items, large: false, focus, diffRef, openInFiles }),
+      { initialProps: { openInFiles: vi.fn() } }
+    );
+    rerender({ openInFiles: vi.fn() });
+    await waitFor(() => expect(scrollToItem).toHaveBeenCalledWith("b.go"));
   });
 });
 
