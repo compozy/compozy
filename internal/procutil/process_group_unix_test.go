@@ -3,11 +3,14 @@
 package procutil
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -124,24 +127,54 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	t.Run("Should lower every current and later member of the process group", func(t *testing.T) {
 		t.Parallel()
 
-		pgid := startNicenessProcessGroup(t, "sleep 30 & sleep 0.2; sleep 30")
-		want := max(7, testCurrentNiceness(t))
-		if err := SetProcessGroupNiceness(pgid, 7); err != nil {
+		// Each child prints its own pid once it runs, so it has joined the group, and then
+		// blocks reading fd 3, which only the test holds open, so it stays alive through
+		// the assertions. The later fork waits for stdin, so no fork is in flight during
+		// the call: setpriority(PRIO_PGRP) cannot reach a child that has not joined yet.
+		const child = `sh -c 'echo $$; read hold <&3'`
+		group := startNicenessProcessGroup(t, child+" & read go; "+child+" & wait")
+		earlier := group.readPID(t)
+		// Target above the group's own niceness so the call must change every member.
+		// Linux niceness is per thread, so the group need not match the test goroutine.
+		want := testProcessGroupNiceness(t, group.pgid) + 3
+		if want > maxTestNiceness {
+			t.Skipf("group niceness %d leaves no room to lower priority", want-3)
+		}
+		if err := SetProcessGroupNiceness(group.pgid, want); err != nil {
 			t.Fatalf("SetProcessGroupNiceness() error = %v", err)
 		}
-		// The group's reported priority is its least-niced member, so the target means
-		// the shell, its background child, and the later-forked sleep all inherited it.
-		time.Sleep(400 * time.Millisecond)
-		if got := testProcessGroupNiceness(t, pgid); got != want {
+		group.release(t)
+		later := group.readPID(t)
+		// The group's reported priority is its least-niced member. Each member is also
+		// checked by pid, and the children cannot exit while fd 3 stays open.
+		if got := testProcessGroupNiceness(t, group.pgid); got != want {
 			t.Fatalf("process group niceness = %d, want %d", got, want)
+		}
+		for _, member := range []struct {
+			name string
+			pid  int
+		}{
+			{name: "shell", pid: group.pgid},
+			{name: "earlier child", pid: earlier},
+			{name: "later child", pid: later},
+		} {
+			if got := testMemberNiceness(t, group.pgid, member.pid); got != want {
+				t.Fatalf("%s (pid %d) niceness = %d, want %d", member.name, member.pid, got, want)
+			}
 		}
 	})
 
 	t.Run("Should leave a group already niced above the target unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		pgid := startNicenessProcessGroup(t, "sleep 30")
-		higher := max(9, testCurrentNiceness(t)+2)
+		// The shell blocks on a builtin read of fd 3 until cleanup, so the group stays a
+		// single live process: a fork in flight during the first call would keep the
+		// old niceness and make the second call try to lower the group.
+		pgid := startNicenessProcessGroup(t, "read hold <&3").pgid
+		higher := max(9, testProcessGroupNiceness(t, pgid)+2)
+		if higher > maxTestNiceness {
+			t.Skipf("group niceness leaves no room above target %d", higher-2)
+		}
 		if err := SetProcessGroupNiceness(pgid, higher); err != nil {
 			t.Fatalf("SetProcessGroupNiceness(%d) error = %v", higher, err)
 		}
@@ -171,17 +204,49 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 	})
 }
 
-func startNicenessProcessGroup(t *testing.T, script string) int {
+// maxTestNiceness is the highest niceness every supported Unix accepts.
+const maxTestNiceness = 19
+
+// nicenessProcessGroup is a shell process group whose script reports progress on
+// stdout and waits on stdin, so tests can order forks around a niceness change.
+type nicenessProcessGroup struct {
+	pgid   int
+	stdin  io.WriteCloser
+	stdout *bufio.Reader
+}
+
+// startNicenessProcessGroup starts script as the leader of a new process group and
+// kills the whole group on cleanup.
+func startNicenessProcessGroup(t *testing.T, script string) nicenessProcessGroup {
 	t.Helper()
 	// This helper owns child cleanup. t.Context is canceled before Cleanup runs;
 	// racing that implicit kill with the group signal can return EPERM during exec on Darwin.
 	command := exec.CommandContext(context.WithoutCancel(t.Context()), "sh", "-c", script)
 	ConfigureCommandProcessGroup(command)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		t.Fatalf("StdinPipe() error = %v", err)
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		t.Fatalf("StdoutPipe() error = %v", err)
+	}
+	// fd 3 lets script children block until cleanup: the test never writes to it.
+	holdRead, holdWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	command.ExtraFiles = []*os.File{holdRead}
 	if err := command.Start(); err != nil {
+		closeHoldPipe(t, holdRead, holdWrite)
 		t.Fatalf("Start() error = %v", err)
+	}
+	if err := holdRead.Close(); err != nil {
+		t.Errorf("close hold pipe read end: %v", err)
 	}
 	pgid := command.Process.Pid
 	t.Cleanup(func() {
+		closeHoldPipe(t, holdWrite)
 		if err := SignalProcessGroupID(pgid, syscall.SIGKILL); err != nil {
 			t.Errorf("cleanup SignalProcessGroupID() error = %v", err)
 		}
@@ -192,7 +257,57 @@ func startNicenessProcessGroup(t *testing.T, script string) int {
 			t.Errorf("cleanup Wait() error = %v", err)
 		}
 	})
-	return pgid
+	return nicenessProcessGroup{pgid: pgid, stdin: stdin, stdout: bufio.NewReader(stdout)}
+}
+
+// readPID returns the next pid the script reports. It fails the subtest when the
+// line does not arrive in time, so cleanup kills the group instead of the read
+// blocking until the binary times out. Cleanup closes stdout through Wait, which
+// ends the abandoned read.
+func (g nicenessProcessGroup) readPID(t *testing.T) int {
+	t.Helper()
+	type readResult struct {
+		line string
+		err  error
+	}
+	result := make(chan readResult, 1)
+	go func() {
+		line, err := g.stdout.ReadString('\n')
+		result <- readResult{line: line, err: err}
+	}()
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	select {
+	case read := <-result:
+		if read.err != nil {
+			t.Fatalf("read process group output: %v", read.err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(read.line))
+		if err != nil || pid <= 0 {
+			t.Fatalf("process group output = %q, want a child pid", read.line)
+		}
+		return pid
+	case <-timer.C:
+		t.Fatal("process group did not report a child pid within 10s")
+		return 0
+	}
+}
+
+func closeHoldPipe(t *testing.T, files ...*os.File) {
+	t.Helper()
+	for _, file := range files {
+		if err := file.Close(); err != nil {
+			t.Errorf("close hold pipe: %v", err)
+		}
+	}
+}
+
+// release lets the script continue past its stdin gate and fork the later child.
+func (g nicenessProcessGroup) release(t *testing.T) {
+	t.Helper()
+	if _, err := io.WriteString(g.stdin, "go\n"); err != nil {
+		t.Fatalf("release process group: %v", err)
+	}
 }
 
 func testProcessGroupNiceness(t *testing.T, pgid int) int {
@@ -204,11 +319,20 @@ func testProcessGroupNiceness(t *testing.T, pgid int) int {
 	return niceness
 }
 
-func testCurrentNiceness(t *testing.T) int {
+// testMemberNiceness reports the niceness of a process after confirming it belongs
+// to the process group.
+func testMemberNiceness(t *testing.T, pgid int, pid int) int {
 	t.Helper()
-	niceness, err := CurrentProcessNiceness()
+	memberGroup, err := syscall.Getpgid(pid)
 	if err != nil {
-		t.Fatalf("CurrentProcessNiceness() error = %v", err)
+		t.Fatalf("Getpgid(%d) error = %v, want live process group member", pid, err)
+	}
+	if memberGroup != pgid {
+		t.Fatalf("Getpgid(%d) = %d, want %d", pid, memberGroup, pgid)
+	}
+	niceness, err := getNiceness(syscall.PRIO_PROCESS, pid)
+	if err != nil {
+		t.Fatalf("niceness of pid %d error = %v", pid, err)
 	}
 	return niceness
 }

@@ -15,8 +15,11 @@ var nicenessFailureWarned atomic.Bool
 var setProcessGroupNiceness = procutil.SetProcessGroupNiceness
 
 // ApplyLaunchNiceness lowers the scheduling priority of the launched process
-// group. Failure never aborts the launch: the process keeps running at the
-// daemon's priority.
+// group. It runs after the process starts, so a child the process forks during
+// the call can keep the daemon's priority (see procutil.SetProcessGroupNiceness).
+// Failure never aborts the launch. A failed call can still have lowered some
+// group members, and those changes are not restored; the remaining members keep
+// the daemon's priority.
 func ApplyLaunchNiceness(logger *slog.Logger, pid int, niceness int) {
 	if niceness <= 0 || pid <= 0 {
 		return
