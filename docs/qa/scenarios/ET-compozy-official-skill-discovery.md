@@ -83,3 +83,9 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-10-07 (memory removal): the official skill dropped `references/memory.md` and its memory routing and gained Compact now guidance in its native-tools and runtime-operations references. `skill inspect -o json` no longer lists a memory reference, `skill view compozy --file references/memory.md` is rejected with "file does not exist", and the router carries no memory command or tool row. Stale skipped verdict reset to untested; the earlier "twelve current references" count describes an older reference set; no QA session ran.
+
+QA impact 2026-11-09 (harness token efficiency): startup carries the compact router once.
+Every bundled reference remains reachable, including the CLI fallback index; native read,
+artifact continuation, Task authority, no-bypass and daemon-monitor rules remain explicit.
+Compare startup plain-text characters against the base with the same general-agent fixture.
+Focused bundled-resource and startup assembly checks cover the contract; live walkthrough pending.
