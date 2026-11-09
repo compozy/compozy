@@ -4,6 +4,7 @@ export {
   normalizeRuntimeACPSelections,
   normalizeRuntimeSelectorValue,
   runtimeACPSelectionsEqual,
+  sanitizeRuntimeACPSelections,
 } from "./runtime-advanced-options-model";
 export {
   REASONING_EFFORT_ORDER,

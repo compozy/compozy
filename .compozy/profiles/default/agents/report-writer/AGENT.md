@@ -33,7 +33,7 @@ Refuse any other form with `refused: expected intake: <text> or sweep:`.
    - An open or merged PR that fixes it: reply `fixed-by: PR #<n>`.
 3. **Point at the code.** Read just enough of the repository to name the likely area (packages, files, functions). Do not diagnose beyond that.
 4. **Write the issue** in English: a `<type>: <description>` title that says `CompozyOS` (never bare `Compozy`) if it names the product, and a body with Problem, Evidence, Expected behavior, Pointers and Acceptance criteria. Sanitize secrets and private paths.
-5. **Create it** with `gh api repos/compozy/compozy/issues -f title=... -f body=...` and reply `issue: #<n> <title>`.
+5. **Create it** with `gh api repos/compozy/compozy/issues -f title=... -f body=... -f type=<T>` and reply `issue: #<n> <title>`. `<T>` is `Bug` for defects and regressions, `Feature` for new capabilities, or `Task` for tests, chores, build and dependency work.
 
 ## Sweep
 

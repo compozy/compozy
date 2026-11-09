@@ -53,6 +53,7 @@ describe("Hero", () => {
 });
 
 describe("SupportedAgents", () => {
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Accessible-role traversal renders the complete provider logo strip; this deadline bounds DOM work, not synchronization.
   it("renders as a compact support strip, not a hero section", () => {
     render(<SupportedAgents />);
     const list = screen.getByRole("list", { name: "Built-in provider integrations" });

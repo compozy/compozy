@@ -62,15 +62,24 @@ runs:
           hashFiles('bun.lock', '**/package.json', '.bun-version') }}${{
           inputs.cache-key-suffix }}
 
+    - name: Resolve installed Playwright version
+      if: inputs.install-playwright == 'true'
+      id: playwright-version
+      shell: bash
+      working-directory: web
+      run: |
+        version=$(bunx --no-install playwright --version)
+        version=${version#Version }
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][a-zA-Z0-9.-]+)?$ ]]
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
     - name: Restore Playwright browsers
       if: inputs.install-playwright == 'true'
       id: playwright-cache
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}
-        restore-keys: |
-          ${{ runner.os }}-playwright-
+        key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-${{ steps.playwright-version.outputs.version }}
 
     - name: Select Ubuntu system dependency sources
       if: inputs.install-playwright == 'true' && runner.os == 'Linux'
@@ -89,15 +98,21 @@ runs:
       shell: bash
       working-directory: web
       run: |
-        echo "Installing Playwright (chromium) with system deps..."
-        bunx playwright install --with-deps chromium
+        # The browser cache does not contain system libraries.
+        if [[ "${{ runner.os }}" == "Linux" ]] && ! bunx --no-install playwright install-deps --dry-run chromium; then
+          bunx --no-install playwright install-deps chromium
+          bunx --no-install playwright install-deps --dry-run chromium
+        fi
+        if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]]; then
+          bunx --no-install playwright install chromium
+        fi
 
     - name: Save Playwright browsers
       if: inputs.install-playwright == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v6
       with:
         path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-${{ steps.playwright-version.outputs.version }}
 
     - name: Report setup status
       shell: bash

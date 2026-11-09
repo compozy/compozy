@@ -134,7 +134,12 @@ func (m *Manager) rememberPublishedAttention(after *Info) {
 		m.attentionCommitMu.Unlock()
 		return
 	}
-	m.attentionPublished[after.ID] = store.SessionAttention{
+	m.attentionPublished[after.ID] = attentionProjectionFromInfo(after)
+	m.attentionCommitMu.Unlock()
+}
+
+func attentionProjectionFromInfo(after *Info) store.SessionAttention {
+	return store.SessionAttention{
 		PendingPermissionCount: after.PendingPermissionCount,
 		PendingClarifyCount:    after.PendingClarifyCount,
 		AttentionRevision:      after.AttentionRevision,
@@ -145,7 +150,6 @@ func (m *Manager) rememberPublishedAttention(after *Info) {
 		EndedEarlyTurnID:       after.EndedEarlyTurnID,
 		FailureSeenAt:          cloneTimePointer(after.FailureSeenAt),
 	}
-	m.attentionCommitMu.Unlock()
 }
 
 func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {

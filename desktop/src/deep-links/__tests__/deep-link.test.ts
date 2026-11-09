@@ -73,6 +73,7 @@ describe("Linux URI registration", () => {
 
   // Invariant: MIME registration terminates a stalled child and releases startup within a bounded time.
   // Owner: desktop protocol registration. Canonical suite: deep-link.test.ts.
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Verifies real stalled-child timeout and SIGKILL cleanup; retain the existing bounded 15s process lifecycle deadline.
   it.skipIf(process.platform === "win32")(
     "Should terminate a stalled MIME registration process",
     async () => {

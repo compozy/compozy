@@ -158,3 +158,15 @@ after its first wake was admitted, including after daemon restart. The durable m
 must prevent a second turn. A new revision still wakes the parent, and failure to read the ledger
 must be reported rather than acknowledged as delivered. Monitor batching, reply-watch coverage
 and informative child events keep their existing behavior.
+
+QA impact 2026-11-09 (lifecycle baseline ordering): repeat the synchronous creator-to-child
+presence callback for lifecycle publication as well as ordinary and reconciled interaction
+publication. The callback must finish after the child publication lock is released. The canonical
+attention hook suite owns this boundary check; completed-wake suppression for canceled turns
+remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.
+
+QA impact 2026-11-09 (native settlement callback): complete a parent turn with unfinished
+provider-native work. Native interruption and parent attention settlement must finish before
+lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
+the parent receives a durable settled revision without waiting for cancellation. The canonical
+attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.

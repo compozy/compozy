@@ -245,17 +245,18 @@ type AgentDraftRuntime struct {
 
 // AgentEffectiveRuntimePayload is a daemon API value.
 type AgentEffectiveRuntimePayload struct {
-	SessionEnvStatus  []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	SessionEnv        map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
-	AutoCompactWindow *int                                      `json:"auto_compact_window,omitempty"`
-	LeanEnvironment   *bool                                     `json:"lean_environment,omitempty"`
-	Provider          string                                    `json:"provider"`
-	Model             string                                    `json:"model,omitempty"`
-	ReasoningEffort   Effort                                    `json:"reasoning_effort,omitempty"`
-	Speed             Speed                                     `json:"speed,omitempty"`
-	ACPOptions        []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	Permissions       string                                    `json:"permissions,omitempty"`
-	Sources           AgentEffectiveRuntimeSources              `json:"sources"`
+	SessionEnvStatus         []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv               map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	AutoCompactWindow        *int                                      `json:"auto_compact_window,omitempty"`
+	LeanEnvironment          *bool                                     `json:"lean_environment,omitempty"`
+	Provider                 string                                    `json:"provider"`
+	Model                    string                                    `json:"model,omitempty"`
+	ReasoningEffort          Effort                                    `json:"reasoning_effort,omitempty"`
+	Speed                    Speed                                     `json:"speed,omitempty"`
+	ACPOptions               []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	PolicyExcludedACPOptions []AgentACPOptionSelection                 `json:"policy_excluded_acp_options,omitempty"`
+	Permissions              string                                    `json:"permissions,omitempty"`
+	Sources                  AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
 // AgentEffectiveRuntimeSources is a daemon API value.

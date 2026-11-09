@@ -12,6 +12,7 @@
     ],
     "categories": {},
     "rules": {
+        "compozy-testing/deterministic-tests": "error",
         "no-unassigned-vars": "warn",
         "for-direction": "warn",
         "no-async-promise-executor": "warn",
@@ -113,6 +114,12 @@
         "compozy-data-boundaries/no-inline-query-key": "error"
     },
     "overrides": [
+        {
+            "files": ["web/**/*.test.{ts,tsx}"],
+            "rules": {
+                "compozy-testing/deterministic-tests": ["error", { "defaultTimeout": 20000 }]
+            }
+        },
         {
             "files": [
                 "web/src/**/*.tsx",

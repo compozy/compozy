@@ -390,6 +390,7 @@ description: body content must not override metadata
 describe("marketplace rendering boundary", () => {
   // Invariant: catalog search filters current entries and recovers from an empty result.
   // Owner: public catalog browser. Canonical suite: marketplace-catalog.test.tsx.
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Full-catalog accessible-name queries take about 4s alone and exceed 5s under CI contention, as documented below.
   it("Should filter the current catalog and restore all entries when search is cleared", () => {
     render(<MarketplaceCatalogBrowser entries={extensionEntries} />);
     const search = screen.getByRole("searchbox", { name: "Search extensions" });

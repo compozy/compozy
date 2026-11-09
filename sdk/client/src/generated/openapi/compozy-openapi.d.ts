@@ -8226,6 +8226,7 @@ export interface components {
       lean_environment?: boolean | null;
       model?: string;
       permissions?: string;
+      policy_excluded_acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       provider: string;
       reasoning_effort?: string;
       session_env?: {

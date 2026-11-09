@@ -1132,6 +1132,7 @@ describe("runtime database seed", () => {
   // later copies inherit writes. Owner: real SQLite, canonical runtime seed suite.
   // This real Go/SQLite boundary test compiles storeseed and globaldb on cold
   // CI runners; allow three minutes for that build without raising other budgets.
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- This process integration test compiles Go and creates real SQLite databases on cold runners, as documented above.
   it("keeps concurrent and later database copies independent", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");

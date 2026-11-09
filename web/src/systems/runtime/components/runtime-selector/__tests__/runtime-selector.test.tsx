@@ -435,6 +435,33 @@ describe("RuntimeSelector ACP advanced options", () => {
     });
   });
 
+  it("Should remove only the chosen override when Provider default is selected", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: {
+        provider: "codex",
+        model: "gpt",
+        reasoning_effort: "",
+        acp_options: [
+          { id: "context_window", value_id: "1m" },
+          { id: "thinking", bool_value: true },
+        ],
+      },
+      models: [model("gpt", { acp_options: advancedACPOptions })],
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
+    await user.selectOptions(screen.getByTestId("runtime-selector-option-context_window"), "");
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "gpt",
+      reasoning_effort: "",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    });
+  });
+
   it("Should disclose public grouped controls and emit typed select and boolean overrides", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({

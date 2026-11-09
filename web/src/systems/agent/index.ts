@@ -141,6 +141,7 @@ export {
   inheritedAgentRuntimeFields,
   normalizeRuntimeSpeed,
   resolveAgentRuntimeValue,
+  resolveAgentSessionRuntimeValue,
 } from "./lib/agent-effective-runtime";
 export {
   AGENT_CREATE_ADVANCED_FIELDS,
