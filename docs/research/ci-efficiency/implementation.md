@@ -156,3 +156,7 @@ expressions and respects local shadowing. Suite checks include `suite` and renam
 Vitest imports, resolved through lexical bindings. The canonical plugin suite
 passes 48 tests without cache; real Oxlint parsing confirms four expected
 violations while preserving shadowed parameter controls.
+
+Import resolution also preserves `bun:test` declarations and their aliases.
+The canonical plugin suite passes 49 tests without cache; actual Oxlint parsing
+rejects Bun skips and disabled deadlines while accepting bounded deadlines.

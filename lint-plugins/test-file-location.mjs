@@ -142,7 +142,7 @@ function isTestFunction(node, roots = ["test", "it"], sourceCode) {
     const definition = variable?.defs[0];
     if (definition?.type === "ImportBinding") {
       return (
-        definition.parent?.source.value === "vitest" &&
+        ["vitest", "bun:test"].includes(definition.parent?.source.value) &&
         roots.includes(definition.node.imported?.name ?? definition.node.imported?.value)
       );
     }

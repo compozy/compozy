@@ -309,4 +309,31 @@ describe("deterministic unit test conventions", () => {
     };
     expect(messages(skip, [], undefined, [], sourceCode)).toHaveLength(0);
   });
+  it("preserves Bun imported test and suite checks", () => {
+    for (const imported of ["it", "test", "describe"]) {
+      for (const name of [imported, "alias"]) {
+        const variable = {
+          defs: [
+            {
+              type: "ImportBinding",
+              parent: { source: { value: "bun:test" } },
+              node: { imported: { name: imported } },
+            },
+          ],
+        };
+        const sourceCode = { getScope: () => ({ set: new Map([[name, variable]]) }) };
+        const root = { type: "Identifier", name };
+        const skip = { type: "MemberExpression", object: root, property: { name: "skip" } };
+        expect(messages(skip, [], undefined, [], sourceCode)).toHaveLength(1);
+        expect(
+          messages(root, [{ value: "case" }, {}, { value: 0 }], undefined, [], sourceCode)
+        ).toHaveLength(1);
+        expect(
+          messages(root, [{ value: "case" }, {}, { value: 1000 }], undefined, [], sourceCode)
+        ).toHaveLength(0);
+        variable.defs[0].parent.source.value = "unrelated";
+        expect(messages(skip, [], undefined, [], sourceCode)).toHaveLength(0);
+      }
+    }
+  });
 });
