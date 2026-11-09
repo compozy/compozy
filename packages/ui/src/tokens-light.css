@@ -191,12 +191,13 @@
 
   /* Terminal well — the brand terminal palette's light set
      (brand/product/terminal-palette.json): every hue deepened to read on
-     paper, and the "white" lanes become greys. */
+     paper, and the "white" lanes become greys. ANSI 0 stays a near-black text
+     lane: programs print SGR 30 as ordinary copy on a light well. */
   --terminal-bg: #f6f6f6;
   --terminal-fg: #0a0a0a;
   --terminal-cursor: #2448e6;
   --terminal-selection: rgba(36, 72, 230, 0.18);
-  --terminal-ansi-0: #ededed;
+  --terminal-ansi-0: #1a1a1a;
   --terminal-ansi-1: #c4302b;
   --terminal-ansi-2: #0a7650;
   --terminal-ansi-3: #9a5b00;

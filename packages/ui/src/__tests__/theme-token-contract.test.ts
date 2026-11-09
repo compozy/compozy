@@ -204,8 +204,8 @@ describe("brand, destructive and muted token names", () => {
 describe("brand identity v1.2 token values", () => {
   it.each<[string, string, string]>([
     ["color-brand", "#2f5bff", "#2448e6"],
-    ["color-brand-hover", "#4a70ff", "#1f3fcc"],
-    ["color-brand-strong", "#5b7fff", "#2448e6"],
+    ["color-brand-hover", "#2448e6", "#1f3fcc"],
+    ["color-brand-strong", "#6687ff", "#2448e6"],
     ["color-brand-ink", "#ffffff", "#ffffff"],
     ["color-attn", "#f5b14c", "#9a5b00"],
     ["color-destructive-ink", "#17110f", "#ffffff"],
@@ -271,6 +271,8 @@ const BRAND_TEXT_SURFACES = [
   "color-canvas-soft",
   "color-sunken",
   "color-rail",
+  "color-surface-2",
+  "color-selected",
   "color-elevated",
 ] as const;
 
@@ -278,6 +280,7 @@ const BRAND_CONTRAST_PAIRS: readonly ContrastPair[] = [
   ["color-fg", "color-rail", AA_TEXT_CONTRAST, THEMES],
   ["color-muted-foreground", "color-rail", AA_TEXT_CONTRAST, THEMES],
   ["color-brand-ink", "color-brand", AA_TEXT_CONTRAST, THEMES],
+  ["color-brand-ink", "color-brand-hover", AA_TEXT_CONTRAST, THEMES],
   ["color-destructive-ink", "color-destructive", AA_TEXT_CONTRAST, THEMES],
   ["color-brand-strong", "color-brand-tint", AA_TEXT_CONTRAST, THEMES],
   ["color-attn", "color-attn-tint", AA_TEXT_CONTRAST, THEMES],
@@ -311,4 +314,29 @@ describe.each(THEMES)("brand text contrast pairs (%s theme)", theme => {
       );
     });
   }
+});
+
+/**
+ * Light terminal foreground readability. Programs print any ANSI lane as copy —
+ * SGR 30 (ANSI 0, "black") included — so on the light well every lane clears
+ * AA text contrast. ANSI 8 is the one deliberately dim metadata lane.
+ */
+const TERMINAL_TEXT_LANES = Array.from({ length: 16 }, (_, lane) => lane).filter(
+  lane => lane !== 8
+);
+
+describe("light terminal foreground readability", () => {
+  it.each(TERMINAL_TEXT_LANES)(
+    `Should hold ≥${AA_TEXT_CONTRAST}:1 for ANSI %i on the light well`,
+    lane => {
+      const ratio = contrastRatio(
+        readHex(`terminal-ansi-${lane}`, "light"),
+        readHex("terminal-bg", "light")
+      );
+      expect(
+        ratio,
+        `--terminal-ansi-${lane} on --terminal-bg (light) = ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+    }
+  );
 });

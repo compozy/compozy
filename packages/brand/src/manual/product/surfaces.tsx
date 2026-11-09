@@ -197,7 +197,7 @@ export function Surfaces() {
             and hairline labels only. It fails body contrast on purpose.
           </li>
           <li>
-            <strong>Volt as text</strong> uses #5B7FFF on dark: brand volt #2F5BFF is 3.7:1 on ink,
+            <strong>Volt as text</strong> uses #6687FF on dark: brand volt #2F5BFF is 3.7:1 on ink,
             fine for a filled button, too dark for a link.
           </li>
           <li>

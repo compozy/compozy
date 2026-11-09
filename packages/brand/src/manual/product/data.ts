@@ -107,7 +107,7 @@ export const darkText: [string, string][] = [
   ["muted", "#989898"],
   ["faint", "#5e5e5e"],
   ["cyan", "#3DF2E0"],
-  ["volt", "#5B7FFF"],
+  ["volt", "#6687FF"],
 ];
 export const lightText: [string, string][] = [
   ["fg", "#0a0a0a"],

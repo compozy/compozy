@@ -42,8 +42,8 @@ tokens:
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
       brand: "#2f5bff"
-      brand-hover: "#4a70ff"
-      brand-strong: "#5b7fff"
+      brand-hover: "#2448e6"
+      brand-strong: "#6687ff"
       brand-ink: "#ffffff"
       brand-tint: "rgba(47, 91, 255, 0.1)"
       brand-tint-strong: "rgba(47, 91, 255, 0.16)"
@@ -745,8 +745,8 @@ amber (`--color-attn`) marks needs-you, never the default action.
 | Token                       | Dark                      | Light                     |
 | --------------------------- | ------------------------- | ------------------------- |
 | `--color-brand`             | `#2f5bff`                 | `#2448e6`                 |
-| `--color-brand-hover`       | `#4a70ff`                 | `#1f3fcc`                 |
-| `--color-brand-strong`      | `#5b7fff`                 | `#2448e6`                 |
+| `--color-brand-hover`       | `#2448e6`                 | `#1f3fcc`                 |
+| `--color-brand-strong`      | `#6687ff`                 | `#2448e6`                 |
 | `--color-brand-ink`         | `#ffffff`                 | `#ffffff`                 |
 | `--color-brand-tint`        | `rgba(47, 91, 255, 0.1)`  | `rgba(36, 72, 230, 0.08)` |
 | `--color-brand-tint-strong` | `rgba(47, 91, 255, 0.16)` | `rgba(36, 72, 230, 0.14)` |
@@ -872,7 +872,7 @@ never a legal color for UI copy.
 | `--terminal-fg`        | `#ececec`                 | `#0a0a0a`                 |
 | `--terminal-cursor`    | `#3df2e0`                 | `#2448e6`                 |
 | `--terminal-selection` | `rgba(47, 91, 255, 0.32)` | `rgba(36, 72, 230, 0.18)` |
-| `--terminal-ansi-0`    | `#1b1b1b`                 | `#ededed`                 |
+| `--terminal-ansi-0`    | `#1b1b1b`                 | `#1a1a1a`                 |
 | `--terminal-ansi-1`    | `#f87171`                 | `#c4302b`                 |
 | `--terminal-ansi-2`    | `#34d399`                 | `#0a7650`                 |
 | `--terminal-ansi-3`    | `#f5b14c`                 | `#9a5b00`                 |

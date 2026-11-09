@@ -2,7 +2,7 @@
     "$schema": "compozy/terminal-palette@1",
     "name": "Compozy",
     "version": "1.0.0",
-    "notes": "16 ANSI colours for the product terminal (packages/ui/src/terminal-tokens.css) and the compozy CLI. Every colour except ansi-0 and ansi-8 reaches 4.5:1 on its background. ansi-8 is for dim metadata only, never for copy. Magenta is a cold violet because the brand has no warm hue.",
+    "notes": "16 ANSI colours for the product terminal (packages/ui/src/terminal-tokens.css) and the compozy CLI. Every colour except ansi-8 (and dark ansi-0, a surface) reaches 4.5:1 on its background; light ansi-0 is near-black text. ansi-8 is for dim metadata only, never for copy. Magenta is a cold violet because the brand has no warm hue.",
     "dark": {
         "background": "#0a0a0a",
         "foreground": "#ececec",
@@ -37,7 +37,7 @@
         "cursor": "#2448E6",
         "selection": "rgba(36, 72, 230, 0.18)",
         "ansi": {
-            "0": { "hex": "#ededed", "name": "black", "role": "surface, never text" },
+            "0": { "hex": "#1a1a1a", "name": "black", "role": "plain text on paper" },
             "1": { "hex": "#C4302B", "name": "red", "role": "error, Stuck, Failed" },
             "2": { "hex": "#0A7650", "name": "green", "role": "Done, success" },
             "3": { "hex": "#9A5B00", "name": "yellow", "role": "Needs you, warning" },

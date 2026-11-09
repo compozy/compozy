@@ -39,7 +39,7 @@ Spec `.compozy/tasks/brand-site/` (E2E-003). The theme mechanics are unchanged; 
 changed. Extra steps for this slice:
 
 1. With no stored theme, `<html>` paints dark with volt `--color-brand` `#2f5bff`, `--color-brand-strong`
-   `#5b7fff` and amber `--color-attn` `#f5b14c`; the body font resolves to Figtree and
+   `#6687ff` and amber `--color-attn` `#f5b14c`; the body font resolves to Figtree and
    `<meta name="theme-color">` is `#0a0a0a`.
 2. After the rail-foot toggle to light, brand is `#2448e6`, attn `#9a5b00` and the theme color is
    `#f2f2f3`.

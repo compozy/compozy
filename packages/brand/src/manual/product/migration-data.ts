@@ -144,13 +144,13 @@ export const migration: { group: string; rows: MigrationRow[] }[] = [
         "--color-brand-hover",
         "tokens.css · tokens-light.css",
         "darker orange",
-        "#4A70FF dark / #1F3FCC light",
+        "#2448E6 dark / #1F3FCC light: darker than volt so white ink keeps AA",
       ],
       [
         "--color-brand-strong",
         "tokens.css · tokens-light.css",
         "lighter orange",
-        "#5B7FFF dark / #2448E6 light: brand as text (AA), not cyan",
+        "#6687FF dark / #2448E6 light: brand as text (AA on every surface), not cyan",
       ],
       [
         "--color-brand-ink",

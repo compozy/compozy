@@ -154,7 +154,7 @@ orchestrate-dark.webp 68682
 orchestrate-light.webp 71258
 sessions-dark.webp 40704
 sessions-light.webp 40682
-terminal-palette.json 4433
+terminal-palette.json 4484
 `;
 
 const TRAY = `

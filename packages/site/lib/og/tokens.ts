@@ -7,7 +7,7 @@ export const COLORS = {
   surface: "#1b1b1b",
   border: "#383838",
   brand: "#2f5bff",
-  brandText: "#5b7fff",
+  brandText: "#6687ff",
   textPrimary: "#ececec",
   textSecondary: "#989898",
   textTertiary: "#5e5e5e",

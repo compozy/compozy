@@ -87,11 +87,12 @@
 
   /* Brand — volt (identity v1.2): highlight fills, marks, selection and
      tints. Volt is a fill/mark colour: #2f5bff reads 3.7:1 on canvas, so
-     brand used AS TEXT takes `brand-strong` (AA on every surface).
-     `brand-ink` is the text on a brand fill. */
+     brand used AS TEXT takes `brand-strong` (AA on every surface, the hover
+     and selected plates included). `brand-ink` is the text on a brand fill;
+     hover steps the fill DARKER so that ink keeps AA. */
   --color-brand: #2f5bff;
-  --color-brand-hover: #4a70ff;
-  --color-brand-strong: #5b7fff;
+  --color-brand-hover: #2448e6;
+  --color-brand-strong: #6687ff;
   --color-brand-ink: #ffffff;
   --color-brand-tint: rgba(47, 91, 255, 0.1);
   --color-brand-tint-strong: rgba(47, 91, 255, 0.16);
