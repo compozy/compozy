@@ -1,5 +1,6 @@
 import { useMCPOverrideEditor } from "../use-mcp-override-editor";
 import type { SettingsMCPServerEntry } from "../../types";
+import { toast } from "@compozy/ui";
 import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -487,6 +488,39 @@ describe("useSetProviderEnabled", () => {
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
       }
     });
+  });
+
+  it("Should warn with a retry instead of confirming a disable whose live apply failed", async () => {
+    const { wrapper } = createWrapper();
+    const successSpy = vi.spyOn(toast, "success");
+    const warningSpy = vi.spyOn(toast, "warning");
+    const target = settingsProviderFixtures[1]!;
+    vi.mocked(setSettingsProviderEnabled).mockResolvedValue({
+      provider: { ...target, settings: { ...target.settings, enabled: false } },
+      apply: {
+        ...generalMutation,
+        section: "providers" as const,
+        applied: false,
+        lifecycle: "live" as const,
+        next_action: "retry" as const,
+        restart_required: false,
+      },
+    });
+
+    const { result } = renderHook(() => useSetProviderEnabled(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ name: target.name, enabled: false });
+    });
+
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(warningSpy).toHaveBeenCalledTimes(1);
+    const options = warningSpy.mock.calls[0]?.[1] as
+      | { action?: { label: string; onClick: () => void } }
+      | undefined;
+    expect(options?.action?.label).toBe("Retry");
+    act(() => options?.action?.onClick());
+    await waitFor(() => expect(setSettingsProviderEnabled).toHaveBeenCalledTimes(2));
+    expect(setSettingsProviderEnabled).toHaveBeenLastCalledWith(target.name, false);
   });
 });
 

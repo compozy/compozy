@@ -353,15 +353,21 @@ export function useDeleteSettingsProvider() {
 export function useSetProviderEnabled() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  const mutation = useMutation({
     networkMode: "always",
     mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
       setSettingsProviderEnabled(name, enabled),
     // Here, not per call: a disabled card remounts in its group before a per-call callback runs.
-    onSuccess: (result, { enabled }) => {
+    onSuccess: (result, variables) => {
       recordSettingsMutation(result.apply);
-      if (!enabled) {
-        const name = result.provider.settings.display_name?.trim() || result.provider.name;
+      const name = result.provider.settings.display_name?.trim() || result.provider.name;
+      if (result.apply.next_action === "retry") {
+        // Saved to config, but the live apply failed: new sessions still see the old state.
+        toast.warning(`Saved, but couldn't apply ${name} yet`, {
+          description: "New sessions keep the previous setting until it applies.",
+          action: { label: "Retry", onClick: () => mutation.mutate(variables) },
+        });
+      } else if (!variables.enabled) {
         toast.success(`${name} disabled. Running sessions keep going; new ones can't use it.`);
       }
       queryClient.setQueryData<SettingsProviderCollection>(settingsKeys.providersList(), current =>
@@ -384,6 +390,7 @@ export function useSetProviderEnabled() {
         queryClient.invalidateQueries({ queryKey: providerUsageKeys.all }),
       ]),
   });
+  return mutation;
 }
 
 export function usePutSettingsHook() {

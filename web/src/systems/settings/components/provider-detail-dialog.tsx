@@ -98,6 +98,7 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
             mode={mode}
             onClose={isSaving ? undefined : () => onOpenChange(false)}
             provider={provider}
+            statusProvider={props.liveEntry ?? provider}
           />
           {mode === "create" ? null : (
             <ProviderDetailTabs
@@ -151,18 +152,22 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
 function ProviderDetailHeader({
   mode,
   provider,
+  statusProvider,
   draft,
   onClose,
 }: {
   mode: DetailMode;
+  /** Edit baseline: names the provider while Configure is open. */
   provider: SettingsProviderEntry | null;
+  /** Live entry, so a toggle made while editing updates the status at once. */
+  statusProvider: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
   onClose: (() => void) | undefined;
 }) {
   return (
     <EntityDialogHeader
       className="border-b-0 pb-3"
-      description={headerDescription(mode, provider)}
+      description={headerDescription(mode, statusProvider)}
       // Create/edit titles already name the entity; only the bare-name inspect view needs the kind.
       eyebrow={mode === "inspect" ? "Provider" : undefined}
       icon={Settings2}

@@ -67,7 +67,7 @@ export function RuntimeSelector({
   value,
   onChange,
   providers: providerOptions,
-  models,
+  models: modelOptions,
   acpOptions,
   variant = "default",
   disabled = false,
@@ -89,6 +89,7 @@ export function RuntimeSelector({
   className,
 }: RuntimeSelectorProps) {
   const providers = selectableProviders(providerOptions, value.provider);
+  const models = selectableModels(modelOptions, providerOptions, value);
   const controller = useRuntimeSelector({
     value,
     onChange,
@@ -249,6 +250,25 @@ export function RuntimeSelector({
 }
 
 /** Disabled providers drop out, except the one the current value names (shown marked "Disabled"). */
+/**
+ * Drops models of disabled providers, including stale cached rows, so search, favorites and
+ * recents never offer them. The current value's own model stays so it is never rewritten.
+ */
+function selectableModels(
+  models: RuntimeModelOption[],
+  providers: RuntimeProviderOption[],
+  value: RuntimeSelectorValue
+): RuntimeModelOption[] {
+  const disabled = new Set<string>();
+  for (const provider of providers) if (provider.disabled) disabled.add(provider.id);
+  if (disabled.size === 0) return models;
+  return models.filter(
+    model =>
+      !disabled.has(model.provider) ||
+      (model.provider === value.provider && model.id === value.model)
+  );
+}
+
 function selectableProviders(
   providers: RuntimeProviderOption[],
   current: string

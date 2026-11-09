@@ -126,6 +126,7 @@ const nativeACPProvider: SettingsProviderEntry = {
 interface HarnessProps {
   mode: "inspect" | "edit" | "create";
   entry?: SettingsProviderEntry | null;
+  liveEntry?: SettingsProviderEntry | null;
   initialDraft?: ProviderDraft;
   onSave?: () => void;
 }
@@ -137,6 +138,7 @@ interface HarnessProps {
 function Harness({
   mode: initialMode,
   entry = null,
+  liveEntry,
   initialDraft,
   onSave = vi.fn(),
 }: HarnessProps) {
@@ -150,6 +152,7 @@ function Harness({
       error={null}
       isDeleting={false}
       isSaving={false}
+      liveEntry={liveEntry}
       mode={mode}
       onCancelEdit={() => setMode(current => (current === "edit" ? "inspect" : current))}
       onDraftChange={updater => setDraft(current => updater(current))}
@@ -185,21 +188,30 @@ describe("ProviderDetailDialog enabled switch", () => {
   // default provider it is inactive (UT-032, dialog half).
   it("Should show the Enabled switch for an existing provider and lock it on the default", () => {
     const { unmount } = renderDialog({ mode: "inspect", entry: nativeProvider });
-    const toggle = within(dialog()).getByRole("switch", { name: "Enabled" });
+    const toggle = within(dialog()).getByRole("switch", { name: "Codex enabled" });
     expect(toggle).toBeChecked();
     expect(toggle).not.toHaveAttribute("data-disabled");
     unmount();
 
     renderDialog({ mode: "inspect", entry: { ...nativeProvider, default: true } });
-    expect(within(dialog()).getByRole("switch", { name: "Enabled" })).toHaveAttribute(
+    expect(within(dialog()).getByRole("switch", { name: "Codex enabled" })).toHaveAttribute(
       "data-disabled"
     );
     expect(screen.getByTestId("provider-detail-enabled-locked")).toBeInTheDocument();
   });
 
+  it("Should show the live status in the header while Configure keeps its baseline", () => {
+    const disabled = {
+      ...nativeProvider,
+      settings: { ...nativeProvider.settings, enabled: false },
+    };
+    renderDialog({ mode: "edit", entry: nativeProvider, liveEntry: disabled });
+    expect(screen.getByTestId("provider-detail-status")).toHaveTextContent("Disabled");
+  });
+
   it("Should leave the switch out of create", () => {
     renderDialog({ mode: "create" });
-    expect(within(dialog()).queryByRole("switch", { name: "Enabled" })).toBeNull();
+    expect(within(dialog()).queryByRole("switch", { name: /enabled/i })).toBeNull();
   });
 });
 

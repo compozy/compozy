@@ -35,12 +35,14 @@ export function ProviderEnabledSwitch({
   const checked = mutation.isPending ? mutation.variables.enabled : saved;
   const locked = provider.default && saved;
   const toggle = (enabled: boolean) => mutation.mutate({ name: provider.name, enabled });
+  const displayName = provider.settings.display_name?.trim() || provider.name;
 
   const control = (
     <label className="flex items-center gap-2 text-meta text-muted-foreground">
       <span className={showLabel ? undefined : "sr-only"}>Enabled</span>
       <Switch
         aria-busy={mutation.isPending || undefined}
+        aria-label={`${displayName} enabled`}
         aria-describedby={
           [mutation.isError && errorId, locked && lockId].filter(Boolean).join(" ") || undefined
         }

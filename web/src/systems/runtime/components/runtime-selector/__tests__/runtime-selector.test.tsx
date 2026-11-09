@@ -2700,6 +2700,44 @@ describe("RuntimeSelector disabled providers", () => {
     expect(within(popup).getByRole("radio", { name: "Claude · disabled" })).toBeInTheDocument();
   });
 
+  it("Should never offer a disabled provider's cached models in browse, favorites or search", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(
+      FAVORITES_STORAGE_KEY,
+      JSON.stringify([runtimeModelKey("claude", "claude-b")])
+    );
+    const claudeModel = model("claude-b", { provider: "claude", name: "Claude B" });
+    renderSelector({
+      value: { provider: "codex", model: "gpt-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a"), claudeModel],
+    });
+
+    await openSelector(user);
+    const claudeRows = () => document.querySelectorAll("[data-provider='claude'][data-model]");
+    expect(claudeRows()).toHaveLength(0);
+    await user.keyboard("claude");
+    expect(claudeRows()).toHaveLength(0);
+  });
+
+  it("Should keep only the pinned model of a retained disabled provider", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [
+        model("gpt-a"),
+        model("claude-a", { provider: "claude", name: "Claude A" }),
+        model("claude-b", { provider: "claude", name: "Claude B" }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.keyboard("claude");
+    expect(rowFor("claude", "claude-a")).toBeInTheDocument();
+    expect(document.querySelector("[data-provider='claude'][data-model='claude-b']")).toBeNull();
+  });
+
   it("Should drop a provider disabled while the selector stays mounted (UT-040)", async () => {
     const user = userEvent.setup();
     const value = { provider: "codex", model: "gpt-a", reasoning_effort: "" as const };
