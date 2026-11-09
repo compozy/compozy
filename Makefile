@@ -116,6 +116,7 @@ installer-check:
 demo-seed: build web-build
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
 	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set http.port "$(DEMO_PORT)" --scope user
+	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set shell.sessions.group_by project --scope user
 	@COMPOZY_HOME="$(DEMO_HOME)" COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
 
 demo-seed-desktop: demo-seed

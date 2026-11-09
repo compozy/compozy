@@ -19,6 +19,7 @@ type Options struct {
 // Counts summarizes the durable records created by a seed run.
 type Counts struct {
 	Workspaces         int `json:"workspaces"`
+	SessionFolders     int `json:"session_folders"`
 	AlwaysOnInstances  int `json:"always_on_instances"`
 	CheckIns           int `json:"check_ins"`
 	InstanceReports    int `json:"instance_reports"`

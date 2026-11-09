@@ -69,7 +69,7 @@ func writeSessionRecords(
 ) error {
 	stopReason := store.StopReason(story.stopReason())
 	lineage := sessionLineage(story)
-	stopDetail := story.StopDetail
+	stopDetail := persistedStopDetail(story)
 	meta := store.SessionMeta{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		ProfileID:   store.DefaultProfileID,
@@ -171,4 +171,13 @@ func writeSessionTranscript(
 		return 0, fmt.Errorf("demo seed: write transcript usage for session %q: %w", story.ID, err)
 	}
 	return len(persisted), nil
+}
+
+// persistedStopDetail keeps the detail only on abnormal stops. A session that finished normally
+// stores none, and the session view can read a stop detail as a failure message.
+func persistedStopDetail(story sessionStory) string {
+	if story.stopReason() == string(store.StopCompleted) {
+		return ""
+	}
+	return story.StopDetail
 }

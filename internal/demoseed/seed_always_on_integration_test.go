@@ -227,6 +227,10 @@ func assertStoredSessions(t *testing.T, ctx context.Context, db *globaldb.Global
 		}
 		for index := range sessions {
 			stored[sessions[index].ID] = true
+			if sessions[index].StopReason == store.StopCompleted && sessions[index].StopDetail != "" {
+				t.Fatalf("completed session %q stores stop detail %q, which the session view can read as a failure",
+					sessions[index].ID, sessions[index].StopDetail)
+			}
 		}
 	}
 	if len(stored) != result.Counts.Sessions || len(result.SessionIDs) != result.Counts.Sessions {

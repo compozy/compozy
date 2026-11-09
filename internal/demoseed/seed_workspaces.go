@@ -79,6 +79,9 @@ func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scena
 	if !state.replace {
 		return nil
 	}
+	if err := removeProjectFolder(ctx, db); err != nil {
+		return err
+	}
 	sessionIDs := append(slices.Clone(scenarioSessionIDs), boardSessionIDs(state.clock)...)
 	sessionIDs = append(sessionIDs, bundledSessionIDs()...)
 	for _, sessionID := range append(sessionIDs, alwaysOnSessionIDs()...) {

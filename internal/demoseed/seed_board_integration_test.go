@@ -59,6 +59,7 @@ func TestSeedBoard(t *testing.T) {
 			})
 			platformID := replaced.WorkspaceIDs[1]
 			assertPixTranscript(t, ctx, homeDir, platformID)
+			assertSessionFolders(t, ctx, db, replaced)
 			keys := map[string]string{platformID: northstarRepoKey}
 
 			for column, want := range map[string][]string{
@@ -181,5 +182,41 @@ func assertPixTranscript(t *testing.T, ctx context.Context, homeDir string, work
 	}
 	if !strings.Contains(string(projected), "payments-platform/pull/485") {
 		t.Fatal("projected transcript lost the Bash stdout of gh pr create")
+	}
+}
+
+// assertSessionFolders reads back the folders the session list groups by after a replace.
+func assertSessionFolders(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, result Result) {
+	t.Helper()
+	listed := 0
+	for _, workspaceID := range result.WorkspaceIDs {
+		folders, err := db.ListSessionFolders(ctx, store.SessionLayoutScope{
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListSessionFolders(%s) error = %v", workspaceID, err)
+		}
+		for _, folder := range folders {
+			if folder.SessionCount == 0 {
+				t.Fatalf("session folder %q is empty", folder.Name)
+			}
+			listed++
+		}
+	}
+	if listed != result.Counts.SessionFolders || listed == 0 {
+		t.Fatalf("session folders = %d, Counts.SessionFolders = %d", listed, result.Counts.SessionFolders)
+	}
+	layout, err := db.WorkspaceLayout(ctx, store.DefaultProfileID)
+	if err != nil {
+		t.Fatalf("WorkspaceLayout() error = %v", err)
+	}
+	filed := 0
+	for _, placement := range layout.Placements {
+		if placement.FolderID == northstarProjectFolderID {
+			filed++
+		}
+	}
+	if len(layout.Folders) != 1 || filed != len(result.WorkspaceIDs) {
+		t.Fatalf("project layout folders=%d filed=%d, want one folder holding every project", len(layout.Folders), filed)
 	}
 }

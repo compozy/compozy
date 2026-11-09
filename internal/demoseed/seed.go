@@ -128,7 +128,12 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 	if err != nil {
 		return Counts{}, err
 	}
+	sessionFolders, err := seedSessionFolders(ctx, db, state)
+	if err != nil {
+		return Counts{}, err
+	}
 	return Counts{
+		SessionFolders:    sessionFolders,
 		AlwaysOnInstances: alwaysOn.instances, CheckIns: alwaysOn.checkIns,
 		InstanceReports: alwaysOn.reports, ProposalPicks: alwaysOn.picks,
 		Subagents: board.subagents, Monitors: board.monitors,
