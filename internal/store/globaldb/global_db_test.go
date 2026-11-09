@@ -7705,8 +7705,6 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve proven ownership and orphan history", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
-		defer cancel()
 		db, err := openGlobalMigrationPrefixDatabase(t, filepath.Join(t.TempDir(), GlobalDatabaseName),
 			globalMigrationPrefixBefore(t, "00108_schema.sql"))
 		if err != nil {
@@ -7717,6 +7715,9 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 				t.Error(err)
 			}
 		})
+		// Fixture admission and copying do not consume the migration operation budget.
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+		defer cancel()
 		stream := MigrationStream()
 		const secondary = "01K00000000000000000000091"
 		if _, err := db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
