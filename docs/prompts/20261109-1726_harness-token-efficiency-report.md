@@ -1,9 +1,9 @@
 # Harness token efficiency — final report
 
 Date: 2026-11-09. Branch: `harness-token-efficiency`. Base: `e34e8332c`.
-Implementation head: `1ba6a448b`. Brief commit: `4e206f01f`.
+Implementation head after round 2: `09d60b814`. Brief commit: `4e206f01f`.
 
-Seven workstreams have implementation commits. W6, W8, and W10 are blocked with no partial implementation or migration. **The inflated cost ledger is not fixed.** W9's requested actual Claude first-call token measurement remains unverified; its implementation and provider-option contracts pass. This is not a claim that all ten workstreams or all acceptance measurements are complete.
+Eight workstreams have implementation commits. W10 now corrects cumulative accounting and ships historical repair migrations under the approved round 2 rule. W6 remains undecided; W8 remains blocked on a structured adapter eligibility/deadline contract, with no partial implementation. W9's requested actual Claude first-call token measurement remains unverified; its implementation and provider-option contracts pass. This is not a claim that all ten workstreams or all acceptance measurements are complete.
 
 | Workstream | Status | Commit | Result |
 | --- | --- | --- | --- |
@@ -14,9 +14,9 @@ Seven workstreams have implementation commits. W6, W8, and W10 are blocked with 
 | W5 | done | `be622495c` | Smaller hosted descriptions; identifiers and schemas unchanged |
 | W6 | blocked | — | Default output reduction conflicts with the current public compatibility window |
 | W7 | done | `31eb6c52e` | Durable admission prevents replaying the same child-wake revision |
-| W8 | blocked | — | Adapter cache deadline and compaction ownership are not exposed to the daemon |
+| W8 | blocked after round 2 survey | — | Accepted default policy; adapter eligibility/deadline transitions are not exposed |
 | W9 | done; token measurement unverified | `1ba6a448b` | Lean Claude environment for system/triage and opted-in agents |
-| W10 | blocked | — | Resume/reset counter baseline cannot be established through the current adapter contract |
+| W10 | done in round 2 | `09d60b814` | Durable per-turn increments, detected resets, migrated historical repair/unknown |
 
 ## Paired binary measurements
 
@@ -107,17 +107,9 @@ Verification: T7 and L7 passed. Controlled delivery of one revision three times 
 
 Compatibility: existing public wake/event shapes and durable queue identity are reused; no schema/data migration or new delay. No open design question. Historical wake frequencies were supplied by the brief; they were not remeasured from operator data.
 
-### W8 — blocked: warm-cache timing and ownership
+### W8 — blocked after round 2 adapter survey
 
-Read the documented native `idleCompaction` conditions before evaluating a pass-through: interactive terminal/VS Code/Desktop, automatic compaction enabled, one-hour cache TTL, feature-flag access, sufficient context, and approximately an hour idle. This is not an SDK guarantee. [Claude settings reference](https://code.claude.com/docs/en/settings-reference#idlecompaction).
-
-The installed `@agentclientprotocol/claude-agent-acp` 0.102.0 independently implements SDK idle compaction in `dist/idle-compaction.js`: default delay 54 minutes, actual request-level cache TTL tracking, a late-fire guard, and its own `this.prompt(..., "idleCompaction")` call in `acp-agent.js`. Its context/delay environment variables exist, but the timer disappears when Compozy releases the process at 30 minutes. Enabling that timer would also introduce a second compaction owner and its 54-minute default intersects the observed 28–58 minute warm resumes.
-
-The current daemon contract does not receive the authoritative last API request/cache-expiry deadline required to guarantee warm-cache compaction after those common resumes. A turn-end timestamp is insufficient: a long final tool execution may already have consumed much of the TTL. Rebinding a released process and sending `/compact` based only on idle time could trigger a full-price cold read.
-
-No opt-in setting, timer, process-retention workaround, test, or migration was shipped. No W8 lint/check result or cache-saving measurement is claimed. The supplied resume rates (19% at 200k+, 26% at 400k+) and common warm 28–58 minute gaps were retained as design constraints.
-
-Open dependency: expose authoritative cache timing from the adapter and coordinate the runtime-release lifecycle with the existing `RequestCompaction`/`session_compact` owner. Threshold and delay must then be configurable, off by default, and observed through session events.
+The operator approved on-by-default bounded retention for adapter-owned warm-cache compaction. The remaining blocker is technical: no authoritative armed/eligibility/deadline lifecycle is exposed by the verified Claude adapter. No daemon compaction or partial retention heuristic shipped. See the round 2 W8 section below for the complete survey, source evidence, exact prerequisite and unrun checks. The earlier off-by-default proposal is superseded.
 
 ### W9 — lean environment
 
@@ -129,19 +121,11 @@ Verification: T9 and L9 passed. Tests cover new/load/resume metadata, ordinary/d
 
 Compatibility: additive optional agent field co-shipped through API/CLI and generated SDKs; user-session default unchanged. Internal one-shot launch policy changes intentionally. No SQLite shape/data change or migration. No open design question; remaining verification needs an authorized provider-backed comparison with representative operator resources.
 
-### W10 — blocked: cumulative-counter baseline
+### W10 — completed in round 2
 
-The root cause is confirmed: the ACP `Cost.amount` contract is cumulative, the installed Claude adapter forwards `total_cost_usd`, and the observer adds that value as though it were per turn. [ACP cost schema](https://agentclientprotocol.com/protocol/v1/schema#cost).
+Commit `09d60b814` normalizes cumulative reports, preserves raw evidence across restart and repairs historical costs through session migration 11 and global migration 199. The operator explicitly accepted undetectable high/equal first reports after counter reset as a residual undercount risk. See the complete round 2 implementation, survey, measurements, checks and migration notes below; the round 1 blocker is resolved under that decision.
 
-Claude's counter behavior also depends on runtime version and lifecycle: before CLI 2.1.277, SDK resumes began at zero; newer versions restore totals saved on normal exit. Conversation resets start another counter, and a crash result can carry zeroed totals. [SDK cost tracking](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
-
-The adapter does not expose an authoritative counter epoch/restored baseline at session load/resume to Compozy's usage owner. Its experimental structured usage request is only used to format a user `/usage` turn as Markdown, not a supported ACP baseline response. Detecting a numerical decrease cannot distinguish a reset whose first new value exceeds the previous counter, and assuming a zero baseline can double-count restored spend. Dropping the first resumed value would lose legitimate turn cost. Those heuristics cannot establish the required restart invariant.
-
-No partial normalizer, historical invalidation-only migration, or provider-semantics guess was shipped. Other adapters' per-turn/cumulative semantics were not fully established; no claim is made about them. Observe/globaldb/migration coverage was therefore not changed or run for W10. Existing inflated totals remain present and may still be labeled actual; this is an unresolved defect.
-
-Open dependency: establish adapter epoch/baseline and reset signals for every supported cost-producing adapter, then implement durable normalization and the lossless historical repair/unknown migration together. The migration must preserve all other token and attribution columns and prove fresh/reopen/equivalence behavior.
-
-## Focused verification commands
+## Round 1 focused verification commands
 
 All commands below are from this worktree. Each listed final test/lint command passed with zero warnings/errors. Earlier failures were repaired before commit: formatting/lint issues, a temporary AgentDef size increase, DTO mapping errors, and missing generated client build output. W7's original broader selector included `internal/session/inputqueue` with no matching tests; the final T7 deliberately targets the two owning suites and passes without that warning.
 
@@ -226,9 +210,9 @@ Affected QA scenario documents:
 
 The focused suites and provider-free paired run verify the changed contracts above; complete Web/manual walks of every scenario were not performed. No production profile, root checkout, operator configuration, credentials, historical ledger, or live provider transcript was mutated. No push or PR was performed, and `docs/_memory/change-impact.md` was not edited.
 
-Cross-surface impact: W1/W9 add configuration and agent DTO fields consumed through existing settings/API/CLI surfaces and generated clients; no Web redesign. W2/W3/W4 change prompt/catalog instructions only. W5 changes hosted description text while retaining routing/authentication/approval/schema contracts. W7 reuses the existing synthetic queue ledger and wake IDs. Official skill references and site docs accompany the changes. Workspace/profile isolation was exercised in the lab. No completed workstream changes SQLite shape or data, so no migration is required; the blocked W10 migration is explicitly absent.
+Cross-surface impact: W1/W9 add configuration and agent DTO fields consumed through existing settings/API/CLI surfaces and generated clients; no Web redesign. W2/W3/W4 change prompt/catalog instructions only. W5 changes hosted description text while retaining routing/authentication/approval/schema contracts. W7 reuses the existing synthetic queue ledger and wake IDs. Official skill references and site docs accompany the changes. Workspace/profile isolation was exercised in the lab. Round 1 did not change SQLite shape/data. Round 2 W10 adds session/global migrations and a monetary projection upgrade, detailed below.
 
-Unverified: actual Claude first-call token reduction for W9; provider-side W1 compaction thresholds; paid/model-side token or dollar savings; real warm-cache deadlines and long-idle resumes; a production daemon restart during duplicate wake delivery; all non-Claude adapter cost semantics; W10 restart normalization/historical repair; full CI/gates/race/E2E and complete Web scenario walks.
+Unverified: actual Claude first-call token reduction for W9; provider-side W1 compaction thresholds; paid/model-side token or dollar savings; real warm-cache deadlines and long-idle resumes; a production daemon restart during duplicate wake delivery; live non-Claude adapter monetary behavior; production-ledger repair (isolated W10 restart/migration tests now pass); full CI/gates/race/E2E and complete Web scenario walks.
 
 ## Exact changed files by workstream
 
@@ -388,4 +372,176 @@ sdk/go/client/types_002_gen.go
 sdk/go/client/types_005_gen.go
 sdk/go/client/types_006_gen.go
 skills/compozy/references/agent-definitions.md
+```
+
+## Round 2 — adapter surveys and delivery evidence
+
+Round 2 implements the operator-approved counter heuristic and historical repair in W10. W8's on-by-default policy is accepted, but a missing adapter observation contract still blocks a correct implementation. W6 remains untouched and undecided. The round 2 brief is `docs/prompts/20261109-1845_harness-token-efficiency-round2.md`.
+
+### W10 — committed: per-turn monetary accounting
+
+Commit: `09d60b814` (`fix: normalize reported session costs and repair historical totals`).
+
+Usage is normalized in the session prompt owner before canonical persistence, observers, transcript projection, and stream delivery. Both individual and coalesced event paths use the same function. For each currency, the previous raw report comes from bounded pages of the canonical event ledger, including archived turns; it does not depend on the rebuildable `token_usage` projection. A turn fixes that baseline so repeated usage notifications and the final notification do not subtract twice. Raw amounts remain available as `ReportedCostAmount` in canonical evidence and `reported_cost_amount` in the per-turn projection.
+
+ACP cumulative reporting is the default for every provider, including unknown adapters. Provider capability data explicitly identifies the verified cumulative adapters and has an explicit `per_turn` mode for exceptions. No builtin adapter was proven to report per-turn monetary amounts, so none is falsely declared an exception. Token counters are not normalized by this change.
+
+The accepted rule is `reported - previous` when the report is at least the previous amount; otherwise it is a new counter and contributes the full report. **Residual ambiguity:** a reset whose first report equals or exceeds the previous total looks like continuation and can undercount. This is the operator-approved limitation, not proof of exact invoice reconciliation. Restored and numerically detectable reset counters survive manager restart and runtime reattachment through the persisted raw baseline.
+
+#### Migration and compatibility
+
+- Session migration **11** adds the raw report column, derives turn increments in canonical order per currency, and rewrites the cost portion of canonical usage payloads while retaining the original amount. Other event fields, IDs, sequence, archive state, token values and timestamps remain intact. Existing rewind snapshots are marked stale for their owning rebuild path.
+- Transcript projection version **4** replays affected cost-bearing assistant entries, preserving message identity and unrelated projection state. Persisted transcript parts therefore stop showing the cumulative report as a turn cost.
+- Global migration **199** adds a durable repair marker and first invalidates monetary aggregates. Before opening the runtime, the migration owner opens retained session ledgers through their normal guarded/migrating owner and recomputes complete, attributable completed-turn totals. Daily totals require matching day/profile/workspace/agent and turn count. Missing, unreadable, partial, mixed-currency or otherwise uncertifiable evidence stays `unknown` with no amount/source. All non-cost aggregate columns are preserved.
+- One global transaction commits repaired totals and the completion marker. An interrupted open retries the pending repair; session migrations are idempotent. A fresh database has no repair work. Prior migration bytes/checksums are unchanged; the new migrations, Atlas sums and sqlc artifacts ship together.
+- Public CLI/HTTP/UDS/tool identifiers and DTO shapes are unchanged. `cost_amount` keeps its promised per-turn meaning; incorrect values are corrected. No compatibility alias or deprecation period is needed. No config key changed. Existing profile/workspace guards remain the data boundary. `compozy__session_usage`, CLI usage/context, transcript messages, prompt streams and task cost views consume the corrected owners; they do not add independent subtraction.
+- Generated persistence files were produced through the owning generators. `make codegen` passed. Appending the data tails initially exposed checksum validation before regeneration; the Atlas Goose-directory checksum API regenerated only the two owned manifests, followed by `make codegen`. No released migration was edited. `make codegen-check` was not run in round 2.
+
+#### Measurements
+
+These are deterministic accounting fixtures, not fresh measurements of operator billing or token savings.
+
+| Fixture | Previous additive result | Correct recorded turns | Correct total |
+| --- | ---: | --- | ---: |
+| Restored counter across manager restart: `1, 3, 4` | 8 | `1, 2, 1` | 4 |
+| Lower counter after restart: `1, 0.5, 2` | 3.5 | `1, 0.5, 1.5` | 3 |
+| Historical reset series: `1, 3, 0.5, 2` | 6.5 | `1, 2, 0.5, 1.5` | 5 |
+| Explicit per-turn reports: `1, 3, 0.5` | 4.5 | unchanged | 4.5 |
+| Missing historical ledger with stored aggregate 6.5 | `actual`, 6.5 | unavailable | `unknown`, no amount |
+
+The brief's production example (59,163.13 stored versus a maximum raw counter of 300.9) was not migrated on the operator's installation. A maximum alone is not the correct total when counters reset; this implementation recomputes the ordered increments instead.
+
+#### W10 adapter cost survey
+
+Inventory: `internal/config/provider_builtin.go`, 15 builtin provider IDs across 10 adapter families. Source inspection was performed on 2026-11-09. “Unknown” means the reviewed primary documentation does not establish monetary reporting semantics; it does not mean the adapter is incapable of reporting cost. All such cases follow ACP's cumulative contract if a monetary report arrives. The [ACP schema](https://agentclientprotocol.com/protocol/v1/schema#cost) defines cumulative session cost and also permits non-monetary units such as credits.
+
+| Builtin provider(s) / adapter | Established monetary behavior | CompozyOS handling / evidence |
+| --- | --- | --- |
+| `claude` / claude-agent-acp 0.102.0 | Cumulative: forwards SDK `total_cost_usd`; resume may restore or reset the counter | Explicit cumulative. [Adapter result handling](https://github.com/agentclientprotocol/claude-agent-acp/blob/main/src/acp-agent.ts), [SDK cost lifecycle](https://code.claude.com/docs/en/agent-sdk/cost-tracking). Installed distribution was also inspected. |
+| `opencode` / `opencode acp` | Cumulative session dollars in `usage_update`; turn token usage is a separate shape | Explicit cumulative. [ACP documentation source](https://github.com/anomalyco/opencode/blob/main/services/site/src/docs/content/cli/acp.mdx), [ACP turn adapter](https://github.com/anomalyco/opencode/blob/main/packages/cli/src/acp/turn.ts). |
+| `codex` / codex-acp | Reviewed usage update reports context used/size, without `cost` | Default cumulative if later supplied; preserve absent cost. [Event handler](https://github.com/agentclientprotocol/codex-acp/blob/main/src/CodexEventHandler.ts). |
+| `gemini` / Gemini CLI ACP | Reviewed emitter reports context used/size, without `cost` | Default cumulative if later supplied. [ACP session emitter](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/acp/acpSession.ts). |
+| `qwen-code` / Qwen Code ACP | Reviewed live usage emitter reports context used/size, without `cost` | Default cumulative if later supplied. [MessageEmitter](https://github.com/QwenLM/qwen-code/blob/main/packages/cli/src/acp-integration/session/emitters/MessageEmitter.ts). |
+| `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai` / pi-acp | `toUsageUpdate` reports context used/size, without monetary `cost`; backend billing is not automatically ACP cost | All six use the ACP default if cost is supplied. [Session emitter](https://github.com/svkozak/pi-acp/blob/main/src/acp/session.ts). |
+| `kimi-cli` / `kimi acp` | Unknown monetary contract in reviewed public ACP documentation | ACP default; no invented per-turn exception. [ACP reference](https://moonshotai.github.io/kimi-code/en/reference/kimi-acp). |
+| `copilot` / Copilot CLI ACP | Unknown monetary contract; a `/usage` command does not establish `Cost.amount` semantics | ACP default. [ACP server reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server). |
+| `cursor` / Cursor ACP | Unknown monetary contract in reviewed ACP documentation | ACP default. [ACP reference](https://cursor.com/docs/cli/acp). |
+| `agy` / Antigravity ACP | Unknown monetary contract in reviewed integration documentation | ACP default. [Official ACP integration](https://antigravity.google/docs/ide/extensions/acp). |
+
+#### W10 focused commands and results
+
+All final commands below passed. No package reported “no tests to run”. Earlier failed iterations are not passing evidence: a missed coalesced usage path, incomplete telemetry fixture setup, timestamp string-format comparison, a transcript fixture without an assistant message, and lint findings were repaired before the commit. Existing assertions on preservation were retained.
+
+```sh
+# T10a: live/restarted accounting, observer provenance, old/fresh/reopen/equivalent
+# migration streams, nullable usage, and transcript monetary reprojection.
+go test ./internal/session ./internal/store ./internal/store/sessiondb ./internal/store/globaldb ./internal/observe \
+  -run 'TestPromptCostAccounting|TestProductionMigrationStreams|TestGlobalDBTokenCostMigration|TestGlobalDBUsageCostRepair|TestSessionDBUsageCostMigration|TestSessionDBRecordTokenUsageStoresNullableFieldsAsNULL|TestTranscriptProjectionUpgrade|TestOnAgentEventProjectsTruthfulCostProvenance' -count=1
+
+# T10b: existing integration suites, real SQLite and lifecycle owners, fake ACP I/O.
+go test -tags=integration ./internal/session ./internal/task \
+  -run '^(TestManagerIntegrationFullLifecycle|TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration)$' -count=1
+
+# T10c: existing public readers and provider usage decoding.
+go test ./internal/cli ./internal/api/core ./internal/acp \
+  -run '^(TestSessionUsageCommandPreservesCostProvenance|TestSessionUsageEndpoint|TestWriteUsageChangedEvents|TestTokenUsageParsing)$' -count=1
+
+# L10: both normal and integration-tag lanes, 0 issues.
+COMPOZY_GO_LINT_SCOPES='./internal/config ./internal/acp ./internal/session ./internal/store ./internal/store/globaldb ./internal/store/sessiondb ./internal/transcript' make go-lint
+
+make codegen
+git diff --check
+```
+
+Source formatting used `golangci-lint fmt` on the explicit changed non-generated Go files. Markdown formatting used `oxfmt` on the changed official reference and docs where supported. The commit hook was not invoked because it runs repository-wide `make fmt` and automatic stash; equivalent applicable focused checks above were run directly. This avoided both unrelated mutation and forbidden destructive Git.
+
+#### W10 release-note text
+
+> Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, including detected counter restarts. The upgrade preserves raw reports and rebuilds historical costs from retained session ledgers. Missing or incomplete evidence is shown as unknown; token counts, turn counts and timestamps are preserved. A counter reset whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
+
+### W8 — still blocked: adapter-owned eligibility/deadline observation
+
+Status: **blocked, no implementation commit**. The operator decision is not pending: the requested policy is on by default, with an off switch, bounded retention and no Compozy-issued compaction. No partial retention rule, placeholder capability, new setting or migration was shipped.
+
+The installed Claude ACP adapter 0.102.0 already owns SDK idle compaction. Its `IdleCompaction` class records request time and TTL, evaluates current merged settings, rate-limit state, context size and busy state, then arms or skips its private timer. The host callback surface exposes only `isBusy`, `contextTokens`, `settings`, `compact` and `log`. Arm/disarm/skip/failure details are emitted as logger text; no structured client eligibility/deadline transition is emitted. [Adapter idle-compaction implementation](https://github.com/agentclientprotocol/claude-agent-acp/blob/main/src/idle-compaction.ts), [host integration](https://github.com/agentclientprotocol/claude-agent-acp/blob/main/src/acp-agent.ts).
+
+The `_claude/sdkMessage` extension can forward raw SDK responses, but it does not forward the adapter timer's armed state or the current merged settings decision. Reconstructing this state from selected usage fields would duplicate a private policy and can retain a session that the adapter will not compact. Retaining all large Claude sessions until minute 54 would violate the explicit unchanged-release requirement for wrong TTL, disabled settings, rate limits and other ineligible states. Parsing diagnostic logs as lifecycle authority would violate the repository's structured transition ownership rule.
+
+A second integration gap is visible locally: `internal/acp/compaction.go` invalidates prompt occupancy on terminal compaction before emitting the event, but `AgentProcess.emitPromptEvent` in `internal/acp/agent_process_prompt.go` drops delivery when no active Compozy prompt exists. An adapter-owned idle turn therefore needs a durable idle-runtime event route as well as the release hold; forwarding only active prompt events cannot satisfy the requested outcome visibility.
+
+**Exact missing prerequisite:** an adapter-supported structured observation/query contract for current eligibility, armed deadline, disarm/lapse and compaction completion/failure, with session/operation correlation. The release owner can then consume generic provider capability data and enforce a bounded hold without reimplementing the adapter's private decisions. The idle event route must persist outcomes and preserve existing prompt-section invalidation. This prerequisite is outside the present Compozy repository; no upstream adapter mutation was authorized or published.
+
+#### W8 adapter cache / compaction survey
+
+The same 15 provider IDs are covered. Backend cache policies are not sufficient evidence that an ACP adapter has a warm-cache timer. “Not verified” below means no such contract was established from the reviewed primary sources; it is not a universal claim that future or private builds lack the feature.
+
+| Builtin provider(s) / adapter | Cache expiry information | Compaction mechanism, conditions and controls | Release-contract finding / sources |
+| --- | --- | --- | --- |
+| `claude` / claude-agent-acp 0.102.0 | Adapter distinguishes observed 1h and 5m cache creation; unknown TTL is ineligible. Deadline is measured from the first main-thread response sighting, not Compozy turn end. | Default timer 54m; fires only for 1h TTL, context >=200k (floor100k), idle/not awaiting input, rate status unknown or allowed, not already compacted, and enabled settings/env. Skips >60s after deadline. Controls: `CLAUDE_AGENT_ACP_IDLE_COMPACT_DELAY_MS`, `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`, `idleCompaction`, `autoCompactEnabled`, `DISABLE_COMPACT`, `DISABLE_AUTO_COMPACT`. Settings env overrides launch env for CLI flags/threshold. | Verified timer; private eligibility and deadline, logger-only arm/disarm. [Adapter implementation](https://github.com/agentclientprotocol/claude-agent-acp/blob/main/src/idle-compaction.ts). Native [Claude setting](https://code.claude.com/docs/en/settings-reference#idlecompaction) targets attended CLI/VS Code/Desktop sessions; the adapter implements the SDK path separately. |
+| `codex` / codex-acp | No adapter-exposed cache-expiry deadline established; actual cache retention depends on model/backend policy. | Context-driven auto/async compaction controls exist; `model_auto_compact_token_limit` is a context threshold, not an idle cache deadline. | No verified warm-idle eligibility/deadline contract. [Codex configuration schema](https://github.com/openai/codex/blob/main/codex-rs/core/config.schema.json), [context-window owner](https://github.com/openai/codex/blob/main/codex-rs/core/src/session/context_window.rs). |
+| `gemini` / Gemini CLI ACP | Effective backend cache TTL/deadline is not exposed by the reviewed ACP usage emitter. | Context pressure compression via `model.compressionThreshold`; no verified warm-idle timer contract. | Existing release policy remains applicable. [Settings](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/settings.md), [ACP session](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/acp/acpSession.ts). |
+| `opencode` / OpenCode ACP | Provider-dependent prompt cache; reviewed ACP contract does not publish a warm-idle expiry deadline. | Automatic context-limit compaction, manual request, and experimental `background_compaction` starting before the context threshold. Background summary generation can reuse cache but is driven by context growth. | Background compaction is not evidence of an idle-expiry timer. No verified release-hold contract. [Compaction documentation](https://opencode.ai/docs/compaction/). |
+| `qwen-code` / Qwen Code ACP | Backend-dependent caching; no authoritative idle expiry deadline in reviewed ACP usage updates. | `autoCompactThreshold` controls context pressure. `clearContextOnIdle.toolResultsThresholdMinutes` controls pruning old tool results; pruning is not a warm-cache summarization request. | No verified adapter idle-compaction lifecycle contract. [Settings](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/), [cache-sharing design](https://github.com/QwenLM/qwen-code/blob/main/docs/design/chat-compression-cache-sharing.md). |
+| `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai` / pi-acp | TTL depends on the selected Pi backend/model; reviewed ACP emitter exposes no expiry deadline. | Adapter delegates manual `/compact` and automatic compaction control to Pi; no warm-idle timer contract established. | No verified eligibility/deadline signal for any of these six provider IDs. [Adapter README](https://github.com/svkozak/pi-acp/blob/main/README.md), [session integration](https://github.com/svkozak/pi-acp/blob/main/src/acp/session.ts). |
+| `kimi-cli` / Kimi ACP | Effective prompt cache deadline not established in reviewed public ACP/session docs. | Automatic compression when context requires it and manual `/compact`; no verified warm-idle timer or controls. | No release-hold contract established. [Sessions guide](https://github.com/MoonshotAI/kimi-cli/blob/main/docs/en/guides/sessions.md), [ACP reference](https://moonshotai.github.io/kimi-code/en/reference/kimi-acp). |
+| `copilot` / Copilot CLI ACP | No ACP cache TTL/deadline guarantee established. | Automatic background context compaction and manual `/compact`; documented context thresholds are not idle deadlines. | No verified warm-idle lifecycle contract. [Context management](https://docs.github.com/en/copilot/concepts/prompting-and-context/context-management), [ACP reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server). |
+| `cursor` / Cursor ACP | No authoritative cache TTL/deadline found in reviewed ACP documentation. | No warm-cache idle compaction conditions/controls established for this ACP adapter. | Unknown, not inferred from other Cursor surfaces. [ACP reference](https://cursor.com/docs/cli/acp). |
+| `agy` / Antigravity ACP | No authoritative cache TTL/deadline found in reviewed ACP integration documentation. | No warm-cache idle compaction conditions/controls established for the shipped ACP server. | Unknown, not inferred from the interactive product. [Official integration](https://antigravity.google/docs/ide/extensions/acp). |
+
+W8 measurements: no after measurement or savings claim. The source proves why a 30m Compozy idle release can pre-empt the Claude adapter's 54m timer; it does not prove eligibility for a specific operator session. The supplied 28–58m warm resumes and later-resume proportions remain input evidence, not a new measurement.
+
+W8 files changed: report only. Compatibility/migrations: no runtime/public/config/schema change. W8 focused hold/lapse/off-switch tests and provider-backed shortened-delay run: **not run**, because no safe implementation of the required authoritative hold contract is available. The existing `session.supervision.idle_release_after` behavior is unchanged. Config/site/skill documents do not advertise an unimplemented on-by-default policy.
+
+W8 release-note text for this revision: **“Idle runtime release behavior is unchanged. Adapter-coordinated warm-cache retention remains blocked pending structured adapter eligibility and deadline reporting.”** Do not publish an on-by-default retention claim for this branch.
+
+### Round 2 remaining questions and unverified work
+
+- No additional operator decision is needed for W10. Its accepted numeric reset ambiguity remains documented; no reset epoch is invented.
+- W8 needs the upstream structured observation prerequisite described above; the timing/default decision has already been made. W6 still needs its separate compatibility decision and was not started.
+- No production user database was modified or production billing series remeasured. Migration proof uses isolated SQLite fixtures, including real owner open/reopen and fresh-versus-replay equivalence.
+- No paid Claude warm-idle experiment, no live adapter matrix, and no browser/HTTP/UDS QA walkthrough was run in round 2. Existing integration suites ran against real storage/lifecycle owners with a fake ACP boundary. The three cost QA scenarios were updated, not marked newly walked.
+- No `make codegen-check`, repository-wide/uncached typecheck, gate, full/race/E2E suite, CI, push or PR was run in round 2. Round 1 receipts remain explicitly historical. All listed round 2 focused checks passed before commit.
+- `docs/_memory/change-impact.md` and the root checkout were left untouched. W10's affected official skill/site/QA docs shipped with the implementation. W8 introduces no partial implementation.
+
+### W10 exact changed files — 09d60b814
+
+```text
+docs/qa/scenarios/ET-cli-session-usage-context.md
+docs/qa/scenarios/RT-session-cost-provenance.md
+docs/qa/scenarios/TA-task-run-cost-provenance.md
+internal/acp/types.go
+internal/config/provider_usage.go
+internal/session/manager_prompt_batch.go
+internal/session/manager_prompt_contract_test.go
+internal/session/manager_prompt_persistence.go
+internal/session/manager_prompt_runtime_loop.go
+internal/session/manager_prompt_state.go
+internal/session/usage_cost.go
+internal/store/globaldb/automation_attribution_migration.go
+internal/store/globaldb/global_db_cost_migration_test.go
+internal/store/globaldb/queries/usage_cost_repair.sql
+internal/store/globaldb/schema/definitions/20_sessions.sql
+internal/store/globaldb/schema/migrations/00199_schema.sql
+internal/store/globaldb/schema/migrations/atlas.sum
+internal/store/globaldb/sqlcgen/models.go
+internal/store/globaldb/sqlcgen/usage_cost_repair.sql.go
+internal/store/globaldb/usage_cost_migration.go
+internal/store/sessiondb/queries/session_core.sql
+internal/store/sessiondb/queries/transcript_projection.sql
+internal/store/sessiondb/schema/migrations/00011_schema.sql
+internal/store/sessiondb/schema/migrations/atlas.sum
+internal/store/sessiondb/schema/schema.sql
+internal/store/sessiondb/session_db.go
+internal/store/sessiondb/session_db_test.go
+internal/store/sessiondb/session_token_usage.go
+internal/store/sessiondb/session_writer.go
+internal/store/sessiondb/sqlcgen/models.go
+internal/store/sessiondb/sqlcgen/session_core.sql.go
+internal/store/sessiondb/sqlcgen/transcript_projection.sql.go
+internal/store/sessiondb/transcript_projection_upgrade.go
+internal/store/sessiondb/transcript_projection_upgrade_test.go
+internal/store/types_event.go
+internal/transcript/projection_types.go
+packages/site/content/docs/sessions/index.mdx
+skills/compozy/references/runtime-operations.md
 ```
