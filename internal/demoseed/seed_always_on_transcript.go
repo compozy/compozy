@@ -50,17 +50,10 @@ func writeMainSession(ctx context.Context, db *globaldb.GlobalDB, state *scenari
 	if err != nil {
 		return 0, err
 	}
-	reports := 0
-	for _, event := range persisted {
-		reportID, ok := strings.CutPrefix(event.ID, "report:")
-		if !ok {
-			continue
-		}
-		if err := db.InstanceReports().
-			MarkReportPublished(ctx, reportID, run.story.MainID, event.Sequence); err != nil {
-			return 0, fmt.Errorf("demo seed: publish report %q for %q: %w", reportID, run.story.Agent, err)
-		}
-		reports++
+	run.events = len(persisted)
+	reports, err := publishAndDeliver(ctx, db, run, persisted)
+	if err != nil {
+		return 0, err
 	}
 	last := run.story.CreatedAt
 	if len(persisted) > 0 {
@@ -211,4 +204,45 @@ func recordMainSession(
 		}
 	}
 	return persisted, nil
+}
+
+// publishAndDeliver replays report publication and operator prompts in time order: a prompt
+// reserves and delivers only the reports already published into the session before it.
+func publishAndDeliver(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	run *instanceRun,
+	persisted []store.SessionEvent,
+) (int, error) {
+	type step struct {
+		at        time.Time
+		reportID  string
+		seq       int64
+		admission *operatorAdmission
+	}
+	steps := []step{}
+	for _, event := range persisted {
+		if reportID, ok := strings.CutPrefix(event.ID, "report:"); ok {
+			steps = append(steps, step{at: event.Timestamp, reportID: reportID, seq: event.Sequence})
+		}
+	}
+	for index := range run.admissions {
+		steps = append(steps, step{at: run.admissions[index].at, admission: &run.admissions[index]})
+	}
+	slices.SortStableFunc(steps, func(a, b step) int { return a.at.Compare(b.at) })
+	reports := 0
+	for _, item := range steps {
+		if item.admission != nil {
+			admission := item.admission
+			if err := admitOperatorTurn(ctx, db, run, admission.key, admission.text, admission.at); err != nil {
+				return 0, fmt.Errorf("demo seed: %q: %w", run.story.Agent, err)
+			}
+			continue
+		}
+		if err := db.InstanceReports().MarkReportPublished(ctx, item.reportID, run.story.MainID, item.seq); err != nil {
+			return 0, fmt.Errorf("demo seed: publish report %q for %q: %w", item.reportID, run.story.Agent, err)
+		}
+		reports++
+	}
+	return reports, nil
 }

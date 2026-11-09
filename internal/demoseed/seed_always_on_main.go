@@ -118,7 +118,15 @@ func pickProposal(ctx context.Context, db *globaldb.GlobalDB, run *instanceRun, 
 		return err
 	}
 	key := fmt.Sprintf("%s_pick_%d", run.story.MainID, entry.at.Unix())
-	return admitOperatorTurn(ctx, db, run, key, text, dispatchedAt)
+	run.admissions = append(run.admissions, operatorAdmission{key: key, text: text, at: dispatchedAt})
+	return nil
+}
+
+// operatorAdmission is one human prompt into the main session.
+type operatorAdmission struct {
+	key  string
+	text string
+	at   time.Time
 }
 
 // dispatchPick claims the queued pick and records it sent, as the session input pump does.

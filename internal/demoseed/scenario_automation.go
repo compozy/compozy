@@ -17,6 +17,10 @@ const (
 	automationBriefingHour   = 8
 	automationBriefingRuns   = 8
 	automationSettlementRuns = 5
+	// automationSettlementSpan bounds one settlement watch run from its scheduled time to its end.
+	automationSettlementSpan = 2 * time.Minute
+	// automationBriefingSpan bounds a briefing slot, including a timed-out attempt and its retry.
+	automationBriefingSpan = 20 * time.Minute
 )
 
 // automationDefinitionStory is one scheduled job or event trigger an operator created in the app.
@@ -137,7 +141,9 @@ func weekdayBriefingSlots(clock timeline, count int) []time.Time {
 	slots := make([]time.Time, 0, count)
 	for back := 0; len(slots) < count && back < 30; back++ {
 		at := clock.dayStart(back).Add(automationBriefingHour * time.Hour)
-		if at.After(clock.Now()) || at.Weekday() == time.Saturday || at.Weekday() == time.Sunday {
+		// A slot counts only once its longest run, a timed-out attempt plus its retry, has finished.
+		if at.Add(automationBriefingSpan).After(clock.Now()) || at.Weekday() == time.Saturday ||
+			at.Weekday() == time.Sunday {
 			continue
 		}
 		slots = append(slots, at.UTC())
@@ -211,11 +217,10 @@ func canaryDigestRuns(clock timeline) []automationRunStory {
 func settlementWatchRuns(clock timeline) []automationRunStory {
 	runs := make([]automationRunStory, 0, automationSettlementRuns+2)
 	exhausted := []int{3, 0, 1, 0, 2}
+	// The newest slot is the latest hour whose run has already finished; older slots follow it.
+	latest := clock.Now().Add(-automationSettlementSpan).Truncate(time.Hour)
 	for index := range automationSettlementRuns {
-		scheduled := clock.now.Truncate(time.Hour).Add(-time.Duration(index) * time.Hour)
-		if !scheduled.Before(clock.Now()) {
-			scheduled = scheduled.Add(-time.Hour)
-		}
+		scheduled := latest.Add(-time.Duration(index) * time.Hour)
 		started := scheduled.Add(3 * time.Second)
 		summary := "No settlement worker exhausted its retry budget in the last hour."
 		if exhausted[index] > 0 {

@@ -38,6 +38,8 @@ type alwaysOnCounts struct {
 	checkIns  int
 	reports   int
 	picks     int
+	// transcriptEvents counts the main-session events written.
+	transcriptEvents int
 }
 
 // instanceRun carries one instance through its replay.
@@ -53,6 +55,10 @@ type instanceRun struct {
 	hasSources bool
 	// picks maps a check time to the queue entries its proposals started.
 	picks map[time.Time]bool
+	// admissions are the operator prompts, admitted once the reports before them are published.
+	admissions []operatorAdmission
+	// events is how many main-session events were written.
+	events int
 }
 
 func seedAlwaysOn(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (alwaysOnCounts, error) {
@@ -87,6 +93,7 @@ func seedAlwaysOn(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 		counts.checkIns += checks
 		counts.reports += reports
 		counts.picks += picks
+		counts.transcriptEvents += run.events
 	}
 	return counts, nil
 }
@@ -246,7 +253,7 @@ func replayCheckIns(
 		var err error
 		switch {
 		case entry.turn != nil:
-			err = admitStoryTurn(ctx, db, run, entry)
+			queueStoryTurn(run, entry)
 		case entry.pick:
 			err = pickProposal(ctx, db, run, entry)
 			picks++
@@ -266,13 +273,13 @@ func replayCheckIns(
 	return checks, picks, nil
 }
 
-// admitStoryTurn admits an operator turn of the main-session conversation.
-func admitStoryTurn(ctx context.Context, db *globaldb.GlobalDB, run *instanceRun, entry timelineEntry) error {
+// queueStoryTurn queues an operator turn of the main-session conversation for admission.
+func queueStoryTurn(run *instanceRun, entry timelineEntry) {
 	if len(entry.turn.Steps) == 0 || entry.turn.Steps[0].Kind != stepUser {
-		return nil
+		return
 	}
 	key := fmt.Sprintf("%s_turn_%02d", run.story.MainID, entry.index+1)
-	return admitOperatorTurn(ctx, db, run, key, entry.turn.Steps[0].Text, entry.at)
+	run.admissions = append(run.admissions, operatorAdmission{key: key, text: entry.turn.Steps[0].Text, at: entry.at})
 }
 
 func nextCheckAt(entries []timelineEntry, index int, story instanceStory, now time.Time) time.Time {

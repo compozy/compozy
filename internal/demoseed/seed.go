@@ -21,6 +21,8 @@ type scenario struct {
 	records    map[string]workspaceRecord
 	// writeClock is what the store stamps records with; stories move it to their own instant.
 	writeClock *writeClock
+	// automationSessionIDs are the sessions automation runs recorded.
+	automationSessionIDs []string
 }
 
 // Seed writes the Northstar Pay launch scenario into one explicit Compozy home.
@@ -109,9 +111,11 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 	if err != nil {
 		return Counts{}, err
 	}
-	if err := seedAutomation(ctx, db, state); err != nil {
+	automationSeeded, err := seedAutomation(ctx, db, state)
+	if err != nil {
 		return Counts{}, err
 	}
+	state.automationSessionIDs = automationSeeded.sessionIDs
 	worktrees, err := seedWorktree(ctx, db, state)
 	if err != nil {
 		return Counts{}, err
@@ -130,9 +134,10 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 		Subagents: board.subagents, Monitors: board.monitors,
 		PullRequests: board.pullRequests, LaterSessions: board.later,
 		Workspaces: len(state.workspaces), Agents: len(scenarioAgents()),
-		Sessions:         len(sessions) + board.sessions + alwaysOn.instances,
-		TranscriptEvents: transcriptEvents + board.transcriptEvents,
-		Tasks:            len(tasks), TaskRuns: taskRuns,
+		Sessions: len(sessions) + board.sessions + alwaysOn.instances + len(automationSeeded.sessionIDs),
+		TranscriptEvents: transcriptEvents + board.transcriptEvents + alwaysOn.transcriptEvents +
+			automationSeeded.transcriptEvents,
+		Tasks: len(tasks), TaskRuns: taskRuns,
 		LoopDefinitions: loops,
 		LoopRuns:        loopCounts.runs, LoopGenerations: loopCounts.generations,
 		LoopRunEvents: loopCounts.events, GoalTurns: loopCounts.goalTurns,
@@ -158,7 +163,7 @@ func buildResult(state *scenario, counts Counts) Result {
 		WorkspaceID:  primary.ID, WorkspaceRoot: primary.RootDir, WorkspaceName: primary.Name,
 		WorkspaceIDs: workspaceIDs,
 		SessionIDs: append(append(append([]string(nil), scenarioSessionIDs...), boardSessionIDs(state.clock)...),
-			append(alwaysOnSessionIDs(), bundledSessionIDs()...)...),
+			append(append(alwaysOnSessionIDs(), bundledSessionIDs()...), state.automationSessionIDs...)...),
 		TaskIDs:  taskIDs,
 		LoopName: loopLaunchReadiness, LoopNames: scenarioLoopNames(),
 		LoopRunID: loopApprovalRunID, LoopRunIDs: scenarioLoopRunIDs(),

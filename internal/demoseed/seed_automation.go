@@ -157,26 +157,36 @@ func deleteAutomationDefinition(
 
 // seedAutomation writes the operator-created schedules and triggers the way the
 // automation manager stores them, then each recorded fire with the session it ran in.
-func seedAutomation(ctx context.Context, db *globaldb.GlobalDB, state *scenario) error {
+// automationSeeded reports the run sessions the automation history wrote.
+type automationSeeded struct {
+	sessionIDs       []string
+	transcriptEvents int
+}
+
+func seedAutomation(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (automationSeeded, error) {
 	defer state.writeClock.reset()
+	seeded := automationSeeded{}
 	stores, err := openAutomationStores(db, state.writeClock.Now)
 	if err != nil {
-		return err
+		return seeded, err
 	}
 	definitions := map[string]automationDefinitionStory{}
 	for _, definition := range scenarioAutomationDefinitions(state.clock) {
 		if err := putAutomationDefinition(ctx, stores, state, definition); err != nil {
-			return err
+			return seeded, err
 		}
 		definitions[definition.id()] = definition
 	}
 	for _, run := range scenarioAutomationRuns(state.clock) {
 		definition := definitions[run.JobID+run.TriggerID]
-		if err := seedAutomationRun(ctx, db, state, definition, run); err != nil {
-			return err
+		sessionID, events, err := seedAutomationRun(ctx, db, state, definition, run)
+		if err != nil {
+			return seeded, err
 		}
+		seeded.sessionIDs = append(seeded.sessionIDs, sessionID)
+		seeded.transcriptEvents += events
 	}
-	return nil
+	return seeded, nil
 }
 
 func putAutomationDefinition(
@@ -219,22 +229,23 @@ func seedAutomationRun(
 	state *scenario,
 	definition automationDefinitionStory,
 	run automationRunStory,
-) error {
+) (string, int, error) {
 	record, err := state.recordFor(run.WorkspaceKey)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
 	story := automationRunSession(definition, run)
 	sessionDir := filepath.Join(state.paths.SessionsDir, story.ID)
 	if err := os.RemoveAll(sessionDir); err != nil {
-		return fmt.Errorf("demo seed: reset automation session %q: %w", story.ID, err)
+		return "", 0, fmt.Errorf("demo seed: reset automation session %q: %w", story.ID, err)
 	}
-	if _, err := seedSession(ctx, db, state, story); err != nil {
-		return err
+	events, err := seedSession(ctx, db, state, story)
+	if err != nil {
+		return "", 0, err
 	}
 	if run.Status == automation.RunFailed && !run.isLatestFailure() {
 		if err := dismissSeenFailure(ctx, db, story.ID, run.EndedAt.Add(30*time.Minute)); err != nil {
-			return err
+			return "", 0, err
 		}
 	}
 	workspaceID := record.ID
@@ -252,9 +263,9 @@ func seedAutomationRun(
 		persisted.ScheduledAt = new(run.ScheduledAt)
 	}
 	if _, err := db.CreateRun(ctx, persisted); err != nil {
-		return fmt.Errorf("demo seed: create automation run %q: %w", run.ID, err)
+		return "", 0, fmt.Errorf("demo seed: create automation run %q: %w", run.ID, err)
 	}
-	return nil
+	return story.ID, events, nil
 }
 
 // isLatestFailure keeps only the newest exhausted fire in Needs you; the operator

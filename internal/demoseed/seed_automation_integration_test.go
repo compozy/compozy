@@ -30,6 +30,37 @@ type catalogWorkspaces struct {
 func TestSeedAutomationCatalog(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should only record finished runs with one first attempt per slot at clock boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		// 2026-07-29 is a Wednesday: exact hour, just after it, and the briefing hour itself.
+		for _, now := range []time.Time{
+			time.Date(2026, 7, 29, 8, 0, 0, 0, time.UTC),
+			time.Date(2026, 7, 29, 8, 1, 0, 0, time.UTC),
+			time.Date(2026, 7, 29, 8, 10, 0, 0, time.UTC),
+		} {
+			clock := newTimeline(now)
+			firsts := map[string]map[time.Time]bool{}
+			for _, run := range scenarioAutomationRuns(clock) {
+				if run.EndedAt.After(clock.Now()) || run.StartedAt.Before(run.ScheduledAt) {
+					t.Fatalf("now %s: run %s ends %s, starts %s for slot %s, want finished work",
+						now, run.ID, run.EndedAt, run.StartedAt, run.ScheduledAt)
+				}
+				if run.Attempt != 1 || run.ScheduledAt.IsZero() {
+					continue
+				}
+				key := run.JobID + run.TriggerID
+				if firsts[key] == nil {
+					firsts[key] = map[time.Time]bool{}
+				}
+				if firsts[key][run.ScheduledAt] {
+					t.Fatalf("now %s: %s has two first attempts for %s", now, key, run.ScheduledAt)
+				}
+				firsts[key][run.ScheduledAt] = true
+			}
+		}
+	})
+
 	t.Run("Should list seeded schedules and triggers with recorded run history", func(t *testing.T) {
 		t.Parallel()
 

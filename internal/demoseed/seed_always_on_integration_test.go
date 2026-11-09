@@ -59,6 +59,7 @@ func TestSeedAlwaysOn(t *testing.T) {
 		if len(byAgent) != 5 {
 			t.Fatalf("live instances = %d (%v), want 5 after replace", len(instances), byAgent)
 		}
+		assertStoredSessions(t, ctx, db, result)
 		assertInstanceStates(t, ctx, db, byAgent)
 		assertTriagerProposals(t, ctx, db, byAgent[agentIssueTriager])
 		assertReleaseWatchAway(t, ctx, db, byAgent[agentReleaseWatch], now)
@@ -111,6 +112,11 @@ func assertTriagerProposals(t *testing.T, ctx context.Context, db *globaldb.Glob
 	if len(reports) != 3 || autoAccepted != 1 || waiting < 2 {
 		t.Fatalf("issue-triager reports=%d auto-accepted=%d waiting=%d, want 3 reports, 1 auto-accepted, 2+ waiting",
 			len(reports), autoAccepted, waiting)
+	}
+	// The operator picked the first report, so that prompt delivered it; the newest still waits.
+	if reports[0].State != "delivered" || reports[len(reports)-1].State != "pending" {
+		t.Fatalf("issue-triager report states = %s .. %s, want the picked report delivered and the newest pending",
+			reports[0].State, reports[len(reports)-1].State)
 	}
 	for _, report := range reports {
 		if report.EventSessionID != instance.MainSessionID || report.EventSeq == 0 {
@@ -196,5 +202,31 @@ func assertAgentNotes(t *testing.T, homeDir string, instance agentinstance.Insta
 	}
 	if strings.Count(notes.Content, "\n- ") != 2 || !strings.Contains(notes.Content, "coverage") {
 		t.Fatalf("issue-triager notes = %q, want its three notes once after a replace", notes.Content)
+	}
+}
+
+// assertStoredSessions compares the reported totals with the sessions actually stored.
+func assertStoredSessions(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, result Result) {
+	t.Helper()
+	stored := map[string]bool{}
+	for _, workspaceID := range result.WorkspaceIDs {
+		sessions, err := db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID, Archive: store.SessionArchiveInclude,
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(%s) error = %v", workspaceID, err)
+		}
+		for index := range sessions {
+			stored[sessions[index].ID] = true
+		}
+	}
+	if len(stored) != result.Counts.Sessions || len(result.SessionIDs) != result.Counts.Sessions {
+		t.Fatalf("stored sessions = %d, Counts.Sessions = %d, len(SessionIDs) = %d, want all equal",
+			len(stored), result.Counts.Sessions, len(result.SessionIDs))
+	}
+	for _, id := range result.SessionIDs {
+		if !stored[id] {
+			t.Fatalf("SessionIDs lists %q, which is not stored", id)
+		}
 	}
 }
