@@ -178,9 +178,16 @@ const WM_CLIENT = "brand-product-shots";
 /** web/src/systems/theme/lib/theme-preference.ts THEME_STORAGE_KEY */
 const THEME_KEY = "compozy.theme";
 
+async function wmFetch(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (!res.ok)
+    throw new Error(`window manager ${init?.method ?? "GET"} ${url} → HTTP ${res.status}`);
+  return res;
+}
+
 async function closeAllWindows(base: string) {
   const json = { "content-type": "application/json" };
-  await fetch(`${base}${WM_PATH}/clients?profile=default`, {
+  await wmFetch(`${base}${WM_PATH}/clients?profile=default`, {
     method: "POST",
     headers: json,
     body: JSON.stringify({
@@ -190,14 +197,17 @@ async function closeAllWindows(base: string) {
       context: { workspace_trusted: true },
     }),
   });
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const state = (await (await fetch(`${base}${WM_PATH}?profile=default`)).json()) as {
+  // Each close bumps the daemon-side revision, so closes run one after another.
+  const closeNext = async (attemptsLeft: number): Promise<void> => {
+    if (attemptsLeft === 0)
+      throw new Error("could not close the open windows of the seeded desktop");
+    const state = (await (await wmFetch(`${base}${WM_PATH}?profile=default`)).json()) as {
       revision: number;
       windows?: Record<string, unknown>;
     };
     const [id] = Object.keys(state.windows ?? {});
     if (!id) return;
-    await fetch(`${base}${WM_PATH}/commands?profile=default`, {
+    await wmFetch(`${base}${WM_PATH}/commands?profile=default`, {
       method: "POST",
       headers: json,
       body: JSON.stringify({
@@ -210,8 +220,9 @@ async function closeAllWindows(base: string) {
         payload: { window_id: id, minimize: false },
       }),
     });
-  }
-  throw new Error("could not close the open windows of the seeded desktop");
+    await closeNext(attemptsLeft - 1);
+  };
+  await closeNext(40);
 }
 
 async function captureAppPng(
@@ -237,11 +248,16 @@ async function captureAppPng(
     const page = await context.newPage();
     await page.goto(`${base}${path}`, { waitUntil: "load" });
     await page.keyboard.press("Escape");
-    for (const step of pin.steps ?? []) {
-      if ("click" in step) await page.locator(step.click).first().click({ timeout: 15_000 });
-      else if ("press" in step) await page.keyboard.press(step.press);
-      else await page.locator(step.waitFor).first().waitFor({ timeout: 15_000 });
-    }
+    // Steps drive one page in order, so they chain instead of running concurrently.
+    await (pin.steps ?? []).reduce<Promise<void>>(
+      (prev, step) =>
+        prev.then(() => {
+          if ("click" in step) return page.locator(step.click).first().click({ timeout: 15_000 });
+          if ("press" in step) return page.keyboard.press(step.press);
+          return page.locator(step.waitFor).first().waitFor({ timeout: 15_000 });
+        }),
+      Promise.resolve()
+    );
     try {
       await page.locator(pin.ready).first().waitFor({ state: "visible", timeout: 20_000 });
     } catch {
@@ -344,17 +360,21 @@ async function main() {
           captureStoryPng(b, served?.base ?? "", pin, id, theme),
       })),
     ];
-    for (const job of jobs) {
-      for (const theme of SHOT_THEMES) {
-        const webp = await encodeWebp(encoder, await job.shoot(chromium, theme));
-        if (webp.length > MAX_BYTES)
-          throw new Error(`${job.pin.name}-${theme} is ${webp.length} B > 400 KB`);
-        writeFileSync(join(staging, productShotFile(job.pin.name, theme)), webp);
-        rows.push(
-          `${productShotFile(job.pin.name, theme).padEnd(24)} ${(webp.length / 1024).toFixed(0).padStart(4)} KB  ${job.label}`
-        );
-      }
-    }
+    // Captures share the daemon's window-manager state, so they run strictly one at a time.
+    const shots = jobs.flatMap(job => SHOT_THEMES.map(theme => ({ job, theme })));
+    await shots.reduce<Promise<void>>(
+      (prev, { job, theme }) =>
+        prev.then(async () => {
+          const webp = await encodeWebp(encoder, await job.shoot(chromium, theme));
+          if (webp.length > MAX_BYTES)
+            throw new Error(`${job.pin.name}-${theme} is ${webp.length} B > 400 KB`);
+          writeFileSync(join(staging, productShotFile(job.pin.name, theme)), webp);
+          rows.push(
+            `${productShotFile(job.pin.name, theme).padEnd(24)} ${(webp.length / 1024).toFixed(0).padStart(4)} KB  ${job.label}`
+          );
+        }),
+      Promise.resolve()
+    );
     mkdirSync(args.out, { recursive: true });
     cpSync(staging, args.out, { recursive: true });
     console.log(rows.join("\n"));

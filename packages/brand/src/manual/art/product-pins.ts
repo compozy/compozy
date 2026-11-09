@@ -145,13 +145,14 @@ export function resolveAppPins(
 ): { resolved: { pin: AppShotPin; path: string }[]; missing: string[] } {
   const resolved: { pin: AppShotPin; path: string }[] = [];
   const missing: string[] = [];
+  const byName = new Map(workspaces.map(w => [w.name, w]));
   for (const pin of pins) {
     if (pin.source !== "app") continue;
     if (!pin.workspace) {
       resolved.push({ pin, path: pin.route });
       continue;
     }
-    const ws = workspaces.find(w => w.name === pin.workspace);
+    const ws = byName.get(pin.workspace);
     if (!ws) {
       missing.push(`${pin.name}: ${pin.route} needs seeded workspace "${pin.workspace}"`);
       continue;
