@@ -21,8 +21,11 @@ runtime edit. Keeping the displayed defaults omitted the runtime entirely, so th
 freeze the displayed selection. Its owning component regression failed before the fix
 (`runtime` was undefined), and now verifies the full displayed snapshot on submit. The derive
 manager persists that choice as `runtime.selected`; prompt admission prefers it over the prior binding.
-The submission uses the selector's capability normalization. Unedited inherited ACP options stay
-daemon-owned, so this snapshot does not promote an inherited permission mode to an explicit override.
+The submission uses the selector's capability normalization. Inherited ACP options stay
+daemon-owned even after editing Fast or reasoning, so this snapshot does not promote an inherited
+permission mode to an explicit override. A configured effort absent from the model's advertised
+choices is refused visibly until the user chooses a supported effort, rather than omitting it and
+letting launch restore that unsupported setting.
 
 An additional confirmed defect is at the unbound runtime's first bind: it walks the target agent's
 fallback chain even when a derived child explicitly selected another runtime. A rejected Codex
@@ -39,7 +42,7 @@ observable failure modes without claiming an exact reconstruction of that histor
   a later turn, durable `prompt_runtime`, restart persistence, and visible launch refusal.
 - Focused derive/fork/fallback checks pass with `CGO_ENABLED=1` and `-race`.
 - Pinned golangci-lint v2.15.0 on `./internal/session`: zero issues.
-- Root Turborepo selector/Continue/composer suites: 134 tests passed; Web typecheck passed.
+- Root Turborepo selector/Continue/composer suites: 136 tests passed; Web typecheck passed.
 - React Doctor on the changed Web files: 100/100, no findings; focused oxlint and formatting pass.
 - Real daemon journeys above passed through public CLI/API and the rendered Web. Provider,
   model and effort agree across selected/requested/effective/last-known; Normal and Fast were
@@ -52,6 +55,10 @@ observable failure modes without claiming an exact reconstruction of that histor
 
 The dialog was confirmed with Codex/GPT-6-Astra/high/normal displayed and no runtime edit. The
 new session answered the initial message and a second UI prompt; its composer retained Codex.
+The rendered walk used the backend from `9adc8aacd` and Web changes subsequently committed as
+`996d49d5e`. The object-storage key identifies that backend build. Later selector normalization
+and inherited-option corrections are covered by the focused component suites; these screenshots
+do not claim to exercise those additional interaction cases.
 
 ![Continue dialog preserving displayed defaults](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1414/9adc8aacd/01-continue-runtime.png)
 

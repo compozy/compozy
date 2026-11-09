@@ -5,7 +5,7 @@
 // outcome whose child was deleted.
 // Owning layer: SessionContinueDialog with its hooks over MSW. Canonical suite: this file.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { HttpHandler } from "msw";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -214,11 +214,15 @@ describe("SessionContinueDialog", () => {
   });
 
   it.each([
-    { effort: "high", submittedEffort: "high" },
-    { effort: "max", submittedEffort: undefined },
+    { edit: "none", effort: "high", speed: "normal" },
+    { edit: "speed", effort: "high", speed: "fast" },
+    { edit: "reasoning", effort: "medium", speed: "normal" },
+    { edit: "unsupported reasoning", effort: "high", speed: "normal" },
   ] as const)(
-    "Should submit the displayed defaults with $effort effort and leave inherited ACP options to the daemon",
-    async ({ effort, submittedEffort }) => {
+    // Invariant: editing dedicated controls never promotes inherited ACP permissions.
+    // Owning layer and canonical suite: this Continue dialog request boundary.
+    "Should leave inherited ACP options to the daemon after a $edit edit",
+    async ({ edit, effort, speed }) => {
       const user = userEvent.setup();
       agents.data = deriveAgentsFixture.map(agent =>
         agent.name === "codex"
@@ -227,7 +231,7 @@ describe("SessionContinueDialog", () => {
               effective_runtime: {
                 provider: "codex",
                 model: "gpt-6-astra",
-                reasoning_effort: effort,
+                reasoning_effort: edit === "unsupported reasoning" ? "max" : "high",
                 speed: "normal",
                 acp_options: [{ id: "mode", value_id: "bypassPermissions" }],
                 sources: {
@@ -246,22 +250,52 @@ describe("SessionContinueDialog", () => {
           id: "gpt-6-astra",
           provider: "codex",
           name: "GPT-6-Astra",
-          efforts: ["high"],
+          efforts: ["medium", "high"],
           availability: "live",
           curated: true,
+          configurations: [
+            { reasoning_effort: "medium", fast: true },
+            { reasoning_effort: "high", fast: true },
+          ],
+          acp_options: [
+            {
+              id: "mode",
+              kind: "select",
+              values: [{ value: "bypassPermissions" }],
+            },
+          ],
         },
       ];
       const sent: ContinueSessionRequest[] = [];
       renderDialog({ onContinue: request => sent.push(request) });
 
       await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      if (edit === "unsupported reasoning") {
+        // An omitted effort would restore the unsupported agent default at launch.
+        // Refuse visibly until the user confirms an advertised effort.
+        await user.click(screen.getByTestId("session-continue-submit"));
+        expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+          "Choose a reasoning effort supported by this model before continuing."
+        );
+        expect(sent).toHaveLength(0);
+      }
+      if (edit !== "none") {
+        await user.click(screen.getByTestId("session-continue-runtime-select"));
+        if (edit === "speed") await user.click(await screen.findByTestId("runtime-selector-speed"));
+        else {
+          fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+            key: edit === "reasoning" ? "Home" : "End",
+          });
+        }
+        await user.keyboard("{Escape}");
+      }
       await user.click(screen.getByTestId("session-continue-submit"));
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.runtime).toEqual({
         provider: "codex",
         model: "gpt-6-astra",
-        ...(submittedEffort ? { reasoning_effort: submittedEffort } : {}),
-        speed: "normal",
+        reasoning_effort: effort,
+        speed,
       });
     }
   );

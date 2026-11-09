@@ -7,7 +7,11 @@ import {
   resolveAgentRuntimeValue,
   useAgents,
 } from "@/systems/agent";
-import { normalizeRuntimeSelectorValue, type RuntimeSelectorValue } from "@/systems/runtime";
+import {
+  modelSupportsReasoningEffort,
+  normalizeRuntimeSelectorValue,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
 import { useSessionContinueRuntimeOptions } from "./use-session-continue-runtime-options";
 
 import type { ContinueSessionRequest } from "../adapters/session-derive-api";
@@ -108,7 +112,13 @@ export function useSessionContinueDialog({
     ? route
     : SESSION_CONTINUE_DEFAULT_ROUTE;
   const runtimeOptions = useSessionContinueRuntimeOptions(workspaceId, open);
-  const requestedValue = runtime?.value ?? resolveAgentRuntimeValue(agent);
+  // Agent defaults remain daemon-owned, including permission-sensitive ACP modes.
+  // Dedicated control edits must not turn those defaults into explicit overrides.
+  const agentRuntime = resolveAgentRuntimeValue(agent);
+  const requestedValue = runtime?.value ?? {
+    ...agentRuntime,
+    acp_options: undefined,
+  };
   const selectedModel = runtimeOptions.models.find(
     model => model.provider === requestedValue.provider && model.id === requestedValue.model
   );
@@ -129,12 +139,27 @@ export function useSessionContinueDialog({
 
   const submit = () => {
     if (!canSubmit) return;
+    // Omitting effort on the same model inherits the agent's setting at launch.
+    const effort =
+      requestedValue.reasoning_effort ||
+      (requestedValue.provider === agentRuntime.provider &&
+      requestedValue.model === agentRuntime.model
+        ? agentRuntime.reasoning_effort
+        : "");
+    if (
+      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE &&
+      selectedModel &&
+      effort !== "" &&
+      !modelSupportsReasoningEffort(selectedModel, effort)
+    ) {
+      setSubmitError("Choose a reasoning effort supported by this model before continuing.");
+      return;
+    }
     const trimmedMessage = message.trim();
     const runtimeBody =
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
         ? runtimeRequest({
-            // Inherited ACP permissions stay daemon-owned rather than becoming explicit overrides.
-            value: { ...runtimeValue, ...(runtime ? {} : { acp_options: undefined }) },
+            value: runtimeValue,
             speed: runtimeSpeed,
           })
         : null;
