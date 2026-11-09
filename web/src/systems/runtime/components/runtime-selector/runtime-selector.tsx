@@ -97,6 +97,7 @@ export function RuntimeSelector({
     models,
     acpOptions,
     allowCustomProvider,
+    disabledProviderIds: disabledProviderIds(providerOptions),
     speed,
     retainUnavailableOptions,
   });
@@ -267,6 +268,12 @@ function selectableModels(
       !disabled.has(model.provider) ||
       (model.provider === value.provider && model.id === value.model)
   );
+}
+
+function disabledProviderIds(providers: RuntimeProviderOption[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const provider of providers) if (provider.disabled) ids.add(provider.id);
+  return ids;
 }
 
 function selectableProviders(

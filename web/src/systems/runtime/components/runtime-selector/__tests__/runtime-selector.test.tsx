@@ -2794,6 +2794,24 @@ describe("RuntimeSelector disabled providers", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("Should reject an exact entry naming a disabled provider that is not current", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "", model: "", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+      props: { allowCustomProvider: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact provider name" });
+    await user.type(exactInput, "claude/claude-b");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("Should drop a provider disabled while the selector stays mounted (UT-040)", async () => {
     const user = userEvent.setup();
     const value = { provider: "codex", model: "gpt-a", reasoning_effort: "" as const };

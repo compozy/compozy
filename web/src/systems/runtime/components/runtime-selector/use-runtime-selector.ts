@@ -42,9 +42,13 @@ export interface UseRuntimeSelectorArgs {
   models: RuntimeModelOption[];
   acpOptions?: RuntimeACPOption[];
   allowCustomProvider?: boolean;
+  /** Every disabled provider id, including ones already dropped from `providers`. */
+  disabledProviderIds?: ReadonlySet<string>;
   speed?: RuntimeSpeed;
   retainUnavailableOptions?: boolean;
 }
+
+const NO_DISABLED_PROVIDERS: ReadonlySet<string> = new Set();
 
 function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
   return provider?.runtime_strategy === "provider_managed";
@@ -80,6 +84,7 @@ export function useRuntimeSelector({
   models,
   acpOptions,
   allowCustomProvider = false,
+  disabledProviderIds = NO_DISABLED_PROVIDERS,
   speed,
   retainUnavailableOptions = false,
 }: UseRuntimeSelectorArgs) {
@@ -130,8 +135,10 @@ export function useRuntimeSelector({
     providerById,
     value.provider
   );
-  // A disabled provider stays listed only to show the current value; it never takes new picks.
-  const isDisabledProvider = (provider: string) => providerById.get(provider)?.disabled === true;
+  // A disabled provider stays listed only to show the current value; it never takes new picks,
+  // including an exact `provider/model` entry naming one that is not listed at all.
+  const isDisabledProvider = (provider: string) =>
+    disabledProviderIds.has(provider) || providerById.get(provider)?.disabled === true;
   const customCandidate =
     catalogCustomProvider || (allowCustomProvider ? value.provider.trim() : "");
   const activeCustomProvider = isDisabledProvider(customCandidate) ? "" : customCandidate;
