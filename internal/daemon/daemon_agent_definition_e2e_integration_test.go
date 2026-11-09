@@ -21,6 +21,7 @@ import (
 	"time"
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1198,14 +1199,22 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 				Current:  "read-only",
 				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "read-only"}},
 			},
+			{
+				ID:       "model",
+				Name:     "Model",
+				Category: "model",
+				Current:  "model-v1",
+				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "model-v1"}},
+			},
 		}
 		fixture.Agents[0].Turns = []acpmock.TurnFixture{
 			{
-				Name: "proposal",
+				Name:  "proposal",
+				Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceUser},
 				Steps: []acpmock.Step{
 					{
 						Kind: acpmock.StepKindAssistant,
-						Text: `{"proposals":[{"title":"Write report","body":"Review evidence","item_keys":["source:incoming:1"],"action":"report"},{"title":"Review manually","body":"Review this separately","item_keys":["source:incoming:1"]}]}`,
+						Text: `{"proposals":[{"title":"Write report","body":"Review evidence","item_keys":["source:incoming:1"],"action":"report"},{"title":"Review manually","body":"Review this separately","item_keys":["source:incoming:2"]}]}`,
 					},
 				},
 			},
@@ -1227,6 +1236,10 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 				},
 			},
 		)
+		registration, ok := harness.MockAgentRegistration("pick-provider")
+		if !ok {
+			t.Fatal("MockAgentRegistration(pick-provider) = missing, want present")
+		}
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 		run := func(result any, args ...string) {
@@ -1247,6 +1260,8 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 			"always_on",
 			"--provider",
 			acpmock.ProviderName,
+			"--command",
+			registration.Command,
 			"--model",
 			"model-v1",
 			"--prompt",
@@ -1267,7 +1282,9 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			filepath.Join(dir, "sources", "incoming"),
-			[]byte("#!/bin/sh\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"Incoming evidence\"}]}'\n"),
+			[]byte(
+				"#!/bin/sh\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"Incoming evidence\"},{\"key\":\"2\",\"title\":\"Separate evidence\"}]}'\n",
+			),
 			0700,
 		); err != nil {
 			t.Fatal(err)
@@ -1348,6 +1365,61 @@ func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
 		run(&reports, "agent", "instance", "reports", instance.Instance.ID, "-o", "json")
 		if len(reports.Reports) == 0 || len(reports.Reports[0].Proposals) != 2 || len(reports.Reports[0].Picks) != 1 {
 			t.Fatalf("reports=%+v", reports)
+		}
+		for i, itemKey := range []string{"source:incoming:1", "source:incoming:2"} {
+			if got := reports.Reports[0].Proposals[i].ItemKeys; !slices.Equal(got, []string{itemKey}) {
+				t.Fatalf("proposal %d item keys = %v, want [%s]", i+1, got, itemKey)
+			}
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) == 0 {
+			t.Fatal("mock agent received no prompts")
+		}
+		for _, fragment := range []string{
+			"Report a useful finding.",
+			"Write a report from the evidence.",
+			"source:incoming:1",
+			"Incoming evidence",
+			"source:incoming:2",
+			"Separate evidence",
+		} {
+			if !strings.Contains(prompts[0].Prompt, fragment) {
+				t.Fatalf("triage prompt missing %q", fragment)
+			}
+		}
+		const jsonFence = "\n```json\n"
+		start := strings.LastIndex(prompts[0].Prompt, jsonFence)
+		if start < 0 {
+			t.Fatal("triage prompt missing source JSON")
+		}
+		var digest struct {
+			Items []struct {
+				Key     string `json:"key"`
+				Summary string `json:"summary"`
+			} `json:"items"`
+		}
+		if err := json.NewDecoder(strings.NewReader(prompts[0].Prompt[start+len(jsonFence):])).
+			Decode(&digest); err != nil {
+			t.Fatalf("decode triage source JSON: %v", err)
+		}
+		summaries := make(map[string]string, len(digest.Items))
+		for _, item := range digest.Items {
+			if _, duplicate := summaries[item.Key]; duplicate {
+				t.Fatalf("triage prompt repeats source item %q", item.Key)
+			}
+			summaries[item.Key] = item.Summary
+		}
+		for key, title := range map[string]string{
+			"source:incoming:1": "Incoming evidence",
+			"source:incoming:2": "Separate evidence",
+		} {
+			if !strings.Contains(summaries[key], title) {
+				t.Fatalf("triage item %q summary = %q, want title %q", key, summaries[key], title)
+			}
 		}
 		var picked compozycontract.AgentInstancePickResponse
 		run(&picked, "agent", "instance", "pick", instance.Instance.ID, reports.Reports[0].ID, "2", "-o", "json")

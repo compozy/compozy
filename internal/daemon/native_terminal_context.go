@@ -108,14 +108,16 @@ func terminalToolError(id toolspkg.ToolID, err error) error {
 	return terminalCodeToolError(id, terminalErr.Code, terminalErr.Error(), err)
 }
 
-func terminalSessionDeniedError(id toolspkg.ToolID) error {
-	return toolspkg.NewToolError(
+func terminalSessionDeniedError(id toolspkg.ToolID, message string) error {
+	toolErr := toolspkg.NewToolError(
 		toolspkg.ErrorCodeDenied,
 		id,
-		"terminal agent session identity is unavailable",
+		message,
 		terminalpkg.ErrRunIdentityIncomplete,
 		toolspkg.ReasonSessionDenied,
 	)
+	toolErr.PublicMessage = message
+	return toolErr
 }
 
 func terminalCodeToolError(

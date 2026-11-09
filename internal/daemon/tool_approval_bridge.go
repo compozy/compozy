@@ -71,6 +71,7 @@ func newToolApprovalBridge(
 	}
 }
 
+// RequestToolApproval retains invocation identity while applying one scoped approval.
 func (b *toolApprovalBridge) RequestToolApproval(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -86,9 +87,15 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	if err != nil {
 		return err
 	}
+	request.ToolCallID = toolApprovalCallID(call)
+	if strings.TrimSpace(request.CorrelationID) == "" {
+		request.CorrelationID = request.ToolCallID
+	}
+	call = *request
 	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
 		if err == nil {
 			setToolApprovalLabel(request, toolApprovalApprovedOnceLabel)
+			b.logToolApprovalApplied(ctx, scope, *request, "approval_token")
 		}
 		return err
 	}
@@ -96,6 +103,7 @@ func (b *toolApprovalBridge) RequestToolApproval(
 		if handled, durableErr := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
 			if durableErr == nil {
 				setToolApprovalLabel(request, "approved_always")
+				b.logToolApprovalApplied(ctx, scope, *request, "remembered_grant")
 			}
 			return durableErr
 		}
@@ -136,8 +144,26 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	err = b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome, promptPolicy.remember)
 	if err == nil {
 		setToolApprovalLabel(request, toolApprovalOutcomeLabel(response.Outcome))
+		b.logToolApprovalApplied(ctx, scope, *request, "permission_response")
 	}
 	return err
+}
+
+// logToolApprovalApplied links decisions to dispatch outcomes without recording command input.
+func (b *toolApprovalBridge) logToolApprovalApplied(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	call toolspkg.CallRequest,
+	source string,
+) {
+	if b == nil || b.logger == nil {
+		return
+	}
+	b.logger.InfoContext(ctx, "native tool approval applied",
+		"tool_id", call.ToolID, "request_id", call.ToolCallID, "correlation_id", call.CorrelationID,
+		"session_id", call.SessionID, "run_id", call.RunID, "generation", call.Generation,
+		"workspace_id", scope.WorkspaceID, "profile_id", scope.ProfileID,
+		"agent_name", call.AgentName, "approval", call.ApprovalLabel, "source", source)
 }
 
 type toolApprovalPromptPolicy struct {

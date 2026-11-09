@@ -1505,3 +1505,21 @@ func (l *recordingHostedMCPLauncher) InitialToolDigest(string) (string, bool) {
 	}
 	return l.toolDigest, true
 }
+
+// userLifecycleResolver resolves the User scope over the harness workspace configuration.
+type userLifecycleResolver struct {
+	WorkspaceResolver
+	resolved workspacepkg.ResolvedWorkspace
+}
+
+var _ workspacepkg.UserRuntimeResolver = (*userLifecycleResolver)(nil)
+
+func (r *userLifecycleResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved := r.resolved
+	resolved.ProfileID = profileID
+	resolved.ProfileName = "default"
+	return resolved, nil
+}

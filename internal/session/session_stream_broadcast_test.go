@@ -12,9 +12,11 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestSessionEventBroadcaster(t *testing.T) {
@@ -1226,6 +1228,88 @@ func TestInstanceReportPublication(t *testing.T) {
 					t.Fatalf("notifications=%d", count)
 				}
 				return
+			}
+		}
+	})
+
+	t.Run("Should publish and notify a User-scope main session report through the sweep", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
+		userResolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.restartManager(
+			t,
+			func(*globaldb.GlobalDB) Option { return WithWorkspaceResolver(userResolver) },
+			func(db *globaldb.GlobalDB) Option { return WithAttentionWorkspaceMuteReader(db) },
+		)
+		main, err := h.manager.Create(t.Context(), &CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if main.Info().WorkspaceID != "" {
+			t.Fatalf("main session workspace = %q, want User scope", main.Info().WorkspaceID)
+		}
+		instance, err := h.db.Instances().Adopt(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         main.AgentName,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			},
+			main.ID,
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reports := h.db.InstanceReports()
+		if _, err := reports.AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
+			SourceKey: "occ:user-scope",
+			Kind:      "failure",
+			Payload:   []byte(`{"reason":"fatigue","detail":"Checks paused"}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		publisher := agentinstance.ReportPublisher{
+			Store: reports, Writer: reportPublicationWriter{h.manager}, BatchSize: 10,
+		}
+		if err := publisher.Sweep(t.Context()); err != nil {
+			t.Fatalf("Sweep() error = %v", err)
+		}
+		pending, err := reports.UnpublishedReports(t.Context(), "", 10)
+		if err != nil || len(pending) != 0 {
+			t.Fatalf("unpublished = %v, %v; want none", pending, err)
+		}
+		for {
+			select {
+			case event := <-events:
+				if event.Name != CatalogEventNameOperatorNotification {
+					continue
+				}
+				notification := event.OperatorNotification
+				if notification == nil || notification.SessionID != main.ID || notification.WorkspaceID != "" ||
+					notification.Title != "Proactive checks paused" {
+					t.Fatalf("notification = %+v", notification)
+				}
+				return
+			case <-testutil.Context(t).Done():
+				t.Fatal("missing User-scope report notification")
 			}
 		}
 	})

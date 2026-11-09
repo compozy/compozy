@@ -160,7 +160,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	}
 
 	accepted.spec.cleanupSessionDir = false
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, processErr))
 	}
@@ -255,7 +255,7 @@ func (m *Manager) settleClosedSessionStart(
 func (m *Manager) discardClosedSessionStart(
 	ctx context.Context, accepted *acceptedSessionStart, startErr error,
 ) (bool, error) {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return true, errors.Join(startErr, processErr)
 	}
@@ -377,7 +377,7 @@ func (m *Manager) joinFailedStartRecorder(ctx context.Context, recorder EventRec
 // committed (a derived child whose registration transaction failed or lost a race):
 // only its reserved directory exists, so it is removed like a failed accept.
 func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, false)
 	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
 	complete := closeErr == nil
 	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
@@ -414,7 +414,7 @@ func (m *Manager) removeUncommittedSessionStart(accepted *acceptedSessionStart) 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	ctx context.Context, accepted *acceptedSessionStart, failure error,
 ) (bool, error) {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return true, processErr
 	}

@@ -111,11 +111,19 @@ bun-test:
 installer-check:
 	@$(MAGE_RUN) installerCheck
 
-.PHONY: demo-seed-desktop
+.PHONY: demo-seed-desktop demo-live
+
+# Holds running, Waiting and needs-you sessions on the seeded home until Ctrl-C.
+demo-live: build web-build
+	@go build -o bin/acpmock-driver ./internal/testutil/acpmock/cmd/acpmock-driver
+	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --live
+
 
 demo-seed: build web-build
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
 	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set http.port "$(DEMO_PORT)" --scope user
+	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set shell.sessions.group_by project --scope user
+	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set agents.always_on.max_active_instances 40 --scope user
 	@COMPOZY_HOME="$(DEMO_HOME)" COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
 
 demo-seed-desktop: demo-seed

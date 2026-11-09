@@ -108,14 +108,14 @@ func expandToolStep(
 	step transcriptStep,
 	at *time.Time,
 ) ([]acp.AgentEvent, error) {
-	toolCallID := fmt.Sprintf("call_%s_%02d", story.ID, index+1)
+	toolCallID := fmt.Sprintf("call_%s_%02d", strings.TrimPrefix(turnID, "turn_"), index+1)
 	input := json.RawMessage(strings.ReplaceAll(step.ToolInput, "$WORKSPACE_ID", workspaceID))
 	if !json.Valid(input) {
 		return nil, fmt.Errorf("demo seed: invalid tool input for session %q step %d", story.ID, index+1)
 	}
-	result := json.RawMessage(step.ToolResult)
-	if !json.Valid(result) {
-		return nil, fmt.Errorf("demo seed: invalid tool result for session %q step %d", story.ID, index+1)
+	result, err := toolResultEnvelope(step.ToolResult)
+	if err != nil {
+		return nil, fmt.Errorf("demo seed: invalid tool result for session %q step %d: %w", story.ID, index+1, err)
 	}
 	call := acp.AgentEvent{
 		Type: acp.EventTypeToolCall, SessionID: story.ID, TurnID: turnID,
@@ -166,4 +166,19 @@ func persistedTranscriptEvents(
 		})
 	}
 	return persisted, nil
+}
+
+// toolResultEnvelope puts authored structured output (stdout, stderr) under rawOutput, the only
+// place the transcript decoder reads it. A result that already carries content or rawOutput is kept.
+func toolResultEnvelope(authored string) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(authored), &fields); err != nil {
+		return nil, err
+	}
+	_, hasContent := fields["content"]
+	_, hasRawOutput := fields["rawOutput"]
+	if hasContent || hasRawOutput {
+		return json.RawMessage(authored), nil
+	}
+	return json.Marshal(map[string]json.RawMessage{"rawOutput": json.RawMessage(authored)})
 }

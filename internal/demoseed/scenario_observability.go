@@ -18,15 +18,22 @@ var tokenUsageAgents = []struct {
 	workspaceKey string
 	agentName    string
 	weight       int64
+	// activeDays bounds an agent that was turned on recently; zero means the whole window.
+	activeDays int
 }{
-	{workspaceKeyLaunch, agentProductLead, 9},
-	{workspaceKeyLaunch, agentComplianceReview, 4},
-	{workspaceKeyLaunch, agentSupportLead, 3},
-	{workspaceKeyLaunch, agentFraudAnalyst, 5},
-	{workspaceKeyPlatform, agentPlatformEngineer, 8},
-	{workspaceKeyPlatform, agentCheckoutEngineer, 6},
-	{workspaceKeyPlatform, agentReleaseManager, 2},
-	{workspaceKeyPlatform, agentDocsSteward, 2},
+	{workspaceKeyLaunch, agentProductLead, 9, 0},
+	{workspaceKeyLaunch, agentComplianceReview, 4, 0},
+	{workspaceKeyLaunch, agentSupportLead, 3, 0},
+	{workspaceKeyLaunch, agentFraudAnalyst, 5, 0},
+	{workspaceKeyPlatform, agentPlatformEngineer, 8, 0},
+	{workspaceKeyPlatform, agentCheckoutEngineer, 6, 0},
+	{workspaceKeyPlatform, agentReleaseManager, 2, 0},
+	{workspaceKeyPlatform, agentDocsSteward, 2, 0},
+	// Always-on check-ins stop at the digest gate most of the time, so they cost little.
+	{workspaceKeyPlatform, agentIssueTriager, 1, 12},
+	{workspaceKeyPlatform, agentReleaseWatch, 1, 9},
+	{workspaceKeyPlatform, agentLogTriage, 1, 15},
+	{workspaceKeyLaunch, agentRiskMonitor, 1, 8},
 }
 
 // dailyShape spreads volume across a week so the usage chart and pulse heatmap
@@ -38,6 +45,9 @@ func scenarioTokenUsage() []tokenUsageStory {
 	for daysBack := range tokenUsageWindowDays {
 		shape := dailyShape[daysBack%len(dailyShape)]
 		for index, agent := range tokenUsageAgents {
+			if agent.activeDays > 0 && daysBack > agent.activeDays {
+				continue
+			}
 			if (daysBack+index)%3 == 0 && daysBack > 6 {
 				continue
 			}

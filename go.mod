@@ -16,7 +16,7 @@ require (
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/compozy/compozy-web-assets v0.0.617
+	github.com/compozy/compozy-web-assets v0.0.633
 	github.com/compozy/compozy/sdk/go v0.4.8
 	github.com/creativeprojects/go-selfupdate v1.7.0
 	github.com/dave/jennifer v1.7.1
@@ -259,4 +259,4 @@ tool github.com/sqlc-dev/sqlc/cmd/sqlc
 
 replace github.com/compozy/compozy/sdk/go => ./sdk/go
 
-replace github.com/coder/acp-go-sdk => github.com/compozy/acp-go-sdk v0.13.6-0.20261008041747-ebd00ee4ba87
+replace github.com/coder/acp-go-sdk => github.com/compozy/acp-go-sdk v0.13.6-0.20261108202101-365be815fac8

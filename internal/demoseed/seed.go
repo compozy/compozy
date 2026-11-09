@@ -19,6 +19,10 @@ type scenario struct {
 	replace    bool
 	workspaces []workspaceStory
 	records    map[string]workspaceRecord
+	// writeClock is what the store stamps records with; stories move it to their own instant.
+	writeClock *writeClock
+	// automationSessionIDs are the sessions automation runs recorded.
+	automationSessionIDs []string
 }
 
 // Seed writes the Northstar Pay launch scenario into one explicit Compozy home.
@@ -34,6 +38,7 @@ func Seed(ctx context.Context, opts Options) (result Result, err error) {
 		paths: paths, clock: clock, replace: opts.Replace,
 		workspaces: scenarioWorkspaces(clock),
 		records:    map[string]workspaceRecord{},
+		writeClock: newWriteClock(clock.Now()),
 	}
 	if err := preflightWorkspaceRoots(state); err != nil {
 		return Result{}, err
@@ -41,7 +46,7 @@ func Seed(ctx context.Context, opts Options) (result Result, err error) {
 	if err := config.EnsureHomeLayout(paths); err != nil {
 		return Result{}, fmt.Errorf("demo seed: ensure Compozy home: %w", err)
 	}
-	db, err := globaldb.OpenGlobalDB(ctx, paths.DatabaseFile)
+	db, err := globaldb.OpenGlobalDB(ctx, paths.DatabaseFile, globaldb.WithClock(state.writeClock.Now))
 	if err != nil {
 		return Result{}, fmt.Errorf("demo seed: open global database: %w", err)
 	}
@@ -106,22 +111,44 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 	if err != nil {
 		return Counts{}, err
 	}
-	if err := seedAutomation(ctx, db, state); err != nil {
+	automationSeeded, err := seedAutomation(ctx, db, state)
+	if err != nil {
 		return Counts{}, err
 	}
+	state.automationSessionIDs = automationSeeded.sessionIDs
 	worktrees, err := seedWorktree(ctx, db, state)
 	if err != nil {
 		return Counts{}, err
 	}
+	board, err := seedBoard(ctx, db, state)
+	if err != nil {
+		return Counts{}, err
+	}
+	alwaysOn, err := seedAlwaysOn(ctx, db, state)
+	if err != nil {
+		return Counts{}, err
+	}
+	sessionFolders, err := seedSessionFolders(ctx, db, state)
+	if err != nil {
+		return Counts{}, err
+	}
 	return Counts{
+		SessionFolders:    sessionFolders,
+		AlwaysOnInstances: alwaysOn.instances, CheckIns: alwaysOn.checkIns,
+		InstanceReports: alwaysOn.reports, ProposalPicks: alwaysOn.picks,
+		Subagents: board.subagents, Monitors: board.monitors,
+		PullRequests: board.pullRequests, LaterSessions: board.later,
 		Workspaces: len(state.workspaces), Agents: len(scenarioAgents()),
-		Sessions: len(sessions), TranscriptEvents: transcriptEvents,
+		Sessions: len(sessions) + board.sessions + alwaysOn.instances + len(automationSeeded.sessionIDs),
+		TranscriptEvents: transcriptEvents + board.transcriptEvents + alwaysOn.transcriptEvents +
+			automationSeeded.transcriptEvents,
 		Tasks: len(tasks), TaskRuns: taskRuns,
 		LoopDefinitions: loops,
 		LoopRuns:        loopCounts.runs, LoopGenerations: loopCounts.generations,
 		LoopRunEvents: loopCounts.events, GoalTurns: loopCounts.goalTurns,
 		Worktrees:      worktrees,
-		AutomationJobs: automationJobCount, AutomationRuns: automationRunCount,
+		AutomationJobs: automationJobCount(), AutomationRuns: automationRunCount(),
+		AutomationTriggers: automationTriggerCount(),
 	}, nil
 }
 
@@ -140,9 +167,10 @@ func buildResult(state *scenario, counts Counts) Result {
 		DatabaseFile: state.paths.DatabaseFile,
 		WorkspaceID:  primary.ID, WorkspaceRoot: primary.RootDir, WorkspaceName: primary.Name,
 		WorkspaceIDs: workspaceIDs,
-		SessionIDs:   append([]string(nil), scenarioSessionIDs...),
-		TaskIDs:      taskIDs,
-		LoopName:     loopLaunchReadiness, LoopNames: scenarioLoopNames(),
+		SessionIDs: append(append(append([]string(nil), scenarioSessionIDs...), boardSessionIDs(state.clock)...),
+			append(append(alwaysOnSessionIDs(state.clock), bundledSessionIDs()...), state.automationSessionIDs...)...),
+		TaskIDs:  taskIDs,
+		LoopName: loopLaunchReadiness, LoopNames: scenarioLoopNames(),
 		LoopRunID: loopApprovalRunID, LoopRunIDs: scenarioLoopRunIDs(),
 		AutomationJobID:  launchAutomationID,
 		SuggestedWebPath: suggestedWebPaths(),

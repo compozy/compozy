@@ -968,6 +968,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			later == nil || later.PendingMessages != 0 {
 			t.Fatalf("SessionLaterState(after clear) = %#v, %v, want no pending messages", later, err)
 		}
+		if err := globalDB.ReturnLaterSession(ctx, workspaceID, parked.ID, baseAt.Add(30*time.Minute)); err == nil {
+			t.Fatal("ReturnLaterSession(before due) error = nil, want a refusal")
+		}
 		returned, err := globalDB.ReturnDueLaterSessions(ctx, baseAt.Add(30*time.Minute), 10)
 		if err != nil || len(returned) != 0 {
 			t.Fatalf("ReturnDueLaterSessions(before return) = %#v, %v, want none", returned, err)

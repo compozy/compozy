@@ -495,3 +495,11 @@ publishes one attention edge before the instance update, and shutdown cancels an
 The same owning suites also verify that deletion of an acknowledged descendant cannot hold the
 instance notification indefinitely, that catalog reads and lock waits cancel on shutdown, and that
 an older clearing edge cannot follow a newer permission edge for the same resumed session.
+
+QA impact 2026-11-09 (User-scope reports): repeat the journey with an instance created by
+`compozy agent instance create <agent> --global`. A proposal, fatigue or unattended report must
+leave `pending` on the next maintenance sweep, land in the User main session transcript, and raise
+its operator notification; the daemon log must not repeat `publish report … attention profile id
+and workspace id are required`. The User scope has no workspace mute, so its reports are never
+muted. Focused coverage: `TestInstanceReportPublication` (real `ReportPublisher.Sweep`, SQLite
+report store and attention repository).
