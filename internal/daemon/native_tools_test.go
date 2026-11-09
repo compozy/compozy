@@ -4998,6 +4998,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ModelCatalog: catalog,
+			// Production wires the profile store; an unresolvable scope profile is a tool error.
+			Profiles: selectionProfileNames{"profile-marketing": "marketing"},
 			Settings: func() core.SettingsService {
 				return settingsService
 			},
