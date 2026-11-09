@@ -28,7 +28,7 @@ const LOOK: Record<Role, Look> = {
     chip: {
       background: "var(--color-brand-volt)",
       borderColor: "var(--color-brand-volt)",
-      color: "var(--color-brand-ink)",
+      color: "var(--color-fg-strong)",
     },
   },
   partner: {

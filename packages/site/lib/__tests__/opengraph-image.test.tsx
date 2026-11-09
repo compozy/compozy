@@ -80,7 +80,7 @@ function asMockImageResponse(value: unknown): MockedImageResponse {
   return value as MockedImageResponse;
 }
 
-const PALETTE_HEXES = ["#0a0a0a", "#1b1b1b", "#383838", "#ececec", "#989898", "#6687ff"];
+const PALETTE_HEXES = ["#0a0a0a", "#1b1b1b", "#383838", "#ececec", "#989898", "#4a9dff"];
 const RETIRED_HEXES = ["#E8572A", "#141312"];
 
 describe("Landing OpenGraph image (root)", () => {
@@ -154,7 +154,7 @@ describe("Docs OpenGraph template", () => {
     expect(copy).toContain("compozy.com");
 
     expect(types).toContain(LogoLockup);
-    expect(styleValues).toContain("#6687ff");
+    expect(styleValues).toContain("#4a9dff");
     expect(styleValues).toContain("#0a0a0a");
     expect(styleValues).toContain("Figtree");
     expect(styleValues).not.toContain("Instrument Sans");
@@ -186,7 +186,7 @@ describe("Blog OpenGraph template", () => {
 
     expect(types).toContain(LogoLockup);
     expect(styleValues).toContain("Instrument Sans");
-    expect(styleValues).toContain("#6687ff");
+    expect(styleValues).toContain("#4a9dff");
   });
 
   it("hides date and author bits when not provided", async () => {

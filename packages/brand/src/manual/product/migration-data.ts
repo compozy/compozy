@@ -138,25 +138,25 @@ export const migration: { group: string; rows: MigrationRow[] }[] = [
         "--color-brand",
         "tokens.css · tokens-light.css",
         "the retired orange",
-        "#2F5BFF dark / #2448E6 light (volt): fills and marks",
+        "#1F87FC dark (signal blue) / #2448E6 light (volt): fills and marks",
       ],
       [
         "--color-brand-hover",
         "tokens.css · tokens-light.css",
         "darker orange",
-        "#2448E6 dark / #1F3FCC light: darker than volt so white ink keeps AA",
+        "#3D95FF dark (lighter, dark ink 6.5:1) / #1F3FCC light (darker, white ink keeps AA)",
       ],
       [
         "--color-brand-strong",
         "tokens.css · tokens-light.css",
         "lighter orange",
-        "#6687FF dark / #2448E6 light: brand as text (AA on every surface), not cyan",
+        "#4A9DFF dark / #2448E6 light: brand as text (AA on every surface), not cyan",
       ],
       [
         "--color-brand-ink",
         "tokens.css · tokens-light.css",
         "dark ink on orange",
-        "#FFFFFF in both themes: text on brand fills",
+        "#0A0A0A dark (white is 3.5:1 on signal blue) / #FFFFFF light: text on brand fills",
       ],
       [
         "--color-destructive-ink",
@@ -225,7 +225,7 @@ export const migration: { group: string; rows: MigrationRow[] }[] = [
 
 /** Before → after swatches on the migration card; the retired orange is named, not drawn. */
 export const swatchesBefore = ["#141312", "#131313", "#F5F5F5"];
-export const swatchesAfter = ["#2F5BFF", "#0a0a0a", "#131313", "#ececec"];
+export const swatchesAfter = ["#1F87FC", "#2F5BFF", "#0a0a0a", "#131313", "#ececec"];
 
 export const steps: [n: string, title: string, body: string][] = [
   [

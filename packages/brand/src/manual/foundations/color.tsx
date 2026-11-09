@@ -133,7 +133,10 @@ function Proportion() {
       </ul>
       <ul className="m-0 mt-6 list-disc pl-[18px] text-[14.5px] text-(--b-muted) [&_li]:mb-1.5">
         <li>The gradient never fills text, buttons or large flat areas.</li>
-        <li>Volt is for actions. If nothing can be clicked, there is no volt.</li>
+        <li>
+          The action colour is volt on paper and signal blue on ink. If nothing can be clicked, it
+          is not there.
+        </li>
         <li>Status green, amber and red belong to the product UI, never to marketing.</li>
         <li>The retired orange appears nowhere, not even as a nod.</li>
       </ul>

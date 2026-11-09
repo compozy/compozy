@@ -70,9 +70,9 @@ function BeforeAfter() {
         <SwatchList items={swatchesAfter} />
       </div>
       <p className={cap}>
-        The retired orange is gone from every surface: tokens, icons, site and video now use volt
-        and the ink ladder. Its job, the action colour, goes to volt; its warmth is not replaced.
-        Needs you keeps its own amber.
+        The retired orange is gone from every surface: tokens, icons, site and video now use the
+        blues and the ink ladder. Its job, the action colour, goes to volt on paper and signal blue
+        on ink; its warmth is not replaced. Needs you keeps its own amber.
       </p>
     </div>
   );

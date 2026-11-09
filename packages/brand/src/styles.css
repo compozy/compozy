@@ -100,7 +100,7 @@
   }
   ::selection {
     background: var(--color-brand-volt);
-    color: var(--color-brand-ink);
+    color: var(--color-fg-strong);
   }
 }
 

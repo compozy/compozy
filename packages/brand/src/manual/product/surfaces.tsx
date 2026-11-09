@@ -200,8 +200,8 @@ export function Surfaces() {
               " (#5e5e5e / #a6a6a6) is for disabled controls, placeholders’ icons and hairline labels only. It fails body contrast on purpose.",
             ],
             [
-              "Volt as text",
-              " uses #6687FF on dark: brand volt #2F5BFF is 3.7:1 on ink, fine for a filled button, too dark for a link.",
+              "Brand as text",
+              " uses #4A9DFF on dark (7.1:1 on ink). The signal-blue fill #1F87FC carries dark ink; volt #2F5BFF is 3.8:1 on ink, so it stays on paper.",
             ],
             [
               "No shadows",

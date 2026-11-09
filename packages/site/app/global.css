@@ -59,7 +59,7 @@
   --text-code-block: 0.78125rem;
   --text-code-block--line-height: 1.5;
   /* The product's primary action is inverted (near-white on dark); the site
-     keeps its brand-fill (volt) CTA. */
+     keeps its brand-fill CTA (signal blue on dark, with the dark brand ink). */
   --color-primary: var(--color-brand);
   --color-primary-hover: var(--color-brand-hover);
   --color-primary-foreground: var(--color-brand-ink);
@@ -263,7 +263,7 @@
  * Override Fumadocs UI tokens with the DESIGN.md dark operator palette.
  * The root layout pins `.dark` on <html>; docs routes additionally mount
  * Fumadocs RootProvider with forced dark theme. Canvas → Surface → Elevated,
- * single brand accent (`--color-brand`, volt).
+ * single brand accent (`--color-brand`, signal blue on dark).
  */
 .dark {
   --color-fd-background: var(--color-canvas);

@@ -155,7 +155,7 @@ export function Cta({
   return (
     <span
       data-field={field}
-      className="inline-flex items-center whitespace-nowrap bg-brand-volt font-sans font-medium text-brand-ink"
+      className="inline-flex items-center whitespace-nowrap bg-brand-volt font-sans font-medium text-fg-strong"
       style={{
         fontSize: `${size}cqi`,
         padding: `${size * 0.62}cqi ${size * 1.05}cqi`,

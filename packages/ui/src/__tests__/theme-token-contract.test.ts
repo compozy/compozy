@@ -197,16 +197,17 @@ describe("brand, destructive and muted token names", () => {
 });
 
 /**
- * Brand identity v1.2 (UT-006). Volt is the brand fill, brand-as-text rides
+ * Brand identity v1.2 (UT-006). The brand fill is signal blue on ink and volt
+ * on paper (the volt swatch is constant), brand-as-text rides
  * `brand-strong`, needs-you is its own amber (never an alias of brand), and the
  * destructive-solid fill keeps the ink the brand fill used to carry.
  */
 describe("brand identity v1.2 token values", () => {
   it.each<[string, string, string]>([
-    ["color-brand", "#2f5bff", "#2448e6"],
-    ["color-brand-hover", "#2448e6", "#1f3fcc"],
-    ["color-brand-strong", "#6687ff", "#2448e6"],
-    ["color-brand-ink", "#ffffff", "#ffffff"],
+    ["color-brand", "#1f87fc", "#2448e6"],
+    ["color-brand-hover", "#3d95ff", "#1f3fcc"],
+    ["color-brand-strong", "#4a9dff", "#2448e6"],
+    ["color-brand-ink", "#0a0a0a", "#ffffff"],
     ["color-attn", "#f5b14c", "#9a5b00"],
     ["color-destructive-ink", "#17110f", "#ffffff"],
     ["color-brand-volt", "#2f5bff", "#2f5bff"],
@@ -221,11 +222,11 @@ describe("brand identity v1.2 token values", () => {
   });
 
   it.each<[string, string, string]>([
-    ["color-brand-tint", "rgba(47, 91, 255, 0.1)", "rgba(36, 72, 230, 0.08)"],
-    ["color-brand-tint-strong", "rgba(47, 91, 255, 0.16)", "rgba(36, 72, 230, 0.14)"],
-    ["color-brand-dim", "rgba(47, 91, 255, 0.24)", "rgba(36, 72, 230, 0.22)"],
-    ["color-brand-glow", "rgba(47, 91, 255, 0.05)", "rgba(36, 72, 230, 0.05)"],
-  ])("Should derive --%s from volt in both themes", (name, dark, light) => {
+    ["color-brand-tint", "rgba(31, 135, 252, 0.1)", "rgba(36, 72, 230, 0.08)"],
+    ["color-brand-tint-strong", "rgba(31, 135, 252, 0.16)", "rgba(36, 72, 230, 0.14)"],
+    ["color-brand-dim", "rgba(31, 135, 252, 0.24)", "rgba(36, 72, 230, 0.22)"],
+    ["color-brand-glow", "rgba(31, 135, 252, 0.05)", "rgba(36, 72, 230, 0.05)"],
+  ])("Should derive --%s from the theme's brand fill", (name, dark, light) => {
     expect(readToken(name, "dark")).toBe(dark);
     expect(readToken(name, "light")).toBe(light);
   });
@@ -235,7 +236,7 @@ describe("brand identity v1.2 token values", () => {
     expect(TOKENS_LIGHT_CSS).not.toMatch(/--color-attn:\s*var\(/);
   });
 
-  it("Should keep primary actions inverted, never volt", () => {
+  it("Should keep primary actions inverted, never brand", () => {
     expect(parseHexColor(readToken("color-primary", "dark"))).toEqual(parseHexColor("#f5f5f5"));
     expect(parseHexColor(readToken("color-primary", "light"))).toEqual(parseHexColor("#0b0d12"));
   });
@@ -300,8 +301,10 @@ const BRAND_CONTRAST_PAIRS: readonly ContrastPair[] = [
   ),
   // Signal labels on ink (dark only: cyan is a dark-ground signal).
   ["color-brand-cyan", "color-rail", AA_TEXT_CONTRAST, ["dark"]],
-  // Volt itself as text is large-only on ink.
+  // The brand fill itself as text is large-only on ink (body text takes brand-strong).
   ["color-brand", "color-rail", AA_NON_TEXT_CONTRAST, ["dark"]],
+  // Volt stays the palette swatch; on ink it carries white, never the dark brand ink.
+  ["color-fg-strong", "color-brand-volt", AA_TEXT_CONTRAST, ["dark"]],
 ];
 
 function surfaceRgb(name: string, theme: Theme): Rgb {

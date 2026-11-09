@@ -32,7 +32,7 @@ export const btnSm = "min-h-9 px-3.5 text-[13px]";
 export const btnSecondary =
   "border-(--b-line) bg-transparent text-(--b-fg) hover:border-(--b-accent)";
 /** the volt action fill (brand palette token from @compozy/ui) */
-export const voltFill = "bg-(--color-brand-volt) text-(--color-brand-ink)";
+export const voltFill = "bg-(--color-brand-volt) text-(--color-fg-strong)";
 
 /** inline code chip */
 export const chip =

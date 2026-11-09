@@ -120,7 +120,7 @@ function VoltCard() {
     <div className={card}>
       <p className={lab}>Volt, the accent</p>
       <div className="mt-4 flex items-center gap-4">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[14px] bg-brand-volt font-mono text-[11px] text-brand-ink">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[14px] bg-brand-volt font-mono text-[11px] text-fg-strong">
           volt
         </span>
         <p className="m-0 font-mono text-[13px]">{voltAccent.hex} · white text 5.2:1</p>

@@ -26,6 +26,7 @@ const THEMES: { t: "dark" | "light"; name: string; scope: Scope }[] = [
       "--k-faint": "var(--color-disabled)",
       "--k-volt": "var(--color-brand)",
       "--k-volt-hover": "var(--color-brand-hover)",
+      "--k-volt-ink": "var(--color-brand-ink)",
       "--k-cyan": "var(--color-brand-cyan)",
       "--k-danger": "var(--color-destructive)",
       "--k-warning": "var(--color-attn)",
@@ -45,6 +46,7 @@ const THEMES: { t: "dark" | "light"; name: string; scope: Scope }[] = [
       "--k-faint": mix("--color-rail", 35, "--color-fg"),
       "--k-volt": mix("--color-brand-volt", 88, "--color-rail"),
       "--k-volt-hover": mix("--color-brand-volt", 76, "--color-rail"),
+      "--k-volt-ink": "var(--color-fg-strong)",
       "--k-cyan": mix("--color-brand-cyan", 45, "--color-rail"),
       "--k-danger": mix("--color-destructive", 64, "--color-rail"),
       "--k-warning": mix("--color-attn", 62, "--color-rail"),
@@ -72,7 +74,7 @@ const capCls = "mb-2.5 block font-mono text-[11px] font-medium text-(--k-muted)"
 const btn =
   "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[10px] border border-transparent px-3 text-[13.5px] font-[450] transition-[background-color,border-color,transform] duration-(--duration-base) ease-(--ease-out) active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--k-cyan) disabled:cursor-not-allowed disabled:border-(--k-line) disabled:text-(--k-faint)";
 const sm = "h-7 px-2.5 text-[12.5px]";
-const primary = "bg-(--k-volt) text-(--color-brand-ink) hover:bg-(--k-volt-hover)";
+const primary = "bg-(--k-volt) text-(--k-volt-ink) hover:bg-(--k-volt-hover)";
 const secondary = "border-(--k-line-strong) bg-transparent text-(--k-fg) hover:border-(--k-cyan)";
 const ghost = "bg-transparent text-(--k-fg) hover:bg-(--k-ink-3)";
 const danger =
@@ -183,7 +185,7 @@ function Stage({ t, name, scope }: (typeof THEMES)[number]) {
               Ask before running tools
             </span>
             <span className="flex items-center gap-2.5">
-              <span className="grid size-4 flex-none place-items-center rounded-[4px] border border-(--k-volt) bg-(--k-volt) text-[11px] text-(--color-brand-ink)">
+              <span className="grid size-4 flex-none place-items-center rounded-[4px] border border-(--k-volt) bg-(--k-volt) text-[11px] text-(--k-volt-ink)">
                 ✓
               </span>
               Use a worktree

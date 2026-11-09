@@ -20,7 +20,7 @@ const glyphColour: Record<string, string> = {
 const surfaces: [string, string][] = [
   ["bg-rail text-fg border border-line-strong", "On ink · #ececec"],
   ["bg-fg text-rail", "On paper · #0a0a0a"],
-  ["bg-brand-volt text-brand-ink", "On volt · #FFFFFF"],
+  ["bg-brand-volt text-fg-strong", "On volt · #FFFFFF"],
   ["bg-canvas text-brand-cyan border border-line-strong", "Selected · signal cyan"],
 ];
 const sizeRow: IconName[] = ["session", "loop", "approval", "worktree", "trigger"];

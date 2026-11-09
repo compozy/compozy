@@ -85,19 +85,21 @@
   --color-primary-hover: #ffffff;
   --color-primary-foreground: #0a0a0a;
 
-  /* Brand — volt (identity v1.2): highlight fills, marks, selection and
-     tints. Volt is a fill/mark colour: #2f5bff reads 3.7:1 on canvas, so
-     brand used AS TEXT takes `brand-strong` (AA on every surface, the hover
-     and selected plates included). `brand-ink` is the text on a brand fill;
-     hover steps the fill DARKER so that ink keeps AA. */
-  --color-brand: #2f5bff;
-  --color-brand-hover: #2448e6;
-  --color-brand-strong: #6687ff;
-  --color-brand-ink: #ffffff;
-  --color-brand-tint: rgba(47, 91, 255, 0.1);
-  --color-brand-tint-strong: rgba(47, 91, 255, 0.16);
-  --color-brand-dim: rgba(47, 91, 255, 0.24);
-  --color-brand-glow: rgba(47, 91, 255, 0.05);
+  /* Brand — volt on paper, signal blue on ink (identity v1.2): highlight
+     fills, marks, selection and tints. On dark the brand is the signal blue
+     (sky, 5.59:1 on rail) because volt #2f5bff reads too dark on ink; light
+     keeps volt. Brand used AS TEXT takes `brand-strong` (AA on every surface,
+     the hover and selected plates included). `brand-ink` is the text on a
+     brand fill: dark ink here (white is 3.54:1 on sky), so hover steps the
+     fill LIGHTER to keep it. The palette swatch `brand-volt` stays volt. */
+  --color-brand: #1f87fc;
+  --color-brand-hover: #3d95ff;
+  --color-brand-strong: #4a9dff;
+  --color-brand-ink: #0a0a0a;
+  --color-brand-tint: rgba(31, 135, 252, 0.1);
+  --color-brand-tint-strong: rgba(31, 135, 252, 0.16);
+  --color-brand-dim: rgba(31, 135, 252, 0.24);
+  --color-brand-glow: rgba(31, 135, 252, 0.05);
   /* Brand palette — the identity's raw hues, constant across themes. Brand
      decoration and the manual only; product state keeps its semantic tokens.
      Gradients (`--gradient-*` in :root) are always 45deg and never use deep. */

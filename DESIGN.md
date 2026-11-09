@@ -41,14 +41,14 @@ tokens:
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
-      brand: "#2f5bff"
-      brand-hover: "#2448e6"
-      brand-strong: "#6687ff"
-      brand-ink: "#ffffff"
-      brand-tint: "rgba(47, 91, 255, 0.1)"
-      brand-tint-strong: "rgba(47, 91, 255, 0.16)"
-      brand-dim: "rgba(47, 91, 255, 0.24)"
-      brand-glow: "rgba(47, 91, 255, 0.05)"
+      brand: "#1f87fc"
+      brand-hover: "#3d95ff"
+      brand-strong: "#4a9dff"
+      brand-ink: "#0a0a0a"
+      brand-tint: "rgba(31, 135, 252, 0.1)"
+      brand-tint-strong: "rgba(31, 135, 252, 0.16)"
+      brand-dim: "rgba(31, 135, 252, 0.24)"
+      brand-glow: "rgba(31, 135, 252, 0.05)"
       brand-volt: "#2f5bff"
       brand-sky: "#1f87fc"
       brand-teal: "#1df0d7"
@@ -179,6 +179,7 @@ tokens:
       brand: "#2448e6"
       brand-hover: "#1f3fcc"
       brand-strong: "#2448e6"
+      brand-ink: "#ffffff"
       brand-tint: "rgba(36, 72, 230, 0.08)"
       brand-tint-strong: "rgba(36, 72, 230, 0.14)"
       brand-dim: "rgba(36, 72, 230, 0.22)"
@@ -745,24 +746,24 @@ amber (`--color-attn`) marks needs-you, never the default action.
 
 <!-- BEGIN:tokens:brand -->
 
-| Token                       | Dark                      | Light                     |
-| --------------------------- | ------------------------- | ------------------------- |
-| `--color-brand`             | `#2f5bff`                 | `#2448e6`                 |
-| `--color-brand-hover`       | `#2448e6`                 | `#1f3fcc`                 |
-| `--color-brand-strong`      | `#6687ff`                 | `#2448e6`                 |
-| `--color-brand-ink`         | `#ffffff`                 | `#ffffff`                 |
-| `--color-brand-tint`        | `rgba(47, 91, 255, 0.1)`  | `rgba(36, 72, 230, 0.08)` |
-| `--color-brand-tint-strong` | `rgba(47, 91, 255, 0.16)` | `rgba(36, 72, 230, 0.14)` |
-| `--color-brand-dim`         | `rgba(47, 91, 255, 0.24)` | `rgba(36, 72, 230, 0.22)` |
-| `--color-brand-glow`        | `rgba(47, 91, 255, 0.05)` | `rgba(36, 72, 230, 0.05)` |
-| `--color-brand-volt`        | `#2f5bff`                 | `#2f5bff`                 |
-| `--color-brand-sky`         | `#1f87fc`                 | `#1f87fc`                 |
-| `--color-brand-teal`        | `#1df0d7`                 | `#1df0d7`                 |
-| `--color-brand-cyan`        | `#3df2e0`                 | `#3df2e0`                 |
-| `--color-brand-glint`       | `#b5faf6`                 | `#b5faf6`                 |
-| `--color-brand-deep`        | `#0b31f7`                 | `#0b31f7`                 |
-| `--color-attn`              | `#f5b14c`                 | `#9a5b00`                 |
-| `--color-attn-tint`         | `rgba(245, 177, 76, 0.1)` | `rgba(154, 91, 0, 0.08)`  |
+| Token                       | Dark                       | Light                     |
+| --------------------------- | -------------------------- | ------------------------- |
+| `--color-brand`             | `#1f87fc`                  | `#2448e6`                 |
+| `--color-brand-hover`       | `#3d95ff`                  | `#1f3fcc`                 |
+| `--color-brand-strong`      | `#4a9dff`                  | `#2448e6`                 |
+| `--color-brand-ink`         | `#0a0a0a`                  | `#ffffff`                 |
+| `--color-brand-tint`        | `rgba(31, 135, 252, 0.1)`  | `rgba(36, 72, 230, 0.08)` |
+| `--color-brand-tint-strong` | `rgba(31, 135, 252, 0.16)` | `rgba(36, 72, 230, 0.14)` |
+| `--color-brand-dim`         | `rgba(31, 135, 252, 0.24)` | `rgba(36, 72, 230, 0.22)` |
+| `--color-brand-glow`        | `rgba(31, 135, 252, 0.05)` | `rgba(36, 72, 230, 0.05)` |
+| `--color-brand-volt`        | `#2f5bff`                  | `#2f5bff`                 |
+| `--color-brand-sky`         | `#1f87fc`                  | `#1f87fc`                 |
+| `--color-brand-teal`        | `#1df0d7`                  | `#1df0d7`                 |
+| `--color-brand-cyan`        | `#3df2e0`                  | `#3df2e0`                 |
+| `--color-brand-glint`       | `#b5faf6`                  | `#b5faf6`                 |
+| `--color-brand-deep`        | `#0b31f7`                  | `#0b31f7`                 |
+| `--color-attn`              | `#f5b14c`                  | `#9a5b00`                 |
+| `--color-attn-tint`         | `rgba(245, 177, 76, 0.1)`  | `rgba(154, 91, 0, 0.08)`  |
 
 <!-- END:tokens:brand -->
 

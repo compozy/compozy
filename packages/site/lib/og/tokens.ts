@@ -1,13 +1,14 @@
 export const SIZE = { width: 1200, height: 630 } as const;
 
 // Identity v1.2 values, mirrored from @compozy/ui tokens.css (Satori takes literal colours).
-// Neutral ink ladder; volt is a fill/mark colour, so brand used as text takes `brandText`.
+// Neutral ink ladder; on the dark cards the brand is signal blue (a fill/mark colour), and brand
+// used as text takes the lighter `brandText`.
 export const COLORS = {
   canvas: "#0a0a0a",
   surface: "#1b1b1b",
   border: "#383838",
-  brand: "#2f5bff",
-  brandText: "#6687ff",
+  brand: "#1f87fc",
+  brandText: "#4a9dff",
   textPrimary: "#ececec",
   textSecondary: "#989898",
   textTertiary: "#5e5e5e",
