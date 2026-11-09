@@ -22,9 +22,7 @@ func (m *Manager) prepareStartingStopRun(
 		m.failStopPreparation(run, err)
 		return true
 	}
-	m.mu.Lock()
-	run.session = session
-	m.mu.Unlock()
+	m.bindSessionStopRun(run, session, session.processHandle())
 	run.notifyCommitted()
 	close(run.ready)
 	m.startTrackedPromptTask(func() {
@@ -48,13 +46,12 @@ func (m *Manager) prepareStartingStopRun(
 // settleCanceledSessionStart retries terminal persistence without reacquiring an already verified process.
 func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acceptedSessionStart) error {
 	session := accepted.session
-	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified &&
-		(accepted.proc == nil || session.hasVerifiedStopProcess(accepted.proc)) {
-		return m.finalizeCanceledSessionStart(ctx, accepted)
-	}
 	proc := accepted.proc
-	if proc == nil {
+	if proc == nil || session.hasVerifiedStopProcess(proc) {
 		proc = session.processHandle()
+	}
+	if accepted.run.stopOutcome != nil && accepted.run.stopOutcome.Verified && session.hasVerifiedStopProcess(proc) {
+		return m.finalizeCanceledSessionStart(ctx, accepted)
 	}
 	if err := session.retainStoppingProcess(proc, m.now()); err != nil {
 		return err
@@ -83,7 +80,10 @@ func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acce
 		})
 		return errors.Join(err, observationErr)
 	}
-	result.StopOutcome = session.retainVerifiedStopOutcome(result.StopOutcome)
+	result.StopOutcome = session.retainVerifiedStopOutcome(proc, result.StopOutcome)
+	if accepted.proc == proc {
+		accepted.proc = nil
+	}
 	return errors.Join(err, m.finalizeCanceledSessionStart(settleCtx, accepted))
 }
 

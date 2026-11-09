@@ -145,3 +145,10 @@ lookup failure also leaves the turn unflagged. Owning automated evidence:
 `TestManagerEarlyStopSupervision` in `internal/session/spawn_wake_test.go`, the early-stop cases in
 `TestCanonicalBadgeAttentionPrecedence`, the idle-release case in
 `TestSupervisionReleasesIdleRuntime`, and `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`.
+
+QA impact 2026-11-08: when acknowledgement clears a child's last question, configure the creator's
+synchronous input.pre_submit hook to call child presence. Verify the attention edge arrives first,
+the hook completes successfully, and the creator wake is delivered after the child's attention
+lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
+TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
+this change does not claim a new local E2E run.

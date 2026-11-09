@@ -160,7 +160,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	}
 
 	accepted.spec.cleanupSessionDir = false
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return m.deferFailedStartCleanup(accepted, errors.Join(startErr, processErr))
 	}
@@ -174,14 +174,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 		release()
 		return m.settleAndTrackCanceledSessionStart(cleanupCtx, accepted)
 	}
-	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
-	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
-	m.removeActive(session.ID)
-	if m.hostedMCP != nil {
-		m.hostedMCP.CancelLaunch(session.ID)
-	}
-	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, persistErr, cleanupErr)
+	return m.retainFailedSessionStart(accepted, startErr)
 }
 
 // discardAcceptedSessionStart closes the captured recorder before acquiring a deletion capability.
@@ -238,7 +231,8 @@ func (m *Manager) settleClosedSessionStart(
 	if retain || accepted.session.stopWasRequested() {
 		if err := m.reopenAcceptedSessionRecorder(settleCtx, accepted); err != nil {
 			if errors.Is(err, ErrSessionNotFound) {
-				return false, errors.Join(failure, m.releaseMissingSessionStart(accepted, err))
+				pending, releaseErr := m.releaseMissingSessionStart(settleCtx, accepted, err)
+				return pending, errors.Join(failure, releaseErr)
 			}
 			return true, err
 		}
@@ -261,7 +255,7 @@ func (m *Manager) settleClosedSessionStart(
 func (m *Manager) discardClosedSessionStart(
 	ctx context.Context, accepted *acceptedSessionStart, startErr error,
 ) (bool, error) {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return true, errors.Join(startErr, processErr)
 	}
@@ -383,7 +377,7 @@ func (m *Manager) joinFailedStartRecorder(ctx context.Context, recorder EventRec
 // committed (a derived child whose registration transaction failed or lost a race):
 // only its reserved directory exists, so it is removed like a failed accept.
 func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, false)
 	closeErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
 	complete := closeErr == nil
 	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
@@ -394,7 +388,7 @@ func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart,
 		accepted.cleanupPending = true
 		go func() {
 			ctx := context.WithoutCancel(m.lifecycleCtx)
-			processErr := m.joinFailedStartProcess(ctx, accepted)
+			processErr := m.joinFailedStartProcess(ctx, accepted, false)
 			m.joinFailedStartRecorder(ctx, accepted.storage.recorder)
 			m.finishSessionStartRun(accepted.session.ID, accepted.run,
 				errors.Join(failure, processErr, m.removeUncommittedSessionStart(accepted)))
@@ -420,14 +414,14 @@ func (m *Manager) removeUncommittedSessionStart(accepted *acceptedSessionStart) 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
 	ctx context.Context, accepted *acceptedSessionStart, failure error,
 ) (bool, error) {
-	verified, processErr := m.stopFailedStartProcess(accepted)
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
 	if !verified {
 		return true, processErr
 	}
 	failure = errors.Join(failure, processErr)
 	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
-			return false, m.releaseMissingSessionStart(accepted, err)
+			return m.releaseMissingSessionStart(ctx, accepted, err)
 		}
 		return true, err
 	}
@@ -465,18 +459,6 @@ func (m *Manager) finishRetainedSessionStart(ctx context.Context, accepted *acce
 		m.hostedMCP.CancelLaunch(accepted.session.ID)
 	}
 	accepted.session.clearProviderSecretRedactions()
-}
-
-// releaseMissingSessionStart leaves a failed rollback's tombstone to existing boot
-// recovery. Reopening a missing original path cannot converge and must not recreate it.
-func (m *Manager) releaseMissingSessionStart(accepted *acceptedSessionStart, cause error) error {
-	cleanupErr := m.cleanupFailedStart("", nil, accepted.proc)
-	m.removeActive(accepted.session.ID)
-	if m.hostedMCP != nil {
-		m.hostedMCP.CancelLaunch(accepted.session.ID)
-	}
-	accepted.session.clearProviderSecretRedactions()
-	return errors.Join(ErrRecoveryPersistence, cause, cleanupErr)
 }
 
 // reopenAcceptedSessionRecorder restores the retained owner without clearing prior history.

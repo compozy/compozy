@@ -5086,6 +5086,10 @@ func TestInstanceSeen(t *testing.T) {
 			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
 				t.Fatalf("new attention=%v, %v", attention, err)
 			}
+			if _, err := db.DB().
+				ExecContext(ctx, "DELETE FROM agent_instance_reports WHERE id='new-failure'"); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
 				InteractionID: "newer-stopped", SessionID: main, Kind: store.PendingInteractionKindPermission,
 				ProviderRequestID: "newer-stopped", CreatedAt: at.Add(time.Second),
@@ -5100,6 +5104,9 @@ func TestInstanceSeen(t *testing.T) {
 				QueryRowContext(ctx, "SELECT status FROM session_pending_interactions WHERE interaction_id='newer-stopped'").
 				Scan(&newerStatus); err != nil || newerStatus != store.PendingInteractionStatusPending {
 				t.Fatalf("newer stopped interaction status=%q, %v", newerStatus, err)
+			}
+			if attention, err := repo.NeedsAttention(ctx, instance.ID); err != nil || !attention {
+				t.Fatalf("newer stopped interaction attention=%v, %v", attention, err)
 			}
 		},
 	)

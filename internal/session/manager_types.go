@@ -197,7 +197,10 @@ type Manager struct {
 	streamEvents            *sessionEventBroadcaster
 	catalogEventsMu         sync.Mutex
 	catalogEvents           *sessionCatalogBroadcaster
+	attentionPublished      map[string]store.SessionAttention
 	attentionCommitMu       sync.Mutex
+	attentionCommitLocks    map[string]*attentionCommitLock
+	attentionReconciliation attentionReconciliationLifecycle
 	presenceMu              sync.Mutex
 	presenceLeases          map[sessionPresenceKey]sessionPresenceLease
 	notifyMu                sync.Mutex

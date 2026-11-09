@@ -94,3 +94,10 @@ Profile deletion removes that profile's User artifacts through its recoverable l
 journal. A failed removal keeps the operation retryable; retry/recovery preserves other
 profiles' User artifacts and all workspace artifacts. The artifact store is initialized
 before boot replays profile operations.
+
+QA impact 2026-11-09 (User-session event summaries): after the User walk above, read
+`compozy logs --session <user-session-id> -o json`. The session's `tool_call`, `tool_result` and
+`usage` summaries must be present with an empty workspace id, and the daemon log must not report
+`observe: write event summary failed … event summary workspace_id is required`. A summary for a
+session the catalog does not know still requires a workspace. Focused coverage:
+`TestUserEventSummarySelection` (real SQLite) and `TestValidationHelpersAndPathUtilities`.

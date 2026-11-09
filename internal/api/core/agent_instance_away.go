@@ -83,6 +83,7 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 	}
 }
 
+// MarkAgentInstanceSeen commits acknowledgement before scheduling projection publication.
 func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "instance mark seen") {
 		return

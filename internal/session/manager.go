@@ -124,7 +124,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 		return nil, err
 	}
 	manager.windowReconciliationCtx, manager.windowReconciliationCancel = context.WithCancel(manager.lifecycleCtx)
+	manager.attentionReconciliation.ctx, manager.attentionReconciliation.cancel = context.WithCancel(
+		manager.lifecycleCtx,
+	)
 	if err := manager.initializeRuntime(); err != nil {
+		manager.stopAttentionReconciliation()
 		manager.stopDeletedSessionWindowReconciliation()
 		manager.waitForDeletedSessionWindowReconciliation()
 		return nil, err
@@ -396,6 +400,7 @@ func (m *Manager) releaseReservation(id string) {
 	delete(m.pending, id)
 }
 
+// remove retires runtime bookkeeping and invalidates reserved publication baselines.
 func (m *Manager) remove(id string) {
 	target := strings.TrimSpace(id)
 	m.mu.Lock()
@@ -412,6 +417,9 @@ func (m *Manager) remove(id string) {
 	m.soulLocksMu.Unlock()
 
 	m.forgetSpawnWakeEvents(target)
+	m.attentionCommitMu.Lock()
+	delete(m.attentionPublished, target)
+	m.attentionCommitMu.Unlock()
 }
 
 func (m *Manager) removeActive(id string) {

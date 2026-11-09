@@ -95,3 +95,61 @@ session refreshing, so an expired attempt cannot make the retry ineffective.
 The schema compatibility CI lane identified the new `AgentInstancePayload.attention_dismissible`
 field missing from the canonical approved-addition list. The exact component/field is now registered
 there; the suite still compares every other historical property, type and required member.
+
+## Reconciliation follow-up after PR #1395
+
+The release coordinator merged #1395 at `630b1127970df3b5b03a56bc7b69453ce4a99976` after current-head
+CI passed, including the targeted SQLite rerun. Three valid minor CodeRabbit findings from review
+`5819255704` remain owned by this follow-up:
+
+- `discussion_r4507436571`: move refresh/publication into an admitted Manager worker. The HTTP,
+  CLI and native response still acknowledges the durable transaction; reads no longer block it.
+  The instance update follows successful session reconciliation. Manager shutdown closes admission,
+  cancels storage reads and joins admitted workers; initialization failures release the new context.
+- `discussion_r4507436575`: retain canonical write/resident-apply ordering with reference-counted
+  session locks. A stalled stopped session cannot block another session's live permission commit.
+- `discussion_r4507436583`: retain two immediate bounded attempts, then retry only failed sessions
+  with bounded backoff until recovery or Manager cancellation. Successful session edges are not
+  repeated. Restart hydrates resident state from the existing canonical records; no new persisted
+  queue, schema or public surface is added.
+
+Both embedded coverage suggestions are applied in their existing suites: the timeout scenario
+checks the recovered session's waiting-for-input → stopped catalog edge, and the newer stopped
+interaction case removes the independent failure report before asserting `NeedsAttention`.
+The affected handler, native adapter and payload projection now document their acknowledgement
+boundaries; no docstring coverage policy changed.
+
+Focused session hook/ordering/seen, real-SQLite instance seen, production HTTP away and native
+operator-authority suites passed after the follow-up. Storage read faults are injected only at the
+owning unit-test I/O boundary. The earlier rendered component/HTTP evidence remains applicable:
+no Web rendering, request/response shape, authorization or attention SQL changed in the follow-up.
+No local full/race/E2E suite or operator-daemon restart was run.
+
+### Follow-up review repairs
+
+Greptile review `5819461176` and CodeRabbit review `5819479651` identified further ordering and
+shutdown boundaries. Permission/clarification transitions now carry their canonical session ID into
+the same lock as presence and reconciliation; there is no empty-key transition lock. The existing
+real-SQLite ordering suite pauses a committed permission transition and verifies that a newer
+presence write cannot overtake its resident apply.
+
+A canonical `store.ErrSessionNotFound` removes a deleted acknowledged descendant from the retry
+batch; other failures still retry. Nonresident publication reads use a bounded Manager-owned
+context, preserving caller-disconnect independence while honoring shutdown cancellation. Session
+lock acquisition accepts the operation context, so canceled reconciliation can leave its lock wait.
+A successful reconciliation holds that lock through publication, keeping a later permission edge
+from overtaking the clearing edge. Admission reports rejection directly after shutdown.
+
+The existing hook and ordering suites exercise deleted-descendant completion, a bounded catalog
+read canceled during shutdown, canceled lock waits, old/new edge order, and direct post-shutdown
+admission rejection. These are the owning failure-path checks; no new standalone test file, schema,
+public DTO, Web component or reviewer policy is introduced.
+
+Greptile review `5819541455` / `discussion_r4507690072` identified a lost-event path after a
+nonresident metadata read timed out. Reconciliation now receives snapshot-read errors and retries
+publication instead of declaring that session complete. Successful empty catalog reads report
+canonical session-not-found so confirmed deletion finishes; unavailable catalogs and transient
+errors remain retryable. Existing mutation callers retain their logged, fail-open observer policy.
+The hook suite blocks a first metadata read until its deadline, then verifies recovery publishes
+the session edge before instance completion; its deleted-row variant completes without a spurious
+attention event.

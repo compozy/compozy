@@ -74,7 +74,7 @@ func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID str
 			time.Sleep(time.Duration(attempt) * endedEarlyRetryDelay)
 		}
 		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyWriteTimeout)
-		_, err = m.commitAttention(target.ID, func() (store.SessionAttentionCommit, error) {
+		_, err = m.commitAttention(writeCtx, target.ID, func() (store.SessionAttentionCommit, error) {
 			return m.attentionStore.MarkSessionEndedEarly(writeCtx, target.ID, turnID)
 		})
 		cancel()
