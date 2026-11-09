@@ -99,7 +99,8 @@ func treeSpecs() []treeSpec {
 			agent:         agentSpecConductor,
 			name:          "Deliver the settlement ledger v2 spec",
 			prompt:        "Deliver docs/specs/ledger-v2. Nine slices, then one integration pass in a single PR.",
-			summary:       "Eight of the nine slices are integrated. Slice 07 failed on duplicate entries in October and needs a decision.",
+			summary:       "Eight of the nine slices are integrated. " +
+				"Slice 07 failed on duplicate entries in October and needs a decision.",
 			endedAgo:      36,
 			workers:       ledgerWorkers(),
 			subagentAgent: agentReviewer,
