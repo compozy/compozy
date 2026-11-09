@@ -143,3 +143,10 @@ Constant `skipIf(true)` and `runIf(false)` declarations are rejected; dynamic
 conditions remain supported. Canonical regressions and real-parser controls cover
 these cases. The CI self-test also covers an entirely skipped disabled-heavy
 projection and verifies that cached test receipts invoke the cache-disabled audit.
+
+Suite-level retry/deadline options now use the same checks as individual tests,
+preventing inherited overrides from bypassing local rationale. Static unary
+negation is resolved for conditional skips; unresolved operands remain unknown.
+The canonical report self-test injects a failed cold audit and requires the exact
+subprocess failure to propagate. Real-parser checks cover suite overrides and
+negated skips with bounded-deadline and executing-condition controls.

@@ -216,4 +216,36 @@ describe("deterministic unit test conventions", () => {
     expect(messages(base, options(template("timeout")))).toHaveLength(0);
     expect(messages(base, options(template("retry")))).toHaveLength(1);
   });
+  it("checks inherited suite options and statically negated skip conditions", () => {
+    const suite = { type: "Identifier", name: "describe" };
+    const options = (name, value) => [
+      { value: "suite" },
+      { type: "ObjectExpression", properties: [{ key: { name }, value: { value } }] },
+      {},
+    ];
+    expect(messages(suite, options("retry", 2))).toHaveLength(1);
+    expect(messages(suite, options("timeout", 6000))).toHaveLength(1);
+    expect(messages(suite, options("timeout", 1000))).toHaveLength(0);
+    const factory = (name, argument) => ({
+      type: "CallExpression",
+      callee: {
+        type: "MemberExpression",
+        object: { type: "Identifier", name: "it" },
+        property: { name },
+      },
+      arguments: [{ type: "UnaryExpression", operator: "!", argument }],
+    });
+    expect(
+      messages(factory("skipIf", { type: "Literal", value: false }), [{ value: "case" }, {}])
+    ).toHaveLength(1);
+    expect(
+      messages(factory("runIf", { type: "Literal", value: true }), [{ value: "case" }, {}])
+    ).toHaveLength(1);
+    expect(
+      messages(factory("skipIf", { type: "Literal", value: true }), [{ value: "case" }, {}])
+    ).toHaveLength(0);
+    expect(
+      messages(factory("skipIf", { type: "Identifier", name: "dynamic" }), [{ value: "case" }, {}])
+    ).toHaveLength(0);
+  });
 });

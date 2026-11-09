@@ -225,6 +225,7 @@ import json
 import tempfile
 import os
 import runpy
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 spec = importlib.util.spec_from_file_location("ci_workspaces", "scripts/ci-workspaces.py")
@@ -272,6 +273,13 @@ with tempfile.TemporaryDirectory() as directory:
                 runpy.run_path(report)
                 audit.assert_called_once_with(['bunx', '--no-install', 'turbo', 'run', 'test',
                     '--filter=@compozy/lint-plugins', '--cache=', '--concurrency=2'], check=True)
+            failure = subprocess.CalledProcessError(7, ['turbo', 'test'])
+            with patch('subprocess.run', side_effect=failure):
+                try:
+                    runpy.run_path(report)
+                    raise AssertionError('failed cold audit was accepted')
+                except subprocess.CalledProcessError as error:
+                    assert error is failure
             with patch('subprocess.run'):
                 try:
                     runpy.run_path(frontend)

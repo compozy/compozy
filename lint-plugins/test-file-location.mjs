@@ -104,6 +104,10 @@ function staticValue(node, sourceCode, seen = new Set()) {
   if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
     return node.quasis[0]?.value.cooked ?? undefined;
   }
+  if (node.type === "UnaryExpression" && node.operator === "!") {
+    const operand = staticValue(node.argument, sourceCode, seen);
+    return operand === undefined ? undefined : !operand;
+  }
   if (node.type !== "Identifier") return node.value;
   for (let scope = sourceCode?.getScope(node); scope; scope = scope.upper) {
     const variable = scope.set.get(node.name);
@@ -219,7 +223,7 @@ const deterministicTests = {
         const name = callee.type === "Identifier" ? callee.name : undefined;
         const member =
           callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
-        const testCall = isTestFunction(callee, undefined, context.sourceCode);
+        const testCall = isTestFunction(callee, ["test", "it", "describe"], context.sourceCode);
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
