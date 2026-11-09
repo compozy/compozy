@@ -323,9 +323,16 @@ func TestSessionProviderOptionPayloadsOmitDisabledProviders(t *testing.T) {
 			Defaults:  compozyconfig.DefaultsConfig{Provider: "codex"},
 			Providers: map[string]compozyconfig.ProviderConfig{"gemini": {Enabled: new(false)}},
 		}
+		listed := make(map[string]bool)
 		for _, payload := range SessionProviderOptionPayloadsFromConfig(cfg) {
-			if payload.Name == "gemini" {
-				t.Fatalf("SessionProviderOptionPayloadsFromConfig() listed disabled gemini: %#v", payload)
+			listed[payload.Name] = true
+		}
+		if listed["gemini"] {
+			t.Fatal("SessionProviderOptionPayloadsFromConfig() listed disabled gemini")
+		}
+		for _, name := range []string{"codex", "claude"} {
+			if !listed[name] {
+				t.Fatalf("SessionProviderOptionPayloadsFromConfig() = %v, want enabled %s kept", listed, name)
 			}
 		}
 	})
