@@ -28,17 +28,17 @@ go run ./scripts/demo-seed --home /tmp/northstar --live
 
 Or run `make demo-live DEMO_HOME=/tmp/northstar`. Open the app on the home's port. The driver holds these until Ctrl-C:
 
-| Project | Session | State |
-| --- | --- | --- |
-| payments-platform | Cut settlement reads over to ledger v2 | Waiting on three running subagents with live cards |
-| payments-platform | Ship the Mexico partial-refund fix | Waiting, with two running child sessions |
-| payments-platform | Investigate the rc-2026.11.3 settlement-replay failure | Working |
-| payments-platform | Release Watch main session | Working |
-| launch-hq | Pause the Mexico canary | Needs you: pending permission |
-| checkout-web | Pick the Pix QR layout for small screens | Needs you: clarify question |
-| checkout-web | Migrate the installment selector to the new tokens | Working |
-| risk-engine | Rerun the October backtest by partition | Working |
-| platform-infra | Rehearse the queue cutover again | Working |
+| Project           | Session                                                | State                                              |
+| ----------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| payments-platform | Cut settlement reads over to ledger v2                 | Waiting on three running subagents with live cards |
+| payments-platform | Ship the Mexico partial-refund fix                     | Waiting, with two running child sessions           |
+| payments-platform | Investigate the rc-2026.11.3 settlement-replay failure | Working                                            |
+| payments-platform | Release Watch main session                             | Working                                            |
+| launch-hq         | Pause the Mexico canary                                | Needs you: pending permission                      |
+| checkout-web      | Pick the Pix QR layout for small screens               | Needs you: clarify question                        |
+| checkout-web      | Migrate the installment selector to the new tokens     | Working                                            |
+| risk-engine       | Rerun the October backtest by partition                | Working                                            |
+| platform-infra    | Rehearse the queue cutover again                       | Working                                            |
 
 Permission and clarify asks time out, so the driver sends them again when they end.
 
