@@ -16,6 +16,20 @@ last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: RT-session-derive-retry; RT-provider-error-handoff
 ---
 
+## Explicit runtime selection regression
+
+Continue from Claude to Codex with an explicit model, `high` reasoning, and `normal` or `fast`
+speed. Exercise both `--message` and a staged child followed by two prompts. Read the child's
+runtime and durable user events: `selected`, `requested`, `last_known`, and each `prompt_runtime`
+must retain the chosen provider/model/effort/speed. Use an ACP fixture advertising the requested
+controls to verify effective speed as well.
+
+Give the target agent an unstartable primary command and a working Claude fallback. An explicit
+Codex continuation must return a visible launch error with its committed child ID, leave the child
+unbound with `runtime.failure`, and dispatch no user message on Claude. An ordinary new session
+for the same agent may still use its declared fallback. See
+[the targeted runtime report](../reports/2026-11-09-issue-1414-continue-runtime.md).
+
 Planning 2026-09-28 (session-continue-fork task_03): new behavior. Walk against a dev daemon with two
 agents (acpmock or real Codex + Claude):
 

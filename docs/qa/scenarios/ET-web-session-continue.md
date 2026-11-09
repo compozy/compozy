@@ -90,6 +90,16 @@ it", `use-session-prompt-runtime.test.tsx` "Should prefer an unbound session's s
 the agent default", `session-hierarchy.test.ts` "Should keep continued and forked sessions top-level
 while spawned children nest".
 
+## Displayed runtime selection regression
+
+From a Claude conversation, open Continue and choose a Codex agent whose displayed runtime is
+GPT-6-Astra / High / Normal. Keep the displayed defaults untouched, submit, and confirm the
+request contains all four runtime fields. Repeat by editing the runtime picker, including Fast
+when the provider advertises it, and with/without a first message. The new composer's choice and
+each user event's `prompt_runtime` must agree with the confirmed selection. A target with a
+failing command and a working Claude fallback must show the committed child's launch error
+instead of running Claude. See the [targeted report](../reports/2026-11-09-issue-1414-continue-runtime.md).
+
 ## Deleted root ancestor regression
 
 1. Create and prompt session A, fork A into B, then fork B into C.

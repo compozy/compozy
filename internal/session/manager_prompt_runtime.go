@@ -139,36 +139,6 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 		currentSpeed != selection.Speed
 }
 
-// bindUnboundPromptRuntime owns the binds that differ for a session without a process:
-// a released idle runtime reloads its ACP session, a derived child binds its pending
-// route, and a logical session's first bind walks the agent's fallback_chain (ADR-004).
-func (m *Manager) bindUnboundPromptRuntime(
-	ctx context.Context,
-	session *Session,
-	snapshot *runtimeBindingSnapshot,
-	plan *promptRuntimePlan,
-) (*AgentProcess, bool, error) {
-	if snapshot.runtimeRelease != nil {
-		proc, err := m.rebindReleasedRuntime(ctx, session, snapshot, plan)
-		return proc, true, err
-	}
-	if pending := session.pendingRouteSnapshot(); pending != nil {
-		proc, handled, err := m.bindPendingRoute(ctx, session, snapshot, plan, *pending)
-		if handled {
-			return proc, true, err
-		}
-	}
-	// A derived session's explicit selection must fail visibly rather than run another route.
-	if plan.spec.derivation != nil && plan.spec.selectedRuntime != nil {
-		return nil, false, nil
-	}
-	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
-		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
-		return proc, true, err
-	}
-	return nil, false, nil
-}
-
 // configurePromptRuntime classifies the primary refusal before rollback or cleanup can change liveness.
 func (m *Manager) configurePromptRuntime(
 	ctx context.Context,

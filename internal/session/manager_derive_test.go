@@ -689,6 +689,18 @@ func TestContinueSession(t *testing.T) {
 			if len(starts) != 1 || starts[0].ProviderName != "codex" {
 				t.Fatalf("start attempts = %+v, want only the chosen codex runtime", starts)
 			}
+			child, _ := h.manager.Get(result.Child.ID)
+			info := child.Info()
+			if info.RuntimeFailure == "" || info.RuntimeStatus != RuntimeStatusUnbound ||
+				info.RequestedRuntime().Provider != "codex" || info.SelectedRuntime.Provider != "codex" ||
+				info.ACPSessionID != "" {
+				t.Fatalf("child after refusal = %+v, want visible failure and unbound chosen codex", info)
+			}
+			for _, event := range readStoredEvents(t, child) {
+				if event.Type == string(acp.EventTypeUserMessage) {
+					t.Fatal("refused runtime dispatched a user message")
+				}
+			}
 		},
 	)
 

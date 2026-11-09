@@ -125,7 +125,9 @@ export function useSessionContinueDialog({
     if (!canSubmit) return;
     const trimmedMessage = message.trim();
     const runtimeBody =
-      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE && runtime ? runtimeRequest(runtime) : null;
+      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
+        ? runtimeRequest({ value: runtimeValue, speed: runtimeSpeed })
+        : null;
     const request: ContinueSessionRequest = {
       agent_name: agentName,
       idempotency_key: idempotencyKey,

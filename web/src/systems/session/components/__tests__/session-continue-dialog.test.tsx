@@ -213,6 +213,41 @@ describe("SessionContinueDialog", () => {
     expect(sent[0]?.runtime).toMatchObject({ provider: "codex", speed: "normal" });
   });
 
+  it("Should submit the full displayed runtime even when its defaults were not edited", async () => {
+    const user = userEvent.setup();
+    agents.data = deriveAgentsFixture.map(agent =>
+      agent.name === "codex"
+        ? {
+            ...agent,
+            effective_runtime: {
+              provider: "codex",
+              model: "gpt-6-astra",
+              reasoning_effort: "high",
+              speed: "normal",
+              sources: {
+                provider: "agent",
+                model: "agent",
+                reasoning_effort: "agent",
+                speed: "agent",
+              },
+            },
+          }
+        : agent
+    );
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toEqual({
+      provider: "codex",
+      model: "gpt-6-astra",
+      reasoning_effort: "high",
+      speed: "normal",
+    });
+  });
+
   it("Should open a new window by default and never the current one", async () => {
     const user = userEvent.setup();
     const sent: ContinueSessionRequest[] = [];
