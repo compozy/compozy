@@ -213,40 +213,58 @@ describe("SessionContinueDialog", () => {
     expect(sent[0]?.runtime).toMatchObject({ provider: "codex", speed: "normal" });
   });
 
-  it("Should submit the full displayed runtime even when its defaults were not edited", async () => {
-    const user = userEvent.setup();
-    agents.data = deriveAgentsFixture.map(agent =>
-      agent.name === "codex"
-        ? {
-            ...agent,
-            effective_runtime: {
-              provider: "codex",
-              model: "gpt-6-astra",
-              reasoning_effort: "high",
-              speed: "normal",
-              sources: {
-                provider: "agent",
-                model: "agent",
-                reasoning_effort: "agent",
-                speed: "agent",
+  it.each([
+    { effort: "high", submittedEffort: "high" },
+    { effort: "max", submittedEffort: undefined },
+  ] as const)(
+    "Should submit the displayed defaults with $effort effort and leave inherited ACP options to the daemon",
+    async ({ effort, submittedEffort }) => {
+      const user = userEvent.setup();
+      agents.data = deriveAgentsFixture.map(agent =>
+        agent.name === "codex"
+          ? {
+              ...agent,
+              effective_runtime: {
+                provider: "codex",
+                model: "gpt-6-astra",
+                reasoning_effort: effort,
+                speed: "normal",
+                acp_options: [{ id: "mode", value_id: "bypassPermissions" }],
+                sources: {
+                  provider: "agent",
+                  model: "agent",
+                  reasoning_effort: "agent",
+                  speed: "agent",
+                },
               },
-            },
-          }
-        : agent
-    );
-    const sent: ContinueSessionRequest[] = [];
-    renderDialog({ onContinue: request => sent.push(request) });
+            }
+          : agent
+      );
+      runtimeCatalog.providers = [{ id: "codex", name: "Codex", runtime_provider: "codex" }];
+      runtimeCatalog.models = [
+        {
+          id: "gpt-6-astra",
+          provider: "codex",
+          name: "GPT-6-Astra",
+          efforts: ["high"],
+          availability: "live",
+          curated: true,
+        },
+      ];
+      const sent: ContinueSessionRequest[] = [];
+      renderDialog({ onContinue: request => sent.push(request) });
 
-    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
-    await user.click(screen.getByTestId("session-continue-submit"));
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]?.runtime).toEqual({
-      provider: "codex",
-      model: "gpt-6-astra",
-      reasoning_effort: "high",
-      speed: "normal",
-    });
-  });
+      await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      await user.click(screen.getByTestId("session-continue-submit"));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]?.runtime).toEqual({
+        provider: "codex",
+        model: "gpt-6-astra",
+        ...(submittedEffort ? { reasoning_effort: submittedEffort } : {}),
+        speed: "normal",
+      });
+    }
+  );
 
   it("Should open a new window by default and never the current one", async () => {
     const user = userEvent.setup();

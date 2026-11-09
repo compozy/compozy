@@ -120,7 +120,7 @@ func (m *Manager) bindUnboundPromptRuntime(
 			return proc, true, err
 		}
 	}
-	// A derived session's explicit selection must fail visibly rather than run another route.
+	// A continuation's explicit provider selection must fail rather than run another route.
 	if derived := plan.spec.derivation; derived != nil && derived.Kind == store.LineageKindContinue &&
 		plan.spec.selectedRuntime != nil {
 		return nil, false, nil

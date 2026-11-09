@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits: uncommitted (review round 1 QA re-walk)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/continue-route-child-window.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/dead-runtime-banner.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/
-last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
+last_report: docs/qa/reports/2026-11-09-issue-1414-continue-runtime.md
 overlaps: ET-cli-session-continue; RT-session-derive-retry; RT-provider-error-handoff; ET-web-session-sidebar-threads; ET-web-sessions-catalog-modal; ET-web-session-context-sidebar
 ---
 

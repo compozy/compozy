@@ -7,7 +7,8 @@ import {
   resolveAgentRuntimeValue,
   useAgents,
 } from "@/systems/agent";
-import type { RuntimeSelectorValue } from "@/systems/runtime";
+import { normalizeRuntimeSelectorValue, type RuntimeSelectorValue } from "@/systems/runtime";
+import { useSessionContinueRuntimeOptions } from "./use-session-continue-runtime-options";
 
 import type { ContinueSessionRequest } from "../adapters/session-derive-api";
 import {
@@ -106,7 +107,12 @@ export function useSessionContinueDialog({
   const selectedRoute = routes.some(option => option.route === route)
     ? route
     : SESSION_CONTINUE_DEFAULT_ROUTE;
-  const runtimeValue = runtime?.value ?? resolveAgentRuntimeValue(agent);
+  const runtimeOptions = useSessionContinueRuntimeOptions(workspaceId, open);
+  const requestedValue = runtime?.value ?? resolveAgentRuntimeValue(agent);
+  const selectedModel = runtimeOptions.models.find(
+    model => model.provider === requestedValue.provider && model.id === requestedValue.model
+  );
+  const runtimeValue = normalizeRuntimeSelectorValue(requestedValue, selectedModel);
   const runtimeSpeed =
     runtime?.speed ?? (normalizeRuntimeSpeed(agent?.effective_runtime?.speed) || "normal");
   const isSubmitting = mutation.isPending;
@@ -126,7 +132,11 @@ export function useSessionContinueDialog({
     const trimmedMessage = message.trim();
     const runtimeBody =
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
-        ? runtimeRequest({ value: runtimeValue, speed: runtimeSpeed })
+        ? runtimeRequest({
+            // Inherited ACP permissions stay daemon-owned rather than becoming explicit overrides.
+            value: { ...runtimeValue, ...(runtime ? {} : { acp_options: undefined }) },
+            speed: runtimeSpeed,
+          })
         : null;
     const request: ContinueSessionRequest = {
       agent_name: agentName,
@@ -162,6 +172,7 @@ export function useSessionContinueDialog({
     selectAgent,
     runtimeValue,
     runtimeSpeed,
+    runtimeOptions,
     onRuntimeChange: (value: RuntimeSelectorValue, speed?: RuntimeSpeed) =>
       setRuntime({ value, speed: speed ?? runtimeSpeed }),
     onRuntimeSpeedChange: (speed: RuntimeSpeed) => setRuntime({ value: runtimeValue, speed }),

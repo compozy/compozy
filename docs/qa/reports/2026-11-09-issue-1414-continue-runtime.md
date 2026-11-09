@@ -17,10 +17,12 @@ does not claim live-provider inference or account authentication coverage.
 ## Investigation
 
 The Web dialog serialized provider, model, reasoning effort and explicit speed only after a local
-runtime edit. Keeping the displayed defaults omitted the runtime entirely, allowing later daemon
-resolution to choose a different runtime. Its owning component regression failed before the fix
+runtime edit. Keeping the displayed defaults omitted the runtime entirely, so the request did not
+freeze the displayed selection. Its owning component regression failed before the fix
 (`runtime` was undefined), and now verifies the full displayed snapshot on submit. The derive
 manager persists that choice as `runtime.selected`; prompt admission prefers it over the prior binding.
+The submission uses the selector's capability normalization. Unedited inherited ACP options stay
+daemon-owned, so this snapshot does not promote an inherited permission mode to an explicit override.
 
 An additional confirmed defect is at the unbound runtime's first bind: it walks the target agent's
 fallback chain even when a derived child explicitly selected another runtime. A rejected Codex
@@ -37,7 +39,7 @@ observable failure modes without claiming an exact reconstruction of that histor
   a later turn, durable `prompt_runtime`, restart persistence, and visible launch refusal.
 - Focused derive/fork/fallback checks pass with `CGO_ENABLED=1` and `-race`.
 - Pinned golangci-lint v2.15.0 on `./internal/session`: zero issues.
-- Root Turborepo Continue/composer suites: 23 tests passed; Web typecheck passed.
+- Root Turborepo selector/Continue/composer suites: 134 tests passed; Web typecheck passed.
 - React Doctor on the changed Web files: 100/100, no findings; focused oxlint and formatting pass.
 - Real daemon journeys above passed through public CLI/API and the rendered Web. Provider,
   model and effort agree across selected/requested/effective/last-known; Normal and Fast were

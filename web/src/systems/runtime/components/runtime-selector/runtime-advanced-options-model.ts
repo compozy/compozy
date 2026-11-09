@@ -1,4 +1,10 @@
-import type { RuntimeACPOption, RuntimeACPOptionSelection } from "./types";
+import {
+  modelSupportsReasoningEffort,
+  type RuntimeACPOption,
+  type RuntimeACPOptionSelection,
+  type RuntimeModelOption,
+  type RuntimeSelectorValue,
+} from "./types";
 
 const DEDICATED_OPTION_IDS = new Set([
   "model",
@@ -122,4 +128,21 @@ export function setRuntimeACPSelection(
   const withoutNext = current.filter(selection => selection.id !== nextID);
   if (next && nextID.length > 0) withoutNext.push({ ...next, id: nextID });
   return sanitizeRuntimeACPSelections(withoutNext, options);
+}
+
+/** Keep displayed and submitted selections on the same model capability projection. */
+export function normalizeRuntimeSelectorValue(
+  value: RuntimeSelectorValue,
+  model: RuntimeModelOption | undefined,
+  options = model?.acp_options
+): RuntimeSelectorValue {
+  const selections = sanitizeRuntimeACPSelections(value.acp_options, options);
+  return {
+    ...value,
+    reasoning_effort:
+      value.reasoning_effort !== "" && !modelSupportsReasoningEffort(model, value.reasoning_effort)
+        ? ""
+        : value.reasoning_effort,
+    ...(options ? { acp_options: selections } : {}),
+  };
 }

@@ -3,6 +3,7 @@ export {
   modelSupportsFast,
   modelSupportsReasoningEffort,
   normalizeRuntimeACPSelections,
+  normalizeRuntimeSelectorValue,
   reasoningEffortLabel,
   runtimeACPSelectionsEqual,
   runtimeModelKey,

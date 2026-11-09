@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-errors.txt; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-committed-child.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cl.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-transcript.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-derived-logs.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cli.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-api.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-usage-errors.txt
-last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
+last_report: docs/qa/reports/2026-11-09-issue-1414-continue-runtime.md
 overlaps: RT-session-derive-retry; RT-provider-error-handoff
 ---
 
