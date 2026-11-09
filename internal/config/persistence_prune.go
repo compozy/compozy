@@ -111,7 +111,7 @@ func globalProviderDisabled(homePaths HomePaths, providerID string) (bool, error
 // instead of gaining a sibling [providers.opencode] the loader folds into the same provider.
 // Any other path, or an overlay without a matching table, is returned unchanged.
 func (e *OverlayEditor) AuthoredProviderEnabledPath(path []string) []string {
-	if len(path) != 3 || strings.TrimSpace(path[0]) != "providers" ||
+	if len(path) != 3 || strings.TrimSpace(path[0]) != providersConfigKey ||
 		strings.TrimSpace(path[2]) != providerEnabledField {
 		return path
 	}
@@ -121,7 +121,7 @@ func (e *OverlayEditor) AuthoredProviderEnabledPath(path []string) []string {
 	}
 	target := CanonicalProviderName(path[1])
 	for _, expr := range document.expressions {
-		if len(expr.path) >= 2 && expr.path[0] == "providers" && expr.path[1] != path[1] &&
+		if len(expr.path) >= 2 && expr.path[0] == providersConfigKey && expr.path[1] != path[1] &&
 			CanonicalProviderName(expr.path[1]) == target {
 			return []string{path[0], expr.path[1], path[2]}
 		}
@@ -135,5 +135,5 @@ const providerEnabledField = "enabled"
 func providerReEnable(path []string, value any) bool {
 	enabled, ok := value.(bool)
 	return ok && enabled && len(path) == 3 &&
-		strings.TrimSpace(path[0]) == "providers" && strings.TrimSpace(path[2]) == providerEnabledField
+		strings.TrimSpace(path[0]) == providersConfigKey && strings.TrimSpace(path[2]) == providerEnabledField
 }
