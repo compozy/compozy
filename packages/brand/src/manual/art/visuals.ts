@@ -1,6 +1,6 @@
 // The Compozy visual system: one registry for every visual a chapter can show.
 // Atmosphere = approved generated key visuals (raster, landscape + portrait crops).
-// Product shots = captures of real web/ Storybook stories in the new theme (ADR-005, slice S3).
+// Product shots = captures of the running web/ app against the demo seed, in the new theme (ADR-005).
 // Diagrams = bars/lanes/stack rebuilt from @compozy/ui tokens (ADR-005, slice S3).
 
 export type AtmosphereName =
@@ -11,7 +11,7 @@ export type AtmosphereName =
   | "cone"
   | "block"
   | "terrain";
-/** Captured from web/ Storybook in the new theme; stories pinned in art/product-pins.ts. */
+/** Captured from the running app against the demo seed; screens pinned in art/product-pins.ts. */
 export type ProductShotName =
   | "desktop"
   | "sessions"

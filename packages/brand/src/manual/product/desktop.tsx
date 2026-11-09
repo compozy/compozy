@@ -94,21 +94,20 @@ export function Desktop() {
       <figure className="m-0">
         <UiCrop name="desktop" ratio="16/9" />
         <figcaption className={cap}>
-          The desktop in the brand: menubar, the app rail, projects with their Always-on faces, and
-          the session window with its handoff messages. This is the reference the real app is built
-          toward.
+          The desktop as it ships, against the demo seed: the menu bar, the app rail, the sessions
+          rail with each agent's face and provider, and a session window with its conversation.
         </figcaption>
       </figure>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <figure className="m-0 min-w-0">
-          <UiCrop name="agents" ratio="4/3" scale={1.75} oy={42} />
+          <UiCrop name="agents" ratio="4/3" scale={1.3} ox={9} oy={62} />
           <figcaption className={cap}>
-            <b className="font-medium text-(--b-fg)">Always-on list.</b> Face, name, harness, state
-            mark and the last check-in note. Needs you sorts first.
+            <b className="font-medium text-(--b-fg)">The team.</b> Always-on agents above the
+            on-demand ones: face, name, what each does and when it last worked.
           </figcaption>
         </figure>
         <figure className="m-0 min-w-0">
-          <UiCrop name="approval" ratio="4/3" scale={2} oy={52} />
+          <UiCrop name="approval" ratio="4/3" />
           <figcaption className={cap}>
             <b className="font-medium text-(--b-fg)">Approval dock.</b> The agent asks, you allow
             once, always allow or deny. The one amber element in its region.

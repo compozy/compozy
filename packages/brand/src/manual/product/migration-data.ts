@@ -103,7 +103,7 @@ export const migration: { group: string; rows: MigrationRow[] }[] = [
         "Site illustrations",
         "packages/site/public/images/* (hero-bg.webp, orbit, radar, traces, storyboards)",
         "orange glow art",
-        "Visuals in brand/visuals/ (swarm, converge, horizon, field) and product shots captured from the real web/ stories",
+        "Visuals in brand/visuals/ (swarm, converge, horizon, field) and product shots captured from the running app against the demo seed",
       ],
       [
         "GitHub social preview",

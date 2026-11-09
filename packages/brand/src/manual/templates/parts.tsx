@@ -75,9 +75,9 @@ interface ShotProps {
 }
 
 /**
- * A captured product screen (ADR-005) as a flat window: the pixels come from the real web/
- * Storybook capture; the template only places, frames and lights it. Width in cqi, height from
- * the capture's own ratio; place it with left/right/top/bottom in `style`.
+ * A captured product screen (ADR-005) as a flat window: the pixels come from the running web/
+ * app against the demo seed; the template only places, frames and lights it. Width in cqi,
+ * height from the capture's own ratio; place it with left/right/top/bottom in `style`.
  */
 export function Shot({ name, theme = "dark", w, className, style }: ShotProps & { w: number }) {
   return (

@@ -1,13 +1,17 @@
-// export:product-shots — captures the pinned web/ Storybook stories in the current @compozy/ui
-// theme and writes web-size WebP files to public/brand/product/<shot>-<theme>.webp (ADR-005).
+// export:product-shots — captures every pinned product screen in the current @compozy/ui theme and
+// writes web-size WebP files to public/brand/product/<shot>-<theme>.webp (ADR-005). App pins are
+// real routes of the web app running against the demo seed; a story pin renders from web/ Storybook.
 //
-//   bun run export:product-shots                         builds web/ Storybook, then captures
-//   bun run export:product-shots --storybook-dir <dir>   reuses a static Storybook build
+//   bun run export:product-shots                          seeds an isolated daemon, captures, stops it
+//   bun run export:product-shots --base-url <url>         reuses an already running seeded app
+//   bun run export:product-shots --web-dist <dir>         reuses a web/ build for the seeded daemon
+//   bun run export:product-shots --storybook-dir <dir>    reuses a static web/ Storybook build
 //   bun run export:product-shots --out <dir> --only desktop,board
 //
-// Every pin is resolved against the Storybook index before anything is written: a missing story
-// exits 1 naming it (US-004.EC-1, UT-013). Captures land in a staging dir and replace the
-// published files only after every capture succeeded, so a failed run leaves them untouched.
+// Every pin is resolved before anything is captured: a seeded workspace or pinned story that is
+// missing exits 1 naming the pin (US-004.EC-1, UT-013); so does a route whose ready element never
+// renders. Captures land in a staging dir and replace the published files only after every capture
+// succeeded, so a failed run leaves them untouched.
 import { spawnSync } from "node:child_process";
 import {
   cpSync,
@@ -27,19 +31,25 @@ import {
   PRODUCT_SHOT_PINS,
   SHOT_THEMES,
   productShotFile,
-  resolvePins,
+  resolveAppPins,
+  resolveStoryPins,
+  type AppShotPin,
   type ProductShotPin,
   type ShotTheme,
 } from "../src/manual/art/product-pins";
+import { startSeededApp } from "./product-shots-lab";
 
 const PKG = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const WEB = resolve(PKG, "../../web");
+const REPO = resolve(PKG, "../..");
+const WEB = resolve(REPO, "web");
 const MAX_BYTES = 400 * 1024;
 const MAX_WIDTH = 2560;
 const QUALITIES = [0.9, 0.84, 0.78, 0.7, 0.62, 0.54];
 const SETTLE_MS = 1800;
 
 interface Args {
+  baseUrl?: string;
+  webDist?: string;
   storybookDir?: string;
   out: string;
   only?: Set<string>;
@@ -50,7 +60,9 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
-    if (flag === "--storybook-dir" && value) args.storybookDir = resolve(value);
+    if (flag === "--base-url" && value) args.baseUrl = value.replace(/\/+$/, "");
+    else if (flag === "--web-dist" && value) args.webDist = resolve(value);
+    else if (flag === "--storybook-dir" && value) args.storybookDir = resolve(value);
     else if (flag === "--out" && value) args.out = resolve(value);
     else if (flag === "--only" && value) args.only = new Set(value.split(","));
     else fail(`unknown argument ${flag}`);
@@ -110,7 +122,7 @@ function serve(root: string): Promise<{ server: Server; base: string }> {
 type Browser = import("playwright").Browser;
 type Page = import("playwright").Page;
 
-async function capturePng(
+async function captureStoryPng(
   browser: Browser,
   base: string,
   pin: ProductShotPin,
@@ -131,25 +143,111 @@ async function capturePng(
     if (await page.locator(".sb-errordisplay:visible, .sb-nopreview:visible").count()) {
       throw new Error(`story ${id} rendered an error`);
     }
-    await page.addStyleTag({
-      content:
-        "*,*::before,*::after{animation-play-state:paused!important;transition:none!important;caret-color:transparent!important}",
-    });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(SETTLE_MS);
-    if (!pin.selector) return await page.screenshot({ type: "png", animations: "disabled" });
-    const box = await page.locator(pin.selector).first().boundingBox({ timeout: 10_000 });
-    if (!box) throw new Error(`${pin.name}: selector ${pin.selector} is not visible`);
-    const pad = pin.pad ?? 0;
-    const x = Math.max(0, box.x - pad);
-    const y = Math.max(0, box.y - pad);
-    const clip = {
-      x,
-      y,
-      width: Math.min(pin.viewport.width, box.x + box.width + pad) - x,
-      height: Math.min(pin.viewport.height, box.y + box.height + pad) - y,
+    return await settleAndShoot(page, pin);
+  } finally {
+    await context.close();
+  }
+}
+
+const FREEZE =
+  "*,*::before,*::after{animation-play-state:paused!important;transition:none!important;caret-color:transparent!important}";
+
+async function settleAndShoot(page: Page, pin: ProductShotPin): Promise<Buffer> {
+  await page.addStyleTag({ content: FREEZE });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(SETTLE_MS);
+  if (!pin.selector) return await page.screenshot({ type: "png", animations: "disabled" });
+  const box = await page.locator(pin.selector).first().boundingBox({ timeout: 10_000 });
+  if (!box) throw new Error(`${pin.name}: selector ${pin.selector} is not visible`);
+  const pad = pin.pad ?? 0;
+  const x = Math.max(0, box.x - pad);
+  const y = Math.max(0, box.y - pad);
+  const clip = {
+    x,
+    y,
+    width: Math.min(pin.viewport.width, box.x + box.width + pad) - x,
+    height: Math.min(pin.viewport.height, box.y + box.height + pad) - y,
+  };
+  return await page.screenshot({ type: "png", animations: "disabled", clip });
+}
+
+// The window layout persists daemon-side (global scope, default profile), so every capture
+// starts from an empty desktop: close each open window, then open the pinned route.
+const WM_PATH = "/api/workspaces/global/window-manager";
+const WM_CLIENT = "brand-product-shots";
+/** web/src/systems/theme/lib/theme-preference.ts THEME_STORAGE_KEY */
+const THEME_KEY = "compozy.theme";
+
+async function closeAllWindows(base: string) {
+  const json = { "content-type": "application/json" };
+  await fetch(`${base}${WM_PATH}/clients?profile=default`, {
+    method: "POST",
+    headers: json,
+    body: JSON.stringify({
+      workspace_id: "global",
+      client_id: WM_CLIENT,
+      kind: "browser",
+      context: { workspace_trusted: true },
+    }),
+  });
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const state = (await (await fetch(`${base}${WM_PATH}?profile=default`)).json()) as {
+      revision: number;
+      windows?: Record<string, unknown>;
     };
-    return await page.screenshot({ type: "png", animations: "disabled", clip });
+    const [id] = Object.keys(state.windows ?? {});
+    if (!id) return;
+    await fetch(`${base}${WM_PATH}/commands?profile=default`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({
+        workspace_id: "global",
+        command_id: "window.close",
+        expected_revision: state.revision,
+        client_id: WM_CLIENT,
+        actor: { kind: "web", id: WM_CLIENT },
+        origin: "web",
+        payload: { window_id: id, minimize: false },
+      }),
+    });
+  }
+  throw new Error("could not close the open windows of the seeded desktop");
+}
+
+async function captureAppPng(
+  browser: Browser,
+  base: string,
+  pin: AppShotPin,
+  path: string,
+  theme: ShotTheme
+) {
+  await closeAllWindows(base);
+  const context = await browser.newContext({
+    viewport: pin.viewport,
+    deviceScaleFactor: 2,
+    reducedMotion: "reduce",
+    colorScheme: theme,
+  });
+  // The app defaults to dark and reads its theme from local storage, not the color scheme.
+  await context.addInitScript(({ key, value }) => window.localStorage.setItem(key, value), {
+    key: THEME_KEY,
+    value: theme,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${base}${path}`, { waitUntil: "load" });
+    await page.keyboard.press("Escape");
+    for (const step of pin.steps ?? []) {
+      if ("click" in step) await page.locator(step.click).first().click({ timeout: 15_000 });
+      else if ("press" in step) await page.keyboard.press(step.press);
+      else await page.locator(step.waitFor).first().waitFor({ timeout: 15_000 });
+    }
+    try {
+      await page.locator(pin.ready).first().waitFor({ state: "visible", timeout: 20_000 });
+    } catch {
+      throw new Error(`${pin.name}: ${path} never rendered ${pin.ready}`);
+    }
+    return await settleAndShoot(page, pin);
   } finally {
     await context.close();
   }
@@ -189,38 +287,71 @@ async function encodeWebp(page: Page, png: Buffer): Promise<Buffer> {
   return webp;
 }
 
+async function seededWorkspaces(base: string): Promise<{ id: string; name: string }[]> {
+  const response = await fetch(`${base}/api/workspaces`).catch(() => null);
+  // Throws (not fail()) so the caller's finally still stops a seeded daemon.
+  if (!response?.ok) throw new Error(`no seeded app answering on ${base}/api/workspaces`);
+  const body = (await response.json()) as { workspaces?: { id: string; name: string }[] };
+  return body.workspaces ?? [];
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const pins = PRODUCT_SHOT_PINS.filter(p => !args.only || args.only.has(p.name));
   if (args.only && pins.length !== args.only.size) fail(`--only names an unknown shot`);
 
-  const storybook = args.storybookDir ?? buildStorybook();
-  const indexFile = join(storybook, "index.json");
-  if (!existsSync(indexFile)) fail(`no Storybook index at ${indexFile}`);
-  const { resolved, missing } = resolvePins(JSON.parse(readFileSync(indexFile, "utf8")), pins);
-  if (missing.length) {
-    for (const m of missing)
-      console.error(`error: pinned story missing from Storybook index — ${m}`);
-    process.exit(1);
+  // Story pins resolve against a Storybook index first: no daemon starts for a broken pin.
+  let storybook: string | undefined;
+  let stories: ReturnType<typeof resolveStoryPins>["resolved"] = [];
+  if (pins.some(p => p.source === "story")) {
+    storybook = args.storybookDir ?? buildStorybook();
+    const indexFile = join(storybook, "index.json");
+    if (!existsSync(indexFile)) fail(`no Storybook index at ${indexFile}`);
+    const story = resolveStoryPins(JSON.parse(readFileSync(indexFile, "utf8")), pins);
+    for (const m of story.missing) console.error(`error: pinned story missing — ${m}`);
+    if (story.missing.length) process.exit(1);
+    stories = story.resolved;
   }
 
-  // The static server and the browser launch are independent; start them together.
-  const [{ server, base }, browser] = await Promise.all([
-    serve(storybook),
-    import("playwright").then(({ chromium }) => chromium.launch()),
-  ]);
+  const lab = args.baseUrl ? undefined : await startSeededApp(REPO, args.webDist);
+  const appBase = args.baseUrl ?? lab?.base ?? "";
   const staging = mkdtempSync(join(tmpdir(), "brand-product-shots-"));
+  let server: Server | undefined;
+  let browser: Browser | undefined;
   try {
-    const encoder = await browser.newPage();
+    const app = resolveAppPins(await seededWorkspaces(appBase), pins);
+    if (app.missing.length) {
+      throw new Error(
+        app.missing.map(m => `pinned screen missing from the seed — ${m}`).join("\nerror: ")
+      );
+    }
+    const served = storybook ? await serve(storybook) : undefined;
+    server = served?.server;
+    const chromium = await import("playwright").then(m => m.chromium.launch());
+    browser = chromium;
+    const encoder = await chromium.newPage();
     const rows: string[] = [];
-    for (const { pin, id } of resolved) {
+    const jobs = [
+      ...app.resolved.map(({ pin, path }) => ({
+        pin,
+        label: path,
+        shoot: (b: Browser, theme: ShotTheme) => captureAppPng(b, appBase, pin, path, theme),
+      })),
+      ...stories.map(({ pin, id }) => ({
+        pin,
+        label: `story ${id}`,
+        shoot: (b: Browser, theme: ShotTheme) =>
+          captureStoryPng(b, served?.base ?? "", pin, id, theme),
+      })),
+    ];
+    for (const job of jobs) {
       for (const theme of SHOT_THEMES) {
-        const webp = await encodeWebp(encoder, await capturePng(browser, base, pin, id, theme));
+        const webp = await encodeWebp(encoder, await job.shoot(chromium, theme));
         if (webp.length > MAX_BYTES)
-          throw new Error(`${pin.name}-${theme} is ${webp.length} B > 400 KB`);
-        writeFileSync(join(staging, productShotFile(pin.name, theme)), webp);
+          throw new Error(`${job.pin.name}-${theme} is ${webp.length} B > 400 KB`);
+        writeFileSync(join(staging, productShotFile(job.pin.name, theme)), webp);
         rows.push(
-          `${productShotFile(pin.name, theme).padEnd(24)} ${(webp.length / 1024).toFixed(0).padStart(4)} KB  ${id}`
+          `${productShotFile(job.pin.name, theme).padEnd(24)} ${(webp.length / 1024).toFixed(0).padStart(4)} KB  ${job.label}`
         );
       }
     }
@@ -229,8 +360,9 @@ async function main() {
     console.log(rows.join("\n"));
     console.log(`wrote ${rows.length} captures → ${args.out}`);
   } finally {
-    await browser.close();
-    server.close();
+    await browser?.close();
+    server?.close();
+    lab?.stop();
     rmSync(staging, { recursive: true, force: true });
   }
 }

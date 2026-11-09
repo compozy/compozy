@@ -100,7 +100,7 @@ export const productRules: [rule: string, text: string][] = [
   ],
   [
     "Real UI only",
-    "Product shots are captures of the shipping components (desktop, board, orchestrate), rendered at 2x. Mockups drawn in Figma are concept art and say so in the caption.",
+    "Product shots are captures of the shipping app against the demo seed (desktop, board, orchestrate), rendered at 2x. Mockups drawn in Figma are concept art and say so in the caption.",
   ],
   [
     "On ink",

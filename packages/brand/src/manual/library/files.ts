@@ -142,18 +142,18 @@ terrain.jpg 265055
 `;
 
 const PRODUCT = `
-agents-dark.webp 44252
-agents-light.webp 46496
+agents-dark.webp 98994
+agents-light.webp 102134
 approval-dark.webp 15056
 approval-light.webp 15360
-board-dark.webp 93730
-board-light.webp 97066
-desktop-dark.webp 45224
-desktop-light.webp 45350
-orchestrate-dark.webp 68682
-orchestrate-light.webp 71258
-sessions-dark.webp 40704
-sessions-light.webp 40682
+board-dark.webp 77216
+board-light.webp 78854
+desktop-dark.webp 168140
+desktop-light.webp 169604
+orchestrate-dark.webp 87718
+orchestrate-light.webp 89354
+sessions-dark.webp 75678
+sessions-light.webp 75054
 terminal-palette.json 4484
 `;
 
@@ -209,7 +209,7 @@ export const groups: FileGroup[] = [
   {
     title: "Product",
     dir: "product",
-    note: "Captures of the real web/ components in the new theme, dark and light (export:product-shots), and the terminal palette.",
+    note: "Captured from the running app against the demo seed, in the new theme, dark and light (export:product-shots), and the terminal palette.",
     files: rowsOf("product", PRODUCT),
   },
   {

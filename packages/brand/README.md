@@ -19,7 +19,7 @@ Run from `packages/brand`, or through Turborepo from the repo root
 | `test`                       | Vitest: chapter and kit registry, status badge, asset budget, srcset, export guards                                                                       |
 | `export:kit`                 | Every `/kit/<id>` → `$BRAND_EXPORT_DIR/kit/<id>.png` (+ `.pdf` for print, `digital/` copies); `--only a,b`, `--set field=value`                           |
 | `export:visuals`             | Every `/visual/<name>-<theme>` at 2x → `$BRAND_EXPORT_DIR/visuals/`                                                                                       |
-| `export:product-shots`       | Captures pinned `web/` Storybook stories → `public/brand/product/`                                                                                        |
+| `export:product-shots`       | Captures pinned screens of the running `web/` app against the demo seed (isolated daemon, or `--base-url`) → `public/brand/product/`                      |
 | `logos`                      | Rebuilds the logo SVG/PNG set in `public/brand/{svg,png}`                                                                                                 |
 | `shot`                       | `bun run shot <url> <name.png> [w] [h] [full]` QA screenshot (Playwright, Chrome) → `$BRAND_EXPORT_DIR/shots/`                                            |
 | `imagegen` / `finish-images` | Operator-only, paid, never in CI: `prompts/<area>/<id>.md` → raw PNGs in `$BRAND_GEN_DIR` (default `~/Dev/compozy/_rebranding/gen`) → `public/brand/img/` |

@@ -1,5 +1,5 @@
-// Frame around one captured product screen (ADR-005): the pixels come from the real web/
-// Storybook story (export:product-shots); the manual only adds perspective, crop and light.
+// Frame around one captured product screen (ADR-005): the pixels come from the running web/ app
+// against the demo seed (export:product-shots); the manual only adds perspective, crop and light.
 //   perspective: the screen tilts back toward its focal point and fades into the band, lit from
 //                behind by the brand volt (covers, backgrounds).
 //   flat:        a straight crop, for inline figures that must read at a glance.

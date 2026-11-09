@@ -7,8 +7,9 @@ import { Window } from "./window";
 import { SpecCard } from "../parts/spec-card";
 
 const CAPTURE: [label: string, value: string][] = [
+  ["Source", "The running app against the demo seed (export:product-shots), never a mockup."],
   ["Scale", "2x device pixels, exported as PNG; WebP at 85 for the web."],
-  ["Window", "1440×900 app window, zoom 100%, dark theme, no extensions."],
+  ["Window", "1280×800 viewport (board 1540×800), zoom 100%, dark and light, empty desktop."],
   ["Padding", "Ground around the window = 6% of the shot’s width, at least 24 px."],
   ["Radius", "12 px at 1x; 24 px at 2x. The ground card takes 20 px."],
   ["Cursor", "Hidden, unless the shot is about a click. Then the system arrow, never a hand icon."],
@@ -50,7 +51,7 @@ function Shots() {
         </figure>
       </div>
       <p className="mt-3 mono-label text-[11px] tracking-[0.08em] text-(--b-muted)">
-        Captures of the real desktop components in the current theme.
+        Captured from the running app against the demo seed, in the current theme.
       </p>
     </>
   );
