@@ -152,3 +152,9 @@ the hook completes successfully, and the creator wake is delivered after the chi
 lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
 TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
 this change does not claim a new local E2E run.
+
+QA impact 2026-11-09 (lifecycle baseline ordering): repeat the synchronous creator-to-child
+presence callback for lifecycle publication as well as ordinary and reconciled interaction
+publication. The callback must finish after the child publication lock is released. The canonical
+attention hook suite owns this boundary check; completed-wake suppression for canceled turns
+remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.

@@ -51,11 +51,45 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if after == nil {
 		return
 	}
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	unlock, err := m.lockAttentionCommit(readCtx, after.ID)
+	if err != nil {
+		m.logger.WarnContext(ctx, "session: lock lifecycle attention publication failed",
+			"session_id", after.ID, "error", err)
+		return
+	}
+	var beforeCopy Info
+	if before != nil {
+		beforeCopy = *before
+	}
+	afterCopy := *after
+	m.attentionCommitMu.Lock()
+	previous, published := m.attentionPublished[after.ID]
+	m.attentionCommitMu.Unlock()
+	if published {
+		applyAttentionToInfo(&beforeCopy, previous)
+	}
+	if active, ok := m.Get(after.ID); ok {
+		applyAttentionToInfo(&afterCopy, attentionProjectionFromInfo(active.Info()))
+	}
+	wake := m.publishLifecycleAttentionTransitionWakeLocked(ctx, &beforeCopy, &afterCopy,
+		deliverCompletedWake, completedTurnID)
+	unlock()
+	if wake != nil {
+		wake()
+	}
+}
+
+// publishLifecycleAttentionTransitionWakeLocked leaves creator delivery outside the session lock.
+func (m *Manager) publishLifecycleAttentionTransitionWakeLocked(
+	ctx context.Context, before, after *Info, deliverCompletedWake bool, completedTurnID string,
+) func() {
 	m.rememberPublishedAttention(after)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
-		return
+		return nil
 	}
 	if from == BadgeWaiting || to == BadgeWaiting {
 		m.logger.InfoContext(ctx, "waiting_transition", "component", "session", "session_id", after.ID,
@@ -81,7 +115,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	}
 	m.dispatchSessionAttentionChanged(ctx, after, event)
 	if !deliverCompletedWake && to == BadgeDone {
-		return
+		return nil
 	}
-	m.dispatchSpawnWakeForTurn(ctx, after, to, completedTurnID)
+	return func() { m.dispatchSpawnWakeForTurn(ctx, after, to, completedTurnID) }
 }

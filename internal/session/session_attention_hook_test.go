@@ -17,6 +17,76 @@ import (
 func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) {
 	t.Parallel()
 
+	for _, badgeChanges := range []bool{false, true} {
+		name := "Should ignore a late same-badge supervision attention snapshot"
+		if badgeChanges {
+			name = "Should ignore a late badge-changing supervision attention snapshot"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, db := newMentionHarness(t)
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			ctx := t.Context()
+			created, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+				SessionID: sess.ID, InteractionID: "late-permission", ProviderRequestID: "late-permission",
+				Kind: store.PendingInteractionKindPermission,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Supervision captured these values before the operator answered.
+			before, after := sess.Info(), sess.Info()
+			if badgeChanges {
+				before.PendingPermissionCount = 0
+			}
+			var edges []hookspkg.SessionAttentionChangedPayload
+			h.manager.hooks.Attention = attentionHookFunc(
+				func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					edges = append(edges, p)
+					return p, nil
+				},
+			)
+			events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+				ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			if _, err := h.manager.transitionPendingInteraction(ctx, sess.ID, store.PendingInteractionTransition{
+				InteractionID: created.Interaction.InteractionID, Status: store.PendingInteractionStatusResolved,
+				Resolution: "allow", ResolvedBy: "operator",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			h.manager.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "")
+			if _, err := h.manager.SessionPresence(ctx, sess.ID, "", true); err != nil {
+				t.Fatal(err)
+			}
+			if len(edges) != 1 || edges[0].From != string(BadgeWaitingForAuth) || edges[0].To != string(BadgeIdle) {
+				t.Fatalf("late lifecycle repeated clearing hook: %+v", edges)
+			}
+			canonical, err := db.GetSessionAttention(ctx, sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			clears := 0
+			for len(events) > 0 {
+				event := <-events
+				if event.Attention != nil {
+					clears++
+					if event.Attention.From != BadgeWaitingForAuth || event.Attention.To != BadgeIdle {
+						t.Fatalf("stale catalog edge: %+v", event)
+					}
+				}
+			}
+			if clears != 1 || canonical.PendingPermissionCount != 0 || sess.Info().PendingPermissionCount != 0 {
+				t.Fatalf("catalog/storage mismatch: clears=%d canonical=%+v", clears, canonical)
+			}
+		})
+	}
+
 	t.Run("Should invalidate the catalog after refreshing an already published acknowledgement", func(t *testing.T) {
 		t.Parallel()
 		h, db := newMentionHarness(t)
@@ -157,11 +227,8 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		}
 	})
 
-	for _, ordinary := range []bool{false, true} {
-		name := "Should let a synchronous creator wake call child presence after reconciliation publication"
-		if ordinary {
-			name = "Should let a synchronous creator wake call child presence after ordinary publication"
-		}
+	for _, publication := range []string{"reconciliation", "ordinary", "lifecycle"} {
+		name := "Should let a synchronous creator wake call child presence after " + publication + " publication"
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			h, db := newMentionHarness(t)
@@ -195,11 +262,24 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 				Status:        store.PendingInteractionStatusCanceled,
 				At:            h.manager.now(),
 			}
-			if ordinary {
+			switch publication {
+			case "lifecycle":
+				before := h.manager.sessions["wake-child"].Info()
+				commit, err := h.manager.commitAttention(ctx, "wake-child",
+					func() (store.SessionAttentionCommit, error) {
+						return db.TransitionPendingInteraction(ctx, transition)
+					})
+				if err != nil {
+					t.Fatal(err)
+				}
+				after := h.manager.sessions["wake-child"].Info()
+				applyAttentionToInfo(after, commit.After)
+				h.manager.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "")
+			case "ordinary":
 				if _, err := h.manager.transitionPendingInteraction(ctx, "wake-child", transition); err != nil {
 					t.Fatal(err)
 				}
-			} else {
+			default:
 				cleared, err := db.TransitionPendingInteraction(ctx, transition)
 				if err != nil {
 					t.Fatal(err)
