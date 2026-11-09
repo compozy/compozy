@@ -150,3 +150,9 @@ negation is resolved for conditional skips; unresolved operands remain unknown.
 The canonical report self-test injects a failed cold audit and requires the exact
 subprocess failure to propagate. Real-parser checks cover suite overrides and
 negated skips with bounded-deadline and executing-condition controls.
+
+Static condition evaluation distinguishes known global `undefined` from unknown
+expressions and respects local shadowing. Suite checks include `suite` and renamed
+Vitest imports, resolved through lexical bindings. The canonical plugin suite
+passes 48 tests without cache; real Oxlint parsing confirms four expected
+violations while preserving shadowed parameter controls.

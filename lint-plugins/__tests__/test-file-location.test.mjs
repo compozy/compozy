@@ -248,4 +248,65 @@ describe("deterministic unit test conventions", () => {
       messages(factory("skipIf", { type: "Identifier", name: "dynamic" }), [{ value: "case" }, {}])
     ).toHaveLength(0);
   });
+  it("distinguishes global undefined from shadowed and unresolved skip conditions", () => {
+    const identifier = { type: "Identifier", name: "undefined" };
+    const callee = {
+      type: "CallExpression",
+      callee: {
+        type: "MemberExpression",
+        object: { type: "Identifier", name: "it" },
+        property: { name: "skipIf" },
+      },
+      arguments: [{ type: "UnaryExpression", operator: "!", argument: identifier }],
+    };
+    const variable = { defs: [] };
+    const sourceCode = { getScope: () => ({ set: new Map([["undefined", variable]]) }) };
+    expect(messages(callee, [])).toHaveLength(1);
+    expect(messages(callee, [], undefined, [], sourceCode)).toHaveLength(1);
+    variable.defs = [
+      {
+        parent: { kind: "const" },
+        node: { id: identifier, init: { type: "Literal", value: true } },
+      },
+    ];
+    expect(messages(callee, [], undefined, [], sourceCode)).toHaveLength(0);
+    variable.defs = [{ type: "Parameter" }];
+    expect(messages(callee, [], undefined, [], sourceCode)).toHaveLength(0);
+  });
+  it("checks suite aliases and renamed Vitest imports through lexical bindings", () => {
+    const variable = {
+      defs: [
+        {
+          type: "ImportBinding",
+          parent: { source: { value: "vitest" } },
+          node: { imported: { name: "describe" } },
+        },
+      ],
+    };
+    const sourceCode = { getScope: () => ({ set: new Map([["group", variable]]) }) };
+    for (const name of ["describe", "suite", "group"]) {
+      const root = { type: "Identifier", name };
+      const options = [
+        { type: "ObjectExpression", properties: [{ key: { name: "retry" }, value: { value: 2 } }] },
+      ];
+      expect(messages(root, options, undefined, [], sourceCode)).toHaveLength(1);
+      const skip = { type: "MemberExpression", object: root, property: { name: "skip" } };
+      expect(messages(skip, [], undefined, [], sourceCode)).toHaveLength(1);
+      const conditional = {
+        type: "CallExpression",
+        callee: { ...skip, property: { name: "skipIf" } },
+        arguments: [
+          { type: "UnaryExpression", operator: "!", argument: { type: "Literal", value: false } },
+        ],
+      };
+      expect(messages(conditional, [], undefined, [], sourceCode)).toHaveLength(1);
+    }
+    variable.defs = [{ type: "Parameter" }];
+    const skip = {
+      type: "MemberExpression",
+      object: { type: "Identifier", name: "group" },
+      property: { name: "skip" },
+    };
+    expect(messages(skip, [], undefined, [], sourceCode)).toHaveLength(0);
+  });
 });

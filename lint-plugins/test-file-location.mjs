@@ -97,31 +97,37 @@ function positiveDeadlineWithin(node, budget) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
 }
 
+const UNKNOWN = Symbol("unknown static value");
+
+function binding(node, sourceCode) {
+  for (let scope = sourceCode?.getScope(node); scope; scope = scope.upper) {
+    const variable = scope.set.get(node.name);
+    if (variable) return variable;
+  }
+}
+
 /** Resolve literals and immutable local aliases without evaluating arbitrary expressions. */
 function staticValue(node, sourceCode, seen = new Set()) {
-  if (!node || seen.has(node)) return undefined;
+  if (!node || seen.has(node)) return UNKNOWN;
   seen.add(node);
   if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
-    return node.quasis[0]?.value.cooked ?? undefined;
+    return node.quasis[0]?.value.cooked ?? UNKNOWN;
   }
   if (node.type === "UnaryExpression" && node.operator === "!") {
     const operand = staticValue(node.argument, sourceCode, seen);
-    return operand === undefined ? undefined : !operand;
+    return operand === UNKNOWN ? UNKNOWN : !operand;
   }
-  if (node.type !== "Identifier") return node.value;
-  for (let scope = sourceCode?.getScope(node); scope; scope = scope.upper) {
-    const variable = scope.set.get(node.name);
-    if (!variable) continue;
-    const definition = variable.defs[0];
-    if (
-      variable.defs.length !== 1 ||
-      definition.parent?.kind !== "const" ||
-      definition.node.id.type !== "Identifier"
-    )
-      return undefined;
-    return staticValue(definition.node.init, sourceCode, seen);
-  }
-  return undefined;
+  if (node.type !== "Identifier") return "value" in node ? node.value : UNKNOWN;
+  const variable = binding(node, sourceCode);
+  if (node.name === "undefined" && (!variable || variable.defs.length === 0)) return undefined;
+  const definition = variable?.defs[0];
+  if (
+    variable?.defs.length !== 1 ||
+    definition.parent?.kind !== "const" ||
+    definition.node.id.type !== "Identifier"
+  )
+    return UNKNOWN;
+  return staticValue(definition.node.init, sourceCode, seen);
 }
 
 /** Resolve property keys while leaving dynamic computed expressions unknown. */
@@ -131,7 +137,17 @@ function propertyName(node, property = node.property, sourceCode) {
 
 /** Follow supported Vitest modifiers and factories back to a test or suite root. */
 function isTestFunction(node, roots = ["test", "it"], sourceCode) {
-  if (node?.type === "Identifier") return roots.includes(node.name);
+  if (node?.type === "Identifier") {
+    const variable = binding(node, sourceCode);
+    const definition = variable?.defs[0];
+    if (definition?.type === "ImportBinding") {
+      return (
+        definition.parent?.source.value === "vitest" &&
+        roots.includes(definition.node.imported?.name ?? definition.node.imported?.value)
+      );
+    }
+    return roots.includes(node.name);
+  }
   if (node?.type === "MemberExpression") {
     return (
       ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(
@@ -188,7 +204,7 @@ function unsafeOptions(options, budget, sourceCode) {
       );
     }
     const key = propertyName(property, property.key, sourceCode);
-    if (property.computed && key === undefined) return true;
+    if (property.computed && key === UNKNOWN) return true;
     return (
       key === "retry" || (key === "timeout" && !positiveDeadlineWithin(property.value, budget))
     );
@@ -223,7 +239,11 @@ const deterministicTests = {
         const name = callee.type === "Identifier" ? callee.name : undefined;
         const member =
           callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
-        const testCall = isTestFunction(callee, ["test", "it", "describe"], context.sourceCode);
+        const testCall = isTestFunction(
+          callee,
+          ["test", "it", "describe", "suite"],
+          context.sourceCode
+        );
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
@@ -236,7 +256,7 @@ const deterministicTests = {
           node.arguments.length >= 3 &&
           !positiveDeadlineWithin(node.arguments[2], defaultTimeout);
         const skipped =
-          isTestFunction(callee, ["test", "it", "describe"], context.sourceCode) &&
+          isTestFunction(callee, ["test", "it", "describe", "suite"], context.sourceCode) &&
           hasSkippedDeclaration(callee, context.sourceCode);
         if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
           context.report({ node, messageId: "nondeterministic" });
