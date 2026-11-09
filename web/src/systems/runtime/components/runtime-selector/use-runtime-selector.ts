@@ -130,8 +130,11 @@ export function useRuntimeSelector({
     providerById,
     value.provider
   );
-  const activeCustomProvider =
+  // A disabled provider stays listed only to show the current value; it never takes new picks.
+  const isDisabledProvider = (provider: string) => providerById.get(provider)?.disabled === true;
+  const customCandidate =
     catalogCustomProvider || (allowCustomProvider ? value.provider.trim() : "");
+  const activeCustomProvider = isDisabledProvider(customCandidate) ? "" : customCandidate;
 
   const listModel = open
     ? buildRuntimeListModel({
@@ -214,7 +217,7 @@ export function useRuntimeSelector({
   const pickModel = (provider: string, modelId: string) => {
     const id = modelId.trim();
     if (id.length === 0) return;
-    if (isProviderManaged(providerById.get(provider))) return;
+    if (isProviderManaged(providerById.get(provider)) || isDisabledProvider(provider)) return;
     const model = modelByKey.get(runtimeModelKey(provider, id));
     if (model?.disabled) return;
     emitSelection(provider, id, model);
@@ -234,7 +237,7 @@ export function useRuntimeSelector({
     // emitted with an empty or guessed provider (no default substitution).
     if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider)))
       return false;
-    if (isProviderManaged(providerById.get(provider))) return false;
+    if (isProviderManaged(providerById.get(provider)) || isDisabledProvider(provider)) return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
     emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));

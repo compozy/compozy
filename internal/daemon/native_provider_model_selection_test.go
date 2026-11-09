@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -19,6 +20,14 @@ type selectionConfigResolver struct {
 
 func (r *selectionConfigResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 	return workspacepkg.ResolvedWorkspace{Config: r.workspace}, nil
+}
+
+func (r *selectionConfigResolver) ResolveForProfile(
+	ctx context.Context,
+	ref string,
+	_ string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return r.Resolve(ctx, ref)
 }
 
 func (r *selectionConfigResolver) ResolveOrRegister(
@@ -141,15 +150,25 @@ func TestNativeProviderModelSelectionConfig(t *testing.T) {
 		})
 	}
 
+	t.Run("Should return an error for a workspace scope without a workspace resolver", func(t *testing.T) {
+		t.Parallel()
+		tools := newTools(t, withGemini(new(false)), nil)
+		tools.deps.WorkspaceResolver = nil
+		_, err := tools.selectionConfig(t.Context(), toolspkg.Scope{WorkspaceID: "ws-lab"})
+		if err == nil || !strings.Contains(err.Error(), "workspace resolver is unavailable") {
+			t.Fatalf("selectionConfig(ws-lab) error = %v, want the missing workspace resolver error", err)
+		}
+	})
+
 	t.Run(
 		"Should return an error instead of the unscoped config when the profile config is unreadable",
 		func(t *testing.T) {
 			t.Parallel()
 			tools := newTools(t, withGemini(nil), map[string]string{"eng": "[providers.gemini\nenabled = false\n"})
 			cfg, err := tools.selectionConfig(t.Context(), toolspkg.Scope{ProfileID: "profile-eng"})
-			if err == nil {
-				t.Fatalf("selectionConfig(profile-eng) gemini disabled = %v, want the profile decode error",
-					cfg.IsProviderDisabled("gemini"))
+			if err == nil || !strings.Contains(err.Error(), `config: decode profile "eng" config:`) {
+				t.Fatalf("selectionConfig(profile-eng) gemini disabled = %v, error = %v, want the profile decode error",
+					cfg.IsProviderDisabled("gemini"), err)
 			}
 		},
 	)

@@ -236,7 +236,8 @@ func reportPendingRestart(
 
 // reloadWithEnabledProjection splits a restart-required reload (B-008): the changed
 // providers.*.enabled values apply live while every other path stays pending. An invalid
-// projection is skipped with a warning and the whole reload stays pending.
+// projection is skipped with a warning, and a projection that changes nothing is skipped
+// silently; either way the whole reload stays pending.
 func (s *service) reloadWithEnabledProjection(
 	ctx context.Context,
 	state *activeSnapshot,
@@ -253,6 +254,11 @@ func (s *service) reloadWithEnabledProjection(
 	projectedHash, err := hashConfigSnapshot(&projected)
 	if err != nil {
 		return ApplyResult{}, nil, false, err
+	}
+	if projectedHash == state.hash {
+		// Every changed provider is still pending its definition, so nothing applies live and the
+		// whole reload stays pending for restart.
+		return ApplyResult{}, nil, false, nil
 	}
 	record, plan, err := s.persistRuntimeApply(
 		ctx, state, desiredHash, projectedHash, &projected, lifecycle.Live, false, "", "",

@@ -5000,6 +5000,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			ModelCatalog: catalog,
 			// Production wires the profile store; an unresolvable scope profile is a tool error.
 			Profiles: selectionProfileNames{"profile-marketing": "marketing"},
+			// Workspace-scoped calls filter with the workspace's effective config.
+			WorkspaceResolver: &selectionConfigResolver{
+				workspace: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}),
+			},
 			Settings: func() core.SettingsService {
 				return settingsService
 			},

@@ -360,6 +360,27 @@ enabled = false
 		},
 	)
 
+	t.Run("Should keep a reload pending when only a new disabled provider changed", func(t *testing.T) {
+		t.Parallel()
+		service, homePaths := newProviderEnabledTestService(t, enabledBaseConfig())
+		writeFile(t, homePaths.ConfigFile, enabledBaseConfig()+`
+[providers.work]
+command = "work-acp --stdio"
+enabled = false
+`)
+
+		for _, attempt := range []string{"first", "second"} {
+			result, err := service.Reload(t.Context())
+			if err != nil {
+				t.Fatalf("Reload(%s) error = %v", attempt, err)
+			}
+			if result.Applied || !result.RestartRequired || result.NextAction != lifecycle.NextActionRestartDaemon {
+				t.Fatalf("Reload(%s) = applied %v restart %v next %q, want pending restart without a live apply",
+					attempt, result.Applied, result.RestartRequired, result.NextAction)
+			}
+		}
+	})
+
 	t.Run("Should leave an invalid enabled projection pending with a warning", func(t *testing.T) {
 		t.Parallel()
 		service, homePaths := newProviderEnabledTestService(t, enabledBaseConfig())

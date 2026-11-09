@@ -2738,6 +2738,62 @@ describe("RuntimeSelector disabled providers", () => {
     expect(document.querySelector("[data-provider='claude'][data-model='claude-b']")).toBeNull();
   });
 
+  it("Should keep the pinned model of a disabled provider unselectable by pointer and keyboard", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a"), model("claude-a", { provider: "claude", name: "Claude A" })],
+    });
+
+    await openSelector(user);
+    fireEvent.change(screen.getByTestId("runtime-selector-search"), {
+      target: { value: "Claude A" },
+    });
+    await user.click(rowFor("claude", "claude-a"));
+    const search = screen.getByTestId("runtime-selector-search");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(within(screen.getByTestId("rt-trigger")).getByText("Disabled")).toBeInTheDocument();
+  });
+
+  it("Should not offer a custom model id for a pinned disabled provider", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+    });
+
+    await openSelector(user);
+    const search = screen.getByTestId("runtime-selector-search");
+    fireEvent.change(search, { target: { value: "claude-unknown" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(screen.queryByTestId("runtime-selector-custom")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should reject an exact provider entry that names a disabled provider", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "claude", model: "claude-a", reasoning_effort: "" },
+      providers: [codexProvider, disabledClaude],
+      models: [model("gpt-a")],
+      props: { allowCustomProvider: true },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact provider name" });
+    await user.type(exactInput, "claude/claude-b");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("Should drop a provider disabled while the selector stays mounted (UT-040)", async () => {
     const user = userEvent.setup();
     const value = { provider: "codex", model: "gpt-a", reasoning_effort: "" as const };

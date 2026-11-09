@@ -138,7 +138,13 @@ func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.
 		profiles = n.deps.Profiles
 	}
 	profileID := strings.TrimSpace(scope.ProfileID)
-	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" && n.deps.WorkspaceResolver != nil {
+	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" {
+		if n.deps.WorkspaceResolver == nil {
+			return compozyconfig.Config{}, fmt.Errorf(
+				"provider models: resolve workspace %q config: workspace resolver is unavailable",
+				workspaceID,
+			)
+		}
 		resolved, err := resolveRuntimeProfileWorkspace(ctx, n.deps.WorkspaceResolver, profiles, workspaceID, profileID)
 		if err != nil {
 			return compozyconfig.Config{}, fmt.Errorf(

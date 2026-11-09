@@ -60,6 +60,7 @@ func (e *OverlayEditor) DeleteKeyPruningEmptyTable(path []string) error {
 // the profile still overrides it (BR-2). Workspace layers keep the plain write so validation still
 // rejects the key there.
 func (e *OverlayEditor) SetValueAtTarget(homePaths HomePaths, target WriteTarget, path []string, value any) error {
+	path = e.AuthoredProviderEnabledPath(path)
 	if !providerReEnable(path, value) {
 		return e.SetValue(path, value)
 	}
@@ -103,6 +104,29 @@ func globalProviderDisabled(homePaths HomePaths, providerID string) (bool, error
 		}
 	}
 	return false, nil
+}
+
+// AuthoredProviderEnabledPath rewrites providers.<id>.enabled to the provider table name the
+// overlay already uses for that canonical provider, so [providers.OPENCODE] is edited in place
+// instead of gaining a sibling [providers.opencode] the loader folds into the same provider.
+// Any other path, or an overlay without a matching table, is returned unchanged.
+func (e *OverlayEditor) AuthoredProviderEnabledPath(path []string) []string {
+	if len(path) != 3 || strings.TrimSpace(path[0]) != "providers" ||
+		strings.TrimSpace(path[2]) != providerEnabledField {
+		return path
+	}
+	document, err := parseOverlayDocument(e.content)
+	if err != nil {
+		return path
+	}
+	target := CanonicalProviderName(path[1])
+	for _, expr := range document.expressions {
+		if len(expr.path) >= 2 && expr.path[0] == "providers" && expr.path[1] != path[1] &&
+			CanonicalProviderName(expr.path[1]) == target {
+			return []string{path[0], expr.path[1], path[2]}
+		}
+	}
+	return path
 }
 
 // providerEnabledField is the providers.<id> key that turns a provider on or off.

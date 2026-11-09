@@ -111,6 +111,30 @@ func TestSetValueAtTargetProviderReEnable(t *testing.T) {
 		})
 	}
 
+	t.Run("Should toggle the provider table under its authored name", func(t *testing.T) {
+		t.Parallel()
+		const authored = "[providers.OPENCODE]\ndisplay_name = \"Opencode\"\n"
+		opencodePath := []string{"providers", "opencode", "enabled"}
+		editor, err := newOverlayEditor(ConfigName, []byte(authored))
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+		if err := editor.SetValueAtTarget(HomePaths{}, global, opencodePath, false); err != nil {
+			t.Fatalf("SetValueAtTarget(false) error = %v", err)
+		}
+		if !editor.HasPath([]string{"providers", "OPENCODE", "enabled"}) ||
+			editor.HasPath([]string{"providers", "opencode"}) {
+			got, _ := editor.Bytes()
+			t.Fatalf("overlay after disable = %q, want enabled written under [providers.OPENCODE]", got)
+		}
+		if err := editor.SetValueAtTarget(HomePaths{}, global, opencodePath, true); err != nil {
+			t.Fatalf("SetValueAtTarget(true) error = %v", err)
+		}
+		if got, _ := editor.Bytes(); string(got) != authored {
+			t.Fatalf("overlay after re-enable = %q, want %q", got, authored)
+		}
+	})
+
 	t.Run("Should refuse a re-enable it cannot apply inside an inline table", func(t *testing.T) {
 		t.Parallel()
 		for _, src := range []string{
