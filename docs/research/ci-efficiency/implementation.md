@@ -73,3 +73,9 @@ matching; instruction-only edits skip frontend, while glossary edits select site
 Integration refresh searches up to 40 trusted successful runs for the complete
 eight-artifact set, reports absent data and includes both source run IDs in its PR.
 The implementation PR has `ci:full` for the changed integration shards.
+
+Deadline review repair: positional and object timeout overrides must be finite,
+strictly positive and within the owning suite budget. Zero, negative and Infinity
+cannot disable the deadline. The canonical plugin suite passes 41 tests; an actual
+oxlint parser run rejects all six disabled-deadline forms and accepts both positive
+controls. Existing test deadlines and assertions remain unchanged.

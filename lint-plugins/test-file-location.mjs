@@ -90,6 +90,12 @@ const testsInTestsDir = {
   },
 };
 
+function positiveDeadlineWithin(node, budget) {
+  const value =
+    node?.type === "UnaryExpression" && node.operator === "-" ? -node.argument?.value : node?.value;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
+}
+
 // Unit tests should synchronize with observable completion. Real clock/process
 // integration contracts can document a local exception with an eslint directive.
 const deterministicTests = {
@@ -124,14 +130,16 @@ const deterministicTests = {
         const override = options?.properties.some(
           property =>
             property.key?.name === "retry" ||
-            (property.key?.name === "timeout" && !(property.value?.value <= defaultTimeout))
+            ((property.key?.name ?? property.key?.value) === "timeout" &&
+              !positiveDeadlineWithin(property.value, defaultTimeout))
         );
         const numericSleep =
           ["sleep", "delay"].includes(name) && typeof node.arguments[0]?.value === "number";
         const timeout =
           testCall &&
-          typeof node.arguments[2]?.value === "number" &&
-          node.arguments[2].value > defaultTimeout;
+          !options &&
+          node.arguments.length >= 3 &&
+          !positiveDeadlineWithin(node.arguments[2], defaultTimeout);
         const skipped = ["test", "it", "describe"].includes(owner) && member === "skip";
         if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
           context.report({ node, messageId: "nondeterministic" });
