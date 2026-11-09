@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	sessionpkg "github.com/compozy/compozy/internal/session"
@@ -11,6 +10,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// nativeTerminalActor rechecks live run authority independently of an accepted tool approval.
 func (n *daemonNativeTools) nativeTerminalActor(
 	ctx context.Context,
 	workspaceID string,
@@ -20,8 +20,9 @@ func (n *daemonNativeTools) nativeTerminalActor(
 	sessionID := strings.TrimSpace(req.SessionID)
 	runID := strings.TrimSpace(req.RunID)
 	if sessionID == "" || runID == "" || req.Generation <= 0 {
-		return terminalpkg.Actor{}, fmt.Errorf(
-			"terminal agent run identity is incomplete: %w", terminalpkg.ErrRunIdentityIncomplete,
+		return terminalpkg.Actor{}, terminalSessionDeniedError(
+			req.ToolID,
+			"terminal action has incomplete prompt run identity",
 		)
 	}
 	if n.deps.Sessions == nil {
@@ -36,23 +37,34 @@ func (n *daemonNativeTools) nativeTerminalActor(
 	info, err := n.deps.Sessions.Status(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, sessionpkg.ErrSessionNotFound) {
-			return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID)
+			return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID, "terminal session is unavailable")
 		}
 		return terminalpkg.Actor{}, err
 	}
 	if info == nil {
-		return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID)
+		return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID, "terminal session is unavailable")
 	}
 	active, err := n.deps.Sessions.ActivePromptRun(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, sessionpkg.ErrPromptNotActive) {
-			return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID)
+			return terminalpkg.Actor{}, terminalSessionDeniedError(
+				req.ToolID,
+				"terminal action requires an active prompt run",
+			)
 		}
 		return terminalpkg.Actor{}, err
 	}
-	if active.WorkspaceID != workspaceID || active.ProfileID != profileID || active.SessionID != sessionID ||
-		active.RunID != runID {
-		return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID)
+	if active.WorkspaceID != workspaceID || active.ProfileID != profileID || active.SessionID != sessionID {
+		return terminalpkg.Actor{}, terminalSessionDeniedError(
+			req.ToolID,
+			"terminal action does not match the active session scope",
+		)
+	}
+	if active.RunID != runID {
+		return terminalpkg.Actor{}, terminalSessionDeniedError(
+			req.ToolID,
+			"terminal action belongs to a different prompt run",
+		)
 	}
 	if active.Generation != req.Generation || info.RuntimeGeneration != req.Generation {
 		return terminalpkg.Actor{}, &terminalpkg.Error{
@@ -66,7 +78,7 @@ func (n *daemonNativeTools) nativeTerminalActor(
 		agentName = strings.TrimSpace(info.AgentName)
 	}
 	if agentName == "" {
-		return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID)
+		return terminalpkg.Actor{}, terminalSessionDeniedError(req.ToolID, "terminal agent identity is unavailable")
 	}
 	return terminalpkg.Actor{
 		Kind: terminalpkg.ActorKindAgent, ID: agentName, ProfileID: profileID,

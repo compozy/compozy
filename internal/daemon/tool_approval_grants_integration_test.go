@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -701,4 +704,153 @@ func assertApprovalGrantSurvivedRestart(
 		return
 	}
 	t.Fatalf("approval grant %q missing after restart; grants=%#v", want.ID, list.Grants)
+}
+
+func TestTerminalExecAllowOnceActiveRun(t *testing.T) {
+	t.Run("Should execute the approved command in the active prompt run", func(t *testing.T) {
+		acpmock.RequireDriver(t)
+		t.Parallel()
+		spec := e2etest.MockAgentSpec{
+			FixturePath:  mockFixturePath(t, "tool_approval_grants_fixture.json"),
+			FixtureAgent: "tool-approval-grants", AgentName: "terminal-approval",
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
+			MockAgents: []e2etest.MockAgentSpec{spec},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		target := createFixtureBackedSession(t, ctx, harness, spec.AgentName, "terminal-approval")
+		ready := make(chan struct{})
+		signalReady := sync.OnceFunc(func() { close(ready) })
+		done := make(chan error, 1)
+		go func() {
+			_, err := harness.PromptSessionHTTPWithEvents(
+				ctx,
+				target.ID,
+				"hold native approval",
+				func(event e2etest.SSEEvent) error {
+					if event.Event == "agent_message" {
+						signalReady()
+					}
+					return nil
+				},
+			)
+			done <- err
+		}()
+		select {
+		case <-ready:
+		case err := <-done:
+			t.Fatalf("prompt ended before readiness: %v", err)
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		client := approvalGrantHostedClient(t, ctx, harness, spec.AgentName)
+		defer closeAttentionMCPClient(t, client)
+		for index, output := range []string{"approved-once", "approved-once", "changed-command"} {
+			requestID := fmt.Sprintf("terminal-once-%d", index)
+			result := callApprovalToolWithDecision(t, ctx, harness, target.ID, client,
+				toolspkg.ToolIDTerminalExec, requestID, map[string]any{
+					"command": "/bin/sh", "args": []string{"-c", "printf " + output}, "yield_ms": 1000,
+				}, "allow-once")
+			if result == nil || result.IsError {
+				t.Fatalf("approved exec = %#v", result)
+			}
+			payload, err := json.Marshal(result.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var execResult struct {
+				ExitCode *int   `json:"exit_code"`
+				Output   string `json:"output"`
+			}
+			if err := json.Unmarshal(payload, &execResult); err != nil {
+				t.Fatal(err)
+			}
+			if execResult.ExitCode == nil || *execResult.ExitCode != 0 || execResult.Output != output {
+				t.Fatalf("approved exec = %s, want successful output %q", payload, output)
+			}
+			assertTerminalApprovalCorrelation(t, ctx, harness, target.ID, requestID)
+		}
+		if grants := listApprovalGrantsHTTP(t, ctx, harness, harness.WorkspaceID); grants.Total != 0 {
+			t.Fatalf("allow-once persisted grants = %#v, want none", grants)
+		}
+		cancelAttentionPrompt(t, ctx, harness, target.ID)
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	})
+}
+
+func assertTerminalApprovalCorrelation(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID, requestID string,
+) {
+	t.Helper()
+	data, err := os.ReadFile(harness.HomePaths.LogFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var applied struct {
+		RequestID     string `json:"request_id"`
+		CorrelationID string `json:"correlation_id"`
+		RunID         string `json:"run_id"`
+		Generation    int64  `json:"generation"`
+		Approval      string `json:"approval"`
+	}
+	found := false
+	for line := range strings.Lines(string(data)) {
+		if !strings.Contains(line, "native tool approval applied") {
+			continue
+		}
+		if err := json.Unmarshal([]byte(line), &applied); err != nil {
+			t.Fatal(err)
+		}
+		if applied.RequestID == requestID {
+			found = true
+			break
+		}
+	}
+	if !found || applied.CorrelationID == "" || applied.RunID == "" || applied.Generation <= 0 ||
+		applied.Approval != "approved_once" {
+		t.Fatalf("approval application correlation = %#v, found=%t", applied, found)
+	}
+	events, err := harness.SessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := false
+	for _, event := range decodeAgentEvents(t, events.Events) {
+		if event.RequestID == requestID && event.Decision == "allow-once" {
+			approved = true
+		}
+	}
+	if !approved {
+		t.Fatal("missing operator decision for applied approval request")
+	}
+	var logs compozycontract.LogsListResponse
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodGet,
+		"/api/logs?session_id="+url.QueryEscape(sessionID)+"&type=tool.call_completed&limit=100",
+		nil,
+		&logs,
+	); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range logs.Events {
+		var outcome toolspkg.ToolCallEvent
+		if err := json.Unmarshal(event.Content, &outcome); err != nil {
+			t.Fatal(err)
+		}
+		if outcome.CorrelationID == applied.CorrelationID && outcome.RunID == applied.RunID &&
+			outcome.Generation == applied.Generation {
+			return
+		}
+	}
+	t.Fatal("missing execution outcome matching the applied approval")
 }
