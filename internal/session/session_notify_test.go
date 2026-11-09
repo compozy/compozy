@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -119,6 +120,35 @@ func TestPublishOperatorNotification(t *testing.T) {
 			t.Fatalf("PublishOperatorNotification() error = %v, want required title", err)
 		}
 	})
+
+	for _, kind := range []string{"", NotifyKindHeartbeatSourceUnapproved} {
+		t.Run("Should deliver User-scope "+cmp.Or(kind, "ordinary")+" notifications as unmuted", func(t *testing.T) {
+			t.Parallel()
+			manager, _ := newNotifyTestManager()
+			mutes := openManagerInputQueueStore(t)
+			manager.attentionWorkspaceMutes = mutes
+			events, cancel, err := manager.SubscribeSessionCatalogEvents(
+				testutil.Context(t),
+				CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+			)
+			if err != nil {
+				t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+			}
+			defer cancel()
+			result, err := manager.PublishOperatorNotification(
+				testutil.Context(t),
+				NotifyRequest{Kind: kind, ProfileID: store.DefaultProfileID, SessionID: "sess-user", Title: "User"},
+			)
+			if err != nil || result.Outcome != NotifyOutcomeDelivered {
+				t.Fatalf("PublishOperatorNotification() = %#v, %v; want delivered", result, err)
+			}
+			event := <-events
+			if event.OperatorNotification == nil || event.OperatorNotification.WorkspaceID != "" ||
+				event.OperatorNotification.SessionID != "sess-user" {
+				t.Fatalf("catalog event = %#v, want User-scope notification", event)
+			}
+		})
+	}
 
 	t.Run("Should suppress muted workspaces while retaining the rate counter", func(t *testing.T) {
 		t.Parallel()

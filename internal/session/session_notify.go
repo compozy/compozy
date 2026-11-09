@@ -11,6 +11,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -107,14 +108,7 @@ func (m *Manager) publishOperatorNotification(
 	if err != nil {
 		return NotifyResult{}, err
 	}
-	if m.attentionWorkspaceMutes == nil {
-		return NotifyResult{}, errors.New("session: attention workspace mute reader is required")
-	}
-	muted, err := m.attentionWorkspaceMutes.IsAttentionWorkspaceMuted(
-		ctx,
-		notification.ProfileID,
-		notification.WorkspaceID,
-	)
+	muted, err := m.attentionWorkspaceMuted(ctx, notification.ProfileID, notification.WorkspaceID)
 	if err != nil {
 		return NotifyResult{}, fmt.Errorf("session: read attention workspace mute: %w", err)
 	}
@@ -158,6 +152,18 @@ func (m *Manager) publishOperatorNotification(
 	return result, nil
 }
 
+// attentionWorkspaceMuted reports whether the profile muted the owning workspace.
+// The User scope has no workspace registration, so it cannot be workspace-muted.
+func (m *Manager) attentionWorkspaceMuted(ctx context.Context, profileID, workspaceID string) (bool, error) {
+	if m.attentionWorkspaceMutes == nil {
+		return false, errors.New("session: attention workspace mute reader is required")
+	}
+	if workspaceaccess.ScopeTarget(workspaceID, profileID).Kind == workspaceaccess.TargetUser {
+		return false, nil
+	}
+	return m.attentionWorkspaceMutes.IsAttentionWorkspaceMuted(ctx, profileID, workspaceID)
+}
+
 func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNotification, error) {
 	sessionID := strings.TrimSpace(req.SessionID)
 	profileID := strings.TrimSpace(req.ProfileID)
@@ -167,10 +173,6 @@ func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNoti
 	}
 	if profileID == "" {
 		return OperatorNotification{}, invalidNotification("profile_id", "is required")
-	}
-	if workspaceID == "" && req.Kind != NotifyKindHeartbeatSourceUnapproved &&
-		req.Kind != NotifyKindHeartbeatAuthorityUnapproved {
-		return OperatorNotification{}, invalidNotification("workspace_id", "is required")
 	}
 	title := sanitizeNotificationText(req.Title)
 	body := sanitizeNotificationText(req.Body)

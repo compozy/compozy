@@ -46,10 +46,7 @@ func (m *Manager) PublishInstanceReport(
 		return 0, err
 	}
 	if title != "" && !report.Republished {
-		if m.attentionWorkspaceMutes == nil {
-			return 0, errors.New("session: attention workspace mute reader is required")
-		}
-		muted, err := m.attentionWorkspaceMutes.IsAttentionWorkspaceMuted(ctx, info.ProfileID, info.WorkspaceID)
+		muted, err := m.attentionWorkspaceMuted(ctx, info.ProfileID, info.WorkspaceID)
 		if err != nil {
 			return 0, err
 		}
