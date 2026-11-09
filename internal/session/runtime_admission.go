@@ -35,14 +35,12 @@ func (a runtimeAdmission) surface() string {
 	}
 }
 
-// specAdmission resolves the admission purpose of a start spec for the resolved provider. A
-// runtime plan that keeps the session's bound route (provider and model) recovers its accepted route.
-func specAdmission(spec *sessionStartSpec, resolvedProvider string) runtimeAdmission {
+// specAdmission resolves the admission purpose of a start spec for the resolved route. A runtime
+// plan whose effective provider and model keep the session's bound route recovers its accepted
+// route, including a selection that omits the model and resolves to the bound one.
+func specAdmission(spec *sessionStartSpec, resolved acceptedRoute) runtimeAdmission {
 	if spec.admission == admissionRuntimeChange {
-		return runtimeChangeAdmission(
-			acceptedRoute{provider: spec.boundProvider, model: spec.boundModel},
-			acceptedRoute{provider: resolvedProvider, model: spec.model},
-		)
+		return runtimeChangeAdmission(acceptedRoute{provider: spec.boundProvider, model: spec.boundModel}, resolved)
 	}
 	if spec.admission == admissionNewWork && spec.startAction == sessionStartActionResume {
 		return admissionStoppedResume

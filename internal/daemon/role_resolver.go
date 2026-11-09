@@ -282,6 +282,14 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	if cfg == nil {
 		return errors.New("config is required")
 	}
+	if cfg.IsProviderDisabled(route.Provider) {
+		// A disabled primary never runs (BR-6), so its runtime must not fail resolution before
+		// skipDisabledRoleRoutes can fall back to an enabled route.
+		resolved.Provider = compozyconfig.CanonicalProviderName(route.Provider)
+		resolved.Model = strings.TrimSpace(route.Model)
+		resolved.ReasoningEffort = strings.TrimSpace(route.ReasoningEffort)
+		return nil
+	}
 	runtime, err := cfg.ResolveAgentDefinition(route)
 	if err != nil {
 		return err

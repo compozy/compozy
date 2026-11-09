@@ -54,7 +54,10 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 		return sessionStartRuntime{}, err
 	}
 	if err := requireEnabledRuntimeProvider(
-		&runtimeConfig, resolved.Provider, specAdmission(spec, resolved.Provider), m.logger,
+		&runtimeConfig,
+		resolved.Provider,
+		specAdmission(spec, acceptedRoute{provider: resolved.Provider, model: resolved.Model}),
+		m.logger,
 	); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}

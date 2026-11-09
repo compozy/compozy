@@ -59,6 +59,25 @@ func TestRoleDisabledProviderRoutes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fall back when a disabled primary could not resolve its runtime", func(t *testing.T) {
+		t.Parallel()
+		cfg := disabledRoleConfig(t, "gemini")
+		cfg.Roles.Coordinator.Provider = "custom-pi"
+		cfg.Providers["custom-pi"] = compozyconfig.ProviderConfig{
+			Command: "pi-acp",
+			Harness: compozyconfig.ProviderHarnessPiACP,
+			Enabled: new(false),
+		}
+		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v, want the claude fallback", err)
+		}
+		if !resolved.PrimaryDisabled || len(resolved.Fallbacks) != 1 || resolved.Fallbacks[0].Provider != "claude" {
+			t.Fatalf("Resolve(coordinator) = primary_disabled %v fallbacks %#v, want only claude",
+				resolved.PrimaryDisabled, resolved.Fallbacks)
+		}
+	})
+
 	t.Run("Should report provider_disabled when every role route is disabled", func(t *testing.T) {
 		t.Parallel()
 		cfg := disabledRoleConfig(t, "codex", "gemini", "claude")

@@ -825,6 +825,14 @@ func TestDisabledProviderGate(t *testing.T) {
 		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, accepted, "", nil); err != nil {
 			t.Fatalf("preparePromptRuntimePlanForRoute(accepted route) error = %v, want recovery allowed", err)
 		}
+		modelOmitted := accepted
+		modelOmitted.Model = ""
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, modelOmitted, "", nil); err != nil {
+			t.Fatalf(
+				"preparePromptRuntimePlanForRoute(model omitted) error = %v, want the resolved bound model allowed",
+				err,
+			)
+		}
 		retuned := accepted
 		retuned.ReasoningEffort = "high"
 		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, retuned, "", nil); err != nil {
