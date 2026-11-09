@@ -164,3 +164,12 @@ provider-native work. Native interruption and parent attention settlement must f
 lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
 the parent receives a durable settled revision without waiting for cancellation. The canonical
 attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.
+
+QA impact 2026-11-09 (direct attention publication): delay clarification resolution publication
+until after an early-stop dismissal. Require exactly one waiting-for-input-to-idle event/hook,
+with no creator wake. Repeat with a first dismissal and delayed presence publication to ensure
+the clearing edge is retained once. Reconcile a padded session ID together with its canonical
+ID, retry it, then remove the session; require one edge and no retained baseline. Close worker
+admission before a transient ordinary publication read failure and require bounded synchronous
+recovery with one hook and one creator wake after unlock. The existing attention ordering and
+hook suites verify these SQLite schedules; CI owns the full transport/extension journey.

@@ -150,7 +150,10 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 		return nil, err
 	}
 	if commit.Outcome != "unchanged" {
-		m.publishAttentionEdge(ctx, before, after)
+		// Dismissal retains the observer baseline but must never wake the creator.
+		if _, err := m.emitAttentionCommit(ctx, target, commit, false); err != nil {
+			return nil, err
+		}
 		m.sessionLogger(nil).InfoContext(ctx, "session.attention.seen", "session_id", target,
 			"from", BadgeForInfo(before), "to", BadgeForInfo(after))
 	}

@@ -274,62 +274,96 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 			t.Fatalf("lost completion clearing edge: %+v", edges)
 		}
 	})
-	t.Run("Should retry ordinary publication read failure without losing the creator wake", func(t *testing.T) {
-		t.Parallel()
-		h, db := newMentionHarness(t)
-		registerMentionCatalogSession(t, db, "retry-child", h.workspaceID)
-		h.manager.sessions["retry-child"] = &Session{ID: "retry-child", ProfileID: store.DefaultProfileID,
-			State: StateActive, Lineage: &store.SessionLineage{ParentSessionID: "creator", NotifyCreator: true}}
-		wrapped := &failingPublicationReadStore{SessionAttentionStore: h.manager.attentionStore}
-		h.manager.attentionStore = wrapped
-		wakes := make(chan SpawnWakeEvent, 2)
-		h.manager.spawnWakeNotifier = attentionWakeFunc(func(_ context.Context, _ string, event SpawnWakeEvent) error {
-			wakes <- event
-			return nil
-		})
-		hooks := make(chan hookspkg.SessionAttentionChangedPayload, 2)
-		h.manager.hooks.Attention = attentionHookFunc(
-			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
-				hooks <- p
-				return p, nil
-			},
-		)
-		wrapped.fail.Store(true)
-		commit, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
-			SessionID: "retry-child", InteractionID: "retry-permission", ProviderRequestID: "retry-permission",
-			Kind: store.PendingInteractionKindPermission,
-		})
-		if err != nil || commit.Interaction == nil {
-			t.Fatalf("committed creation: %+v, %v", commit, err)
+	for _, closing := range []bool{false, true} {
+		name := "Should retry ordinary publication read failure without losing the creator wake"
+		if closing {
+			name = "Should retry ordinary publication read failure after worker admission closes"
 		}
-		select {
-		case event := <-hooks:
-			if event.From != string(BadgeIdle) || event.To != string(BadgeWaitingForAuth) {
-				t.Fatalf("retry hook: %+v", event)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, db := newMentionHarness(t)
+			registerMentionCatalogSession(t, db, "retry-child", h.workspaceID)
+			h.manager.sessions["retry-child"] = &Session{ID: "retry-child", ProfileID: store.DefaultProfileID,
+				State: StateActive, Lineage: &store.SessionLineage{ParentSessionID: "creator", NotifyCreator: true}}
+			wrapped := &failingPublicationReadStore{SessionAttentionStore: h.manager.attentionStore}
+			h.manager.attentionStore = wrapped
+			wakes := make(chan SpawnWakeEvent, 2)
+			h.manager.spawnWakeNotifier = attentionWakeFunc(
+				func(_ context.Context, _ string, event SpawnWakeEvent) error {
+					wakes <- event
+					return nil
+				},
+			)
+			hooks := make(chan hookspkg.SessionAttentionChangedPayload, 2)
+			h.manager.hooks.Attention = attentionHookFunc(
+				func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					hooks <- p
+					return p, nil
+				},
+			)
+			if closing {
+				h.manager.stopAttentionReconciliation()
 			}
-		case <-time.After(time.Second):
-			t.Fatal("committed permission lost its hook")
-		}
-		select {
-		case event := <-wakes:
-			if event.Badge != BadgeWaitingForAuth {
-				t.Fatalf("retry wake: %+v", event)
+			events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+				ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+			})
+			if err != nil {
+				t.Fatal(err)
 			}
-		case <-time.After(time.Second):
-			t.Fatal("committed permission lost its wake")
-		}
-		h.manager.stopAttentionReconciliation()
-		select {
-		case event := <-hooks:
-			t.Fatalf("duplicate retry hook: %+v", event)
-		default:
-		}
-		select {
-		case event := <-wakes:
-			t.Fatalf("duplicate retry wake: %+v", event)
-		default:
-		}
-	})
+			defer cancel()
+			wrapped.fail.Store(true)
+			commit, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+				SessionID: "retry-child", InteractionID: "retry-permission", ProviderRequestID: "retry-permission",
+				Kind: store.PendingInteractionKindPermission,
+			})
+			if err != nil || commit.Interaction == nil {
+				t.Fatalf("committed creation: %+v, %v", commit, err)
+			}
+			select {
+			case event := <-hooks:
+				if event.From != string(BadgeIdle) || event.To != string(BadgeWaitingForAuth) {
+					t.Fatalf("retry hook: %+v", event)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("committed permission lost its hook")
+			}
+			select {
+			case event := <-wakes:
+				if event.Badge != BadgeWaitingForAuth {
+					t.Fatalf("retry wake: %+v", event)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("committed permission lost its wake")
+			}
+			h.manager.stopAttentionReconciliation()
+			count := 0
+			for len(events) > 0 {
+				if event := <-events; event.Attention != nil {
+					count++
+					if event.Attention.From != BadgeIdle || event.Attention.To != BadgeWaitingForAuth {
+						t.Fatalf("retry catalog edge: %+v", event)
+					}
+				}
+			}
+			canonical, err := db.GetSessionAttention(t.Context(), "retry-child")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 || canonical.PendingPermissionCount != 1 {
+				t.Fatalf("retry final state: count=%d canonical=%+v", count, canonical)
+			}
+			select {
+			case event := <-hooks:
+				t.Fatalf("duplicate retry hook: %+v", event)
+			default:
+			}
+			select {
+			case event := <-wakes:
+				t.Fatalf("duplicate retry wake: %+v", event)
+			default:
+			}
+		})
+	}
 
 	for _, publication := range []string{"reconciliation", "ordinary", "lifecycle"} {
 		name := "Should let a synchronous creator wake call child presence after " + publication + " publication"
