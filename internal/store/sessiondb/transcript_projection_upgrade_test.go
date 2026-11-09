@@ -11,12 +11,98 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestTranscriptProjectionUpgrade(t *testing.T) {
 	t.Parallel()
+	t.Run("Should upgrade archived cost history without restoring its removed transcript entry", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		owner := testSessionDBOwner("sess-archived-cost-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		old, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, sessionMigrationPrefixBefore(t, "00011_schema.sql"))
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner(singleton, session_id, workspace_id) VALUES (1,?,?)`,
+			owner.SessionID,
+			owner.WorkspaceID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO transcript_projection_state(singleton,projection_version,generation) VALUES (1,3,1)`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		for index, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: "Archived reply"},
+			{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{CostAmount: new(3.0), CostCurrency: new("USD")}},
+		} {
+			event.TurnID, event.SessionID, event.Timestamp = "turn-archived", owner.SessionID, at
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := old.ExecContext(
+				ctx,
+				`INSERT INTO events(id,sequence,turn_id,type,agent_name,content,timestamp,archived,transcript_entry_key) VALUES (?,?,? ,?,'coder',?,?,1,'g0:s1')`,
+				event.Type,
+				index+1,
+				event.TurnID,
+				event.Type,
+				content,
+				store.FormatTimestamp(at),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO token_usage(turn_id,cost_amount,cost_currency,timestamp) VALUES ('turn-archived',3,'USD',?)`,
+			store.FormatTimestamp(at),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := old.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			reopened, err := OpenSessionDB(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+			if err != nil || len(page.Entries) != 0 || page.Generation != 1 {
+				t.Fatalf("archived transcript=%+v error=%v", page, err)
+			}
+			events, err := reopened.Query(ctx, store.EventQuery{Type: acp.EventTypeDone})
+			if err != nil || len(events) != 1 || !events[0].Archived {
+				t.Fatalf("retained history=%+v error=%v", events, err)
+			}
+			event, err := transcript.UnmarshalAgentEvent(events[0].Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.Usage == nil || event.Usage.ReportedCostAmount == nil || *event.Usage.ReportedCostAmount != 3 ||
+				event.Usage.CostAmount == nil ||
+				*event.Usage.CostAmount != 3 {
+				t.Fatalf("retained monetary evidence=%+v", event.Usage)
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	// Invariant: a pre-v4 transcript replays normalized monetary evidence while
 	// preserving the public message identity. Owner: persisted transcript upgrade.
 	t.Run("Should replace cumulative transcript cost with the normalized turn cost", func(t *testing.T) {

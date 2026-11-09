@@ -148,5 +148,5 @@ ORDER BY e.updated_sequence ASC, e.start_sequence ASC;
 
 -- name: ListTranscriptCostEntryKeysForUpgrade :many
 SELECT DISTINCT transcript_entry_key FROM events
-WHERE transcript_entry_key != '' AND json_valid(content)
+WHERE archived = 0 AND transcript_entry_key != '' AND json_valid(content)
   AND json_type(content, '$.usage.ReportedCostAmount') IN ('real', 'integer');

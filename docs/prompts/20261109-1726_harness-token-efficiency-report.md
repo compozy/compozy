@@ -639,3 +639,28 @@ These final commands passed. Go lint reported zero issues in normal, integration
 One limited Desktop selection remains non-green locally: `bun x turbo run test --filter=@compozy/desktop --only -- src/deep-links/__tests__/deep-link.test.ts` passed all 13 cases but exited 1 because its selected-file branch coverage was 78.37%, below the existing global 80% threshold. The imported Desktop change is only the test-location annotation; no production Desktop code changed. The coverage threshold was not weakened and the full Desktop lane remains CI-owned.
 
 During Site prerequisite diagnosis, one invocation omitted `--only`, which unintentionally scheduled the root `codegen-check` dependency. That terminal was canceled after identifying the graph; its check ended with exit 141 and is not passing validation. The corrected test commands above retain `--only`. No repository-wide lint, full/race/E2E suites or uncached/repository-wide typechecks were run in this delivery round. Live-provider token savings, production-wide repair and new browser/HTTP/UDS QA walks remain unverified. PR/CI/reviewer evidence will be recorded at the published head.
+
+
+## Pre-publication integration review corrections
+
+The independent Claude Opus 5.5 review of the integrated branch found two valid defects. Both were reproduced in their existing owning suites before changing production code:
+
+- **Archived transcript migration:** a rewound conversation retains archived cost events whose old transcript entry has been removed. The monetary projection upgrade incorrectly tried to rebuild that removed entry and refused to open the session. The owning SQL query now selects active events only. `TestTranscriptProjectionUpgrade` opens a real schema-10 fixture with archived monetary history through migration 11 twice, requiring the ledger evidence to remain archived and the visible transcript to remain empty. The regression failed with a missing assistant-entry corruption error before the query fix.
+- **Stop during batched cost normalization:** a stop that closed the recorder during the baseline read became a persistence failure. The batch path now applies the existing post-stop discard policy to that read error, matching the individual-event path. `TestStoppedSessionDiscardsLatePromptEvents` exercises the real stop transition at the recorder boundary and requires the terminal reason/failure to remain unchanged with one post-stop marker. It failed with a transport/persistence failure before the fix.
+
+The query's sqlc output was regenerated with `make codegen`. Neither migration SQL nor migration checksums changed in this correction.
+
+The first scoped lint/integration attempts could not compile because entries in the shared Go build cache disappeared; the standard-library sources still existed. The repeat uses a worktree-local Go build cache rather than modifying the shared cache or relaxing checks. The earlier pre-push hook also timed out during its Go lint tier after formatting and JS/TS lint passed; this is not a passing hook receipt.
+
+
+Focused regression checks passed for all three packages, and the recovery/rewind integration selection passed for both packages. Scoped lint reported zero issues in normal and integration lanes. Commands:
+
+```sh
+make codegen
+go test ./internal/store/sessiondb ./internal/store/globaldb ./internal/session -run '^(TestTranscriptProjectionUpgrade|TestSessionDBUsageCostMigration|TestGlobalDBUsageCostRepair|TestStoppedSessionDiscardsLatePromptEvents|TestPromptCostAccounting)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test -tags=integration ./internal/session ./internal/store/sessiondb -run '^(TestClearConversationFailureRecovery|TestConversationRewindRestartsSameSessionFromRetainedPrefix|TestSessionDBAppendEventIfAbsent)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/session ./internal/store/sessiondb' make go-lint
+git diff --check
+```
+
+The test-shape checker accepts the transcript upgrade suite. It reports seven pre-existing direct-test shapes and one pre-existing discarded error in the larger lifecycle suite; comparison against the prior committed file confirms these findings predate the added subtest. The new behavior is covered in the existing owning suites without relaxing any assertion or adding a new test file.
