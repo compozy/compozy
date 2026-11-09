@@ -24,28 +24,29 @@ type AgentDef struct {
 	Kind            string           `json:"kind,omitempty"             yaml:"kind,omitempty"             toml:"kind,omitempty"`
 	Appearance      map[string]any   `json:"appearance,omitempty"       yaml:"appearance,omitempty"       toml:"appearance,omitempty"`
 
-	WorkspaceAccess       string     `json:"workspace_access,omitempty" yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
-	SessionEnv            SessionEnv `json:"session_env,omitempty"      yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
-	Name                  string     `json:"name"                       yaml:"name"                       toml:"name"`
-	Provider              string     `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
-	Command               string     `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
-	Model                 string     `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
-	ReasoningEffort       string     `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	WorkspaceAccess       string     `json:"workspace_access,omitempty"    yaml:"workspace_access,omitempty"    toml:"workspace_access,omitempty"`
+	SessionEnv            SessionEnv `json:"session_env,omitempty"         yaml:"session_env,omitempty"         toml:"session_env,omitempty"`
+	AutoCompactWindow     *int       `json:"auto_compact_window,omitempty" yaml:"auto_compact_window,omitempty" toml:"auto_compact_window,omitempty"`
+	Name                  string     `json:"name"                          yaml:"name"                          toml:"name"`
+	Provider              string     `json:"provider,omitempty"            yaml:"provider"                      toml:"provider"`
+	Command               string     `json:"command,omitempty"             yaml:"command,omitempty"             toml:"command,omitempty"`
+	Model                 string     `json:"model,omitempty"               yaml:"model,omitempty"               toml:"model,omitempty"`
+	ReasoningEffort       string     `json:"reasoning_effort,omitempty"    yaml:"reasoning_effort,omitempty"    toml:"reasoning_effort,omitempty"`
 	*AgentRuntimeDefaults ` yaml:",inline" toml:",inline"`
-	Tools                 []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
-	Toolsets              []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
-	DenyTools             []string             `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
-	Permissions           string               `json:"permissions,omitempty"      yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
-	Skills                AgentSkillsConfig    `json:"skills,omitzero"            yaml:"skills,omitempty"           toml:"skills,omitempty"`
-	CategoryPath          []string             `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
-	MCPServers            []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
-	Hooks                 []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
-	FallbackChain         []RoleFallback       `json:"fallback_chain,omitempty"   yaml:"fallback_chain,omitempty"   toml:"fallback_chain,omitempty"`
-	Capabilities          *CapabilityCatalog   `json:"capabilities,omitzero"      yaml:"-"                          toml:"-"`
-	Prompt                string               `json:"prompt,omitempty"           yaml:"-"`
-	SourcePath            string               `json:"-"                          yaml:"-"                          toml:"-"`
-	SourceLayer           string               `json:"-"                          yaml:"-"                          toml:"-"`
-	ShadowedDefinitions   []AgentDefinitionRef `json:"-"                          yaml:"-"                          toml:"-"`
+	Tools                 []string             `json:"tools,omitempty"               yaml:"tools,omitempty"               toml:"tools,omitempty"`
+	Toolsets              []string             `json:"toolsets,omitempty"            yaml:"toolsets,omitempty"            toml:"toolsets,omitempty"`
+	DenyTools             []string             `json:"deny_tools,omitempty"          yaml:"deny_tools,omitempty"          toml:"deny_tools,omitempty"`
+	Permissions           string               `json:"permissions,omitempty"         yaml:"permissions,omitempty"         toml:"permissions,omitempty"`
+	Skills                AgentSkillsConfig    `json:"skills,omitzero"               yaml:"skills,omitempty"              toml:"skills,omitempty"`
+	CategoryPath          []string             `json:"category_path,omitempty"       yaml:"category_path,omitempty"       toml:"category_path,omitempty"`
+	MCPServers            []MCPServer          `json:"mcp_servers,omitempty"         yaml:"mcp_servers,omitempty"         toml:"mcp_servers,omitempty"`
+	Hooks                 []hookspkg.HookDecl  `json:"hooks,omitempty"               yaml:"hooks,omitempty"               toml:"hooks,omitempty"`
+	FallbackChain         []RoleFallback       `json:"fallback_chain,omitempty"      yaml:"fallback_chain,omitempty"      toml:"fallback_chain,omitempty"`
+	Capabilities          *CapabilityCatalog   `json:"capabilities,omitzero"         yaml:"-"                             toml:"-"`
+	Prompt                string               `json:"prompt,omitempty"              yaml:"-"`
+	SourcePath            string               `json:"-"                             yaml:"-"                             toml:"-"`
+	SourceLayer           string               `json:"-"                             yaml:"-"                             toml:"-"`
+	ShadowedDefinitions   []AgentDefinitionRef `json:"-"                             yaml:"-"                             toml:"-"`
 }
 
 type parsedAgentDef struct {
@@ -56,24 +57,25 @@ type parsedAgentDef struct {
 	Kind            string           `yaml:"kind,omitempty"             toml:"kind,omitempty"             json:"kind,omitempty"`
 	Appearance      map[string]any   `yaml:"appearance,omitempty"       toml:"appearance,omitempty"       json:"appearance,omitempty"`
 
-	WorkspaceAccess string                  `yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
-	SessionEnv      SessionEnv              `yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
-	Name            string                  `yaml:"name"                       toml:"name"`
-	Provider        string                  `yaml:"provider"                   toml:"provider"`
-	Command         string                  `yaml:"command,omitempty"          toml:"command,omitempty"`
-	Model           string                  `yaml:"model,omitempty"            toml:"model,omitempty"`
-	ReasoningEffort string                  `yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed          `yaml:"speed,omitempty"            toml:"speed,omitempty"`
-	ACPOptions      []ACPOptionSelection    `yaml:"acp_options,omitempty"      toml:"acp_options,omitempty"`
-	Tools           []string                `yaml:"tools,omitempty"            toml:"tools,omitempty"`
-	Toolsets        []string                `yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
-	DenyTools       []string                `yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
-	Permissions     string                  `yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
-	Skills          AgentSkillsConfig       `yaml:"skills,omitempty"           toml:"skills,omitempty"`
-	CategoryPath    []string                `yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
-	MCPServers      []MCPServer             `yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
-	Hooks           []parsedHookDeclaration `yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
-	FallbackChain   []RoleFallback          `yaml:"fallback_chain,omitempty"   toml:"fallback_chain,omitempty"`
+	WorkspaceAccess   string                  `yaml:"workspace_access,omitempty"    toml:"workspace_access,omitempty"`
+	SessionEnv        SessionEnv              `yaml:"session_env,omitempty"         toml:"session_env,omitempty"`
+	AutoCompactWindow *int                    `yaml:"auto_compact_window,omitempty" toml:"auto_compact_window,omitempty"`
+	Name              string                  `yaml:"name"                          toml:"name"`
+	Provider          string                  `yaml:"provider"                      toml:"provider"`
+	Command           string                  `yaml:"command,omitempty"             toml:"command,omitempty"`
+	Model             string                  `yaml:"model,omitempty"               toml:"model,omitempty"`
+	ReasoningEffort   string                  `yaml:"reasoning_effort,omitempty"    toml:"reasoning_effort,omitempty"`
+	Speed             speedpkg.Speed          `yaml:"speed,omitempty"               toml:"speed,omitempty"`
+	ACPOptions        []ACPOptionSelection    `yaml:"acp_options,omitempty"         toml:"acp_options,omitempty"`
+	Tools             []string                `yaml:"tools,omitempty"               toml:"tools,omitempty"`
+	Toolsets          []string                `yaml:"toolsets,omitempty"            toml:"toolsets,omitempty"`
+	DenyTools         []string                `yaml:"deny_tools,omitempty"          toml:"deny_tools,omitempty"`
+	Permissions       string                  `yaml:"permissions,omitempty"         toml:"permissions,omitempty"`
+	Skills            AgentSkillsConfig       `yaml:"skills,omitempty"              toml:"skills,omitempty"`
+	CategoryPath      []string                `yaml:"category_path,omitempty"       toml:"category_path,omitempty"`
+	MCPServers        []MCPServer             `yaml:"mcp_servers,omitempty"         toml:"mcp_servers,omitempty"`
+	Hooks             []parsedHookDeclaration `yaml:"hooks,omitempty"               toml:"hooks,omitempty"`
+	FallbackChain     []RoleFallback          `yaml:"fallback_chain,omitempty"      toml:"fallback_chain,omitempty"`
 }
 
 // WorkspaceDiscoverySource identifies where a discovery root came from.
@@ -336,8 +338,9 @@ func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 	}
 
 	agent := AgentDef{
-		SessionEnv: MergeSessionEnv(nil, parsed.SessionEnv),
-		Name:       strings.TrimSpace(parsed.Name),
+		SessionEnv:        MergeSessionEnv(nil, parsed.SessionEnv),
+		AutoCompactWindow: parsed.AutoCompactWindow,
+		Name:              strings.TrimSpace(parsed.Name),
 		DisplayName: strings.TrimSpace(
 			parsed.DisplayName,
 		),

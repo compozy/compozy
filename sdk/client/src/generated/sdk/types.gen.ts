@@ -203,6 +203,7 @@ export type AgentDraftRuntime = {
 
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  auto_compact_window?: number | null;
   model?: string;
   permissions?: string;
   provider: string;
@@ -608,6 +609,7 @@ export type AgentPayload = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   definition_digest: string;
@@ -1821,6 +1823,7 @@ export type CreateAgentPayload = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
@@ -2146,6 +2149,7 @@ export type DuplicateAgentOverrides = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   clear_acp_options?: boolean;
   clear_speed?: boolean;
@@ -9186,6 +9190,7 @@ export type SettingsProviderSettingsPayload = {
   auth_acp_method?: string;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   command_inherited?: boolean;
@@ -9246,6 +9251,7 @@ export type SettingsProviderWritePayload = {
   auth_login_command?: string | null;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
@@ -13393,6 +13399,7 @@ export type CreateAgentPayloadWritable = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;

@@ -19,6 +19,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		kind     ValueKind
 		redacted bool
 	}{
+		{
+			name: "Should allow Claude compact window as tokens",
+			path: "providers.claude.auto_compact_window",
+			kind: ConfigValueInt,
+		},
 		{name: "Should allow rotation threshold", path: "agents.always_on.rotation_threshold", kind: ConfigValueFloat},
 		{name: "Should allow unattended limit", path: "agents.always_on.unattended_turn_limit", kind: ConfigValueInt},
 		{name: "Should allow instance limit", path: "agents.always_on.max_active_instances", kind: ConfigValueInt},

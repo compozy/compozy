@@ -3558,3 +3558,92 @@ func TestCheckInToolConfiguration(t *testing.T) {
 		}
 	})
 }
+
+func TestAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	t.Run("Should overlay the provider window without losing it to unrelated edits", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := t.TempDir()
+		writeFile(t, home.ConfigFile, "[providers.claude]\nauto_compact_window = 400000\n")
+		path := filepath.Join(workspace, DirName, ConfigName)
+		for _, step := range []struct {
+			contents string
+			want     int
+		}{
+			{"[providers.claude]\ndisplay_name = \"Claude\"\n", 400000},
+			{"[providers.claude]\nauto_compact_window = 200000\n", 200000},
+		} {
+			writeFile(t, path, step.contents)
+			cfg, err := LoadForHome(home, WithWorkspaceRoot(workspace), withoutDotEnv())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Providers["claude"].AutoCompactWindow; got == nil || *got != step.want {
+				t.Fatalf("window = %v, want %d", got, step.want)
+			}
+		}
+	})
+	for _, tc := range []struct {
+		name, value string
+		valid       bool
+	}{
+		{"Should accept the minimum", "100000", true},
+		{"Should accept the maximum", "1000000", true},
+		{"Should reject zero", "0", false},
+		{"Should reject a negative window", "-1", false},
+		{"Should reject below minimum", "99999", false},
+		{"Should reject above maximum", "1000001", false},
+		{"Should reject malformed input", "\"200k\"", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				home.ConfigFile,
+				[]byte("[providers.claude]\nauto_compact_window = "+tc.value+"\n"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := LoadForHome(home, withoutDotEnv())
+			if !tc.valid {
+				if err == nil {
+					t.Fatal("invalid window accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err := ParseAgentDef(
+				[]byte("---\nname: compact-worker\nprovider: claude\nauto_compact_window: 200000\n---\nWork.\n"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resolved.AutoCompactWindow == nil || *resolved.AutoCompactWindow != 200000 {
+				t.Fatalf("agent window = %v", resolved.AutoCompactWindow)
+			}
+			agent.AutoCompactWindow = nil
+			resolved, err = cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resolved.AutoCompactWindow == nil ||
+				*resolved.AutoCompactWindow != *cfg.Providers["claude"].AutoCompactWindow {
+				t.Fatal("provider window was not inherited")
+			}
+		})
+	}
+}

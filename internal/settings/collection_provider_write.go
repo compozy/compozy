@@ -145,7 +145,7 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.SteerCapability != "" && settings.SessionEnv != nil {
+		settings.SteerCapability != "" && settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -164,6 +164,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
+	}
+	if settings.AutoCompactWindow == nil {
+		settings.AutoCompactWindow = provider.AutoCompactWindow
 	}
 	if settings.SessionEnv == nil {
 		settings.SessionEnv = compozyconfig.MergeSessionEnv(nil, provider.SessionEnv)
@@ -225,22 +228,23 @@ func (s *service) prepareProviderSecretWrites(
 
 func providerConfigFromSettings(settings ProviderSettings) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
-		Command:         strings.TrimSpace(settings.Command),
-		SteerCapability: settings.SteerCapability,
-		DisplayName:     strings.TrimSpace(settings.DisplayName),
-		Models:          providerModelsConfigFromSettings(settings.Models),
-		Harness:         settings.Harness,
-		RuntimeProvider: strings.TrimSpace(settings.RuntimeProvider),
-		Transport:       strings.TrimSpace(settings.Transport),
-		BaseURL:         strings.TrimSpace(settings.BaseURL),
-		AuthMode:        settings.AuthMode,
-		EnvPolicy:       settings.EnvPolicy,
-		HomePolicy:      settings.HomePolicy,
-		AuthStatusCmd:   strings.TrimSpace(settings.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
-		AuthACPMethod:   strings.TrimSpace(settings.AuthACPMethod),
-		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
-		SessionEnv:      compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		Command:           strings.TrimSpace(settings.Command),
+		SteerCapability:   settings.SteerCapability,
+		DisplayName:       strings.TrimSpace(settings.DisplayName),
+		Models:            providerModelsConfigFromSettings(settings.Models),
+		Harness:           settings.Harness,
+		RuntimeProvider:   strings.TrimSpace(settings.RuntimeProvider),
+		Transport:         strings.TrimSpace(settings.Transport),
+		BaseURL:           strings.TrimSpace(settings.BaseURL),
+		AuthMode:          settings.AuthMode,
+		EnvPolicy:         settings.EnvPolicy,
+		HomePolicy:        settings.HomePolicy,
+		AuthStatusCmd:     strings.TrimSpace(settings.AuthStatusCmd),
+		AuthLoginCmd:      strings.TrimSpace(settings.AuthLoginCmd),
+		AuthACPMethod:     strings.TrimSpace(settings.AuthACPMethod),
+		CredentialSlots:   providerCredentialSlotsFromSettings(settings.CredentialSlots),
+		SessionEnv:        compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		AutoCompactWindow: settings.AutoCompactWindow,
 	}
 }
 

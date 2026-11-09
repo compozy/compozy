@@ -76,6 +76,7 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 		Provider:           agent.Provider,
 		Command:            agent.Command,
 		SessionEnv:         SessionEnvToPayload(agent.SessionEnv),
+		AutoCompactWindow:  agent.AutoCompactWindow,
 		Model:              agent.Model,
 		ReasoningEffort:    contract.ReasoningEffort(agent.ReasoningEffort),
 		Speed:              agent.SpeedValue(),
@@ -129,13 +130,14 @@ func AgentPayloadFromEntryWithConfig(
 	}
 	permissions, permissionsSource := effectivePermissions(entry.Def, &resolved)
 	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
-		SessionEnv:      SessionEnvToPayload(resolved.SessionEnv),
-		Provider:        resolved.Provider,
-		Model:           resolved.Model,
-		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
-		Speed:           resolved.SpeedValue(),
-		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
-		Permissions:     permissions,
+		SessionEnv:        SessionEnvToPayload(resolved.SessionEnv),
+		AutoCompactWindow: resolved.AutoCompactWindowValue(),
+		Provider:          resolved.Provider,
+		Model:             resolved.Model,
+		ReasoningEffort:   contract.ReasoningEffort(resolved.ReasoningEffort),
+		Speed:             resolved.SpeedValue(),
+		ACPOptions:        agentACPOptionsToContract(resolved.ACPOptionsValue()),
+		Permissions:       permissions,
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider.String()),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model.String()),

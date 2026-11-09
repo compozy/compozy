@@ -8,6 +8,7 @@ import (
 
 func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
+	mergeProviderCompactWindow(&merged, override.AutoCompactWindow)
 	if override.ReviewerMode != "" {
 		merged.ReviewerMode = override.ReviewerMode
 	}
@@ -195,4 +196,10 @@ func indexMCPServersByName(servers []MCPServer) map[string]int {
 		index[name] = i
 	}
 	return index
+}
+
+func mergeProviderCompactWindow(provider *ProviderConfig, value *int) {
+	if value != nil {
+		provider.AutoCompactWindow = new(*value)
+	}
 }

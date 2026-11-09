@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// BackoffSpec is a daemon API value.
+type BackoffSpec struct {
+	Base string `json:"base,omitempty"`
+	Max  string `json:"max,omitempty"`
+}
+
+// Badge is a daemon API value.
+type Badge string
+
 // BindSessionWorktreeRequest is a daemon API value.
 type BindSessionWorktreeRequest struct {
 	Worktree           string  `json:"worktree"`
@@ -438,13 +447,3 @@ type CommandFlag struct {
 	Minimum    *float64        `json:"minimum,omitempty"`
 	Maximum    *float64        `json:"maximum,omitempty"`
 }
-
-// CommandFlagType is a daemon API value.
-type CommandFlagType string
-
-const (
-	CommandFlagTypeString  CommandFlagType = "string"
-	CommandFlagTypeBoolean CommandFlagType = "boolean"
-	CommandFlagTypeInteger CommandFlagType = "integer"
-	CommandFlagTypeNumber  CommandFlagType = "number"
-)

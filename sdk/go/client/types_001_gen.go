@@ -245,15 +245,16 @@ type AgentDraftRuntime struct {
 
 // AgentEffectiveRuntimePayload is a daemon API value.
 type AgentEffectiveRuntimePayload struct {
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	SessionEnv       map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
-	Provider         string                                    `json:"provider"`
-	Model            string                                    `json:"model,omitempty"`
-	ReasoningEffort  Effort                                    `json:"reasoning_effort,omitempty"`
-	Speed            Speed                                     `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	Permissions      string                                    `json:"permissions,omitempty"`
-	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
+	SessionEnvStatus  []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                      `json:"auto_compact_window,omitempty"`
+	Provider          string                                    `json:"provider"`
+	Model             string                                    `json:"model,omitempty"`
+	ReasoningEffort   Effort                                    `json:"reasoning_effort,omitempty"`
+	Speed             Speed                                     `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	Permissions       string                                    `json:"permissions,omitempty"`
+	Sources           AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
 // AgentEffectiveRuntimeSources is a daemon API value.
@@ -434,17 +435,4 @@ type AgentInstanceProposalAction struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
 	AutoAccept bool   `json:"auto_accept"`
-}
-
-// AgentInstanceProposalSource is a daemon API value.
-type AgentInstanceProposalSource struct {
-	SourceID   string `json:"source_id,omitempty"`
-	SourceRef  string `json:"source_ref,omitempty"`
-	ItemKey    string `json:"item_key,omitempty"`
-	URL        string `json:"url,omitempty"`
-	Kind       string `json:"kind"`
-	EventID    string `json:"event_id"`
-	TriggerID  string `json:"trigger_id"`
-	RunID      string `json:"run_id"`
-	ReceivedAt string `json:"received_at"`
 }

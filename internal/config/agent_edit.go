@@ -113,8 +113,9 @@ func agentDefFromParsedFile(
 	parsed parsedAgentDef,
 ) (AgentDef, error) {
 	agent := AgentDef{
-		SessionEnv: MergeSessionEnv(nil, parsed.SessionEnv),
-		Name:       NormalizeAgentName(parsed.Name),
+		SessionEnv:        MergeSessionEnv(nil, parsed.SessionEnv),
+		AutoCompactWindow: parsed.AutoCompactWindow,
+		Name:              NormalizeAgentName(parsed.Name),
 		DisplayName: strings.TrimSpace(
 			parsed.DisplayName,
 		),
@@ -161,6 +162,7 @@ func agentDefFromParsedFile(
 }
 
 func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
+	parsed.AutoCompactWindow = agent.AutoCompactWindow
 	parsed.SessionEnv = MergeSessionEnv(nil, agent.SessionEnv)
 	parsed.Name = agent.Name
 	parsed.DisplayName = strings.TrimSpace(agent.DisplayName)

@@ -7,6 +7,67 @@ import (
 	"time"
 )
 
+// LoopRunAttention is a daemon API value.
+type LoopRunAttention struct {
+	Kind  string    `json:"kind"`
+	Count int       `json:"count"`
+	Since time.Time `json:"since"`
+}
+
+// LoopRunEventPayload is a daemon API value.
+type LoopRunEventPayload struct {
+	ID          string          `json:"id"`
+	LoopRunID   string          `json:"loop_run_id"`
+	WorkspaceID string          `json:"workspace_id"`
+	Seq         int64           `json:"seq"`
+	Kind        RunEventKind    `json:"kind"`
+	Payload     json.RawMessage `json:"payload"`
+	At          time.Time       `json:"at"`
+}
+
+// LoopRunPayload is a daemon API value.
+type LoopRunPayload struct {
+	ID                string                `json:"id"`
+	ProfileID         string                `json:"profile_id"`
+	ProfileName       string                `json:"profile_name"`
+	ProfileColor      string                `json:"profile_color,omitempty"`
+	ProfileIcon       string                `json:"profile_icon,omitempty"`
+	WorkspaceID       string                `json:"workspace_id"`
+	LoopName          string                `json:"loop_name"`
+	Status            LoopRunStatus         `json:"status"`
+	Historical        bool                  `json:"historical"`
+	CompletionState   LoopCompletionState   `json:"completion_state"`
+	Generation        int64                 `json:"generation"`
+	BestGeneration    *int64                `json:"best_generation,omitzero"`
+	BestScore         *float64              `json:"best_score,omitzero"`
+	ForkedFrom        *LoopForkRef          `json:"forked_from,omitzero"`
+	Forks             []LoopForkRef         `json:"forks"`
+	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
+	CreatedAt         time.Time             `json:"created_at"`
+	StartedAt         time.Time             `json:"started_at"`
+	LastProgressAt    time.Time             `json:"last_progress_at"`
+	CompletedAt       *time.Time            `json:"completed_at,omitempty"`
+	StartedByKind     string                `json:"started_by_kind,omitempty"`
+	StartedByRef      string                `json:"started_by_ref,omitempty"`
+	StartedOriginKind string                `json:"started_origin_kind,omitempty"`
+	StartedOriginRef  string                `json:"started_origin_ref,omitempty"`
+	DefinitionVersion int                   `json:"definition_version"`
+	DefinitionDigest  string                `json:"definition_digest,omitempty"`
+	ActiveGateID      string                `json:"active_gate_id,omitempty"`
+	BudgetApprovalSeq int                   `json:"budget_approval_seq,omitzero"`
+	StartMetadata     map[string]any        `json:"start_metadata,omitempty"`
+	IterationCap      int                   `json:"iteration_cap"`
+	BudgetTokens      int                   `json:"budget_tokens"`
+	BudgetWallSec     int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded  LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	TokensUsed        int64                 `json:"tokens_used"`
+	ParentLoopRunID   string                `json:"parent_loop_run_id,omitempty"`
+	PauseRequested    bool                  `json:"pause_requested"`
+	Inputs            map[string]any        `json:"inputs,omitempty"`
+	Attention         *LoopRunAttention     `json:"attention,omitzero"`
+	Progress          LoopRunProgress       `json:"progress"`
+}
+
 // LoopRunProgress is a daemon API value.
 type LoopRunProgress struct {
 	Round      int `json:"round"`
@@ -383,64 +444,4 @@ type Meta struct {
 	Version     int         `json:"version,omitzero"`
 	Description string      `json:"description,omitempty"`
 	Catalog     CatalogMeta `json:"catalog"`
-}
-
-// MetaField is a daemon API value.
-type MetaField struct {
-	Label    string            `json:"label"`
-	Value    string            `json:"value"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// MetricDirection is a daemon API value.
-type MetricDirection string
-
-// MetricSpec is a daemon API value.
-type MetricSpec struct {
-	Direction MetricDirection `json:"direction"`
-	MinDelta  *float64        `json:"min_delta,omitzero"`
-}
-
-// MissingPolicy is a daemon API value.
-type MissingPolicy string
-
-// ModelCatalogCostPayload is a daemon API value.
-type ModelCatalogCostPayload struct {
-	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
-	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
-	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
-	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-// ModelCatalogSourceRefPayload is a daemon API value.
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
-}
-
-// ModelCatalogSourceStatusPayload is a daemon API value.
-type ModelCatalogSourceStatusPayload struct {
-	FailureReason string `json:"failure_reason,omitempty"`
-	SourceID      string `json:"source_id"`
-	SourceKind    string `json:"source_kind"`
-	ProviderID    string `json:"provider_id"`
-	Priority      int    `json:"priority"`
-	LastRefresh   string `json:"last_refresh,omitempty"`
-	NextRefresh   string `json:"next_refresh,omitempty"`
-	LastSuccess   string `json:"last_success,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	RefreshState  string `json:"refresh_state"`
-	RowCount      int    `json:"row_count"`
-	Stale         bool   `json:"stale"`
-}
-
-// MoveSessionRequest is a daemon API value.
-type MoveSessionRequest struct {
-	FolderID string `json:"folder_id,omitempty"`
 }

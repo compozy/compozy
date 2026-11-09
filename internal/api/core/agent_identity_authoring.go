@@ -100,6 +100,9 @@ func applyDuplicateAgentRuntime(
 	draft *compozyconfig.AgentDefinitionDraft,
 	overrides *contract.DuplicateAgentOverrides,
 ) {
+	if overrides.AutoCompactWindow != nil {
+		draft.AutoCompactWindow = overrides.AutoCompactWindow
+	}
 	if overrides.Provider != "" {
 		draft.Provider = overrides.Provider
 	}

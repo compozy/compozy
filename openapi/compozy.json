@@ -682,6 +682,10 @@
             },
             "type": "array"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "model": {
             "type": "string"
           },
@@ -2074,6 +2078,10 @@
           "appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
           },
           "category_path": {
             "items": {
@@ -6631,6 +6639,10 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -7876,6 +7888,10 @@
           "appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
           },
           "category_path": {
             "items": {
@@ -32899,6 +32915,10 @@
           "auth_status_command": {
             "type": "string"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "base_url": {
             "type": "string"
           },
@@ -33074,6 +33094,10 @@
           },
           "auth_status_command": {
             "type": "string"
+          },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
           },
           "base_url": {
             "type": "string"

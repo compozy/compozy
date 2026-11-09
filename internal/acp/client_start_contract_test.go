@@ -2888,3 +2888,47 @@ func TestCheckInHostedStartup(t *testing.T) {
 		}
 	})
 }
+
+func TestClaudeAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, configured := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should preserve compact window configuration on %s configured %t", tc.name, configured),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+					}
+					if configured {
+						opts.ProviderConfig = &compozyconfig.ProviderConfig{AutoCompactWindow: new(200000)}
+					}
+					proc := startHelperProcess(t, New(), tc.scenario, "", opts)
+					defer stopProcess(t, New(), proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								Env map[string]string `json:"env"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got, present := meta.ClaudeCode.Options.Env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"]
+					if present != configured || configured && got != "200000" {
+						t.Fatalf("window = %q, present = %t", got, present)
+					}
+				},
+			)
+		}
+	}
+}

@@ -126,6 +126,7 @@ type permissionsOverlay struct {
 }
 
 type providerOverlay struct {
+	AutoCompactWindow   *int                        `toml:"auto_compact_window"`
 	ReviewerMode        *string                     `toml:"reviewer_mode"`
 	Command             *string                     `toml:"command"`
 	SessionEnv          SessionEnv                  `toml:"session_env"`

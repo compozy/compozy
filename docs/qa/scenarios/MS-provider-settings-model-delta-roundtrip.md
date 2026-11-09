@@ -18,3 +18,13 @@ overlaps: MS-056
 
 Added by the MS-056 QA repair impact flag. The rebuilt candidate passed the originating replay;
 execute this tracker row in the next QA cycle after the governed fix commit exists.
+
+## Claude auto-compaction window
+
+Set `providers.claude.auto_compact_window = 400000`, read it through Provider Settings,
+and reload config. An agent with `auto_compact_window: 200000` uses its own window;
+an agent without the key inherits 400000. Capture session/new, session/load and
+session/resume metadata and verify `CLAUDE_CODE_AUTO_COMPACT_WINDOW` has that value.
+Reject 0, 99999, 1000001 and malformed strings without changing saved configuration.
+With both keys absent, no variable is injected. Retired session.compaction settings
+continue to archive; this new provider key remains active.

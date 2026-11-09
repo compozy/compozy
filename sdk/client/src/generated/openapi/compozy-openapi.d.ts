@@ -8222,6 +8222,7 @@ export interface components {
     };
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      auto_compact_window?: number | null;
       model?: string;
       permissions?: string;
       provider: string;
@@ -8600,6 +8601,7 @@ export interface components {
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       command?: string;
       definition_digest: string;
@@ -9822,6 +9824,7 @@ export interface components {
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       command?: string;
       deny_tools?: string[];
@@ -10134,6 +10137,7 @@ export interface components {
       appearance?: {
         [key: string]: unknown;
       };
+      auto_compact_window?: number | null;
       category_path?: string[];
       clear_acp_options?: boolean;
       clear_speed?: boolean;
@@ -17362,6 +17366,7 @@ export interface components {
       auth_acp_method?: string;
       auth_mode?: string;
       auth_status_command?: string;
+      auto_compact_window?: number | null;
       base_url?: string;
       command?: string;
       command_inherited?: boolean;
@@ -17420,6 +17425,7 @@ export interface components {
       auth_login_command?: string | null;
       auth_mode?: string;
       auth_status_command?: string;
+      auto_compact_window?: number | null;
       base_url?: string;
       command?: string;
       credential_slots?: components["schemas"]["SettingsProviderCredentialSlotPayload"][];

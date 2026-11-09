@@ -34,25 +34,26 @@ type DuplicateAgentOverrides struct {
 	Kind        string         `json:"kind,omitempty"`
 	Appearance  map[string]any `json:"appearance,omitempty"`
 
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort                     `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	SessionApproval string                              `json:"session_approval,omitempty"`
-	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	Prompt          string                              `json:"prompt,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	Provider          string                              `json:"provider,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	Model             string                              `json:"model,omitempty"`
+	ReasoningEffort   ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed             Speed                               `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed        bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions   bool                                `json:"clear_acp_options,omitzero"`
+	Tools             []string                            `json:"tools,omitempty"`
+	Toolsets          []string                            `json:"toolsets,omitempty"`
+	DenyTools         []string                            `json:"deny_tools,omitempty"`
+	SessionApproval   string                              `json:"session_approval,omitempty"`
+	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
+	Permissions       SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath      []string                            `json:"category_path,omitempty"`
+	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt            string                              `json:"prompt,omitempty"`
 }
 
 // DeleteAgentResponse reports the effective definition removed from disk.
@@ -90,13 +91,14 @@ type AgentEffectiveRuntimeSources struct {
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
 // one authored agent definition.
 type AgentEffectiveRuntimePayload struct {
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	SessionEnv       map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
-	Provider         string                                    `json:"provider"`
-	Model            string                                    `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
-	Speed            Speed                                     `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	SessionEnvStatus  []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                      `json:"auto_compact_window,omitempty"`
+	Provider          string                                    `json:"provider"`
+	Model             string                                    `json:"model,omitempty"`
+	ReasoningEffort   ReasoningEffort                           `json:"reasoning_effort,omitempty"`
+	Speed             Speed                                     `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
 	// Permissions is the level a new session of the definition starts at: the operator override,
 	// then the authored level, then [permissions].mode. An always-on definition with neither
 	// reports the level its main instance session runs at (source always_on_default); its
@@ -121,34 +123,35 @@ type AgentPayload struct {
 	Label              string         `json:"label"`
 	ResolvedAppearance map[string]any `json:"resolved_appearance"`
 
-	SessionEnv       map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Name             string                              `json:"name"`
-	Provider         string                              `json:"provider"`
-	Command          string                              `json:"command,omitempty"`
-	Model            string                              `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort                     `json:"reasoning_effort,omitempty"`
-	Speed            Speed                               `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools            []string                            `json:"tools,omitempty"`
-	Toolsets         []string                            `json:"toolsets,omitempty"`
-	DenyTools        []string                            `json:"deny_tools,omitempty"`
-	SessionApproval  string                              `json:"session_approval,omitempty"`
-	PermissionRules  []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess  string                              `json:"workspace_access,omitempty"`
-	Permissions      string                              `json:"permissions,omitempty"`
-	CategoryPath     []string                            `json:"category_path,omitempty"`
-	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
-	Origin           AgentOrigin                         `json:"origin"`
-	PackageOwned     bool                                `json:"package_owned,omitempty"`
-	WorkspaceID      string                              `json:"workspace_id,omitempty"`
-	Layer            string                              `json:"layer,omitempty"`
-	Shadows          []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
-	Skills           *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain    []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
-	DefinitionDigest string                              `json:"definition_digest"`
-	Prompt           string                              `json:"prompt"`
-	Diagnostics      []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	Name              string                              `json:"name"`
+	Provider          string                              `json:"provider"`
+	Command           string                              `json:"command,omitempty"`
+	Model             string                              `json:"model,omitempty"`
+	ReasoningEffort   ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed             Speed                               `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools             []string                            `json:"tools,omitempty"`
+	Toolsets          []string                            `json:"toolsets,omitempty"`
+	DenyTools         []string                            `json:"deny_tools,omitempty"`
+	SessionApproval   string                              `json:"session_approval,omitempty"`
+	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
+	Permissions       string                              `json:"permissions,omitempty"`
+	CategoryPath      []string                            `json:"category_path,omitempty"`
+	MCPServers        []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
+	Origin            AgentOrigin                         `json:"origin"`
+	PackageOwned      bool                                `json:"package_owned,omitempty"`
+	WorkspaceID       string                              `json:"workspace_id,omitempty"`
+	Layer             string                              `json:"layer,omitempty"`
+	Shadows           []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
+	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain     []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
+	DefinitionDigest  string                              `json:"definition_digest"`
+	Prompt            string                              `json:"prompt"`
+	Diagnostics       []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
+	EffectiveRuntime  *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
 }
 
 // AgentPermissionRulePayload matches only provider actions submitted for approval.

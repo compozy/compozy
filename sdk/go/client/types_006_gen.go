@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// DependencyKind is a daemon API value.
+type DependencyKind string
+
+// DesktopID is a daemon API value.
+type DesktopID string
+
+// DesktopTransition is a daemon API value.
+type DesktopTransition string
+
 // DetailBody is a daemon API value.
 type DetailBody struct {
 	IsLoading bool        `json:"is_loading,omitempty"`
@@ -115,29 +124,30 @@ type DslTerminalState string
 
 // DuplicateAgentOverrides is a daemon API value.
 type DuplicateAgentOverrides struct {
-	DisplayName     *string                             `json:"display_name,omitempty"`
-	Description     *string                             `json:"description,omitempty"`
-	Kind            string                              `json:"kind,omitempty"`
-	Appearance      map[string]any                      `json:"appearance,omitempty"`
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	SessionApproval string                              `json:"session_approval,omitempty"`
-	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	Prompt          string                              `json:"prompt,omitempty"`
+	DisplayName       *string                             `json:"display_name,omitempty"`
+	Description       *string                             `json:"description,omitempty"`
+	Kind              string                              `json:"kind,omitempty"`
+	Appearance        map[string]any                      `json:"appearance,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	Provider          string                              `json:"provider,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	Model             string                              `json:"model,omitempty"`
+	ReasoningEffort   Effort                              `json:"reasoning_effort,omitempty"`
+	Speed             Speed                               `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed        bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions   bool                                `json:"clear_acp_options,omitzero"`
+	Tools             []string                            `json:"tools,omitempty"`
+	Toolsets          []string                            `json:"toolsets,omitempty"`
+	DenyTools         []string                            `json:"deny_tools,omitempty"`
+	SessionApproval   string                              `json:"session_approval,omitempty"`
+	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
+	Permissions       SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath      []string                            `json:"category_path,omitempty"`
+	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt            string                              `json:"prompt,omitempty"`
 }
 
 // DuplicateAgentRequest is a daemon API value.
@@ -396,55 +406,4 @@ type ExtensionLogPayload struct {
 type ExtensionLogsResponse struct {
 	Logs        []ExtensionLogPayload `json:"logs"`
 	StreamEpoch string                `json:"stream_epoch"`
-}
-
-// ExtensionPayload is a daemon API value.
-type ExtensionPayload struct {
-	Description                 string                            `json:"description,omitempty"`
-	InstallationProfile         string                            `json:"installation_profile,omitempty"`
-	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
-	Contents                    ExtensionContentsPayload          `json:"contents"`
-	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
-	Name                        string                            `json:"name"`
-	Profile                     string                            `json:"profile"`
-	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
-	Version                     string                            `json:"version"`
-	Type                        string                            `json:"type"`
-	Format                      string                            `json:"format"`
-	Source                      string                            `json:"source"`
-	Enabled                     bool                              `json:"enabled"`
-	State                       string                            `json:"state"`
-	Capabilities                []string                          `json:"capabilities,omitempty"`
-	Permissions                 []string                          `json:"permissions,omitempty"`
-	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
-	MissingEnv                  []string                          `json:"missing_env,omitempty"`
-	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
-	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
-	PID                         int                               `json:"pid,omitzero"`
-	UptimeSeconds               int64                             `json:"uptime_seconds,omitzero"`
-	Health                      string                            `json:"health,omitempty"`
-	HealthMessage               string                            `json:"health_message,omitempty"`
-	LastError                   string                            `json:"last_error,omitempty"`
-	FailureCode                 string                            `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                               `json:"consecutive_failures"`
-	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
-	GenerationHash              string                            `json:"generation_hash,omitempty"`
-	Dev                         bool                              `json:"dev,omitzero"`
-	OverridesPublished          bool                              `json:"overrides_published,omitzero"`
-	OriginPath                  string                            `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                              `json:"update_available"`
-	RemoteVersion               string                            `json:"remote_version,omitempty"`
-	DigestMatched               bool                              `json:"digest_matched"`
-	DaemonRunning               bool                              `json:"daemon_running"`
-	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitzero"`
-	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitzero"`
-	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitzero"`
-	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
-	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
-	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
-	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
 }

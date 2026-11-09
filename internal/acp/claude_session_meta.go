@@ -3,6 +3,7 @@ package acp
 import (
 	"maps"
 	"runtime"
+	"strconv"
 
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/shellwait"
@@ -101,10 +102,13 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 		return nil
 	}
 	if opts.InputOnly {
-		return claudeCodeInputOnlySessionMeta()
+		return claudeCodeInputOnlySessionMeta(opts)
 	}
 	env := make(map[string]string, len(claudeDaemonOwnedBackgroundEnv))
 	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
+	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
+		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
+	}
 	return map[string]any{
 		"claudeCode": map[string]any{
 			"emitRawSDKMessages": claudeTaskRawSDKFilters(),
@@ -143,9 +147,12 @@ var claudeInputOnlyEnv = map[string]string{
 // built-in tools, no MCP servers beyond the empty session/new list, no plugins,
 // skills, or settings hooks. Measured on a loaded host, this cuts session/new
 // from 5-9s to about 1s and the prompt from about 45k to under 1k tokens.
-func claudeCodeInputOnlySessionMeta() any {
+func claudeCodeInputOnlySessionMeta(opts StartOpts) any {
 	env := make(map[string]string, len(claudeInputOnlyEnv))
 	maps.Copy(env, claudeInputOnlyEnv)
+	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
+		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
+	}
 	return map[string]any{
 		"systemPrompt": claudeInputOnlySystemPrompt,
 		"claudeCode": map[string]any{
