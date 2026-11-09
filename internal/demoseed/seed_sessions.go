@@ -109,6 +109,9 @@ func sessionPermissions(story sessionStory) (string, error) {
 			return agent.Permissions, nil
 		}
 	}
+	if permissions, ok := bundledAgentPermissions[story.AgentName]; ok {
+		return permissions, nil
+	}
 	return "", fmt.Errorf(
 		"demo seed: agent %q is not defined in workspace %q",
 		story.AgentName,

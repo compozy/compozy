@@ -57,6 +57,9 @@ type instanceRun struct {
 
 func seedAlwaysOn(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (alwaysOnCounts, error) {
 	defer state.writeClock.reset()
+	if err := writeWorkLog(state); err != nil {
+		return alwaysOnCounts{}, err
+	}
 	if err := writeSourceFeeds(state); err != nil {
 		return alwaysOnCounts{}, err
 	}
@@ -89,6 +92,15 @@ func seedAlwaysOn(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 }
 
 func agentFor(story instanceStory) (agentStory, error) {
+	if story.Bundled {
+		return agentStory{
+			Name: story.Agent, WorkspaceKey: story.WorkspaceKey, Permissions: bundledAgentPermissions[story.Agent],
+			Tools: []string{
+				"compozy__worktree_create", "compozy__session_create", "compozy__session_history",
+				"compozy__session_prompt", toolMonitorCreate,
+			},
+		}, nil
+	}
 	for _, agent := range alwaysOnAgents() {
 		if agent.Name == story.Agent && agent.WorkspaceKey == story.WorkspaceKey {
 			return agent, nil
@@ -144,6 +156,9 @@ func startInstance(
 		dir:        filepath.Join(record.RootDir, config.DirName, config.AgentsDirName, story.Agent),
 		hasSources: len(agent.Scripts) > 0 || story.Agent == agentIssueTriager,
 		picks:      map[time.Time]bool{},
+	}
+	if story.Bundled {
+		return run, nil
 	}
 	if err := approveCheckInAuthority(ctx, db, state, run); err != nil {
 		return nil, err

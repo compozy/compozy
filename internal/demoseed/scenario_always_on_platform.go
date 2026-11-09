@@ -34,6 +34,7 @@ func shellStep(command string, stdout string) transcriptStep {
 func scenarioInstances(clock timeline) []instanceStory {
 	return []instanceStory{
 		issueTriagerInstance(clock), releaseWatchInstance(clock), logTriageInstance(clock), riskMonitorInstance(clock),
+		orchestratorInstance(clock),
 	}
 }
 

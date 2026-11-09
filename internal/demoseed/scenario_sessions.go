@@ -3,7 +3,8 @@ package demoseed
 import "github.com/compozy/compozy/internal/session"
 
 func scenarioSessions(clock timeline) []sessionStory {
-	return append(launchSessions(clock), platformSessions(clock)...)
+	sessions := append(launchSessions(clock), platformSessions(clock)...)
+	return append(sessions, bundledAgentSessions(clock)...)
 }
 
 func launchSessions(clock timeline) []sessionStory {

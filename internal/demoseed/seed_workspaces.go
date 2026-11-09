@@ -80,6 +80,7 @@ func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scena
 		return nil
 	}
 	sessionIDs := append(slices.Clone(scenarioSessionIDs), boardSessionIDs(state.clock)...)
+	sessionIDs = append(sessionIDs, bundledSessionIDs()...)
 	for _, sessionID := range append(sessionIDs, alwaysOnSessionIDs()...) {
 		sessionDir := filepath.Join(state.paths.SessionsDir, sessionID)
 		if err := os.RemoveAll(sessionDir); err != nil {

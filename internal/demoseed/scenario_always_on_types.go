@@ -21,11 +21,13 @@ const (
 type instanceStory struct {
 	Agent        string
 	WorkspaceKey string
-	MainID       string
-	MainName     string
-	Provider     string
-	Model        string
-	CreatedAt    time.Time
+	// Bundled marks an agent CompozyOS ships; the seed writes no definition or approvals for it.
+	Bundled   bool
+	MainID    string
+	MainName  string
+	Provider  string
+	Model     string
+	CreatedAt time.Time
 	// Interval is the check-in cadence; routine checks run every Interval inside the active hours.
 	Interval   time.Duration
 	ActiveFrom int

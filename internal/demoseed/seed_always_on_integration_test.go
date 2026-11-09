@@ -33,9 +33,9 @@ func TestSeedAlwaysOn(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(replace) error = %v", err)
 		}
-		if result.Counts.AlwaysOnInstances != 4 || result.Counts.InstanceReports == 0 ||
+		if result.Counts.AlwaysOnInstances != 5 || result.Counts.InstanceReports == 0 ||
 			result.Counts.ProposalPicks == 0 || result.Counts.CheckIns == 0 {
-			t.Fatalf("Seed(replace).Counts = %#v, want four instances with check-ins, reports and picks", result.Counts)
+			t.Fatalf("Seed(replace).Counts = %#v, want five instances with check-ins, reports and picks", result.Counts)
 		}
 		db, err := globaldb.OpenGlobalDB(ctx, result.DatabaseFile)
 		if err != nil {
@@ -56,8 +56,8 @@ func TestSeedAlwaysOn(t *testing.T) {
 		for _, instance := range instances {
 			byAgent[instance.AgentName] = instance
 		}
-		if len(byAgent) != 4 {
-			t.Fatalf("live instances = %d (%v), want 4 after replace", len(instances), byAgent)
+		if len(byAgent) != 5 {
+			t.Fatalf("live instances = %d (%v), want 5 after replace", len(instances), byAgent)
 		}
 		assertInstanceStates(t, ctx, db, byAgent)
 		assertTriagerProposals(t, ctx, db, byAgent[agentIssueTriager])
@@ -77,7 +77,7 @@ func assertInstanceStates(
 	if got := byAgent[agentLogTriage]; got.State != "paused" || got.PauseReason != pauseReasonOperator {
 		t.Fatalf("log-triage = %s/%s, want paused by the operator", got.State, got.PauseReason)
 	}
-	for _, name := range []string{agentIssueTriager, agentReleaseWatch, agentRiskMonitor} {
+	for _, name := range []string{agentIssueTriager, agentReleaseWatch, agentRiskMonitor, agentOrchestrator} {
 		instance := byAgent[name]
 		if instance.State != "active" || instance.MainSessionID == "" {
 			t.Fatalf("%s = %s main %q, want active with a main session", name, instance.State, instance.MainSessionID)

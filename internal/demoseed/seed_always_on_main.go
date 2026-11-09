@@ -219,6 +219,7 @@ func mainSessionDir(state *scenario, run *instanceRun) string {
 func alwaysOnSessionIDs() []string {
 	return []string{
 		sessionIssueTriagerMainID, sessionReleaseWatchMainID, sessionLogTriageMainID, sessionRiskMonitorMainID,
+		sessionOrchestratorMainID,
 	}
 }
 
