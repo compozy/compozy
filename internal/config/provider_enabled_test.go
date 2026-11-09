@@ -321,3 +321,32 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 		}
 	})
 }
+
+func TestWithProfileProviderEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should keep every inventory provider resolvable when a profile-only provider sets enabled",
+		func(t *testing.T) {
+			t.Parallel()
+			base, homePaths := loadEnabledTestConfig(t, "[defaults]\nprovider = \"codex\"\n")
+			writeFile(
+				t,
+				profileConfigFile(homePaths, "work"),
+				"[providers.work]\ncommand = \"work-acp\"\nenabled = false\n\n[providers.gemini]\nenabled = false\n",
+			)
+			cfg, err := WithProfileProviderEnabled(base, homePaths, "work")
+			if err != nil {
+				t.Fatalf("WithProfileProviderEnabled() error = %v", err)
+			}
+			for _, name := range ProviderInventoryNames(&cfg) {
+				if _, err := cfg.ResolveProvider(name); err != nil {
+					t.Fatalf("ResolveProvider(%q) error = %v, want every inventory provider resolvable", name, err)
+				}
+			}
+			if enabled, _ := cfg.ProviderEnabled("gemini"); enabled {
+				t.Fatal("ProviderEnabled(gemini) = true, want the profile override applied to the built-in")
+			}
+		},
+	)
+}

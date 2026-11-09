@@ -23,7 +23,9 @@ func (e *OverlayEditor) DeleteKeyPruningEmptyTable(path []string) error {
 	}
 	existing := document.findKeyValue(cleanPath)
 	if existing == nil {
-		return nil
+		// An inline-table ancestor hides the key from the line editor; fail like SetValue instead
+		// of reporting a deletion that left the value in place.
+		return document.ensureNoScalarPrefix(cleanPath)
 	}
 	start, end := lineReplacementOffsets(e.content, existing.raw)
 	e.content = replaceOffsets(e.content, start, end, nil)
@@ -93,8 +95,14 @@ func globalProviderDisabled(homePaths HomePaths, providerID string) (bool, error
 	if _, err := burnttoml.Decode(string(content), &decoded); err != nil {
 		return false, fmt.Errorf("config: decode global config for provider %q: %w", providerID, err)
 	}
-	enabled := decoded.Providers[providerID].Enabled
-	return enabled != nil && !*enabled, nil
+	// The loader canonicalizes provider names, so [providers.OPENCODE] disables opencode too.
+	target := CanonicalProviderName(providerID)
+	for name, provider := range decoded.Providers {
+		if CanonicalProviderName(name) == target && provider.Enabled != nil && !*provider.Enabled {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // providerEnabledField is the providers.<id> key that turns a provider on or off.

@@ -141,8 +141,8 @@ func withProviderEnabled(cfg *compozyconfig.Config, providerID string, authored 
 	return projected
 }
 
-// projectProvidersEnabled copies only the desired enabled values of providerIDs onto the active
-// config; every other pending field stays pending.
+// projectProvidersEnabled copies only the desired enabled values of providerIDs that the active
+// config already declares; every other pending field stays pending.
 func projectProvidersEnabled(
 	active *compozyconfig.Config,
 	desired *compozyconfig.Config,
@@ -150,6 +150,11 @@ func projectProvidersEnabled(
 ) compozyconfig.Config {
 	projected := cloneActiveConfig(active)
 	for _, providerID := range providerIDs {
+		if !providerDeclared(active, providerID) {
+			// The provider's definition is still pending; its enabled value applies with it, and an
+			// enabled-only entry would fail validation for every other toggle in the projection.
+			continue
+		}
 		projected = withProviderEnabled(&projected, providerID, desired.Providers[providerID].Enabled)
 	}
 	return projected
@@ -274,16 +279,10 @@ func (s *service) providerItemByName(ctx context.Context, providerID string) (Pr
 	if err != nil {
 		return ProviderItem{}, err
 	}
-	items, err := s.buildProviderItems(ctx, &cfg)
-	if err != nil {
-		return ProviderItem{}, err
+	if !providerDeclared(&cfg, providerID) {
+		return ProviderItem{}, notFoundError(fmt.Errorf("settings: provider %q not found", providerID))
 	}
-	for index := range items {
-		if items[index].Name == providerID {
-			return items[index], nil
-		}
-	}
-	return ProviderItem{}, notFoundError(fmt.Errorf("settings: provider %q not found", providerID))
+	return s.buildProviderItem(ctx, &cfg, providerID)
 }
 
 func cloneEnabled(value *bool) *bool {

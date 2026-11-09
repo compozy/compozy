@@ -22,6 +22,15 @@ func newProviderEnabledTestServiceWithApplier(
 	applier ConfigRuntimeApplier,
 ) (Service, compozyconfig.HomePaths) {
 	t.Helper()
+	return newProviderEnabledTestServiceWithDeps(t, config, Dependencies{RuntimeApplier: applier})
+}
+
+func newProviderEnabledTestServiceWithDeps(
+	t *testing.T,
+	config string,
+	deps Dependencies,
+) (Service, compozyconfig.HomePaths) {
+	t.Helper()
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, config)
@@ -34,10 +43,8 @@ func newProviderEnabledTestServiceWithApplier(
 			t.Errorf("Close() error = %v", err)
 		}
 	})
-	service := testService(t, homePaths, Dependencies{
-		ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
-		RuntimeApplier: applier,
-	})
+	deps.ApplyRecords = NewConfigApplyRecordRepository(db.DB(), nil)
+	service := testService(t, homePaths, deps)
 	if _, err := service.ActiveConfig(ctx); err != nil {
 		t.Fatalf("ActiveConfig() error = %v", err)
 	}
@@ -165,6 +172,34 @@ enabled = true
 		}
 	})
 
+	t.Run("Should return the toggled provider when another provider's credential lookup fails", func(t *testing.T) {
+		t.Parallel()
+		const ref = "vault:providers/other/api_key"
+		store := newFakeProviderSecretStore()
+		store.metadataErrors[ref] = errors.New("vault unavailable")
+		other := `
+[providers.other]
+command = "other-acp --stdio"
+[[providers.other.credential_slots]]
+name = "api_key"
+target_env = "OTHER_API_KEY"
+secret_ref = "` + ref + `"
+kind = "api_key"
+`
+		service, _ := newProviderEnabledTestServiceWithDeps(
+			t, enabledBaseConfig()+other, Dependencies{ProviderSecrets: store},
+		)
+
+		item, apply, err := service.SetProviderEnabled(t.Context(), "gemini", false)
+		if err != nil {
+			t.Fatalf("SetProviderEnabled(gemini, false) error = %v, want the applied disable", err)
+		}
+		if item.Name != "gemini" || item.Enabled || !apply.Applied {
+			t.Fatalf("disable = item %q enabled %v applied %v, want gemini disabled and applied",
+				item.Name, item.Enabled, apply.Applied)
+		}
+	})
+
 	t.Run("Should reject an unknown provider", func(t *testing.T) {
 		t.Parallel()
 		service, _ := newProviderEnabledTestService(t, enabledBaseConfig())
@@ -289,6 +324,41 @@ enabled = false
 				again.Applied, again.RestartRequired, err)
 		}
 	})
+
+	t.Run(
+		"Should apply an existing provider's disable while a new disabled provider stays pending",
+		func(t *testing.T) {
+			t.Parallel()
+			service, homePaths := newProviderEnabledTestService(t, enabledBaseConfig())
+			writeFile(t, homePaths.ConfigFile, enabledBaseConfig()+`
+[providers.gemini]
+enabled = false
+
+[providers.work]
+command = "work-acp --stdio"
+enabled = false
+`)
+
+			result, err := service.Reload(t.Context())
+			if err != nil {
+				t.Fatalf("Reload() error = %v", err)
+			}
+			if !result.Applied || len(result.Warnings) != 0 {
+				t.Fatalf("Reload() = applied %v warnings %v, want the gemini disable applied live",
+					result.Applied, result.Warnings)
+			}
+			after, err := service.ActiveConfig(t.Context())
+			if err != nil {
+				t.Fatalf("ActiveConfig() error = %v", err)
+			}
+			if !after.IsProviderDisabled("gemini") {
+				t.Fatal("active config keeps gemini enabled, want the live disable")
+			}
+			if _, ok := after.Providers["work"]; ok {
+				t.Fatalf("active work = %#v, want the new provider definition left pending", after.Providers["work"])
+			}
+		},
+	)
 
 	t.Run("Should leave an invalid enabled projection pending with a warning", func(t *testing.T) {
 		t.Parallel()

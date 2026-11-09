@@ -44,12 +44,18 @@ func WithProfileProviderEnabled(base *Config, homePaths HomePaths, profileName s
 	if providers == nil {
 		providers = make(map[string]ProviderConfig)
 	}
+	builtins := BuiltinProviders()
 	for name, overlay := range decoded.Providers {
 		if overlay.Enabled == nil {
 			continue
 		}
 		providerName := CanonicalProviderName(name)
-		provider := providers[providerName]
+		provider, known := providers[providerName]
+		if _, builtin := builtins[providerName]; !known && !builtin {
+			// A provider defined only in the profile is outside base's inventory; inserting an
+			// enabled-only entry would make it unresolvable (no command).
+			continue
+		}
 		provider.Enabled = new(*overlay.Enabled)
 		providers[providerName] = provider
 	}

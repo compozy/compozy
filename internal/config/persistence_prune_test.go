@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	burnttoml "github.com/BurntSushi/toml"
 )
 
 func TestSetValueAtTargetProviderReEnable(t *testing.T) {
@@ -64,27 +67,64 @@ func TestSetValueAtTargetProviderReEnable(t *testing.T) {
 			t.Fatal("workspace overlay lost providers.gemini.enabled, want the key written for validation")
 		}
 	})
-	t.Run("Should keep an explicit profile true over a global disable", func(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		global string
+		path   []string
+	}{
+		{
+			name:   "Should keep an explicit profile true over a global disable",
+			global: "[providers.gemini]\nenabled = false\n",
+			path:   enabledPath,
+		},
+		{
+			name:   "Should keep an explicit profile true over a global disable under a non-canonical name",
+			global: "[providers.OPENCODE]\nenabled = false\n",
+			path:   []string{"providers", "opencode", "enabled"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			homePaths := HomePaths{ConfigFile: filepath.Join(t.TempDir(), ConfigName)}
+			if err := os.WriteFile(homePaths.ConfigFile, []byte(tc.global), 0o600); err != nil {
+				t.Fatalf("write global config: %v", err)
+			}
+			profile := WriteTarget{kind: WriteTargetProfileConfig, scope: WriteScopeProfile}
+			editor, err := newOverlayEditor(ConfigName, []byte(""))
+			if err != nil {
+				t.Fatalf("newOverlayEditor() error = %v", err)
+			}
+			if err := editor.SetValueAtTarget(homePaths, profile, tc.path, true); err != nil {
+				t.Fatalf("SetValueAtTarget(profile, true) error = %v", err)
+			}
+			got, err := editor.Bytes()
+			if err != nil {
+				t.Fatalf("Bytes() error = %v", err)
+			}
+			var decoded map[string]map[string]map[string]any
+			if _, err := burnttoml.Decode(string(got), &decoded); err != nil {
+				t.Fatalf("decode profile overlay %q: %v", got, err)
+			}
+			if enabled := decoded["providers"][tc.path[1]]["enabled"]; enabled != true {
+				t.Fatalf("profile overlay = %q, want an explicit enabled = true overriding the global disable", got)
+			}
+		})
+	}
+
+	t.Run("Should refuse a re-enable it cannot apply inside an inline table", func(t *testing.T) {
 		t.Parallel()
-		homePaths := HomePaths{ConfigFile: filepath.Join(t.TempDir(), ConfigName)}
-		if err := os.WriteFile(
-			homePaths.ConfigFile,
-			[]byte("[providers.gemini]\nenabled = false\n"),
-			0o600,
-		); err != nil {
-			t.Fatalf("write global config: %v", err)
-		}
-		profile := WriteTarget{kind: WriteTargetProfileConfig, scope: WriteScopeProfile}
-		editor, err := newOverlayEditor(ConfigName, []byte(""))
-		if err != nil {
-			t.Fatalf("newOverlayEditor() error = %v", err)
-		}
-		if err := editor.SetValueAtTarget(homePaths, profile, enabledPath, true); err != nil {
-			t.Fatalf("SetValueAtTarget(profile, true) error = %v", err)
-		}
-		if !editor.HasPath(enabledPath) {
-			got, _ := editor.Bytes()
-			t.Fatalf("profile overlay = %q, want an explicit enabled = true overriding the global disable", got)
+		for _, src := range []string{
+			"providers.gemini = { enabled = false }\n",
+			"[providers]\ngemini = { enabled = false, display_name = \"Gemini\" }\n",
+		} {
+			editor, err := newOverlayEditor(ConfigName, []byte(src))
+			if err != nil {
+				t.Fatalf("newOverlayEditor() error = %v", err)
+			}
+			err = editor.SetValueAtTarget(HomePaths{}, global, enabledPath, true)
+			if !errors.Is(err, ErrUnsupportedTOMLMutation) {
+				t.Fatalf("SetValueAtTarget(%q, true) error = %v, want ErrUnsupportedTOMLMutation", src, err)
+			}
 		}
 	})
 
