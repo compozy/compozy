@@ -51,6 +51,7 @@ interface RuntimeOverride {
   speed: RuntimeSpeed;
 }
 
+/** Serialize the confirmed runtime without converting omitted speed into agent inheritance. */
 function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runtime"] {
   const provider = override.value.provider.trim();
   if (provider === "") return undefined;
@@ -144,7 +145,7 @@ export function useSessionContinueDialog({
         : "");
     if (
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE &&
-      selectedModel &&
+      selectedModel?.efforts.some(level => level !== "none") &&
       effort !== "" &&
       !modelSupportsReasoningEffort(selectedModel, effort)
     ) {
@@ -155,6 +156,7 @@ export function useSessionContinueDialog({
     // Keep inherited values visible, but leave unchanged defaults daemon-owned.
     const acpOverrides = runtimeValue.acp_options?.filter(
       selection =>
+        runtimeValue.provider !== agentRuntime.provider ||
         !agentRuntime.acp_options?.some(inherited =>
           runtimeACPSelectionsEqual([selection], [inherited])
         )
@@ -164,6 +166,8 @@ export function useSessionContinueDialog({
         ? runtimeRequest({
             value: {
               ...runtimeValue,
+              // Catalog refreshes cannot erase an explicit choice; ACP validates unknown support.
+              reasoning_effort: effort,
               acp_options: acpOverrides?.length ? acpOverrides : undefined,
             },
             speed: runtimeSpeed,
@@ -206,7 +210,7 @@ export function useSessionContinueDialog({
     runtimeOptions,
     onRuntimeChange: (value: RuntimeSelectorValue, speed?: RuntimeSpeed) =>
       setRuntime({ value, speed: speed ?? runtimeSpeed }),
-    onRuntimeSpeedChange: (speed: RuntimeSpeed) => setRuntime({ value: runtimeValue, speed }),
+    onRuntimeSpeedChange: (speed: RuntimeSpeed) => setRuntime({ value: requestedValue, speed }),
     routes,
     route: selectedRoute,
     onRouteChange: setRoute,

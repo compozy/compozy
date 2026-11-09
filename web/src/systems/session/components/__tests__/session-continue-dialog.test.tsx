@@ -219,6 +219,7 @@ describe("SessionContinueDialog", () => {
     { edit: "reasoning", effort: "medium", speed: "normal" },
     { edit: "unsupported reasoning", effort: "high", speed: "normal" },
     { edit: "advanced option", effort: "high", speed: "normal" },
+    { edit: "provider", effort: "high", speed: "normal" },
   ] as const)(
     // Invariant: inherited ACP values remain visible; only explicit differences are submitted.
     // Owning layer and canonical suite: this Continue dialog request boundary.
@@ -248,7 +249,10 @@ describe("SessionContinueDialog", () => {
             }
           : agent
       );
-      runtimeCatalog.providers = [{ id: "codex", name: "Codex", runtime_provider: "codex" }];
+      runtimeCatalog.providers = [
+        { id: "codex", name: "Codex", runtime_provider: "codex" },
+        { id: "claude", name: "Claude", runtime_provider: "claude" },
+      ];
       runtimeCatalog.models = [
         {
           id: "gpt-6-astra",
@@ -271,6 +275,19 @@ describe("SessionContinueDialog", () => {
           ],
         },
       ];
+      if (edit === "provider") {
+        runtimeCatalog.models.push({
+          id: "opus-target",
+          provider: "claude",
+          name: "Opus target",
+          efforts: ["high"],
+          availability: "live",
+          curated: true,
+          acp_options: [
+            { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
+          ],
+        });
+      }
       const sent: ContinueSessionRequest[] = [];
       renderDialog({ onContinue: request => sent.push(request) });
 
@@ -291,7 +308,9 @@ describe("SessionContinueDialog", () => {
       if (edit !== "none") {
         if (edit === "speed") await user.click(await screen.findByTestId("runtime-selector-speed"));
         else if (edit === "advanced option") await user.click(thinking);
-        else {
+        else if (edit === "provider") {
+          await user.click(screen.getByRole("option", { name: /Opus target/ }));
+        } else {
           fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
             key: edit === "reasoning" ? "Home" : "End",
           });
@@ -301,13 +320,69 @@ describe("SessionContinueDialog", () => {
       await user.click(screen.getByTestId("session-continue-submit"));
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.runtime).toEqual({
-        provider: "codex",
-        model: "gpt-6-astra",
+        provider: edit === "provider" ? "claude" : "codex",
+        model: edit === "provider" ? "opus-target" : "gpt-6-astra",
         reasoning_effort: effort,
         speed,
         ...(edit === "advanced option"
           ? { acp_options: [{ id: "thinking", bool_value: false }] }
-          : {}),
+          : edit === "provider"
+            ? { acp_options: [{ id: "thinking", bool_value: true }] }
+            : {}),
+      });
+    }
+  );
+
+  // Invariant: losing catalog capability data cannot erase a confirmed reasoning effort.
+  // Owning layer and canonical suite: the Continue dialog's submission boundary.
+  it.each(["unobserved", "missing"] as const)(
+    "Should preserve chosen effort when model capabilities become $0",
+    async catalogState => {
+      const user = userEvent.setup();
+      agents.data = deriveAgentsFixture.map(agent =>
+        agent.name === "codex"
+          ? {
+              ...agent,
+              effective_runtime: {
+                provider: "codex",
+                model: "gpt-6-astra",
+                reasoning_effort: "medium",
+                sources: { provider: "agent", model: "agent", reasoning_effort: "agent" },
+              },
+            }
+          : agent
+      );
+      runtimeCatalog.providers = [{ id: "codex", name: "Codex", runtime_provider: "codex" }];
+      runtimeCatalog.models = [
+        {
+          id: "gpt-6-astra",
+          provider: "codex",
+          name: "GPT-6-Astra",
+          efforts: ["medium", "high"],
+          availability: "live",
+          curated: true,
+        },
+      ];
+      const sent: ContinueSessionRequest[] = [];
+      renderDialog({ onContinue: request => sent.push(request) });
+      await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+        key: "End",
+      });
+      await user.keyboard("{Escape}");
+      runtimeCatalog.models =
+        catalogState === "missing"
+          ? []
+          : runtimeCatalog.models.map(model => ({ ...model, efforts: [] }));
+      await user.type(screen.getByTestId("session-continue-message"), "continue");
+      await user.click(screen.getByTestId("session-continue-submit"));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]?.runtime).toEqual({
+        provider: "codex",
+        model: "gpt-6-astra",
+        reasoning_effort: "high",
+        speed: "normal",
       });
     }
   );

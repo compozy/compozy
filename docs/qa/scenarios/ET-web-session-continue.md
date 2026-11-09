@@ -102,8 +102,9 @@ instead of running Claude. See the [targeted report](../reports/2026-11-09-issue
 With an inherited ACP permission mode, changing only Fast or reasoning must not send that mode
 as an explicit override. Advanced controls must show inherited values even if the catalog's defaults
 differ; editing an advanced switch submits that difference without copying unchanged inherited values.
-If the agent's configured reasoning effort is absent from the model's
-advertised choices, Continue must explain the refusal and allow choosing a supported effort.
+If a model advertises selectable levels and the agent's effort is absent from those choices,
+Continue must explain the refusal and allow choosing a supported effort. A missing model or an
+unobserved level set must preserve the chosen effort and let the daemon validate it.
 
 ## Deleted root ancestor regression
 
