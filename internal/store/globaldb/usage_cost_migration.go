@@ -45,7 +45,7 @@ func (cost *repairedCost) add(usage store.TokenUsage) {
 
 // repairUsageCosts completes migration 199 before any runtime can append usage.
 // Session migration 11 is lossless and idempotent; one global transaction commits
-// all recomputed aggregates and the completion marker. Interrupted opens retry.
+// only agent-reported aggregates and the completion marker. Interrupted opens retry.
 func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
 	queries := sqlcgen.New(db)
 	pending, err := queries.UsageCostRepairPending(ctx)
@@ -61,14 +61,28 @@ func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
 	}
 	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
 		writer := sqlcgen.New(tx)
+		// Capture original provenance before invalidation. A matching reconstructed
+		// daily key must never overwrite a previously estimated/included row.
+		days, err := writer.ListUsageCostRepairDays(ctx)
+		if err != nil {
+			return fmt.Errorf("store: read usage cost repair days: %w", err)
+		}
+		if err := writer.InvalidateReportedSessionCosts(ctx); err != nil {
+			return fmt.Errorf("store: invalidate reported session costs: %w", err)
+		}
+		if err := writer.InvalidateReportedDailyCosts(ctx); err != nil {
+			return fmt.Errorf("store: invalidate reported daily costs: %w", err)
+		}
 		daily := make(map[repairedDailyCostKey]*repairedCost)
 		for _, row := range rows {
 			if err := repairSessionCost(ctx, writer, path, row, daily); err != nil {
 				return err
 			}
 		}
-		for key, cost := range daily {
-			if cost.unknown || cost.turns == 0 {
+		for _, day := range days {
+			key := repairedDailyCostKey{day.Day, day.ProfileID, day.WorkspaceID, day.AgentName}
+			cost := daily[key]
+			if cost == nil || cost.unknown || cost.turns == 0 {
 				continue
 			}
 			if err := writer.RepairDailyUsageCost(ctx, sqlcgen.RepairDailyUsageCostParams{
@@ -152,6 +166,9 @@ func migrationSessionUsage(
 	}
 	root := filepath.Join(filepath.Dir(path), "sessions", owner.SessionID)
 	ledgerPath := store.SessionDBFile(root)
+	if err := requireCostRepairLedgerReady(ledgerPath); err != nil {
+		return nil, err
+	}
 	// #nosec G703 -- session identity is validated by the owning sessiondb opener below.
 	if _, err := os.Lstat(ledgerPath); err != nil {
 		return nil, err // Never create an empty database for missing historical evidence.
@@ -181,4 +198,20 @@ func migrationSessionUsage(
 		}
 	}
 	return slices.DeleteFunc(usage, func(turn store.TokenUsage) bool { return !turns[turn.TurnID] }), nil
+}
+
+// Clear recovery owns byte-hashed database/WAL snapshots. Boot cost repair runs
+// before the session manager can settle them, so never open/migrate that family.
+func requireCostRepairLedgerReady(path string) error {
+	for _, suffix := range []string{
+		".clear-manifest", ".clear-committed", ".clear-backup",
+		"-wal.clear-backup", "-shm.clear-backup", "-journal.clear-backup",
+	} {
+		if _, err := os.Lstat(path + suffix); err == nil {
+			return errors.New("store: cost repair ledger awaits clear recovery")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("store: inspect cost repair ledger recovery: %w", err)
+		}
+	}
+	return nil
 }

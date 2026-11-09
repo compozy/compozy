@@ -1,7 +1,7 @@
 # Harness token efficiency — final report
 
 Date: 2026-11-09. Branch: `harness-token-efficiency`. Base: `e34e8332c`.
-Implementation head after round 2: `09d60b814`. Brief commit: `4e206f01f`.
+Initial round 2 implementation: `09d60b814`; the review correction is recorded below. Brief commit: `4e206f01f`.
 
 Eight workstreams have implementation commits. W10 now corrects cumulative accounting and ships historical repair migrations under the approved round 2 rule. W6 remains undecided; W8 remains blocked on a structured adapter eligibility/deadline contract, with no partial implementation. W9's requested actual Claude first-call token measurement remains unverified; its implementation and provider-option contracts pass. This is not a claim that all ten workstreams or all acceptance measurements are complete.
 
@@ -392,7 +392,7 @@ The accepted rule is `reported - previous` when the report is at least the previ
 
 - Session migration **11** adds the raw report column, derives turn increments in canonical order per currency, and rewrites the cost portion of canonical usage payloads while retaining the original amount. Other event fields, IDs, sequence, archive state, token values and timestamps remain intact. Existing rewind snapshots are marked stale for their owning rebuild path.
 - Transcript projection version **4** replays affected cost-bearing assistant entries, preserving message identity and unrelated projection state. Persisted transcript parts therefore stop showing the cumulative report as a turn cost.
-- Global migration **199** adds a durable repair marker and first invalidates monetary aggregates. Before opening the runtime, the migration owner opens retained session ledgers through their normal guarded/migrating owner and recomputes complete, attributable completed-turn totals. Daily totals require matching day/profile/workspace/agent and turn count. Missing, unreadable, partial, mixed-currency or otherwise uncertifiable evidence stays `unknown` with no amount/source. All non-cost aggregate columns are preserved.
+- Global migration **199** adds a durable repair marker only when agent-reported aggregates exist. Before opening the runtime, the migration owner captures the original agent-reported session and daily targets, then invalidates and repairs only those targets in one global transaction. It opens available retained session ledgers through their normal guarded/migrating owner and recomputes complete, attributable completed-turn totals. Subscription-included, estimated and all other non-agent-reported aggregate cost fields remain exactly as stored. Daily totals require matching day/profile/workspace/agent and turn count. For the targeted agent-reported aggregates, missing, unreadable, pending-clear, partial, mixed-currency or otherwise uncertifiable evidence becomes `unknown` with no amount/source. All non-cost aggregate columns are preserved.
 - One global transaction commits repaired totals and the completion marker. An interrupted open retries the pending repair; session migrations are idempotent. A fresh database has no repair work. Prior migration bytes/checksums are unchanged; the new migrations, Atlas sums and sqlc artifacts ship together.
 - Public CLI/HTTP/UDS/tool identifiers and DTO shapes are unchanged. `cost_amount` keeps its promised per-turn meaning; incorrect values are corrected. No compatibility alias or deprecation period is needed. No config key changed. Existing profile/workspace guards remain the data boundary. `compozy__session_usage`, CLI usage/context, transcript messages, prompt streams and task cost views consume the corrected owners; they do not add independent subtraction.
 - Generated persistence files were produced through the owning generators. `make codegen` passed. Appending the data tails initially exposed checksum validation before regeneration; the Atlas Goose-directory checksum API regenerated only the two owned manifests, followed by `make codegen`. No released migration was edited. `make codegen-check` was not run in round 2.
@@ -457,7 +457,7 @@ Source formatting used `golangci-lint fmt` on the explicit changed non-generated
 
 #### W10 release-note text
 
-> Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, including detected counter restarts. The upgrade preserves raw reports and rebuilds historical costs from retained session ledgers. Missing or incomplete evidence is shown as unknown; token counts, turn counts and timestamps are preserved. A counter reset whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
+> Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, including detected counter restarts. The upgrade preserves raw reports and rebuilds agent-reported historical costs from retained session ledgers. Included and estimated costs remain unchanged. Missing or incomplete evidence for agent-reported costs is shown as unknown; token counts, turn counts and timestamps are preserved. A counter reset whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
 
 ### W8 — still blocked: adapter-owned eligibility/deadline observation
 
@@ -545,3 +545,65 @@ internal/transcript/projection_types.go
 packages/site/content/docs/sessions/index.mdx
 skills/compozy/references/runtime-operations.md
 ```
+
+## Round 2 review correction — preserve unaffected provenance and ledger integrity
+
+The review identified that the original migration invalidated included/estimated costs that were never inflated. This revision corrects **unreleased migration 199 in place**, as explicitly authorized; no migration 200 is added. Its Atlas checksum and generated sqlc queries are regenerated through their owners. Session migration 11 is unchanged.
+
+### Changed behavior and coverage
+
+- Migration 199 now creates pending work only for `cost_source = 'agent_reported'`. The repair captures the original session and daily target sets before invalidation. Invalidation and recomputation run in the same global transaction, before a runtime is exposed; interruption rolls that transaction back and leaves the durable pending marker for retry.
+- Both selection and updates are restricted to those original targets. A daily row is not selected merely because a reconstructed session has a matching day/profile/workspace/agent key. Every other row retains `total_cost`, `cost_currency`, `cost_status` and `cost_source`, including NULL values.
+- The existing `TestGlobalDBUsageCostRepair` suite now proves preservation after upgrade and repeated reopen for `included/none`, `estimated/catalog_config`, `estimated/models_dev`, `estimated/builtin`, and `unknown/none`. The fixtures also contain reported ledger amounts to catch accidental provenance replacement during repair, plus a protected estimated daily row matching an actually reported session. Existing assertions still require reported history to recompute to 5 and missing reported history to become unknown.
+- Example preservation: catalog estimate USD 2.75, models.dev estimate EUR 3.25, builtin estimate USD 4.25, and subscription-included NULL cost remain unchanged in both aggregate tables. Previously this implementation incorrectly cleared them to unknown. Token counts, timestamps and turn counts remain covered.
+
+### Canonical payload-byte integrity audit
+
+The event table has **no persisted per-event payload signature, digest column or hash chain**. That does not mean nothing ever hashes event bytes. The actual dependencies reviewed are:
+
+| Mechanism | Bytes/fence covered | Why the migration is compatible / correction |
+| --- | --- | --- |
+| `internal/store/sessiondb/schema/schema.sql`, `session_event_write.go` | IDs, sequences and event identity; `sessionEventsHaveIdenticalIdentity` compares content on a duplicate deterministic append | IDs/sequences/timestamps/archive flags stay unchanged. Duplicate-content checks remain enabled. Runtime idempotent permission/input and restart lifecycle events do not carry the monetary usage rewritten by migration 11. A stale conflicting payload is still rejected; no collision check is weakened. |
+| `internal/session/manager_conversation_rewind.go:conversationActivePrefixDigest` | SHA-256 of queried event rows, including their content, across the stop/commit phase of one in-flight rewind | This digest is held in memory, not persisted across daemon restart. Migration occurs on database open before the runtime can admit rewind; a migrated ledger supplies both reads. The persisted rewind `request_hash` hashes request/session/message/epoch/generation/sequence identity, not event payload bytes. |
+| `internal/store/sessiondb/session_conversation_rewind.go` and `session_conversation_rewind_baseline.go` | Durable generation/max-sequence fences and a derived replay snapshot | Sequence/generation fences remain intact. Migration 11 marks covered cost-bearing rewind snapshots stale, so their existing owner rebuilds from canonical evidence. Transcript projection version 4 similarly rebuilds affected usage parts. |
+| `internal/session/manager_clear_manifest.go`, `manager_clear_family_operation.go`, `internal/store/sessiondb/family_file.go` | Persisted SHA-256 of entire database/WAL/SHM/journal files during interrupted clear recovery | **A real byte dependency was found and fixed.** The global cost repair now refuses to open a family with a clear manifest, committed marker, or any clear backup. Opening could migrate/checkpoint and invalidate these hashes before the session manager recovers it. Its reported aggregate becomes unknown as unavailable; recovery evidence remains untouched for the established clear owner. Six focused cases prove byte-for-byte database and recovery-artifact preservation. |
+| `internal/store/sessiondb/owner_snapshot.go`, `owner_retry.go`, migration Atlas manifests | SQLite WAL checksums/structural integrity; migration-source checksums | Normal SQLite transactional writes maintain database/WAL integrity. Atlas checksums cover migration source files, not individual event payloads; only authorized unreleased migration 199's checksum changes. |
+
+The append-only ledger remains authoritative for runtime writes and replay. Migration 11 is an explicit, versioned data-representation migration, not a runtime overwrite path or a replacement of ledger truth with projection truth. It changes the meaning of the cost field to the accepted per-turn contract while retaining the original amount as `ReportedCostAmount`; all other JSON values and row identity remain preserved. `json_set` may change JSON formatting, so this is **semantic preservation with raw monetary evidence retained, not a promise of byte-identical historical JSON**. No permanent payload signature needs rewriting. The one durable whole-file hash dependency is protected by the new pending-clear availability guard.
+
+### Focused verification for the correction
+
+All commands below passed; lint reported zero issues in both normal and integration-tag lanes:
+
+```sh
+# Regenerate the authorized unreleased migration checksum with Atlas's Goose
+# directory checksum API, then run the repository's owning generators.
+go run ./.tmp/w10-atlas-hash.go && make codegen
+
+go test ./internal/store/globaldb ./internal/store ./internal/store/sessiondb \
+  -run '^(TestGlobalDBUsageCostRepair|TestGlobalDBTokenCostMigration|TestProductionMigrationStreams|TestSessionDBUsageCostMigration|TestTranscriptProjectionUpgrade)$' -count=1
+
+go test -tags=integration ./internal/session ./internal/store/sessiondb \
+  -run '^(TestClearConversationFailureRecovery|TestConversationRewindRestartsSameSessionFromRetainedPrefix|TestSessionDBAppendEventIfAbsent)$' -count=1
+
+COMPOZY_GO_LINT_SCOPES='./internal/store/globaldb' make go-lint
+git diff --check
+```
+
+The checksum helper uses `sqltool.NewGooseDir`, `dir.Checksum` and `migrate.WriteSumFile` from Atlas; it is a local generator invocation, not hand-edited checksum text. The helper is retained under ignored `.tmp/` from the original work. Only migration 199 and the manifest root digest changed; earlier migration checksum entries and session migration 11 did not change.
+
+The reviewer separately reported running migration 11 on a copy of a real 62 MB ledger: 420 turns summed to 300.88, equal to its final report, in under 0.1 s. This is **reviewer-provided evidence**, not a run performed by this implementation session.
+
+Changed files in this correction:
+
+```text
+docs/prompts/20261109-1726_harness-token-efficiency-report.md
+internal/store/globaldb/global_db_cost_migration_test.go
+internal/store/globaldb/queries/usage_cost_repair.sql
+internal/store/globaldb/schema/migrations/00199_schema.sql
+internal/store/globaldb/schema/migrations/atlas.sum
+internal/store/globaldb/sqlcgen/usage_cost_repair.sql.go
+internal/store/globaldb/usage_cost_migration.go
+```
+
+Not verified: production-wide global repair, live-provider billing, CI, full/race/E2E suites or browser/HTTP/UDS walkthroughs. No `make codegen-check` or global/uncached typecheck ran. W8 and its prior report were left unchanged; no push or PR was performed. The pending-clear guard is tested with real SQLite files and synthetic recovery artifacts; existing clear-recovery and rewind integration checks passed, but no process was deliberately crashed during an upgrade.

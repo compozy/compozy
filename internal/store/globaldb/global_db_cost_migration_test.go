@@ -1,9 +1,11 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -207,6 +209,38 @@ func seedCostRepairLedger(t *testing.T, globalPath, sessionID, workspaceID, agen
 // incomplete history unknown without changing tokens, counts, IDs or timestamps.
 func TestGlobalDBUsageCostRepair(t *testing.T) {
 	t.Parallel()
+	// Invariant: cost repair cannot invalidate clear recovery's byte hashes.
+	for _, suffix := range []string{".clear-manifest", ".clear-committed", ".clear-backup", "-wal.clear-backup", "-shm.clear-backup", "-journal.clear-backup"} {
+		t.Run("Should leave a ledger awaiting clear recovery untouched "+suffix, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			owner := store.SessionDBOwner{SessionID: "sess-clear", WorkspaceID: "ws-clear"}
+			seedCostRepairLedger(t, path, owner.SessionID, owner.WorkspaceID, "coder", []float64{1, 3})
+			ledgerPath := store.SessionDBFile(filepath.Join(filepath.Dir(path), "sessions", owner.SessionID))
+			before, err := os.ReadFile(ledgerPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			marker := []byte("pending recovery evidence")
+			if err := os.WriteFile(ledgerPath+suffix, marker, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := migrationSessionUsage(t.Context(), path, owner, "coder"); err == nil {
+				t.Fatal("pending clear ledger was opened")
+			}
+			after, err := os.ReadFile(ledgerPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			retained, err := os.ReadFile(ledgerPath + suffix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before, after) || !bytes.Equal(marker, retained) {
+				t.Fatal("clear recovery evidence changed")
+			}
+		})
+	}
 	t.Run("Should repair complete history and invalidate missing history across reopen", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -258,6 +292,37 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
+		preserved := []costProvenanceFixture{
+			{"included", "included", "none", nil, nil},
+			{"estimated-config", "estimated", "catalog_config", 2.75, "USD"},
+			{"estimated-models", "estimated", "models_dev", 3.25, "EUR"},
+			{"estimated-builtin", "estimated", "builtin", 4.25, "USD"},
+			{"unknown", "unknown", "none", nil, nil},
+		}
+		for _, fixture := range preserved {
+			seedPreservedCostProvenance(t, old, day, fixture)
+		}
+		// This daily row shares an agent-reported session/turn key: restricting
+		// only the session selection would still overwrite its valid estimate.
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO token_usage_daily(day,profile_id,workspace_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,'00000000000000000000000000','ws-cost','protected-daily',20,2.75,'USD','estimated','catalog_config',4,'2026-07-15T12:03:00Z')`,
+			day,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO sessions(id,profile_id,agent_name,provider,workspace_id,state,created_at,updated_at) VALUES ('sess-daily-protected','00000000000000000000000000','protected-daily','claude','ws-cost','stopped','2026-07-15T12:00:00Z','2026-07-15T12:03:00Z')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO token_stats(id,session_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES ('daily-only','sess-daily-protected','protected-daily',20,6.5,'USD','actual','agent_reported',4,'2026-07-15T12:03:00Z')`,
+		); err != nil {
+			t.Fatal(err)
+		}
 		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
 		if err != nil {
 			t.Fatal(err)
@@ -272,6 +337,10 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 			t.Fatal(err)
 		}
 		seedCostRepairLedger(t, path, "sess-repaired", "ws-cost", "coder", []float64{1, 3, 0.5, 2})
+		seedCostRepairLedger(t, path, "sess-daily-protected", "ws-cost", "protected-daily", []float64{1, 3, 0.5, 2})
+		for _, fixture := range preserved {
+			seedCostRepairLedger(t, path, "sess-"+fixture.agent, "ws-cost", fixture.agent, []float64{1, 3, 0.5, 2})
+		}
 		for range 2 {
 			db, err := openGlobalMigrationUpgrade(t, path)
 			if err != nil {
@@ -295,6 +364,15 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 					t.Fatalf("missing=%+v", row)
 				}
 			}
+			for _, fixture := range preserved {
+				assertPreservedCostProvenance(t, db.db, day, fixture)
+			}
+			assertPreservedDailyCost(
+				t,
+				db.db,
+				day,
+				costProvenanceFixture{"protected-daily", "estimated", "catalog_config", 2.75, "USD"},
+			)
 			var amount sql.NullFloat64
 			var status string
 			var turns, tokens int64
@@ -319,4 +397,75 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Fixtures intentionally contain reported ledger amounts too: ownership comes
+// from each aggregate's original provenance, never a coincidentally matching key.
+type costProvenanceFixture struct {
+	agent, status, source string
+	amount, currency      any
+}
+
+func seedPreservedCostProvenance(t *testing.T, db *sql.DB, day string, fixture costProvenanceFixture) {
+	t.Helper()
+	ctx := t.Context()
+	id := "sess-" + fixture.agent
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO sessions(id,profile_id,agent_name,provider,workspace_id,state,created_at,updated_at) VALUES (?,'00000000000000000000000000',?,'codex','ws-cost','stopped','2026-07-15T12:00:00Z','2026-07-15T12:03:00Z')`,
+		id,
+		fixture.agent,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO token_stats(id,session_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,?,?,20,?,?,?,?,4,'2026-07-15T12:03:00Z')`,
+		id,
+		id,
+		fixture.agent,
+		fixture.amount,
+		fixture.currency,
+		fixture.status,
+		fixture.source,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO token_usage_daily(day,profile_id,workspace_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,'00000000000000000000000000','ws-cost',?,20,?,?,?,?,4,'2026-07-15T12:03:00Z')`,
+		day,
+		fixture.agent,
+		fixture.amount,
+		fixture.currency,
+		fixture.status,
+		fixture.source,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertPreservedCostProvenance(t *testing.T, db *sql.DB, day string, fixture costProvenanceFixture) {
+	t.Helper()
+	var same bool
+	if err := db.QueryRowContext(t.Context(), `SELECT total_cost IS ? AND cost_currency IS ? AND cost_status = ? AND cost_source = ? FROM token_stats WHERE id = ?`, fixture.amount, fixture.currency, fixture.status, fixture.source, "sess-"+fixture.agent).
+		Scan(&same); err != nil {
+		t.Fatal(err)
+	}
+	if !same {
+		t.Fatalf("session provenance changed for %s", fixture.agent)
+	}
+	assertPreservedDailyCost(t, db, day, fixture)
+}
+
+func assertPreservedDailyCost(t *testing.T, db *sql.DB, day string, fixture costProvenanceFixture) {
+	t.Helper()
+	var same bool
+	if err := db.QueryRowContext(t.Context(), `SELECT total_cost IS ? AND cost_currency IS ? AND cost_status = ? AND cost_source = ? FROM token_usage_daily WHERE day = ? AND agent_name = ?`, fixture.amount, fixture.currency, fixture.status, fixture.source, day, fixture.agent).
+		Scan(&same); err != nil {
+		t.Fatal(err)
+	}
+	if !same {
+		t.Fatalf("daily provenance changed for %s", fixture.agent)
+	}
 }

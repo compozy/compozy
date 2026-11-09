@@ -19,9 +19,70 @@ func (q *Queries) CompleteUsageCostRepair(ctx context.Context) error {
 	return err
 }
 
+const invalidateReportedDailyCosts = `-- name: InvalidateReportedDailyCosts :exec
+UPDATE token_usage_daily SET total_cost = NULL, cost_currency = NULL, cost_status = 'unknown', cost_source = 'none'
+WHERE cost_source = 'agent_reported'
+`
+
+func (q *Queries) InvalidateReportedDailyCosts(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, invalidateReportedDailyCosts)
+	return err
+}
+
+const invalidateReportedSessionCosts = `-- name: InvalidateReportedSessionCosts :exec
+UPDATE token_stats SET total_cost = NULL, cost_currency = NULL, cost_status = 'unknown', cost_source = 'none'
+WHERE cost_source = 'agent_reported'
+`
+
+func (q *Queries) InvalidateReportedSessionCosts(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, invalidateReportedSessionCosts)
+	return err
+}
+
+const listUsageCostRepairDays = `-- name: ListUsageCostRepairDays :many
+SELECT day, profile_id, workspace_id, agent_name FROM token_usage_daily
+WHERE cost_source = 'agent_reported' ORDER BY day, profile_id, workspace_id, agent_name
+`
+
+type ListUsageCostRepairDaysRow struct {
+	Day         string `json:"day"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+}
+
+func (q *Queries) ListUsageCostRepairDays(ctx context.Context) ([]ListUsageCostRepairDaysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsageCostRepairDays)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUsageCostRepairDaysRow{}
+	for rows.Next() {
+		var i ListUsageCostRepairDaysRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.ProfileID,
+			&i.WorkspaceID,
+			&i.AgentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsageCostRepairSessions = `-- name: ListUsageCostRepairSessions :many
 SELECT t.id, t.session_id, t.agent_name, t.turn_count, s.workspace_id, s.profile_id
-FROM token_stats t JOIN sessions s ON s.id = t.session_id ORDER BY t.session_id, t.agent_name
+FROM token_stats t JOIN sessions s ON s.id = t.session_id
+WHERE t.cost_source = 'agent_reported' ORDER BY t.session_id, t.agent_name
 `
 
 type ListUsageCostRepairSessionsRow struct {

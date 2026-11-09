@@ -3,7 +3,20 @@ SELECT CAST(COALESCE((SELECT pending FROM usage_cost_repair_state WHERE singleto
 
 -- name: ListUsageCostRepairSessions :many
 SELECT t.id, t.session_id, t.agent_name, t.turn_count, s.workspace_id, s.profile_id
-FROM token_stats t JOIN sessions s ON s.id = t.session_id ORDER BY t.session_id, t.agent_name;
+FROM token_stats t JOIN sessions s ON s.id = t.session_id
+WHERE t.cost_source = 'agent_reported' ORDER BY t.session_id, t.agent_name;
+
+-- name: ListUsageCostRepairDays :many
+SELECT day, profile_id, workspace_id, agent_name FROM token_usage_daily
+WHERE cost_source = 'agent_reported' ORDER BY day, profile_id, workspace_id, agent_name;
+
+-- name: InvalidateReportedSessionCosts :exec
+UPDATE token_stats SET total_cost = NULL, cost_currency = NULL, cost_status = 'unknown', cost_source = 'none'
+WHERE cost_source = 'agent_reported';
+
+-- name: InvalidateReportedDailyCosts :exec
+UPDATE token_usage_daily SET total_cost = NULL, cost_currency = NULL, cost_status = 'unknown', cost_source = 'none'
+WHERE cost_source = 'agent_reported';
 
 -- name: RepairSessionUsageCost :exec
 UPDATE token_stats SET total_cost = sqlc.arg(amount), cost_currency = sqlc.arg(currency),
