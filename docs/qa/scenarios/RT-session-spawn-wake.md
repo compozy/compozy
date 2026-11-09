@@ -152,3 +152,9 @@ the hook completes successfully, and the creator wake is delivered after the chi
 lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
 TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
 this change does not claim a new local E2E run.
+
+QA impact 2026-11-09 (harness token efficiency): replay the same child's attention revision
+after its first wake was admitted, including after daemon restart. The durable message identity
+must prevent a second turn. A new revision still wakes the parent, and failure to read the ledger
+must be reported rather than acknowledged as delivered. Monitor batching, reply-watch coverage
+and informative child events keep their existing behavior.

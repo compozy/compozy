@@ -2073,3 +2073,7 @@ dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`
 file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
 allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
 artifact atomically; `-o json` reports its kind and path, not the binary payload.
+
+Child attention wakes reuse their durable event identity as the input message ID. Replaying an
+already admitted revision after restart does not start another turn; a new attention revision
+remains a new wake. Admission-read failures are reported instead of silently suppressing a wake.

@@ -32,6 +32,8 @@ type sessionWakeManagerStub struct {
 	promptCalls int
 	events      chan acp.AgentEvent
 	ctxErr      error
+	admitted    map[string]bool
+	ledgerErr   error
 }
 
 func (stub *sessionWakeManagerStub) Status(ctx context.Context, _ string) (*session.Info, error) {
@@ -39,6 +41,12 @@ func (stub *sessionWakeManagerStub) Status(ctx context.Context, _ string) (*sess
 	defer stub.mu.Unlock()
 	stub.ctxErr = ctx.Err()
 	return stub.status, stub.statusErr
+}
+
+func (stub *sessionWakeManagerStub) SyntheticWakeAdmitted(_ context.Context, _, messageID string) (bool, error) {
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	return stub.admitted[messageID], stub.ledgerErr
 }
 
 func (stub *sessionWakeManagerStub) PromptSynthetic(
@@ -52,11 +60,55 @@ func (stub *sessionWakeManagerStub) PromptSynthetic(
 	stub.promptID = id
 	stub.promptOpts = opts
 	stub.promptCalls++
+	if stub.admitted != nil && stub.promptErr == nil {
+		stub.admitted[opts.MessageID] = true
+	}
 	return stub.events, stub.promptErr
 }
 
 func TestSessionWakeBridge(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should suppress admitted attention revisions but deliver new child information", func(t *testing.T) {
+		t.Parallel()
+		manager := &sessionWakeManagerStub{
+			status:   &session.Info{ID: "parent", State: session.StateActive},
+			admitted: make(map[string]bool),
+		}
+		bridge, err := newSessionWakeBridge(t.Context(), func() sessionWakeSessionManager { return manager }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if stopErr := bridge.shutdown(testutil.Context(t)); stopErr != nil {
+				t.Error(stopErr)
+			}
+		})
+		event := session.SpawnWakeEvent{
+			ChildSessionID: "child", Reason: session.SpawnWakeReasonNeedsAttention,
+			Badge: session.BadgeWaitingForInput, WakeEventID: "session-wake:child:1:1:needs_attention",
+		}
+		for range 3 {
+			if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); wakeErr != nil {
+				t.Fatal(wakeErr)
+			}
+		}
+		if manager.promptCalls != 1 || manager.promptOpts.MessageID != event.WakeEventID {
+			t.Fatalf("replayed revision admitted %d prompts", manager.promptCalls)
+		}
+		event.WakeEventID = "session-wake:child:1:2:needs_attention"
+		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); wakeErr != nil {
+			t.Fatal(wakeErr)
+		}
+		if manager.promptCalls != 2 {
+			t.Fatal("new attention revision was suppressed")
+		}
+		manager.ledgerErr = errors.New("ledger unavailable")
+		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); !errors.Is(wakeErr, manager.ledgerErr) {
+			t.Fatalf("uncertain admission was silently acknowledged: %v", wakeErr)
+		}
+		t.Log("same attention revision: 3 deliveries -> 1 admission; new revision: 1 -> 1")
+	})
 
 	t.Run("Should deliver detached bounded metadata and drain through shutdown", func(t *testing.T) {
 		t.Parallel()
