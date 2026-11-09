@@ -111,6 +111,14 @@ that supports that level then allows submission.
 Cursor's advertised effort/speed pairs are checked together; unknown pair metadata is left to
 the daemon. Correcting an invalid runtime clears its local refusal without clearing an unrelated
 daemon submission error.
+For Cursor models, an omitted effort is checked against the model's advertised default while the
+request keeps it omitted, and an advertised thinking requirement is refused until the Thinking
+control satisfies it. A message-only edit keeps a local refusal visible.
+Provider default on an inherited advanced option launches the displayed advertised default as an
+explicit value; with no advertised default, Continue asks for a value. An inherited unrestricted
+option listed in `effective_runtime.policy_excluded_acp_options` shows the policy-effective value
+and is never submitted. An explicit advanced choice removed by a catalog refresh is refused with
+its name until the model is reselected; a model with no observed descriptors stays daemon-validated.
 
 ## Deleted root ancestor regression
 

@@ -205,6 +205,7 @@ export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
   permissions?: string;
+  policy_excluded_acp_options?: Array<AgentACPOptionSelection>;
   provider: string;
   reasoning_effort?: string;
   session_env?: {

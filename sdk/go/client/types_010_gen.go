@@ -7,6 +7,66 @@ import (
 	"time"
 )
 
+// JobPayload is a daemon API value.
+type JobPayload struct {
+	ID           string                           `json:"id"`
+	ProfileID    string                           `json:"profile_id"`
+	ProfileName  string                           `json:"profile_name"`
+	ProfileColor string                           `json:"profile_color,omitempty"`
+	ProfileIcon  string                           `json:"profile_icon,omitempty"`
+	Scope        Scope                            `json:"scope"`
+	Name         string                           `json:"name"`
+	TargetKind   TargetKind                       `json:"target_kind"`
+	AgentName    string                           `json:"agent_name"`
+	WorkspaceID  string                           `json:"workspace_id,omitempty"`
+	Prompt       string                           `json:"prompt"`
+	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
+	Task         *JobTaskConfig                   `json:"task,omitzero"`
+	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
+	Enabled      bool                             `json:"enabled"`
+	Retry        RetryConfig                      `json:"retry"`
+	FireLimit    FireLimitConfig                  `json:"fire_limit"`
+	Source       JobSource                        `json:"source"`
+	CreatedAt    time.Time                        `json:"created_at"`
+	UpdatedAt    time.Time                        `json:"updated_at"`
+	NextRun      *time.Time                       `json:"next_run,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
+// JobResponse is a daemon API value.
+type JobResponse struct {
+	Job JobPayload `json:"job"`
+}
+
+// JobSource is a daemon API value.
+type JobSource string
+
+// JobTaskConfig is a daemon API value.
+type JobTaskConfig struct {
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+}
+
+// JobsResponse is a daemon API value.
+type JobsResponse struct {
+	Jobs []JobPayload             `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
+}
+
+// KindDescriptor is a daemon API value.
+type KindDescriptor struct {
+	Kind         string          `json:"kind"`
+	Extension    string          `json:"extension"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description,omitempty"`
+	ParamsSchema json.RawMessage `json:"params_schema,omitempty"`
+}
+
+// LineageKind is a daemon API value.
+type LineageKind string
+
 // LogEventPayload is a daemon API value.
 type LogEventPayload struct {
 	ID                   string          `json:"id"`
@@ -380,64 +440,3 @@ type LoopGateCriterionDetailPayload struct {
 	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
 	Payload        json.RawMessage                `json:"payload,omitempty"`
 }
-
-// LoopGateCriterionEventPayload is a daemon API value.
-type LoopGateCriterionEventPayload struct {
-	ID     string   `json:"id"`
-	Type   string   `json:"type"`
-	Status string   `json:"status"`
-	Note   string   `json:"note"`
-	Score  *float64 `json:"score,omitzero"`
-}
-
-// LoopGateDecision is a daemon API value.
-type LoopGateDecision string
-
-// LoopGateDiagnosticWarning is a daemon API value.
-type LoopGateDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// LoopGateVerdictEventPayload is a daemon API value.
-type LoopGateVerdictEventPayload struct {
-	NodeID         string                          `json:"node_id"`
-	Generation     int64                           `json:"generation"`
-	GateID         string                          `json:"gate_id"`
-	ItemIndex      int                             `json:"item_index"`
-	Verdict        string                          `json:"verdict"`
-	Reason         string                          `json:"reason"`
-	Route          string                          `json:"route"`
-	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
-	Score          *float64                        `json:"score,omitzero"`
-	BestGeneration *int64                          `json:"best_generation,omitzero"`
-}
-
-// LoopGateVerdictOutcome is a daemon API value.
-type LoopGateVerdictOutcome string
-
-// LoopGateVerdictPayload is a daemon API value.
-type LoopGateVerdictPayload struct {
-	GateID         string                           `json:"gate_id"`
-	ItemIndex      int                              `json:"item_index"`
-	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
-	Score          *float64                         `json:"score,omitzero"`
-	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
-	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
-}
-
-// LoopGateVerdictRunEventPayload is a daemon API value.
-type LoopGateVerdictRunEventPayload struct {
-	ID          string                      `json:"id"`
-	LoopRunID   string                      `json:"loop_run_id"`
-	WorkspaceID string                      `json:"workspace_id"`
-	Seq         int64                       `json:"seq"`
-	Kind        RunEventKind                `json:"kind"`
-	Payload     LoopGateVerdictEventPayload `json:"payload"`
-	At          time.Time                   `json:"at"`
-}
-
-// LoopGenerationOrigin is a daemon API value.
-type LoopGenerationOrigin string

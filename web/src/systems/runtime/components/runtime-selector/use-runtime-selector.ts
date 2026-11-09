@@ -247,10 +247,11 @@ export function useRuntimeSelector({
     onChange({ ...normalizedValue, reasoning_effort: effort });
   };
 
-  const setACPOption = (selection: RuntimeACPOptionSelection | null) => {
+  const setACPOption = (optionID: string, selection: RuntimeACPOptionSelection | null) => {
     if (isProviderManaged(activeProvider)) return;
     const nextSelections = setRuntimeACPSelection(
       normalizedValue.acp_options,
+      optionID,
       selection,
       effectiveACPOptions
     );

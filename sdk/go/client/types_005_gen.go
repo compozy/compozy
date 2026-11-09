@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// CommandFlagType is a daemon API value.
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
+
 // CommandID is a daemon API value.
 type CommandID string
 
@@ -438,9 +448,3 @@ type DeleteResourceRequest struct {
 
 // DependencyKind is a daemon API value.
 type DependencyKind string
-
-// DesktopID is a daemon API value.
-type DesktopID string
-
-// DesktopTransition is a daemon API value.
-type DesktopTransition string

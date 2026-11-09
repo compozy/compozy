@@ -135,7 +135,10 @@ func AgentPayloadFromEntryWithConfig(
 		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
 		Speed:           resolved.SpeedValue(),
 		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
-		Permissions:     permissions,
+		PolicyExcludedACPOptions: agentACPOptionsToContract(
+			policyExcludedACPOptions(entry.Def, &resolved, permissions),
+		),
+		Permissions: permissions,
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider.String()),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model.String()),
@@ -145,6 +148,27 @@ func AgentPayloadFromEntryWithConfig(
 		},
 	}
 	return payload
+}
+
+// policyExcludedACPOptions names inherited options a new session start removes, so reads
+// report the daemon's permission restriction instead of each client re-deriving it.
+func policyExcludedACPOptions(
+	agent compozyconfig.AgentDef,
+	resolved *compozyconfig.ResolvedAgent,
+	permissions string,
+) []compozyconfig.ACPOptionSelection {
+	if !compozyconfig.ExcludesInheritedUnrestrictedACPOptions(
+		resolved.Provider, compozyconfig.PermissionMode(permissions), agent.ACPOptionsValue(), false,
+	) {
+		return nil
+	}
+	var excluded []compozyconfig.ACPOptionSelection
+	for _, option := range resolved.ACPOptionsValue() {
+		if compozyconfig.IsUnrestrictedACPOption(resolved.Provider, option.ID, option.ValueID) {
+			excluded = append(excluded, option)
+		}
+	}
+	return excluded
 }
 
 func agentACPOptionsToContract(

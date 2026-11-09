@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// AgentSoulRevisionPayload is a daemon API value.
+type AgentSoulRevisionPayload struct {
+	ID             string                             `json:"id"`
+	AgentName      string                             `json:"agent_name"`
+	SourcePath     string                             `json:"source_path"`
+	Action         AgentSoulRevisionAction            `json:"action"`
+	PreviousDigest string                             `json:"previous_digest,omitempty"`
+	NewDigest      string                             `json:"new_digest,omitempty"`
+	Diagnostics    []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Actor          AuthoredContextActorPayload        `json:"actor"`
+	Origin         *AuthoredContextActorPayload       `json:"origin,omitempty"`
+	CreatedAt      time.Time                          `json:"created_at"`
+}
+
 // AgentSoulRollbackByPathRequest is a daemon API value.
 type AgentSoulRollbackByPathRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
@@ -434,12 +448,3 @@ type Axis string
 
 // BackendKind is a daemon API value.
 type BackendKind string
-
-// BackoffSpec is a daemon API value.
-type BackoffSpec struct {
-	Base string `json:"base,omitempty"`
-	Max  string `json:"max,omitempty"`
-}
-
-// Badge is a daemon API value.
-type Badge string

@@ -594,7 +594,8 @@ is also its `runtime.selected` (revision 1), which a prompt without its own runt
 `session.derived` for it. A continuation with an explicit provider selection never walks the agent's
 fallback chain: a launch refusal remains visible in `runtime.failure` on the unbound child and no
 prompt runs on another provider. The Web Continue dialog submits the full displayed runtime,
-including unchanged defaults. Retries are deterministic: the same `idempotency_key` with the same request
+including unchanged defaults; omitted `acp_options` entries inherit from the agent, so its Provider
+default control submits the advertised default value. Retries are deterministic: the same `idempotency_key` with the same request
 returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
 deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
 and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at

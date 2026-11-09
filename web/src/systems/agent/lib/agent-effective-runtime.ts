@@ -2,6 +2,7 @@ import type { AgentPayload } from "../types";
 import type { RuntimeSpeed } from "@/lib/api-contract";
 import {
   normalizeRuntimeACPSelections,
+  runtimeACPSelectionsEqual,
   type RuntimeACPOptionSelection,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
@@ -48,6 +49,20 @@ export function resolveAgentRuntimeValue(agent: AgentPayload | undefined): Runti
     reasoning_effort: effective?.reasoning_effort ?? agent?.reasoning_effort ?? "",
     ...(acpOptions ? { acp_options: acpOptions } : {}),
   };
+}
+
+/** The runtime a new session inherits: permission policy can exclude unrestricted ACP options. */
+export function resolveAgentSessionRuntimeValue(
+  agent: AgentPayload | undefined
+): RuntimeSelectorValue {
+  const value = resolveAgentRuntimeValue(agent);
+  const excluded = runtimeACPSelections(agent?.effective_runtime?.policy_excluded_acp_options);
+  if (!excluded || !value.acp_options) return value;
+  const { acp_options: inherited, ...runtime } = value;
+  const acpOptions = inherited.filter(
+    option => !excluded.some(candidate => runtimeACPSelectionsEqual([option], [candidate]))
+  );
+  return { ...runtime, ...(acpOptions.length > 0 ? { acp_options: acpOptions } : {}) };
 }
 
 export function inheritedAgentRuntimeFields(agent: AgentPayload): string[] {

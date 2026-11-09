@@ -188,6 +188,8 @@ For an operator-authored new definition, send `name` plus `command`/`args` for s
 `session_env_status` metadata under `effective_runtime`: reference, source, presence, and whether
 the declaration is required. These reads never resolve Vault plaintext. The Web Configuration
 tab displays the same metadata; unrelated Settings edits preserve authored environment maps.
+`effective_runtime.policy_excluded_acp_options` lists the inherited unrestricted ACP options a new
+session drops under its permission level; `effective_runtime.acp_options` still reports them.
 
 Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
