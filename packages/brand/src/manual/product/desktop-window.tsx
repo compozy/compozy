@@ -81,7 +81,7 @@ export function DesktopWallpaper() {
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Frame id="desktop-wallpaper" guides />
-      <RuleCard title="desktop-wallpaper \u00b7 2880 \u00d7 1800">
+      <RuleCard title="desktop-wallpaper · 2880 × 1800">
         <li>
           Atmosphere <code>horizon</code> at 60% opacity, band of light across the lower middle, top
           40% left black, so icons on the right stay readable.
