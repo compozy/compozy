@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -1566,12 +1568,14 @@ func TestTerminalApprovalPreservesRunRestrictions(t *testing.T) {
 					}, nil
 				},
 			}
+			var approvalLog bytes.Buffer
+			writer := &recordingToolEventSummaryStore{}
 			bridge := newToolApprovalBridge(
 				func() sessionPermissionRequester { return requester },
 				time.Second,
 				nil,
 				nil,
-				nil,
+				slog.New(slog.NewJSONHandler(&approvalLog, nil)),
 			)
 			manager := &terminalNativeManagerStub{}
 			deps := &daemonNativeToolsDeps{
@@ -1608,7 +1612,8 @@ func TestTerminalApprovalPreservesRunRestrictions(t *testing.T) {
 			policy := nativeApproveAllPolicyInputs()
 			policy.SystemPermissionMode = toolspkg.PermissionModeApproveReads
 			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps,
-				toolspkg.NewStaticPolicyInputResolver(policy), nil, toolspkg.WithApprovalBridge(bridge))
+				toolspkg.NewStaticPolicyInputResolver(policy), nil, toolspkg.WithApprovalBridge(bridge),
+				toolspkg.WithToolEventSink(&daemonToolEventSink{writer: writer}))
 			_, err := registry.Call(t.Context(), toolspkg.Scope{
 				ProfileID:   "profile-a",
 				WorkspaceID: "workspace-a",
@@ -1616,9 +1621,36 @@ func TestTerminalApprovalPreservesRunRestrictions(t *testing.T) {
 				AgentName:   "agent-a",
 				RunID:       "run-a",
 				Generation:  1,
-			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalExec, ToolCallID: "call-a", Input: []byte(`{"command":"echo","args":["approved"]}`)})
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalExec, ToolCallID: "call-a", Input: []byte(`{"command":"echo","args":["sensitive-command-argument"]}`)})
 			if !approved || len(requester.requests) != 1 {
 				t.Fatalf("approval calls = %d, want one accepted allow once", len(requester.requests))
+			}
+			var applied struct {
+				RequestID     string `json:"request_id"`
+				CorrelationID string `json:"correlation_id"`
+				RunID         string `json:"run_id"`
+				Approval      string `json:"approval"`
+				Source        string `json:"source"`
+			}
+			if err := json.Unmarshal(approvalLog.Bytes(), &applied); err != nil {
+				t.Fatal(err)
+			}
+			request := requester.lastRequest(t)
+			if applied.RequestID != request.Meta[acp.PermissionRequestIDMetaKey] || applied.CorrelationID != "call-a" ||
+				applied.RunID != "run-a" || applied.Approval != "approved_once" || applied.Source != "permission_response" ||
+				strings.Contains(approvalLog.String(), "sensitive-command-argument") {
+				t.Fatalf("approval application = %s", approvalLog.Bytes())
+			}
+			if len(writer.summaries) == 0 {
+				t.Fatal("no execution outcome was recorded")
+			}
+			var outcome toolspkg.ToolCallEvent
+			if err := json.Unmarshal(writer.summaries[len(writer.summaries)-1].Content, &outcome); err != nil {
+				t.Fatal(err)
+			}
+			if outcome.CorrelationID != applied.CorrelationID || outcome.RunID != applied.RunID ||
+				outcome.Generation != 1 {
+				t.Fatalf("execution outcome = %#v, want approval correlation", outcome)
 			}
 			if tc.wantMessage == "" {
 				if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" {

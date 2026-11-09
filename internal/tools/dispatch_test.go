@@ -499,7 +499,7 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
+			Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex", RunID: "run-1", Generation: 7},
 			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"original"}`)},
 		)
 		if err != nil {
@@ -512,7 +512,8 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 			t.Fatalf("approval calls = %d, want %d", got, want)
 		}
 		call := bridge.calls[0]
-		if call.scope.SessionID != "sess-1" || call.req.WorkspaceID != "ws-1" || call.req.AgentName != "codex" {
+		if call.scope.SessionID != "sess-1" || call.req.WorkspaceID != "ws-1" || call.req.AgentName != "codex" ||
+			call.req.RunID != "run-1" || call.req.Generation != 7 {
 			t.Fatalf("approval call context = %#v / %#v, want scoped request", call.scope, call.req)
 		}
 		if string(call.req.Input) != `{"query":"patched"}` {
@@ -520,6 +521,46 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 		}
 		if !call.view.Decision.ApprovalRequired || call.view.Descriptor.ID != descriptor.ID {
 			t.Fatalf("approval view = %#v, want descriptor decision requiring approval", call.view)
+		}
+	})
+
+	t.Run("Should reject conflicting run identity before requesting approval", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			run        string
+			generation int64
+		}{
+			{name: "Should reject another run", run: "other-run", generation: 7},
+			{name: "Should reject another generation", run: "run-1", generation: 6},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				descriptor := validDispatchDescriptor()
+				bridge := &recordingApprovalBridge{}
+				called := false
+				provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+					descriptor:   descriptor,
+					availability: availableDispatchHandle(),
+					call:         func(context.Context, CallRequest) (ToolResult, error) { called = true; return ToolResult{}, nil },
+				})
+				registry := mustDispatchRegistry(t, provider,
+					WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+					WithApprovalBridge(bridge))
+				_, err := registry.Call(
+					t.Context(),
+					Scope{RunID: "run-1", Generation: 7},
+					CallRequest{
+						ToolID:     descriptor.ID,
+						RunID:      tc.run,
+						Generation: tc.generation,
+						Input:      json.RawMessage(`{"query":"x"}`),
+					},
+				)
+				if !errors.Is(err, ErrToolDenied) || len(bridge.calls) != 0 || called {
+					t.Fatalf("conflicting identity: error=%v approvals=%d invoked=%t", err, len(bridge.calls), called)
+				}
+			})
 		}
 	})
 

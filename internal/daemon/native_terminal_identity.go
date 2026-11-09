@@ -10,6 +10,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// nativeTerminalActor rechecks live run authority independently of an accepted tool approval.
 func (n *daemonNativeTools) nativeTerminalActor(
 	ctx context.Context,
 	workspaceID string,
