@@ -351,8 +351,10 @@ type TokenUsage struct {
 	ContextUsed      *int64
 	ContextSize      *int64
 	CostAmount       *float64
-	CostCurrency     *string
-	Timestamp        time.Time
+	// ReportedCostAmount retains the adapter counter after CostAmount is normalized per turn.
+	ReportedCostAmount *float64 `json:",omitzero"`
+	CostCurrency       *string
+	Timestamp          time.Time
 }
 
 // RuntimeActivity is the structured activity payload attached to Compozy runtime
@@ -396,6 +398,7 @@ func (u TokenUsage) Merge(other TokenUsage) TokenUsage {
 	merged.ContextUsed = chooseInt64(other.ContextUsed, merged.ContextUsed)
 	merged.ContextSize = chooseInt64(other.ContextSize, merged.ContextSize)
 	merged.CostAmount = chooseFloat64(other.CostAmount, merged.CostAmount)
+	merged.ReportedCostAmount = chooseFloat64(other.ReportedCostAmount, merged.ReportedCostAmount)
 	merged.CostCurrency = chooseString(other.CostCurrency, merged.CostCurrency)
 	if !other.Timestamp.IsZero() {
 		merged.Timestamp = other.Timestamp
@@ -414,6 +417,7 @@ func (u TokenUsage) IsZero() bool {
 		u.ContextUsed == nil &&
 		u.ContextSize == nil &&
 		u.CostAmount == nil &&
+		u.ReportedCostAmount == nil &&
 		u.CostCurrency == nil
 }
 

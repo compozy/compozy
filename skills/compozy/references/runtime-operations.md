@@ -980,6 +980,14 @@ The session usage endpoint
 owns subscription billing; `unknown` has no amount because rates or aggregate provenance are
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+ACP monetary reports are session counters. Per-turn `cost_amount` is the increment since the last
+recorded report; a lower report starts a new counter and contributes its full amount. The baseline
+survives runtime release and daemon restart. Adapter-declared per-turn amounts are exempt from
+subtraction. A counter restart whose first report exceeds the previous total cannot be distinguished
+from continuation and can undercount that turn. This is an accounting correction, not a billing invoice.
+The upgrade repairs historical session and daily costs from complete per-session ledgers. Missing,
+partial or ambiguous evidence becomes `unknown/none`; token counts and turn counts stay unchanged.
+
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
 estimates only; CompozyOS does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a

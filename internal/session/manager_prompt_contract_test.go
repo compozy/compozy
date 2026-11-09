@@ -4835,3 +4835,93 @@ func (r *promptDeliveryQueryRecorder) RecordPersisted(
 ) (store.SessionEvent, error) {
 	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
 }
+
+// Invariant: per-turn charges telescope across manager/runtime restarts without
+// double-counting repeated usage notifications. Owner: prompt delivery; real ledger.
+func TestPromptCostAccounting(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		amounts, costs []float64
+	}{
+		{"Should continue a restored counter across manager restart", []float64{1, 3, 4}, []float64{1, 2, 1}},
+		{"Should restart a lower counter across manager restart", []float64{1, 0.5, 2}, []float64{1, 0.5, 1.5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			target := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			var charged float64
+			for index, amount := range tc.amounts {
+				if index == 1 {
+					if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+						t.Fatal(err)
+					}
+					h.manager = newManagerWithHarness(t, h)
+					resumed, err := h.manager.Resume(t.Context(), target.ID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					target = resumed
+				}
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					out := make(chan acp.AgentEvent, 3)
+					for _, kind := range []string{acp.EventTypeUsage, acp.EventTypeUsage, acp.EventTypeDone} {
+						out <- acp.AgentEvent{Type: kind, TurnID: req.TurnID, Usage: &acp.TokenUsage{
+							TurnID: req.TurnID, CostAmount: new(amount), CostCurrency: new("USD"), TotalTokens: new(int64(12)),
+						}}
+					}
+					close(out)
+					return out, nil
+				}
+				stream, err := h.manager.Prompt(t.Context(), target.ID, "cost")
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, event := range collectEvents(t, stream) {
+					if event.Usage == nil {
+						continue
+					}
+					if event.Usage.CostAmount == nil || *event.Usage.CostAmount != tc.costs[index] ||
+						event.Usage.ReportedCostAmount == nil || *event.Usage.ReportedCostAmount != amount {
+						t.Fatalf(
+							"turn %d usage = %+v; want charge %v and report %v",
+							index,
+							event.Usage,
+							tc.costs[index],
+							amount,
+						)
+					}
+					if event.Type == acp.EventTypeDone {
+						charged += *event.Usage.CostAmount
+					}
+				}
+			}
+			projection, err := target.recorderHandle().ListTokenUsage(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var projected, want float64
+			for _, usage := range projection {
+				if usage.CostAmount != nil {
+					projected += *usage.CostAmount
+				}
+			}
+			for _, cost := range tc.costs {
+				want += cost
+			}
+			if projected != want || charged != want {
+				t.Fatalf("projected=%v delivered=%v want=%v", projected, charged, want)
+			}
+		})
+	}
+	t.Run("Should retain an explicitly declared per-turn report", func(t *testing.T) {
+		t.Parallel()
+		for _, amount := range []float64{1, 3, 0.5} {
+			if got := turnCost(amount, 12, compozyconfig.ProviderCostPerTurn); got != amount {
+				t.Fatalf("cost=%v want=%v", got, amount)
+			}
+		}
+	})
+}

@@ -10,7 +10,7 @@ import (
 
 const (
 	// ProjectionVersion identifies the deterministic transcript projection contract.
-	ProjectionVersion = 3
+	ProjectionVersion = 4
 	defaultPageLimit  = 200
 	maxPageLimit      = 1000
 )

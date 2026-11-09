@@ -76,3 +76,16 @@ payload errors, closed-handle retry, text-only cursor progress and the existing
 between-snapshot usage race. Focused suite and measurement receipts live in
 [the responsiveness report](../reports/2026-10-17-responsiveness.md); full scenario
 status is unchanged until a new public-surface walk is recorded.
+
+## Cumulative cost accounting (2026-11-09)
+
+Run three turns reporting cumulative USD amounts 1, 3 and 4. Confirm per-turn costs 1, 2 and 1
+in usage/turns, transcript usage parts and the live prompt stream, with session/task/daily total 4.
+Release and resume the runtime, then restart the daemon: a restored report 5 contributes 1;
+a reset report 0.5 contributes 0.5. An explicitly per-turn adapter keeps its reported amounts.
+Upgrade a prior database with complete and missing session ledgers. Recomputed rows become actual;
+missing/partial histories become unknown with no amount. Token counts, turn counts and timestamps
+remain byte/value equivalent. Reopening must not repeat the repair.
+
+Focused SQLite migration and prompt-contract tests are recorded in the harness efficiency report.
+A fresh browser/HTTP/UDS scenario walk is not claimed by those tests.

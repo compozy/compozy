@@ -3,8 +3,15 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
+	"github.com/compozy/compozy/internal/transcript"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -37,6 +44,7 @@ func TestGlobalDBTokenCostMigration(t *testing.T) {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
 
+		seedCostRepairLedger(t, path, "sess-cost-migration", "sess-cost-migration-workspace", "priced", []float64{1.25})
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v18 upgrade) error = %v", err)
@@ -130,4 +138,185 @@ func seedTokenCostMigrationSession(ctx context.Context, t *testing.T, db *sql.DB
 	)`, sessionID); err != nil {
 		t.Fatalf("seed v17 session error = %v", err)
 	}
+}
+
+func seedCostRepairLedger(t *testing.T, globalPath, sessionID, workspaceID, agent string, amounts []float64) {
+	t.Helper()
+	ledgerPath := store.SessionDBFile(filepath.Join(filepath.Dir(globalPath), "sessions", sessionID))
+	ledger, err := sessiondb.OpenSessionDB(
+		t.Context(),
+		store.SessionDBOwner{SessionID: sessionID, WorkspaceID: workspaceID},
+		ledgerPath,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previous float64
+	for index, amount := range amounts {
+		cost := amount
+		if amount >= previous {
+			cost -= previous
+		}
+		previous = amount
+		turnID := fmt.Sprintf("cost-turn-%d", index)
+		timestamp := time.Date(2026, 7, 15, 12, index, 0, 0, time.UTC)
+		usage := acp.TokenUsage{
+			TurnID:             turnID,
+			CostAmount:         new(cost),
+			ReportedCostAmount: new(amount),
+			CostCurrency:       new("USD"),
+			Timestamp:          timestamp,
+		}
+		payload, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID, Usage: &usage},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ledger.Record(
+			t.Context(),
+			store.SessionEvent{
+				TurnID:    turnID,
+				Type:      acp.EventTypeDone,
+				AgentName: agent,
+				Content:   payload,
+				Timestamp: timestamp,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := ledger.RecordTokenUsage(
+			t.Context(),
+			store.TokenUsage{
+				TurnID:             turnID,
+				CostAmount:         new(cost),
+				ReportedCostAmount: new(amount),
+				CostCurrency:       new("USD"),
+				Timestamp:          timestamp,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ledger.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Invariant: migration 199 repairs complete monetary aggregates and leaves
+// incomplete history unknown without changing tokens, counts, IDs or timestamps.
+func TestGlobalDBUsageCostRepair(t *testing.T) {
+	t.Parallel()
+	t.Run("Should repair complete history and invalidate missing history across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00199_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('ws-cost','/tmp/cost-history','cost-history','2026-07-15T12:00:00Z','2026-07-15T12:00:00Z')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"sess-repaired", "sess-missing"} {
+			agent := "coder"
+			if id == "sess-missing" {
+				agent = "missing"
+			}
+			if _, err := old.ExecContext(
+				ctx,
+				`INSERT INTO sessions(id,profile_id,agent_name,provider,workspace_id,state,created_at,updated_at) VALUES (?,'00000000000000000000000000','coder','claude','ws-cost','stopped','2026-07-15T12:00:00Z','2026-07-15T12:03:00Z')`,
+				id,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := old.ExecContext(
+				ctx,
+				`INSERT INTO token_stats(id,session_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,?,?,20,6.5,'USD','actual','agent_reported',4,'2026-07-15T12:03:00Z')`,
+				id,
+				id,
+				agent,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		day := store.LocalDay(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC))
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO token_usage_daily(day,profile_id,workspace_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,'00000000000000000000000000','ws-cost','coder',20,6.5,'USD','actual','agent_reported',4,'2026-07-15T12:03:00Z')`,
+			day,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO token_usage_daily(day,profile_id,workspace_id,agent_name,total_tokens,total_cost,cost_currency,cost_status,cost_source,turn_count,updated_at) VALUES (?,'00000000000000000000000000','ws-cost','missing',20,6.5,'USD','actual','agent_reported',4,'2026-07-15T12:03:00Z')`,
+			day,
+		); err != nil {
+			t.Fatal(err)
+		}
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bindTelemetryDestination(ctx, old, telemetry.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := old.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := telemetry.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		seedCostRepairLedger(t, path, "sess-repaired", "ws-cost", "coder", []float64{1, 3, 0.5, 2})
+		for range 2 {
+			db, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stats, err := db.ListTokenStats(ctx, store.TokenStatsQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range stats {
+				if row.TotalTokens == nil || *row.TotalTokens != 20 || row.TurnCount != 4 ||
+					!row.UpdatedAt.Equal(time.Date(2026, 7, 15, 12, 3, 0, 0, time.UTC)) {
+					t.Fatalf("non-cost fields changed: %+v", row)
+				}
+				if row.SessionID == "sess-repaired" &&
+					(row.TotalCost == nil || *row.TotalCost != 5 || row.CostStatus != "actual") {
+					t.Fatalf("repaired=%+v", row)
+				}
+				if row.SessionID == "sess-missing" &&
+					(row.TotalCost != nil || row.CostStatus != "unknown" || row.CostSource != "none") {
+					t.Fatalf("missing=%+v", row)
+				}
+			}
+			var amount sql.NullFloat64
+			var status string
+			var turns, tokens int64
+			if err := db.db.QueryRowContext(ctx, `SELECT total_cost,cost_status,turn_count,total_tokens FROM token_usage_daily WHERE day=? AND agent_name='coder'`, day).
+				Scan(&amount, &status, &turns, &tokens); err != nil {
+				t.Fatal(err)
+			}
+			if !amount.Valid || amount.Float64 != 5 || status != "actual" || turns != 4 || tokens != 20 {
+				t.Fatalf("daily=%+v %s %d %d", amount, status, turns, tokens)
+			}
+			var missingAmount sql.NullFloat64
+			var missingStatus, missingSource string
+			if err := db.db.QueryRowContext(ctx, `SELECT total_cost,cost_status,cost_source FROM token_usage_daily WHERE day=? AND agent_name='missing'`, day).
+				Scan(&missingAmount, &missingStatus, &missingSource); err != nil {
+				t.Fatal(err)
+			}
+			if missingAmount.Valid || missingStatus != "unknown" || missingSource != "none" {
+				t.Fatalf("unrecoverable daily=%+v %s %s", missingAmount, missingStatus, missingSource)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 }

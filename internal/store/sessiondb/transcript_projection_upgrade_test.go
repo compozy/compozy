@@ -1,6 +1,7 @@
 package sessiondb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -16,6 +17,84 @@ import (
 
 func TestTranscriptProjectionUpgrade(t *testing.T) {
 	t.Parallel()
+	// Invariant: a pre-v4 transcript replays normalized monetary evidence while
+	// preserving the public message identity. Owner: persisted transcript upgrade.
+	t.Run("Should replace cumulative transcript cost with the normalized turn cost", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		owner := testSessionDBOwner("sess-cost-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		if err := db.Record(ctx, canonicalStoreEvent(t, acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: owner.SessionID,
+			TurnID:    "turn-cost",
+			Text:      "Completed",
+			Timestamp: at,
+		}, "coder")); err != nil {
+			t.Fatal(err)
+		}
+		event := canonicalStoreEvent(t, acp.AgentEvent{
+			Type:      acp.EventTypeDone,
+			SessionID: owner.SessionID,
+			TurnID:    "turn-cost",
+			Timestamp: at,
+			Usage: &acp.TokenUsage{
+				TurnID:             "turn-cost",
+				CostAmount:         new(2.0),
+				ReportedCostAmount: new(3.0),
+				CostCurrency:       new("USD"),
+			},
+		}, "coder")
+		if err := db.Record(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		page, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil || len(page.Entries) != 1 {
+			t.Fatalf("page=%+v error=%v", page, err)
+		}
+		before := page.Entries[0]
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE transcript_entries SET message_json=replace(message_json, '"cost_amount":2', '"cost_amount":3')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE transcript_projection_state SET projection_version=3`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			reopened, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+			if err != nil || len(page.Entries) != 1 {
+				t.Fatalf("page=%+v error=%v", page, err)
+			}
+			got, err := json.Marshal(page.Entries[0].Message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := json.Marshal(before.Message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) || page.Entries[0].Sequence != before.Sequence {
+				t.Fatalf("reprojected=%s want=%s", got, want)
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should repair affected entries without changing unrelated persisted state", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

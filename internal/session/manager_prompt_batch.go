@@ -29,6 +29,10 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		if skip {
 			continue
 		}
+		if err := normalizePromptCost(ctx, turnState, &next); err != nil {
+			failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+			return failure, errorText, true
+		}
 		normalized = append(normalized, next)
 	}
 	if len(normalized) == 0 {

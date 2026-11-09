@@ -69,6 +69,15 @@ func upgradeTranscriptProjectionTx(ctx context.Context, tx *store.WriteTx, sessi
 			return err
 		}
 	}
+	if row.ProjectionVersion < 4 {
+		costKeys, err := queries.ListTranscriptCostEntryKeysForUpgrade(ctx)
+		if err != nil {
+			return fmt.Errorf("store: read transcript cost entries for upgrade: %w", err)
+		}
+		for _, key := range costKeys {
+			keys[key] = struct{}{}
+		}
+	}
 	orderedKeys := slices.AppendSeq(make([]string, 0, len(keys)), maps.Keys(keys))
 	slices.Sort(orderedKeys)
 
