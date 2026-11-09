@@ -546,13 +546,74 @@ func TestContinueSession(t *testing.T) {
 		}
 	})
 
+	for _, firstMessage := range []string{"", "continue now"} {
+		t.Run(
+			"Should run the chosen cross-provider runtime with first message "+fmt.Sprintf("%q", firstMessage),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				source := h.newDeriveSource(t)
+				opts := h.continueOpts(source, "idem_explicit_runtime")
+				opts.AgentName = "coder"
+				opts.Message = firstMessage
+				opts.Runtime = &DeriveRuntime{
+					Provider:        "codex",
+					Model:           "gpt-6-astra",
+					ReasoningEffort: "high",
+					Speed:           "normal",
+				}
+				result, err := h.manager.ContinueSession(t.Context(), opts)
+				if err != nil {
+					t.Fatalf("ContinueSession() error = %v", err)
+				}
+				if firstMessage == "" {
+					sendDeriveChildPrompt(t, h, result.Child.ID, "first", "msg_explicit_first", "idem_explicit_first")
+				} else {
+					h.waitForPromptCount(t, 3)
+					waitForDeriveConsumption(t, h, result.Child.ID)
+					child, _ := h.manager.Get(result.Child.ID)
+					waitForCondition(t, "first derived turn settled", func() bool { return !child.IsPrompting() })
+				}
+				sendDeriveChildPrompt(t, h, result.Child.ID, "second", "msg_explicit_second", "idem_explicit_second")
+				child, _ := h.manager.Get(result.Child.ID)
+				info := child.Info()
+				for _, runtime := range []RuntimeSelection{info.RequestedRuntime(), info.EffectiveRuntime()} {
+					if runtime.Provider != "codex" || runtime.Model != "gpt-6-astra" ||
+						runtime.ReasoningEffort != "high" || runtime.Speed != "normal" {
+						t.Fatalf("child runtime = %+v, want codex/gpt-6-astra/high/normal", runtime)
+					}
+				}
+				userEvents := 0
+				for _, event := range readStoredEvents(t, child) {
+					if event.Type != string(acp.EventTypeUserMessage) {
+						continue
+					}
+					var payload struct {
+						Runtime *acp.PromptRuntime `json:"prompt_runtime"`
+					}
+					if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {
+						t.Fatalf("Unmarshal(user event) error = %v", err)
+					}
+					if runtime := payload.Runtime; runtime == nil || runtime.Provider != "codex" ||
+						runtime.Model != "gpt-6-astra" || runtime.ReasoningEffort != "high" || runtime.Speed != "normal" {
+						t.Fatalf("prompt_runtime = %+v, want codex/gpt-6-astra/high/normal", runtime)
+					}
+					userEvents++
+				}
+				if userEvents != 2 {
+					t.Fatalf("user events = %d, want first and second turns", userEvents)
+				}
+			},
+		)
+	}
+
 	t.Run("Should select the chosen runtime on the unbound child and bind it", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
 		source := h.newDeriveSource(t)
 		opts := h.continueOpts(source, "idem_runtime")
 		opts.AgentName = compozyconfig.DefaultAgentName
-		opts.Runtime = &DeriveRuntime{Provider: "codex", ReasoningEffort: "high"}
+		opts.Runtime = &DeriveRuntime{Provider: "codex", Model: "gpt-6-astra", ReasoningEffort: "high", Speed: "normal"}
 		result, err := h.manager.ContinueSession(testutil.Context(t), opts)
 		if err != nil {
 			t.Fatalf("ContinueSession(runtime codex) error = %v", err)
@@ -585,6 +646,51 @@ func TestContinueSession(t *testing.T) {
 			t.Fatalf("first bind provider = %q, want the chosen codex runtime", provider)
 		}
 	})
+
+	t.Run(
+		"Should refuse an unstartable chosen runtime without falling back to the source provider",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			setDeriveAgentB(
+				t,
+				h.harness,
+				[]compozyconfig.RoleFallback{{Provider: "claude", Model: source.Info().Model}},
+			)
+			opts := h.continueOpts(source, "idem_runtime_refused")
+			opts.Runtime = &DeriveRuntime{
+				Provider:        "codex",
+				Model:           "gpt-6-astra",
+				ReasoningEffort: "high",
+				Speed:           "normal",
+			}
+			result, err := h.manager.ContinueSession(t.Context(), opts)
+			if err != nil {
+				t.Fatalf("ContinueSession() error = %v", err)
+			}
+			refusal := errors.New("chosen provider cannot start")
+			h.driver.mu.Lock()
+			startsBefore := len(h.driver.startCalls)
+			h.driver.startHook = func(start acp.StartOpts, sequence int) (*fakeProcess, error) {
+				if start.ProviderName == "codex" {
+					return nil, refusal
+				}
+				return newFakeProcess(start.AgentName, start.Command, start.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
+			}
+			h.driver.mu.Unlock()
+			_, err = h.manager.SendPrompt(t.Context(), result.Child.ID, SendPromptOpts{Message: "go"})
+			if !errors.Is(err, refusal) {
+				t.Fatalf("SendPrompt() error = %v, want chosen runtime refusal", err)
+			}
+			h.driver.mu.Lock()
+			starts := append([]acp.StartOpts(nil), h.driver.startCalls[startsBefore:]...)
+			h.driver.mu.Unlock()
+			if len(starts) != 1 || starts[0].ProviderName != "codex" {
+				t.Fatalf("start attempts = %+v, want only the chosen codex runtime", starts)
+			}
+		},
+	)
 
 	t.Run("Should record the declared route and bind the first prompt on its command", func(t *testing.T) {
 		t.Parallel()

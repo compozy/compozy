@@ -158,6 +158,10 @@ func (m *Manager) bindUnboundPromptRuntime(
 			return proc, true, err
 		}
 	}
+	// A derived session's explicit selection must fail visibly rather than run another route.
+	if plan.spec.derivation != nil && plan.spec.selectedRuntime != nil {
+		return nil, false, nil
+	}
 	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
 		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
 		return proc, true, err
