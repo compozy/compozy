@@ -338,6 +338,46 @@ func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should store and resolve an observability header secret and list it by namespace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		service, err := NewService(
+			newMemoryVaultStore(),
+			staticKeyProvider{key: []byte("01234567890123456789012345678901")},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		const ref = "vault:observability/newrelic-license"
+		if _, err := service.PutSecret(
+			ctx,
+			"vault:providers/openrouter/api-key",
+			"api_key",
+			"provider-key",
+		); err != nil {
+			t.Fatalf("PutSecret(provider) error = %v", err)
+		}
+		metadata, err := service.PutSecret(ctx, ref, "token", "nr-license-value")
+		if err != nil {
+			t.Fatalf("PutSecret(observability) error = %v, want the documented vault put example to work", err)
+		}
+		if !metadata.Present || metadata.Ref != ref || metadata.Kind != "token" {
+			t.Fatalf("PutSecret(observability) metadata = %#v, want present token metadata", metadata)
+		}
+		resolved, err := service.ResolveRef(ctx, ref)
+		if err != nil || resolved != "nr-license-value" {
+			t.Fatalf("ResolveRef(observability) = %q, %v, want the stored value", resolved, err)
+		}
+		listed, err := service.ListMetadata(ctx, "vault:observability/")
+		if err != nil {
+			t.Fatalf("ListMetadata(observability) error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].Ref != ref {
+			t.Fatalf("ListMetadata(observability) = %#v, want only %s", listed, ref)
+		}
+	})
+
 	t.Run("Should reject ciphertext moved to another ref or kind", func(t *testing.T) {
 		t.Parallel()
 
@@ -517,6 +557,28 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 		}
 		if namespace != "profiles" {
 			t.Fatalf("SecretRefNamespace() = %q, want profiles", namespace)
+		}
+	})
+
+	t.Run("Should accept observability vault refs and return observability namespace", func(t *testing.T) {
+		t.Parallel()
+
+		ref := "vault:observability/newrelic-license"
+		if err := ValidateSecretRef(ref); err != nil {
+			t.Fatalf("ValidateSecretRef() error = %v", err)
+		}
+		namespace, err := SecretRefNamespace(ref)
+		if err != nil {
+			t.Fatalf("SecretRefNamespace() error = %v", err)
+		}
+		if namespace != "observability" {
+			t.Fatalf("SecretRefNamespace() = %q, want observability", namespace)
+		}
+		if err := ValidateNamespace(namespace); err != nil {
+			t.Fatalf("ValidateNamespace(%q) error = %v", namespace, err)
+		}
+		if err := ValidateSecretRefPrefix("vault:observability/"); err != nil {
+			t.Fatalf("ValidateSecretRefPrefix() error = %v", err)
 		}
 	})
 

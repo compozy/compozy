@@ -186,6 +186,7 @@ type observabilityOverlay struct {
 	MaxGlobalBytes    *int64                          `toml:"max_global_bytes"`
 	AgentProbeTimeout *time.Duration                  `toml:"agent_probe_timeout"`
 	Transcripts       observabilityTranscriptsOverlay `toml:"transcripts"`
+	OTel              *observabilityOTelOverlay       `toml:"otel"`
 }
 
 type observabilityTranscriptsOverlay struct {

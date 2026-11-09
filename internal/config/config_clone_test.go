@@ -47,6 +47,8 @@ func TestCloneConfig(t *testing.T) {
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated"
 		cloned.RoleSources[RoleCoordinator][RoleFieldModel] = RoleFieldSourceWorkspace
 		cloned.Skills.DisabledSkills[0] = "mutated"
+		cloned.Observability.OTel.Headers["api-key"] = "mutated"
+		cloned.Observability.OTel.env.headers["x-tenant"] = "mutated"
 		cloned.Marketplace.PluginSources[0].Name = "mutated"
 		*cloned.Marketplace.PluginSources[0].Enabled = false
 		cloned.Extensions.Resources.AllowedKinds[0] = resources.ResourceKind("task")
@@ -93,6 +95,10 @@ func configCloneFixture() Config {
 			},
 		},
 		Redact: RedactConfig{Enabled: true},
+		Observability: ObservabilityConfig{OTel: ObservabilityOTelConfig{
+			Headers: map[string]string{"api-key": "vault:observability/nr"},
+			env:     otelEnvironment{headers: map[string]string{"x-tenant": "acme"}},
+		}},
 		WindowManager: WindowManagerConfig{
 			Snap:      WindowManagerSnapConfig{RepeatRatios: []float64{0.5}},
 			Shortcuts: map[string]windowmanager.ShortcutBinding{"focus": {"cmd+j"}},

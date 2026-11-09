@@ -60,6 +60,7 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	changed = append(changed, diffCmdPaletteConfig(current.CmdPalette, desired.CmdPalette)...)
 	changed = append(changed, diffAttentionSettings(current.Attention, desired.Attention)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
+	changed = append(changed, diffObservabilityOTelSettings(current.Observability.OTel, desired.Observability.OTel)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
 	changed = append(changed, diffMarketplaceCatalog(current.Marketplace.Catalog, desired.Marketplace.Catalog)...)
 	changed = append(changed, diffProviderSettings(current.Providers, desired.Providers)...)

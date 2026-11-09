@@ -67,6 +67,7 @@ func loadConfigFromHome(
 	getenv func(string) string,
 ) (compozyconfig.Config, error) {
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	compozyconfig.ApplyOTelEnvironment(&cfg, getenv)
 	if err := compozyconfig.ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return compozyconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
 	}

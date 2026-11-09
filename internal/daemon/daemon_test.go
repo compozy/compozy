@@ -5438,6 +5438,149 @@ func TestLoadConfigFromHomeValidationError(t *testing.T) {
 	}
 }
 
+func TestLoadConfigFromHomeAppliesOTelEnvironmentBeforeFile(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, env map[string]string, file string) (compozyconfig.Config, error) {
+		t.Helper()
+		homePaths := testHomePaths(t)
+		if err := os.WriteFile(homePaths.ConfigFile, []byte(file), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(config) error = %v", err)
+		}
+		return loadConfigFromHome(homePaths, func(key string) string { return env[key] })
+	}
+	env := map[string]string{"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc", "OTEL_SERVICE_NAME": "env-daemon"}
+
+	t.Run("Should use environment values the file omits [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(t, env, "[observability.otel]\nenabled = true\n")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if otel := cfg.Observability.OTel; otel.Protocol != "grpc" || otel.ServiceName != "env-daemon" {
+			t.Fatalf("OTel protocol/service = %q/%q, want grpc/env-daemon", otel.Protocol, otel.ServiceName)
+		}
+	})
+
+	t.Run("Should keep file values that equal the defaults [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(
+			t,
+			env,
+			"[observability.otel]\nprotocol = \"http/protobuf\"\nservice_name = \"compozy-daemon\"\n",
+		)
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if otel := cfg.Observability.OTel; otel.Protocol != "http/protobuf" || otel.ServiceName != "compozy-daemon" {
+			t.Fatalf("OTel protocol/service = %q/%q, want the explicit file values", otel.Protocol, otel.ServiceName)
+		}
+	})
+
+	t.Run("Should use the endpoint variable when the file endpoint is empty [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := load(
+			t,
+			map[string]string{"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.env:4318"},
+			"[observability.otel]\nenabled = true\nendpoint = \"\"\n",
+		)
+		if err != nil {
+			t.Fatalf("loadConfigFromHome() error = %v", err)
+		}
+		if got, want := cfg.Observability.OTel.Endpoint, "http://collector.env:4318"; got != want {
+			t.Fatalf("OTel endpoint = %q, want %q from OTEL_EXPORTER_OTLP_ENDPOINT", got, want)
+		}
+	})
+
+	t.Run("Should refuse an unsupported environment protocol while export is enabled [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := load(
+			t,
+			map[string]string{"OTEL_EXPORTER_OTLP_PROTOCOL": "thrift"},
+			"[observability.otel]\nenabled = true\n",
+		)
+		if want := `OTEL_EXPORTER_OTLP_PROTOCOL must be "http/protobuf" or "grpc"`; err == nil ||
+			!strings.Contains(err.Error(), want) {
+			t.Fatalf("loadConfigFromHome() error = %v, want %q", err, want)
+		}
+	})
+
+	t.Run("Should boot with invalid OTEL variables while export cannot run [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		// Variables set for other tools must not stop an upgraded daemon that exports nothing.
+		strayEnv := map[string]string{
+			"OTEL_EXPORTER_OTLP_ENDPOINT": "localhost:4318",
+			"OTEL_EXPORTER_OTLP_PROTOCOL": "thrift",
+			"OTEL_SERVICE_NAME":           "my service",
+			"OTEL_EXPORTER_OTLP_HEADERS":  "api-key:secret-token",
+		}
+		tests := []struct {
+			name        string
+			file        string
+			sdkDisabled string
+		}{
+			{name: "Should boot when the file has no OTel block"},
+			{name: "Should boot when export is explicitly disabled", file: "[observability.otel]\nenabled = false\n"},
+			{
+				name:        "Should boot when OTEL_SDK_DISABLED forces export off",
+				file:        "[observability.otel]\nenabled = true\n",
+				sdkDisabled: "true",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				vars := maps.Clone(strayEnv)
+				vars["OTEL_SDK_DISABLED"] = tt.sdkDisabled
+				cfg, err := load(t, vars, tt.file)
+				if err != nil {
+					t.Fatalf("loadConfigFromHome() error = %v, want invalid OTEL variables ignored", err)
+				}
+				if got, want := cfg.Observability.OTel.EnvDisabled(), tt.sdkDisabled != ""; got != want {
+					t.Fatalf("EnvDisabled() = %t, want %t", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should replace environment headers entirely when the file sets headers [UT-029]", func(t *testing.T) {
+		t.Parallel()
+
+		headerEnv := map[string]string{"OTEL_EXPORTER_OTLP_HEADERS": "api-key=env-key,x-tenant=acme"}
+		cfg, err := load(t, headerEnv, "")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome(no headers) error = %v", err)
+		}
+		if got, want := cfg.Observability.OTel.EnvHeaders(), map[string]string{
+			"api-key": "env-key", "x-tenant": "acme",
+		}; !maps.Equal(got, want) {
+			t.Fatalf("EnvHeaders() = %#v, want %#v", got, want)
+		}
+
+		cfg, err = load(t, headerEnv, "[observability.otel.headers]\n\"api-key\" = \"env:NR_KEY\"\n")
+		if err != nil {
+			t.Fatalf("loadConfigFromHome(file headers) error = %v", err)
+		}
+		if got := cfg.Observability.OTel.EnvHeaders(); len(got) != 0 {
+			t.Fatalf("EnvHeaders() = %#v, want environment headers replaced by the file table", got)
+		}
+		if got, want := cfg.Observability.OTel.Headers, map[string]string{
+			"api-key": "env:NR_KEY",
+		}; !maps.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("Headers = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestShouldVerifyBoundariesFromEnv(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
