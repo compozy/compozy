@@ -8224,6 +8224,7 @@ export interface components {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
       permissions?: string;
+      policy_excluded_acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       provider: string;
       reasoning_effort?: string;
       session_env?: {

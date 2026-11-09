@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits: uncommitted (review round 1 QA re-walk)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/continue-route-child-window.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/dead-runtime-banner.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/
-last_report: docs/qa/reports/2026-11-09-issue-1414-continue-runtime.md
+last_report: docs/qa/reports/2026-11-09-issue-1424-continue-preflight.md
 overlaps: ET-cli-session-continue; RT-session-derive-retry; RT-provider-error-handoff; ET-web-session-sidebar-threads; ET-web-sessions-catalog-modal; ET-web-session-context-sidebar
 ---
 
@@ -111,6 +111,14 @@ that supports that level then allows submission.
 Cursor's advertised effort/speed pairs are checked together; unknown pair metadata is left to
 the daemon. Correcting an invalid runtime clears its local refusal without clearing an unrelated
 daemon submission error.
+For Cursor models, an omitted effort is checked against the model's advertised default while the
+request keeps it omitted, and an advertised thinking requirement is refused until the Thinking
+control satisfies it. A message-only edit keeps a local refusal visible.
+Provider default on an inherited advanced option launches the displayed advertised default as an
+explicit value; with no advertised default, Continue asks for a value. An inherited unrestricted
+option listed in `effective_runtime.policy_excluded_acp_options` shows the policy-effective value
+and is never submitted. An explicit advanced choice removed by a catalog refresh is refused with
+its name until the model is reselected; a model with no observed descriptors stays daemon-validated.
 
 ## Deleted root ancestor regression
 

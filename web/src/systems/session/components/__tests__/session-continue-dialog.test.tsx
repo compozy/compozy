@@ -12,7 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 
 import { UIProvider } from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+import type {
+  RuntimeACPOption,
+  RuntimeModelOption,
+  RuntimeProviderOption,
+} from "@/systems/runtime";
 import { createMswFetch } from "@/test/msw-fetch";
 
 import type { ContinueSessionRequest } from "../../adapters/session-derive-api";
@@ -478,6 +482,10 @@ describe("SessionContinueDialog", () => {
         "Choose a supported reasoning effort and speed combination before continuing."
       );
       expect(sent).toHaveLength(0);
+      await user.type(screen.getByTestId("session-continue-message"), "continue");
+      expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(
+        "Choose a supported reasoning effort and speed combination before continuing."
+      );
       await user.click(screen.getByTestId("session-continue-runtime-select"));
       await user.click(await screen.findByTestId("runtime-selector-speed"));
       await user.keyboard("{Escape}");
@@ -501,6 +509,246 @@ describe("SessionContinueDialog", () => {
     expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(
       "provider unavailable"
     );
+  });
+
+  function seedCursorCatalog(
+    effectiveRuntime: Partial<NonNullable<AgentPayload["effective_runtime"]>>,
+    model: Partial<RuntimeModelOption>
+  ) {
+    agents.data = deriveAgentsFixture.map(agent =>
+      agent.name === "codex"
+        ? {
+            ...agent,
+            effective_runtime: {
+              provider: "cursor-alias",
+              model: "composer",
+              speed: "normal",
+              sources: { provider: "agent", model: "agent", speed: "agent" },
+              ...effectiveRuntime,
+            },
+          }
+        : agent
+    );
+    runtimeCatalog.providers = [{ id: "cursor-alias", name: "Cursor", runtime_provider: "cursor" }];
+    runtimeCatalog.models = [
+      {
+        id: "composer",
+        provider: "cursor-alias",
+        name: "Composer",
+        efforts: ["low", "high"],
+        availability: "live",
+        curated: true,
+        ...model,
+      },
+    ];
+  }
+
+  async function openAdvancedRuntime(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    await user.click(await screen.findByTestId("runtime-selector-advanced-toggle"));
+  }
+
+  const contextWindowOption: RuntimeACPOption = {
+    id: "context_window",
+    label: "Context window",
+    kind: "select",
+    values: [{ value: "200k" }, { value: "1m" }],
+  };
+
+  // Invariant: Cursor preflight resolves an omitted effort as the daemon does, without
+  // putting the resolved default on the wire. Canonical suite: this request boundary.
+  it("Should validate an omitted effort against the advertised default and keep it omitted", async () => {
+    const user = userEvent.setup();
+    seedCursorCatalog(
+      {},
+      {
+        default_effort: "high",
+        configurations: [
+          { reasoning_effort: "high", fast: true },
+          { reasoning_effort: "low", fast: false },
+        ],
+      }
+    );
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "Choose a supported reasoning effort and speed combination before continuing."
+    );
+    expect(sent).toHaveLength(0);
+
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    await user.click(await screen.findByTestId("runtime-selector-speed"));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toEqual({
+      provider: "cursor-alias",
+      model: "composer",
+      speed: "fast",
+    });
+  });
+
+  // Invariant: a known thinking requirement is refused before creation and satisfied
+  // through the existing advanced control. Canonical suite: this request boundary.
+  it("Should require the thinking setting an observed Cursor configuration needs", async () => {
+    const user = userEvent.setup();
+    seedCursorCatalog(
+      { reasoning_effort: "high" },
+      {
+        configurations: [{ reasoning_effort: "high", fast: false, thinking: true }],
+        acp_options: [{ id: "thinking", label: "Thinking", kind: "boolean", current_bool: false }],
+      }
+    );
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "Choose a thinking setting supported by this reasoning effort and speed before continuing."
+    );
+    expect(sent).toHaveLength(0);
+
+    await openAdvancedRuntime(user);
+    await user.click(await screen.findByTestId("runtime-selector-option-thinking"));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toEqual({
+      provider: "cursor-alias",
+      model: "composer",
+      reasoning_effort: "high",
+      speed: "normal",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    });
+  });
+
+  // Invariant: an omitted option keeps inheriting, so Provider default launches the value the
+  // control displays or refuses when no default is known. Canonical suite: this request boundary.
+  it.each([
+    { advertised: "200k", display: "200k" },
+    { advertised: undefined, display: "" },
+  ])(
+    "Should launch what Provider default displays when the default is $advertised",
+    async ({ advertised, display }) => {
+      const user = userEvent.setup();
+      seedCursorCatalog(
+        { acp_options: [{ id: "context_window", value_id: "1m" }] },
+        { acp_options: [{ ...contextWindowOption, current_value_id: advertised }] }
+      );
+      const sent: ContinueSessionRequest[] = [];
+      renderDialog({ onContinue: request => sent.push(request) });
+
+      await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      await openAdvancedRuntime(user);
+      const control = await screen.findByTestId("runtime-selector-option-context_window");
+      expect(control).toHaveValue("1m");
+      await user.selectOptions(control, "");
+      expect(screen.getByTestId("runtime-selector-option-context_window")).toHaveValue(display);
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByTestId("session-continue-submit"));
+
+      if (advertised) {
+        await waitFor(() => expect(sent).toHaveLength(1));
+        expect(sent[0]?.runtime?.acp_options).toEqual([
+          { id: "context_window", value_id: advertised },
+        ]);
+        return;
+      }
+      expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+        'This provider doesn\'t advertise a default for "Context window". Choose a value before continuing.'
+      );
+      expect(sent).toHaveLength(0);
+    }
+  );
+
+  // Invariant: the daemon's permission restriction decides what is shown as inherited, and an
+  // excluded unrestricted option never becomes a session override. Canonical suite: this boundary.
+  it("Should show the policy-effective permission option without submitting it", async () => {
+    const user = userEvent.setup();
+    const allowAll = { id: "allow_all", value_id: "on" };
+    seedCursorCatalog(
+      { acp_options: [allowAll], policy_excluded_acp_options: [allowAll] },
+      {
+        acp_options: [
+          {
+            id: "allow_all",
+            label: "Allow all",
+            kind: "select",
+            current_value_id: "off",
+            values: [{ value: "on" }, { value: "off" }],
+          },
+        ],
+      }
+    );
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await openAdvancedRuntime(user);
+    expect(await screen.findByTestId("runtime-selector-option-allow_all")).toHaveValue("off");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).not.toHaveProperty("acp_options");
+  });
+
+  // Invariant: a catalog refresh cannot silently drop an explicit advanced choice; the refusal
+  // preserves the runtime until the operator reselects. Canonical suite: this request boundary.
+  it("Should refuse an explicit advanced option the refreshed descriptor removed", async () => {
+    const user = userEvent.setup();
+    seedCursorCatalog({}, { acp_options: [contextWindowOption] });
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+    const refusal =
+      'This model no longer offers the "Context window" setting you chose. Reselect the model to continue without it.';
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await openAdvancedRuntime(user);
+    await user.selectOptions(
+      await screen.findByTestId("runtime-selector-option-context_window"),
+      "1m"
+    );
+    await user.keyboard("{Escape}");
+    runtimeCatalog.models = runtimeCatalog.models.map(model => ({
+      ...model,
+      acp_options: [
+        { ...contextWindowOption, values: [{ value: "200k" }] },
+        { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
+      ],
+    }));
+    await user.type(screen.getByTestId("session-continue-message"), "continue");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(refusal);
+    expect(sent).toHaveLength(0);
+
+    // Editing unrelated controls cannot launch without the choice the refusal names.
+    await openAdvancedRuntime(user);
+    fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+      key: "End",
+    });
+    await user.click(await screen.findByTestId("runtime-selector-option-thinking"));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(refusal);
+    expect(sent).toHaveLength(0);
+
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    await user.click(await screen.findByRole("option", { name: /Composer/ }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toEqual({
+      provider: "cursor-alias",
+      model: "composer",
+      reasoning_effort: "high",
+      speed: "normal",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    });
   });
 
   it("Should open a new window by default and never the current one", async () => {

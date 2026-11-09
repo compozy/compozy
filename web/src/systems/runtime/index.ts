@@ -6,6 +6,7 @@ export {
   normalizeRuntimeSelectorValue,
   reasoningEffortLabel,
   runtimeACPSelectionsEqual,
+  sanitizeRuntimeACPSelections,
   runtimeModelKey,
   RuntimeSelector,
   type RuntimeAvailability,

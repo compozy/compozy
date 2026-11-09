@@ -688,6 +688,12 @@
           "permissions": {
             "type": "string"
           },
+          "policy_excluded_acp_options": {
+            "items": {
+              "$ref": "#/components/schemas/AgentACPOptionSelection"
+            },
+            "type": "array"
+          },
           "provider": {
             "type": "string"
           },
