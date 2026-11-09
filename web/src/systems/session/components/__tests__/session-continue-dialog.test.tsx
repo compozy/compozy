@@ -703,6 +703,8 @@ describe("SessionContinueDialog", () => {
     seedCursorCatalog({}, { acp_options: [contextWindowOption] });
     const sent: ContinueSessionRequest[] = [];
     renderDialog({ onContinue: request => sent.push(request) });
+    const refusal =
+      'This model no longer offers the "Context window" setting you chose. Reselect the model to continue without it.';
 
     await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
     await openAdvancedRuntime(user);
@@ -713,13 +715,25 @@ describe("SessionContinueDialog", () => {
     await user.keyboard("{Escape}");
     runtimeCatalog.models = runtimeCatalog.models.map(model => ({
       ...model,
-      acp_options: [{ ...contextWindowOption, values: [{ value: "200k" }] }],
+      acp_options: [
+        { ...contextWindowOption, values: [{ value: "200k" }] },
+        { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
+      ],
     }));
     await user.type(screen.getByTestId("session-continue-message"), "continue");
     await user.click(screen.getByTestId("session-continue-submit"));
-    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
-      'This model no longer offers the "Context window" setting you chose. Reselect the model to continue without it.'
-    );
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(refusal);
+    expect(sent).toHaveLength(0);
+
+    // Editing unrelated controls cannot launch without the choice the refusal names.
+    await openAdvancedRuntime(user);
+    fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+      key: "End",
+    });
+    await user.click(await screen.findByTestId("runtime-selector-option-thinking"));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(refusal);
     expect(sent).toHaveLength(0);
 
     await user.click(screen.getByTestId("session-continue-runtime-select"));
@@ -731,7 +745,9 @@ describe("SessionContinueDialog", () => {
     expect(sent[0]?.runtime).toEqual({
       provider: "cursor-alias",
       model: "composer",
+      reasoning_effort: "high",
       speed: "normal",
+      acp_options: [{ id: "thinking", bool_value: true }],
     });
   });
 

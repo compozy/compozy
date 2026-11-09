@@ -370,7 +370,7 @@ export function useSessionContinueDialog({
     agentsLoading: agentsQuery.isLoading,
     agentName,
     selectAgent,
-    runtimeValue,
+    runtimeSelectorValue: requestedValue,
     runtimeSpeed,
     runtimeOptions,
     onRuntimeChange: (value: RuntimeSelectorValue, speed?: RuntimeSpeed) =>

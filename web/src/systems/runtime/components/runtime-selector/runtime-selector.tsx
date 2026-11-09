@@ -45,6 +45,8 @@ export interface RuntimeSelectorProps {
   providerCatalogIssues?: Readonly<Record<string, string>>;
   /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
   allowCustomProvider?: boolean;
+  /** Keep selections the catalog no longer offers until a model pick, for surfaces that refuse them. */
+  retainUnavailableOptions?: boolean;
   onOpenProviderSettings?: () => void;
   /**
    * Session-level ACP speed request (PR #267). Both props together render the
@@ -77,6 +79,7 @@ export function RuntimeSelector({
   catalogStatus,
   providerCatalogIssues = NO_PROVIDER_CATALOG_ISSUES,
   allowCustomProvider = false,
+  retainUnavailableOptions = false,
   onOpenProviderSettings,
   speed,
   onSpeedChange,
@@ -93,6 +96,7 @@ export function RuntimeSelector({
     acpOptions,
     allowCustomProvider,
     speed,
+    retainUnavailableOptions,
   });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
