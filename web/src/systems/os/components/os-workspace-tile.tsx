@@ -42,7 +42,7 @@ function CurrentPill({ current }: { current: OsWorkspaceTileCurrent }) {
     <span
       aria-hidden="true"
       data-slot="os-workspace-tile-current"
-      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-brand-ink ring-2 ring-popover"
+      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-canvas ring-2 ring-popover"
     >
       <Glyph className="size-2.5" />
     </span>

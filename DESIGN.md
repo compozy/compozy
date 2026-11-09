@@ -79,6 +79,8 @@ tokens:
       viz-other: "rgba(255, 255, 255, 0.26)"
       viz-grid: "rgba(255, 255, 255, 0.045)"
       viz-cell: "#ffffff"
+      qr-plate: "#ffffff"
+      qr-module: "#0a0a0a"
       bar-fill: "rgba(255, 255, 255, 0.085)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"

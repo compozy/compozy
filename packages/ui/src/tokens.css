@@ -145,6 +145,12 @@
   --color-viz-grid: rgba(255, 255, 255, 0.045);
   --color-viz-cell: #ffffff;
 
+  /* QR code — a fixed dark-on-light pair in BOTH themes (never overridden in
+     tokens-light.css): phone scanners expect dark modules on a light quiet
+     zone, so the matrix ignores the surrounding surface and the theme. */
+  --color-qr-plate: #ffffff;
+  --color-qr-module: #0a0a0a;
+
   /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
      black-alpha on light). */
   --color-bar-fill: rgba(255, 255, 255, 0.085);
