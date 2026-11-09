@@ -90,18 +90,20 @@ const testsInTestsDir = {
   },
 };
 
+/** Accept only finite positive literal deadlines within the owning suite budget. */
 function positiveDeadlineWithin(node, budget) {
   const value =
     node?.type === "UnaryExpression" && node.operator === "-" ? -node.argument?.value : node?.value;
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
 }
 
-function isTestFunction(node) {
-  if (node?.type === "Identifier") return ["test", "it"].includes(node.name);
+/** Follow supported Vitest modifiers and factories back to a test or suite root. */
+function isTestFunction(node, roots = ["test", "it"]) {
+  if (node?.type === "Identifier") return roots.includes(node.name);
   if (node?.type === "MemberExpression" && !node.computed) {
     return (
       ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(node.property.name) &&
-      isTestFunction(node.object)
+      isTestFunction(node.object, roots)
     );
   }
   const factory =
@@ -114,8 +116,33 @@ function isTestFunction(node) {
     factory?.type === "MemberExpression" &&
     !factory.computed &&
     ["each", "for", "skipIf", "runIf"].includes(factory.property.name) &&
-    isTestFunction(factory.object)
+    isTestFunction(factory.object, roots)
   );
+}
+
+/** Find unconditional skips anywhere in an already recognized declaration chain. */
+function hasSkippedDeclaration(node) {
+  if (node?.type === "MemberExpression" && !node.computed) {
+    return node.property.name === "skip" || hasSkippedDeclaration(node.object);
+  }
+  if (node?.type === "CallExpression") return hasSkippedDeclaration(node.callee);
+  if (node?.type === "TaggedTemplateExpression") return hasSkippedDeclaration(node.tag);
+  return false;
+}
+
+/** Inspect inline option spreads and reject spreads whose overrides cannot be checked. */
+function unsafeOptions(options, budget) {
+  return options.properties.some(property => {
+    if (property.type === "SpreadElement") {
+      return (
+        property.argument.type !== "ObjectExpression" || unsafeOptions(property.argument, budget)
+      );
+    }
+    const key = property.key?.name ?? property.key?.value;
+    return (
+      key === "retry" || (key === "timeout" && !positiveDeadlineWithin(property.value, budget))
+    );
+  });
 }
 
 // Unit tests should synchronize with observable completion. Real clock/process
@@ -136,7 +163,9 @@ const deterministicTests = {
     },
   },
   create(context) {
-    if (!/\.test\.[cm]?[jt]sx?$/.test(context.filename)) return {};
+    const filename = context.filename.replaceAll("\\", "/");
+    if (!/\.(test|spec)\.[cm]?[jt]sx?$/.test(filename)) return {};
+    if (/\/(web|desktop)\/e2e\//.test(filename) && /\.spec\./.test(filename)) return {};
     const defaultTimeout = context.options?.[0]?.defaultTimeout ?? 5000;
     return {
       CallExpression(node) {
@@ -144,17 +173,11 @@ const deterministicTests = {
         const name = callee.type === "Identifier" ? callee.name : undefined;
         const member =
           callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
-        const owner = callee.type === "MemberExpression" ? callee.object.name : undefined;
         const testCall = isTestFunction(callee);
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
-        const override = options?.properties.some(
-          property =>
-            (property.key?.name ?? property.key?.value) === "retry" ||
-            ((property.key?.name ?? property.key?.value) === "timeout" &&
-              !positiveDeadlineWithin(property.value, defaultTimeout))
-        );
+        const override = options && unsafeOptions(options, defaultTimeout);
         const numericSleep =
           ["sleep", "delay"].includes(name) && typeof node.arguments[0]?.value === "number";
         const timeout =
@@ -162,7 +185,8 @@ const deterministicTests = {
           !options &&
           node.arguments.length >= 3 &&
           !positiveDeadlineWithin(node.arguments[2], defaultTimeout);
-        const skipped = ["test", "it", "describe"].includes(owner) && member === "skip";
+        const skipped =
+          isTestFunction(callee, ["test", "it", "describe"]) && hasSkippedDeclaration(callee);
         if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
           context.report({ node, messageId: "nondeterministic" });
         }

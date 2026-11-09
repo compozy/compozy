@@ -103,3 +103,27 @@ The single-file iteration disables coverage collection only for that local run;
 CI coverage configuration and thresholds remain unchanged.
 All 13 deep-link tests pass via Turbo on a cache miss, including the real stalled
 child termination (about five seconds).
+
+## CodeRabbit repair round
+
+Unit `.spec` files now receive the same discipline checks as `.test` files;
+Playwright specs retain their existing exemption. Chained skips and inline option
+spreads cannot hide retry or deadline overrides, and unknown spreads fail closed.
+The canonical lint-plugin suite passes all 43 tests with Turbo caching disabled.
+
+Integration-first census creation initializes valid root defaults. Refresh output
+reports the selected lane, and source parsing errors abort before changing the
+persisted census or its provenance. The existing census suite covers both bootstrap
+and failed-refresh preservation; the partition suite now includes regular packages
+alongside split test invocations. Focused Go tests and vet pass.
+
+Census input is lane-specific: the refresh workflow downloads unit artifacts into
+`/tmp/gotest-json` and integration artifacts into `/tmp/integration-census`, then
+invokes the updater separately. Raw gotestsum events and their filenames do not
+encode lane identity; callers must not combine these directories. Filtering raw
+events by filename would not establish provenance.
+
+Each selected Turbo invocation must emit a fresh summary; missing or stale summaries
+fail the lane. Malformed Turbo task metadata conservatively selects all workspaces.
+The selected prompt-enhancer workspace now runs its build. Classifier self-tests
+cover these failure paths and missing/skipped heavy integration jobs.

@@ -12,6 +12,16 @@ from pathlib import Path
 
 
 def select(paths, root=Path('.')):
+    """Fail closed to every workspace when selection inputs cannot be understood."""
+    try:
+        return select_known(paths, root)
+    except (ValueError, KeyError, OSError, TypeError, AttributeError, subprocess.CalledProcessError) as error:
+        print(f'Workspace selection unavailable: {error}', file=sys.stderr)
+        return ['*']
+
+
+def select_known(paths, root):
+    """Compute ownership and dependent closure from repository manifests."""
     manifest = json.loads((root / 'package.json').read_text())
     directories = manifest['workspaces']
     packages = {}

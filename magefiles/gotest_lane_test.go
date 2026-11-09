@@ -510,21 +510,31 @@ func TestIntegrationUnifiedPartition(t *testing.T) {
 		census := &goTestCensus{
 			DefaultPackageSeconds:   1,
 			DefaultSplitTestSeconds: 1,
+			Packages:                map[string]float64{"regular": 18},
 			SplitTests:              map[string]float64{"daemon#TestSame": 20, "store#TestSame": 19},
 		}
 		seen := map[string]int{}
 		for index := range 2 {
 			weight := 0.0
-			for _, invocation := range partitionIntegrationInvocations([]string{"daemon", "store"}, split, census, goTestShard{index: index, total: 2}) {
+			for _, invocation := range partitionIntegrationInvocations([]string{"daemon", "store", "regular"}, split, census, goTestShard{index: index, total: 2}) {
+				if len(invocation.tests) == 0 {
+					for _, pkg := range invocation.packages {
+						seen[pkg]++
+						weight += census.packageWeight(pkg)
+					}
+				}
 				for _, test := range invocation.tests {
 					key := invocation.packages[0] + "#" + test
 					seen[key]++
 					weight += census.splitTestWeight(key)
 				}
 			}
-			if weight > 21 {
-				t.Fatalf("shard %d load = %v, want at most 21", index, weight)
+			if weight > 37 {
+				t.Fatalf("shard %d load = %v, want at most 37", index, weight)
 			}
+		}
+		if seen["regular"] != 1 {
+			t.Fatalf("regular package coverage = %v", seen)
 		}
 		for pkg, tests := range split {
 			for _, test := range tests {

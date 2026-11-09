@@ -183,8 +183,25 @@ EOF
   if jq '.preflight.result = "skipped"' <<<"$projection" | require_lanes; then
     echo "preflight skip was accepted" >&2; return 1
   fi
+  projection=$(jq '.changes.outputs.backend = "true" | .changes.outputs.heavy = "true" |
+    {changes, preflight, "go-integration": {result: "success"},
+     "go-terminal-windows": {result: "success"}, "e2e-runtime": {result: "success"},
+     "e2e-web": {result: "success"}, "e2e-desktop": {result: "success"}}' <<<"$projection")
+  require_lanes heavy <<<"$projection"
+  if jq 'del(."go-integration")' <<<"$projection" | require_lanes heavy; then
+    echo "missing integration was accepted" >&2; return 1
+  fi
+  if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
+    echo "required integration skip was accepted" >&2; return 1
+  fi
   python3 - <<'CHECK'
 import importlib.util
+import json
+import tempfile
+import os
+import runpy
+from pathlib import Path
+from unittest.mock import patch
 spec = importlib.util.spec_from_file_location("ci_workspaces", "scripts/ci-workspaces.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -196,6 +213,40 @@ assert "compozy-web" in module.select(["web/deleted.ts"])
 assert module.select(["internal/session/manager.go"]) == []
 assert module.select(["AGENTS.md", ".agents/agents/example.md", "docs/_memory/lessons/example.md"]) == []
 assert "@compozy/site" in module.select(["docs/_memory/glossary.md"])
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / 'package.json').write_text('{"workspaces": []}')
+    (root / 'turbo.json').write_text('{"tasks": {"test": "invalid"}}')
+    assert module.select(['changed.ts'], root) == ['*']
+    (root / 'package.json').write_text('{"workspaces": ["lint-plugins"]}')
+    (root / 'lint-plugins').mkdir()
+    (root / 'lint-plugins/package.json').write_text('{"name": "@compozy/lint-plugins"}')
+    (root / '.turbo/runs').mkdir(parents=True)
+    frontend = str(Path('scripts/ci-frontend.py').resolve())
+    report = str(Path('scripts/ci-turbo-report.py').resolve())
+    previous = Path.cwd()
+    try:
+        os.chdir(root)
+        with patch.dict(os.environ, CI_WORKSPACES='["@compozy/lint-plugins"]'), patch('sys.argv', [frontend, 'web']):
+            with patch('subprocess.run'):
+                try:
+                    runpy.run_path(frontend)
+                    raise AssertionError('missing Turbo receipt accepted')
+                except RuntimeError:
+                    pass
+            def write_receipt(*args, **kwargs):
+                (root / '.turbo/runs/current.json').write_text('{"tasks": []}')
+            with patch('subprocess.run', side_effect=write_receipt):
+                runpy.run_path(frontend)
+            with patch('subprocess.run'):
+                try:
+                    runpy.run_path(frontend)
+                    raise AssertionError('stale Turbo receipt accepted')
+                except RuntimeError:
+                    pass
+            runpy.run_path(report)
+    finally:
+        os.chdir(previous)
 CHECK
   echo "ci-changes self-test: classification, closure and gate contracts hold"
 }

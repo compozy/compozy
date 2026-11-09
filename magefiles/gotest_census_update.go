@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -24,7 +23,7 @@ func TestCensusUpdate(jsonDir string) error {
 		return err
 	}
 	if census == nil {
-		census = &goTestCensus{}
+		census = &goTestCensus{DefaultPackageSeconds: 1, DefaultSplitTestSeconds: 1}
 	}
 	var files []string
 	err = filepath.WalkDir(jsonDir, func(path string, entry os.DirEntry, walkErr error) error {
@@ -77,8 +76,8 @@ func TestCensusUpdate(jsonDir string) error {
 		"Updated %s from %d files: %d packages, %d split tests\n",
 		goTestCensusPath,
 		len(files),
-		len(census.Packages),
-		len(census.SplitTests),
+		len(target.Packages),
+		len(target.SplitTests),
 	)
 	return nil
 }
@@ -218,28 +217,31 @@ func (c *goTestCensus) pruneMissingSource(root string) error {
 			tests[name] = struct{}{}
 		}
 	}
-	maps.DeleteFunc(c.SplitTests, func(name string, _ float64) bool {
+	for name := range c.SplitTests {
 		if packagePath, testName, qualified := strings.Cut(name, "#"); qualified {
 			files, err := filepath.Glob(
 				filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"),
 			)
 			if err != nil {
-				return false
+				return fmt.Errorf("find census sources %q: %w", packagePath, err)
 			}
+			exists := false
 			for _, file := range files {
 				names, err := topLevelTestsInFile(file)
 				if err != nil {
-					return false
+					return err
 				}
-				if slices.Contains(names, testName) {
-					return false
-				}
+				exists = exists || slices.Contains(names, testName)
 			}
-			return true
+			if !exists {
+				delete(c.SplitTests, name)
+			}
+			continue
 		}
-		_, exists := tests[name]
-		return !exists
-	})
+		if _, exists := tests[name]; !exists {
+			delete(c.SplitTests, name)
+		}
+	}
 	c.DefaultPackageSeconds = censusMedian(c.Packages, c.DefaultPackageSeconds)
 	c.DefaultSplitTestSeconds = censusMedian(c.SplitTests, c.DefaultSplitTestSeconds)
 	return nil

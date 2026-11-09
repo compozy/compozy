@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 lane = sys.argv[1]
 selected = json.loads(os.environ['CI_WORKSPACES'])
@@ -17,21 +18,26 @@ names = [name for name in names if name != '@compozy/desktop'
 
 
 def run(*args):
+    """Run a required command and propagate failure."""
     subprocess.run(args, check=True)
 
 
 def turbo(tasks, targets):
+    """Require a fresh receipt from every selected Turbo invocation."""
     if targets:
+        before = set(Path('.turbo/runs').glob('*.json'))
         run('bunx', '--no-install', 'turbo', 'run', *tasks,
             *['--filter=' + name for name in targets],
             '--concurrency=2', '--log-order=stream', '--summarize')
-
+        receipts = set(Path('.turbo/runs').glob('*.json')) - before
+        if len(receipts) != 1:
+            raise RuntimeError(f'Expected one new Turbo receipt for {tasks}: got {len(receipts)}')
 
 if lane == 'lint':
     run('bun', 'run', 'lint')
 else:
     turbo(['typecheck', 'test'], names)
-    turbo(['build'], [name for name in names if name in {'compozy-web', '@compozy/site'}])
+    turbo(['build'], [name for name in names if name in {'compozy-web', '@compozy/site', '@compozy/example-prompt-enhancer'}])
     if '@compozy/client' in names:
         turbo(['test:package'], ['@compozy/client'])
     if lane == 'site-sdk' and (all_packages or any(name.startswith('@compozy/') for name in selected)):

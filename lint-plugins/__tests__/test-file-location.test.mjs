@@ -20,11 +20,11 @@ describe("deterministic unit test conventions", () => {
   it("rejects unconditional unit skips without blanket banning process integration contracts", () => {
     const callee = {
       type: "MemberExpression",
-      object: { name: "test" },
+      object: { type: "Identifier", name: "test" },
       property: { name: "skip" },
     };
     expect(messages(callee, [])).toHaveLength(1);
-    expect(messages(callee, [], "process.spec.ts")).toHaveLength(0);
+    expect(messages(callee, [], "/repo/web/e2e/process.spec.ts")).toHaveLength(0);
   });
   it("rejects disabled deadlines in positional and options forms", () => {
     const callee = { type: "Identifier", name: "it" };
@@ -105,6 +105,42 @@ describe("deterministic unit test conventions", () => {
     }
     expect(
       messages(member({ type: "Identifier", name: "other" }, "concurrent"), [{}, {}, { value: 0 }])
+    ).toHaveLength(0);
+  });
+  it("checks unit specs, chained skips and spread options while exempting E2E specs", () => {
+    const base = { type: "Identifier", name: "test" };
+    const concurrent = { type: "MemberExpression", object: base, property: { name: "concurrent" } };
+    const skip = { type: "MemberExpression", object: concurrent, property: { name: "skip" } };
+    expect(messages(skip, [], "/repo/src/example.spec.ts")).toHaveLength(1);
+    expect(messages(skip, [], "/repo/desktop/e2e/example.spec.ts")).toHaveLength(0);
+    const option = value => ({
+      type: "ObjectExpression",
+      properties: [{ type: "SpreadElement", argument: value }],
+    });
+    expect(
+      messages(base, [{ value: "name" }, option({ type: "Identifier", name: "shared" }), {}])
+    ).toHaveLength(1);
+    for (const key of ["retry", "timeout"]) {
+      expect(
+        messages(base, [
+          { value: "name" },
+          option({
+            type: "ObjectExpression",
+            properties: [{ key: { name: key }, value: { value: 0 } }],
+          }),
+          {},
+        ])
+      ).toHaveLength(1);
+    }
+    expect(
+      messages(base, [
+        { value: "name" },
+        option({
+          type: "ObjectExpression",
+          properties: [{ key: { name: "timeout" }, value: { value: 1000 } }],
+        }),
+        {},
+      ])
     ).toHaveLength(0);
   });
 });
