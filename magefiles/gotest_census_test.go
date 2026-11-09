@@ -288,3 +288,23 @@ func TestCensusPruneMissingSource(t *testing.T) {
 		},
 	)
 }
+
+func TestIntegrationObservationIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep equal test names in different packages separate", func(t *testing.T) {
+		t.Parallel()
+		observed := newGoTestObservation()
+		observed.lane = "integration"
+		for index, pkg := range []string{goSplitTestPackage, compozyModulePath + "internal/daemon", compozyModulePath + "internal/store"} {
+			observed.recordEvent(
+				gotestsumEvent{Action: "pass", Package: pkg, Test: "TestSame", Elapsed: float64(index + 1)},
+			)
+			if got := observed.splitTests[pkg+"#TestSame"]; got != float64(index+1) {
+				t.Fatalf("%s weight = %v", pkg, got)
+			}
+		}
+		if len(observed.splitTests) != 3 {
+			t.Fatalf("weights = %v", observed.splitTests)
+		}
+	})
+}

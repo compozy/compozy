@@ -90,6 +90,45 @@ const testsInTestsDir = {
   },
 };
 
+// Unit tests should synchronize with observable completion. Real clock/process
+// integration contracts can document a local exception with an eslint directive.
+const deterministicTests = {
+  meta: {
+    type: "problem",
+    schema: [],
+    messages: {
+      nondeterministic:
+        "Use observable completion instead of sleeps, retries, per-test timeouts or unconditional skips. Document a real timing contract in a local lint exception.",
+    },
+  },
+  create(context) {
+    if (!/\.test\.[cm]?[jt]sx?$/.test(context.filename)) return {};
+    return {
+      CallExpression(node) {
+        const callee = node.callee;
+        const name = callee.type === "Identifier" ? callee.name : undefined;
+        const member =
+          callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
+        const owner = callee.type === "MemberExpression" ? callee.object.name : undefined;
+        const testCall = ["test", "it"].includes(name);
+        const options = testCall
+          ? node.arguments.find(arg => arg.type === "ObjectExpression")
+          : undefined;
+        const override = options?.properties.some(property =>
+          ["retry", "timeout"].includes(property.key?.name)
+        );
+        const numericSleep =
+          ["sleep", "delay"].includes(name) && typeof node.arguments[0]?.value === "number";
+        const timeout = testCall && typeof node.arguments[2]?.value === "number";
+        const skipped = ["test", "it", "describe"].includes(owner) && member === "skip";
+        if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
+          context.report({ node, messageId: "nondeterministic" });
+        }
+      },
+    };
+  },
+};
+
 // --- Plugin Export ---
 
 const plugin = {
@@ -98,6 +137,7 @@ const plugin = {
   },
   rules: {
     "tests-in-tests-dir": testsInTestsDir,
+    "deterministic-tests": deterministicTests,
   },
 };
 

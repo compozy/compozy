@@ -12,6 +12,7 @@
     ],
     "categories": {},
     "rules": {
+        "compozy-testing/deterministic-tests": "error",
         "no-unassigned-vars": "warn",
         "for-direction": "warn",
         "no-async-promise-executor": "warn",

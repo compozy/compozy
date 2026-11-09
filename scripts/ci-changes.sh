@@ -15,7 +15,7 @@ set -euo pipefail
 # classify prints the space-separated areas for one repository-relative path.
 classify() {
   case "$1" in
-    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh)
+    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
       echo "backend web desktop ci_infra"
       return
       ;;
@@ -74,11 +74,49 @@ summarize() {
         web) web=true ;;
         desktop) desktop=true ;;
         ci_infra) ci_infra=true ;;
-        unclassified) echo "No CI rule matches $path; verifying every area." >&2 ;;
+        unclassified) ci_infra=true; echo "No CI rule matches $path; verifying every area." >&2 ;;
       esac
     done
   done
   printf 'backend=%s\nweb=%s\ndesktop=%s\nci_infra=%s\n' "$backend" "$web" "$desktop" "$ci_infra"
+}
+
+# Validate the workflow's needs projection against the selection contract.
+require_lanes() {
+  jq -e --arg kind "${1:-fast}" '
+    . as $needs | .changes.outputs as $o |
+    ($o.backend == "true") as $backend |
+    ($o.web == "true") as $web |
+    ($o.desktop == "true") as $desktop |
+    ($o.heavy == "true") as $heavy |
+    {
+      changes: true, preflight: true, frontend: $web,
+      "go-static": $backend, "go-test": $backend, "sdk-go-test": $backend,
+      "go-build": $backend, "go-peer-darwin": $backend,
+      desktop: ($desktop or $web),
+      "go-integration": ($heavy and $backend),
+      "go-terminal-windows": ($heavy and $backend),
+      "e2e-runtime": ($heavy and ($backend or $web)),
+      "e2e-web": ($heavy and ($backend or $web)),
+      "e2e-desktop": ($heavy and ($backend or $web or $desktop))
+    } as $expected |
+    (if $kind == "fast" then
+      ["changes", "preflight", "frontend", "go-static", "go-test", "sdk-go-test", "go-build", "go-peer-darwin", "desktop"]
+     elif $kind == "heavy" then
+      ["changes", "preflight", "go-integration", "go-terminal-windows", "e2e-runtime", "e2e-web", "e2e-desktop"]
+     else ["invalid-gate-kind"] end) as $required |
+    ($required | all(. as $key | $needs | has($key))) and
+    ($needs.changes.result == "success") and
+    ($needs.preflight.result == "success") and
+    ([$o.backend, $o.web, $o.desktop, $o.heavy] |
+      all(. == "true" or . == "false")) and
+    ($needs | to_entries | all(
+      .key as $key |
+      ($expected | has($key)) and
+      (.value.result == "success" or
+        (.value.result == "skipped" and $expected[$key] == false))
+    ))
+  ' >/dev/null
 }
 
 self_test() {
@@ -126,11 +164,44 @@ EOF
     echo "ci-changes self-test: $failures classification(s) drifted" >&2
     return 1
   fi
-  echo "ci-changes self-test: classification table holds"
+  local projection
+  projection='{"changes":{"result":"success","outputs":{"backend":"false","web":"true","desktop":"false","heavy":"false"}},"preflight":{"result":"success"},"frontend":{"result":"success"}}'
+  projection=$(jq '. + {"go-static":{"result":"skipped"},"go-test":{"result":"skipped"},"sdk-go-test":{"result":"skipped"},"go-build":{"result":"skipped"},"go-peer-darwin":{"result":"skipped"},"desktop":{"result":"success"}}' <<<"$projection")
+  require_lanes <<<"$projection"
+  if jq 'del(.frontend)' <<<"$projection" | require_lanes; then
+    echo "missing frontend was accepted" >&2; return 1
+  fi
+  if jq '.frontend.result = "skipped"' <<<"$projection" | require_lanes; then
+    echo "required frontend skip was accepted" >&2; return 1
+  fi
+  jq '.changes.outputs.web = "false" | .frontend.result = "skipped"' <<<"$projection" | require_lanes
+  for result in failure cancelled; do
+    if jq --arg result "$result" '.frontend.result = $result' <<<"$projection" | require_lanes; then
+      echo "frontend $result was accepted" >&2; return 1
+    fi
+  done
+  if jq '.preflight.result = "skipped"' <<<"$projection" | require_lanes; then
+    echo "preflight skip was accepted" >&2; return 1
+  fi
+  python3 - <<'CHECK'
+import importlib.util
+spec = importlib.util.spec_from_file_location("ci_workspaces", "scripts/ci-workspaces.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert "compozy-web" in module.select(["packages/ui/src/index.ts"])
+assert "@compozy/site" in module.select(["internal/config/config.go"])
+assert "@compozy/lint-plugins" in module.select(["packages/ui/src/primitives.ts"])
+assert module.select(["unknown/input"]) == module.select(["package.json"])
+assert "compozy-web" in module.select(["web/deleted.ts"])
+assert module.select(["internal/session/manager.go"]) == []
+CHECK
+  echo "ci-changes self-test: classification, closure and gate contracts hold"
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
   self_test
+elif [[ "${1:-}" == "--require-lanes" ]]; then
+  require_lanes "${2:-fast}"
 else
   summarize
 fi

@@ -26,22 +26,44 @@ func TestCensusUpdate(jsonDir string) error {
 	if census == nil {
 		census = &goTestCensus{}
 	}
-	files, err := filepath.Glob(filepath.Join(jsonDir, "*.json"))
+	var files []string
+	err = filepath.WalkDir(jsonDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("glob gotestsum JSON files in %q: %w", jsonDir, err)
+		return fmt.Errorf("find gotestsum JSON files in %q: %w", jsonDir, err)
 	}
 	if len(files) == 0 {
 		return fmt.Errorf("no gotestsum JSON files found in %q", jsonDir)
 	}
 	slices.Sort(files)
+	target := census
+	lane := os.Getenv("COMPOZY_CENSUS_LANE")
+	if lane != "" && lane != "unit" && lane != "integration" {
+		return fmt.Errorf("unknown census lane %q", lane)
+	}
+	if lane == "integration" {
+		if census.Integration == nil {
+			census.Integration = &goTestCensus{}
+		}
+		target = census.Integration
+	}
 	observed := newGoTestObservation()
+	observed.lane = lane
 	for _, file := range files {
 		if err := observed.readGotestsumJSONFile(file); err != nil {
 			return err
 		}
 	}
-	observed.applyTo(census)
-	if err := census.pruneMissingSource("."); err != nil {
+	observed.applyTo(target)
+	target.SourceRun = os.Getenv("CENSUS_RUN_ID")
+	if err := target.pruneMissingSource("."); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(census, "", "  ")
@@ -62,6 +84,7 @@ func TestCensusUpdate(jsonDir string) error {
 }
 
 type goTestObservation struct {
+	lane       string
 	packages   map[string]float64
 	splitTests map[string]float64
 }
@@ -113,11 +136,16 @@ func (o *goTestObservation) recordEvent(event gotestsumEvent) {
 	if event.Elapsed <= 0 {
 		return
 	}
-	if event.Package == goSplitTestPackage {
+	if event.Package == goSplitTestPackage || (o.lane == "integration" &&
+		(event.Package == compozyModulePath+"internal/daemon" || event.Package == compozyModulePath+"internal/store")) {
 		if event.Test == "" || strings.Contains(event.Test, "/") {
 			return
 		}
-		o.splitTests[event.Test] = max(o.splitTests[event.Test], event.Elapsed)
+		key := event.Test
+		if o.lane == "integration" {
+			key = event.Package + "#" + event.Test
+		}
+		o.splitTests[key] = max(o.splitTests[key], event.Elapsed)
 		return
 	}
 	if event.Test != "" {
@@ -191,6 +219,24 @@ func (c *goTestCensus) pruneMissingSource(root string) error {
 		}
 	}
 	maps.DeleteFunc(c.SplitTests, func(name string, _ float64) bool {
+		if packagePath, testName, qualified := strings.Cut(name, "#"); qualified {
+			files, err := filepath.Glob(
+				filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"),
+			)
+			if err != nil {
+				return false
+			}
+			for _, file := range files {
+				names, err := topLevelTestsInFile(file)
+				if err != nil {
+					return false
+				}
+				if slices.Contains(names, testName) {
+					return false
+				}
+			}
+			return true
+		}
 		_, exists := tests[name]
 		return !exists
 	})

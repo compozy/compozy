@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
 
@@ -39,7 +40,7 @@ jobs:
               run_id="$candidate"
               break
             fi
-          done < <(gh run list --workflow CI --status success --limit 40 --json databaseId --jq '.[].databaseId')
+          done < <(gh run list --workflow CI --branch main --event push --status success --limit 40 --json databaseId --jq '.[].databaseId')
           if [[ -z "$run_id" ]]; then
             echo "No successful CI run with gotest-json artifacts in the last 40; nothing to refresh."
           else
@@ -52,8 +53,32 @@ jobs:
         if: env.CENSUS_RUN_ID != ''
         run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/gotest-json
 
+      - name: Download trusted integration timing receipts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/integration-json
+          run_id=$(gh run list --workflow release.yml --branch main --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [[ -n "$run_id" ]]; then
+            artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" --jq '[.artifacts[] | select(.expired == false and (.name | startswith("integration-artifacts-")))] | length')
+            if [[ "$artifacts" == "8" ]]; then
+              gh run download "$run_id" --pattern 'integration-artifacts-*' --dir /tmp/integration-json
+              mkdir -p /tmp/integration-census
+              find /tmp/integration-json -name 'gotest-shard*.json' -exec cp {} /tmp/integration-census/ \;
+              echo "INTEGRATION_CENSUS_RUN_ID=$run_id" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      - name: Fold integration timing data
+        if: env.INTEGRATION_CENSUS_RUN_ID != ''
+        env:
+          COMPOZY_CENSUS_LANE: integration
+          CENSUS_RUN_ID: ${{ env.INTEGRATION_CENSUS_RUN_ID }}
+        run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/integration-census
+
       - name: Publish the refresh branch when the census changed
-        if: env.CENSUS_RUN_ID != ''
+        if: env.CENSUS_RUN_ID != '' || env.INTEGRATION_CENSUS_RUN_ID != ''
         env:
           # The enterprise policy blocks GITHUB_TOKEN from creating pull
           # requests. With an optional CENSUS_PR_TOKEN (fine-grained PAT with

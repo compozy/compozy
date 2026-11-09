@@ -501,3 +501,37 @@ func TestGlobalDBIntegrationConcurrency(t *testing.T) {
 		}
 	})
 }
+
+func TestIntegrationUnifiedPartition(t *testing.T) {
+	t.Parallel()
+	t.Run("Should balance all packages together and cover each qualified test once", func(t *testing.T) {
+		t.Parallel()
+		split := map[string][]string{"daemon": {"TestSame", "TestOther"}, "store": {"TestSame", "TestOther"}}
+		census := &goTestCensus{
+			DefaultPackageSeconds:   1,
+			DefaultSplitTestSeconds: 1,
+			SplitTests:              map[string]float64{"daemon#TestSame": 20, "store#TestSame": 19},
+		}
+		seen := map[string]int{}
+		for index := range 2 {
+			weight := 0.0
+			for _, invocation := range partitionIntegrationInvocations([]string{"daemon", "store"}, split, census, goTestShard{index: index, total: 2}) {
+				for _, test := range invocation.tests {
+					key := invocation.packages[0] + "#" + test
+					seen[key]++
+					weight += census.splitTestWeight(key)
+				}
+			}
+			if weight > 21 {
+				t.Fatalf("shard %d load = %v, want at most 21", index, weight)
+			}
+		}
+		for pkg, tests := range split {
+			for _, test := range tests {
+				if seen[pkg+"#"+test] != 1 {
+					t.Fatalf("coverage = %v", seen)
+				}
+			}
+		}
+	})
+}
