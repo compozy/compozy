@@ -46,8 +46,9 @@ func seedBoard(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (boa
 			return boardCounts{}, err
 		}
 	}
-	// The daemon's Later sweep brings back what is due; the seed runs the same sweep once.
-	if _, err := db.ReturnDueLaterSessions(ctx, clock.Now(), boardLaterSweepLimit); err != nil {
+	// The daemon's Later sweep brings back what is due. Running it as of the playbook's own return
+	// instant stamps the return when it happened and leaves anything due after that alone.
+	if _, err := db.ReturnDueLaterSessions(ctx, boardLaterReturnAt(clock), boardLaterSweepLimit); err != nil {
 		return boardCounts{}, fmt.Errorf("demo seed: return due Later sessions: %w", err)
 	}
 	subagents, err := seedPixSubagents(ctx, db, state)

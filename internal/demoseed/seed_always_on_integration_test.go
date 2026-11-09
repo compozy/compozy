@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/store"
@@ -177,18 +178,26 @@ func assertMainSessionReports(t *testing.T, ctx context.Context, homeDir string,
 	if err != nil {
 		t.Fatalf("ListEvents(main) error = %v", err)
 	}
-	reports, users := 0, 0
+	reports := 0
+	operatorPick, autoPick := false, false
 	for _, row := range rows {
-		switch {
-		case row.Type == transcript.ReportEventType:
+		if row.Type == transcript.ReportEventType {
 			reports++
-		case strings.Contains(row.Content, "Draft a reproduction note") || strings.Contains(row.Content, "#431"):
-			users++
+			continue
 		}
+		if row.Type != acp.EventTypeUserMessage {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		operatorPick = operatorPick || event.Text == "#431 has no owner"
+		autoPick = autoPick || strings.HasPrefix(event.Text, "Reproduce the issue against main")
 	}
-	if reports != 3 || users == 0 {
-		t.Fatalf("main session reports=%d pick turns=%d, want 3 published reports and the turns picks started",
-			reports, users)
+	if reports != 3 || !operatorPick || !autoPick {
+		t.Fatalf("main session reports=%d operator pick=%v auto pick=%v, want 3 reports and both pick prompts",
+			reports, operatorPick, autoPick)
 	}
 }
 

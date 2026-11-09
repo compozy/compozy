@@ -64,16 +64,22 @@ func boardOrchestrationSessions(clock timeline) []boardSessionStory {
 	return append([]boardSessionStory{parent}, children...)
 }
 
+const (
+	pixSubagentStatesID    = "sub_northstar_pix_states"
+	pixSubagentReconcileID = "sub_northstar_pix_reconcile"
+	pixSubagentRunbookID   = "sub_northstar_pix_runbook"
+)
+
 func pixRefundsSteps() []transcriptStep {
 	return []transcriptStep{
 		{Kind: stepUser, Text: "Ship PIX refunds for Brazil checkout. Split the work: someone maps the refund " +
 			"states, someone writes the reconciliation tests, someone checks the rollback runbook. Open one PR."},
 		{Kind: stepAgent, Text: "I'll delegate the three pieces in parallel and keep the integration here."},
-		pixDelegateStep("Map PIX refund states", agentPlatformEngineer,
+		pixDelegateStep(pixSubagentStatesID, "Map PIX refund states", agentPlatformEngineer,
 			"Map every PIX refund state the PSP returns to our refund states, with the transitions we accept."),
-		pixDelegateStep("Write refund reconciliation tests", agentCheckoutEngineer,
+		pixDelegateStep(pixSubagentReconcileID, "Write refund reconciliation tests", agentCheckoutEngineer,
 			"Write reconciliation tests that compare refunds against the settlement file for the same day."),
-		pixDelegateStep("Review the refund rollback runbook", agentDocsSteward,
+		pixDelegateStep(pixSubagentRunbookID, "Review the refund rollback runbook", agentDocsSteward,
 			"Check that the refund rollback runbook matches the new flag and the new refund states."),
 		{
 			Kind: stepTool, ToolName: toolEdit, ToolKind: toolKindEdit,
@@ -102,19 +108,29 @@ func pixRefundsSteps() []transcriptStep {
 	}
 }
 
-func pixDelegateStep(title, agent, task string) transcriptStep {
+func pixDelegateStep(id, title, agent, task string) transcriptStep {
 	return transcriptStep{
-		Kind: stepTool, ToolName: "compozy__subagent_delegate", ToolKind: toolKindOther,
+		Kind:     stepTool,
+		ToolName: "compozy__subagent_delegate",
+		ToolKind: toolKindOther,
 		ToolInput: fmt.Sprintf(`{"title":%q,"target":{"agent":%q},"task":%q,"wake":"settled_only"}`,
 			title, agent, task),
-		ToolResult: fmt.Sprintf(`{"content":"Delegated %s to %s."}`, title, agent),
+		// The delegate tool's result names the roster row; the transcript's subagent card reads it.
+		ToolResult: fmt.Sprintf(
+			`{"content":"Delegated %s to %s.","rawOutput":{"subagent_id":%q,"title":%q,"runtime_agent":%q}}`,
+			title,
+			agent,
+			id,
+			title,
+			agent,
+		),
 	}
 }
 
 func pixSubagents(clock timeline) []subagentStory {
 	return []subagentStory{
 		{
-			ID: "sub_northstar_pix_states", ChildID: sessionPixStatesID, StepIndex: pixDelegateStepStates,
+			ID: pixSubagentStatesID, ChildID: sessionPixStatesID, StepIndex: pixDelegateStepStates,
 			Title: "Map PIX refund states", Role: subagentRoleGeneral, Agent: agentPlatformEngineer,
 			Provider: providerCodex, Model: modelCodex, Status: store.SubagentStatusCompleted,
 			Result: "Seven PSP states map to four refund states. IN_ANALYSIS is new in v4 and maps to pending; " +
@@ -123,7 +139,7 @@ func pixSubagents(clock timeline) []subagentStory {
 			TaskChars: 96, InputUsed: 1840, OutputUsed: 610,
 		},
 		{
-			ID: "sub_northstar_pix_reconcile", ChildID: sessionPixReconcileID, StepIndex: pixDelegateStepReconcile,
+			ID: pixSubagentReconcileID, ChildID: sessionPixReconcileID, StepIndex: pixDelegateStepReconcile,
 			Title: "Write refund reconciliation tests", Role: subagentRoleGeneral, Agent: agentCheckoutEngineer,
 			Provider: providerCodex, Model: modelCodex, Status: store.SubagentStatusCompleted,
 			Result:    "Added 6 reconciliation tests against the 2026-10-28 settlement file. All pass.",
@@ -131,7 +147,7 @@ func pixSubagents(clock timeline) []subagentStory {
 			TaskChars: 92, InputUsed: 2630, OutputUsed: 1240,
 		},
 		{
-			ID: "sub_northstar_pix_runbook", ChildID: sessionPixRunbookID, StepIndex: pixDelegateStepRunbook,
+			ID: pixSubagentRunbookID, ChildID: sessionPixRunbookID, StepIndex: pixDelegateStepRunbook,
 			Title: "Review the refund rollback runbook", Role: subagentRoleGeneral, Agent: agentDocsSteward,
 			Provider: providerClaude, Model: modelClaude, Status: store.SubagentStatusCompleted,
 			Result: "Step 4 still disables checkout.pix_refunds_v1; the new flag is checkout.pix_refunds. " +

@@ -155,7 +155,7 @@ func disputePlaybookSession(clock timeline) boardSessionStory {
 		Later: &boardLater{
 			Reason:   "Pick this up once Stone sends their evidence template.",
 			ParkedAt: clock.daysHoursAgo(3, 4).Add(5 * time.Minute),
-			ReturnAt: clock.hoursAgo(2),
+			ReturnAt: boardLaterReturnAt(clock),
 		},
 	}
 }
@@ -350,3 +350,6 @@ func pagerSummarySession(clock timeline) boardSessionStory {
 				"drift page was the flaky test's real-world twin and is already fixed."},
 		}}
 }
+
+// boardLaterReturnAt is when the seeded playbook came back from Later.
+func boardLaterReturnAt(clock timeline) time.Time { return clock.hoursAgo(2) }

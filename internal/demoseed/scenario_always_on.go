@@ -132,7 +132,7 @@ func logTriageAgent() agentStory {
 		WorkspaceKey: workspaceKeyPlatform,
 		Kind:         agentKindAlwaysOn,
 		DisplayName:  "Log Triage",
-		Description:  "Reads the settlement worker error feed once a day and groups new failures by cause.",
+		Description:  "Reads the settlement worker error feed hourly during active hours and groups new failures by cause.",
 		Appearance:   faceAppearance("log-triage-juno", "#e5484d"),
 		Provider:     providerClaude,
 		Model:        modelClaude,

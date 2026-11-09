@@ -4,14 +4,18 @@ package demoseed
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestSeedBoard(t *testing.T) {
@@ -54,6 +58,7 @@ func TestSeedBoard(t *testing.T) {
 				}
 			})
 			platformID := replaced.WorkspaceIDs[1]
+			assertPixTranscript(t, ctx, homeDir, platformID)
 			keys := map[string]string{platformID: northstarRepoKey}
 
 			for column, want := range map[string][]string{
@@ -133,4 +138,48 @@ func boardColumnIDs(
 		ids = append(ids, info.ID)
 	}
 	return ids
+}
+
+// assertPixTranscript reads the parent transcript the way the session view projects it.
+func assertPixTranscript(t *testing.T, ctx context.Context, homeDir string, workspaceID string) {
+	t.Helper()
+	reader, err := sessiondb.OpenSessionDBReadOnly(
+		ctx,
+		store.SessionDBOwner{SessionID: sessionPixRefundsID, WorkspaceID: workspaceID},
+		store.SessionDBFile(filepath.Join(homeDir, "sessions", sessionPixRefundsID)),
+	)
+	if err != nil {
+		t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(context.WithoutCancel(ctx)); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
+	events, err := reader.Query(ctx, store.EventQuery{Limit: 200})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	cards := []string{}
+	for _, event := range events {
+		if part, ok := transcript.SubagentPartForStoredEvent(event); ok {
+			cards = append(cards, part.SubagentID)
+		}
+	}
+	slices.Sort(cards)
+	want := []string{pixSubagentReconcileID, pixSubagentRunbookID, pixSubagentStatesID}
+	if !slices.Equal(cards, want) {
+		t.Fatalf("subagent cards = %v, want %v", cards, want)
+	}
+	messages, err := transcript.ToUIMessages(events)
+	if err != nil {
+		t.Fatalf("ToUIMessages() error = %v", err)
+	}
+	projected, err := json.Marshal(messages)
+	if err != nil {
+		t.Fatalf("Marshal(messages) error = %v", err)
+	}
+	if !strings.Contains(string(projected), "payments-platform/pull/485") {
+		t.Fatal("projected transcript lost the Bash stdout of gh pr create")
+	}
 }
