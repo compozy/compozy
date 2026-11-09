@@ -398,3 +398,7 @@ Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly ex
 - cross-session terminal-state mutation
 
 Read-only inspection tools may exist for these domains. Do not invent a mutating tool call.
+
+Hosted MCP descriptions include the authored instructions and canonical ID. Discovery tags, search
+hints and toolset membership remain available through tool descriptors and provider search metadata,
+without repeating them in every loaded tool description. Provider-visible server names are unchanged.

@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/tools/builtin"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -756,15 +757,19 @@ func TestHostedProxyHelpers(t *testing.T) {
 		for _, want := range []string{
 			"Echo\n\nSend text back",
 			"Compozy canonical tool ID: compozy__hosted_echo",
-			"Compozy toolsets: compozy__bootstrap",
-			"Tags: catalog, echo",
-			"Search hints: send text back",
-			"Call the harness-returned tool reference.",
 		} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("hostedToolDescription() = %q, want substring %q", got, want)
 			}
 		}
+		// Discovery remains complete in the dedicated search metadata and registry.
+		hint := hostedToolMeta(view.Descriptor)["anthropic/searchHint"].(string)
+		for _, term := range []string{"compozy__bootstrap", "catalog", "echo", "send text back"} {
+			if !strings.Contains(hint, term) {
+				t.Fatalf("search metadata lost %q", term)
+			}
+		}
+
 		view.Descriptor.Description = ""
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "Echo") ||
 			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
@@ -775,6 +780,50 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "fallback") ||
 			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
 			t.Fatalf("hostedToolDescription(description only) = %q, want description and canonical ID", got)
+		}
+	})
+
+	t.Run("Should reduce hosted descriptions without changing schemas or identities", func(t *testing.T) {
+		t.Parallel()
+		var before, after, eagerBefore, eagerAfter int
+		for _, descriptor := range builtin.NativeDescriptors() {
+			tool := hostedMCPTool(descriptor)
+			if tool.Name != descriptor.ID.String() ||
+				!reflect.DeepEqual(tool.InputSchema, cloneRaw(descriptor.InputSchema)) {
+				t.Fatalf("tool %s changed its identity or input contract", descriptor.ID)
+			}
+			// The base renderer repeated discovery metadata and invocation boilerplate.
+			legacy := tool.Description
+			if len(descriptor.Toolsets) > 0 {
+				var names []string
+				for _, id := range descriptor.Toolsets {
+					names = append(names, id.String())
+				}
+				legacy += "\n\nCompozy toolsets: " + strings.Join(names, ", ")
+			}
+			if len(descriptor.Tags) > 0 {
+				legacy += "\n\nTags: " + strings.Join(cleanedValues(descriptor.Tags), ", ")
+			}
+			if len(descriptor.SearchHints) > 0 {
+				legacy += "\n\nSearch hints: " + strings.Join(cleanedValues(descriptor.SearchHints), ", ")
+			}
+			legacy += "\n\nCall the harness-returned tool reference."
+			before += len(legacy)
+			after += len(tool.Description)
+			if tool.Meta["anthropic/alwaysLoad"] == true {
+				eagerBefore += len(legacy)
+				eagerAfter += len(tool.Description)
+			}
+		}
+		t.Logf(
+			"native descriptions before=%d after=%d; eager before=%d after=%d bytes",
+			before,
+			after,
+			eagerBefore,
+			eagerAfter,
+		)
+		if after >= before || eagerAfter >= eagerBefore {
+			t.Fatal("hosted descriptions did not shrink")
 		}
 	})
 

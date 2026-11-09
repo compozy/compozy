@@ -112,3 +112,8 @@ records canonical before/after CPU and allocation measurements, plus descriptor
 ownership and approval boundary checks. Focused race verification passed for the canonical descriptor and approval
 suites; real terminal/transport execution and current-head CI remain root-owned
 pending work. This impact note preserves all historical scenario verdicts.
+
+QA impact 2026-11-09 (harness token efficiency): hosted descriptions keep the tool's authored
+instructions and canonical ID, with search tags, hints and toolset names in search metadata and
+`tool_info`. Existing MCP names, schemas, approvals, hook identities and routing remain unchanged.
+Verify search by an alias/tag still finds the tool and invoking it has the same result.
