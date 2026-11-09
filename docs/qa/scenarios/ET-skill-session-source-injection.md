@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/session-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
+evidence: unpublished-local-artifact/qa/skill-sources/session-catalog.json;unpublished-local-artifact/qa/skill-sources/tool-skill-view.json
 last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-session-command-catalog-parity; ET-skill-origin-attribution; ET-session-composer-skill-chip; ET-managed-session-skill-loading
 ---

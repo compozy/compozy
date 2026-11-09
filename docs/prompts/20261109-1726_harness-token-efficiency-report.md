@@ -3,7 +3,7 @@
 Date: 2026-11-09. Branch: `harness-token-efficiency`. Base: `e34e8332c`.
 Initial round 2 implementation: `09d60b814`; the review correction is recorded below. Brief commit: `4e206f01f`.
 
-Eight workstreams have implementation commits. W10 now corrects cumulative accounting and ships historical repair migrations under the approved round 2 rule. W6 remains undecided; W8 remains blocked on a structured adapter eligibility/deadline contract, with no partial implementation. W9's requested actual Claude first-call token measurement remains unverified; its implementation and provider-option contracts pass. This is not a claim that all ten workstreams or all acceptance measurements are complete.
+Eight workstreams have implementation commits. W10 now corrects cumulative accounting and ships historical repair migrations under the approved round 2 rule. W6 moved to [#1432](https://github.com/compozy/compozy/issues/1432) and W8 moved to [#1435](https://github.com/compozy/compozy/issues/1435), each for a separate pull request. Delivered scope is W1–W5, W7, W9 and W10. W9's requested actual Claude first-call token measurement remains unverified; its implementation and provider-option contracts pass. This is not a claim that all ten workstreams or all acceptance measurements are complete.
 
 | Workstream | Status | Commit | Result |
 | --- | --- | --- | --- |
@@ -12,9 +12,9 @@ Eight workstreams have implementation commits. W10 now corrects cumulative accou
 | W3 | done | `a3414008e` | Omit exact skill files already exposed natively to Claude |
 | W4 | done | `f4635c9c8` | Smaller runtime reference router with required guidance retained |
 | W5 | done | `be622495c` | Smaller hosted descriptions; identifiers and schemas unchanged |
-| W6 | blocked | — | Default output reduction conflicts with the current public compatibility window |
+| W6 | moved to #1432 | — | Compact/full native-tool result views will ship separately |
 | W7 | done | `31eb6c52e` | Durable admission prevents replaying the same child-wake revision |
-| W8 | blocked after round 2 survey | — | Accepted default policy; adapter eligibility/deadline transitions are not exposed |
+| W8 | moved to #1435 | — | Adapter-coordinated idle compaction experiment and implementation will ship separately |
 | W9 | done; token measurement unverified | `1ba6a448b` | Lean Claude environment for system/triage and opted-in agents |
 | W10 | done in round 2 | `09d60b814` | Durable per-turn increments, detected resets, migrated historical repair/unknown |
 
@@ -22,7 +22,7 @@ Eight workstreams have implementation commits. W10 now corrects cumulative accou
 
 Both binaries ran against an isolated Compozy home, provider home, workspace, port, and Unix socket. The provider-free ACP driver exercised the real daemon and hosted native tools. The fixture contained 100 workspace skills, 80 exposed as native Claude skill symlinks, plus the bundled Compozy skill. It used a general agent with the complete allowed native-tool policy.
 
-The final base session was `sess-d07c27f9cc046d9e`; the final candidate session was `sess-ee3cf323aa920bc4`. Each began fresh and completed two turns. Counts below are Unicode characters, not provider tokens. Tagged-block counts include opening and closing tags. Startup plain text excludes the four runtime/situation/catalog blocks, trailing user text, and surrounding whitespace.
+The final base and candidate runs each began with a fresh session and completed two turns. Counts below are Unicode characters, not provider tokens. Tagged-block counts include opening and closing tags. Startup plain text excludes the four runtime/situation/catalog blocks, trailing user text, and surrounding whitespace.
 
 | Metric | Base | Candidate | Reduction |
 | --- | ---: | ---: | ---: |
@@ -91,13 +91,13 @@ Verification: T5 and L5 passed. Across native descriptors, hosted description by
 
 Compatibility: descriptive metadata only; existing stable identifiers and input/output schemas are unchanged. No migration. No open design question.
 
-### W6 — blocked: stable default output
+### W6 — moved to #1432: compact/full result views
 
 Current session tools expose stable full-session outputs. Dropping static fields from the default response would break existing no-argument callers. SD-013 requires keeping the old public shape for one release after a replacement ships when a lossless migration is unavailable. The current interface has no response-version negotiation that would identify compact-capable callers. Keeping the old default and adding an opt-in compact view would be a staged prerequisite, not the requested compact default or 50% result-size outcome; the brief prohibits shipping partial workstreams.
 
 No production/test/doc contract files or migration were changed for W6. No W6-specific tests or lint were run. The real four-tool measurements above demonstrate unchanged behavior and the unmet target.
 
-Open decision: authorize a staged replacement/deprecation release, or specify a negotiated response version and rollout contract. This workstream requires a public-surface compatibility transition, not a SQLite migration.
+The operator moved this workstream to [#1432](https://github.com/compozy/compozy/issues/1432), covering compact/full result views for all native tools in a separate PR. Its public-surface compatibility transition is outside this branch.
 
 ### W7 — redundant wake admission
 
@@ -107,9 +107,9 @@ Verification: T7 and L7 passed. Controlled delivery of one revision three times 
 
 Compatibility: existing public wake/event shapes and durable queue identity are reused; no schema/data migration or new delay. No open design question. Historical wake frequencies were supplied by the brief; they were not remeasured from operator data.
 
-### W8 — blocked after round 2 adapter survey
+### W8 — moved to #1435: adapter-owned idle compaction
 
-The operator approved on-by-default bounded retention for adapter-owned warm-cache compaction. The remaining blocker is technical: no authoritative armed/eligibility/deadline lifecycle is exposed by the verified Claude adapter. No daemon compaction or partial retention heuristic shipped. See the round 2 W8 section below for the complete survey, source evidence, exact prerequisite and unrun checks. The earlier off-by-default proposal is superseded.
+The operator moved W8 to [#1435](https://github.com/compozy/compozy/issues/1435): experiment first, then a separate PR. The earlier round 2 proposal approved bounded retention for adapter-owned warm-cache compaction. The remaining blocker is technical: no authoritative armed/eligibility/deadline lifecycle is exposed by the verified Claude adapter. No daemon compaction or partial retention heuristic shipped. See the round 2 W8 section below for the complete survey, source evidence, exact prerequisite and unrun checks. The earlier off-by-default proposal is superseded.
 
 ### W9 — lean environment
 
@@ -376,7 +376,7 @@ skills/compozy/references/agent-definitions.md
 
 ## Round 2 — adapter surveys and delivery evidence
 
-Round 2 implements the operator-approved counter heuristic and historical repair in W10. W8's on-by-default policy is accepted, but a missing adapter observation contract still blocks a correct implementation. W6 remains untouched and undecided. The round 2 brief is `docs/prompts/20261109-1845_harness-token-efficiency-round2.md`.
+Round 2 implements the operator-approved counter heuristic and historical repair in W10. The W8 adapter survey identified an observation-contract gap; W8 is now tracked separately in #1435. W6 remains outside this branch and is tracked in #1432. The round 2 brief is `docs/prompts/20261109-1845_harness-token-efficiency-round2.md`.
 
 ### W10 — committed: per-turn monetary accounting
 
@@ -459,7 +459,7 @@ Source formatting used `golangci-lint fmt` on the explicit changed non-generated
 
 > Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, including detected counter restarts. The upgrade preserves raw reports and rebuilds agent-reported historical costs from retained session ledgers. Included and estimated costs remain unchanged. Missing or incomplete evidence for agent-reported costs is shown as unknown; token counts, turn counts and timestamps are preserved. A counter reset whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
 
-### W8 — still blocked: adapter-owned eligibility/deadline observation
+### W8 — survey retained for #1435: adapter-owned eligibility/deadline observation
 
 Status: **blocked, no implementation commit**. The operator decision is not pending: the requested policy is on by default, with an off switch, bounded retention and no Compozy-issued compaction. No partial retention rule, placeholder capability, new setting or migration was shipped.
 
@@ -492,12 +492,11 @@ W8 measurements: no after measurement or savings claim. The source proves why a 
 
 W8 files changed: report only. Compatibility/migrations: no runtime/public/config/schema change. W8 focused hold/lapse/off-switch tests and provider-backed shortened-delay run: **not run**, because no safe implementation of the required authoritative hold contract is available. The existing `session.supervision.idle_release_after` behavior is unchanged. Config/site/skill documents do not advertise an unimplemented on-by-default policy.
 
-W8 release-note text for this revision: **“Idle runtime release behavior is unchanged. Adapter-coordinated warm-cache retention remains blocked pending structured adapter eligibility and deadline reporting.”** Do not publish an on-by-default retention claim for this branch.
 
 ### Round 2 remaining questions and unverified work
 
 - No additional operator decision is needed for W10. Its accepted numeric reset ambiguity remains documented; no reset epoch is invented.
-- W8 needs the upstream structured observation prerequisite described above; the timing/default decision has already been made. W6 still needs its separate compatibility decision and was not started.
+- W8 moved to #1435 for an experiment and separate PR; W6 moved to #1432 for compact/full native-tool result views. Neither is part of this delivery.
 - No production user database was modified or production billing series remeasured. Migration proof uses isolated SQLite fixtures, including real owner open/reopen and fresh-versus-replay equivalence.
 - No paid Claude warm-idle experiment, no live adapter matrix, and no browser/HTTP/UDS QA walkthrough was run in round 2. Existing integration suites ran against real storage/lifecycle owners with a fake ACP boundary. The three cost QA scenarios were updated, not marked newly walked.
 - No `make codegen-check`, repository-wide/uncached typecheck, gate, full/race/E2E suite, CI, push or PR was run in round 2. Round 1 receipts remain explicitly historical. All listed round 2 focused checks passed before commit.
@@ -606,4 +605,4 @@ internal/store/globaldb/sqlcgen/usage_cost_repair.sql.go
 internal/store/globaldb/usage_cost_migration.go
 ```
 
-Not verified: production-wide global repair, live-provider billing, CI, full/race/E2E suites or browser/HTTP/UDS walkthroughs. No `make codegen-check` or global/uncached typecheck ran. W8 and its prior report were left unchanged; no push or PR was performed. The pending-clear guard is tested with real SQLite files and synthetic recovery artifacts; existing clear-recovery and rewind integration checks passed, but no process was deliberately crashed during an upgrade.
+Not verified: production-wide global repair, live-provider billing, CI, full/race/E2E suites or browser/HTTP/UDS walkthroughs. No `make codegen-check` or global/uncached typecheck ran. At this correction checkpoint, W8 code was unchanged and no push or PR had been performed; delivery evidence is recorded separately below. The pending-clear guard is tested with real SQLite files and synthetic recovery artifacts; existing clear-recovery and rewind integration checks passed, but no process was deliberately crashed during an upgrade.

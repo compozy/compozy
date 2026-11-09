@@ -11,7 +11,7 @@ bug_ids: BUG-20260825-skill-source-agent-write-doc-mismatch
 fix_status: fixed
 retest_status:
 fix_commits: 2643f4aba
-evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
+evidence: unpublished-local-artifact/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates; SITE-terminal-docs-truth
 ---

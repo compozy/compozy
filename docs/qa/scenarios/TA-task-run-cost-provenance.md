@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+evidence: unpublished-local-artifact/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---

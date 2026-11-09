@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa;docs/qa/reports/2026-09-12-session-context.md
+evidence: unpublished-local-artifact/qa;docs/qa/reports/2026-09-12-session-context.md
 last_report: docs/qa/reports/2026-09-12-session-context.md
 overlaps:
 ---
