@@ -44,14 +44,17 @@ export const principles: { n: string; title: string; body: string; rule: string 
   },
 ];
 
-/** The "everything loud" counter-example: every row in its own status colour. */
-export const loud: string[] = [
-  v("--color-destructive"),
-  v("--color-attn"),
-  v("--color-brand-cyan"),
-  v("--color-success"),
-  v("--color-brand-volt"),
-  v("--color-brand-sky"),
+/**
+ * The "everything loud" counter-example: every row in its own status colour. Each plate names
+ * the ink its label needs for AA: the gradient ink on the bright plates, white only on volt.
+ */
+export const loud: { fill: string; ink: string }[] = [
+  { fill: v("--color-destructive"), ink: v("--color-destructive-ink") },
+  { fill: v("--color-attn"), ink: v("--color-on-gradient") },
+  { fill: v("--color-brand-cyan"), ink: v("--color-on-gradient") },
+  { fill: v("--color-success"), ink: v("--color-on-gradient") },
+  { fill: v("--color-brand-volt"), ink: v("--color-fg-strong") },
+  { fill: v("--color-brand-sky"), ink: v("--color-on-gradient") },
 ];
 
 export interface Surf {

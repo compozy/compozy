@@ -71,10 +71,10 @@
   /* Signal palette. */
   --color-success: #0a7650;
   --color-success-tint: rgba(10, 118, 80, 0.08);
-  --color-warning: #d98404;
-  --color-warning-tint: rgba(217, 132, 4, 0.08);
-  --color-destructive: #dc2626;
-  --color-destructive-tint: rgba(220, 38, 38, 0.07);
+  --color-warning: #9a5b00;
+  --color-warning-tint: rgba(154, 91, 0, 0.08);
+  --color-destructive: #c81e1e;
+  --color-destructive-tint: rgba(200, 30, 30, 0.07);
   --color-destructive-ink: #ffffff;
   --color-info: #1663c7;
   --color-info-tint: rgba(22, 99, 199, 0.1);

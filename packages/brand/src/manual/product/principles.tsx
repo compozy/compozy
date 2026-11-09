@@ -63,12 +63,15 @@ export function Principles() {
                   key={s.name}
                   className="flex min-h-8 items-center justify-between rounded-[6px] px-2.5 text-[13.5px] font-semibold text-(--color-fg-strong)"
                   style={{
-                    background: `color-mix(in oklab, ${c} 20%, transparent)`,
-                    borderLeft: `3px solid ${c}`,
+                    background: `color-mix(in oklab, ${c.fill} 20%, transparent)`,
+                    borderLeft: `3px solid ${c.fill}`,
                   }}
                 >
                   <span>{s.name}</span>
-                  <span className="rounded-full px-2 text-[11px]" style={{ background: c }}>
+                  <span
+                    className="rounded-full px-2 text-[11px]"
+                    style={{ background: c.fill, color: c.ink }}
+                  >
                     {s.state.toUpperCase()}
                   </span>
                 </div>

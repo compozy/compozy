@@ -56,7 +56,7 @@ export const inks: Ink[] = [
     pantone: "2172 C",
     note: "Gradient middle.",
     swatch: "var(--color-brand-sky)",
-    text: "var(--color-fg-strong)",
+    text: "var(--color-on-gradient)",
   },
   {
     name: "Glint",

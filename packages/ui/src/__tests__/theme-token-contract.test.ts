@@ -286,6 +286,15 @@ const BRAND_CONTRAST_PAIRS: readonly ContrastPair[] = [
   ["color-attn", "color-attn-tint", AA_TEXT_CONTRAST, THEMES],
   ["color-attn", "color-canvas", AA_TEXT_CONTRAST, THEMES],
   ["color-attn", "color-rail", AA_TEXT_CONTRAST, THEMES],
+  ["color-warning", "color-warning-tint", AA_TEXT_CONTRAST, THEMES],
+  ["color-destructive", "color-destructive-tint", AA_TEXT_CONTRAST, THEMES],
+  ["color-success", "color-success-tint", AA_TEXT_CONTRAST, THEMES],
+  ["color-warning", "color-canvas", AA_TEXT_CONTRAST, THEMES],
+  // Solid signal plates carry `canvas` ink (pill-variants, tone, avatar).
+  ["color-canvas", "color-attn", AA_TEXT_CONTRAST, THEMES],
+  ["color-canvas", "color-success", AA_TEXT_CONTRAST, THEMES],
+  ["color-canvas", "color-warning", AA_TEXT_CONTRAST, THEMES],
+  ["color-canvas", "color-info", AA_TEXT_CONTRAST, THEMES],
   ...BRAND_TEXT_SURFACES.map(
     surface => ["color-brand-strong", surface, AA_TEXT_CONTRAST, THEMES] as const
   ),
@@ -313,6 +322,79 @@ describe.each(THEMES)("brand text contrast pairs (%s theme)", theme => {
         min
       );
     });
+  }
+});
+
+/**
+ * Ink on the brand gradients and bright signal plates. Text on a gradient must
+ * clear the floor against every stop (the worst stop decides), so the fixed
+ * `--color-on-gradient` ink is checked against each literal stop of
+ * `--gradient-brand` (4.5:1) and `--gradient-live` (3:1, large text only — its
+ * volt stop cannot carry body text in any ink). White is never the gradient ink.
+ */
+function gradientStops(name: string): Rgb[] {
+  return Array.from(readToken(name).matchAll(/#[0-9a-fA-F]{6}\b/g), match => {
+    const rgb = parseHexColor(match[0]);
+    if (!rgb) throw new Error(`bad stop ${match[0]} in --${name}`);
+    return rgb;
+  });
+}
+
+const GRADIENT_INK_FLOORS: readonly [gradient: string, min: number][] = [
+  ["gradient-brand", AA_TEXT_CONTRAST],
+  ["gradient-live", AA_NON_TEXT_CONTRAST],
+];
+
+// Bright plates that carry `--color-on-gradient` labels; attn and success are
+// dark-ground fills only (light themes darken them for text).
+const ON_GRADIENT_PLATES: readonly [plate: string, themes: readonly Theme[]][] = [
+  ["color-brand-sky", THEMES],
+  ["color-brand-teal", THEMES],
+  ["color-brand-cyan", THEMES],
+  ["color-brand-glint", THEMES],
+  ["color-attn", ["dark"]],
+  ["color-success", ["dark"]],
+];
+
+describe("ink on the brand gradients", () => {
+  it.each(GRADIENT_INK_FLOORS)(
+    "Should hold --color-on-gradient on every stop of --%s",
+    (name, min) => {
+      const stops = gradientStops(name);
+      expect(stops.length).toBeGreaterThanOrEqual(2);
+      for (const stop of stops) {
+        const ratio = contrastRatio(readHex("color-on-gradient", "dark"), stop);
+        expect(
+          ratio,
+          `--color-on-gradient on a --${name} stop = ${ratio.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(min);
+      }
+    }
+  );
+
+  it("Should keep the gradient ink fixed across themes", () => {
+    expect(readHex("color-on-gradient", "light")).toEqual(readHex("color-on-gradient", "dark"));
+  });
+
+  it("Should fail white on the brand gradient, so white never becomes its ink", () => {
+    const white = parseHexColor("#ffffff") as Rgb;
+    const worst = Math.min(
+      ...gradientStops("gradient-brand").map(stop => contrastRatio(white, stop))
+    );
+    expect(worst).toBeLessThan(AA_NON_TEXT_CONTRAST);
+  });
+
+  for (const theme of THEMES) {
+    for (const [plate, themes] of ON_GRADIENT_PLATES) {
+      if (!themes.includes(theme)) continue;
+      it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for --color-on-gradient on --${plate} (${theme})`, () => {
+        const ratio = contrastRatio(readHex("color-on-gradient", theme), readHex(plate, theme));
+        expect(
+          ratio,
+          `--color-on-gradient on --${plate} (${theme}) = ${ratio.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+      });
+    }
   }
 });
 

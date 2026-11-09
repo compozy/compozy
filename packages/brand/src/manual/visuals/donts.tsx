@@ -64,7 +64,7 @@ function Example({ visual, kind }: { visual: VisualName; kind: DontKind }) {
         </svg>
       )}
       {kind === "fake" && (
-        <span className="absolute right-3 bottom-3 rounded bg-destructive/90 px-2 py-0.5 font-mono text-[11px] text-(--color-fg-strong)">
+        <span className="absolute right-3 bottom-3 rounded bg-destructive px-2 py-0.5 font-mono text-[11px] text-destructive-ink">
           99.99% faster
         </span>
       )}

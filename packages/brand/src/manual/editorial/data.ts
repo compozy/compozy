@@ -123,7 +123,7 @@ export const callouts = [
   {
     kind: "Warning",
     border: "border-warning",
-    text: "text-[color-mix(in_oklab,var(--color-warning)_62%,var(--color-rail))]",
+    text: "text-[color-mix(in_oklab,var(--color-warning)_54%,var(--color-rail))]",
     body: "The filesystem write path is last-write-wins. Agents editing the same Loop should publish with expected_version.",
   },
 ];

@@ -151,6 +151,13 @@
   --color-qr-plate: #ffffff;
   --color-qr-module: #0a0a0a;
 
+  /* Ink on bright fills — the brand and Live gradients and the bright signal
+     plates (sky, teal, cyan, glint, attn, success). Fixed dark in BOTH themes
+     (never overridden in tokens-light.css): white fails AA from the gradient's
+     sky stop to its glint end. On --gradient-live it is large-text only (its
+     volt stop holds 3:1, not 4.5:1). */
+  --color-on-gradient: #0a0a0a;
+
   /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
      black-alpha on light). */
   --color-bar-fill: rgba(255, 255, 255, 0.085);

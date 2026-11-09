@@ -71,7 +71,7 @@ export function Print() {
             className="grid min-h-[150px] content-between rounded-[14px] border border-(--b-line) p-4"
             style={{ background: c.swatch, color: c.text }}
           >
-            <span className="mono-label text-[11px] opacity-80">{c.hex}</span>
+            <span className="mono-label text-[11px]">{c.hex}</span>
             <span className="font-display text-[20px] tracking-[-0.025em]">{c.name}</span>
           </div>
         ))}

@@ -132,7 +132,7 @@ function SizesAndSurfaces() {
                 <Icon name="loop" size={22} />
                 <Icon name="vault" size={22} />
               </span>
-              <span className="font-mono text-[11px] opacity-80">{t}</span>
+              <span className="font-mono text-[11px]">{t}</span>
             </div>
           ))}
         </div>

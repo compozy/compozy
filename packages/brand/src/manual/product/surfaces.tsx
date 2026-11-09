@@ -143,7 +143,7 @@ function LadderCard({ L }: { L: Ladder }) {
         {L.steps.map(s => (
           <li key={s.token}>
             <span className="font-mono">{s.token}</span> · {s.role}
-            {s.old && <span className="opacity-75"> · replaces {s.old}</span>}
+            {s.old && <span> · replaces {s.old}</span>}
           </li>
         ))}
       </ul>

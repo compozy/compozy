@@ -59,7 +59,7 @@ export function BarsDiagram({
         Array.from({ length: 9 }, (_, i) => (
           <span
             key={i}
-            className="absolute font-mono text-[0.75cqw] text-(--b-muted,var(--color-muted-foreground)) opacity-70"
+            className="absolute font-mono text-[0.75cqw] text-(--b-muted,var(--color-muted-foreground))"
             style={{ left: `${L + (i * W) / 8}%`, top: `${BASE + 3.5}%` }}
           >
             {String(i * 3).padStart(2, "0")}:00

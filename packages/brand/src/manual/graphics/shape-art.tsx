@@ -110,7 +110,7 @@ function PillTile() {
       <span className="rounded-full border border-line-strong px-3.5 py-1.5 font-mono text-[13px] text-muted-foreground">
         always-on
       </span>
-      <span className="rounded-full px-3.5 py-1.5 font-mono text-[13px] text-fg-strong [background:var(--gradient-brand)]">
+      <span className="rounded-full px-3.5 py-1.5 font-mono text-[13px] text-on-gradient [background:var(--gradient-brand)]">
         run_7f2
       </span>
     </div>

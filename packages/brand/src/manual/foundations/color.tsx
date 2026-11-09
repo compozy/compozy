@@ -1,3 +1,4 @@
+import { cn } from "@compozy/ui/utils";
 import { card, h3, lab } from "../cls";
 import { grade, ratio } from "../contrast";
 import { Section } from "../parts/section";
@@ -20,11 +21,11 @@ function Swatches() {
             className="group grid min-h-[280px] cursor-pointer content-between rounded-card border border-(--b-line) p-6 text-left"
             style={{ background: c.fill, color: c.ink }}
           >
-            <span className="font-mono text-[12px] opacity-80">{c.token}</span>
+            <span className="font-mono text-[12px]">{c.token}</span>
             <span>
               <span className="block font-display text-[30px] tracking-[-0.02em]">{c.name}</span>
               <span className="block font-mono text-[13px]">{c.hex}</span>
-              <span className="mt-3 block text-[14px] opacity-85">{c.role}</span>
+              <span className="mt-3 block text-[14px]">{c.role}</span>
             </span>
           </button>
         ))}
@@ -88,7 +89,10 @@ function ContrastTable() {
               <tr key={p.use} className="border-b border-(--b-line)">
                 <td className="py-2.5 pr-3">
                   <span
-                    className="inline-grid h-9 w-14 place-items-center rounded-md font-display text-[16px] shadow-[inset_0_0_0_1px_var(--b-line)]"
+                    className={cn(
+                      "inline-grid h-9 w-14 place-items-center rounded-md font-display shadow-[inset_0_0_0_1px_var(--b-line)]",
+                      g === "AA large" ? "text-[24px]" : "text-[16px]"
+                    )}
                     style={{ background: p.bgFill, color: p.fgFill }}
                   >
                     Aa

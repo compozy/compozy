@@ -81,6 +81,7 @@ tokens:
       viz-cell: "#ffffff"
       qr-plate: "#ffffff"
       qr-module: "#0a0a0a"
+      on-gradient: "#0a0a0a"
       bar-fill: "rgba(255, 255, 255, 0.085)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
@@ -186,10 +187,10 @@ tokens:
       attn-tint: "rgba(154, 91, 0, 0.08)"
       success: "#0a7650"
       success-tint: "rgba(10, 118, 80, 0.08)"
-      warning: "#d98404"
-      warning-tint: "rgba(217, 132, 4, 0.08)"
-      destructive: "#dc2626"
-      destructive-tint: "rgba(220, 38, 38, 0.07)"
+      warning: "#9a5b00"
+      warning-tint: "rgba(154, 91, 0, 0.08)"
+      destructive: "#c81e1e"
+      destructive-tint: "rgba(200, 30, 30, 0.07)"
       destructive-ink: "#ffffff"
       info: "#1663c7"
       info-tint: "rgba(22, 99, 199, 0.1)"
@@ -772,8 +773,8 @@ amber (`--color-attn`) marks needs-you, never the default action.
 | Role        | Token                 | Dark      | Light     | Tint dark                   | Tint light                  |
 | ----------- | --------------------- | --------- | --------- | --------------------------- | --------------------------- |
 | Success     | `--color-success`     | `#34d399` | `#0a7650` | `rgba(52, 211, 153, 0.1)`   | `rgba(10, 118, 80, 0.08)`   |
-| Warning     | `--color-warning`     | `#f5b14c` | `#d98404` | `rgba(245, 177, 76, 0.1)`   | `rgba(217, 132, 4, 0.08)`   |
-| Destructive | `--color-destructive` | `#f87171` | `#dc2626` | `rgba(248, 113, 113, 0.1)`  | `rgba(220, 38, 38, 0.07)`   |
+| Warning     | `--color-warning`     | `#f5b14c` | `#9a5b00` | `rgba(245, 177, 76, 0.1)`   | `rgba(154, 91, 0, 0.08)`    |
+| Destructive | `--color-destructive` | `#f87171` | `#c81e1e` | `rgba(248, 113, 113, 0.1)`  | `rgba(200, 30, 30, 0.07)`   |
 | Info        | `--color-info`        | `#1f87fc` | `#1663c7` | `rgba(31, 135, 252, 0.12)`  | `rgba(22, 99, 199, 0.1)`    |
 | Neutral     | `--color-neutral`     | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
 

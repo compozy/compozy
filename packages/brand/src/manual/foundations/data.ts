@@ -126,7 +126,7 @@ export const colors: { core: Swatch[]; gradient: Swatch[]; neutrals: Swatch[] } 
       token: "--color-brand-volt",
       role: "Action. Primary buttons, links, focus, selected state.",
       fill: v("--color-brand-volt"),
-      ink: v("--color-brand-ink"),
+      ink: v("--color-fg-strong"),
     },
     {
       name: "Signal",
@@ -152,7 +152,7 @@ export const colors: { core: Swatch[]; gradient: Swatch[]; neutrals: Swatch[] } 
       token: "--color-brand-sky",
       role: "Gradient start. Info state in product.",
       fill: v("--color-brand-sky"),
-      ink: ON_INK,
+      ink: v("--color-on-gradient"),
     },
     {
       name: "Teal",
@@ -272,7 +272,7 @@ export const contrastPairs: {
     fg: "#FFFFFF",
     bg: "#2F5BFF",
     use: "Button label on volt",
-    fgFill: v("--color-brand-ink"),
+    fgFill: v("--color-fg-strong"),
     bgFill: v("--color-brand-volt"),
   },
   {
@@ -295,6 +295,13 @@ export const contrastPairs: {
     use: "OS chip on paper",
     fgFill: "color-mix(in oklab, var(--color-brand-cyan) 45%, var(--color-rail))",
     bgFill: v("--color-fg"),
+  },
+  {
+    fg: "#0a0a0a",
+    bg: "#1F87FC",
+    use: "Text on the gradient, against its darkest stop (never white)",
+    fgFill: v("--color-on-gradient"),
+    bgFill: v("--gradient-brand"),
   },
   {
     fg: "#2F5BFF",

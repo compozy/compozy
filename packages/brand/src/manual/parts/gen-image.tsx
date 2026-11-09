@@ -29,7 +29,7 @@ export function GenImage({ src, alt, caption, ratio, className, generated = true
         <figcaption className="mt-2.5 text-sm text-(--b-muted)">
           {caption}
           {generated && (
-            <span className="ml-1 mono-label text-[11px] tracking-[0.08em] opacity-70">
+            <span className="ml-1 mono-label text-[11px] tracking-[0.08em]">
               {caption ? "· " : ""}generated reference
             </span>
           )}

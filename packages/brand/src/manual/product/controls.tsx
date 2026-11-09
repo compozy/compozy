@@ -46,7 +46,7 @@ const THEMES: { t: "dark" | "light"; name: string; scope: Scope }[] = [
       "--k-volt": mix("--color-brand-volt", 88, "--color-rail"),
       "--k-volt-hover": mix("--color-brand-volt", 76, "--color-rail"),
       "--k-cyan": mix("--color-brand-cyan", 45, "--color-rail"),
-      "--k-danger": mix("--color-destructive", 70, "--color-rail"),
+      "--k-danger": mix("--color-destructive", 64, "--color-rail"),
       "--k-warning": mix("--color-attn", 62, "--color-rail"),
     },
   },

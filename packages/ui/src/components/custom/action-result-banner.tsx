@@ -51,7 +51,7 @@ function ActionResultBanner({
           {title}
         </p>
         {description ? (
-          <p data-slot="action-result-banner-description" className="text-form-label opacity-90">
+          <p data-slot="action-result-banner-description" className="text-form-label">
             {description}
           </p>
         ) : null}

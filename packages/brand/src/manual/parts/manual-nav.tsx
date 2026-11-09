@@ -87,9 +87,7 @@ export function ManualNav({
                 aria-current={activeSection === id ? "true" : undefined}
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-medium whitespace-nowrap text-muted-foreground no-underline hover:text-fg aria-[current=true]:text-(--color-brand-cyan)"
               >
-                <span className="font-mono text-[10.5px] opacity-60">
-                  {String(k + 1).padStart(2, "0")}
-                </span>
+                <span className="font-mono text-[10.5px]">{String(k + 1).padStart(2, "0")}</span>
                 {name}
               </a>
             </li>

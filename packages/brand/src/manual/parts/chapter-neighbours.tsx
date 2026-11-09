@@ -6,8 +6,9 @@ import { Visual } from "../art/visual";
 import { hrefOf, pages, type Chapter } from "../chapters";
 
 const SCRIM = {
-  dark: "bg-[linear-gradient(90deg,color-mix(in_oklab,var(--color-rail)_90%,transparent),transparent_70%)]",
-  light: "bg-[linear-gradient(90deg,var(--color-fg),transparent_70%)]",
+  dark: "bg-[linear-gradient(0deg,color-mix(in_oklab,var(--color-rail)_88%,transparent),transparent_60%),linear-gradient(90deg,color-mix(in_oklab,var(--color-rail)_90%,transparent),transparent_70%)]",
+  light:
+    "bg-[linear-gradient(0deg,color-mix(in_oklab,var(--color-fg)_88%,transparent),transparent_60%),linear-gradient(90deg,var(--color-fg),transparent_70%)]",
 };
 
 export function ChapterNeighbours({ page }: { page: Chapter }) {

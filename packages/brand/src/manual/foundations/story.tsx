@@ -17,7 +17,7 @@ const steps: [title: string, text: string][] = [
   ],
 ];
 
-const marker = "absolute mono-label text-[11px] text-muted-foreground";
+const marker = "absolute mono-label text-[11px]";
 
 export function Story() {
   return (
@@ -47,8 +47,8 @@ export function Story() {
             width="618"
             height="618"
           />
-          <span className={`${marker} top-[26%] left-[12%]`}>← trace</span>
-          <span className={`${marker} right-[8%] bottom-[18%]`}>loop →</span>
+          <span className={`${marker} top-[26%] left-[12%] text-muted-foreground`}>← trace</span>
+          <span className={`${marker} right-[8%] bottom-[18%] text-muted-foreground`}>loop →</span>
           <span className={`${marker} top-[47%] left-[20%] text-(--color-brand-glint)`}>fold</span>
         </div>
         <ol className="m-0 grid list-none gap-4 p-0">

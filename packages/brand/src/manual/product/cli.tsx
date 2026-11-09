@@ -25,7 +25,7 @@ const sets: { name: string; set: Ansi; bg: string; paper: boolean }[] = [
 // placeholder bright blue (ANSI 12), meta in ANSI 8, headings bright white
 const ink = {
   head: "text-(--color-fg-strong) font-semibold",
-  meta: "text-(--color-indicator)",
+  meta: "text-(--color-faint)",
   body: "text-(--color-fg-3)",
 };
 const HELP_LINES = numberLines(cliHelp);
