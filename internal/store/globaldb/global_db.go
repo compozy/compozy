@@ -58,6 +58,10 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 			return time.Now().UTC()
 		},
 	}
+	if config.now != nil {
+		clock := config.now
+		globalDB.now = func() time.Time { return clock().UTC() }
+	}
 	globalDB.initializeRepositories(config)
 	globalDB.ObserveRepo.drainCommittedEventSummaries(ctx)
 	if err := globalDB.PurgeDeletedTelemetry(ctx); err != nil {

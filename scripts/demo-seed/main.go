@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/compozy/compozy/internal/config"
@@ -40,6 +41,10 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	homeDir := flags.String("home", defaultHome, "CompozyOS home to populate")
 	replace := flags.Bool("replace", false, "replace only the existing Northstar Pay scenario")
 	jsonOutput := flags.Bool("json", false, "print the result as JSON")
+	live := flags.Bool("live", false, "start the daemon on a seeded home and hold live session states until Ctrl-C")
+	compozyBinary := flags.String("compozy", "bin/compozy", "compozy binary for --live")
+	mockDriver := flags.String("mock-driver", "bin/acpmock-driver", "acpmock driver binary for --live")
+	webDist := flags.String("web-dist", "web/dist", "built web bundle for --live")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("demo seed: parse flags: %w", err)
 	}
@@ -50,6 +55,14 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	paths, err := config.ResolveHomePathsFrom(*homeDir)
 	if err != nil {
 		return fmt.Errorf("demo seed: resolve home: %w", err)
+	}
+	if *live {
+		options, err := absoluteLiveOptions(paths.HomeDir, *compozyBinary, *mockDriver, *webDist)
+		options.configFile = paths.ConfigFile
+		if err != nil {
+			return err
+		}
+		return runLive(ctx, options, stdout)
 	}
 	lock, err := daemon.AcquireLock(paths.DaemonLock, os.Getpid())
 	if err != nil {
@@ -115,4 +128,18 @@ func printResult(output io.Writer, result demoseed.Result) error {
 		return fmt.Errorf("demo seed: print result summary: %w", err)
 	}
 	return nil
+}
+
+func absoluteLiveOptions(home, compozy, mockDriver, webDist string) (liveOptions, error) {
+	options := liveOptions{home: home}
+	for target, value := range map[*string]string{
+		&options.compozy: compozy, &options.mockDriver: mockDriver, &options.webDist: webDist,
+	} {
+		absolute, err := filepath.Abs(value)
+		if err != nil {
+			return liveOptions{}, fmt.Errorf("demo seed: resolve %q: %w", value, err)
+		}
+		*target = absolute
+	}
+	return options, nil
 }
