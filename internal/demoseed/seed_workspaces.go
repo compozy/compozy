@@ -118,6 +118,25 @@ func validateWorkspaceConflicts(ctx context.Context, db *globaldb.GlobalDB, stat
 		if marker.WorkspaceKey != story.Key {
 			return fmt.Errorf("demo seed: workspace marker key %q does not match %q", marker.WorkspaceKey, story.Key)
 		}
+		if err := validateSeedManifest(root, marker); err != nil {
+			return err
+		}
+		if err := refuseUnownedFeeds(root, story.Key, marker); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// refuseUnownedFeeds stops a replace before it would overwrite a file the seed never wrote.
+func refuseUnownedFeeds(root string, workspaceKey string, marker seedMarker) error {
+	for _, feed := range sourceFeedPaths(workspaceKey) {
+		if slices.Contains(marker.Manifest, feed) {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(feed))); err == nil {
+			return fmt.Errorf("demo seed: refusing to overwrite unowned feed %q in %s", feed, root)
+		}
 	}
 	return nil
 }

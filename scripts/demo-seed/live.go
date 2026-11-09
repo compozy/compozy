@@ -72,7 +72,9 @@ func runLive(ctx context.Context, options liveOptions, output io.Writer) (err er
 	if _, err := run.compozyOutput(ctx, "daemon", "start"); err != nil {
 		return fmt.Errorf("demo seed: start daemon: %w", err)
 	}
-	run.archivePreviousSessions(ctx)
+	if err := run.archivePreviousSessions(ctx); err != nil {
+		return err
+	}
 	for _, scenario := range liveScenarios {
 		if err := run.startScenario(ctx, scenario); err != nil {
 			return err
@@ -228,23 +230,35 @@ func (r *liveRun) recordCreated(id string) error {
 }
 
 // archivePreviousSessions clears the last run's sessions so a restart does not pile up copies.
-func (r *liveRun) archivePreviousSessions(ctx context.Context) {
+// An unreadable list stops startup, since recording new sessions would overwrite it.
+func (r *liveRun) archivePreviousSessions(ctx context.Context) error {
 	raw, err := os.ReadFile(filepath.Join(r.options.home, liveOwnedName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
-		return
+		return fmt.Errorf("demo seed: read live session list: %w", err)
 	}
 	var previous []string
 	if err := json.Unmarshal(raw, &previous); err != nil {
-		fmt.Fprintln(r.output, "demo seed: ignore unreadable live session list:", err)
-		return
+		return fmt.Errorf("demo seed: read live session list: %w", err)
 	}
 	for _, id := range previous {
-		if _, err := r.compozyOutput(ctx, "session", "archive", id, "--stop"); err != nil {
-			// Kept in the owned list, so the next run tries this session again.
-			r.created = append(r.created, id)
-			fmt.Fprintln(r.output, "demo seed: archive previous live session:", err)
+		_, err := r.compozyOutput(ctx, "session", "archive", id, "--stop")
+		if err == nil || sessionMissing(err) {
+			continue
 		}
+		// Kept in the owned list, so the next run tries this session again.
+		r.created = append(r.created, id)
+		fmt.Fprintln(r.output, "demo seed: archive previous live session:", err)
 	}
+	return nil
+}
+
+// sessionMissing recognizes a session that is already gone, which no retry can archive.
+func sessionMissing(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "session not found") || strings.Contains(message, "session_not_found")
 }
 
 // expectedBadge is the state a re-armable scenario holds; waits and delegations are never re-sent.

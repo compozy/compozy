@@ -145,8 +145,11 @@ func riskMonitorInstance(clock timeline) instanceStory {
 }
 
 // writeSourceFeeds writes the exports the check-in source scripts read, so a live check works.
-func writeSourceFeeds(state *scenario) error {
-	feeds := []struct{ workspaceKey, path, content string }{
+// sourceFeed is one export a check-in source script reads from its project.
+type sourceFeed struct{ workspaceKey, path, content string }
+
+func sourceFeeds() []sourceFeed {
+	return []sourceFeed{
 		{
 			workspaceKeyLaunch,
 			riskAlertsFeed,
@@ -160,7 +163,21 @@ func writeSourceFeeds(state *scenario) error {
 		{workspaceKeyRisk, settlementLogFeed, `{"items":[{"key":"sig:model-store-timeout",` +
 			`"title":"dispute model store timeout","summary":"2 since the last export"}]}` + "\n"},
 	}
-	for _, feed := range feeds {
+}
+
+// sourceFeedPaths lists the feed files the seed writes in one project.
+func sourceFeedPaths(workspaceKey string) []string {
+	paths := []string{}
+	for _, feed := range sourceFeeds() {
+		if feed.workspaceKey == workspaceKey {
+			paths = append(paths, feed.path)
+		}
+	}
+	return paths
+}
+
+func writeSourceFeeds(state *scenario) error {
+	for _, feed := range sourceFeeds() {
 		record, err := state.recordFor(feed.workspaceKey)
 		if err != nil {
 			return err

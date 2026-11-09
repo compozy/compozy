@@ -4,9 +4,11 @@ package demoseed
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -63,8 +65,9 @@ func TestSeed(t *testing.T) {
 		if err := writeSeedMarker(docsRoot, "someone-elses-project"); err != nil {
 			t.Fatalf("writeSeedMarker() error = %v", err)
 		}
-		if _, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now}); err == nil {
-			t.Fatal("Seed(replace) error = nil, want the marker conflict")
+		_, err = Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now})
+		if err == nil || !strings.Contains(err.Error(), "does not match") {
+			t.Fatalf("Seed(replace) error = %v, want the marker conflict", err)
 		}
 		db, err := globaldb.OpenGlobalDB(ctx, first.DatabaseFile)
 		if err != nil {
@@ -77,6 +80,34 @@ func TestSeed(t *testing.T) {
 		}()
 		if _, err := db.GetWorkspace(ctx, first.WorkspaceIDs[0]); err != nil {
 			t.Fatalf("GetWorkspace(first project) after refused replace error = %v", err)
+		}
+	})
+
+	t.Run("Should refuse to overwrite a feed the seed does not own", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
+		homeDir := filepath.Join(t.TempDir(), "home")
+		if _, err := Seed(ctx, Options{HomeDir: homeDir, Now: now}); err != nil {
+			t.Fatalf("Seed(first) error = %v", err)
+		}
+		root := filepath.Join(homeDir, "workspaces", "northstar-pay", workspaceKeyRisk)
+		marker, err := readSeedMarker(root)
+		if err != nil {
+			t.Fatalf("readSeedMarker() error = %v", err)
+		}
+		marker.Manifest = slices.DeleteFunc(marker.Manifest, func(path string) bool { return path == riskAlertsFeed })
+		raw, err := json.Marshal(marker)
+		if err != nil {
+			t.Fatalf("Marshal(marker) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(seedMarkerRelative)), raw, 0o600); err != nil {
+			t.Fatalf("WriteFile(marker) error = %v", err)
+		}
+		_, err = Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now})
+		if err == nil || !strings.Contains(err.Error(), "unowned feed") {
+			t.Fatalf("Seed(replace) error = %v, want the unowned feed refusal", err)
 		}
 	})
 
