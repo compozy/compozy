@@ -45,11 +45,17 @@ Planning 2026-11-07 (issue #1326, spec `provider-enable-toggle`, task_06). Walk 
 9. **Re-enable.** `compozy config set providers.gemini.enabled true` → starts succeed again and the
    config file is byte-identical to the original (an `enabled`-only block is removed);
    `provider_usage.providers.gemini.*` never changes. A block authored as `[providers.OPENCODE]`
-   is toggled in place for `opencode` (no sibling `[providers.opencode]`).
+   is toggled in place for `opencode` (no sibling `[providers.opencode]`) through both the CLI and
+   the Settings toggle (`PATCH /api/settings/providers/opencode/enabled`).
 10. **Pending-only reload.** Add a new custom provider with `enabled = false` and reload: the
     reload stays pending (`applied: false`, restart-daemon) instead of recording a live apply.
+    Disabling a custom provider whose definition is still pending succeeds and stays pending with
+    it; removing a disabled custom provider from the file keeps it disabled until the removal
+    applies on restart.
 11. **Retained disabled value.** A session picker pinned to a disabled provider shows it marked
     Disabled, but neither its model row (pointer or keyboard) nor a custom model ID for that
-    provider can be committed.
+    provider can be committed. An exact `provider/model` entry (loop runtime, `allowCustomProvider`)
+    naming any provider the selector knows is disabled is refused, even when it is not the current
+    value.
 
 QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.
