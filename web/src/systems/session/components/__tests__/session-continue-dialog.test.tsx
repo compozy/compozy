@@ -342,6 +342,7 @@ describe("SessionContinueDialog", () => {
         }
       }
       await user.keyboard("{Escape}");
+      expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
       await user.click(screen.getByTestId("session-continue-submit"));
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.runtime).toEqual({
@@ -416,6 +417,91 @@ describe("SessionContinueDialog", () => {
       });
     }
   );
+
+  // Invariant: Cursor's observed effort/speed combinations gate creation, while unknown
+  // combinations remain daemon-validated; correcting a local error preserves API errors.
+  // Owning layer and canonical suite: this Continue dialog request boundary.
+  it.each([true, false])("Should validate Cursor combinations when observed=%s", async observed => {
+    const user = userEvent.setup();
+    agents.data = deriveAgentsFixture.map(agent =>
+      agent.name === "codex"
+        ? {
+            ...agent,
+            effective_runtime: {
+              provider: "cursor-alias",
+              model: "composer",
+              reasoning_effort: "high",
+              speed: "normal",
+              sources: {
+                provider: "agent",
+                model: "agent",
+                reasoning_effort: "agent",
+                speed: "agent",
+              },
+            },
+          }
+        : agent
+    );
+    runtimeCatalog.providers = [{ id: "cursor-alias", name: "Cursor", runtime_provider: "cursor" }];
+    runtimeCatalog.models = [
+      {
+        id: "composer",
+        provider: "cursor-alias",
+        name: "Composer",
+        efforts: ["low", "high"],
+        availability: "live",
+        curated: true,
+        configurations: observed
+          ? [
+              { reasoning_effort: "high", fast: true },
+              { reasoning_effort: "low", fast: false },
+            ]
+          : [
+              { reasoning_effort: "high", fast: null },
+              { reasoning_effort: "low", fast: null },
+            ],
+      },
+    ];
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({
+      onContinue: request => sent.push(request),
+      result: {
+        status: 422,
+        error: "provider unavailable",
+        code: "model_unavailable",
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    if (observed) {
+      expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+        "Choose a supported reasoning effort and speed combination before continuing."
+      );
+      expect(sent).toHaveLength(0);
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      await user.click(await screen.findByTestId("runtime-selector-speed"));
+      await user.keyboard("{Escape}");
+      expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
+      await user.click(screen.getByTestId("session-continue-submit"));
+    }
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toMatchObject({
+      reasoning_effort: "high",
+      speed: observed ? "fast" : "normal",
+    });
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "provider unavailable"
+    );
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+      key: "Home",
+    });
+    if (observed) await user.click(await screen.findByTestId("runtime-selector-speed"));
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(
+      "provider unavailable"
+    );
+  });
 
   it("Should open a new window by default and never the current one", async () => {
     const user = userEvent.setup();

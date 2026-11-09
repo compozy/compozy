@@ -108,6 +108,9 @@ unobserved level set must preserve the chosen effort and let the daemon validate
 If a model advertises only `none` while the agent carries a reasoning level, Continue refuses
 before creating a child and directs the user to choose another model or agent. Choosing a model
 that supports that level then allows submission.
+Cursor's advertised effort/speed pairs are checked together; unknown pair metadata is left to
+the daemon. Correcting an invalid runtime clears its local refusal without clearing an unrelated
+daemon submission error.
 
 ## Deleted root ancestor regression
 

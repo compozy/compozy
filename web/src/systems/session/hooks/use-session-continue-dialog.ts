@@ -11,6 +11,7 @@ import {
   modelSupportsReasoningEffort,
   normalizeRuntimeSelectorValue,
   runtimeACPSelectionsEqual,
+  type RuntimeModelOption,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import { useSessionContinueRuntimeOptions } from "./use-session-continue-runtime-options";
@@ -52,10 +53,19 @@ interface RuntimeOverride {
 }
 
 /** Serialize the confirmed runtime without converting omitted speed into agent inheritance. */
-function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runtime"] {
+function runtimeRequest(
+  override: RuntimeOverride,
+  inherited: RuntimeSelectorValue
+): ContinueSessionRequest["runtime"] {
   const provider = override.value.provider.trim();
   if (provider === "") return undefined;
   const model = override.value.model.trim();
+  // Keep inherited values visible, but leave unchanged defaults daemon-owned.
+  const acpOverrides = override.value.acp_options?.filter(
+    selection =>
+      override.value.provider !== inherited.provider ||
+      !inherited.acp_options?.some(inherited => runtimeACPSelectionsEqual([selection], [inherited]))
+  );
   return {
     provider,
     ...(model ? { model } : {}),
@@ -65,8 +75,42 @@ function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runt
     // Always explicit: an omitted speed inherits the agent's default, so a
     // fast-default agent switched to normal would still run fast.
     speed: override.speed,
-    ...(override.value.acp_options ? { acp_options: override.value.acp_options } : {}),
+    ...(acpOverrides?.length ? { acp_options: acpOverrides } : {}),
   };
+}
+
+/** Match daemon effort inheritance: only the same provider and model keep the agent's effort. */
+function continuedRuntimeEffort(value: RuntimeSelectorValue, inherited: RuntimeSelectorValue) {
+  if (value.reasoning_effort) return value.reasoning_effort;
+  return value.provider === inherited.provider && value.model === inherited.model
+    ? inherited.reasoning_effort
+    : "";
+}
+
+/** Validate observed runtime combinations; unknown capability data stays daemon-owned. */
+function runtimeCompatibilityError(
+  model: RuntimeModelOption | undefined,
+  effort: RuntimeSelectorValue["reasoning_effort"],
+  speed: RuntimeSpeed,
+  provider: string
+): string | null {
+  if (!model) return null;
+  if (model.efforts.length > 0 && effort !== "" && !modelSupportsReasoningEffort(model, effort)) {
+    return model.efforts.some(level => level !== "none")
+      ? "Choose a reasoning effort supported by this model before continuing."
+      : "This model does not support the configured reasoning effort. Choose another model or agent.";
+  } else if (
+    provider === "cursor" &&
+    model.configurations?.length &&
+    !model.configurations.some(
+      configuration =>
+        (!effort || !configuration.reasoning_effort || configuration.reasoning_effort === effort) &&
+        (configuration.fast == null || configuration.fast === (speed === "fast"))
+    )
+  ) {
+    return "Choose a supported reasoning effort and speed combination before continuing.";
+  }
+  return null;
 }
 
 export interface UseSessionContinueDialogInput {
@@ -97,6 +141,7 @@ export function useSessionContinueDialog({
   const [message, setMessage] = useState("");
   const [placement, setPlacement] = useState<SessionDerivePlacement>("new-window");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [runtimeValidationRequested, setRuntimeValidationRequested] = useState(false);
   const idempotencyKey = useSessionDeriveIdempotencyKey();
   const preview = useSessionDerivePreview(workspaceId, source.id, { enabled: open });
   const mutation = useSessionContinue();
@@ -122,6 +167,17 @@ export function useSessionContinueDialog({
   const runtimeValue = normalizeRuntimeSelectorValue(requestedValue, selectedModel);
   const runtimeSpeed =
     runtime?.speed ?? (normalizeRuntimeSpeed(agent?.effective_runtime?.speed) || "normal");
+  const effort = continuedRuntimeEffort(requestedValue, agentRuntime);
+  const provider = runtimeOptions.providers.find(option => option.id === requestedValue.provider);
+  const runtimeValidationError =
+    selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
+      ? runtimeCompatibilityError(
+          selectedModel,
+          effort,
+          runtimeSpeed,
+          provider?.runtime_provider ?? requestedValue.provider
+        )
+      : null;
   const isSubmitting = mutation.isPending;
   const measured = preview.view.state === "ready" || preview.view.state === "truncated";
   const canSubmit = !isSubmitting && measured && agent !== undefined;
@@ -132,51 +188,29 @@ export function useSessionContinueDialog({
     setRuntime(null);
     setRoute(SESSION_CONTINUE_DEFAULT_ROUTE);
     setSubmitError(null);
+    setRuntimeValidationRequested(false);
   };
 
   const submit = () => {
     if (!canSubmit) return;
-    // Omitting effort on the same model inherits the agent's setting at launch.
-    const effort =
-      requestedValue.reasoning_effort ||
-      (requestedValue.provider === agentRuntime.provider &&
-      requestedValue.model === agentRuntime.model
-        ? agentRuntime.reasoning_effort
-        : "");
-    if (
-      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE &&
-      selectedModel &&
-      selectedModel.efforts.length > 0 &&
-      effort !== "" &&
-      !modelSupportsReasoningEffort(selectedModel, effort)
-    ) {
-      setSubmitError(
-        selectedModel.efforts.some(level => level !== "none")
-          ? "Choose a reasoning effort supported by this model before continuing."
-          : "This model does not support the configured reasoning effort. Choose another model or agent."
-      );
+    if (runtimeValidationError) {
+      setRuntimeValidationRequested(true);
       return;
     }
     const trimmedMessage = message.trim();
-    // Keep inherited values visible, but leave unchanged defaults daemon-owned.
-    const acpOverrides = runtimeValue.acp_options?.filter(
-      selection =>
-        runtimeValue.provider !== agentRuntime.provider ||
-        !agentRuntime.acp_options?.some(inherited =>
-          runtimeACPSelectionsEqual([selection], [inherited])
-        )
-    );
     const runtimeBody =
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
-        ? runtimeRequest({
-            value: {
-              ...runtimeValue,
-              // Catalog refreshes cannot erase an explicit choice; ACP validates unknown support.
-              reasoning_effort: effort,
-              acp_options: acpOverrides?.length ? acpOverrides : undefined,
+        ? runtimeRequest(
+            {
+              value: {
+                ...runtimeValue,
+                // Catalog refreshes cannot erase an explicit choice; ACP validates unknown support.
+                reasoning_effort: effort,
+              },
+              speed: runtimeSpeed,
             },
-            speed: runtimeSpeed,
-          })
+            agentRuntime
+          )
         : null;
     const request: ContinueSessionRequest = {
       agent_name: agentName,
@@ -186,6 +220,7 @@ export function useSessionContinueDialog({
       ...(runtimeBody ? { runtime: runtimeBody } : {}),
     };
     setSubmitError(null);
+    setRuntimeValidationRequested(false);
     mutation.mutate(
       { workspaceId, sourceId: source.id, request },
       {
@@ -225,7 +260,7 @@ export function useSessionContinueDialog({
     onPlacementChange: setPlacement,
     canChoosePlacement: handlers.openInThisWindow !== undefined,
     previewView: preview.view,
-    submitError,
+    submitError: (runtimeValidationRequested ? runtimeValidationError : null) ?? submitError,
     isSubmitting,
     canSubmit,
     submit,
