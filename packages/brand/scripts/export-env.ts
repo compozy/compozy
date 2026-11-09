@@ -44,6 +44,20 @@ export function resolveExportDir(
   return dir;
 }
 
+/**
+ * `name` as a file inside the export dir: relative names land under `<dir>/<sub>`, absolute names
+ * must already sit inside `dir`; `..` escapes and destinations elsewhere are refused.
+ */
+export function resolveExportFile(dir: string, name: string, sub = "."): string {
+  const file = realish(resolve(dir, sub, name));
+  if (!isInside(file, dir)) {
+    throw new Error(
+      `${name} resolves to ${file}, outside BRAND_EXPORT_DIR ${dir} — exports stay under the export dir (ADR-003)`
+    );
+  }
+  return file;
+}
+
 /** `BRAND_BASE_URL` without a trailing slash (default http://localhost:4620). */
 export const baseUrlOf = (env: Record<string, string | undefined>) =>
   (env.BRAND_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");

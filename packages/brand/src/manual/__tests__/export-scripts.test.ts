@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { REPO_ROOT, resolveExportDir } from "../../../scripts/export-env";
+import { REPO_ROOT, resolveExportDir, resolveExportFile } from "../../../scripts/export-env";
 
 const script = (name: string) =>
   fileURLToPath(new URL(`../../../scripts/${name}.ts`, import.meta.url));
@@ -28,8 +28,11 @@ async function deadBaseUrl() {
   return `http://127.0.0.1:${port}`;
 }
 
-function run(name: string, env: Record<string, string>) {
-  return spawnSync("bun", [script(name)], { encoding: "utf8", env: { ...process.env, ...env } });
+function run(name: string, env: Record<string, string>, args: string[] = []) {
+  return spawnSync("bun", [script(name), ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
 }
 
 describe("export scripts", () => {
@@ -74,6 +77,39 @@ describe("export scripts", () => {
     );
     expect(resolveExportDir({ BRAND_EXPORT_DIR: join(REPO_ROOT, "../brand-out") })).toBe(
       join(realpathSync(dirname(REPO_ROOT)), "brand-out")
+    );
+  });
+
+  it("shot refuses a BRAND_EXPORT_DIR inside the git working tree before capturing (UT-004)", () => {
+    const inside = join(REPO_ROOT, "packages/brand/.ut004-shots");
+    const result = run("shot", { BRAND_EXPORT_DIR: inside }, ["http://127.0.0.1:9", "page.png"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("is inside the git working tree");
+    expect(existsSync(inside)).toBe(false);
+  });
+
+  it("shot refuses a destination outside BRAND_EXPORT_DIR before capturing (UT-004)", () => {
+    const out = mkdtempSync(join(tmpdir(), "brand-ut004-"));
+    dirs.push(out);
+    const target = join(REPO_ROOT, "packages/brand/ut004-shot.png");
+    const result = run("shot", { BRAND_EXPORT_DIR: out }, ["http://127.0.0.1:9", target]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("outside BRAND_EXPORT_DIR");
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it("resolves shot names under <export dir>/shots and refuses escapes (UT-004)", () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "brand-ut004-")));
+    dirs.push(dir);
+    expect(resolveExportFile(dir, "page.png", "shots")).toBe(join(dir, "shots", "page.png"));
+    expect(resolveExportFile(dir, join(dir, "qa/page.png"), "shots")).toBe(
+      join(dir, "qa", "page.png")
+    );
+    expect(() => resolveExportFile(dir, "../../escape.png", "shots")).toThrow(
+      /outside BRAND_EXPORT_DIR/
+    );
+    expect(() => resolveExportFile(dir, join(REPO_ROOT, "x.png"), "shots")).toThrow(
+      /outside BRAND_EXPORT_DIR/
     );
   });
 });

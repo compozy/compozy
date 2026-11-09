@@ -21,7 +21,7 @@ Run from `packages/brand`, or through Turborepo from the repo root
 | `export:visuals`             | Every `/visual/<name>-<theme>` at 2x → `$BRAND_EXPORT_DIR/visuals/`                                                                                       |
 | `export:product-shots`       | Captures pinned `web/` Storybook stories → `public/brand/product/`                                                                                        |
 | `logos`                      | Rebuilds the logo SVG/PNG set in `public/brand/{svg,png}`                                                                                                 |
-| `shot`                       | `bun run shot <url> <out.png> [w] [h] [full]` QA screenshot (Playwright, Chrome)                                                                          |
+| `shot`                       | `bun run shot <url> <name.png> [w] [h] [full]` QA screenshot (Playwright, Chrome) → `$BRAND_EXPORT_DIR/shots/`                                            |
 | `imagegen` / `finish-images` | Operator-only, paid, never in CI: `prompts/<area>/<id>.md` → raw PNGs in `$BRAND_GEN_DIR` (default `~/Dev/compozy/_rebranding/gen`) → `public/brand/img/` |
 
 Exports need the dev server running. `BRAND_EXPORT_DIR` defaults to
