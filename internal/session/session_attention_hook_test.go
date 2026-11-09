@@ -17,6 +17,40 @@ import (
 func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should settle unfinished native work before locking lifecycle attention publication", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		service, _, _ := newSubagentTestService(t)
+		service.store = db
+		service.runtime = managerSubagentRuntime{m: h.manager}
+		h.manager.SetSubagentService(service)
+		if err := service.OnNativeToolEvent(t.Context(), sess.ID, NativeSubagentEvent{
+			WorkspaceID: h.workspaceID, ParentTurnID: "native-turn", ProviderToolCallID: "unfinished",
+			ToolName: "Agent", Status: "in_progress",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		before.Liveness = &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "native-turn"}}
+		after := sess.Info()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		h.manager.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "native-turn")
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("native settlement blocked lifecycle publication: %v", err)
+		}
+		row, err := db.GetSubagent(t.Context(), h.workspaceID, subagentID(sess.ID, "unfinished"))
+		if err != nil || row.Status != store.SubagentStatusInterrupted {
+			t.Fatalf("unfinished native work: %+v, %v", row, err)
+		}
+		attention, err := db.GetSessionAttention(t.Context(), sess.ID)
+		if err != nil || attention.LastSettledRevision == 0 {
+			t.Fatalf("native parent did not settle: %+v, %v", attention, err)
+		}
+	})
+
 	for _, badgeChanges := range []bool{false, true} {
 		name := "Should ignore a late same-badge supervision attention snapshot"
 		if badgeChanges {

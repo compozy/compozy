@@ -158,3 +158,9 @@ presence callback for lifecycle publication as well as ordinary and reconciled i
 publication. The callback must finish after the child publication lock is released. The canonical
 attention hook suite owns this boundary check; completed-wake suppression for canceled turns
 remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.
+
+QA impact 2026-11-09 (native settlement callback): complete a parent turn with unfinished
+provider-native work. Native interruption and parent attention settlement must finish before
+lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
+the parent receives a durable settled revision without waiting for cancellation. The canonical
+attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.

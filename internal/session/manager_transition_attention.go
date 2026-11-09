@@ -51,6 +51,10 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if after == nil {
 		return
 	}
+	// Native-work settlement may write parent attention; finish it before taking the publication lock.
+	if BadgeForInfo(before) != BadgeForInfo(after) {
+		m.publishSubagentLifecycleEdge(ctx, before, after)
+	}
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	unlock, err := m.lockAttentionCommit(readCtx, after.ID)
@@ -95,7 +99,6 @@ func (m *Manager) publishLifecycleAttentionTransitionWakeLocked(
 		m.logger.InfoContext(ctx, "waiting_transition", "component", "session", "session_id", after.ID,
 			"from", from, "to", to, "signals", CloneSupervisionState(after.Supervision).WorkSignals)
 	}
-	m.publishSubagentLifecycleEdge(ctx, before, after)
 	at := m.now().UTC()
 	if after.AttentionChangedAt != nil {
 		at = after.AttentionChangedAt.UTC()
