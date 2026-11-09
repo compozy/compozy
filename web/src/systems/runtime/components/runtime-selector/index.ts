@@ -2,6 +2,7 @@ export { RuntimeSelector, type RuntimeSelectorProps } from "./runtime-selector";
 export { runtimeModelKey } from "./model-key";
 export {
   normalizeRuntimeACPSelections,
+  normalizeRuntimeSelectorValue,
   runtimeACPSelectionsEqual,
 } from "./runtime-advanced-options-model";
 export {

@@ -591,7 +591,10 @@ The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_nam
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
 as a parent, so it is listed as its own row and is not the source's child. An explicit runtime or route
 is also its `runtime.selected` (revision 1), which a prompt without its own runtime binds; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
-`session.derived` for it. Retries are deterministic: the same `idempotency_key` with the same request
+`session.derived` for it. A continuation with an explicit provider selection never walks the agent's
+fallback chain: a launch refusal remains visible in `runtime.failure` on the unbound child and no
+prompt runs on another provider. The Web Continue dialog submits the full displayed runtime,
+including unchanged defaults. Retries are deterministic: the same `idempotency_key` with the same request
 returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
 deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
 and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at

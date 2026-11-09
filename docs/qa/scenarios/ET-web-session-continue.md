@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits: uncommitted (review round 1 QA re-walk)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/continue-route-child-window.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/dead-runtime-banner.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/
-last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
+last_report: docs/qa/reports/2026-11-09-issue-1414-continue-runtime.md
 overlaps: ET-cli-session-continue; RT-session-derive-retry; RT-provider-error-handoff; ET-web-session-sidebar-threads; ET-web-sessions-catalog-modal; ET-web-session-context-sidebar
 ---
 
@@ -89,6 +89,28 @@ Regressions: `TestContinueSession` "Should select the chosen runtime on the unbo
 it", `use-session-prompt-runtime.test.tsx` "Should prefer an unbound session's selected runtime over
 the agent default", `session-hierarchy.test.ts` "Should keep continued and forked sessions top-level
 while spawned children nest".
+
+## Displayed runtime selection regression
+
+From a Claude conversation, open Continue and choose a Codex agent whose displayed runtime is
+GPT-6-Astra / High / Normal. Keep the displayed defaults untouched, submit, and confirm the
+request contains all four runtime fields. Repeat by editing the runtime picker, including Fast
+when the provider advertises it, and with/without a first message. The new composer's choice and
+each user event's `prompt_runtime` must agree with the confirmed selection. A target with a
+failing command and a working Claude fallback must show the committed child's launch error
+instead of running Claude. See the [targeted report](../reports/2026-11-09-issue-1414-continue-runtime.md).
+With an inherited ACP permission mode, changing only Fast or reasoning must not send that mode
+as an explicit override. Advanced controls must show inherited values even if the catalog's defaults
+differ; editing an advanced switch submits that difference without copying unchanged inherited values.
+If a model advertises selectable levels and the agent's effort is absent from those choices,
+Continue must explain the refusal and allow choosing a supported effort. A missing model or an
+unobserved level set must preserve the chosen effort and let the daemon validate it.
+If a model advertises only `none` while the agent carries a reasoning level, Continue refuses
+before creating a child and directs the user to choose another model or agent. Choosing a model
+that supports that level then allows submission.
+Cursor's advertised effort/speed pairs are checked together; unknown pair metadata is left to
+the daemon. Correcting an invalid runtime clears its local refusal without clearing an unrelated
+daemon submission error.
 
 ## Deleted root ancestor regression
 

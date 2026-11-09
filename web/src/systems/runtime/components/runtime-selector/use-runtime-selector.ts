@@ -10,6 +10,7 @@ import {
 } from "./runtime-list-model";
 import {
   advancedRuntimeOptions,
+  normalizeRuntimeSelectorValue,
   sanitizeRuntimeACPSelections,
   setRuntimeACPSelection,
 } from "./runtime-advanced-options-model";
@@ -70,6 +71,7 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
+/** Project the controlled runtime through its catalog and manage picker interactions. */
 export function useRuntimeSelector({
   value,
   onChange,
@@ -107,24 +109,7 @@ export function useRuntimeSelector({
   const reasoningState = resolveReasoningState(selectedModel);
   const effectiveACPOptions = acpOptions ?? selectedModel?.acp_options;
   const advancedOptions = advancedRuntimeOptions(effectiveACPOptions);
-  const sanitizedACPSelections = sanitizeRuntimeACPSelections(
-    value.acp_options,
-    effectiveACPOptions
-  );
-  const normalizedReasoning =
-    value.reasoning_effort !== "" &&
-    !modelSupportsReasoningEffort(selectedModel, value.reasoning_effort)
-      ? ""
-      : value.reasoning_effort;
-  const normalizedValue: RuntimeSelectorValue = {
-    ...value,
-    reasoning_effort: normalizedReasoning,
-    ...(effectiveACPOptions
-      ? sanitizedACPSelections
-        ? { acp_options: sanitizedACPSelections }
-        : { acp_options: undefined }
-      : {}),
-  };
+  const normalizedValue = normalizeRuntimeSelectorValue(value, selectedModel, effectiveACPOptions);
 
   const isFavoriteModel = (model: RuntimeModelOption) =>
     favorites.isFavorite(runtimeModelKey(model.provider, model.id));

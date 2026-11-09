@@ -5,7 +5,7 @@
 // outcome whose child was deleted.
 // Owning layer: SessionContinueDialog with its hooks over MSW. Canonical suite: this file.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { HttpHandler } from "msw";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -211,6 +211,296 @@ describe("SessionContinueDialog", () => {
     await user.click(screen.getByTestId("session-continue-submit"));
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]?.runtime).toMatchObject({ provider: "codex", speed: "normal" });
+  });
+
+  it.each([
+    { edit: "none", effort: "high", speed: "normal" },
+    { edit: "speed", effort: "high", speed: "fast" },
+    { edit: "reasoning", effort: "medium", speed: "normal" },
+    { edit: "unsupported reasoning", effort: "high", speed: "normal" },
+    { edit: "advanced option", effort: "high", speed: "normal" },
+    { edit: "provider", effort: "high", speed: "normal" },
+    { edit: "none-only model", effort: "high", speed: "normal" },
+  ] as const)(
+    // Invariant: inherited ACP values remain visible; only explicit differences are submitted.
+    // Owning layer and canonical suite: this Continue dialog request boundary.
+    "Should preserve inherited ACP values after a $edit edit",
+    async ({ edit, effort, speed }) => {
+      const user = userEvent.setup();
+      agents.data = deriveAgentsFixture.map(agent =>
+        agent.name === "codex"
+          ? {
+              ...agent,
+              effective_runtime: {
+                provider: "codex",
+                model: "gpt-6-astra",
+                reasoning_effort: edit === "unsupported reasoning" ? "max" : "high",
+                speed: "normal",
+                acp_options: [
+                  { id: "mode", value_id: "bypassPermissions" },
+                  { id: "thinking", bool_value: true },
+                ],
+                sources: {
+                  provider: "agent",
+                  model: "agent",
+                  reasoning_effort: "agent",
+                  speed: "agent",
+                },
+              },
+            }
+          : agent
+      );
+      runtimeCatalog.providers = [
+        { id: "codex", name: "Codex", runtime_provider: "codex" },
+        { id: "claude", name: "Claude", runtime_provider: "claude" },
+      ];
+      runtimeCatalog.models = [
+        {
+          id: "gpt-6-astra",
+          provider: "codex",
+          name: "GPT-6-Astra",
+          efforts: edit === "none-only model" ? ["none"] : ["medium", "high"],
+          availability: "live",
+          curated: true,
+          configurations:
+            edit === "none-only model"
+              ? [{ reasoning_effort: "none" }]
+              : [
+                  { reasoning_effort: "medium", fast: true },
+                  { reasoning_effort: "high", fast: true },
+                ],
+          acp_options: [
+            { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
+            {
+              id: "mode",
+              kind: "select",
+              values: [{ value: "bypassPermissions" }],
+            },
+          ],
+        },
+      ];
+      if (edit === "provider") {
+        runtimeCatalog.models.push({
+          id: "opus-target",
+          provider: "claude",
+          name: "Opus target",
+          efforts: ["high"],
+          availability: "live",
+          curated: true,
+          acp_options: [
+            { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
+          ],
+        });
+      }
+      if (edit === "none-only model") {
+        runtimeCatalog.models.push({
+          ...runtimeCatalog.models[0]!,
+          id: "reasoning-target",
+          name: "Reasoning target",
+          efforts: ["high"],
+          configurations: [{ reasoning_effort: "high" }],
+        });
+      }
+      const sent: ContinueSessionRequest[] = [];
+      renderDialog({ onContinue: request => sent.push(request) });
+
+      await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      if (edit === "unsupported reasoning") {
+        // An omitted effort would restore the unsupported agent default at launch.
+        // Refuse visibly until the user confirms an advertised effort.
+        await user.click(screen.getByTestId("session-continue-submit"));
+        expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+          "Choose a reasoning effort supported by this model before continuing."
+        );
+        expect(sent).toHaveLength(0);
+      }
+      if (edit === "none-only model") {
+        await user.click(screen.getByTestId("session-continue-submit"));
+        expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+          "This model does not support the configured reasoning effort. Choose another model or agent."
+        );
+        expect(sent).toHaveLength(0);
+      }
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      await user.click(await screen.findByTestId("runtime-selector-advanced-toggle"));
+      const thinking = await screen.findByTestId("runtime-selector-option-thinking");
+      expect(thinking).toHaveAttribute("aria-checked", "true");
+      if (edit !== "none") {
+        if (edit === "speed") await user.click(await screen.findByTestId("runtime-selector-speed"));
+        else if (edit === "advanced option") await user.click(thinking);
+        else if (edit === "provider") {
+          await user.click(screen.getByRole("option", { name: /Opus target/ }));
+        } else if (edit === "none-only model") {
+          await user.click(screen.getByRole("option", { name: /Reasoning target/ }));
+          fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+            key: "End",
+          });
+        } else {
+          fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+            key: edit === "reasoning" ? "Home" : "End",
+          });
+        }
+      }
+      await user.keyboard("{Escape}");
+      expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
+      await user.click(screen.getByTestId("session-continue-submit"));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]?.runtime).toEqual({
+        provider: edit === "provider" ? "claude" : "codex",
+        model:
+          edit === "provider"
+            ? "opus-target"
+            : edit === "none-only model"
+              ? "reasoning-target"
+              : "gpt-6-astra",
+        reasoning_effort: effort,
+        speed,
+        ...(edit === "advanced option"
+          ? { acp_options: [{ id: "thinking", bool_value: false }] }
+          : edit === "provider"
+            ? { acp_options: [{ id: "thinking", bool_value: true }] }
+            : {}),
+      });
+    }
+  );
+
+  // Invariant: losing catalog capability data cannot erase a confirmed reasoning effort.
+  // Owning layer and canonical suite: the Continue dialog's submission boundary.
+  it.each(["unobserved", "missing"] as const)(
+    "Should preserve chosen effort when model capabilities become $0",
+    async catalogState => {
+      const user = userEvent.setup();
+      agents.data = deriveAgentsFixture.map(agent =>
+        agent.name === "codex"
+          ? {
+              ...agent,
+              effective_runtime: {
+                provider: "codex",
+                model: "gpt-6-astra",
+                reasoning_effort: "medium",
+                sources: { provider: "agent", model: "agent", reasoning_effort: "agent" },
+              },
+            }
+          : agent
+      );
+      runtimeCatalog.providers = [{ id: "codex", name: "Codex", runtime_provider: "codex" }];
+      runtimeCatalog.models = [
+        {
+          id: "gpt-6-astra",
+          provider: "codex",
+          name: "GPT-6-Astra",
+          efforts: ["medium", "high"],
+          availability: "live",
+          curated: true,
+        },
+      ];
+      const sent: ContinueSessionRequest[] = [];
+      renderDialog({ onContinue: request => sent.push(request) });
+      await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+        key: "End",
+      });
+      await user.keyboard("{Escape}");
+      runtimeCatalog.models =
+        catalogState === "missing"
+          ? []
+          : runtimeCatalog.models.map(model => ({ ...model, efforts: [] }));
+      await user.type(screen.getByTestId("session-continue-message"), "continue");
+      await user.click(screen.getByTestId("session-continue-submit"));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]?.runtime).toEqual({
+        provider: "codex",
+        model: "gpt-6-astra",
+        reasoning_effort: "high",
+        speed: "normal",
+      });
+    }
+  );
+
+  // Invariant: Cursor's observed effort/speed combinations gate creation, while unknown
+  // combinations remain daemon-validated; correcting a local error preserves API errors.
+  // Owning layer and canonical suite: this Continue dialog request boundary.
+  it.each([true, false])("Should validate Cursor combinations when observed=%s", async observed => {
+    const user = userEvent.setup();
+    agents.data = deriveAgentsFixture.map(agent =>
+      agent.name === "codex"
+        ? {
+            ...agent,
+            effective_runtime: {
+              provider: "cursor-alias",
+              model: "composer",
+              reasoning_effort: "high",
+              speed: "normal",
+              sources: {
+                provider: "agent",
+                model: "agent",
+                reasoning_effort: "agent",
+                speed: "agent",
+              },
+            },
+          }
+        : agent
+    );
+    runtimeCatalog.providers = [{ id: "cursor-alias", name: "Cursor", runtime_provider: "cursor" }];
+    runtimeCatalog.models = [
+      {
+        id: "composer",
+        provider: "cursor-alias",
+        name: "Composer",
+        efforts: ["low", "high"],
+        availability: "live",
+        curated: true,
+        configurations: observed
+          ? [
+              { reasoning_effort: "high", fast: true },
+              { reasoning_effort: "low", fast: false },
+            ]
+          : [
+              { reasoning_effort: "high", fast: null },
+              { reasoning_effort: "low", fast: null },
+            ],
+      },
+    ];
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({
+      onContinue: request => sent.push(request),
+      result: {
+        status: 422,
+        error: "provider unavailable",
+        code: "model_unavailable",
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    if (observed) {
+      expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+        "Choose a supported reasoning effort and speed combination before continuing."
+      );
+      expect(sent).toHaveLength(0);
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      await user.click(await screen.findByTestId("runtime-selector-speed"));
+      await user.keyboard("{Escape}");
+      expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
+      await user.click(screen.getByTestId("session-continue-submit"));
+    }
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toMatchObject({
+      reasoning_effort: "high",
+      speed: observed ? "fast" : "normal",
+    });
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "provider unavailable"
+    );
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+      key: "Home",
+    });
+    if (observed) await user.click(await screen.findByTestId("runtime-selector-speed"));
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("session-continue-submit-error")).toHaveTextContent(
+      "provider unavailable"
+    );
   });
 
   it("Should open a new window by default and never the current one", async () => {
