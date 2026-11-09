@@ -142,6 +142,50 @@ enabled = true
 		}
 	})
 
+	t.Run("Should toggle a provider authored with an uppercase table name in place", func(t *testing.T) {
+		t.Parallel()
+		enabled := enabledBaseConfig() + "\n[providers.OPENCODE]\ndisplay_name = \"Open\"\n"
+		disabled := enabled + "enabled = false\n"
+		service, homePaths := newProviderEnabledTestService(t, disabled)
+		ctx := t.Context()
+
+		if _, _, err := service.SetProviderEnabled(ctx, "opencode", true); err != nil {
+			t.Fatalf("SetProviderEnabled(opencode, true) error = %v", err)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != enabled {
+			t.Fatalf("config after re-enable = %q, want %q", got, enabled)
+		}
+		if activeProviderDisabled(t, service, "opencode") {
+			t.Fatal("active config keeps opencode disabled after the re-enable")
+		}
+		if _, _, err := service.SetProviderEnabled(ctx, "opencode", false); err != nil {
+			t.Fatalf("SetProviderEnabled(opencode, false) error = %v", err)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != disabled {
+			t.Fatalf("config after disable = %q, want the authored table edited in place %q", got, disabled)
+		}
+	})
+
+	t.Run("Should keep a pending custom provider's disable pending with its definition", func(t *testing.T) {
+		t.Parallel()
+		service, homePaths := newProviderEnabledTestService(t, enabledBaseConfig())
+		writeFile(t, homePaths.ConfigFile, enabledBaseConfig()+"\n[providers.work]\ncommand = \"work-acp --stdio\"\n")
+
+		if _, _, err := service.SetProviderEnabled(t.Context(), "work", false); err != nil {
+			t.Fatalf("SetProviderEnabled(work, false) error = %v", err)
+		}
+		if got := readFile(t, homePaths.ConfigFile); !strings.Contains(got, "enabled = false") {
+			t.Fatalf("config after disable = %q, want enabled = false written", got)
+		}
+		active, err := service.ActiveConfig(t.Context())
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		if _, ok := active.Providers["work"]; ok {
+			t.Fatalf("active work = %#v, want the definition and its disable left pending", active.Providers["work"])
+		}
+	})
+
 	t.Run("Should reject disabling the default provider without writing", func(t *testing.T) {
 		t.Parallel()
 		original := enabledBaseConfig()
@@ -378,6 +422,23 @@ enabled = false
 				t.Fatalf("Reload(%s) = applied %v restart %v next %q, want pending restart without a live apply",
 					attempt, result.Applied, result.RestartRequired, result.NextAction)
 			}
+		}
+	})
+
+	t.Run("Should keep a removed disabled provider disabled until the removal applies", func(t *testing.T) {
+		t.Parallel()
+		service, homePaths := newProviderEnabledTestService(t, enabledBaseConfig()+`
+[providers.work]
+command = "work-acp --stdio"
+enabled = false
+`)
+		writeFile(t, homePaths.ConfigFile, enabledBaseConfig())
+
+		if _, err := service.Reload(t.Context()); err != nil {
+			t.Fatalf("Reload() error = %v", err)
+		}
+		if !activeProviderDisabled(t, service, "work") {
+			t.Fatal("active config re-enabled work before its removal applied")
 		}
 	})
 

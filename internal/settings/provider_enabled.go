@@ -46,7 +46,7 @@ func (s *service) SetProviderEnabled(
 	if err := nextConfig.Validate(); err != nil {
 		return ProviderItem{}, ApplyResult{}, unprocessableError(err)
 	}
-	projected := withProviderEnabled(&state.config, providerID, authored)
+	projected := projectProvidersEnabled(&state.config, &nextConfig, []string{providerID})
 	if err := validateEnabledProjection(&projected); err != nil {
 		return ProviderItem{}, ApplyResult{}, unprocessableError(err)
 	}
@@ -64,7 +64,7 @@ func (s *service) SetProviderEnabled(
 		// The file already holds the value but an earlier apply did not reach the active config:
 		// retry the projection instead of reporting a no-op (BR-10).
 	default:
-		if err := writeProviderEnabled(s.homePaths, target, providerID, authored); err != nil {
+		if err := writeProviderEnabled(s.homePaths, target, providerID, enabled); err != nil {
 			return ProviderItem{}, ApplyResult{}, err
 		}
 		if err := s.emitSettingsChanged(ctx, mutation, "replace"); err != nil {
@@ -105,18 +105,17 @@ func writeProviderEnabled(
 	homePaths compozyconfig.HomePaths,
 	target compozyconfig.WriteTarget,
 	providerID string,
-	authored *bool,
+	enabled bool,
 ) error {
 	path := []string{string(CollectionProviders), providerID, sectionsEnabledKey}
+	// SetValueAtTarget edits the authored table name ([providers.OPENCODE]) and turns a re-enable
+	// into a key delete, the same as the CLI and native config writes.
 	if _, err := compozyconfig.EditConfigOverlay(
 		homePaths,
 		"",
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if authored == nil {
-				return editor.DeleteKeyPruningEmptyTable(path)
-			}
-			return editor.SetValue(path, *authored)
+			return editor.SetValueAtTarget(homePaths, target, path, enabled)
 		},
 	); err != nil {
 		return fmt.Errorf("settings: write provider %q enabled: %w", providerID, err)
@@ -141,8 +140,8 @@ func withProviderEnabled(cfg *compozyconfig.Config, providerID string, authored 
 	return projected
 }
 
-// projectProvidersEnabled copies only the desired enabled values of providerIDs that the active
-// config already declares; every other pending field stays pending.
+// projectProvidersEnabled copies only the desired enabled values of providerIDs that both the
+// active and desired configs declare; every other pending field stays pending.
 func projectProvidersEnabled(
 	active *compozyconfig.Config,
 	desired *compozyconfig.Config,
@@ -153,6 +152,11 @@ func projectProvidersEnabled(
 		if !providerDeclared(active, providerID) {
 			// The provider's definition is still pending; its enabled value applies with it, and an
 			// enabled-only entry would fail validation for every other toggle in the projection.
+			continue
+		}
+		if !providerDeclared(desired, providerID) {
+			// The provider's removal is still pending; it keeps its active enabled value until the
+			// removal applies, so a disabled provider never reappears enabled before restart.
 			continue
 		}
 		projected = withProviderEnabled(&projected, providerID, desired.Providers[providerID].Enabled)
