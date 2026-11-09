@@ -12,6 +12,9 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -1538,4 +1541,97 @@ func TestInstanceNativeApprovalBeyondDefaultTimeout(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestTerminalApprovalPreservesRunRestrictions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		inactive    bool
+		run         string
+		wantMessage string
+	}{
+		{name: "Should execute after allow once for the same active run", run: "run-a"},
+		{name: "Should explain an inactive run after allow once", inactive: true, wantMessage: "terminal action requires an active prompt run"},
+		{name: "Should explain a replaced run after allow once", run: "run-b", wantMessage: "terminal action belongs to a different prompt run"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			approved := false
+			requester := &recordingPermissionRequester{
+				fn: func(context.Context, string, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+					approved = true
+					return acp.RequestPermissionResponse{
+						Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID),
+					}, nil
+				},
+			}
+			bridge := newToolApprovalBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				nil,
+				nil,
+				nil,
+			)
+			manager := &terminalNativeManagerStub{}
+			deps := &daemonNativeToolsDeps{
+				Terminals:  func() terminalpkg.Manager { return manager },
+				Workspaces: nativeTestWorkspaceService(t),
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(context.Context, string) (*sessionpkg.Info, error) {
+						return &sessionpkg.Info{
+							ID:                "sess-a",
+							ProfileID:         "profile-a",
+							WorkspaceID:       "workspace-a",
+							AgentName:         "agent-a",
+							RuntimeGeneration: 1,
+						}, nil
+					},
+					ActivePromptRunFn: func(context.Context, string) (sessionpkg.PromptRunIdentity, error) {
+						if approved && tc.inactive {
+							return sessionpkg.PromptRunIdentity{}, sessionpkg.ErrPromptNotActive
+						}
+						run := "run-a"
+						if approved {
+							run = tc.run
+						}
+						return sessionpkg.PromptRunIdentity{
+							SessionID:   "sess-a",
+							ProfileID:   "profile-a",
+							WorkspaceID: "workspace-a",
+							RunID:       run,
+							Generation:  1,
+						}, nil
+					},
+				},
+			}
+			policy := nativeApproveAllPolicyInputs()
+			policy.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps,
+				toolspkg.NewStaticPolicyInputResolver(policy), nil, toolspkg.WithApprovalBridge(bridge))
+			_, err := registry.Call(t.Context(), toolspkg.Scope{
+				ProfileID:   "profile-a",
+				WorkspaceID: "workspace-a",
+				SessionID:   "sess-a",
+				AgentName:   "agent-a",
+				RunID:       "run-a",
+				Generation:  1,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalExec, ToolCallID: "call-a", Input: []byte(`{"command":"echo","args":["approved"]}`)})
+			if !approved || len(requester.requests) != 1 {
+				t.Fatalf("approval calls = %d, want one accepted allow once", len(requester.requests))
+			}
+			if tc.wantMessage == "" {
+				if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" {
+					t.Fatalf("exec calls=%d approval=%q error=%v", manager.execCalls, manager.execRequest.Approval, err)
+				}
+				return
+			}
+			requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+			response := core.ToolErrorResponseForError(err, core.StatusForToolError(err), true)
+			if manager.execCalls != 0 || response.Error.Code != toolspkg.ErrorCodeDenied ||
+				response.Error.Message != tc.wantMessage {
+				t.Fatalf("exec calls=%d error response=%#v", manager.execCalls, response)
+			}
+		})
+	}
 }
