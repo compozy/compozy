@@ -56,7 +56,11 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 		m.publishSubagentLifecycleEdge(ctx, before, after)
 	}
 	// Lock contention cannot discard a committed edge; manager shutdown cancels the wait.
-	unlock, err := m.lockAttentionCommit(m.attentionReconciliation.ctx, after.ID)
+	lockCtx := m.attentionReconciliation.ctx
+	if lockCtx == nil {
+		lockCtx = context.WithoutCancel(ctx)
+	}
+	unlock, err := m.lockAttentionCommit(lockCtx, after.ID)
 	if err != nil {
 		m.logger.WarnContext(ctx, "session: lock lifecycle attention publication failed",
 			"session_id", after.ID, "error", err)
