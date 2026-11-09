@@ -58,6 +58,7 @@ func (p *AgentProcess) compactPromptSections(message string, sections []PromptSe
 		if section.Key == "" || section.Content == "" || strings.Count(message, section.Content) != 1 {
 			continue
 		}
+		p.supersedeStartupSituation(section)
 		start := strings.Index(message, section.Content)
 		end := start + len(section.Content)
 		if slices.ContainsFunc(
@@ -118,4 +119,27 @@ func (p *AgentProcess) forgetPromptSections(sections []PromptSection) {
 	for _, section := range sections {
 		delete(p.deliveredSections, section.Key)
 	}
+}
+
+// Only daemon-registered live context may replace its older startup snapshot.
+func (p *AgentProcess) supersedeStartupSituation(section PromptSection) {
+	if section.Key != "situation" || p.systemPromptSent || p.startupManifest.HookModified ||
+		p.systemPromptDelivery == SystemPromptDeliveryNative {
+		return
+	}
+	const open = "<compozy-situation-context>"
+	const closing = "</compozy-situation-context>"
+	start := strings.Index(p.systemPrompt, open)
+	if start < 0 || !strings.Contains(section.Content, open) || !strings.Contains(section.Content, closing) {
+		return
+	}
+	end := strings.Index(p.systemPrompt[start:], closing)
+	if end < 0 {
+		return
+	}
+	end += start + len(closing)
+	p.systemPrompt = strings.TrimSpace(p.systemPrompt[:start] + p.systemPrompt[end:])
+	p.startupManifest.Spans = slices.DeleteFunc(p.startupManifest.Spans, func(span DeliveredSpan) bool {
+		return span.Key == "situation"
+	})
 }

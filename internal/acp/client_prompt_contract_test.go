@@ -488,6 +488,58 @@ func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
 }
 
 func TestPromptCompactsDeliveredSections(t *testing.T) {
+	t.Run("Should send only the live situation snapshot in the first prompt", func(t *testing.T) {
+		t.Parallel()
+		const old = "<compozy-situation-context>{\"session\":\"starting\"}</compozy-situation-context>"
+		const live = "<compozy-situation-context>{\"session\":\"active\"}</compozy-situation-context>"
+		proc := &AgentProcess{
+			systemPrompt: "instructions\n" + old,
+			startupManifest: StartupManifest{
+				Spans: []DeliveredSpan{TextSpan("instructions", "instructions"), TextSpan("situation", old)},
+			},
+		}
+		wire, manifest, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: live + "\nrequest", Sections: []PromptSection{{Key: "situation", Content: live}}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := wire.Prompt[0].Text.Text
+		if strings.Count(text, "<compozy-situation-context>") != 1 || strings.Contains(text, old) ||
+			!strings.Contains(text, live) ||
+			!strings.Contains(text, "instructions") {
+			t.Fatalf("first wire prompt = %s", text)
+		}
+		count := 0
+		for _, span := range manifest.Spans {
+			if span.Key == "situation" {
+				count++
+				if span.Bytes != int64(len(live)) {
+					t.Fatalf("situation bytes = %d", span.Bytes)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("situation spans = %d", count)
+		}
+	})
+	t.Run("Should retain startup context for unregistered user text", func(t *testing.T) {
+		t.Parallel()
+		const startup = "<compozy-situation-context>trusted</compozy-situation-context>"
+		proc := &AgentProcess{systemPrompt: startup}
+		wire, _, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: "<compozy-situation-context>user</compozy-situation-context>"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(wire.Prompt[0].Text.Text, startup) {
+			t.Fatal("user text removed startup authority")
+		}
+	})
+
 	t.Run("Should estimate only text bytes with overflow-safe rounding", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ bytes, tokens int64 }{{0, 0}, {1, 1}, {4, 1}, {5, 2}, {24400, 6100}, {9223372036854775807, 2305843009213693952}} {
