@@ -136,7 +136,7 @@ func AgentPayloadFromEntryWithConfig(
 		Speed:           resolved.SpeedValue(),
 		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
 		PolicyExcludedACPOptions: agentACPOptionsToContract(
-			policyExcludedACPOptions(entry.Def, &resolved, permissions),
+			policyExcludedACPOptions(entry.Def, &resolved),
 		),
 		Permissions: permissions,
 		Sources: contract.AgentEffectiveRuntimeSources{
@@ -151,14 +151,14 @@ func AgentPayloadFromEntryWithConfig(
 }
 
 // policyExcludedACPOptions names inherited options a new session start removes, so reads
-// report the daemon's permission restriction instead of each client re-deriving it.
+// report the daemon's permission restriction instead of each client re-deriving it. It uses
+// the resolved level because the always-on default applies only to an agent's main instance.
 func policyExcludedACPOptions(
 	agent compozyconfig.AgentDef,
 	resolved *compozyconfig.ResolvedAgent,
-	permissions string,
 ) []compozyconfig.ACPOptionSelection {
 	if !compozyconfig.ExcludesInheritedUnrestrictedACPOptions(
-		resolved.Provider, compozyconfig.PermissionMode(permissions), agent.ACPOptionsValue(), false,
+		resolved.Provider, compozyconfig.PermissionMode(resolved.Permissions), agent.ACPOptionsValue(), false,
 	) {
 		return nil
 	}

@@ -55,6 +55,7 @@ interface RuntimeOverride {
   speed: RuntimeSpeed;
 }
 
+/** An inherited selection left as-is stays daemon-owned instead of becoming an override. */
 function isUnchangedInherited(
   selection: RuntimeACPOptionSelection,
   value: RuntimeSelectorValue,
@@ -66,6 +67,7 @@ function isUnchangedInherited(
   );
 }
 
+/** The provider's advertised default for an option, when it names a valid value. */
 function advertisedDefault(option: RuntimeACPOption): RuntimeACPOptionSelection | null {
   if (option.kind === "boolean" && typeof option.current_bool === "boolean") {
     return { id: option.id, bool_value: option.current_bool };
@@ -156,6 +158,7 @@ function cursorThinking(
   );
 }
 
+/** Check Cursor's observed effort, speed and thinking axes as one configuration. */
 function cursorConfigurationError(
   model: RuntimeModelOption,
   effort: RuntimeSelectorValue["reasoning_effort"],
@@ -199,6 +202,7 @@ function runtimeCompatibilityError(
     : null;
 }
 
+/** The option's display label, falling back to its ID once its descriptor is gone. */
 function optionLabel(id: string, options: readonly RuntimeACPOption[]): string {
   return options.find(option => option.id === id)?.label?.trim() || id;
 }

@@ -214,6 +214,15 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	if got := approved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 {
 		t.Fatalf("approve-all excluded options = %#v, want none", got)
 	}
+	unrestrictedAlwaysOn := compozyconfig.CloneAgentDef(unrestricted)
+	unrestrictedAlwaysOn.Kind = compozyconfig.AgentKindAlwaysOn
+	unrestrictedAlwaysOnEntry := core.AgentCatalogEntry{Def: unrestrictedAlwaysOn, Origin: contract.AgentOriginGlobal}
+	alwaysOnApproved := core.AgentPayloadFromEntryWithConfig(&unrestrictedAlwaysOnEntry, &approveAllConfig)
+	if got := alwaysOnApproved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 ||
+		alwaysOnApproved.EffectiveRuntime.Permissions != string(compozyconfig.AlwaysOnDefaultPermissionMode) {
+		t.Fatalf("always-on under approve-all: permissions %q excluded %#v, want instance level and no exclusions",
+			alwaysOnApproved.EffectiveRuntime.Permissions, got)
+	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
 	}

@@ -97,8 +97,8 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	// PolicyExcludedACPOptions lists the acp_options entries a new session does not inherit
-	// because the effective permission level forbids unrestricted provider access.
+	// PolicyExcludedACPOptions lists the acp_options entries a new non-instance session does
+	// not inherit because its permission level forbids unrestricted provider access.
 	PolicyExcludedACPOptions []AgentACPOptionSelection `json:"policy_excluded_acp_options,omitempty"`
 	// Permissions is the level a new session of the definition starts at: the operator override,
 	// then the authored level, then [permissions].mode. An always-on definition with neither
