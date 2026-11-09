@@ -127,14 +127,12 @@ func (r *skillInjectionPolicyResolver) newProfile(
 }
 
 func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
-	if p == nil || skill == nil || !nativeProviderReadsOrigin(p.provider, skill.Origin) {
+	if p == nil || skill == nil || canonicalNativeSkillProvider(p.provider) == "" {
 		return true
 	}
-	root := p.canonicalSkillRoot(skill.RootDir)
-	if root == "" {
-		return true
-	}
-	if _, native := p.nativeRoots[root]; !native {
+	_, native := p.nativeRoots[p.canonicalSkillRoot(skill.RootDir)]
+	native = native && nativeProviderReadsOrigin(p.provider, skill.Origin)
+	if !native && !p.hasNativeExposure(skill) {
 		return true
 	}
 	logger := p.logger
@@ -148,6 +146,25 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 		"source", strings.TrimSpace(skill.Origin),
 		"provider", p.provider,
 	)
+	return false
+}
+
+// Check the winning file, not just its name: a native homonym can contain a
+// different skill. Do not cache this result because exposures can change live.
+func (p *sessionSkillInjectionProfile) hasNativeExposure(skill *skillspkg.Skill) bool {
+	if skill.FilePath == "" || skill.Meta.Name == "" {
+		return false
+	}
+	winner, err := os.Stat(skill.FilePath)
+	if err != nil || !winner.Mode().IsRegular() {
+		return false
+	}
+	for root := range p.nativeRoots {
+		exposed, statErr := os.Stat(filepath.Join(root, skill.Meta.Name, "SKILL.md"))
+		if statErr == nil && os.SameFile(winner, exposed) {
+			return true
+		}
+	}
 	return false
 }
 

@@ -304,7 +304,7 @@ targets back. CompozyOS never copies skill content and never removes a link it d
 
 Skills whose winning copy already lives in a root the session's own provider reads natively are
 omitted from that session's injected catalog only — `claude` reads the `claude` origin. No provider
-reads the `agents` origin natively, so CompozyOS injects `.agents/skills` for every provider. They remain in the command catalog, in every list, and in explicit reads.
+reads the `agents` origin directly. Claude also omits a winning skill when its exact `SKILL.md` file is exposed under the same name in a native skill root (for example a symlink from `.claude/skills` to `.agents/skills`). Missing exposures and different homonyms remain injected; exposure changes are checked each turn. All skills remain in the command catalog, in every list, and in explicit reads.
 
 The bundled runtime skill named `compozy` is reserved. Same-named external definitions may keep a
 source-qualified command such as `/agents:compozy`, but that command resolves the daemon's current

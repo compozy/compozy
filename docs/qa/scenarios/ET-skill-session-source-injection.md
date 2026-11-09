@@ -27,3 +27,10 @@ Status stays pass: Claude suppression and the Codex/unknown-provider injection p
 #761 and keep their 2026-08-25 proof; the removed OpenClaw/Hermes rows are pinned by the
 `internal/daemon` harness-context suite (`TestResolveSessionNativeSkillRoots`,
 `TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots`).
+
+QA impact 2026-11-09 (harness token efficiency): expose 80 of 100 `.agents/skills` skills to
+Claude through same-name native links. Its injected catalog must retain only the 20 unexposed
+skills; all 100 remain explicitly loadable. Remove a link and repoint it to a different homonym:
+the winning skill must return to the next catalog. Codex and custom providers keep all entries.
+The earlier statement that every `.agents` skill is injected now has this exact-file exposure
+exception. Focused assembler and live-catalog suites cover this behavior; a new live walk is pending.
