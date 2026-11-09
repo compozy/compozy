@@ -100,7 +100,9 @@ each user event's `prompt_runtime` must agree with the confirmed selection. A ta
 failing command and a working Claude fallback must show the committed child's launch error
 instead of running Claude. See the [targeted report](../reports/2026-11-09-issue-1414-continue-runtime.md).
 With an inherited ACP permission mode, changing only Fast or reasoning must not send that mode
-as an explicit override. If the agent's configured reasoning effort is absent from the model's
+as an explicit override. Advanced controls must show inherited values even if the catalog's defaults
+differ; editing an advanced switch submits that difference without copying unchanged inherited values.
+If the agent's configured reasoning effort is absent from the model's
 advertised choices, Continue must explain the refusal and allow choosing a supported effort.
 
 ## Deleted root ancestor regression

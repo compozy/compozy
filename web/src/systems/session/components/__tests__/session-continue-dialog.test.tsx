@@ -218,10 +218,11 @@ describe("SessionContinueDialog", () => {
     { edit: "speed", effort: "high", speed: "fast" },
     { edit: "reasoning", effort: "medium", speed: "normal" },
     { edit: "unsupported reasoning", effort: "high", speed: "normal" },
+    { edit: "advanced option", effort: "high", speed: "normal" },
   ] as const)(
-    // Invariant: editing dedicated controls never promotes inherited ACP permissions.
+    // Invariant: inherited ACP values remain visible; only explicit differences are submitted.
     // Owning layer and canonical suite: this Continue dialog request boundary.
-    "Should leave inherited ACP options to the daemon after a $edit edit",
+    "Should preserve inherited ACP values after a $edit edit",
     async ({ edit, effort, speed }) => {
       const user = userEvent.setup();
       agents.data = deriveAgentsFixture.map(agent =>
@@ -233,7 +234,10 @@ describe("SessionContinueDialog", () => {
                 model: "gpt-6-astra",
                 reasoning_effort: edit === "unsupported reasoning" ? "max" : "high",
                 speed: "normal",
-                acp_options: [{ id: "mode", value_id: "bypassPermissions" }],
+                acp_options: [
+                  { id: "mode", value_id: "bypassPermissions" },
+                  { id: "thinking", bool_value: true },
+                ],
                 sources: {
                   provider: "agent",
                   model: "agent",
@@ -258,6 +262,7 @@ describe("SessionContinueDialog", () => {
             { reasoning_effort: "high", fast: true },
           ],
           acp_options: [
+            { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
             {
               id: "mode",
               kind: "select",
@@ -279,16 +284,20 @@ describe("SessionContinueDialog", () => {
         );
         expect(sent).toHaveLength(0);
       }
+      await user.click(screen.getByTestId("session-continue-runtime-select"));
+      await user.click(await screen.findByTestId("runtime-selector-advanced-toggle"));
+      const thinking = await screen.findByTestId("runtime-selector-option-thinking");
+      expect(thinking).toHaveAttribute("aria-checked", "true");
       if (edit !== "none") {
-        await user.click(screen.getByTestId("session-continue-runtime-select"));
         if (edit === "speed") await user.click(await screen.findByTestId("runtime-selector-speed"));
+        else if (edit === "advanced option") await user.click(thinking);
         else {
           fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
             key: edit === "reasoning" ? "Home" : "End",
           });
         }
-        await user.keyboard("{Escape}");
       }
+      await user.keyboard("{Escape}");
       await user.click(screen.getByTestId("session-continue-submit"));
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.runtime).toEqual({
@@ -296,6 +305,9 @@ describe("SessionContinueDialog", () => {
         model: "gpt-6-astra",
         reasoning_effort: effort,
         speed,
+        ...(edit === "advanced option"
+          ? { acp_options: [{ id: "thinking", bool_value: false }] }
+          : {}),
       });
     }
   );

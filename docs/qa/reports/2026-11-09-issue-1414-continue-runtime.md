@@ -21,9 +21,10 @@ runtime edit. Keeping the displayed defaults omitted the runtime entirely, so th
 freeze the displayed selection. Its owning component regression failed before the fix
 (`runtime` was undefined), and now verifies the full displayed snapshot on submit. The derive
 manager persists that choice as `runtime.selected`; prompt admission prefers it over the prior binding.
-The submission uses the selector's capability normalization. Inherited ACP options stay
-daemon-owned even after editing Fast or reasoning, so this snapshot does not promote an inherited
-permission mode to an explicit override. A configured effort absent from the model's advertised
+The submission uses the selector's capability normalization. Inherited ACP options remain visible
+in advanced controls, while only selections that differ from those inherited defaults are submitted.
+Editing Fast or reasoning does not promote an inherited permission mode to an explicit override.
+A configured effort absent from the model's advertised
 choices is refused visibly until the user chooses a supported effort, rather than omitting it and
 letting launch restore that unsupported setting.
 
@@ -42,7 +43,7 @@ observable failure modes without claiming an exact reconstruction of that histor
   a later turn, durable `prompt_runtime`, restart persistence, and visible launch refusal.
 - Focused derive/fork/fallback checks pass with `CGO_ENABLED=1` and `-race`.
 - Pinned golangci-lint v2.15.0 on `./internal/session`: zero issues.
-- Root Turborepo selector/Continue/composer suites: 136 tests passed; Web typecheck passed.
+- Root Turborepo selector/Continue/composer suites: 137 tests passed; Web typecheck passed.
 - React Doctor on the changed Web files: 100/100, no findings; focused oxlint and formatting pass.
 - Real daemon journeys above passed through public CLI/API and the rendered Web. Provider,
   model and effort agree across selected/requested/effective/last-known; Normal and Fast were

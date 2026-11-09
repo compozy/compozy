@@ -10,6 +10,7 @@ import {
 import {
   modelSupportsReasoningEffort,
   normalizeRuntimeSelectorValue,
+  runtimeACPSelectionsEqual,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import { useSessionContinueRuntimeOptions } from "./use-session-continue-runtime-options";
@@ -112,13 +113,8 @@ export function useSessionContinueDialog({
     ? route
     : SESSION_CONTINUE_DEFAULT_ROUTE;
   const runtimeOptions = useSessionContinueRuntimeOptions(workspaceId, open);
-  // Agent defaults remain daemon-owned, including permission-sensitive ACP modes.
-  // Dedicated control edits must not turn those defaults into explicit overrides.
   const agentRuntime = resolveAgentRuntimeValue(agent);
-  const requestedValue = runtime?.value ?? {
-    ...agentRuntime,
-    acp_options: undefined,
-  };
+  const requestedValue = runtime?.value ?? agentRuntime;
   const selectedModel = runtimeOptions.models.find(
     model => model.provider === requestedValue.provider && model.id === requestedValue.model
   );
@@ -156,10 +152,20 @@ export function useSessionContinueDialog({
       return;
     }
     const trimmedMessage = message.trim();
+    // Keep inherited values visible, but leave unchanged defaults daemon-owned.
+    const acpOverrides = runtimeValue.acp_options?.filter(
+      selection =>
+        !agentRuntime.acp_options?.some(inherited =>
+          runtimeACPSelectionsEqual([selection], [inherited])
+        )
+    );
     const runtimeBody =
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
         ? runtimeRequest({
-            value: runtimeValue,
+            value: {
+              ...runtimeValue,
+              acp_options: acpOverrides?.length ? acpOverrides : undefined,
+            },
             speed: runtimeSpeed,
           })
         : null;
