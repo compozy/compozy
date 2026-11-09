@@ -218,6 +218,7 @@ web|e2e-runtime e2e-web e2e-desktop
 desktop|e2e-desktop
 disabled|
 HEAVY
+  jq 'with_entries(if .key == "changes" or .key == "preflight" then . else .value.result = "skipped" end)' <<<"$projection" | require_lanes heavy
   python3 - <<'CHECK'
 import importlib.util
 import json
@@ -264,6 +265,13 @@ with tempfile.TemporaryDirectory() as directory:
             with patch('subprocess.run', side_effect=write_receipt):
                 runpy.run_path(frontend)
             runpy.run_path(report)
+            (root / '.turbo/runs/current.json').write_text(json.dumps({'tasks': [{
+                'taskId': '@compozy/lint-plugins#test', 'package': '@compozy/lint-plugins',
+                'task': 'test', 'cache': {'status': 'HIT'}}]}))
+            with patch('subprocess.run') as audit:
+                runpy.run_path(report)
+                audit.assert_called_once_with(['bunx', '--no-install', 'turbo', 'run', 'test',
+                    '--filter=@compozy/lint-plugins', '--cache=', '--concurrency=2'], check=True)
             with patch('subprocess.run'):
                 try:
                     runpy.run_path(frontend)

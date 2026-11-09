@@ -3,13 +3,15 @@ import plugin from "../test-file-location.mjs";
 
 describe("deterministic unit test conventions", () => {
   const rule = plugin.rules["deterministic-tests"];
-  function messages(callee, args, filename = "example.test.ts", options = []) {
+  function messages(callee, args, filename = "example.test.ts", options = [], sourceCode) {
     const reports = [];
-    rule.create({ filename, options, report: report => reports.push(report) }).CallExpression?.({
-      type: "CallExpression",
-      callee,
-      arguments: args,
-    });
+    rule
+      .create({ filename, options, sourceCode, report: report => reports.push(report) })
+      .CallExpression?.({
+        type: "CallExpression",
+        callee,
+        arguments: args,
+      });
     return reports;
   }
   it("rejects numeric sleeps while allowing indefinite I/O stubs", () => {
@@ -165,5 +167,53 @@ describe("deterministic unit test conventions", () => {
     expect(messages(base, options({ type: "Literal", value: "retry" }, 3))).toHaveLength(1);
     expect(messages(base, options({ type: "Literal", value: "timeout" }, 0))).toHaveLength(1);
     expect(messages(base, options({ type: "Literal", value: "timeout" }, 1000))).toHaveLength(0);
+  });
+  it("resolves static keys and constant conditional skips without guessing dynamic values", () => {
+    const base = { type: "Identifier", name: "test" };
+    const member = (property, computed = true) => ({
+      type: "MemberExpression",
+      object: base,
+      property,
+      computed,
+    });
+    const literal = value => ({ type: "Literal", value });
+    const template = value => ({
+      type: "TemplateLiteral",
+      expressions: [],
+      quasis: [{ value: { cooked: value } }],
+    });
+    const mode = { type: "Identifier", name: "mode" };
+    const variable = {
+      defs: [{ parent: { kind: "const" }, node: { id: mode, init: literal("skip") } }],
+    };
+    const sourceCode = { getScope: () => ({ set: new Map([["mode", variable]]) }) };
+    expect(messages(member(mode), [], undefined, [], sourceCode)).toHaveLength(1);
+    variable.defs[0].parent.kind = "let";
+    expect(messages(member(mode), [], undefined, [], sourceCode)).toHaveLength(0);
+    variable.defs[0].parent.kind = "const";
+    variable.defs[0].node.init = mode;
+    expect(messages(member(mode), [], undefined, [], sourceCode)).toHaveLength(0);
+    expect(messages(member(template("skip")), [])).toHaveLength(1);
+    for (const [name, value, count] of [
+      ["skipIf", true, 1],
+      ["runIf", false, 1],
+      ["skipIf", false, 0],
+      ["runIf", true, 0],
+      ["skipIf", undefined, 0],
+    ]) {
+      const factory = {
+        type: "CallExpression",
+        callee: member({ name }, false),
+        arguments: [literal(value)],
+      };
+      expect(messages(factory, [{ value: "case" }, {}])).toHaveLength(count);
+    }
+    const options = key => [
+      { value: "case" },
+      { type: "ObjectExpression", properties: [{ computed: true, key, value: literal(1000) }] },
+      {},
+    ];
+    expect(messages(base, options(template("timeout")))).toHaveLength(0);
+    expect(messages(base, options(template("retry")))).toHaveLength(1);
   });
 });

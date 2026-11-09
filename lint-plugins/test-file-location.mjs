@@ -97,18 +97,42 @@ function positiveDeadlineWithin(node, budget) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
 }
 
-/** Resolve only literal computed keys; dynamic expressions stay unknown. */
-function propertyName(node, property = node.property) {
-  return node.computed ? property?.value : (property?.name ?? property?.value);
+/** Resolve literals and immutable local aliases without evaluating arbitrary expressions. */
+function staticValue(node, sourceCode, seen = new Set()) {
+  if (!node || seen.has(node)) return undefined;
+  seen.add(node);
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+    return node.quasis[0]?.value.cooked ?? undefined;
+  }
+  if (node.type !== "Identifier") return node.value;
+  for (let scope = sourceCode?.getScope(node); scope; scope = scope.upper) {
+    const variable = scope.set.get(node.name);
+    if (!variable) continue;
+    const definition = variable.defs[0];
+    if (
+      variable.defs.length !== 1 ||
+      definition.parent?.kind !== "const" ||
+      definition.node.id.type !== "Identifier"
+    )
+      return undefined;
+    return staticValue(definition.node.init, sourceCode, seen);
+  }
+  return undefined;
+}
+
+/** Resolve property keys while leaving dynamic computed expressions unknown. */
+function propertyName(node, property = node.property, sourceCode) {
+  return node.computed ? staticValue(property, sourceCode) : (property?.name ?? property?.value);
 }
 
 /** Follow supported Vitest modifiers and factories back to a test or suite root. */
-function isTestFunction(node, roots = ["test", "it"]) {
+function isTestFunction(node, roots = ["test", "it"], sourceCode) {
   if (node?.type === "Identifier") return roots.includes(node.name);
   if (node?.type === "MemberExpression") {
     return (
-      ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(propertyName(node)) &&
-      isTestFunction(node.object, roots)
+      ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(
+        propertyName(node, node.property, sourceCode)
+      ) && isTestFunction(node.object, roots, sourceCode)
     );
   }
   const factory =
@@ -119,30 +143,47 @@ function isTestFunction(node, roots = ["test", "it"]) {
         : undefined;
   return (
     factory?.type === "MemberExpression" &&
-    ["each", "for", "skipIf", "runIf"].includes(propertyName(factory)) &&
-    isTestFunction(factory.object, roots)
+    ["each", "for", "skipIf", "runIf"].includes(
+      propertyName(factory, factory.property, sourceCode)
+    ) &&
+    isTestFunction(factory.object, roots, sourceCode)
   );
 }
 
 /** Find unconditional skips anywhere in an already recognized declaration chain. */
-function hasSkippedDeclaration(node) {
+function hasSkippedDeclaration(node, sourceCode) {
   if (node?.type === "MemberExpression") {
-    return propertyName(node) === "skip" || hasSkippedDeclaration(node.object);
+    return (
+      propertyName(node, node.property, sourceCode) === "skip" ||
+      hasSkippedDeclaration(node.object, sourceCode)
+    );
   }
-  if (node?.type === "CallExpression") return hasSkippedDeclaration(node.callee);
-  if (node?.type === "TaggedTemplateExpression") return hasSkippedDeclaration(node.tag);
+  if (node?.type === "CallExpression") {
+    const factory = node.callee;
+    if (factory.type === "MemberExpression") {
+      const name = propertyName(factory, factory.property, sourceCode);
+      const condition = ["skipIf", "runIf"].includes(name)
+        ? staticValue(node.arguments?.[0], sourceCode)
+        : undefined;
+      if ((name === "skipIf" && condition === true) || (name === "runIf" && condition === false))
+        return true;
+    }
+    return hasSkippedDeclaration(factory, sourceCode);
+  }
+  if (node?.type === "TaggedTemplateExpression") return hasSkippedDeclaration(node.tag, sourceCode);
   return false;
 }
 
 /** Inspect inline option spreads and reject spreads whose overrides cannot be checked. */
-function unsafeOptions(options, budget) {
+function unsafeOptions(options, budget, sourceCode) {
   return options.properties.some(property => {
     if (property.type === "SpreadElement") {
       return (
-        property.argument.type !== "ObjectExpression" || unsafeOptions(property.argument, budget)
+        property.argument.type !== "ObjectExpression" ||
+        unsafeOptions(property.argument, budget, sourceCode)
       );
     }
-    const key = propertyName(property, property.key);
+    const key = propertyName(property, property.key, sourceCode);
     if (property.computed && key === undefined) return true;
     return (
       key === "retry" || (key === "timeout" && !positiveDeadlineWithin(property.value, budget))
@@ -178,11 +219,11 @@ const deterministicTests = {
         const name = callee.type === "Identifier" ? callee.name : undefined;
         const member =
           callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
-        const testCall = isTestFunction(callee);
+        const testCall = isTestFunction(callee, undefined, context.sourceCode);
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
-        const override = options && unsafeOptions(options, defaultTimeout);
+        const override = options && unsafeOptions(options, defaultTimeout, context.sourceCode);
         const numericSleep =
           ["sleep", "delay"].includes(name) && typeof node.arguments[0]?.value === "number";
         const timeout =
@@ -191,7 +232,8 @@ const deterministicTests = {
           node.arguments.length >= 3 &&
           !positiveDeadlineWithin(node.arguments[2], defaultTimeout);
         const skipped =
-          isTestFunction(callee, ["test", "it", "describe"]) && hasSkippedDeclaration(callee);
+          isTestFunction(callee, ["test", "it", "describe"], context.sourceCode) &&
+          hasSkippedDeclaration(callee, context.sourceCode);
         if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
           context.report({ node, messageId: "nondeterministic" });
         }

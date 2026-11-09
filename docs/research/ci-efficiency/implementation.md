@@ -136,3 +136,10 @@ older reports cannot inflate hit counts or select an unrelated cold audit. The
 existing self-test injects an invalid stale receipt and verifies it is ignored.
 Heavy-gate tests now exercise web-only, desktop-only and disabled-heavy selections.
 The named census bootstrap subtest checks the exact source-parsing failure.
+
+Static test-key resolution follows immutable lexical bindings and no-interpolation
+templates, respects shadowed variables, and stops on cycles or mutable bindings.
+Constant `skipIf(true)` and `runIf(false)` declarations are rejected; dynamic
+conditions remain supported. Canonical regressions and real-parser controls cover
+these cases. The CI self-test also covers an entirely skipped disabled-heavy
+projection and verifies that cached test receipts invoke the cache-disabled audit.
