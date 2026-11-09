@@ -109,23 +109,25 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
 		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
 	}
-	return map[string]any{
+	options := map[string]any{
+		"disallowedTools": append([]string(nil), claudeDaemonOwnedBackgroundTools...),
+		"env":             env,
+		"settings": map[string]any{"hooks": map[string]any{"PreToolUse": []any{map[string]any{
+			"matcher": claudeBackgroundShellMatcher, "hooks": claudePreToolUseHooks(opts),
+		}}}},
+	}
+	meta := map[string]any{
 		"claudeCode": map[string]any{
 			"emitRawSDKMessages": claudeTaskRawSDKFilters(),
-			"options": map[string]any{
-				"disallowedTools": append([]string(nil), claudeDaemonOwnedBackgroundTools...),
-				"env":             env,
-				"settings": map[string]any{
-					"hooks": map[string]any{
-						"PreToolUse": []any{map[string]any{
-							"matcher": claudeBackgroundShellMatcher,
-							"hooks":   claudePreToolUseHooks(opts),
-						}},
-					},
-				},
-			},
+			"options":            options,
 		},
 	}
+	if opts.LeanEnvironment {
+		env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+		env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
+		options["strictMcpConfig"] = true
+	}
+	return meta
 }
 
 // claudeInputOnlySystemPrompt replaces the Claude Code preset, which describes

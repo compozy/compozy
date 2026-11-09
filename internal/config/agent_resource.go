@@ -55,6 +55,7 @@ func validateAgentResourceSpec(
 		FallbackChain:     normalizeRoleFallbacks(spec.FallbackChain),
 		Prompt:            strings.TrimSpace(spec.Prompt),
 	}
+	normalized.SetLeanEnvironment(spec.LeanEnvironmentValue())
 	normalized.SetSpeed(spec.SpeedValue())
 	normalized.SetACPOptions(spec.ACPOptionsValue())
 	if spec.Capabilities != nil {

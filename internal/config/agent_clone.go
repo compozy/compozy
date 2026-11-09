@@ -45,6 +45,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 			agent.ShadowedDefinitions...,
 		),
 	}
+	cloned.SetLeanEnvironment(agent.LeanEnvironmentValue())
 	cloned.SetSpeed(agent.SpeedValue())
 	cloned.SetACPOptions(agent.ACPOptionsValue())
 	return cloned

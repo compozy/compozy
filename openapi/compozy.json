@@ -686,6 +686,10 @@
             "nullable": true,
             "type": "integer"
           },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
+          },
           "model": {
             "type": "string"
           },
@@ -2140,6 +2144,10 @@
           },
           "layer": {
             "type": "string"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
           },
           "mcp_servers": {
             "items": {
@@ -6685,6 +6693,10 @@
           "label": {
             "type": "string"
           },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
+          },
           "mcp_servers": {
             "items": {
               "$ref": "#/components/schemas/AgentMCPServerInput"
@@ -7929,6 +7941,10 @@
               "always_on"
             ],
             "type": "string"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
           },
           "model": {
             "type": "string"

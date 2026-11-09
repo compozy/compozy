@@ -8223,6 +8223,7 @@ export interface components {
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       auto_compact_window?: number | null;
+      lean_environment?: boolean | null;
       model?: string;
       permissions?: string;
       provider: string;
@@ -8614,6 +8615,7 @@ export interface components {
       kind?: string;
       label: string;
       layer?: string;
+      lean_environment?: boolean | null;
       mcp_servers?: components["schemas"]["AgentMCPServerJSON"][];
       model?: string;
       name: string;
@@ -9837,6 +9839,7 @@ export interface components {
        */
       kind?: "on_demand" | "always_on";
       label?: string;
+      lean_environment?: boolean | null;
       mcp_servers?: components["schemas"]["AgentMCPServerInput"][];
       model?: string;
       name: string;
@@ -10150,6 +10153,7 @@ export interface components {
        * @enum {string}
        */
       kind?: "on_demand" | "always_on";
+      lean_environment?: boolean | null;
       model?: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */

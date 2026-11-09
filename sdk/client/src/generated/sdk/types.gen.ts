@@ -204,6 +204,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   auto_compact_window?: number | null;
+  lean_environment?: boolean | null;
   model?: string;
   permissions?: string;
   provider: string;
@@ -622,6 +623,7 @@ export type AgentPayload = {
   kind?: string;
   label: string;
   layer?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerJSON>;
   model?: string;
   name: string;
@@ -1835,6 +1837,7 @@ export type CreateAgentPayload = {
    */
   kind?: "on_demand" | "always_on";
   label?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerInput>;
   model?: string;
   name: string;
@@ -2161,6 +2164,7 @@ export type DuplicateAgentOverrides = {
    * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
   kind?: "on_demand" | "always_on";
+  lean_environment?: boolean | null;
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -13411,6 +13415,7 @@ export type CreateAgentPayloadWritable = {
    */
   kind?: "on_demand" | "always_on";
   label?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerInputWritable>;
   model?: string;
   name: string;

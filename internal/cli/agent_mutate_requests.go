@@ -252,6 +252,7 @@ func createAgentPayloadFromRecord(agent *AgentRecord) contract.CreateAgentPayloa
 		Command:           agent.Command,
 		SessionEnv:        maps.Clone(agent.SessionEnv),
 		AutoCompactWindow: agent.AutoCompactWindow,
+		LeanEnvironment:   agent.LeanEnvironment,
 		Model:             agent.Model,
 		ReasoningEffort:   agent.ReasoningEffort,
 		Speed:             agent.Speed,

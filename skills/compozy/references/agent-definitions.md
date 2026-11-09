@@ -477,3 +477,16 @@ publication; reads project it as `auto_accept_status`. Picks use the main sessio
 permissions and preserve proposal text inside an untrusted fence. Auto picks are
 synthetic turns and count toward the unattended limit. Pause/archive cancels
 queued auto picks; picks never retarget a rotated main session.
+
+## Reduced Claude environment
+
+Set `lean_environment: true` in an `AGENT.md` definition to exclude Claude Code MCP
+servers outside the Compozy launch, claude.ai connectors, and auto-memory. Compozy
+still supplies the session's configured MCP servers. Repository `CLAUDE.md`
+instructions, native skills, built-in tools, and settings hooks remain available.
+The option applies on creation and resume and is ignored by non-Claude providers.
+
+Daemon `system` and heartbeat `triage` sessions always use this reduced environment.
+User and spawned worker sessions retain the existing environment unless their
+definition opts in; `false` keeps the ordinary environment for these roles. The
+input-only title pass retains its stricter tool-free environment.

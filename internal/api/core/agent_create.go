@@ -111,6 +111,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		Command:           agent.Command,
 		SessionEnv:        sessionEnvFromPayload(agent.SessionEnv),
 		AutoCompactWindow: agent.AutoCompactWindow,
+		LeanEnvironment:   agent.LeanEnvironment,
 		Model:             agent.Model,
 		ReasoningEffort:   string(agent.ReasoningEffort),
 		Speed:             agent.Speed,

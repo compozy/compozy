@@ -100,6 +100,9 @@ func applyDuplicateAgentRuntime(
 	draft *compozyconfig.AgentDefinitionDraft,
 	overrides *contract.DuplicateAgentOverrides,
 ) {
+	if overrides.LeanEnvironment != nil {
+		draft.LeanEnvironment = overrides.LeanEnvironment
+	}
 	if overrides.AutoCompactWindow != nil {
 		draft.AutoCompactWindow = overrides.AutoCompactWindow
 	}

@@ -63,6 +63,7 @@ func (m *Manager) sessionStartOpts(
 		ResumeSessionID:        s.acpSessionID,
 		InputOnly:              IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
 		ShellWaitGuard:         shellWaitGuard,
+		LeanEnvironment:        sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
 		PermissionEventHandler: m.permissionEventHandler(session),
 		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
 		ActivateMCPServers: m.sessionMCPServerActivator(
@@ -190,4 +191,11 @@ func sessionEnvironmentKey(name string) string {
 		return strings.ToUpper(name)
 	}
 	return name
+}
+
+func sessionLeanEnvironment(sessionType Type, authored *bool) bool {
+	if sessionType == SessionTypeSystem || sessionType == SessionTypeTriage {
+		return true
+	}
+	return authored != nil && *authored
 }

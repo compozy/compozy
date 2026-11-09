@@ -77,6 +77,7 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 		Command:            agent.Command,
 		SessionEnv:         SessionEnvToPayload(agent.SessionEnv),
 		AutoCompactWindow:  agent.AutoCompactWindow,
+		LeanEnvironment:    agent.LeanEnvironmentValue(),
 		Model:              agent.Model,
 		ReasoningEffort:    contract.ReasoningEffort(agent.ReasoningEffort),
 		Speed:              agent.SpeedValue(),
@@ -132,6 +133,7 @@ func AgentPayloadFromEntryWithConfig(
 	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
 		SessionEnv:        SessionEnvToPayload(resolved.SessionEnv),
 		AutoCompactWindow: resolved.AutoCompactWindowValue(),
+		LeanEnvironment:   resolved.LeanEnvironmentValue(),
 		Provider:          resolved.Provider,
 		Model:             resolved.Model,
 		ReasoningEffort:   contract.ReasoningEffort(resolved.ReasoningEffort),

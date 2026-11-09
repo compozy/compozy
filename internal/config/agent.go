@@ -60,6 +60,7 @@ type parsedAgentDef struct {
 	WorkspaceAccess   string                  `yaml:"workspace_access,omitempty"    toml:"workspace_access,omitempty"`
 	SessionEnv        SessionEnv              `yaml:"session_env,omitempty"         toml:"session_env,omitempty"`
 	AutoCompactWindow *int                    `yaml:"auto_compact_window,omitempty" toml:"auto_compact_window,omitempty"`
+	LeanEnvironment   *bool                   `yaml:"lean_environment,omitempty"    toml:"lean_environment,omitempty"`
 	Name              string                  `yaml:"name"                          toml:"name"`
 	Provider          string                  `yaml:"provider"                      toml:"provider"`
 	Command           string                  `yaml:"command,omitempty"             toml:"command,omitempty"`
@@ -364,6 +365,7 @@ func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 		FallbackChain:   normalizeRoleFallbacks(parsed.FallbackChain),
 		Prompt:          strings.TrimSpace(body),
 	}
+	agent.SetLeanEnvironment(parsed.LeanEnvironment)
 	agent.SetSpeed(parsed.Speed)
 	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", parsed.ACPOptions)
 	if err != nil {

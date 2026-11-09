@@ -905,3 +905,12 @@ notification per the ACP extension rules, with zero behavior change.
 - [Provider Model Catalog](/docs/agents/model-catalog) covers the daemon-owned catalog, sources, refresh lifecycle, OpenAI-compatible projection, and extension `model.source`.
 - [CLI agent reference](/docs/cli/agent) lists the current `compozy agent` inspection commands.
 - [`compozy provider models` CLI](/docs/cli/provider/models) inspects and refreshes the catalog without a UI.
+
+## Reduced environment for Claude workers
+
+Set `lean_environment: true` in an agent's `AGENT.md` to disable ambient Claude MCP
+servers, claude.ai connectors, and auto-memory. Session-configured MCP servers,
+repository `CLAUDE.md` instructions, skills, tools, and settings hooks remain
+available. The option applies on new and resumed sessions. Other providers ignore
+it. User and spawned sessions retain their existing defaults when it is absent.
+Daemon `system` and heartbeat `triage` sessions always use the reduced environment.

@@ -3647,3 +3647,32 @@ func TestAutoCompactWindow(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"true", "false"} {
+		t.Run("Should preserve authored lean environment "+value, func(t *testing.T) {
+			t.Parallel()
+			agent, err := ParseAgentDef(
+				[]byte("---\nname: lean-worker\nprovider: claude\nlean_environment: " + value + "\n---\nWork.\n"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cloned := CloneAgentDef(agent)
+			cfg := DefaultWithHome(HomePaths{})
+			resolved, err := cfg.ResolveAgent(cloned)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := resolved.LeanEnvironmentValue()
+			if got == nil || *got != (value == "true") {
+				t.Fatalf("lean environment=%v", got)
+			}
+			*agent.LeanEnvironment = !*agent.LeanEnvironment
+			if *cloned.LeanEnvironment != *got {
+				t.Fatal("clone aliases authored setting")
+			}
+		})
+	}
+}

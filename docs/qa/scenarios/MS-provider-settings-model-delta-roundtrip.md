@@ -28,3 +28,12 @@ session/resume metadata and verify `CLAUDE_CODE_AUTO_COMPACT_WINDOW` has that va
 Reject 0, 99999, 1000001 and malformed strings without changing saved configuration.
 With both keys absent, no variable is injected. Retired session.compaction settings
 continue to archive; this new provider key remains active.
+
+### Lean Claude environment
+
+Create a Claude worker definition with `lean_environment: true`, start it, release
+its runtime, and resume it. Verify the native startup options keep repository
+instructions and configured MCP servers while excluding ambient MCP servers,
+claude.ai connectors and auto-memory. Repeat with the key absent: user defaults
+stay unchanged. Observe system and heartbeat triage starts using the lean options
+automatically. Repeat with a non-Claude provider and verify no Claude options leak.

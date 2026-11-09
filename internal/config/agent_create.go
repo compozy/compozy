@@ -38,6 +38,7 @@ type AgentDefinitionDraft struct {
 	Command           string
 	SessionEnv        SessionEnv
 	AutoCompactWindow *int
+	LeanEnvironment   *bool
 	Model             string
 	ReasoningEffort   string
 	Speed             speedpkg.Speed
@@ -133,6 +134,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		FallbackChain:     normalizeRoleFallbacks(draft.FallbackChain),
 		Prompt:            strings.TrimSpace(draft.Prompt),
 	}
+	agent.SetLeanEnvironment(draft.LeanEnvironment)
 	agent.SetSpeed(draft.Speed)
 	agent.SetACPOptions(draft.ACPOptions)
 	agent = canonicalAgentDefinition(agent)
@@ -182,6 +184,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		Command:           canonical.Command,
 		SessionEnv:        MergeSessionEnv(nil, canonical.SessionEnv),
 		AutoCompactWindow: canonical.AutoCompactWindow,
+		LeanEnvironment:   canonical.LeanEnvironmentValue(),
 		Model:             canonical.Model,
 		ReasoningEffort:   canonical.ReasoningEffort,
 		Speed:             canonical.SpeedValue(),
