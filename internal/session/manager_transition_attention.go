@@ -55,9 +55,8 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if BadgeForInfo(before) != BadgeForInfo(after) {
 		m.publishSubagentLifecycleEdge(ctx, before, after)
 	}
-	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
-	unlock, err := m.lockAttentionCommit(readCtx, after.ID)
+	// Lock contention cannot discard a committed edge; manager shutdown cancels the wait.
+	unlock, err := m.lockAttentionCommit(m.attentionReconciliation.ctx, after.ID)
 	if err != nil {
 		m.logger.WarnContext(ctx, "session: lock lifecycle attention publication failed",
 			"session_id", after.ID, "error", err)

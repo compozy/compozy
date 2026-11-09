@@ -14,8 +14,78 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+// TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen preserves ordered edges and reentrant callbacks.
 func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should cancel a pending lifecycle lock wait when the manager shuts down", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		unlock, err := h.manager.lockAttentionCommit(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unlock()
+		finished := make(chan struct{})
+		go func() {
+			h.manager.publishLifecycleAttentionTransition(t.Context(), sess.Info(), sess.Info())
+			close(finished)
+		}()
+		h.manager.stopAttentionReconciliation()
+		select {
+		case <-finished:
+		case <-time.After(time.Second):
+			t.Fatal("manager shutdown left lifecycle publication waiting on its lock")
+		}
+	})
+
+	t.Run("Should retain lifecycle publication beyond the ordinary snapshot timeout", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		before := sess.Info()
+		if err := h.manager.settleSessionAttention(t.Context(), sess.ID, h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		after := sess.Info()
+		unlock, err := h.manager.lockAttentionCommit(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release := sync.OnceFunc(unlock)
+		t.Cleanup(release)
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		finished := make(chan struct{})
+		go func() {
+			h.manager.publishLifecycleAttentionTransitionWake(t.Context(), before, after, false, "")
+			close(finished)
+		}()
+		timer := time.NewTimer(defaultLifecycleTimeout + 100*time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-finished:
+			t.Fatal("contended lifecycle publication was dropped")
+		case <-timer.C:
+		}
+		release()
+		select {
+		case <-finished:
+		case <-time.After(time.Second):
+			t.Fatal("pending lifecycle publication did not finish after unlock")
+		}
+		if len(edges) != 1 || edges[0].To != string(BadgeDone) {
+			t.Fatalf("pending lifecycle edge: %+v", edges)
+		}
+	})
 
 	t.Run("Should settle unfinished native work before locking lifecycle attention publication", func(t *testing.T) {
 		t.Parallel()
