@@ -10,7 +10,7 @@ import (
 func logTriageInstance(clock timeline) instanceStory {
 	return instanceStory{
 		Agent: agentLogTriage, WorkspaceKey: workspaceKeyPlatform,
-		MainID: sessionLogTriageMainID, MainName: "Log Triage",
+		MainID: sessionLogTriageMainID, MainName: displayLogTriage,
 		Provider: providerClaude, Model: modelClaude,
 		CreatedAt: clock.daysHoursAgo(15, 4), Interval: time.Hour, ActiveFrom: 8, ActiveTo: 20, QuietEvery: 3,
 		PauseAt: clock.daysHoursAgo(1, 2), SeenAt: clock.daysHoursAgo(1, 2),
@@ -82,7 +82,7 @@ func logTriageInstance(clock timeline) instanceStory {
 func riskMonitorInstance(clock timeline) instanceStory {
 	return instanceStory{
 		Agent: agentRiskMonitor, WorkspaceKey: workspaceKeyLaunch,
-		MainID: sessionRiskMonitorMainID, MainName: "Risk Monitor",
+		MainID: sessionRiskMonitorMainID, MainName: displayRiskMonitor,
 		Provider: providerClaude, Model: modelClaude,
 		CreatedAt: clock.daysHoursAgo(8, 1), Interval: 30 * time.Minute, ActiveFrom: 6, ActiveTo: 24, QuietEvery: 4,
 		SeenAt: clock.hoursMinutesAgo(2, 5), NextCheckIn: 9 * time.Minute,
@@ -134,11 +134,11 @@ func riskMonitorInstance(clock timeline) instanceStory {
 			},
 			{
 				At: clock.minutesAgo(52), Result: checkResultFailed, Reason: reasonTriageTimeout,
-				Failure: `{"reason":"triage_timeout","detail":"The proactive check timed out."}`,
+				Failure: triageTimeoutFailure,
 			},
 			{
 				At: clock.minutesAgo(21), Result: checkResultFailed, Reason: reasonTriageTimeout,
-				Failure: `{"reason":"triage_timeout","detail":"The proactive check timed out."}`,
+				Failure: triageTimeoutFailure,
 			},
 		},
 	}

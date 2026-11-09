@@ -6,6 +6,10 @@ const (
 )
 
 func scenarioWorkspaces(clock timeline) []workspaceStory {
+	return append(coreWorkspaces(clock), extraWorkspaces(clock)...)
+}
+
+func coreWorkspaces(clock timeline) []workspaceStory {
 	return []workspaceStory{
 		{
 			Key:          workspaceKeyLaunch,
@@ -28,6 +32,7 @@ func scenarioWorkspaces(clock timeline) []workspaceStory {
 
 func scenarioAgents() []agentStory {
 	agents := append(launchAgents(), platformAgents()...)
+	agents = append(agents, projectAgentCopies(agents)...)
 	return append(agents, alwaysOnAgents()...)
 }
 
@@ -94,7 +99,7 @@ func platformAgents() []agentStory {
 			Model:        modelCodex,
 			Permissions:  approveAll,
 			Tools: []string{
-				toolTaskList, toolTaskRead, toolTaskUpdate, toolSubagentDelegate, toolMonitorCreate,
+				toolTaskList, toolTaskRead, toolTaskUpdate, toolSubagentDelegate, toolMonitorCreate, toolClarify,
 			},
 			CategoryPath: []string{categoryEngineering, "Checkout"},
 			Prompt: "Prepare checkout rollout and rollback controls. Keep changes inside the approved market, " +

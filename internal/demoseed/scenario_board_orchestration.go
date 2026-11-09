@@ -22,22 +22,26 @@ const (
 
 // subagentStory is one delegation card under the PIX refunds parent session.
 type subagentStory struct {
-	ID         string
-	ChildID    string
-	Title      string
-	Role       string
-	Agent      string
-	Provider   string
-	Model      string
-	StepIndex  int
-	Status     string
-	Result     string
-	Error      string
-	StartedAt  time.Time
-	SettledAt  time.Time
-	TaskChars  int32
-	InputUsed  int64
-	OutputUsed int64
+	ID        string
+	ChildID   string
+	Title     string
+	Role      string
+	Agent     string
+	Provider  string
+	Model     string
+	StepIndex int
+	// ParentID, Depth and WorkspaceKey place a delegation outside the PIX parent.
+	ParentID     string
+	Depth        int
+	WorkspaceKey string
+	Status       string
+	Result       string
+	Error        string
+	StartedAt    time.Time
+	SettledAt    time.Time
+	TaskChars    int32
+	InputUsed    int64
+	OutputUsed   int64
 }
 
 func boardOrchestrationSessions(clock timeline) []boardSessionStory {
@@ -215,6 +219,6 @@ func pixChildSteps(sub subagentStory) []transcriptStep {
 	return append(steps, transcriptStep{Kind: stepAgent, Text: sub.Result})
 }
 
-func pixSubagentToolCallID(sub subagentStory) string {
-	return fmt.Sprintf("call_%s_%02d", sessionPixRefundsID, sub.StepIndex+1)
+func subagentToolCallID(parentID string, sub subagentStory) string {
+	return fmt.Sprintf("call_%s_%02d", parentID, sub.StepIndex+1)
 }

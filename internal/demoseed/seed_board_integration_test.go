@@ -5,6 +5,7 @@ package demoseed
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/transcript"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestSeedBoard(t *testing.T) {
@@ -33,6 +35,7 @@ func TestSeedBoard(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Seed(first) error = %v", err)
 			}
+			foreignID := fileForeignProject(t, ctx, first, homeDir)
 			replaced, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now.Add(time.Hour)})
 			if err != nil {
 				t.Fatalf("Seed(replace) error = %v", err)
@@ -60,6 +63,8 @@ func TestSeedBoard(t *testing.T) {
 			platformID := replaced.WorkspaceIDs[1]
 			assertPixTranscript(t, ctx, homeDir, platformID)
 			assertSessionFolders(t, ctx, db, replaced)
+			assertForeignProjectFiled(t, ctx, db, foreignID)
+			assertLedgerTree(t, ctx, db, platformID)
 			keys := map[string]string{platformID: northstarRepoKey}
 
 			for column, want := range map[string][]string{
@@ -216,7 +221,84 @@ func assertSessionFolders(t *testing.T, ctx context.Context, db *globaldb.Global
 			filed++
 		}
 	}
-	if len(layout.Folders) != 1 || filed != len(result.WorkspaceIDs) {
-		t.Fatalf("project layout folders=%d filed=%d, want one folder holding every project", len(layout.Folders), filed)
+	if len(layout.Folders) != 1 || filed != 3 {
+		t.Fatalf("project layout folders=%d filed=%d, want one folder holding two seeded projects and the operator one", len(layout.Folders), filed)
 	}
+}
+
+// assertLedgerTree reads the largest tree: a coordinator with ten workers, nested subagents, and a failure.
+func assertLedgerTree(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, workspaceID string) {
+	t.Helper()
+	root := treeRootID(treeLedger)
+	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID, RootSessionID: root,
+		Archive: store.SessionArchiveInclude,
+	})
+	if err != nil {
+		t.Fatalf("ListSessions(root) error = %v", err)
+	}
+	workers, nested := 0, 0
+	for index := range sessions {
+		if sessions[index].Lineage == nil {
+			continue
+		}
+		if sessions[index].Lineage.SpawnRole == "worker" {
+			workers++
+		}
+		if sessions[index].Lineage.SpawnDepth == 2 {
+			nested++
+		}
+	}
+	if workers != 10 || nested < 20 {
+		t.Fatalf("ledger tree workers=%d nested=%d, want 10 workers and at least 20 nested subagent sessions", workers, nested)
+	}
+	summaries, err := db.Summaries(ctx, []string{treeWorkerID(treeLedger, 1)})
+	if err != nil {
+		t.Fatalf("Summaries() error = %v", err)
+	}
+	if summaries[treeWorkerID(treeLedger, 1)].Total != 3 {
+		t.Fatalf("worker subagent summary = %#v, want 3 subagents", summaries)
+	}
+}
+
+// fileForeignProject registers an operator project in the seed's folder before a replace.
+func fileForeignProject(t *testing.T, ctx context.Context, result Result, homeDir string) string {
+	t.Helper()
+	db, err := globaldb.OpenGlobalDB(ctx, result.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	defer func() {
+		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	}()
+	root := filepath.Join(homeDir, "operator-project")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	const id = "ws_operator_project"
+	if err := db.InsertWorkspace(ctx, compozyworkspace.Workspace{
+		ID: id, RootDir: root, Name: "operator-project", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	if err := db.MoveWorkspace(ctx, store.DefaultProfileID, id, northstarProjectFolderID); err != nil {
+		t.Fatalf("MoveWorkspace() error = %v", err)
+	}
+	return id
+}
+
+func assertForeignProjectFiled(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, id string) {
+	t.Helper()
+	layout, err := db.WorkspaceLayout(ctx, store.DefaultProfileID)
+	if err != nil {
+		t.Fatalf("WorkspaceLayout() error = %v", err)
+	}
+	for _, placement := range layout.Placements {
+		if placement.WorkspaceID == id && placement.FolderID == northstarProjectFolderID {
+			return
+		}
+	}
+	t.Fatalf("replace moved operator project out of the shared folder: %#v", layout.Placements)
 }

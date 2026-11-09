@@ -59,9 +59,9 @@ func TestSeed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(first) error = %v", err)
 		}
-		if first.Counts.Workspaces != 2 || first.Counts.Sessions != len(first.SessionIDs) || first.Counts.Tasks != 23 ||
+		if first.Counts.Workspaces != 6 || first.Counts.Sessions != len(first.SessionIDs) || first.Counts.Tasks != 23 ||
 			first.Counts.GoalTurns != 2 ||
-			first.Counts.Worktrees != 1 {
+			first.Counts.Worktrees != 2 {
 			t.Fatalf("Seed(first).Counts = %#v, want the complete multi-surface scenario", first.Counts)
 		}
 		obsoleteFixture := filepath.Join(first.WorkspaceRoot, "obsolete-seed-fixture.md")
@@ -203,8 +203,8 @@ func assertCompleteSeedSurfaces(
 	result Result,
 ) {
 	t.Helper()
-	if len(result.WorkspaceIDs) != 2 {
-		t.Fatalf("WorkspaceIDs = %#v, want two workspaces", result.WorkspaceIDs)
+	if len(result.WorkspaceIDs) != 6 {
+		t.Fatalf("WorkspaceIDs = %#v, want six workspaces", result.WorkspaceIDs)
 	}
 	var runCount int
 	readScope := store.ReadScope{ProfileID: store.DefaultProfileID}
@@ -258,11 +258,16 @@ func assertCompleteSeedSurfaces(
 	if err != nil {
 		t.Fatalf("WorktreeStore.List() error = %v", err)
 	}
-	if len(worktrees) != 1 || worktrees[0].State != worktree.StateReady {
-		t.Fatalf("WorktreeStore.List() = %#v, want one ready Git worktree", worktrees)
+	if len(worktrees) != len(seedWorktreeFixtures()) {
+		t.Fatalf("WorktreeStore.List() = %#v, want every seeded Git worktree", worktrees)
 	}
-	if _, err := os.Stat(worktrees[0].Path); err != nil {
-		t.Fatalf("Stat(seed worktree) error = %v", err)
+	for index := range worktrees {
+		if worktrees[index].State != worktree.StateReady {
+			t.Fatalf("worktree %q state = %s, want ready", worktrees[index].Name, worktrees[index].State)
+		}
+		if _, err := os.Stat(worktrees[index].Path); err != nil {
+			t.Fatalf("Stat(seed worktree) error = %v", err)
+		}
 	}
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
@@ -291,8 +296,8 @@ func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.Glob
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	if len(sessions) != 9 {
-		t.Fatalf("len(ListSessions()) = %d, want 9 launch sessions (6 scenario + 3 board)", len(sessions))
+	if len(sessions) != 12 {
+		t.Fatalf("len(ListSessions()) = %d, want 12 launch sessions (scenario, board, tree root, always-on mains)", len(sessions))
 	}
 	for _, sessionRecord := range sessions {
 		wantState := "stopped"

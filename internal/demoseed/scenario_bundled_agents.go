@@ -47,7 +47,7 @@ func bundledAgentSessions(clock timeline) []sessionStory {
 func bundledSession(id, name, agent string, started, ended time.Time, detail string) sessionStory {
 	return sessionStory{
 		ID: id, Name: name, WorkspaceKey: workspaceKeyPlatform, AgentName: agent,
-		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
+		Provider: providerClaude, Model: modelClaudeOpus, SessionType: string(session.SessionTypeUser),
 		StartedAt: started, EndedAt: ended, StopDetail: detail,
 	}
 }
@@ -157,7 +157,7 @@ func orchestratorInstance(clock timeline) instanceStory {
 	return instanceStory{
 		Agent: agentOrchestrator, WorkspaceKey: workspaceKeyPlatform, Bundled: true,
 		MainID: sessionOrchestratorMainID, MainName: "Orchestrator",
-		Provider: providerClaude, Model: modelClaude,
+		Provider: providerClaude, Model: modelClaudeOpus,
 		CreatedAt: created, Interval: time.Hour, ActiveFrom: 0, ActiveTo: 24, QuietEvery: 3,
 		SeenAt: clock.hoursAgo(3), NextCheckIn: 34 * time.Minute,
 		Turns: []mainTurn{

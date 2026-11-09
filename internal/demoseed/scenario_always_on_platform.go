@@ -32,10 +32,11 @@ func shellStep(command string, stdout string) transcriptStep {
 }
 
 func scenarioInstances(clock timeline) []instanceStory {
-	return []instanceStory{
+	core := []instanceStory{
 		issueTriagerInstance(clock), releaseWatchInstance(clock), logTriageInstance(clock), riskMonitorInstance(clock),
 		orchestratorInstance(clock),
 	}
+	return append(core, rosterInstances(clock)...)
 }
 
 func draftReproAction() heartbeat.ActionDecl {
@@ -49,7 +50,7 @@ func draftReproAction() heartbeat.ActionDecl {
 func issueTriagerInstance(clock timeline) instanceStory {
 	return instanceStory{
 		Agent: agentIssueTriager, WorkspaceKey: workspaceKeyPlatform,
-		MainID: sessionIssueTriagerMainID, MainName: "Issue Triager",
+		MainID: sessionIssueTriagerMainID, MainName: displayIssueTriager,
 		Provider: providerClaude, Model: modelClaude,
 		CreatedAt: clock.daysHoursAgo(12, 3), Interval: 30 * time.Minute, ActiveFrom: 8, ActiveTo: 22, QuietEvery: 2,
 		Actions: []heartbeat.ActionDecl{draftReproAction()},
@@ -173,7 +174,7 @@ func issueTriagerBeats(clock timeline) []checkInBeat {
 func releaseWatchInstance(clock timeline) instanceStory {
 	return instanceStory{
 		Agent: agentReleaseWatch, WorkspaceKey: workspaceKeyPlatform,
-		MainID: sessionReleaseWatchMainID, MainName: "Release Watch",
+		MainID: sessionReleaseWatchMainID, MainName: displayReleaseWatch,
 		Provider: providerCodex, Model: modelCodex,
 		CreatedAt: clock.daysHoursAgo(9, 2), Interval: 45 * time.Minute, ActiveFrom: 0, ActiveTo: 24, QuietEvery: 2,
 		SeenAt: clock.hoursMinutesAgo(10, 20), NextCheckIn: 26 * time.Minute,

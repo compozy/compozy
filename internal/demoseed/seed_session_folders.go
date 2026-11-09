@@ -2,7 +2,6 @@ package demoseed
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
@@ -10,8 +9,8 @@ import (
 )
 
 const (
-	northstarProjectFolderID   = "wsf_northstar_pay"
-	northstarProjectFolderName = "Northstar Pay"
+	northstarProjectFolderID   = "wsf_northstar_internal"
+	northstarProjectFolderName = "Internal tools"
 )
 
 // sessionFolderStory groups a project's sessions the way its team would file them.
@@ -23,12 +22,12 @@ type sessionFolderStory struct {
 }
 
 func scenarioSessionFolders() []sessionFolderStory {
-	return []sessionFolderStory{
+	return append([]sessionFolderStory{
 		{
 			ID: "sfd_northstar_settlement", WorkspaceKey: workspaceKeyPlatform, Name: "Settlement",
 			SessionIDs: []string{
 				sessionRetryBudgetID, sessionRetryReviewID, sessionSettlementRetryID, sessionPartnerReplayID,
-				sessionExportSpecID, sessionExportRenameID,
+				sessionExportSpecID, sessionExportRenameID, treeRootID(treeLedger),
 			},
 		},
 		{
@@ -49,7 +48,7 @@ func scenarioSessionFolders() []sessionFolderStory {
 				sessionChargebackBackfillID, sessionChargebackWatchID, sessionFraudSweepID, sessionDisputePlaybookID,
 			},
 		},
-	}
+	}, projectFolderStories()...)
 }
 
 // seedSessionFolders files sessions into folders and both projects under one project folder,
@@ -73,13 +72,11 @@ func seedSessionFolders(ctx context.Context, db *globaldb.GlobalDB, state *scena
 			}
 		}
 	}
-	if _, err := db.CreateWorkspaceFolder(
-		ctx, store.DefaultProfileID, northstarProjectFolderID, northstarProjectFolderName,
-	); err != nil {
-		return 0, fmt.Errorf("demo seed: create project folder: %w", err)
+	if err := ensureProjectFolder(ctx, db); err != nil {
+		return 0, err
 	}
-	for _, workspace := range state.workspaces {
-		record, err := state.recordFor(workspace.Key)
+	for _, key := range []string{workspaceKeyInfra, workspaceKeyDocs} {
+		record, err := state.recordFor(key)
 		if err != nil {
 			return 0, err
 		}
@@ -90,11 +87,22 @@ func seedSessionFolders(ctx context.Context, db *globaldb.GlobalDB, state *scena
 	return len(stories), nil
 }
 
-// removeProjectFolder clears the profile-level folder; session folders leave with their workspace.
-func removeProjectFolder(ctx context.Context, db *globaldb.GlobalDB) error {
-	err := db.DeleteWorkspaceFolder(ctx, store.DefaultProfileID, northstarProjectFolderID)
-	if err != nil && !errors.Is(err, store.ErrWorkspaceFolderNotFound) {
-		return fmt.Errorf("demo seed: replace project folder: %w", err)
+// ensureProjectFolder keeps a folder from an earlier seed: it may also hold projects the
+// operator filed there, and a workspace leaves its placement behind only with its own deletion.
+func ensureProjectFolder(ctx context.Context, db *globaldb.GlobalDB) error {
+	layout, err := db.WorkspaceLayout(ctx, store.DefaultProfileID)
+	if err != nil {
+		return fmt.Errorf("demo seed: read project layout: %w", err)
+	}
+	for _, folder := range layout.Folders {
+		if folder.ID == northstarProjectFolderID {
+			return nil
+		}
+	}
+	if _, err := db.CreateWorkspaceFolder(
+		ctx, store.DefaultProfileID, northstarProjectFolderID, northstarProjectFolderName,
+	); err != nil {
+		return fmt.Errorf("demo seed: create project folder: %w", err)
 	}
 	return nil
 }

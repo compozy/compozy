@@ -3,6 +3,7 @@ package demoseed
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -69,6 +70,12 @@ type sessionStory struct {
 	SessionType  string
 	ParentID     string
 	SpawnRole    string
+	// RootID and SpawnDepth place a nested session; empty means a direct child of ParentID.
+	RootID     string
+	SpawnDepth int
+	// LineageKind is set for relations the type cannot imply, such as a fork.
+	LineageKind store.LineageKind
+	OriginAgent string
 	// InitiatorKind/InitiatorID name the non-operator actor that started the session, such as an automation.
 	InitiatorKind string
 	InitiatorID   string

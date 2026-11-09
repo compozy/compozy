@@ -5,6 +5,7 @@ package demoseed
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -34,9 +35,9 @@ func TestSeedAlwaysOn(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(replace) error = %v", err)
 		}
-		if result.Counts.AlwaysOnInstances != 5 || result.Counts.InstanceReports == 0 ||
+		if result.Counts.AlwaysOnInstances != len(scenarioInstances(newTimeline(now))) || result.Counts.InstanceReports == 0 ||
 			result.Counts.ProposalPicks == 0 || result.Counts.CheckIns == 0 {
-			t.Fatalf("Seed(replace).Counts = %#v, want five instances with check-ins, reports and picks", result.Counts)
+			t.Fatalf("Seed(replace).Counts = %#v, want every seat turned on with check-ins, reports and picks", result.Counts)
 		}
 		db, err := globaldb.OpenGlobalDB(ctx, result.DatabaseFile)
 		if err != nil {
@@ -48,18 +49,27 @@ func TestSeedAlwaysOn(t *testing.T) {
 			}
 		})
 		instances, err := db.Instances().List(ctx, agentinstance.ListQuery{
-			ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 50,
+			ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 100,
 		})
 		if err != nil {
 			t.Fatalf("Instances().List() error = %v", err)
 		}
 		byAgent := map[string]agentinstance.Instance{}
+		perProject := map[string]int{}
+		core := []string{
+			sessionIssueTriagerMainID, sessionReleaseWatchMainID, sessionLogTriageMainID,
+			sessionRiskMonitorMainID, sessionOrchestratorMainID,
+		}
 		for _, instance := range instances {
-			byAgent[instance.AgentName] = instance
+			perProject[instance.WorkspaceID]++
+			if slices.Contains(core, instance.MainSessionID) {
+				byAgent[instance.AgentName] = instance
+			}
 		}
-		if len(byAgent) != 5 {
-			t.Fatalf("live instances = %d (%v), want 5 after replace", len(instances), byAgent)
+		if len(byAgent) != 5 || len(instances) != result.Counts.AlwaysOnInstances {
+			t.Fatalf("live instances = %d (%v), want every seat and the five core agents", len(instances), byAgent)
 		}
+		assertFacesPerProject(t, result, perProject)
 		assertStoredSessions(t, ctx, db, result)
 		assertInstanceStates(t, ctx, db, byAgent)
 		assertTriagerProposals(t, ctx, db, byAgent[agentIssueTriager])
@@ -241,5 +251,23 @@ func assertStoredSessions(t *testing.T, ctx context.Context, db *globaldb.Global
 		if !stored[id] {
 			t.Fatalf("SessionIDs lists %q, which is not stored", id)
 		}
+	}
+}
+
+// assertFacesPerProject keeps every project's sidebar row populated and the busiest one crowded.
+func assertFacesPerProject(t *testing.T, result Result, perProject map[string]int) {
+	t.Helper()
+	if len(result.WorkspaceIDs) != 6 {
+		t.Fatalf("projects = %d, want 6", len(result.WorkspaceIDs))
+	}
+	busiest := 0
+	for _, workspaceID := range result.WorkspaceIDs {
+		if perProject[workspaceID] < 2 {
+			t.Fatalf("project %s has %d always-on agents, want at least 2", workspaceID, perProject[workspaceID])
+		}
+		busiest = max(busiest, perProject[workspaceID])
+	}
+	if busiest < 8 {
+		t.Fatalf("busiest project has %d always-on agents, want at least 8", busiest)
 	}
 }

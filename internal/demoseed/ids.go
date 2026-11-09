@@ -1,9 +1,9 @@
 package demoseed
 
 const (
-	launchWorkspaceName     = "Northstar Pay Launch HQ"
+	launchWorkspaceName     = "launch-hq"
 	launchWorkspaceRelative = "workspaces/northstar-pay/launch-hq"
-	platformWorkspaceName   = "Northstar Pay Platform"
+	platformWorkspaceName   = "payments-platform"
 	platformWorkspaceRelat  = "workspaces/northstar-pay/platform"
 )
 
@@ -22,7 +22,9 @@ const (
 	providerClaude = "claude"
 	providerCodex  = "codex"
 	modelClaude    = "claude-sonnet-5"
-	modelCodex     = "gpt-5.6-codex"
+	modelCodex     = "gpt-5.6-sol"
+	// modelClaudeOpus runs the bundled delivery agents.
+	modelClaudeOpus = "claude-opus-5"
 )
 
 const (
@@ -35,6 +37,7 @@ const (
 	// Orchestrating engineers delegate to subagents and wait on monitors.
 	toolSubagentDelegate = "compozy__subagent_delegate"
 	toolMonitorCreate    = "compozy__monitor_create"
+	toolClarify          = "compozy__clarify"
 	toolKindRead         = "read"
 	toolKindEdit         = "edit"
 	toolKindExecute      = "execute"

@@ -15,11 +15,12 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
-	instanceActiveLimit  = 10
+	instanceActiveLimit  = 40
 	checkInRetention     = 30 * 24 * time.Hour
 	autoAcceptPerDay     = 3
 	pickQueueCap         = 20
@@ -102,10 +103,8 @@ func agentFor(story instanceStory) (agentStory, error) {
 	if story.Bundled {
 		return agentStory{
 			Name: story.Agent, WorkspaceKey: story.WorkspaceKey, Permissions: bundledAgentPermissions[story.Agent],
-			Tools: []string{
-				"compozy__worktree_create", "compozy__session_create", "compozy__session_history",
-				"compozy__session_prompt", toolMonitorCreate,
-			},
+			// A definition with no allowlist runs with the whole native tool universe.
+			Tools: toolmeta.NativeToolIDs(),
 		}, nil
 	}
 	for _, agent := range alwaysOnAgents() {

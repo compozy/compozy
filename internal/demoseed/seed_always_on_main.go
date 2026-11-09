@@ -224,11 +224,13 @@ func mainSessionDir(state *scenario, run *instanceRun) string {
 	return filepath.Join(state.paths.SessionsDir, run.story.MainID)
 }
 
-func alwaysOnSessionIDs() []string {
-	return []string{
-		sessionIssueTriagerMainID, sessionReleaseWatchMainID, sessionLogTriageMainID, sessionRiskMonitorMainID,
-		sessionOrchestratorMainID,
+func alwaysOnSessionIDs(clock timeline) []string {
+	stories := scenarioInstances(clock)
+	ids := make([]string, 0, len(stories))
+	for _, story := range stories {
+		ids = append(ids, story.MainID)
 	}
+	return ids
 }
 
 // stopWorkspaceSessions stops the sessions a replace is about to delete: a daemon that ran on

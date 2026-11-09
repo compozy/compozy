@@ -14,6 +14,13 @@ const (
 	checkResultSkipped  = "skipped"
 	reasonTriageTimeout = "triage_timeout"
 	saoPauloOffset      = -3 * time.Hour
+
+	displayIssueTriager = "Issue Triager"
+	displayReleaseWatch = "Release Watch"
+	displayLogTriage    = "Log Triage"
+	displayRiskMonitor  = "Risk Monitor"
+	// triageTimeoutFailure is the report body the check service writes for a timed-out check.
+	triageTimeoutFailure = `{"reason":"triage_timeout","detail":"The proactive check timed out."}`
 )
 
 // instanceStory is one always-on agent's life in one project: when it was turned on, how it

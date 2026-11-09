@@ -24,9 +24,10 @@ const (
 )
 
 func alwaysOnAgents() []agentStory {
-	return []agentStory{
+	core := []agentStory{
 		issueTriagerAgent(), releaseWatchAgent(), logTriageAgent(), riskMonitorAgent(),
 	}
+	return append(core, rosterAgents(core)...)
 }
 
 func faceAppearance(seed string, color string) map[string]any {
@@ -40,7 +41,7 @@ func issueTriagerAgent() agentStory {
 		Name:         agentIssueTriager,
 		WorkspaceKey: workspaceKeyPlatform,
 		Kind:         agentKindAlwaysOn,
-		DisplayName:  "Issue Triager",
+		DisplayName:  displayIssueTriager,
 		Description:  "Watches northstar-pay/payments-platform for new GitHub issues and proposes the ones nobody owns.",
 		Appearance:   faceAppearance("issue-triager-iris", "#2f7cf6"),
 		Provider:     providerClaude,
@@ -95,7 +96,7 @@ func releaseWatchAgent() agentStory {
 		Name:         agentReleaseWatch,
 		WorkspaceKey: workspaceKeyPlatform,
 		Kind:         agentKindAlwaysOn,
-		DisplayName:  "Release Watch",
+		DisplayName:  displayReleaseWatch,
 		Description:  "Follows the payments release train and tells you when a candidate is blocked, red, or ready to ship.",
 		Appearance:   faceAppearance("release-watch-otto", "#14b8a6"),
 		Provider:     providerCodex,
@@ -131,7 +132,7 @@ func logTriageAgent() agentStory {
 		Name:         agentLogTriage,
 		WorkspaceKey: workspaceKeyPlatform,
 		Kind:         agentKindAlwaysOn,
-		DisplayName:  "Log Triage",
+		DisplayName:  displayLogTriage,
 		Description:  "Reads the settlement worker error feed hourly during active hours and groups new failures by cause.",
 		Appearance:   faceAppearance("log-triage-juno", "#e5484d"),
 		Provider:     providerClaude,
@@ -173,7 +174,7 @@ func riskMonitorAgent() agentStory {
 		Name:         agentRiskMonitor,
 		WorkspaceKey: workspaceKeyLaunch,
 		Kind:         agentKindAlwaysOn,
-		DisplayName:  "Risk Monitor",
+		DisplayName:  displayRiskMonitor,
 		Description:  "Watches dispute and chargeback alerts for the checkout launch markets and flags a rate that moves.",
 		Appearance:   faceAppearance("risk-monitor-vera", "#f5a524"),
 		Provider:     providerClaude,

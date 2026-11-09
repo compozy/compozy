@@ -168,7 +168,7 @@ func buildResult(state *scenario, counts Counts) Result {
 		WorkspaceID:  primary.ID, WorkspaceRoot: primary.RootDir, WorkspaceName: primary.Name,
 		WorkspaceIDs: workspaceIDs,
 		SessionIDs: append(append(append([]string(nil), scenarioSessionIDs...), boardSessionIDs(state.clock)...),
-			append(append(alwaysOnSessionIDs(), bundledSessionIDs()...), state.automationSessionIDs...)...),
+			append(append(alwaysOnSessionIDs(state.clock), bundledSessionIDs()...), state.automationSessionIDs...)...),
 		TaskIDs:  taskIDs,
 		LoopName: loopLaunchReadiness, LoopNames: scenarioLoopNames(),
 		LoopRunID: loopApprovalRunID, LoopRunIDs: scenarioLoopRunIDs(),

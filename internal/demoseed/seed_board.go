@@ -12,9 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
-// boardLaterSweepLimit bounds the one Later return sweep the seed runs, like the daemon's.
-const boardLaterSweepLimit = 20
-
 // boardCounts summarizes the board and orchestration records a seed run writes.
 type boardCounts struct {
 	sessions, transcriptEvents, subagents, monitors, pullRequests, later int
@@ -22,7 +19,7 @@ type boardCounts struct {
 
 // boardSessionIDs lists every board session directory a replace must clear.
 func boardSessionIDs(clock timeline) []string {
-	stories := append(boardSessions(clock), boardOrchestrationSessions(clock)...)
+	stories := allBoardStories(clock)
 	ids := make([]string, 0, len(stories))
 	for _, story := range stories {
 		ids = append(ids, story.ID)
@@ -33,7 +30,7 @@ func boardSessionIDs(clock timeline) []string {
 // seedBoard runs after the worktree fixture exists, so a session can bind to it.
 func seedBoard(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (boardCounts, error) {
 	clock := state.clock
-	stories := append(boardSessions(clock), boardOrchestrationSessions(clock)...)
+	stories := allBoardStories(clock)
 	counts := boardCounts{}
 	for _, story := range stories {
 		written, err := seedSession(ctx, db, state, story.sessionStory)
@@ -46,10 +43,13 @@ func seedBoard(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (boa
 			return boardCounts{}, err
 		}
 	}
-	// The daemon's Later sweep brings back what is due. Running it as of the playbook's own return
-	// instant stamps the return when it happened and leaves anything due after that alone.
-	if _, err := db.ReturnDueLaterSessions(ctx, boardLaterReturnAt(clock), boardLaterSweepLimit); err != nil {
-		return boardCounts{}, fmt.Errorf("demo seed: return due Later sessions: %w", err)
+	launch, err := state.recordFor(workspaceKeyLaunch)
+	if err != nil {
+		return boardCounts{}, err
+	}
+	// Only the seeded playbook came back from Later; other parked sessions are not the seed's.
+	if err := db.ReturnLaterSession(ctx, launch.ID, sessionDisputePlaybookID, boardLaterReturnAt(clock)); err != nil {
+		return boardCounts{}, fmt.Errorf("demo seed: return the playbook from Later: %w", err)
 	}
 	subagents, err := seedPixSubagents(ctx, db, state)
 	if err != nil {
@@ -76,7 +76,7 @@ func seedBoardSessionExtras(
 	}
 	worktreeID, worktreeName := "", ""
 	if story.BindWorktree {
-		if err := bindBoardWorktree(ctx, db, state, record, story); err != nil {
+		if err := bindSessionWorktree(ctx, db, state, record, story.ID, seedWorktreeID, story.EndedAt); err != nil {
 			return err
 		}
 		worktreeID, worktreeName = seedWorktreeID, seedWorktreeName
@@ -96,32 +96,34 @@ func seedBoardSessionExtras(
 	return nil
 }
 
-func bindBoardWorktree(
+func bindSessionWorktree(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	state *scenario,
 	record workspaceRecord,
-	story boardSessionStory,
+	sessionID string,
+	worktreeID string,
+	updatedAt time.Time,
 ) error {
-	item, err := db.WorktreeStore().Get(ctx, record.ID, seedWorktreeID)
+	item, err := db.WorktreeStore().Get(ctx, record.ID, worktreeID)
 	if err != nil {
-		return fmt.Errorf("demo seed: read worktree for session %q: %w", story.ID, err)
+		return fmt.Errorf("demo seed: read worktree for session %q: %w", sessionID, err)
 	}
 	if err := db.UpdateSessionWorktreeBinding(ctx, store.SessionWorktreeBindingUpdate{
-		SessionID: story.ID, WorkspaceID: record.ID, ProfileID: store.DefaultProfileID,
-		WorktreeID: seedWorktreeID, UpdatedAt: story.EndedAt,
+		SessionID: sessionID, WorkspaceID: record.ID, ProfileID: store.DefaultProfileID,
+		WorktreeID: worktreeID, UpdatedAt: updatedAt,
 	}); err != nil {
-		return fmt.Errorf("demo seed: bind session %q to worktree: %w", story.ID, err)
+		return fmt.Errorf("demo seed: bind session %q to worktree: %w", sessionID, err)
 	}
-	metaPath := store.SessionMetaFile(filepath.Join(state.paths.SessionsDir, story.ID))
+	metaPath := store.SessionMetaFile(filepath.Join(state.paths.SessionsDir, sessionID))
 	meta, err := store.ReadSessionMeta(metaPath)
 	if err != nil {
-		return fmt.Errorf("demo seed: read metadata for session %q: %w", story.ID, err)
+		return fmt.Errorf("demo seed: read metadata for session %q: %w", sessionID, err)
 	}
-	meta.SetWorktreeID(seedWorktreeID)
+	meta.SetWorktreeID(worktreeID)
 	meta.SetCWD(item.Path)
 	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
-		return fmt.Errorf("demo seed: write worktree metadata for session %q: %w", story.ID, err)
+		return fmt.Errorf("demo seed: write worktree metadata for session %q: %w", sessionID, err)
 	}
 	return nil
 }
@@ -198,7 +200,24 @@ func seedPixSubagents(ctx context.Context, db *globaldb.GlobalDB, state *scenari
 			return 0, err
 		}
 	}
-	return len(subs), nil
+	trees := treeSubagents(state.clock)
+	for _, sub := range trees {
+		owner, err := state.recordFor(sub.WorkspaceKey)
+		if err != nil {
+			return 0, err
+		}
+		if err := seedPixSubagent(ctx, db, state, owner, sub); err != nil {
+			return 0, err
+		}
+	}
+	return len(subs) + len(trees), nil
+}
+
+// allBoardStories is every session the board writes, oldest writers first so parents precede children.
+func allBoardStories(clock timeline) []boardSessionStory {
+	stories := append(boardSessions(clock), boardOrchestrationSessions(clock)...)
+	stories = append(stories, projectSessions(clock)...)
+	return append(stories, treeSessions(clock)...)
 }
 
 func seedPixSubagent(
@@ -209,14 +228,17 @@ func seedPixSubagent(
 	sub subagentStory,
 ) error {
 	createdAt := sub.StartedAt.Add(-10 * time.Second)
-	parentTurn := pixRefundsParentTurnLabel
+	parentID, parentTurn, depth := sessionPixRefundsID, pixRefundsParentTurnLabel, 1
+	if sub.ParentID != "" {
+		parentID, parentTurn, depth = sub.ParentID, "turn_"+sub.ParentID, sub.Depth
+	}
 	if _, _, err := db.ReserveSubagent(ctx, store.SessionSubagent{
-		ID: sub.ID, WorkspaceID: record.ID, ParentSessionID: sessionPixRefundsID,
-		ParentTurnID: parentTurn, ParentToolCallID: pixSubagentToolCallID(sub),
+		ID: sub.ID, WorkspaceID: record.ID, ParentSessionID: parentID,
+		ParentTurnID: parentTurn, ParentToolCallID: subagentToolCallID(parentID, sub),
 		Origin: store.SubagentOriginDelegated, IdempotencyKey: sub.ID, RequestFingerprint: "seed:" + sub.ID,
 		Title: sub.Title, Role: sub.Role, TaskChars: sub.TaskChars,
 		RuntimeAgent: sub.Agent, RuntimeProvider: sub.Provider, RuntimeModel: sub.Model,
-		Depth: 1, Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
+		Depth: depth, Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
 		WakePolicy: store.SubagentWakePolicySettledOnly, Delivery: store.SubagentDeliveryNone,
 		CreatedAt: createdAt, UpdatedAt: createdAt,
 	}); err != nil {
