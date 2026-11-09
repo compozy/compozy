@@ -79,3 +79,10 @@ strictly positive and within the owning suite budget. Zero, negative and Infinit
 cannot disable the deadline. The canonical plugin suite passes 41 tests; an actual
 oxlint parser run rejects all six disabled-deadline forms and accepts both positive
 controls. Existing test deadlines and assertions remain unchanged.
+
+The SDK's two real stdio integration tests use the existing positive 180s
+`integrationTimeoutMs` constant. Each now documents its process/RPC lifecycle
+exception locally; the rule still rejects arbitrary constant overrides. Their
+event-driven response synchronization, deadline and assertions are unchanged.
+Focused Turbo execution of that canonical integration file passes all three tests
+with a cache miss; focused lint and formatting pass.
