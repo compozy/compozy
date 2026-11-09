@@ -18,22 +18,31 @@ type Options struct {
 
 // Counts summarizes the durable records created by a seed run.
 type Counts struct {
-	Workspaces       int `json:"workspaces"`
-	Agents           int `json:"agents"`
-	Sessions         int `json:"sessions"`
-	Tasks            int `json:"tasks"`
-	TaskRuns         int `json:"task_runs"`
-	LoopDefinitions  int `json:"loop_definitions"`
-	LoopRuns         int `json:"loop_runs"`
-	LoopGenerations  int `json:"loop_generations"`
-	LoopRunEvents    int `json:"loop_run_events"`
-	GoalTurns        int `json:"goal_turns"`
-	EventSummaries   int `json:"event_summaries"`
-	TokenUsageDays   int `json:"token_usage_days"`
-	Worktrees        int `json:"worktrees"`
-	AutomationJobs   int `json:"automation_jobs"`
-	AutomationRuns   int `json:"automation_runs"`
-	TranscriptEvents int `json:"transcript_events"`
+	Workspaces         int `json:"workspaces"`
+	AlwaysOnInstances  int `json:"always_on_instances"`
+	CheckIns           int `json:"check_ins"`
+	InstanceReports    int `json:"instance_reports"`
+	ProposalPicks      int `json:"proposal_picks"`
+	Agents             int `json:"agents"`
+	Sessions           int `json:"sessions"`
+	Tasks              int `json:"tasks"`
+	TaskRuns           int `json:"task_runs"`
+	LoopDefinitions    int `json:"loop_definitions"`
+	LoopRuns           int `json:"loop_runs"`
+	LoopGenerations    int `json:"loop_generations"`
+	LoopRunEvents      int `json:"loop_run_events"`
+	GoalTurns          int `json:"goal_turns"`
+	EventSummaries     int `json:"event_summaries"`
+	TokenUsageDays     int `json:"token_usage_days"`
+	Worktrees          int `json:"worktrees"`
+	AutomationJobs     int `json:"automation_jobs"`
+	AutomationRuns     int `json:"automation_runs"`
+	AutomationTriggers int `json:"automation_triggers"`
+	TranscriptEvents   int `json:"transcript_events"`
+	Subagents          int `json:"subagents"`
+	Monitors           int `json:"monitors"`
+	PullRequests       int `json:"pull_requests"`
+	LaterSessions      int `json:"later_sessions"`
 }
 
 // Result identifies the seeded workspaces and the shortest useful demo routes.

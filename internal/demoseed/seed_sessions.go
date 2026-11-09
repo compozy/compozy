@@ -81,6 +81,7 @@ func writeSessionRecords(
 		Failure:   sessionFailure(story),
 		Lineage:   lineage,
 		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
+		InitiatorKind: story.InitiatorKind, InitiatorID: story.InitiatorID,
 	}
 	meta.SetCWD(record.RootDir)
 	meta.SetEffectivePermissions(permissions)
@@ -91,8 +92,9 @@ func writeSessionRecords(
 		ID: story.ID, ProfileID: store.DefaultProfileID,
 		Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
-		Lineage: lineage,
-		State:   string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage:       lineage,
+		InitiatorKind: story.InitiatorKind, InitiatorID: story.InitiatorID,
+		State: string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason: stopReason, StopDetail: stopDetail, Failure: sessionFailure(story),
 		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	})); err != nil {

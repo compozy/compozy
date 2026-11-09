@@ -1,0 +1,136 @@
+//go:build integration
+
+package demoseed
+
+import (
+	"context"
+	"path/filepath"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/monitor"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+)
+
+func TestSeedBoard(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should fill the durable board columns, Later, and orchestration records across a replace",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			now := time.Date(2026, 11, 9, 15, 0, 0, 0, time.UTC)
+			homeDir := filepath.Join(t.TempDir(), "home")
+			first, err := Seed(ctx, Options{HomeDir: homeDir, Now: now})
+			if err != nil {
+				t.Fatalf("Seed(first) error = %v", err)
+			}
+			replaced, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatalf("Seed(replace) error = %v", err)
+			}
+			if replaced.Counts.Subagents != first.Counts.Subagents ||
+				replaced.Counts.PullRequests != first.Counts.PullRequests ||
+				replaced.Counts.LaterSessions != first.Counts.LaterSessions ||
+				replaced.Counts.Monitors != 1 {
+				t.Fatalf(
+					"Seed(replace).Counts = %#v, want the first run's board counts %#v",
+					replaced.Counts,
+					first.Counts,
+				)
+			}
+
+			db, err := globaldb.OpenGlobalDB(ctx, replaced.DatabaseFile)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+			platformID := replaced.WorkspaceIDs[1]
+			keys := map[string]string{platformID: northstarRepoKey}
+
+			for column, want := range map[string][]string{
+				store.SessionBoardNeedsYou: {sessionChargebackBackfillID, sessionDisputePlaybookID},
+				store.SessionBoardInReview: {sessionRetryBudgetID, sessionWebhookSecretsID, sessionPixRefundsID},
+				store.SessionBoardDone:     {sessionLedgerFlakeID, sessionPagerSummaryID},
+			} {
+				ids := boardColumnIDs(t, ctx, db, replaced.WorkspaceIDs, keys, column, store.SessionLaterExclude)
+				for _, id := range want {
+					if !slices.Contains(ids, id) {
+						t.Fatalf("board column %q = %v, want it to contain %q", column, ids, id)
+					}
+				}
+			}
+			later := boardColumnIDs(t, ctx, db, replaced.WorkspaceIDs, keys, "", store.SessionLaterOnly)
+			if !slices.Contains(later, sessionPSPUpgradeID) || slices.Contains(later, sessionDisputePlaybookID) {
+				t.Fatalf("Later sessions = %v, want the parked PSP upgrade and not the returned playbook", later)
+			}
+
+			subagents, err := db.ListSubagents(ctx, store.SubagentListQuery{
+				WorkspaceID: platformID, ParentSessionID: sessionPixRefundsID, Limit: 10,
+			})
+			if err != nil {
+				t.Fatalf("ListSubagents() error = %v", err)
+			}
+			if len(subagents.Items) != 3 {
+				t.Fatalf("ListSubagents() = %d rows, want 3", len(subagents.Items))
+			}
+			for _, row := range subagents.Items {
+				if row.Status != store.SubagentStatusCompleted || row.ChildSessionID == nil || row.Result == nil {
+					t.Fatalf("subagent %q = %#v, want a completed card linked to its child with a result", row.ID, row)
+				}
+			}
+
+			monitors, err := db.LoadMonitors(ctx)
+			if err != nil {
+				t.Fatalf("LoadMonitors() error = %v", err)
+			}
+			found := slices.IndexFunc(monitors, func(record monitor.Record) bool {
+				return record.Monitor.ID == pixRefundsMonitorID
+			})
+			if found < 0 || monitors[found].WorkspaceID != platformID ||
+				monitors[found].Monitor.Kind != monitor.KindPullRequest {
+				t.Fatalf(
+					"LoadMonitors() = %#v, want the PIX refunds pull_request monitor in the replaced workspace",
+					monitors,
+				)
+			}
+		},
+	)
+}
+
+func boardColumnIDs(
+	t *testing.T,
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceIDs []string,
+	keys map[string]string,
+	column string,
+	later store.SessionLaterFilter,
+) []string {
+	t.Helper()
+	query := store.SessionCatalogPageQuery{
+		RepositoryKeys: keys, HideChildren: true, ExcludeVerdictOnly: true,
+		ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+		WorkspaceIDs: workspaceIDs, Archive: store.SessionArchiveExclude, Later: later, Sort: "attention", Limit: 100,
+	}
+	if column != "" {
+		query.Columns = []string{column}
+	}
+	page, err := db.PageSessions(ctx, query)
+	if err != nil {
+		t.Fatalf("PageSessions(%q) error = %v", column, err)
+	}
+	ids := make([]string, 0, len(page.Sessions))
+	for _, info := range page.Sessions {
+		ids = append(ids, info.ID)
+	}
+	return ids
+}

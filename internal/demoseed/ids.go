@@ -26,17 +26,20 @@ const (
 )
 
 const (
-	approveReads    = "approve-reads"
-	approveAll      = "approve-all"
-	toolTaskList    = "compozy__task_list"
-	toolTaskRead    = "compozy__task_read"
-	toolTaskUpdate  = "compozy__task_update"
-	toolLoopStatus  = "compozy__loop_status"
-	toolKindRead    = "read"
-	toolKindEdit    = "edit"
-	toolKindExecute = "execute"
-	toolKindSearch  = "search"
-	toolKindOther   = "other"
+	approveReads   = "approve-reads"
+	approveAll     = "approve-all"
+	toolTaskList   = "compozy__task_list"
+	toolTaskRead   = "compozy__task_read"
+	toolTaskUpdate = "compozy__task_update"
+	toolLoopStatus = "compozy__loop_status"
+	// Orchestrating engineers delegate to subagents and wait on monitors.
+	toolSubagentDelegate = "compozy__subagent_delegate"
+	toolMonitorCreate    = "compozy__monitor_create"
+	toolKindRead         = "read"
+	toolKindEdit         = "edit"
+	toolKindExecute      = "execute"
+	toolKindSearch       = "search"
+	toolKindOther        = "other"
 )
 
 // Tool names the session transcript renderers dispatch on.

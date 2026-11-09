@@ -24,6 +24,14 @@ type agentStory struct {
 	Tools        []string
 	CategoryPath []string
 	Prompt       string
+	// Always-on identity: a face, a description, and the check-in policy beside AGENT.md.
+	DisplayName string
+	Description string
+	Kind        string
+	Appearance  map[string]any
+	Heartbeat   string
+	// Scripts are check-in source scripts written to the agent's sources folder.
+	Scripts map[string]string
 }
 
 type transcriptStepKind string
@@ -61,15 +69,18 @@ type sessionStory struct {
 	SessionType  string
 	ParentID     string
 	SpawnRole    string
-	StartedAt    time.Time
-	EndedAt      time.Time
-	StopReason   string
-	StopDetail   string
-	Failure      *sessionFailureStory
-	Steps        []transcriptStep
-	Input        int64
-	Output       int64
-	CostUSD      float64
+	// InitiatorKind/InitiatorID name the non-operator actor that started the session, such as an automation.
+	InitiatorKind string
+	InitiatorID   string
+	StartedAt     time.Time
+	EndedAt       time.Time
+	StopReason    string
+	StopDetail    string
+	Failure       *sessionFailureStory
+	Steps         []transcriptStep
+	Input         int64
+	Output        int64
+	CostUSD       float64
 }
 
 type taskStory struct {

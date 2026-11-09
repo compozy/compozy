@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -78,7 +79,8 @@ func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scena
 	if !state.replace {
 		return nil
 	}
-	for _, sessionID := range scenarioSessionIDs {
+	sessionIDs := append(slices.Clone(scenarioSessionIDs), boardSessionIDs(state.clock)...)
+	for _, sessionID := range append(sessionIDs, alwaysOnSessionIDs()...) {
 		sessionDir := filepath.Join(state.paths.SessionsDir, sessionID)
 		if err := os.RemoveAll(sessionDir); err != nil {
 			return fmt.Errorf("demo seed: remove prior session directory %q: %w", sessionDir, err)
@@ -146,7 +148,10 @@ func prepareWorkspaceState(
 	if err := deleteScenarioLoopRuns(ctx, db, state, story.Key, existing.ID); err != nil {
 		return err
 	}
-	if err := cleanupWorkspaceAutomation(ctx, db, story.Key, existing.ID); err != nil {
+	if err := cleanupWorkspaceAutomation(ctx, db, state, story.Key, existing.ID); err != nil {
+		return err
+	}
+	if err := stopWorkspaceSessions(ctx, db, existing.ID); err != nil {
 		return err
 	}
 	// The daily usage rollup is additive, so a replace has to clear it first.
@@ -263,15 +268,19 @@ func writeAgentDefinitions(state *scenario) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(
-			record.RootDir, config.DirName, config.AgentsDirName, story.Name, config.AgentDefinitionFileName,
-		)
-		if _, err := config.CreateAgentDefFile(path, config.AgentDefinitionDraft{
+		dir := filepath.Join(record.RootDir, config.DirName, config.AgentsDirName, story.Name)
+		definition := filepath.Join(dir, config.AgentDefinitionFileName)
+		if _, err := config.CreateAgentDefFile(definition, config.AgentDefinitionDraft{
 			Name: story.Name, Provider: story.Provider, Model: story.Model,
 			Permissions: story.Permissions, Tools: story.Tools,
 			CategoryPath: story.CategoryPath, Prompt: story.Prompt,
+			DisplayName: story.DisplayName, Description: story.Description,
+			Kind: story.Kind, Appearance: story.Appearance,
 		}, state.replace); err != nil {
 			return fmt.Errorf("demo seed: write agent %q: %w", story.Name, err)
+		}
+		if err := writeCheckInPolicy(dir, story); err != nil {
+			return err
 		}
 	}
 	return nil

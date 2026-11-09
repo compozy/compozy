@@ -16,7 +16,9 @@ import (
 const (
 	seedWorktreeID     = "wt_northstar_settlement_retry"
 	seedWorktreeName   = "settlement-retry"
-	seedWorktreeBranch = "demo/settlement-retry"
+	seedWorktreeBranch = retryBudgetBranch
+	// legacyWorktreeBranch is the branch earlier seeds created; replace still owns it.
+	legacyWorktreeBranch = "demo/settlement-retry"
 )
 
 type demoWorktreeResolver struct {
@@ -91,6 +93,19 @@ func ensureSeedGitRepository(ctx context.Context, runner worktree.GitRunner, roo
 			)
 		}
 	}
+	// The origin gives the workspace the hosted repository identity linked pull requests resolve to.
+	if _, _, err := runner.Run(ctx, root, "remote", "get-url", "origin"); err != nil {
+		if _, stderr, addErr := runner.Run(
+			ctx,
+			root,
+			"remote",
+			"add",
+			"origin",
+			northstarRepoURL+".git",
+		); addErr != nil {
+			return fmt.Errorf("demo seed: add Git origin: %s: %w", strings.TrimSpace(string(stderr)), addErr)
+		}
+	}
 	for _, setting := range [][]string{
 		{"config", "user.name", "Compozy Demo"},
 		{"config", "user.email", "demo@compozy.local"},
@@ -142,7 +157,7 @@ func cleanupSeedWorktree(
 	if err != nil {
 		return fmt.Errorf("demo seed: inspect prior worktree: %w", err)
 	}
-	if item.Name != seedWorktreeName || item.Branch != seedWorktreeBranch {
+	if item.Name != seedWorktreeName || (item.Branch != seedWorktreeBranch && item.Branch != legacyWorktreeBranch) {
 		return errors.New(
 			"demo seed: refusing to remove a worktree whose identity is not seed-owned",
 		)
@@ -169,7 +184,7 @@ func cleanupSeedWorktree(
 		"branch",
 		"--delete",
 		"--force",
-		seedWorktreeBranch,
+		item.Branch,
 	); err != nil {
 		return fmt.Errorf(
 			"demo seed: remove prior worktree branch: %s: %w",

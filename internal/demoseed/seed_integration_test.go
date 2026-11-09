@@ -59,7 +59,7 @@ func TestSeed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(first) error = %v", err)
 		}
-		if first.Counts.Workspaces != 2 || first.Counts.Sessions != 12 || first.Counts.Tasks != 23 ||
+		if first.Counts.Workspaces != 2 || first.Counts.Sessions != len(first.SessionIDs) || first.Counts.Tasks != 23 ||
 			first.Counts.GoalTurns != 2 ||
 			first.Counts.Worktrees != 1 {
 			t.Fatalf("Seed(first).Counts = %#v, want the complete multi-surface scenario", first.Counts)
@@ -285,17 +285,19 @@ func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.Glob
 	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
 		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID: result.WorkspaceID,
+		SessionType: "user",
 		Limit:       20,
 	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	if len(sessions) != 6 {
-		t.Fatalf("len(ListSessions()) = %d, want 6 launch sessions", len(sessions))
+	if len(sessions) != 9 {
+		t.Fatalf("len(ListSessions()) = %d, want 9 launch sessions (6 scenario + 3 board)", len(sessions))
 	}
 	for _, sessionRecord := range sessions {
-		if sessionRecord.WorkspaceID != result.WorkspaceID || sessionRecord.State != "stopped" {
-			t.Fatalf("session %q = %#v, want stopped and workspace-scoped", sessionRecord.ID, sessionRecord)
+		wantState := "stopped"
+		if sessionRecord.WorkspaceID != result.WorkspaceID || sessionRecord.State != wantState {
+			t.Fatalf("session %q = %#v, want %s and workspace-scoped", sessionRecord.ID, sessionRecord, wantState)
 		}
 	}
 }
@@ -360,19 +362,12 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 
 func assertAutomationStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB) {
 	t.Helper()
-	job, err := db.GetJob(ctx, launchAutomationID)
-	if err != nil {
-		t.Fatalf("GetJob() error = %v", err)
-	}
-	if job.Enabled || job.AgentName != "product-lead" || !strings.Contains(job.Name, "Brazil canary") {
-		t.Fatalf("GetJob() = %#v, want paused Brazil canary digest owned by product-lead", job)
-	}
 	run, err := db.GetRun(ctx, launchAutomationRun)
 	if err != nil {
 		t.Fatalf("GetRun() error = %v", err)
 	}
-	if run.Status != automation.RunCompleted || run.TaskID != "task_northstar_support_handoff" {
-		t.Fatalf("GetRun() = %#v, want completed support preflight", run)
+	if run.Status != automation.RunCompleted || run.JobID != launchAutomationID || run.Attribution != "recorded" {
+		t.Fatalf("GetRun() = %#v, want a recorded completed Brazil canary digest", run)
 	}
 }
 

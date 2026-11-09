@@ -108,7 +108,7 @@ func expandToolStep(
 	step transcriptStep,
 	at *time.Time,
 ) ([]acp.AgentEvent, error) {
-	toolCallID := fmt.Sprintf("call_%s_%02d", story.ID, index+1)
+	toolCallID := fmt.Sprintf("call_%s_%02d", strings.TrimPrefix(turnID, "turn_"), index+1)
 	input := json.RawMessage(strings.ReplaceAll(step.ToolInput, "$WORKSPACE_ID", workspaceID))
 	if !json.Valid(input) {
 		return nil, fmt.Errorf("demo seed: invalid tool input for session %q step %d", story.ID, index+1)
