@@ -2,7 +2,7 @@
 // (ADR-004: vector lettering, raster symbol until a hand-drawn symbol vector exists).
 //
 // Outputs:
-//   packages/ui/src/components/custom/logo-symbol.generated.ts    symbol data: URIs (64 / 256 px)
+//   packages/ui/src/components/custom/logo-symbol.generated.ts    symbol data: URI (256 px)
 //   packages/ui/src/components/custom/logo-wordmark.generated.ts  wordmark path + lockup geometry
 //   web/public/, packages/site/public/
 //                     favicon.svg/.ico, apple-touch-icon, icon-192/512, icon-maskable-512, manifest
@@ -50,7 +50,7 @@ const APP_ICON_SOURCE = join(PNG, "compozy-app-icon-1024.png");
 const WORDMARK_SOURCE = join(SVG, "compozy-wordmark-white.svg");
 const LOCKUP_SOURCE = join(SVG, "compozy-lockup-dark.svg");
 const MANIFEST_COLOR = "#0a0a0a";
-// ADR-004 budget for both symbol rasters together, measured on the PNG bytes.
+// ADR-004 budget for the ui symbol raster, measured on the PNG bytes.
 const SYMBOL_BUDGET_BYTES = 40 * 1024;
 
 const rel = (path: string) => relative(ROOT, path);
@@ -162,18 +162,18 @@ function encodeIco(images: { size: number; png: Buffer }[]) {
 // ---------- outputs ----------
 
 async function buildUiModules() {
+  // The 64 px raster feeds favicon.svg only; the ui module ships the 256 px symbol alone.
   const png64 = await resizePng(SYMBOL_SOURCE, 64, true);
   const png256 = await resizePng(SYMBOL_SOURCE, 256, true);
-  const total = png64.length + png256.length;
-  if (total > SYMBOL_BUDGET_BYTES) {
-    throw new Error(`symbol rasters are ${total} B, over the ${SYMBOL_BUDGET_BYTES} B budget`);
+  if (png256.length > SYMBOL_BUDGET_BYTES) {
+    throw new Error(
+      `symbol raster is ${png256.length} B, over the ${SYMBOL_BUDGET_BYTES} B budget`
+    );
   }
   write(
     join(UI_CUSTOM, "logo-symbol.generated.ts"),
     `${header([SYMBOL_SOURCE])}
-// Interim raster symbol (ADR-004). Both include the source's 4% transparent padding.
-export const LOGO_SYMBOL_PNG_64 = "${dataUri(png64)}";
-
+// Interim raster symbol (ADR-004), 256 px with the source's 4% transparent padding.
 export const LOGO_SYMBOL_PNG_256 = "${dataUri(png256)}";
 `
   );

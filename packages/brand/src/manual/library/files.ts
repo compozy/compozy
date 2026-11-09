@@ -48,12 +48,12 @@ compozy-wordmark-white.svg 3198
 `;
 
 const PNG = `
-compozy-app-icon-1024.png 296977
+compozy-app-icon-1024.png 276515
 compozy-app-icon-128h.png 10042
-compozy-app-icon-180.png 18875
-compozy-app-icon-192.png 20564
+compozy-app-icon-180.png 18092
+compozy-app-icon-192.png 19724
 compozy-app-icon-256h.png 28985
-compozy-app-icon-512.png 99673
+compozy-app-icon-512.png 93856
 compozy-app-icon-64h.png 3871
 compozy-lockup-dark-128h.png 23462
 compozy-lockup-dark-256h.png 64519
@@ -79,8 +79,8 @@ compozy-lockup-stacked-dark-64h.png 4137
 compozy-lockup-stacked-light-128h.png 11283
 compozy-lockup-stacked-light-256h.png 29352
 compozy-lockup-stacked-light-64h.png 4591
-compozy-maskable-180.png 14696
-compozy-maskable-512.png 79267
+compozy-maskable-180.png 13977
+compozy-maskable-512.png 74264
 compozy-symbol-128.png 16997
 compozy-symbol-128h.png 13593
 compozy-symbol-16.png 897

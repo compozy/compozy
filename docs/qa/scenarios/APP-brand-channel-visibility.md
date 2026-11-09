@@ -43,5 +43,7 @@ steps for this slice:
 Slice validation: partial. The icon artifacts were converted and inspected
 (`/tmp/brand-s8-shots/10-desktop-icon-icns.png`, `11-tray-attention@2x.png`). The web first-run
 dialog showed the new symbol beside "Set up CompozyOS". The installed app (dock, About, installer
-records) was not walked in this slice. Finding for the brand owner: the icon tile is `rgb(8, 15, 20)`,
-a blue-tinted black, while business rule 2 asks for neutral blacks.
+records) was not walked in this slice. The blue-tinted `rgb(8, 15, 20)` tile found in this slice was
+recoloured to neutral `#0a0a0a` (business rule 2) in the app-icon and maskable sources under
+`packages/brand/public/brand/png/`, and every consumer was regenerated with `bun run logos`; pixel
+inspection of `desktop/build/icon.png` and `web/public/icon-512.png` reads `rgb(10, 10, 10)`.
