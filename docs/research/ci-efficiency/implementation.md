@@ -95,3 +95,11 @@ controls. Focused lint passes for the 207 files containing affected call forms.
 The installer's existing 20s subprocess contract now has a local exception; all
 three selected cosign cases pass via Turbo after restoring the required generated
 install template through its owning task. The other 13 cases were filtered out.
+
+Desktop's stalled MIME-registration subprocess test now documents its real
+timeout/SIGKILL contract locally, preserving the existing 15s deadline and all
+assertions. Focused lint passes for all 15 desktop files using chained test calls.
+The single-file iteration disables coverage collection only for that local run;
+CI coverage configuration and thresholds remain unchanged.
+All 13 deep-link tests pass via Turbo on a cache miss, including the real stalled
+child termination (about five seconds).
