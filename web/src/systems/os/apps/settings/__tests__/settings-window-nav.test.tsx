@@ -258,6 +258,7 @@ describe("Settings window section area", () => {
     expect(loading.querySelector('[data-slot="skeleton"]')).not.toBeNull();
   });
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real lazy module loading may consume the 20s observable waitFor budget; retain the 30s outer deadline.
   it("Should keep the current page, not a loading frame, while the next section's code loads", async () => {
     const { queryClient, snapshotKey } = await renderLoadedSettingsWindow();
     const outlet = screen.getByTestId("settings-shell-outlet");

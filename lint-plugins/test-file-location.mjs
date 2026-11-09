@@ -95,14 +95,21 @@ const testsInTestsDir = {
 const deterministicTests = {
   meta: {
     type: "problem",
-    schema: [],
+    schema: [
+      {
+        type: "object",
+        properties: { defaultTimeout: { type: "number", minimum: 1 } },
+        additionalProperties: false,
+      },
+    ],
     messages: {
       nondeterministic:
-        "Use observable completion instead of sleeps, retries, per-test timeouts or unconditional skips. Document a real timing contract in a local lint exception.",
+        "Use observable completion instead of sleeps, retries, unjustified timeout increases or unconditional skips. Document a real timing contract in a local lint exception.",
     },
   },
   create(context) {
     if (!/\.test\.[cm]?[jt]sx?$/.test(context.filename)) return {};
+    const defaultTimeout = context.options?.[0]?.defaultTimeout ?? 5000;
     return {
       CallExpression(node) {
         const callee = node.callee;
@@ -114,12 +121,17 @@ const deterministicTests = {
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
-        const override = options?.properties.some(property =>
-          ["retry", "timeout"].includes(property.key?.name)
+        const override = options?.properties.some(
+          property =>
+            property.key?.name === "retry" ||
+            (property.key?.name === "timeout" && !(property.value?.value <= defaultTimeout))
         );
         const numericSleep =
           ["sleep", "delay"].includes(name) && typeof node.arguments[0]?.value === "number";
-        const timeout = testCall && typeof node.arguments[2]?.value === "number";
+        const timeout =
+          testCall &&
+          typeof node.arguments[2]?.value === "number" &&
+          node.arguments[2].value > defaultTimeout;
         const skipped = ["test", "it", "describe"].includes(owner) && member === "skip";
         if (numericSleep || member === "waitForTimeout" || override || timeout || skipped) {
           context.report({ node, messageId: "nondeterministic" });

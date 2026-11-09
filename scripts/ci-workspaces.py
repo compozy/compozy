@@ -7,6 +7,7 @@ manifest changes and malformed metadata conservatively select every workspace.
 import fnmatch
 import json
 import sys
+import subprocess
 from pathlib import Path
 
 
@@ -20,7 +21,7 @@ def select(paths, root=Path('.')):
     selected = set()
     tasks = json.loads((root / 'turbo.json').read_text())['tasks']
     for path in paths:
-        if path.endswith('package.json') or '/' not in path:
+        if path.endswith('package.json'):
             return sorted(packages)
         owners = {name for name, (directory, _) in packages.items()
                   if path.startswith(directory + '/')}
@@ -31,6 +32,11 @@ def select(paths, root=Path('.')):
                         return sorted(packages)
                     owners.add(task.split('#')[0])
         if not owners:
+            classification = subprocess.run(
+                ['bash', 'scripts/ci-changes.sh', '--classify', path],
+                check=True, capture_output=True, text=True).stdout.strip()
+            if classification == 'meta':
+                continue
             # Backend-only paths still pass through the explicit input matching
             # above, so a Go input to site tests selects its owning workspace.
             if path.startswith(('internal/', 'cmd/', 'magefiles/', 'docs/qa/', 'docs/research/')) or path.endswith('.go'):

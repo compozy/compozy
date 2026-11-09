@@ -194,12 +194,16 @@ assert "@compozy/lint-plugins" in module.select(["packages/ui/src/primitives.ts"
 assert module.select(["unknown/input"]) == module.select(["package.json"])
 assert "compozy-web" in module.select(["web/deleted.ts"])
 assert module.select(["internal/session/manager.go"]) == []
+assert module.select(["AGENTS.md", ".agents/agents/example.md", "docs/_memory/lessons/example.md"]) == []
+assert "@compozy/site" in module.select(["docs/_memory/glossary.md"])
 CHECK
   echo "ci-changes self-test: classification, closure and gate contracts hold"
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
   self_test
+elif [[ "${1:-}" == "--classify" ]]; then
+  classify "$2"
 elif [[ "${1:-}" == "--require-lanes" ]]; then
   require_lanes "${2:-fast}"
 else

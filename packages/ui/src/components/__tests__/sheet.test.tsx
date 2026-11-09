@@ -37,6 +37,7 @@ function SheetExample({
 }
 
 describe("Sheet", () => {
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- The real Base UI portal mounts and settles before waitFor observes content; retain its existing lifecycle deadline.
   it("Should open and render the configured side attribute", async () => {
     render(<SheetExample side="left" />);
     fireEvent.click(screen.getByRole("button", { name: "Open sheet" }));

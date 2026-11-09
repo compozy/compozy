@@ -56,3 +56,20 @@ No product QA scenario changes are required. Root checkout remains untouched.
 - System golangci-lint was built with Go 1.26 and cannot lint Go 1.27; pinned Go 1.27-compatible tool passed with zero issues after formatting repairs.
 - Full/race/E2E suites and Linux browser installation remain CI-only. Existing SQLite
   paired-load, runtime/desktop E2E and shard timeouts are not claimed fixed.
+
+## First CI repair round
+
+The first site/SDK lane succeeded with 21 cache hits across 23 receipts, a real
+uncached extension-SDK audit and three uploaded summary artifacts. Frontend lint
+exposed the new rule incorrectly rejecting stricter per-test deadlines. The rule now
+uses the owning suite budget (Web: 20 seconds), retains stricter limits and requires
+local explanations for increases. Eight existing DOM/lazy-import/real-process
+contracts retain their exact limits with occurrence-specific rationale; no test
+assertion, timeout or synchronization was changed. Focused lint covered every failing
+file and the plugin suite passed again.
+
+Metadata selection now reuses the canonical shell classifier after Turbo root-input
+matching; instruction-only edits skip frontend, while glossary edits select site.
+Integration refresh searches up to 40 trusted successful runs for the complete
+eight-artifact set, reports absent data and includes both source run IDs in its PR.
+The implementation PR has `ci:full` for the changed integration shards.

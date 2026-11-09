@@ -115,6 +115,12 @@
     },
     "overrides": [
         {
+            "files": ["web/**/*.test.{ts,tsx}"],
+            "rules": {
+                "compozy-testing/deterministic-tests": ["error", { "defaultTimeout": 20000 }]
+            }
+        },
+        {
             "files": [
                 "web/src/**/*.tsx",
                 "web/proto.canvas.tsx",
