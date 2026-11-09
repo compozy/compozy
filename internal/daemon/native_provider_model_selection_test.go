@@ -131,10 +131,26 @@ func TestNativeProviderModelSelectionConfig(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := newTools(t, tc.active, tc.profileFiles).selectionConfig(t.Context(), tc.scope)
+			cfg, err := newTools(t, tc.active, tc.profileFiles).selectionConfig(t.Context(), tc.scope)
+			if err != nil {
+				t.Fatalf("selectionConfig(%+v) error = %v", tc.scope, err)
+			}
 			if got := cfg.IsProviderDisabled("gemini"); got != tc.wantDisabled {
 				t.Fatalf("selectionConfig(%+v) gemini disabled = %v, want %v", tc.scope, got, tc.wantDisabled)
 			}
 		})
 	}
+
+	t.Run(
+		"Should return an error instead of the unscoped config when the profile config is unreadable",
+		func(t *testing.T) {
+			t.Parallel()
+			tools := newTools(t, withGemini(nil), map[string]string{"eng": "[providers.gemini\nenabled = false\n"})
+			cfg, err := tools.selectionConfig(t.Context(), toolspkg.Scope{ProfileID: "profile-eng"})
+			if err == nil {
+				t.Fatalf("selectionConfig(profile-eng) gemini disabled = %v, want the profile decode error",
+					cfg.IsProviderDisabled("gemini"))
+			}
+		},
+	)
 }

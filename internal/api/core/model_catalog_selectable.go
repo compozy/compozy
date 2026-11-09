@@ -44,6 +44,11 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 		if err != nil {
 			return compozyconfig.Config{}, fmt.Errorf("api: resolve model catalog workspace %q: %w", workspaceID, err)
 		}
+		if !layered {
+			// Without profile-aware resolution the workspace config carries no profile layer; apply the
+			// selected profile's enabled overrides so its disables still filter (BR-2).
+			return compozyconfig.WithProfileProviderEnabled(&resolved.Config, h.HomePaths, selection.ProfileName)
+		}
 		return resolved.Config, nil
 	}
 	return h.profileProviderConfig(ctx, selection)

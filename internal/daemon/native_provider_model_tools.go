@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -115,7 +114,10 @@ func (n *daemonNativeTools) providerModelsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
 	}
-	cfg := n.selectionConfig(ctx, scope)
+	cfg, err := n.selectionConfig(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	payload := core.ProviderModelListPayloadFromModels(core.SelectableProviderModels(&cfg, models))
 	summary := fmt.Sprintf("%d provider models", len(payload.Models))
 	if disabledErr := cfg.RequireEnabledProvider(providerID); disabledErr != nil {
@@ -127,8 +129,9 @@ func (n *daemonNativeTools) providerModelsList(
 // selectionConfig resolves the caller's effective config for selection filtering: the scope's
 // workspace with its profile layers (the source session admission uses), else the active global
 // snapshot plus the selected profile's own enabled overrides, so pending global edits stay isolated
-// (B-013) and every profile, default included, keeps its overrides (BR-2).
-func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.Scope) compozyconfig.Config {
+// (B-013) and every profile, default included, keeps its overrides (BR-2). A scope that cannot be
+// resolved is an error: the unscoped config could offer a provider the scope disables.
+func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.Scope) (compozyconfig.Config, error) {
 	active := n.activeConfig(ctx)
 	var profiles session.ProfileNameResolver
 	if n.deps.Profiles != nil {
@@ -137,24 +140,23 @@ func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.
 	profileID := strings.TrimSpace(scope.ProfileID)
 	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" && n.deps.WorkspaceResolver != nil {
 		resolved, err := resolveRuntimeProfileWorkspace(ctx, n.deps.WorkspaceResolver, profiles, workspaceID, profileID)
-		if err == nil {
-			return resolved.Config
+		if err != nil {
+			return compozyconfig.Config{}, fmt.Errorf(
+				"provider models: resolve workspace %q config: %w",
+				workspaceID,
+				err,
+			)
 		}
-		slog.Warn("provider_models.selection_config_unresolved", "workspace_id", workspaceID, "error", err)
-		return active
+		return resolved.Config, nil
 	}
 	if profileID == "" {
-		return active
+		return active, nil
 	}
 	profileName, err := resolvePromptSkillsProfileName(ctx, profiles, profileID)
-	if err == nil {
-		var scoped compozyconfig.Config
-		if scoped, err = compozyconfig.WithProfileProviderEnabled(&active, n.deps.HomePaths, profileName); err == nil {
-			return scoped
-		}
+	if err != nil {
+		return compozyconfig.Config{}, fmt.Errorf("provider models: resolve profile %q: %w", profileID, err)
 	}
-	slog.Warn("provider_models.selection_config_unresolved", "profile_id", profileID, "error", err)
-	return active
+	return compozyconfig.WithProfileProviderEnabled(&active, n.deps.HomePaths, profileName)
 }
 
 // activeConfig reads the live active config through settings, falling back to the boot snapshot.
