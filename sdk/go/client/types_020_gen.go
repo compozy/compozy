@@ -312,6 +312,11 @@ type SetSessionRuntimeRequest struct {
 	ExpectedRevision *int64                        `json:"expected_revision"`
 }
 
+// SetSettingsProviderEnabledRequest is a daemon API value.
+type SetSettingsProviderEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsActionMetadataPayload is a daemon API value.
 type SettingsActionMetadataPayload struct {
 	Name      string                   `json:"name"`
