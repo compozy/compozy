@@ -567,6 +567,7 @@ describe("public install contract", () => {
     }
   });
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real installer and cosign fixture subprocesses retain their existing bounded 20s lifecycle deadline under CI load.
   it.each([
     { label: "compatible v3", version: "v3.1.3", versionStatus: 0, bootstraps: false },
     { label: "incompatible v2", version: "v2.6.2", versionStatus: 0, bootstraps: true },

@@ -86,3 +86,12 @@ exception locally; the rule still rejects arbitrary constant overrides. Their
 event-driven response synchronization, deadline and assertions are unchanged.
 Focused Turbo execution of that canonical integration file passes all three tests
 with a cache miss; focused lint and formatting pass.
+
+Review repair extends deadline/retry enforcement to modified and parameterized
+test declarations, including concurrent and tagged-template `each` forms, without
+treating data factories as declarations. The canonical plugin suite passes 42
+tests; actual-parser checks reject four chained overrides and accept two positive
+controls. Focused lint passes for the 207 files containing affected call forms.
+The installer's existing 20s subprocess contract now has a local exception; all
+three selected cosign cases pass via Turbo after restoring the required generated
+install template through its owning task. The other 13 cases were filtered out.

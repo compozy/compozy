@@ -96,6 +96,28 @@ function positiveDeadlineWithin(node, budget) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
 }
 
+function isTestFunction(node) {
+  if (node?.type === "Identifier") return ["test", "it"].includes(node.name);
+  if (node?.type === "MemberExpression" && !node.computed) {
+    return (
+      ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(node.property.name) &&
+      isTestFunction(node.object)
+    );
+  }
+  const factory =
+    node?.type === "CallExpression"
+      ? node.callee
+      : node?.type === "TaggedTemplateExpression"
+        ? node.tag
+        : undefined;
+  return (
+    factory?.type === "MemberExpression" &&
+    !factory.computed &&
+    ["each", "for", "skipIf", "runIf"].includes(factory.property.name) &&
+    isTestFunction(factory.object)
+  );
+}
+
 // Unit tests should synchronize with observable completion. Real clock/process
 // integration contracts can document a local exception with an eslint directive.
 const deterministicTests = {
@@ -123,13 +145,13 @@ const deterministicTests = {
         const member =
           callee.type === "MemberExpression" && !callee.computed ? callee.property.name : undefined;
         const owner = callee.type === "MemberExpression" ? callee.object.name : undefined;
-        const testCall = ["test", "it"].includes(name);
+        const testCall = isTestFunction(callee);
         const options = testCall
           ? node.arguments.find(arg => arg.type === "ObjectExpression")
           : undefined;
         const override = options?.properties.some(
           property =>
-            property.key?.name === "retry" ||
+            (property.key?.name ?? property.key?.value) === "retry" ||
             ((property.key?.name ?? property.key?.value) === "timeout" &&
               !positiveDeadlineWithin(property.value, defaultTimeout))
         );

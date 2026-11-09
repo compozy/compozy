@@ -70,4 +70,41 @@ describe("deterministic unit test conventions", () => {
     ).toHaveLength(1);
     expect(messages(callee, [{ value: "name" }, {}])).toHaveLength(0);
   });
+  it("checks modified and parameterized test declarations without checking their data factories", () => {
+    const member = (object, name) => ({
+      type: "MemberExpression",
+      object,
+      property: { name },
+    });
+    for (const name of ["it", "test"]) {
+      const base = { type: "Identifier", name };
+      const concurrent = member(base, "concurrent");
+      const each = { type: "CallExpression", callee: member(base, "each") };
+      for (const callee of [
+        concurrent,
+        each,
+        { type: "CallExpression", callee: member(concurrent, "each") },
+        { type: "TaggedTemplateExpression", tag: member(base, "each") },
+      ]) {
+        expect(messages(callee, [{ value: "case" }, {}, { value: 0 }])).toHaveLength(1);
+        for (const key of ["timeout", "retry"]) {
+          expect(
+            messages(callee, [
+              { value: "case" },
+              {
+                type: "ObjectExpression",
+                properties: [{ key: { value: key }, value: { value: 0 } }],
+              },
+              {},
+            ])
+          ).toHaveLength(1);
+        }
+        expect(messages(callee, [{ value: "case" }, {}, { value: 1000 }])).toHaveLength(0);
+      }
+      expect(messages(member(base, "each"), [{}, {}, { value: 0 }])).toHaveLength(0);
+    }
+    expect(
+      messages(member({ type: "Identifier", name: "other" }, "concurrent"), [{}, {}, { value: 0 }])
+    ).toHaveLength(0);
+  });
 });
