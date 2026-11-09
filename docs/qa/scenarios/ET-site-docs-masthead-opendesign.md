@@ -4,9 +4,9 @@ area: ET
 title: Docs page masthead matches OpenDesign context-row anatomy
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: On a runtime docs page (e.g. /docs/loops), the article masthead shows a context row with mono badge crumbs (accent product · clickable parents · fg leaf) and 28px page actions on the right above the title; Playfair title without a 12ch cap; 18px muted lead; meta strip with audience and section page count only — no Audience/Focus definition list and no Fumadocs chrome breadcrumb above the masthead.
+expected: On a runtime docs page (e.g. /docs/loops), the article masthead shows a context row with mono badge crumbs (accent product · clickable parents · fg leaf) and 28px page actions on the right above the title; Instrument Sans (display, weight 400) title without a 12ch cap; 18px muted lead; meta strip with audience and section page count only — no Audience/Focus definition list and no Fumadocs chrome breadcrumb above the masthead.
 entry_points: compozy.com /docs/loops; docs/design/opendesign/site/site-docs-sidebar.html; docs/design/opendesign/site/site-example-page.html
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260730-docs-index-invalid-hydration
 fix_status: fixed
 retest_status: pass
@@ -21,3 +21,5 @@ contract (context-row crumbs + actions, truthful meta strip). Later the same
 day, masthead lead was bound to `--text-site-doc-lead` as part of the §02
 typography align. The next QA cycle owns visual parity against site-example-page.html
 on desktop mid-width and mobile wrap of the action cluster.
+
+qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The masthead title face moved from Playfair Display to Instrument Sans (`.site-doc-masthead__title` reads `--font-display`); body and lead are Figtree. Expectation updated and status reset to untested; the earlier pass predates the face change.
