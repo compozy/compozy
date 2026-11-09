@@ -21,6 +21,7 @@ vi.mock("next/link", () => ({
 }));
 
 describe("SiteFooter", () => {
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Accessible-name traversal covers the full footer SVG/link tree; assertions remain synchronous and this bounds DOM work.
   it("renders the public site identity and release footer copy", () => {
     render(<SiteFooter />);
 
