@@ -29,6 +29,7 @@ func TestLiveConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("applyLiveConfig() error = %v", err)
 		}
+		assertProviderCommand(t, path, "mock")
 		if err := restore(); err != nil {
 			t.Fatalf("restore() error = %v", err)
 		}
@@ -39,6 +40,27 @@ func TestLiveConfig(t *testing.T) {
 		if string(got) != original {
 			t.Fatalf("config = %q, want the original bytes", got)
 		}
+	})
+
+	t.Run("Should keep an operator edit to an overridden key", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte("[http]\nport = 47931\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		restore, err := applyLiveConfig(path, overrides())
+		if err != nil {
+			t.Fatalf("applyLiveConfig() error = %v", err)
+		}
+		edited := "[http]\nport = 47931\n\n[providers.claude]\ncommand = \"custom\"\n"
+		if err := os.WriteFile(path, []byte(edited), 0o600); err != nil {
+			t.Fatalf("WriteFile(edit) error = %v", err)
+		}
+		if err := restore(); err != nil {
+			t.Fatalf("restore() error = %v", err)
+		}
+		assertProviderCommand(t, path, "custom")
 	})
 
 	t.Run("Should keep operator edits made while live mode ran", func(t *testing.T) {
@@ -52,6 +74,7 @@ func TestLiveConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("applyLiveConfig() error = %v", err)
 		}
+		assertProviderCommand(t, path, "mock")
 		during, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("ReadFile() error = %v", err)
@@ -71,6 +94,22 @@ func TestLiveConfig(t *testing.T) {
 			t.Fatalf("config = %q, want the operator edit kept and the mock command gone", got)
 		}
 	})
+}
+
+func assertProviderCommand(t *testing.T, path string, want string) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	values, err := decodeConfig(raw)
+	if err != nil {
+		t.Fatalf("decodeConfig() error = %v", err)
+	}
+	provider, ok := lookupTable(values, "providers", "claude")
+	if !ok || provider["command"] != want {
+		t.Fatalf("providers.claude = %v, want command %q", provider, want)
+	}
 }
 
 func TestMockProviderCommand(t *testing.T) {

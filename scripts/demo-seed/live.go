@@ -240,6 +240,8 @@ func (r *liveRun) archivePreviousSessions(ctx context.Context) {
 	}
 	for _, id := range previous {
 		if _, err := r.compozyOutput(ctx, "session", "archive", id, "--stop"); err != nil {
+			// Kept in the owned list, so the next run tries this session again.
+			r.created = append(r.created, id)
 			fmt.Fprintln(r.output, "demo seed: archive previous live session:", err)
 		}
 	}
