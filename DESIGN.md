@@ -64,8 +64,8 @@ tokens:
       destructive: "#f87171"
       destructive-tint: "rgba(248, 113, 113, 0.1)"
       destructive-ink: "#17110f"
-      info: "#1f87fc"
-      info-tint: "rgba(31, 135, 252, 0.12)"
+      info: "#8e8eb5"
+      info-tint: "rgba(142, 142, 181, 0.12)"
       well: "#1e342c"
       well-ink: "var(--color-success)"
       spectrum-blue: "#4ea7fc"
@@ -193,8 +193,8 @@ tokens:
       destructive: "#c81e1e"
       destructive-tint: "rgba(200, 30, 30, 0.07)"
       destructive-ink: "#ffffff"
-      info: "#1663c7"
-      info-tint: "rgba(22, 99, 199, 0.1)"
+      info: "#5f5f94"
+      info-tint: "rgba(95, 95, 148, 0.1)"
       well: "#def2ea"
       well-ink: "#139362"
       spectrum-blue: "#1d7fd8"
@@ -776,7 +776,7 @@ amber (`--color-attn`) marks needs-you, never the default action.
 | Success     | `--color-success`     | `#34d399` | `#0a7650` | `rgba(52, 211, 153, 0.1)`   | `rgba(10, 118, 80, 0.08)`   |
 | Warning     | `--color-warning`     | `#f5b14c` | `#9a5b00` | `rgba(245, 177, 76, 0.1)`   | `rgba(154, 91, 0, 0.08)`    |
 | Destructive | `--color-destructive` | `#f87171` | `#c81e1e` | `rgba(248, 113, 113, 0.1)`  | `rgba(200, 30, 30, 0.07)`   |
-| Info        | `--color-info`        | `#1f87fc` | `#1663c7` | `rgba(31, 135, 252, 0.12)`  | `rgba(22, 99, 199, 0.1)`    |
+| Info        | `--color-info`        | `#8e8eb5` | `#5f5f94` | `rgba(142, 142, 181, 0.12)` | `rgba(95, 95, 148, 0.1)`    |
 | Neutral     | `--color-neutral`     | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
 
 <!-- END:tokens:signal -->

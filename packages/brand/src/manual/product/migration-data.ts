@@ -177,7 +177,12 @@ export const migration: { group: string; rows: MigrationRow[] }[] = [
         "#F5B14C dark / #9A5B00 light: its own amber value, never an alias of brand",
       ],
       ["--color-primary", "tokens.css", "near-white inverted action", "Unchanged"],
-      ["--color-info / blue", "tokens.css", "#8E8EB5 / #4EA7FC", "#1F87FC (info)"],
+      [
+        "--color-info / blue",
+        "tokens.css",
+        "#8E8EB5 / #4EA7FC",
+        "Info unchanged (#8E8EB5 on ink, #5F5F94 on paper) so it never reads as the brand blue",
+      ],
       ["--color-violet", "tokens.css", "#C26AD6", "Retired in UI; ANSI 5 #A78BFA only"],
       [
         "success / warning / destructive",

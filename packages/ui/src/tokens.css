@@ -124,8 +124,8 @@
   --color-destructive-tint: rgba(248, 113, 113, 0.1);
   /* Text on the destructive-solid fill (the previous brand ink). */
   --color-destructive-ink: #17110f;
-  --color-info: #1f87fc;
-  --color-info-tint: rgba(31, 135, 252, 0.12);
+  --color-info: #8e8eb5;
+  --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-well: #1e342c;
   /* Identity-well glyph ink: mint that clears 3:1 on --color-well. */
   --color-well-ink: var(--color-success);
