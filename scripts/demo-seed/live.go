@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/kballard/go-shellquote"
 )
 
 const (
@@ -100,40 +100,35 @@ func (r *liveRun) configureMockProviders() (func() error, error) {
 	if err := os.WriteFile(fixturePath, fixture, 0o600); err != nil {
 		return nil, fmt.Errorf("demo seed: write live fixture: %w", err)
 	}
-	path := r.options.configFile
-	original, readErr := os.ReadFile(path)
-	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-		return nil, fmt.Errorf("demo seed: read config: %w", readErr)
-	}
-	merged := map[string]any{}
-	if _, err := toml.Decode(string(original), &merged); err != nil {
-		return nil, fmt.Errorf("demo seed: parse config: %w", err)
-	}
+	overrides := []liveOverride{}
 	for provider, agent := range map[string]string{"claude": mockClaudeAgent, "codex": mockCodexAgent} {
-		nestedTable(merged, "providers", provider)["command"] = fmt.Sprintf(
-			"%s --fixture %s --agent %s --provider %s", r.options.mockDriver, fixturePath, agent, provider,
-		)
+		overrides = append(overrides, liveOverride{
+			table: []string{"providers", provider}, key: "command",
+			injected: mockProviderCommand(r.options.mockDriver, fixturePath, agent, provider),
+		})
 	}
-	defaults := nestedTable(merged, "defaults")
-	if _, set := defaults["provider"]; !set {
-		defaults["provider"], defaults["model"] = "claude", mockClaudeModel
-	}
-	var encoded bytes.Buffer
-	if err := toml.NewEncoder(&encoded).Encode(merged); err != nil {
-		return nil, fmt.Errorf("demo seed: encode config: %w", err)
-	}
-	// #nosec G703 -- the seeded home's own config file.
-	if err := os.WriteFile(path, encoded.Bytes(), 0o600); err != nil {
-		return nil, fmt.Errorf("demo seed: write config: %w", err)
-	}
-	return func() error {
-		if readErr != nil {
-			// #nosec G703 -- the seeded home's own config file.
-			return os.Remove(path)
+	return applyLiveConfig(r.options.configFile, append(overrides, liveDefaults(r.options.configFile)...))
+}
+
+// liveDefaults names a default provider for bundled agents unless the home already has one.
+func liveDefaults(path string) []liveOverride {
+	// #nosec G304,G703 -- the seeded home's own config file.
+	raw, err := os.ReadFile(path)
+	if err == nil {
+		if values, decodeErr := decodeConfig(raw); decodeErr == nil {
+			if table, ok := lookupTable(values, "defaults"); ok && table["provider"] != nil {
+				return nil
+			}
 		}
-		// #nosec G703 -- the seeded home's own config file.
-		return os.WriteFile(path, original, 0o600)
-	}, nil
+	}
+	return []liveOverride{
+		{table: []string{"defaults"}, key: "provider", injected: "claude"},
+		{table: []string{"defaults"}, key: "model", injected: mockClaudeModel},
+	}
+}
+
+func mockProviderCommand(driver, fixture, agent, provider string) string {
+	return shellquote.Join(driver, "--fixture", fixture, "--agent", agent, "--provider", provider)
 }
 
 // command builds a CLI call free of any session identity inherited from a calling agent.
