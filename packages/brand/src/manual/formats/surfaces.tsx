@@ -7,6 +7,7 @@ import type { VisualName } from "../art/visuals";
 import { cap, card, lab } from "../cls";
 import { grade, ratio } from "../contrast";
 import { Section } from "../parts/section";
+import { withOffsets } from "../text-runs";
 import { surfaces, voltAccent, type SurfaceRecipe } from "./data";
 
 const visualOf: Record<SurfaceRecipe["id"], { name: VisualName; x: number; y: number }> = {
@@ -166,14 +167,16 @@ const RECIPE: [text: string, tone?: string][] = [
   ["// Live on paper", M],
 ];
 
+const RECIPE_RUNS = withOffsets(RECIPE);
+
 function Recipe() {
   return (
     <div className={card}>
       <p className={lab}>Recipe in code</p>
       <pre className="m-0 mt-4 overflow-x-auto rounded-[12px] bg-rail p-5 font-mono text-[13px] leading-[1.7] text-fg">
-        {RECIPE.map(([text, tone], i) =>
+        {RECIPE_RUNS.map(({ at, run: [text, tone] }) =>
           tone ? (
-            <span key={i} className={tone}>
+            <span key={at} className={tone}>
               {text}
             </span>
           ) : (

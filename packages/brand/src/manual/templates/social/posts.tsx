@@ -1,7 +1,8 @@
 // Social posts: X, LinkedIn, release, GitHub, README, YouTube thumbnail and the vertical cover.
 // Product pieces show a real capture of the web/ UI (ADR-005) beside the copy.
 import { Visual } from "../../art/visual";
-import { cq, display, gradientFill, ink, Mark, monoUp, Scrim, scrim, Shot } from "../parts";
+import { Mark, Scrim, Shot } from "../parts";
+import { cq, display, gradientFill, ink, monoUp, scrim } from "../styles";
 
 const leftFade = (end: number) =>
   scrim("90deg", [

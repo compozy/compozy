@@ -4,7 +4,8 @@ import type { CSSProperties } from "react";
 import { LanesDiagram } from "../../art/diagrams/lanes-diagram";
 import { Visual } from "../../art/visual";
 import type { AtmosphereName } from "../../art/visuals";
-import { cq, display, Mark, monoUp } from "../parts";
+import { Mark } from "../parts";
+import { cq, display, monoUp } from "../styles";
 
 type Role = "team" | "speaker" | "partner" | "attendee";
 

@@ -81,6 +81,7 @@ const page = await browser.newPage({ deviceScaleFactor: 1 });
 const failures: string[] = [];
 mkdirSync(join(outDir, "kit"), { recursive: true });
 
+const printById = new Map(kitSpecs.map(s => [s.id, s.print]));
 for (const t of todo) {
   const out = join(outDir, "kit", `${t.id}.png`);
   try {
@@ -91,7 +92,7 @@ for (const t of todo) {
       throw new Error(`never set data-kit-ready within ${READY_TIMEOUT_MS / 1000} s`);
     });
     await root.screenshot({ path: out });
-    const print = kitSpecs.find(s => s.id === t.id)?.print;
+    const print = printById.get(t.id);
     if (print) {
       // PDF at trim size, vector type; the art reaches the trim edge and the printer adds bleed.
       const scale = Math.min(2, Math.max(0.1, ((print.wMm / 25.4) * 96) / t.w));

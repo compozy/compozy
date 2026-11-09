@@ -204,9 +204,11 @@ async function main() {
     process.exit(1);
   }
 
-  const { chromium } = await import("playwright");
-  const { server, base } = await serve(storybook);
-  const browser = await chromium.launch();
+  // The static server and the browser launch are independent; start them together.
+  const [{ server, base }, browser] = await Promise.all([
+    serve(storybook),
+    import("playwright").then(({ chromium }) => chromium.launch()),
+  ]);
   const staging = mkdtempSync(join(tmpdir(), "brand-product-shots-"));
   try {
     const encoder = await browser.newPage();

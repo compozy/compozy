@@ -2,12 +2,13 @@
 import { cn } from "@compozy/ui/utils";
 
 import { AgentFace } from "../art/pieces";
-import { cap, card, h3, lab, rules } from "../cls";
+import { cap, card, h3, lab } from "../cls";
 import { grade, ratio } from "../contrast";
 import { Section } from "../parts/section";
 import type { AgentState } from "../art/roster";
 import { macos, sessions, statusChecks, states } from "./data";
 import { SessionRow } from "./session-row";
+import { TermRules } from "../parts/rule-card";
 
 const minRatio = Math.min(
   ...states.flatMap(s =>
@@ -237,24 +238,27 @@ export function StatusColours() {
 
       <h3 className={cn(h3, "mt-16")}>Where state shows up</h3>
       <WhereStateShows />
-      <ul className={cn(rules, "mt-10 max-w-[76ch] text-[15.5px]")}>
-        <li>
-          <strong>Sort order</strong> is Needs you, Stuck, Failed, Working, Idle, Done; Later sits
-          in its own view. The exception is always at the top.
-        </li>
-        <li>
-          <strong>Words are fixed.</strong> Never “Running”, “Completed”, “Paused” or “Error”: the
-          same words as the CLI, docs and API.
-        </li>
-        <li>
-          <strong>Working is the only motion</strong>: a 2.4 s opacity pulse on the dot, off under
-          reduced motion.
-        </li>
-        <li>
-          <strong>Failed and Stuck share red</strong> and differ by glyph: ✕ ended, ■ still running
-          without progress.
-        </li>
-      </ul>
+      <TermRules
+        className="mt-10 max-w-[76ch] text-[15.5px]"
+        items={[
+          [
+            "Sort order",
+            " is Needs you, Stuck, Failed, Working, Idle, Done; Later sits in its own view. The exception is always at the top.",
+          ],
+          [
+            "Words are fixed.",
+            " Never “Running”, “Completed”, “Paused” or “Error”: the same words as the CLI, docs and API.",
+          ],
+          [
+            "Working is the only motion",
+            ": a 2.4 s opacity pulse on the dot, off under reduced motion.",
+          ],
+          [
+            "Failed and Stuck share red",
+            " and differ by glyph: ✕ ended, ■ still running without progress.",
+          ],
+        ]}
+      />
     </Section>
   );
 }

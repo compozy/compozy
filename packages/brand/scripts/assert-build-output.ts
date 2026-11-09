@@ -38,8 +38,10 @@ for (const id of kit) {
 const indexFile = join(OUT, "kit", "index.json");
 if (!existsSync(indexFile)) failures.push(`missing /kit/index.json (${indexFile})`);
 else {
-  const listed = (JSON.parse(readFileSync(indexFile, "utf8")) as { id: string }[]).map(r => r.id);
-  const unlisted = kit.filter(id => !listed.includes(id));
+  const listed = new Set(
+    (JSON.parse(readFileSync(indexFile, "utf8")) as { id: string }[]).map(r => r.id)
+  );
+  const unlisted = kit.filter(id => !listed.has(id));
   if (unlisted.length > 0) failures.push(`/kit/index.json misses ${unlisted.join(", ")}`);
 }
 

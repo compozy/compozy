@@ -6,22 +6,13 @@ import { kitSpecById } from "../kit-specs";
 import { Section } from "../parts/section";
 import { Crop } from "./crop";
 import { assets, avatarRules, bannerRules, networks } from "./data";
-
-const th = "px-5 py-3 font-medium";
+import { TableHead } from "../parts/table-head";
 
 function AssetTable() {
   return (
     <div className="mt-4 overflow-x-auto rounded-card border border-(--b-line) bg-(--b-card)">
       <table className="w-full min-w-[720px] border-collapse text-[14.5px]">
-        <thead>
-          <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-            <th className={th}>Network</th>
-            <th className={th}>Asset</th>
-            <th className={th}>Size</th>
-            <th className={th}>Safe area</th>
-            <th className={th}>Template</th>
-          </tr>
-        </thead>
+        <TableHead columns={["Network", "Asset", "Size", "Safe area", "Template"]} />
         <tbody>
           {assets.map(([net, a, size, safe, id]) => (
             <tr key={id} className="border-b border-(--b-line) last:border-0">

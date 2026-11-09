@@ -4,6 +4,7 @@ import { card, h3, lab, rules } from "../cls";
 import { GenImage } from "../parts/gen-image";
 import { Section } from "../parts/section";
 import { genAllowed, genForbidden, photo, promptExample, promptSchema } from "./data";
+import { RuleCard } from "../parts/rule-card";
 
 const codeCard = "min-w-0 overflow-hidden rounded-card border border-(--b-line) bg-(--b-card)";
 const codeHead =
@@ -29,14 +30,11 @@ function Prompts() {
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className={card}>
-          <p className={lab}>Allowed</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            {genAllowed.map(r => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
+        <RuleCard title="Allowed">
+          {genAllowed.map(r => (
+            <li key={r}>{r}</li>
+          ))}
+        </RuleCard>
         <div
           className={cn(
             card,
@@ -82,20 +80,17 @@ function Provenance() {
               </li>
             </ul>
           </div>
-          <div className={card}>
-            <p className={lab}>Review</p>
-            <ul className={cn(rules, "mt-4 text-[15px]")}>
-              <li>
-                Check hands, keyboards and screens at 200%: extra fingers, melted keys and fake
-                glyphs are the usual failures.
-              </li>
-              <li>Any letter-like shape gets painted out before export.</li>
-              <li>
-                Generate four, pick one on a contact sheet next to real photos; reject anything that
-                looks rendered.
-              </li>
-            </ul>
-          </div>
+          <RuleCard title="Review">
+            <li>
+              Check hands, keyboards and screens at 200%: extra fingers, melted keys and fake glyphs
+              are the usual failures.
+            </li>
+            <li>Any letter-like shape gets painted out before export.</li>
+            <li>
+              Generate four, pick one on a contact sheet next to real photos; reject anything that
+              looks rendered.
+            </li>
+          </RuleCard>
         </div>
       </div>
     </>

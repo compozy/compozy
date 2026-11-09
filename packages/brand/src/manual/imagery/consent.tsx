@@ -1,8 +1,7 @@
-import { cn } from "@compozy/ui/utils";
-
-import { card, h3, lab, specs } from "../cls";
+import { card, h3, lab } from "../cls";
 import { Section } from "../parts/section";
 import { altPattern, consent, credits } from "./data";
+import { SpecCard } from "../parts/spec-card";
 
 function Checklist() {
   return (
@@ -57,17 +56,12 @@ export function Consent() {
               its state. Decorative Atmosphere visuals get <code>alt=""</code>.
             </p>
           </div>
-          <div className={card}>
-            <p className={lab}>Credit lines</p>
-            <dl className={cn(specs, "mt-3")}>
-              {credits.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd className="font-mono text-[13px]">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+          <SpecCard
+            title="Credit lines"
+            rows={credits}
+            listClassName="mt-3"
+            valueClassName="font-mono text-[13px]"
+          />
         </div>
       </div>
       <h3 className={`${h3} mt-16`}>Alt text, before and after</h3>

@@ -1,9 +1,8 @@
-import { cn } from "@compozy/ui/utils";
-
-import { card, lab, rules } from "../cls";
+import { card, lab } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { carouselBodies, carouselMap } from "./data";
+import { RuleCard } from "../parts/rule-card";
 
 export function Carousel() {
   return (
@@ -50,25 +49,20 @@ export function Carousel() {
             ))}
           </div>
         </div>
-        <div className={card}>
-          <p className={lab}>Rules</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            <li>
-              Six slides. More than eight and completion drops; fewer than four and it should be a
-              single post.
-            </li>
-            <li>
-              Body text at least 3.1% of the width (33 px): readable on a phone without zooming.
-            </li>
-            <li>
-              One Live visual per body slide, drawn from the product: desktop, agents, handoff,
-              approval. No terminal window.
-            </li>
-            <li>
-              Export as one PDF for LinkedIn, as PNGs for X. Title the PDF with the cover line.
-            </li>
-          </ul>
-        </div>
+        <RuleCard title="Rules">
+          <li>
+            Six slides. More than eight and completion drops; fewer than four and it should be a
+            single post.
+          </li>
+          <li>
+            Body text at least 3.1% of the width (33 px): readable on a phone without zooming.
+          </li>
+          <li>
+            One Live visual per body slide, drawn from the product: desktop, agents, handoff,
+            approval. No terminal window.
+          </li>
+          <li>Export as one PDF for LinkedIn, as PNGs for X. Title the PDF with the cover line.</li>
+        </RuleCard>
       </div>
     </Section>
   );

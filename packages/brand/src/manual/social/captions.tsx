@@ -1,8 +1,9 @@
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, specs } from "../cls";
+import { card, h3 } from "../cls";
 import { Section } from "../parts/section";
 import { anatomy, forbidden, formulas, lengths, posts } from "./data";
+import { SpecCard } from "../parts/spec-card";
 
 function Anatomy() {
   return (
@@ -55,28 +56,8 @@ export function Captions() {
       <Anatomy />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className={card}>
-          <p className={lab}>Formulas</p>
-          <dl className={cn(specs, "mt-4")}>
-            {formulas.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd className="font-mono text-[13px]">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <div className={card}>
-          <p className={lab}>Length</p>
-          <dl className={cn(specs, "mt-4")}>
-            {lengths.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="Formulas" rows={formulas} valueClassName="font-mono text-[13px]" />
+        <SpecCard title="Length" rows={lengths} />
       </div>
 
       <h3 className={cn(h3, "mt-16")}>Six posts in the voice</h3>

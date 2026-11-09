@@ -2,18 +2,8 @@
 // idea (claim + one product capture), and the closing call to action.
 import { visuals, type ProductShotName } from "../../art/visuals";
 import { Visual } from "../../art/visual";
-import {
-  cq,
-  display,
-  gradientText,
-  ink,
-  Mark,
-  monoUp,
-  Scrim,
-  scrim,
-  Shot,
-  ShotPanel,
-} from "../parts";
+import { Mark, Scrim, Shot, ShotPanel } from "../parts";
+import { cq, display, gradientText, ink, monoUp, scrim } from "../styles";
 
 const asShot = (v: string): ProductShotName =>
   (visuals.find(x => x.family === "product" && x.name === v)?.name as ProductShotName) ?? "desktop";

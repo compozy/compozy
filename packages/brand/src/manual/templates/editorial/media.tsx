@@ -1,7 +1,8 @@
 // Editorial media: blog hero, newsletter header, UI card, call background and wallpaper.
 import { Visual } from "../../art/visual";
 import { visualByName, visuals, type ProductShotName } from "../../art/visuals";
-import { cq, display, ink, Mark, monoUp, Scrim, scrim, Shot, ShotPanel } from "../parts";
+import { Mark, Scrim, Shot, ShotPanel } from "../parts";
+import { cq, display, ink, monoUp, scrim } from "../styles";
 
 /** Blog hero, 1600×840: art only, the title stays in HTML. Product posts show a capture of our
  *  UI (default: orchestrate); essays pass an Atmosphere visual (`art=terrain`). */

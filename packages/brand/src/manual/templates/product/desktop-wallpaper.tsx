@@ -1,7 +1,7 @@
 // Desktop wallpaper, 2880×1800 (MacBook Pro at 2×): Atmosphere horizon, the one-colour symbol and
 // one mono line bottom-left, above the dock line. Also the empty desktop behind the Compozy shell.
 import { Visual } from "../../art/visual";
-import { cq, ink, monoUp } from "../parts";
+import { cq, ink, monoUp } from "../styles";
 
 export function DesktopWallpaper({ meta = "compozy · always-on" }: { meta?: string }) {
   return (

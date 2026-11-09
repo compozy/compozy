@@ -1,9 +1,10 @@
 import { cn } from "@compozy/ui/utils";
 
-import { cap, card, h3, lab, specs } from "../cls";
+import { cap, card, h3, lab } from "../cls";
 import { Section } from "../parts/section";
 import { crops, cssRecipe, lightroom, photo, recipe } from "./data";
 import { Graded } from "./graded";
+import { SpecCard, SpecList } from "../parts/spec-card";
 
 const NOTES: [label: string, text: string][] = [
   [
@@ -45,27 +46,10 @@ function BeforeAfter() {
 function Recipes() {
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-3">
-      <div className={card}>
-        <p className={lab}>Recipe</p>
-        <dl className={cn(specs, "mt-4")}>
-          {recipe.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      <SpecCard title="Recipe" rows={recipe} />
       <div className={card}>
         <p className={lab}>Lightroom · starting point</p>
-        <dl className={cn(specs, "mt-4")}>
-          {lightroom.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd className="font-mono">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <SpecList rows={lightroom} valueClassName="font-mono" />
         <p className={cn(cap, "mb-0")}>
           Saved as the preset <code>compozy-cool-v1</code> in the shared library.
         </p>

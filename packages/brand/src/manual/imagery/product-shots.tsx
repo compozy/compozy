@@ -1,11 +1,10 @@
-import { cn } from "@compozy/ui/utils";
-
 import { Visual } from "../art/visual";
-import { card, h3, lab, specs } from "../cls";
+import { h3 } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
 import { productRules } from "./data";
 import { Window } from "./window";
+import { SpecCard } from "../parts/spec-card";
 
 const CAPTURE: [label: string, value: string][] = [
   ["Scale", "2x device pixels, exported as PNG; WebP at 85 for the web."],
@@ -60,28 +59,8 @@ function Shots() {
 function Rules() {
   return (
     <div className="mt-16 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <div className={card}>
-        <p className={lab}>Rules</p>
-        <dl className={cn(specs, "mt-4")}>
-          {productRules.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-      <div className={card}>
-        <p className={lab}>Capture</p>
-        <dl className={cn(specs, "mt-4")}>
-          {CAPTURE.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      <SpecCard title="Rules" rows={productRules} />
+      <SpecCard title="Capture" rows={CAPTURE} />
     </div>
   );
 }

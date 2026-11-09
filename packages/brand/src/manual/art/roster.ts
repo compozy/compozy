@@ -1,7 +1,7 @@
 // Sample roster for the manual's live pieces: the agents, harnesses and states the product shows.
 // Names follow the product's demo world (Northstar Pay); samples, labelled as such where shown.
 // Faces render through @compozy/ui AgentAvatar with seed = agent name, the product's generator.
-import type { AgentAvatarState } from "@compozy/ui";
+import type { AgentAvatarState, StateGlyphState } from "@compozy/ui";
 
 /** The five agent states the manual documents (product AgentAvatarState minus starting/unknown). */
 export type AgentState = Extract<
@@ -48,4 +48,13 @@ export const agentByName = (name: string): Agent => {
   const a = roster.find(x => x.name === name);
   if (!a) throw new Error(`unknown roster agent ${name}`);
   return a;
+};
+
+/** Agent state → the product's status glyph for that state (_uiux.md signal & state mapping). */
+export const STATE_GLYPH: Record<AgentState, StateGlyphState> = {
+  working: "running",
+  "needs-you": "attention",
+  idle: "idle",
+  paused: "stopped",
+  failed: "failed",
 };

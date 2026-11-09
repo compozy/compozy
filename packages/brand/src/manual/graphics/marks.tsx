@@ -2,9 +2,10 @@
 import { cn } from "@compozy/ui/utils";
 
 import { VISUALS_BASE } from "../art/visuals";
-import { cap, card, h3, lab, rules } from "../cls";
+import { cap, card, h3, lab } from "../cls";
 import { Section } from "../parts/section";
 import { marks } from "./data";
+import { RuleCard } from "../parts/rule-card";
 
 // crop marks on a 360×240 sheet with 18 px bleed (≈3 mm at this scale)
 const W = 360;
@@ -183,31 +184,28 @@ export function Marks() {
             only), marks sit outside the bleed.
           </figcaption>
         </figure>
-        <div className={card}>
-          <p className={lab}>Print marks</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            <li>
-              <strong>Bleed</strong> 3 mm on every side; art and colour fields run to it, type stays
-              5 mm inside trim.
-            </li>
-            <li>
-              <strong>Crop marks</strong> 0.25 pt registration black, 5 mm long, offset 3 mm from
-              the trim so they never print on the piece.
-            </li>
-            <li>
-              <strong>Registration targets</strong> centred on each side, outside the bleed, so the
-              printer can check plate alignment.
-            </li>
-            <li>
-              <strong>Slug line</strong> in Geist Mono 6 pt: file name, colour mode, bleed, date. It
-              identifies the proof on the press.
-            </li>
-            <li>
-              <strong>As decoration</strong>, crop marks may frame a cover once, in line colour,
-              never in the gradient.
-            </li>
-          </ul>
-        </div>
+        <RuleCard title="Print marks">
+          <li>
+            <strong>Bleed</strong> 3 mm on every side; art and colour fields run to it, type stays 5
+            mm inside trim.
+          </li>
+          <li>
+            <strong>Crop marks</strong> 0.25 pt registration black, 5 mm long, offset 3 mm from the
+            trim so they never print on the piece.
+          </li>
+          <li>
+            <strong>Registration targets</strong> centred on each side, outside the bleed, so the
+            printer can check plate alignment.
+          </li>
+          <li>
+            <strong>Slug line</strong> in Geist Mono 6 pt: file name, colour mode, bleed, date. It
+            identifies the proof on the press.
+          </li>
+          <li>
+            <strong>As decoration</strong>, crop marks may frame a cover once, in line colour, never
+            in the gradient.
+          </li>
+        </RuleCard>
       </div>
     </Section>
   );

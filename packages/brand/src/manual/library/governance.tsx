@@ -4,6 +4,7 @@ import { pages, VERSION } from "../chapters";
 import { card, lab, rules } from "../cls";
 import { Section } from "../parts/section";
 import { StatusTag } from "../parts/status-tag";
+import { RuleCard } from "../parts/rule-card";
 
 const log: [version: string, date: string, items: string[]][] = [
   [
@@ -81,24 +82,21 @@ export function Governance() {
             ))}
           </ul>
         </div>
-        <div className={card}>
-          <p className={lab}>Changing a rule</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            <li>Open a pull request against this manual, never a one-off file.</li>
-            <li>
-              Change the token, component or copy at its source (<code>brand/</code>,{" "}
-              <code>data.ts</code>), not in a page.
-            </li>
-            <li>
-              Bump the edition: patch for fixes, minor for new sections, major for a new symbol,
-              palette or type.
-            </li>
-            <li>
-              <code>bun run test</code> must pass: tokens in sync and every recommended pair at AA.
-            </li>
-            <li>A proposal becomes approved when the founder says so in the PR.</li>
-          </ul>
-        </div>
+        <RuleCard title="Changing a rule">
+          <li>Open a pull request against this manual, never a one-off file.</li>
+          <li>
+            Change the token, component or copy at its source (<code>brand/</code>,{" "}
+            <code>data.ts</code>), not in a page.
+          </li>
+          <li>
+            Bump the edition: patch for fixes, minor for new sections, major for a new symbol,
+            palette or type.
+          </li>
+          <li>
+            <code>bun run test</code> must pass: tokens in sync and every recommended pair at AA.
+          </li>
+          <li>A proposal becomes approved when the founder says so in the PR.</li>
+        </RuleCard>
         <div className={card}>
           <p className={lab}>Changelog · current {VERSION}</p>
           <div className="mt-4 grid gap-6">

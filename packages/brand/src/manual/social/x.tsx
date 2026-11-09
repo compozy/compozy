@@ -1,12 +1,13 @@
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, specs } from "../cls";
+import { card, h3, lab } from "../cls";
 import { Frame } from "../kit-frame";
 import { DoDont } from "../parts/do-dont";
 import { InContext } from "../parts/in-context";
 import { Section } from "../parts/section";
 import { xRules } from "./data";
 import { Phone } from "./phone";
+import { SpecCard } from "../parts/spec-card";
 
 const thread: [n: string, text: string][] = [
   ["1/", "The outcome, alone. Works if nobody opens the thread."],
@@ -54,17 +55,7 @@ export function X() {
       </div>
 
       <div className="mt-16 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className={card}>
-          <p className={lab}>Rules</p>
-          <dl className={cn(specs, "mt-4")}>
-            {xRules.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="Rules" rows={xRules} />
         <div className={card}>
           <p className={lab}>A thread, six posts</p>
           <ol className="m-0 mt-4 grid list-none gap-0 p-0 text-[14.5px]">

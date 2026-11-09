@@ -3,7 +3,8 @@
 import { BarsDiagram } from "../../art/diagrams/bars-diagram";
 import { LanesDiagram } from "../../art/diagrams/lanes-diagram";
 import { Visual } from "../../art/visual";
-import { cq, display, gradientFill, ink, Mark, monoUp, Scrim, scrim } from "../parts";
+import { Mark, Scrim } from "../parts";
+import { cq, display, gradientFill, ink, monoUp, scrim } from "../styles";
 
 const paper = "band-paper absolute inset-0 overflow-hidden text-(--b-fg)";
 

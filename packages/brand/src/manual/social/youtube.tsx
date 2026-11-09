@@ -1,9 +1,10 @@
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, rules, specs } from "../cls";
+import { card, h3, lab, rules } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { thumbRules } from "./data";
+import { SpecCard } from "../parts/spec-card";
 
 const channel: [string, string][] = [
   ["Name", "Compozy"],
@@ -78,17 +79,7 @@ export function Youtube() {
               there.
             </p>
           </div>
-          <div className={card}>
-            <p className={lab}>Channel</p>
-            <dl className={cn(specs, "mt-3")}>
-              {channel.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+          <SpecCard title="Channel" rows={channel} listClassName="mt-3" />
         </div>
       </div>
     </Section>

@@ -1,9 +1,11 @@
 // 09 · 07 Delivery: codecs, frame rate, sizes, naming, where files live, how renders are made.
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, rules, specs } from "../cls";
+import { card, h3, lab, rules } from "../cls";
 import { Section } from "../parts/section";
 import { delivery } from "./data";
+import { SpecCard } from "../parts/spec-card";
+import { TableHead } from "../parts/table-head";
 
 const tree = `brand/motion.json            tokens (source of truth)
 public/assets/motion/        published renders, by type
@@ -21,8 +23,6 @@ const checks = [
   "Master at -14 LUFS, true peak -1 dBTP",
   "End card holds 0.6 s after the last element settles",
 ];
-
-const th = "px-5 py-3 font-medium";
 
 export function Delivery() {
   return (
@@ -49,13 +49,7 @@ export function Delivery() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="overflow-x-auto rounded-card border border-(--b-line) bg-(--b-card)">
           <table className="w-full min-w-[620px] border-collapse text-[14px]">
-            <thead>
-              <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-                <th className={th}>Deliverable</th>
-                <th className={th}>Codec / container</th>
-                <th className={th}>For</th>
-              </tr>
-            </thead>
+            <TableHead columns={["Deliverable", "Codec / container", "For"]} />
             <tbody>
               {delivery.codecs.map(([a, b, c]) => (
                 <tr key={a} className="border-b border-(--b-line) last:border-0">
@@ -67,17 +61,7 @@ export function Delivery() {
             </tbody>
           </table>
         </div>
-        <div className={card}>
-          <p className={lab}>frame</p>
-          <dl className={cn(specs, "mt-3")}>
-            {delivery.frame.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="frame" rows={delivery.frame} listClassName="mt-3" />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

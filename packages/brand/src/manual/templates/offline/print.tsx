@@ -4,19 +4,8 @@ import type { CSSProperties } from "react";
 
 import { AgentFace } from "../../art/pieces";
 import { Visual } from "../../art/visual";
-import {
-  cq,
-  display,
-  gradientFill,
-  ink,
-  Mark,
-  monoUp,
-  Scaled,
-  Scrim,
-  scrim,
-  Shot,
-  SymbolArt,
-} from "../parts";
+import { Mark, Scaled, Scrim, Shot, SymbolArt } from "../parts";
+import { cq, display, gradientFill, ink, monoUp, scrim } from "../styles";
 
 /** The die-cut path: a dashed cyan outline 1.1cqi outside each shape. */
 const CUT: CSSProperties = {

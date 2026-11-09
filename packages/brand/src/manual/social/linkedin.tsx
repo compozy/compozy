@@ -1,9 +1,10 @@
 import { cn } from "@compozy/ui/utils";
 
-import { card, lab, specs } from "../cls";
+import { card, lab } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { linkedinRules } from "./data";
+import { SpecCard } from "../parts/spec-card";
 
 const FLAT = "[&_figure>div]:rounded-none [&_figure>div]:shadow-none";
 
@@ -68,17 +69,7 @@ export function Linkedin() {
         Feed mock: the first 210 characters are all most readers see before “see more”.
       </p>
       <div className="mt-12 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className={card}>
-          <p className={lab}>Rules</p>
-          <dl className={cn(specs, "mt-4")}>
-            {linkedinRules.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="Rules" rows={linkedinRules} />
         <div className={card}>
           <p className={lab}>Company page</p>
           <p className="m-0 mt-3 text-[15px]">

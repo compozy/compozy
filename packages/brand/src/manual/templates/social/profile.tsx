@@ -1,7 +1,8 @@
 // Social profile assets: avatars and the network banners. Each banner keeps its text inside the
 // strip every device shows; the Atmosphere visual carries the rest.
 import { Visual } from "../../art/visual";
-import { display, ink, Mark, monoUp, Scrim, scrim, SymbolArt } from "../parts";
+import { Mark, Scrim, SymbolArt } from "../parts";
+import { display, ink, monoUp, scrim } from "../styles";
 
 /** Square avatar master. The symbol sits inside the inscribed circle, so circle and rounded
  *  crops keep it whole: 56cqi wide, inside the 70.7cqi safe square. */

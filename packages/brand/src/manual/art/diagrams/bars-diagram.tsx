@@ -1,5 +1,6 @@
 // Diagram · Activity: thin bars across a day, the live window in the live gradient (ADR-005 §3).
-import { LiveGradient, seeded } from "./live-gradient";
+import { LiveGradient } from "./live-gradient";
+import { seeded } from "./seeded";
 
 interface BarsDiagramProps {
   n?: number;

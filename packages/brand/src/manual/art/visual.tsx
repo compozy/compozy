@@ -17,6 +17,7 @@ import {
   VISUALS_BASE,
   type DiagramName,
   type ProductShotName,
+  type VisualInfo,
   type VisualName,
 } from "./visuals";
 
@@ -44,7 +45,8 @@ export function Visual({
   sizes = "100vw",
 }: VisualProps) {
   const v = visualByName(name);
-  const objectPosition = `${pct(x ?? v.focus[0])} ${pct(y ?? v.focus[1])}`;
+  const focusX = x ?? v.focus[0];
+  const focusY = y ?? v.focus[1];
   return (
     <div
       data-visual={name}
@@ -57,42 +59,91 @@ export function Visual({
       )}
       style={inline ? { aspectRatio: ratio } : undefined}
     >
-      {v.family === "atmosphere" ? (
-        <>
-          <img
-            className="cz-land"
-            src={`${VISUALS_BASE}/${name}.jpg`}
-            srcSet={atmosphereSrcSet(name, "land")}
-            sizes={sizes}
-            alt=""
-            decoding="async"
-            style={{ objectPosition }}
-          />
-          {v.portrait && (
-            <img
-              className="cz-port"
-              src={`${VISUALS_BASE}/${name}-portrait.jpg`}
-              srcSet={atmosphereSrcSet(`${name}-portrait`, "port")}
-              sizes={sizes}
-              alt=""
-              decoding="async"
-              style={{ objectPosition }}
-            />
-          )}
-        </>
-      ) : v.family === "product" ? (
-        <ProductShot
-          name={name as ProductShotName}
-          theme={theme}
-          x={x ?? v.focus[0]}
-          y={y ?? v.focus[1]}
-          mode={inline ? "flat" : "perspective"}
-          alt={inline ? `${v.title}: ${v.idea}` : ""}
-        />
-      ) : (
-        <Diagram name={name as DiagramName} x={x ?? v.focus[0]} y={y ?? v.focus[1]} />
-      )}
+      <VisualBody
+        info={v}
+        name={name}
+        x={focusX}
+        y={focusY}
+        theme={theme}
+        inline={inline}
+        sizes={sizes}
+      />
     </div>
+  );
+}
+
+interface VisualBodyProps {
+  info: VisualInfo;
+  name: VisualName;
+  x: number;
+  y: number;
+  theme: "dark" | "light";
+  inline: boolean;
+  sizes: string;
+}
+
+/** One render branch per visual family. */
+function VisualBody({ info, name, x, y, theme, inline, sizes }: VisualBodyProps) {
+  if (info.family === "atmosphere") {
+    return (
+      <Atmosphere
+        name={name}
+        portrait={info.portrait}
+        objectPosition={`${pct(x)} ${pct(y)}`}
+        sizes={sizes}
+      />
+    );
+  }
+  if (info.family === "product") {
+    return (
+      <ProductShot
+        name={name as ProductShotName}
+        theme={theme}
+        x={x}
+        y={y}
+        mode={inline ? "flat" : "perspective"}
+        alt={inline ? `${info.title}: ${info.idea}` : ""}
+      />
+    );
+  }
+  return <Diagram name={name as DiagramName} x={x} y={y} />;
+}
+
+/** Landscape crop, plus the portrait crop when the visual ships one (CSS picks by box shape). */
+function Atmosphere({
+  name,
+  portrait,
+  objectPosition,
+  sizes,
+}: {
+  name: VisualName;
+  portrait?: boolean;
+  objectPosition: string;
+  sizes: string;
+}) {
+  return (
+    <>
+      <img
+        className="cz-land"
+        src={`${VISUALS_BASE}/${name}.jpg`}
+        srcSet={atmosphereSrcSet(name, "land")}
+        sizes={sizes}
+        alt=""
+        decoding="async"
+        style={{ objectPosition }}
+      />
+      {portrait && (
+        <img
+          className="cz-port"
+          src={`${VISUALS_BASE}/${name}-portrait.jpg`}
+          srcSet={atmosphereSrcSet(`${name}-portrait`, "port")}
+          sizes={sizes}
+          alt=""
+          decoding="async"
+          style={{ objectPosition }}
+        />
+      )}
+    </>
   );
 }
 

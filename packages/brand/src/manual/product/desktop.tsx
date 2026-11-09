@@ -18,8 +18,15 @@ const iconSizes: [file: string, px: number][] = [
   ["128h", 48],
   ["64h", 32],
 ];
-/** neutral placeholder apps around Compozy in the dock (null = the Compozy icon) */
-const dock: (number | null)[] = [27, 22, null, 31, 25, 20];
+/** neutral placeholder apps around Compozy in the dock (mixPct null = the Compozy icon) */
+const dock: { app: string; mixPct: number | null }[] = [
+  { app: "finder", mixPct: 27 },
+  { app: "browser", mixPct: 22 },
+  { app: "compozy", mixPct: null },
+  { app: "mail", mixPct: 31 },
+  { app: "editor", mixPct: 25 },
+  { app: "terminal", mixPct: 20 },
+];
 
 function Dock() {
   return (
@@ -27,9 +34,9 @@ function Dock() {
       <div className="relative aspect-[16/10] overflow-hidden rounded-card border border-(--b-line)">
         <Visual name="horizon" x={0.5} y={0.4} className="opacity-60" />
         <div className="absolute inset-x-[12%] bottom-[6%] flex items-end justify-center gap-[2.2%] rounded-[18px] border border-[color-mix(in_oklab,var(--color-fg-strong)_15%,transparent)] bg-[color-mix(in_oklab,var(--color-fg-strong)_10%,transparent)] px-[3%] py-[1.6%] backdrop-blur-md">
-          {dock.map((mixPct, i) =>
+          {dock.map(({ app, mixPct }) =>
             mixPct === null ? (
-              <span key={i} className="relative w-[13%]">
+              <span key={app} className="relative w-[13%]">
                 <img
                   src={`${P}/compozy-app-icon-256h.png`}
                   alt="Compozy in the dock"
@@ -45,7 +52,7 @@ function Dock() {
               </span>
             ) : (
               <span
-                key={i}
+                key={app}
                 className="block aspect-square w-[13%] rounded-[22%]"
                 style={{
                   background: `color-mix(in oklab, var(--color-fg-strong) ${mixPct}%, var(--color-rail))`,

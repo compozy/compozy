@@ -1,11 +1,12 @@
 // 09 · 02 Tokens: the motion values rendered live (durations, eases, stagger, atmosphere and Live tokens).
 import { cn } from "@compozy/ui/utils";
 
-import { btn, btnSecondary, btnSm, card, h3, lab, specs } from "../cls";
+import { btn, btnSecondary, btnSm, card, h3, lab } from "../cls";
 import { Section } from "../parts/section";
 import { atmosphereTokens, bez, durationUse, easeUse, motion, type EaseName } from "./data";
 import { ReducedNote, ReplayButton } from "./sig-card";
 import { useLoopAnimation, useMotionDemo } from "./use-motion-demo";
+import { SpecList } from "../parts/spec-card";
 
 const durs = Object.entries(motion.durations);
 const max = Math.max(...durs.map(([, v]) => v));
@@ -199,14 +200,7 @@ export function Tokens() {
         <Stagger />
         <div className={card}>
           <p className={lab}>atmosphere and live · {atmosphereTokens.length} tokens</p>
-          <dl className={cn(specs, "mt-4")}>
-            {atmosphereTokens.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
+          <SpecList rows={atmosphereTokens} />
           <p className="m-0 mt-4 text-[14px] text-(--b-muted)">
             Drift is measured on the visual’s own box, so it reads the same in a 16:9 cover and a
             9:16 story. Reduced motion turns drift and sweep off.

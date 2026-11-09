@@ -1,11 +1,12 @@
 // 02 Surfaces: dark and light ladders mapped to tokens, with computed text contrast on every step.
 import { cn } from "@compozy/ui/utils";
 
-import { cap, h3, lab, rules } from "../cls";
+import { cap, h3, lab } from "../cls";
 import { grade, ratio } from "../contrast";
 import { UiCrop } from "../graphics/ui-crop";
 import { Section } from "../parts/section";
 import { darkLadder, darkText, ladderInk, lightLadder, lightText, type Surf } from "./data";
+import { TermRules } from "../parts/rule-card";
 
 interface Ladder {
   name: string;
@@ -191,24 +192,27 @@ export function Surfaces() {
             means 3:1, enough for 18 px+ or bold 14 px+ and for icons, never for body copy.
           </p>
         </div>
-        <ul className={cn(rules, "text-[15px]")}>
-          <li>
-            <strong>Faint</strong> (#5e5e5e / #a6a6a6) is for disabled controls, placeholders’ icons
-            and hairline labels only. It fails body contrast on purpose.
-          </li>
-          <li>
-            <strong>Volt as text</strong> uses #6687FF on dark: brand volt #2F5BFF is 3.7:1 on ink,
-            fine for a filled button, too dark for a link.
-          </li>
-          <li>
-            <strong>No shadows</strong> to separate layers in dark. Popovers add 1 px line-strong
-            and a 24 px, 40% black shadow only so they detach from the canvas.
-          </li>
-          <li>
-            <strong>Selected</strong> rows use ink-4 plus a 2 px cyan bar on the left edge, so
-            selection never depends on fill alone.
-          </li>
-        </ul>
+        <TermRules
+          className="text-[15px]"
+          items={[
+            [
+              "Faint",
+              " (#5e5e5e / #a6a6a6) is for disabled controls, placeholders’ icons and hairline labels only. It fails body contrast on purpose.",
+            ],
+            [
+              "Volt as text",
+              " uses #6687FF on dark: brand volt #2F5BFF is 3.7:1 on ink, fine for a filled button, too dark for a link.",
+            ],
+            [
+              "No shadows",
+              " to separate layers in dark. Popovers add 1 px line-strong and a 24 px, 40% black shadow only so they detach from the canvas.",
+            ],
+            [
+              "Selected",
+              " rows use ink-4 plus a 2 px cyan bar on the left edge, so selection never depends on fill alone.",
+            ],
+          ]}
+        />
       </div>
     </Section>
   );

@@ -7,9 +7,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AgentFace, ApprovalRow, STATE_GLYPH, StateRow } from "../art/pieces";
+import { AgentFace, ApprovalRow, StateRow } from "../art/pieces";
 import { productShotSrc } from "../art/product-pins";
-import { AGENT_STATES, agentByName, harnessLabel } from "../art/roster";
+import { AGENT_STATES, agentByName, harnessLabel, STATE_GLYPH } from "../art/roster";
 import { Visual } from "../art/visual";
 import { visuals } from "../art/visuals";
 

@@ -1,11 +1,11 @@
 // Desktop app → window chrome (the real desktop, captured), the empty composer specimen and the
 // desktop-wallpaper kit template.
-import { cn } from "@compozy/ui/utils";
 
 import { Visual } from "../art/visual";
-import { cap, card, lab, rules } from "../cls";
+import { cap } from "../cls";
 import { Frame } from "../kit-frame";
 import { UiCrop } from "../graphics/ui-crop";
+import { RuleCard } from "../parts/rule-card";
 
 export function DesktopWindow() {
   return (
@@ -52,28 +52,25 @@ export function DesktopWindow() {
             never behind the text.
           </figcaption>
         </figure>
-        <div className={card}>
-          <p className={lab}>Splash and empty states</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            <li>
-              <strong>Splash</strong> is ink with the gradient symbol at 96 px, centred, for no
-              longer than the daemon takes to answer. No progress bar, no tagline.
-            </li>
-            <li>
-              <strong>Empty states</strong> say what to do in one line and offer one action. Copy
-              names the real noun: session, Loop, automation.
-            </li>
-            <li>
-              <strong>Art in windows</strong> only when nothing else is on screen: Atmosphere{" "}
-              <code>field</code> or <code>horizon</code> at ≤ 25% opacity, or none, never behind
-              content.
-            </li>
-            <li>
-              <strong>Window radius</strong> 12 px (macOS draws it); panels inside use 14 px,
-              controls 10 px.
-            </li>
-          </ul>
-        </div>
+        <RuleCard title="Splash and empty states">
+          <li>
+            <strong>Splash</strong> is ink with the gradient symbol at 96 px, centred, for no longer
+            than the daemon takes to answer. No progress bar, no tagline.
+          </li>
+          <li>
+            <strong>Empty states</strong> say what to do in one line and offer one action. Copy
+            names the real noun: session, Loop, automation.
+          </li>
+          <li>
+            <strong>Art in windows</strong> only when nothing else is on screen: Atmosphere{" "}
+            <code>field</code> or <code>horizon</code> at ≤ 25% opacity, or none, never behind
+            content.
+          </li>
+          <li>
+            <strong>Window radius</strong> 12 px (macOS draws it); panels inside use 14 px, controls
+            10 px.
+          </li>
+        </RuleCard>
       </div>
     </>
   );
@@ -84,26 +81,22 @@ export function DesktopWallpaper() {
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Frame id="desktop-wallpaper" guides />
-      <div className={card}>
-        <p className={lab}>desktop-wallpaper · 2880 × 1800</p>
-        <ul className={cn(rules, "mt-4 text-[15px]")}>
-          <li>
-            Atmosphere <code>horizon</code> at 60% opacity, band of light across the lower middle,
-            top 40% left black, so icons on the right stay readable.
-          </li>
-          <li>
-            The red bands are the menu bar (top) and the macOS dock (bottom): no mark enters them.
-          </li>
-          <li>
-            One-colour symbol and one mono line bottom-left. No wordmark: the macOS dock already
-            says Compozy.
-          </li>
-          <li>
-            Also the empty desktop behind the Compozy shell, so the OS and the product share a
-            ground.
-          </li>
-        </ul>
-      </div>
+      <RuleCard title="desktop-wallpaper \u00b7 2880 \u00d7 1800">
+        <li>
+          Atmosphere <code>horizon</code> at 60% opacity, band of light across the lower middle, top
+          40% left black, so icons on the right stay readable.
+        </li>
+        <li>
+          The red bands are the menu bar (top) and the macOS dock (bottom): no mark enters them.
+        </li>
+        <li>
+          One-colour symbol and one mono line bottom-left. No wordmark: the macOS dock already says
+          Compozy.
+        </li>
+        <li>
+          Also the empty desktop behind the Compozy shell, so the OS and the product share a ground.
+        </li>
+      </RuleCard>
     </div>
   );
 }

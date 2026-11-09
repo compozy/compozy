@@ -1,9 +1,10 @@
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, specs } from "../cls";
+import { card, h3, lab } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { githubRules, readmeSnippet } from "./data";
+import { SpecCard } from "../parts/spec-card";
 
 const README_LINE = (
   <p className="m-0 mt-4 text-[14px]">
@@ -85,17 +86,7 @@ export function Github() {
             themes. Below it: the one-liner, install, and a product shot, in that order.
           </p>
         </div>
-        <div className={card}>
-          <p className={lab}>Repository</p>
-          <dl className={cn(specs, "mt-4")}>
-            {githubRules.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="Repository" rows={githubRules} />
       </div>
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Frame id="release-card" guides />

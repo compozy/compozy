@@ -1,6 +1,7 @@
 // Link images, 1200×630: default, blog, docs (paper, like the docs site) and changelog.
 import { Visual } from "../../art/visual";
-import { cq, display, ink, Mark, monoUp, Scrim, scrim, Shot } from "../parts";
+import { Mark, Scrim, Shot } from "../parts";
+import { cq, display, ink, monoUp, scrim } from "../styles";
 
 const fade = (solid: number, end: number, surface?: string) =>
   scrim(

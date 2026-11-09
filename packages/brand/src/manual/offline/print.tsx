@@ -1,12 +1,12 @@
 // 11 · 01 Print: colour on paper (CMYK and Pantone approximations), the gradient in print, stocks, white ink, files.
 import { cn } from "@compozy/ui/utils";
 
-import { card, h3, lab, rules, specs } from "../cls";
+import { card, h3, lab, rules } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
 import { fileSpecs, gradientPrint, inks, stocks, whiteInk } from "./data";
-
-const th = "px-5 py-3 font-medium";
+import { SpecList } from "../parts/spec-card";
+import { TableHead } from "../parts/table-head";
 
 /** How each print route reads on paper, painted from the brand tokens (screen previews, not proofs). */
 const PRINT_PREVIEW = [
@@ -20,15 +20,7 @@ function InkTable() {
   return (
     <div className="mt-4 overflow-x-auto rounded-card border border-(--b-line) bg-(--b-card)">
       <table className="w-full min-w-[860px] border-collapse text-[14px]">
-        <thead>
-          <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-            <th className={th}>Colour</th>
-            <th className={th}>Screen</th>
-            <th className={th}>CMYK (coated)</th>
-            <th className={th}>Pantone</th>
-            <th className={th}>Note</th>
-          </tr>
-        </thead>
+        <TableHead columns={["Colour", "Screen", "CMYK (coated)", "Pantone", "Note"]} />
         <tbody>
           {inks.map(c => (
             <tr key={c.name} className="border-b border-(--b-line) align-top last:border-0">
@@ -134,14 +126,7 @@ export function Print() {
           </div>
           <div className={card}>
             <h3 className={h3}>Files for the printer</h3>
-            <dl className={cn(specs, "mt-3")}>
-              {fileSpecs.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
+            <SpecList rows={fileSpecs} className="mt-3" />
           </div>
         </div>
       </div>

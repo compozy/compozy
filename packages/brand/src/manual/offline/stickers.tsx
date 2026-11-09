@@ -5,8 +5,7 @@ import { card, h3, rules } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { stickers } from "./data";
-
-const th = "px-5 py-3 font-medium";
+import { TableHead } from "../parts/table-head";
 
 export function Stickers() {
   return (
@@ -35,13 +34,7 @@ export function Stickers() {
         <div className="grid content-start gap-4">
           <div className="overflow-hidden rounded-card border border-(--b-line) bg-(--b-card)">
             <table className="w-full border-collapse text-[14px]">
-              <thead>
-                <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-                  <th className={th}>Sticker</th>
-                  <th className={th}>Size</th>
-                  <th className={th}>Finish</th>
-                </tr>
-              </thead>
+              <TableHead columns={["Sticker", "Size", "Finish"]} />
               <tbody>
                 {stickers.map(s => (
                   <tr key={s.name} className="border-b border-(--b-line) last:border-0">

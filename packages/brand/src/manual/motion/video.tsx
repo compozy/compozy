@@ -16,6 +16,7 @@ const beats: [beat: string, time: string, text: string][] = [
   ["Proof", "20 s →", "The result: a finished run, a named outcome, a diff."],
   ["End", "last 2.4 s", "One line, the desktop UI, the URL, the lockup."],
 ];
+const SPEC_COLUMNS = ["Channel", "Size", "Length", "File", "Captions"] as const;
 const specRows = [
   ["X", "1920×1080 · 1080×1350", "≤ 2:20", "H.264 .mp4", "burned in"],
   ["LinkedIn", "1080×1350 · 1920×1080", "30–90 s", "H.264 .mp4", "burned in + .srt"],
@@ -118,7 +119,7 @@ function Specs() {
         <table className="w-full min-w-[760px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-(--b-line) text-left">
-              {["Channel", "Size", "Length", "File", "Captions"].map(h => (
+              {SPEC_COLUMNS.map(h => (
                 <th key={h} className={cn(th, "px-5 py-3 font-medium")}>
                   {h}
                 </th>
@@ -128,9 +129,9 @@ function Specs() {
           <tbody>
             {specRows.map(r => (
               <tr key={r[0]} className="border-b border-(--b-line) last:border-0">
-                {r.map((c, i) => (
+                {SPEC_COLUMNS.map((column, i) => (
                   <td
-                    key={i}
+                    key={column}
                     className={cn(
                       "px-5 py-3",
                       i === 0
@@ -140,7 +141,7 @@ function Specs() {
                           : "text-(--b-muted)"
                     )}
                   >
-                    {c}
+                    {r[i]}
                   </td>
                 ))}
               </tr>

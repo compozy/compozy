@@ -9,6 +9,7 @@ import { cap, h3, lab, rules } from "../cls";
 import { grade, ratio } from "../contrast";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
+import { numberLines } from "../text-runs";
 import { cliHelp } from "./data";
 
 type Ansi = Record<string, { hex: string; name: string; role: string }>;
@@ -27,10 +28,12 @@ const ink = {
   meta: "text-(--color-indicator)",
   body: "text-(--color-fg-3)",
 };
+const HELP_LINES = numberLines(cliHelp);
+
 const ansi = (k: string) => ({ color: dark[k]?.hex });
 
-function colourHelp(l: string, i: number): ReactNode {
-  if (i === 0)
+function colourHelp(l: string, n: number): ReactNode {
+  if (n === 1)
     return (
       <>
         <span className={ink.head}>compozy</span> <span className={ink.meta}>0.6.0 ·</span>{" "}
@@ -157,9 +160,9 @@ export function Cli() {
         <figure className="m-0 min-w-0">
           <p className={cn(lab, "mb-3")}>compozy --help</p>
           <pre className="m-0 overflow-x-auto rounded-card border border-(--b-line) bg-(--color-rail) p-5 font-mono text-[12.5px] leading-[1.6] text-(--color-fg)">
-            {cliHelp.split("\n").map((l, i) => (
-              <span key={i}>
-                {colourHelp(l, i)}
+            {HELP_LINES.map(line => (
+              <span key={line.n}>
+                {colourHelp(line.text, line.n)}
                 {"\n"}
               </span>
             ))}

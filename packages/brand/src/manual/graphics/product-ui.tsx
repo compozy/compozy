@@ -4,12 +4,13 @@
 import { cn } from "@compozy/ui/utils";
 
 import { AgentFace } from "../art/pieces";
-import { cap, card, h3, lab, rules, specs } from "../cls";
+import { cap, card, h3, lab, rules } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
 import type { AgentState } from "../art/roster";
 import { offBrand, uiRules, uiSpec } from "./data";
 import { UiCrop } from "./ui-crop";
+import { SpecCard } from "../parts/spec-card";
 
 const crops: {
   v: "agents" | "approval" | "board";
@@ -216,17 +217,7 @@ export function ProductUi() {
       </div>
 
       <div className="mt-16 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className={card}>
-          <p className={lab}>Spec</p>
-          <dl className={cn(specs, "mt-3")}>
-            {uiSpec.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard title="Spec" rows={uiSpec} listClassName="mt-3" />
         <FacesAtMinimum />
       </div>
 

@@ -3,9 +3,9 @@
 import { cn } from "@compozy/ui/utils";
 import type { CSSProperties } from "react";
 
-import { card, lab, specs } from "../cls";
 import { Icon } from "../graphics/icon";
 import { Section } from "../parts/section";
+import { SpecCard } from "../parts/spec-card";
 
 type Scope = Record<`--k-${string}`, string>;
 const mix = (a: string, pct: number, b: string) =>
@@ -299,17 +299,7 @@ export function Controls() {
           <Stage key={th.t} {...th} />
         ))}
       </div>
-      <div className={cn(card, "mt-6")}>
-        <p className={lab}>Spec</p>
-        <dl className={cn(specs, "mt-3")}>
-          {spec.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      <SpecCard title="Spec" rows={spec} className="mt-6" listClassName="mt-3" />
     </Section>
   );
 }

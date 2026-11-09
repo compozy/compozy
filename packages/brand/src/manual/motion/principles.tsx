@@ -2,10 +2,11 @@
 import { cn } from "@compozy/ui/utils";
 
 import { Visual } from "../art/visual";
-import { card, h3, lab, specs } from "../cls";
+import { card, h3, lab } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
 import { motion, principles, reducedRules } from "./data";
+import { SpecList } from "../parts/spec-card";
 
 const pair = (title: string, text: string) => (
   <>
@@ -60,14 +61,7 @@ export function Principles() {
         <div className={card}>
           <p className={lab}>prefers-reduced-motion: reduce</p>
           <h3 className={cn(h3, "mt-3")}>The reduced version is designed, not removed</h3>
-          <dl className={cn(specs, "mt-4")}>
-            {reducedRules.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
+          <SpecList rows={reducedRules} />
         </div>
         <div className={card}>
           <p className={lab}>implementation</p>

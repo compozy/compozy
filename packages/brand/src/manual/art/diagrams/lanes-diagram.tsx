@@ -1,6 +1,7 @@
 // Diagram · Run lanes: one lane per agent, one bar per run, the now line at the right edge; runs
 // still live at "now" carry the live gradient (ADR-005 §3).
-import { LiveGradient, seeded } from "./live-gradient";
+import { LiveGradient } from "./live-gradient";
+import { seeded } from "./seeded";
 
 const DEFAULT_LANES = [
   "claude-code",

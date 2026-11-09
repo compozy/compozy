@@ -1,7 +1,8 @@
 // Ads: one hook, one proof, one volt button. Brand pieces carry an Atmosphere visual; proof
 // pieces show the mechanism in a real capture of the web/ UI (ADR-005).
 import { Visual } from "../../art/visual";
-import { cq, Cta, display, ink, Mark, monoUp, Scrim, scrim, Shot, ShotPanel } from "../parts";
+import { Cta, Mark, Scrim, Shot, ShotPanel } from "../parts";
+import { cq, display, ink, monoUp, scrim } from "../styles";
 
 const leftFade = (end: number) =>
   scrim("90deg", [

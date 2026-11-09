@@ -6,13 +6,13 @@ import { card, h3, lab, rules } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { distances, signRules } from "./data";
+import { TableHead } from "../parts/table-head";
 
 const signs: [label: string, arrow: string][] = [
   ["Talks", "→"],
   ["Coffee", "←"],
   ["Demo room", "↑"],
 ];
-const th = "px-5 py-3 font-medium";
 
 function Backdrop() {
   return (
@@ -107,14 +107,7 @@ export function Signage() {
       <div className="mt-10 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="overflow-x-auto rounded-card border border-(--b-line) bg-(--b-card)">
           <table className="w-full min-w-[560px] border-collapse text-[14px]">
-            <thead>
-              <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-                <th className={th}>Piece</th>
-                <th className={th}>Read from</th>
-                <th className={th}>Minimum main line</th>
-                <th className={th}>Format</th>
-              </tr>
-            </thead>
+            <TableHead columns={["Piece", "Read from", "Minimum main line", "Format"]} />
             <tbody>
               {distances.map(([a, b, c, d]) => (
                 <tr key={a} className="border-b border-(--b-line) last:border-0">

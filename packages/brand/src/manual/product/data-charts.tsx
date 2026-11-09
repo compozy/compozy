@@ -3,9 +3,10 @@
 import { cn } from "@compozy/ui/utils";
 import { Fragment } from "react";
 
-import { cap, card, lab, rules } from "../cls";
+import { cap, card, lab } from "../cls";
 import { Section } from "../parts/section";
 import { daily, ramp, usage } from "./data";
+import { TermRules } from "../parts/rule-card";
 
 const C = {
   accent: "var(--color-brand-cyan)",
@@ -39,6 +40,11 @@ const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const totalCost = usage.reduce((a, u) => a + u.cost, 0);
 const maxTok = Math.max(...usage.map(u => u.tokens));
 const shares = [ramp[2], ramp[1], ramp[3], ramp[5]];
+/** A Loop's attempts in order: ✕ failed, ✓ passed, · not run yet. */
+const LOOP_ATTEMPTS = (["✕", "✕", "✓", "·", "·", "·", "·", "·"] as const).map((mark, i) => ({
+  attempt: i + 1,
+  mark,
+}));
 const meters: { name: string; v: number; of: string; warn: number; note: string }[] = [
   {
     name: "Context window · review-pr",
@@ -356,9 +362,9 @@ function Meters() {
             <span className="font-mono text-[12px] text-(--b-muted)">3 of 8</span>
           </div>
           <div className="mt-2 flex gap-1.5 font-mono text-[14px]">
-            {["✕", "✕", "✓", "·", "·", "·", "·", "·"].map((g, i) => (
+            {LOOP_ATTEMPTS.map(({ attempt, mark: g }) => (
               <span
-                key={i}
+                key={attempt}
                 className={cn(
                   "grid size-7 place-items-center rounded-[6px] border",
                   g === "✕"
@@ -456,24 +462,24 @@ export function DataCharts() {
         <Usage />
         <Meters />
       </div>
-      <ul className={cn(rules, "mt-10 max-w-[76ch] text-[15.5px]")}>
-        <li>
-          <strong>Label directly</strong>: values and series names sit on the chart. Legends only
-          past four series.
-        </li>
-        <li>
-          <strong>Numbers in Geist Mono</strong>, tabular, with units: 124k tokens, $74.10, 06:31.
-          Never a bare number.
-        </li>
-        <li>
-          <strong>Zero is a value</strong>, missing is hatched. A chart never draws an unknown as
-          zero.
-        </li>
-        <li>
-          <strong>Status colours</strong> appear in charts only for thresholds the operator set:
-          amber past a warning, red past a limit.
-        </li>
-      </ul>
+      <TermRules
+        className="mt-10 max-w-[76ch] text-[15.5px]"
+        items={[
+          [
+            "Label directly",
+            ": values and series names sit on the chart. Legends only past four series.",
+          ],
+          [
+            "Numbers in Geist Mono",
+            ", tabular, with units: 124k tokens, $74.10, 06:31. Never a bare number.",
+          ],
+          ["Zero is a value", ", missing is hatched. A chart never draws an unknown as zero."],
+          [
+            "Status colours",
+            " appear in charts only for thresholds the operator set: amber past a warning, red past a limit.",
+          ],
+        ]}
+      />
     </Section>
   );
 }

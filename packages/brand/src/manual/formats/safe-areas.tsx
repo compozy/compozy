@@ -3,9 +3,10 @@ import { cn } from "@compozy/ui/utils";
 import type { CSSProperties } from "react";
 
 import { Visual } from "../art/visual";
-import { cap, card, lab, rules } from "../cls";
+import { cap, lab } from "../cls";
 import { Section } from "../parts/section";
 import { safeCases, type SafeCase, type Zone } from "./data";
+import { RuleCard } from "../parts/rule-card";
 
 const hatch =
   "bg-[repeating-linear-gradient(45deg,color-mix(in_oklab,var(--color-destructive)_38%,transparent)_0_6px,transparent_6px_13px)] border border-destructive/60";
@@ -15,6 +16,9 @@ const wide = safeCases.filter(s => s.w / s.h > 1.5);
 const tall = safeCases.filter(s => s.w / s.h <= 1.5);
 const lbl = (kind?: string) =>
   kind === "safe" || kind === "cover" ? "top-1 left-1" : "right-1 bottom-1";
+
+/** Zones never overlap exactly, so a zone's box names it within its case. */
+const zoneKey = (z: Zone) => `${z.x},${z.y},${z.w},${z.h}`;
 
 function ZoneBox({ z, className }: { z: Zone; className: string }) {
   return (
@@ -55,9 +59,9 @@ function WideCase({ s }: { s: SafeCase }) {
         aria-label={`${s.name} with covered and safe zones`}
       >
         <Visual name="swarm" x={0.82} y={0.6} className="opacity-70" />
-        {s.zones.map((z, i) => (
+        {s.zones.map(z => (
           <ZoneBox
-            key={i}
+            key={zoneKey(z)}
             z={z}
             className={cn(
               z.kind === "cover" ? hatch : z.kind === "safe" ? safe : neutral,
@@ -96,9 +100,9 @@ function TallCase({ s }: { s: SafeCase }) {
             <div className="absolute inset-0 rounded-full border-2 border-dashed border-brand-cyan" />
           </>
         )}
-        {s.zones.map((z, i) => (
+        {s.zones.map(z => (
           <ZoneBox
-            key={i}
+            key={zoneKey(z)}
             z={z}
             className={
               z.kind === "cover"
@@ -146,23 +150,18 @@ export function SafeAreas() {
         {tall.map(s => (
           <TallCase key={s.id} s={s} />
         ))}
-        <div className={card}>
-          <p className={lab}>Before you export</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            <li>
-              Turn on the template guides (<code>guides</code>) and check nothing readable touches
-              red.
-            </li>
-            <li>The visual may run under platform chrome; its focal point and the text may not.</li>
-            <li>
-              Preview the link image at 1:1 and 1.91:1: X, Slack and iMessage crop differently.
-            </li>
-            <li>
-              Check the avatar at 32 px. If the gap closes, use the symbol alone on ink, without the
-              visual.
-            </li>
-          </ul>
-        </div>
+        <RuleCard title="Before you export">
+          <li>
+            Turn on the template guides (<code>guides</code>) and check nothing readable touches
+            red.
+          </li>
+          <li>The visual may run under platform chrome; its focal point and the text may not.</li>
+          <li>Preview the link image at 1:1 and 1.91:1: X, Slack and iMessage crop differently.</li>
+          <li>
+            Check the avatar at 32 px. If the gap closes, use the symbol alone on ink, without the
+            visual.
+          </li>
+        </RuleCard>
       </div>
     </Section>
   );

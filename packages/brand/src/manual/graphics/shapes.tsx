@@ -2,10 +2,11 @@
 import { cn } from "@compozy/ui/utils";
 
 import { Visual } from "../art/visual";
-import { cap, card, h3, lab, rules, specs } from "../cls";
+import { cap, card, h3, lab, rules } from "../cls";
 import { Section } from "../parts/section";
 import { cropRules, shapeRules } from "./data";
 import { DotFieldConstruction, ShapeTile, type ShapeKind } from "./shape-art";
+import { SpecCard } from "../parts/spec-card";
 
 const shapes: { name: string; use: string; kind: ShapeKind }[] = [
   {
@@ -147,17 +148,11 @@ function Vocabulary() {
             state.
           </p>
         </div>
-        <div className={card}>
-          <p className={lab}>Proportions</p>
-          <dl className={cn(specs, "mt-4 [&>div]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]")}>
-            {proportions.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <SpecCard
+          title="Proportions"
+          rows={proportions}
+          listClassName="[&>div]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
+        />
       </div>
     </>
   );

@@ -4,7 +4,9 @@ import { StateGlyph, type StateGlyphState } from "@compozy/ui";
 import { cn } from "@compozy/ui/utils";
 
 import { Visual } from "../../art/visual";
-import { cq, display, ink, Mark, monoUp, Scrim, scrim, ShotPanel } from "../parts";
+import { Mark, Scrim, ShotPanel } from "../parts";
+import { cq, display, ink, monoUp, scrim } from "../styles";
+import { withOffsets } from "../../text-runs";
 
 const DECK = "The autonomous control plane";
 
@@ -247,6 +249,7 @@ const LOOP_LINES: (readonly [text: string, tone: Tone])[][] = [
     ["# ask a person", "c"],
   ],
 ];
+const LOOP_ROWS = LOOP_LINES.map((segments, i) => ({ n: i + 1, runs: withOffsets(segments) }));
 
 /** Code slide: one claim on the left, the file that proves it on the right (≤ 14 lines). */
 export function SlideCode({
@@ -298,13 +301,13 @@ export function SlideCode({
           className="m-0 whitespace-pre"
           style={{ padding: "1.6cqi", fontSize: "1.25cqi", lineHeight: 1.75 }}
         >
-          {LOOP_LINES.map((segments, i) => (
-            <span key={i} className="block">
+          {LOOP_ROWS.map(row => (
+            <span key={row.n} className="block">
               <span className="inline-block text-faint" style={{ width: "2.6em" }}>
-                {i + 1}
+                {row.n}
               </span>
-              {segments.map(([text, tone], j) => (
-                <span key={j} className={TONE[tone]}>
+              {row.runs.map(({ at, run: [text, tone] }) => (
+                <span key={at} className={TONE[tone]}>
                   {text}
                 </span>
               ))}

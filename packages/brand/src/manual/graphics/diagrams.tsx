@@ -1,11 +1,13 @@
 // 03 Diagrams: the technical wireframe language. Two reference diagrams drawn in it.
 import { cn } from "@compozy/ui/utils";
 
-import { cap, card, h3, lab, rules, specs } from "../cls";
+import { cap, h3 } from "../cls";
 import { DoDont } from "../parts/do-dont";
 import { Section } from "../parts/section";
 import { diagramRules, diagramSpec, offBrand } from "./data";
 import { DelegationDiagram, LoopDiagram } from "./diagram-art";
+import { SpecCard } from "../parts/spec-card";
+import { RuleCard } from "../parts/rule-card";
 
 const frame =
   "overflow-hidden rounded-card border border-(--b-line) bg-rail p-[clamp(12px,3vw,32px)]";
@@ -141,25 +143,12 @@ export function Diagrams() {
       </figure>
 
       <div className="mt-10 grid gap-4 lg:grid-cols-2">
-        <div className={card}>
-          <p className={lab}>Spec</p>
-          <dl className={cn(specs, "mt-3")}>
-            {diagramSpec.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <div className={card}>
-          <p className={lab}>Rules</p>
-          <ul className={cn(rules, "mt-4 text-[15px]")}>
-            {diagramRules.map(r => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
+        <SpecCard title="Spec" rows={diagramSpec} listClassName="mt-3" />
+        <RuleCard title="Rules">
+          {diagramRules.map(r => (
+            <li key={r}>{r}</li>
+          ))}
+        </RuleCard>
       </div>
 
       <h3 className={cn(h3, "mt-16")}>Wireframe, not illustration</h3>

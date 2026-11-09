@@ -275,11 +275,14 @@ async function buildDesktopIcons() {
     const iconset = join(work, "icon.iconset");
     mkdirSync(iconset);
     try {
-      for (const [name, size] of ICONSET) {
-        const png =
-          size === 1024 ? readFileSync(APP_ICON_SOURCE) : await resizePng(APP_ICON_SOURCE, size);
-        writeFileSync(join(iconset, `${name}.png`), png);
-      }
+      const pngs = await Promise.all(
+        ICONSET.map(async ([name, size]) => ({
+          name,
+          png:
+            size === 1024 ? readFileSync(APP_ICON_SOURCE) : await resizePng(APP_ICON_SOURCE, size),
+        }))
+      );
+      for (const { name, png } of pngs) writeFileSync(join(iconset, `${name}.png`), png);
       const icns = join(DESKTOP_BUILD, "icon.icns");
       execFileSync("iconutil", ["--convert", "icns", "--output", icns, iconset]);
       written.push(rel(icns));

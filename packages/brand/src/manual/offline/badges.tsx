@@ -5,8 +5,7 @@ import { card, h3, lab, rules } from "../cls";
 import { Frame } from "../kit-frame";
 import { Section } from "../parts/section";
 import { badgeRules, roles } from "./data";
-
-const th = "px-5 py-3 font-medium";
+import { TableHead } from "../parts/table-head";
 
 function Lanyard() {
   return (
@@ -72,14 +71,7 @@ export function Badges() {
 
       <div className="mt-8 overflow-x-auto rounded-card border border-(--b-line) bg-(--b-card)">
         <table className="w-full min-w-[640px] border-collapse text-[14px]">
-          <thead>
-            <tr className="border-b border-(--b-line) text-left mono-label text-[11.5px] tracking-[0.08em] text-(--b-muted)">
-              <th className={th}>Role</th>
-              <th className={th}>Surface and art</th>
-              <th className={th}>Text</th>
-              <th className={th}>Kit</th>
-            </tr>
-          </thead>
+          <TableHead columns={["Role", "Surface and art", "Text", "Kit"]} />
           <tbody>
             {roles.map(r => (
               <tr key={r.id} className="border-b border-(--b-line) last:border-0">

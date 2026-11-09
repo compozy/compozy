@@ -5,16 +5,11 @@
 //   <AgentFace name="qa-runner" state="paused" />  override the state
 //   <StateRow />                                   working / needs-you / idle / paused / failed
 //   <ApprovalRow />                                the permission dock, captured from web/
-import {
-  AGENT_AVATAR_STATE_LABEL,
-  AgentAvatar,
-  StateGlyph,
-  type StateGlyphState,
-} from "@compozy/ui";
+import { AGENT_AVATAR_STATE_LABEL, AgentAvatar, StateGlyph } from "@compozy/ui";
 import { cn } from "@compozy/ui/utils";
 
 import { productShotSrc, type ShotTheme } from "./product-pins";
-import { AGENT_STATES, agentByName, harnessLabel, type AgentState } from "./roster";
+import { AGENT_STATES, agentByName, harnessLabel, STATE_GLYPH, type AgentState } from "./roster";
 
 interface AgentFaceProps {
   name: string;
@@ -59,15 +54,6 @@ export function AgentFace({
     </span>
   );
 }
-
-/** Agent state → the product's status glyph for that state (_uiux.md signal & state mapping). */
-export const STATE_GLYPH: Record<AgentState, StateGlyphState> = {
-  working: "running",
-  "needs-you": "attention",
-  idle: "idle",
-  paused: "stopped",
-  failed: "failed",
-};
 
 /** One row per documented state: glyph, face and label, all from @compozy/ui. */
 export function StateRow({ className, faces = true }: { className?: string; faces?: boolean }) {
