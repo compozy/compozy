@@ -145,15 +145,26 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if err != nil {
 		return nil, fmt.Errorf("session: mark %q attention seen: %w", target, err)
 	}
+	if commit.Outcome != "unchanged" {
+		m.attentionCommitMu.Lock()
+		if m.attentionPublished == nil {
+			m.attentionPublished = make(map[string]store.SessionAttention)
+		}
+		if previous, published := m.attentionPublished[target]; published {
+			applyAttentionToInfo(before, previous)
+		} else {
+			// Reserve before the final snapshot so removal can invalidate the baseline.
+			m.attentionPublished[target] = commit.Before
+		}
+		m.attentionCommitMu.Unlock()
+	}
 	after, err := m.Status(ctx, target)
 	if err != nil {
 		return nil, err
 	}
 	if commit.Outcome != "unchanged" {
-		// Dismissal retains the observer baseline but must never wake the creator.
-		if _, err := m.emitAttentionCommit(ctx, target, commit, false); err != nil {
-			return nil, err
-		}
+		// Captured snapshots preserve Later's origin without another fallible read or a creator wake.
+		m.publishAttentionEdge(ctx, before, after)
 		m.sessionLogger(nil).InfoContext(ctx, "session.attention.seen", "session_id", target,
 			"from", BadgeForInfo(before), "to", BadgeForInfo(after))
 	}
