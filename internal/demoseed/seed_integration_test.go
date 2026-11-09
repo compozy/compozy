@@ -48,6 +48,38 @@ func TestSeed(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a conflicting project before deleting any other project", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
+		homeDir := filepath.Join(t.TempDir(), "home")
+		first, err := Seed(ctx, Options{HomeDir: homeDir, Now: now})
+		if err != nil {
+			t.Fatalf("Seed(first) error = %v", err)
+		}
+		// The docs project is cleaned last, so without validation the others would already be gone.
+		docsRoot := filepath.Join(homeDir, "workspaces", "northstar-pay", workspaceKeyDocs)
+		if err := writeSeedMarker(docsRoot, "someone-elses-project"); err != nil {
+			t.Fatalf("writeSeedMarker() error = %v", err)
+		}
+		if _, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now}); err == nil {
+			t.Fatal("Seed(replace) error = nil, want the marker conflict")
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, first.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		defer func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		}()
+		if _, err := db.GetWorkspace(ctx, first.WorkspaceIDs[0]); err != nil {
+			t.Fatalf("GetWorkspace(first project) after refused replace error = %v", err)
+		}
+	})
+
 	t.Run("Should persist one coherent scenario and replace it without duplication", func(t *testing.T) {
 		t.Parallel()
 
@@ -269,6 +301,7 @@ func assertCompleteSeedSurfaces(
 			t.Fatalf("Stat(seed worktree) error = %v", err)
 		}
 	}
+	assertExportRenameBinding(t, ctx, db, paths, result.WorkspaceIDs[1], worktrees)
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
 		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
@@ -440,5 +473,38 @@ func assertLoopDefinition(t *testing.T, workspaceRoot string) {
 	if resolved.Definition.Meta.Name != loopLaunchReadiness ||
 		!strings.Contains(resolved.Definition.Contract.Goal, "rollout decision") {
 		t.Fatalf("compiled Loop = %#v, want launch-readiness rollout contract", resolved.Definition)
+	}
+}
+
+// assertExportRenameBinding keeps a resumed executor in its worktree, not the project checkout.
+func assertExportRenameBinding(
+	t *testing.T,
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	paths config.HomePaths,
+	workspaceID string,
+	worktrees []worktree.Worktree,
+) {
+	t.Helper()
+	path := ""
+	for index := range worktrees {
+		if worktrees[index].ID == exportRenameWorktreeID {
+			path = worktrees[index].Path
+		}
+	}
+	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID, ID: sessionExportRenameID,
+		Archive: store.SessionArchiveInclude,
+	})
+	if err != nil || len(sessions) != 1 || sessions[0].WorktreeID != exportRenameWorktreeID {
+		t.Fatalf("export rename session = %#v, %v, want it bound to its worktree", sessions, err)
+	}
+	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionExportRenameID)))
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(export rename) error = %v", err)
+	}
+	if meta.WorktreeIDValue() != exportRenameWorktreeID || meta.CWDValue() != path {
+		t.Fatalf("export rename meta worktree=%q cwd=%q, want %q at %q",
+			meta.WorktreeIDValue(), meta.CWDValue(), exportRenameWorktreeID, path)
 	}
 }

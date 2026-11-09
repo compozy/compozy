@@ -124,7 +124,7 @@ func exportSpecSession(clock timeline) sessionStory {
 		shellStep("go test ./services/settlement/export/... && gh pr checks 474 -R "+platformRepo,
 			"ok  \tnorthstar/services/settlement/export\t0.618s\nAll checks were successful: 9 passed"),
 		agentSays(
-			"Settlement export v2 is delivered. The three slices ran in their own worktrees, integrated on #474, " +
+			"Settlement export v2 is delivered. The three slices integrated on #474, " +
 				"and all nine checks pass. The partial refunds line from slice 3 is the base #446 will need.",
 		),
 	}

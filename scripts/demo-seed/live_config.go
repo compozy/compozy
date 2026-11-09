@@ -8,6 +8,8 @@ import (
 	"reflect"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // liveOverride is one config value live mode replaced and must hand back.
@@ -68,8 +70,7 @@ func applyLiveConfig(path string, overrides []liveOverride) (func() error, error
 	if err != nil {
 		return nil, err
 	}
-	// #nosec G703 -- the seeded home's own config file.
-	if err := os.WriteFile(path, written, 0o600); err != nil {
+	if err := writeConfigAtomically(path, written); err != nil {
 		return nil, fmt.Errorf("demo seed: write config: %w", err)
 	}
 	return func() error {
@@ -88,8 +89,7 @@ func restoreLiveConfig(path string, original []byte, existed bool, written []byt
 			// #nosec G703 -- the seeded home's own config file.
 			return os.Remove(path)
 		}
-		// #nosec G703 -- the seeded home's own config file.
-		return os.WriteFile(path, original, 0o600)
+		return writeConfigAtomically(path, original)
 	}
 	values, err := decodeConfig(current)
 	if err != nil {
@@ -110,6 +110,14 @@ func restoreLiveConfig(path string, original []byte, existed bool, written []byt
 	if err != nil {
 		return err
 	}
-	// #nosec G703 -- the seeded home's own config file.
-	return os.WriteFile(path, restored, 0o600)
+	return writeConfigAtomically(path, restored)
+}
+
+// writeConfigAtomically replaces the file in one step and keeps its current permissions.
+func writeConfigAtomically(path string, content []byte) error {
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	return fileutil.AtomicWriteFile(path, content, mode)
 }

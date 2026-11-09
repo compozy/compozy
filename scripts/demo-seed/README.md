@@ -42,6 +42,6 @@ Or run `make demo-live DEMO_HOME=/tmp/northstar`. Open the app on the home's por
 
 Permission and clarify asks time out, so the driver sends them again when they end.
 
-`--live` refuses a home the seed did not write. While it runs, the home's `config.toml` points Claude and Codex at the mock. Ctrl-C stops the daemon and restores the file.
+A restart archives the sessions the previous run created, and only those. `--live` refuses a home the seed did not write, and only one run can hold a home at a time. While it runs, the home's `config.toml` points Claude and Codex at the mock. Ctrl-C stops the daemon and restores the file.
 
 Flags: `--compozy` (default `bin/compozy`), `--mock-driver` (default `bin/acpmock-driver`), `--web-dist` (default `web/dist`).

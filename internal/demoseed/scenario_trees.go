@@ -98,7 +98,7 @@ func treeSpecs() []treeSpec {
 			workspace:     workspaceKeyPlatform,
 			agent:         agentSpecConductor,
 			name:          "Deliver the settlement ledger v2 spec",
-			prompt:        "Deliver docs/specs/ledger-v2. Ten slices, each in its own worktree, one integration PR.",
+			prompt:        "Deliver docs/specs/ledger-v2. Ten slices, one integration PR.",
 			summary:       "Nine slices are integrated. Slice 07 failed on duplicate entries in October and needs a decision.",
 			endedAgo:      36,
 			workers:       ledgerWorkers(),
@@ -203,7 +203,7 @@ func treeRootSteps(spec treeSpec) []transcriptStep {
 }
 
 func treeWorkerSteps(owner string, worker treeWorker) []transcriptStep {
-	steps := []transcriptStep{operatorSays(worker.title + ". Work in your own worktree and report what you verified.")}
+	steps := []transcriptStep{operatorSays(worker.title + ". Report what you verified.")}
 	for index, title := range worker.subagents {
 		steps = append(steps, treeDelegateStep(treeSubSessionID(owner, index), title, agentCodeImplementer))
 	}

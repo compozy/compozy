@@ -155,6 +155,10 @@ func writeSourceFeeds(state *scenario) error {
 		},
 		{workspaceKeyPlatform, settlementLogFeed, `{"items":[{"key":"sig:queue-handoff-timeout",` +
 			`"title":"settlement queue handoff timeout","summary":"7 since the cutover started"}]}` + "\n"},
+		{workspaceKeyRisk, riskAlertsFeed, `{"items":[{"key":"br-disputes-0800","title":"Brazil dispute rate 0.33%",` +
+			`"summary":"08:00-12:00 window, below the 0.40% launch threshold"}]}` + "\n"},
+		{workspaceKeyRisk, settlementLogFeed, `{"items":[{"key":"sig:model-store-timeout",` +
+			`"title":"dispute model store timeout","summary":"2 since the last export"}]}` + "\n"},
 	}
 	for _, feed := range feeds {
 		record, err := state.recordFor(feed.workspaceKey)

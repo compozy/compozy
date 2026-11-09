@@ -2,8 +2,11 @@ package demoseed
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 // The always-on team beyond the four core agents: one definition per project it works in,
@@ -147,6 +150,23 @@ func rosterDefinition(def rosterAgent, workspace string) agentStory {
 }
 
 // rosterAgents returns one definition per seat; bundled agents need none.
+// retargetCopiedAgent points a copied definition at its project. Copied seats check in every
+// three hours around the clock, so their policy says the same as their replayed history.
+func retargetCopiedAgent(base agentStory, workspace string) agentStory {
+	repository := "northstar-pay/" + workspace
+	base.Prompt = strings.ReplaceAll(base.Prompt, platformRepo, repository)
+	base.Description = strings.ReplaceAll(base.Description, platformRepo, repository)
+	heartbeat := strings.ReplaceAll(base.Heartbeat, platformRepo, repository)
+	heartbeat = minIntervalPattern.ReplaceAllString(heartbeat, `min_interval: "3h"`)
+	base.Heartbeat = activeHoursPattern.ReplaceAllString(heartbeat, "")
+	return base
+}
+
+var (
+	minIntervalPattern = regexp.MustCompile(`min_interval: "[^"]+"`)
+	activeHoursPattern = regexp.MustCompile(`(?m)^  active_hours:\n(?:    .*\n)+`)
+)
+
 func rosterAgents(core []agentStory) []agentStory {
 	agents := []agentStory{}
 	for _, seat := range rosterSeats {
@@ -158,7 +178,7 @@ func rosterAgents(core []agentStory) []agentStory {
 				continue
 			}
 			base.WorkspaceKey = seat.workspace
-			base.Heartbeat = strings.ReplaceAll(base.Heartbeat, platformRepo, "northstar-pay/"+seat.workspace)
+			base = retargetCopiedAgent(base, seat.workspace)
 			agents = append(agents, base)
 			continue
 		}
@@ -211,6 +231,9 @@ func rosterSeatInstance(clock timeline, seat rosterSeat, index int) instanceStor
 			),
 			agentSays("Watching " + seat.workspace + ". I'll write here only when something needs you."),
 		}}},
+	}
+	if seat.agent == agentIssueTriager {
+		story.Actions = []heartbeat.ActionDecl{draftReproAction()}
 	}
 	if seat.findingTitle != "" {
 		story.Beats = append(story.Beats, checkInBeat{

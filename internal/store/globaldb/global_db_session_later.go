@@ -241,7 +241,9 @@ func (g *SessionRepo) ReturnLaterSession(
 			return fmt.Errorf("store: return later session %q: %w", sessionID, err)
 		}
 		if affected == 0 {
-			return fmt.Errorf("store: return later session %q: session is not parked", sessionID)
+			return fmt.Errorf(
+				"store: return later session %q: not in this workspace, not parked, or not yet due", sessionID,
+			)
 		}
 		return nil
 	})

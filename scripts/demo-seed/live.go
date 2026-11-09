@@ -15,12 +15,17 @@ import (
 	"time"
 
 	"github.com/kballard/go-shellquote"
+
+	"github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
 	liveRearmInterval = 20 * time.Second
 	liveCommandLimit  = 60 * time.Second
 	liveStopLimit     = 30 * time.Second
+	liveLockName      = "demo-live.lock"
+	liveOwnedName     = "demo-live-sessions.json"
 )
 
 // liveOptions locates the binaries the live companion drives.
@@ -33,8 +38,9 @@ type liveRun struct {
 	options liveOptions
 	output  io.Writer
 	mu      sync.Mutex
-	prompts []*exec.Cmd
+	prompts map[*exec.Cmd]struct{}
 	ids     map[string]string
+	created []string
 }
 
 // runLive points the seeded home at the mock provider, starts the daemon, and holds the live
@@ -43,7 +49,14 @@ func runLive(ctx context.Context, options liveOptions, output io.Writer) (err er
 	if err := requireSeededHome(options.home); err != nil {
 		return err
 	}
-	run := &liveRun{options: options, output: output, ids: map[string]string{}}
+	lock, err := daemon.AcquireLock(filepath.Join(options.home, liveLockName), os.Getpid())
+	if err != nil {
+		return fmt.Errorf("demo seed: another --live run owns %s: %w", options.home, err)
+	}
+	defer func() { err = errors.Join(err, lock.Release()) }()
+	run := &liveRun{
+		options: options, output: output, ids: map[string]string{}, prompts: map[*exec.Cmd]struct{}{},
+	}
 	restore, err := run.configureMockProviders()
 	if err != nil {
 		return err
@@ -54,10 +67,12 @@ func runLive(ctx context.Context, options liveOptions, output io.Writer) (err er
 	if _, err := run.compozyOutput(stopCtx, "daemon", "stop"); err != nil {
 		fmt.Fprintln(output, "demo seed: no daemon to stop before starting")
 	}
+	// Armed before start, so an interrupted startup still stops a daemon on the mock config.
+	defer run.shutdown(stopCtx)
 	if _, err := run.compozyOutput(ctx, "daemon", "start"); err != nil {
 		return fmt.Errorf("demo seed: start daemon: %w", err)
 	}
-	defer run.shutdown(stopCtx)
+	run.archivePreviousSessions(ctx)
 	for _, scenario := range liveScenarios {
 		if err := run.startScenario(ctx, scenario); err != nil {
 			return err
@@ -171,6 +186,9 @@ func (r *liveRun) startScenario(ctx context.Context, scenario liveScenario) erro
 			return fmt.Errorf("demo seed: read created session %q: %w: %s", scenario.key, err, output)
 		}
 		id = created.ID
+		if err := r.recordCreated(id); err != nil {
+			return err
+		}
 	}
 	r.ids[scenario.key] = id
 	return r.prompt(ctx, id, scenario.prompt)
@@ -183,14 +201,48 @@ func (r *liveRun) prompt(ctx context.Context, id, text string) error {
 		return fmt.Errorf("demo seed: prompt session %s: %w", id, err)
 	}
 	r.mu.Lock()
-	r.prompts = append(r.prompts, cmd)
+	r.prompts[cmd] = struct{}{}
 	r.mu.Unlock()
 	go func() {
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 			fmt.Fprintln(r.output, "demo seed: prompt client ended:", err)
 		}
+		r.mu.Lock()
+		delete(r.prompts, cmd)
+		r.mu.Unlock()
 	}()
 	return nil
+}
+
+// recordCreated remembers a session this driver made, the only ones a later run may archive.
+func (r *liveRun) recordCreated(id string) error {
+	r.created = append(r.created, id)
+	encoded, err := json.Marshal(r.created)
+	if err != nil {
+		return fmt.Errorf("demo seed: encode live sessions: %w", err)
+	}
+	if err := fileutil.AtomicWritePrivateFile(filepath.Join(r.options.home, liveOwnedName), encoded); err != nil {
+		return fmt.Errorf("demo seed: record live session: %w", err)
+	}
+	return nil
+}
+
+// archivePreviousSessions clears the last run's sessions so a restart does not pile up copies.
+func (r *liveRun) archivePreviousSessions(ctx context.Context) {
+	raw, err := os.ReadFile(filepath.Join(r.options.home, liveOwnedName))
+	if err != nil {
+		return
+	}
+	var previous []string
+	if err := json.Unmarshal(raw, &previous); err != nil {
+		fmt.Fprintln(r.output, "demo seed: ignore unreadable live session list:", err)
+		return
+	}
+	for _, id := range previous {
+		if _, err := r.compozyOutput(ctx, "session", "archive", id, "--stop"); err != nil {
+			fmt.Fprintln(r.output, "demo seed: archive previous live session:", err)
+		}
+	}
 }
 
 // expectedBadge is the state a re-armable scenario holds; waits and delegations are never re-sent.
@@ -260,7 +312,7 @@ func (r *liveRun) holdUntilDone(ctx context.Context) error {
 
 func (r *liveRun) shutdown(ctx context.Context) {
 	r.mu.Lock()
-	for _, cmd := range r.prompts {
+	for cmd := range r.prompts {
 		if cmd.Process != nil {
 			if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				fmt.Fprintln(r.output, "demo seed: stop prompt client:", err)

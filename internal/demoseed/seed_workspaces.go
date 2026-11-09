@@ -71,6 +71,9 @@ func preflightWorkspaceRoot(workspaceRoot string, replace bool) error {
 }
 
 func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scenario) error {
+	if err := validateWorkspaceConflicts(ctx, db, state); err != nil {
+		return err
+	}
 	for _, story := range state.workspaces {
 		if err := prepareWorkspaceState(ctx, db, state, story); err != nil {
 			return err
@@ -85,6 +88,35 @@ func prepareGlobalState(ctx context.Context, db *globaldb.GlobalDB, state *scena
 		sessionDir := filepath.Join(state.paths.SessionsDir, sessionID)
 		if err := os.RemoveAll(sessionDir); err != nil {
 			return fmt.Errorf("demo seed: remove prior session directory %q: %w", sessionDir, err)
+		}
+	}
+	return nil
+}
+
+// validateWorkspaceConflicts checks every project before any cleanup, so a conflict on the
+// last one cannot leave the earlier ones already deleted.
+func validateWorkspaceConflicts(ctx context.Context, db *globaldb.GlobalDB, state *scenario) error {
+	for _, story := range state.workspaces {
+		root := state.workspaceRoot(story)
+		existing, err := lookupExistingWorkspace(ctx, db, story.Name, root)
+		if err != nil {
+			return err
+		}
+		if existing.ID != "" && !state.replace {
+			return fmt.Errorf("%w in %s; rerun with --replace", ErrScenarioExists, state.paths.DatabaseFile)
+		}
+		if !state.replace {
+			continue
+		}
+		marker, err := readSeedMarker(root)
+		if existing.ID == "" && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("demo seed: verify replace ownership for %q: %w", story.Name, err)
+		}
+		if marker.WorkspaceKey != story.Key {
+			return fmt.Errorf("demo seed: workspace marker key %q does not match %q", marker.WorkspaceKey, story.Key)
 		}
 	}
 	return nil

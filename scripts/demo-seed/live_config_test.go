@@ -21,7 +21,8 @@ func TestLiveConfig(t *testing.T) {
 
 		path := filepath.Join(t.TempDir(), "config.toml")
 		original := "# keep this comment\n[http]\nport = 47931\n"
-		if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		// A config the CLI wrote is not always private, and live mode must still replace it.
+		if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
 		restore, err := applyLiveConfig(path, overrides())
