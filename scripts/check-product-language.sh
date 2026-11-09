@@ -211,12 +211,14 @@ fi
 
 # Retired built-in identity (brand identity v1.2, business rule 8, UT-012): the orange accent and the
 # Inter/Playfair/JetBrains Mono default stacks. Explicit user-chosen fonts stay legal: the Appearance
-# catalog, its loaders and their tests are allowlisted, as are the identity palette and the tests
-# that assert the retired values are gone.
+# catalog and its loaders (in font-appearance.ts, which also owns the DEFAULT_FONT_* defaults, so only
+# its catalog/loader stacks are exempt) and their tests are allowlisted, as are the identity palette
+# and the tests that assert the retired values are gone.
 identity_roots=(packages/ui packages/site packages/launch-video packages/brand web/src desktop/src README.md)
 retired_color='(?i:e8572a|rgba\(\s*232\s*,\s*87\s*,\s*42\b)'
 retired_font='(?:Inter[\t ]+Variable|Playfair|JetBrains[\t ]+Mono)'
-retired_stack="(?:--font-[\\w-]+\\s*:|font-family\\s*:|fontFamily\\s*[:=])[^;{}\\[\\]]*?${retired_font}|\\bDEFAULT_FONT_\\w*[^=\\n]*=\\s*\\{[^}]*?${retired_font}"
+retired_default="\\bDEFAULT_FONT_\\w*[^=\\n]*=\\s*\\{[^}]*?${retired_font}"
+retired_stack="(?:--font-[\\w-]+\\s*:|font-family\\s*:|fontFamily\\s*[:=])[^;{}\\[\\]]*?${retired_font}|${retired_default}"
 
 rule_c_in_scope() {
   local rel="$1" root
@@ -228,7 +230,7 @@ rule_c_in_scope() {
 
 rule_c_allowed() {
   case "$1" in
-    web/src/systems/theme/lib/font-appearance.ts | web/src/systems/theme/__tests__/theme-runtime.test.ts) return 0 ;;
+    web/src/systems/theme/__tests__/theme-runtime.test.ts) return 0 ;;
     web/src/systems/os/apps/settings/__tests__/appearance-settings-pane.test.tsx) return 0 ;;
     packages/ui/src/lib/identity-palette.ts | packages/ui/src/lib/__tests__/identity-palette.test.ts) return 0 ;;
     packages/site/lib/__tests__/opengraph-image.test.tsx | packages/ui/src/components/custom/__tests__/logo.test.tsx) return 0 ;;
@@ -248,6 +250,12 @@ while IFS= read -r file; do
   rel="$(relative_path "$file")"
   rule_c_in_scope "$rel" || continue
   rule_c_allowed "$rel" && continue
+  if [[ "$rel" == web/src/systems/theme/lib/font-appearance.ts ]]; then
+    # The catalog owner: its catalog entries and loaders name user-chosen fonts; only the orange
+    # accent and the DEFAULT_FONT_* built-in defaults are enforced there.
+    remaining="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_default}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
   identity_findings+=("Rule C: $file ($rel) keeps the retired orange accent or a retired default font stack")
 done <<<"$rule_c_files"
 

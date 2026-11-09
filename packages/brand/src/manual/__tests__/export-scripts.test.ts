@@ -2,10 +2,10 @@
 // or BRAND_EXPORT_DIR points into the git working tree (US-003.EC-1, US-003.AC-3). The scripts
 // run for real; the only boundary faked is the network (a port with nothing listening).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -69,5 +69,11 @@ describe("export scripts", () => {
     expect(() =>
       resolveExportDir({ BRAND_EXPORT_DIR: join(REPO_ROOT, "web/../packages/x") })
     ).toThrow(/inside the git working tree/);
+    expect(() => resolveExportDir({ BRAND_EXPORT_DIR: join(REPO_ROOT, "..exports") })).toThrow(
+      /inside the git working tree/
+    );
+    expect(resolveExportDir({ BRAND_EXPORT_DIR: join(REPO_ROOT, "../brand-out") })).toBe(
+      join(realpathSync(dirname(REPO_ROOT)), "brand-out")
+    );
   });
 });

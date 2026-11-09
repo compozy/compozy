@@ -226,6 +226,11 @@ func TestProductLanguageGuardRetiredIdentity(t *testing.T) {
 			content: "<p style=\"color: #e8572a\">CompozyOS</p>\n"},
 		{name: "Should allow the current defaults", as: "packages/ui/src/tokens.css", allowed: true,
 			content: ":root {\n  --font-sans: \"Figtree Variable\", sans-serif;\n  --font-mono: \"Geist Mono Variable\", monospace;\n  --color-brand: #2f5bff;\n}\n"},
+		{name: "Should reject a retired default in the Appearance catalog owner", as: "web/src/systems/theme/lib/font-appearance.ts",
+			content: "export const FONT_CATALOG = [{ family: \"JetBrains Mono Variable\" }];\n" +
+				"const DEFAULT_FONT_FAMILY: Record<FontRole, string> = {\n  sans: \"Inter Variable\",\n  mono: \"Geist Mono Variable\",\n};\n"},
+		{name: "Should reject the retired orange in the Appearance catalog owner", as: "web/src/systems/theme/lib/font-appearance.ts",
+			content: "export const FONT_CATALOG = [{ family: \"JetBrains Mono Variable\" }];\nconst swatch = \"#e8572a\";\n"},
 		{name: "Should allow the Appearance catalog and its loaders", as: "web/src/systems/theme/lib/font-appearance.ts",
 			allowed: true, content: "export const FONT_CATALOG = [{ family: \"JetBrains Mono Variable\" }];\nconst fontFamily = \"JetBrains Mono Variable\";\n"},
 		{name: "Should allow negative assertions in the OG suite", as: "packages/site/lib/__tests__/opengraph-image.test.tsx",

@@ -26,7 +26,7 @@ function PlaceChip({ place }: { place: AgentTeamPlace }) {
     <Pill
       className="max-w-40 min-w-0 shrink"
       size="sm"
-      tone={place.state === "needs-you" ? "brand" : "neutral"}
+      tone={place.state === "needs-you" ? "attn" : "neutral"}
     >
       {tone ? <StatusDot size="sm" tone={tone} /> : null}
       <span className="truncate">{place.label}</span>

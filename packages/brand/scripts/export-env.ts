@@ -2,7 +2,7 @@
 // capture. Exports never land inside the git working tree (ADR-003, US-003.AC-3).
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** packages/brand → the repository working tree that exports must stay out of. */
@@ -21,9 +21,11 @@ function realish(p: string): string {
   return join(realpathSync(head), ...tail);
 }
 
+/** Parent traversal is a whole `..` path component; `..exports` is an ordinary child name. */
 const isInside = (child: string, parent: string) => {
   const rel = relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  const escapes = rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+  return !escapes;
 };
 
 /** `BRAND_EXPORT_DIR` (default ~/Dev/compozy/_rebranding/exports), refused inside the repo. */
