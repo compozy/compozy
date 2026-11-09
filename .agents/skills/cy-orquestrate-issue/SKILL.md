@@ -48,8 +48,9 @@ Use bounded independent explorers only when authorized and useful.
 
 For a report without an issue, check for duplicates, then create an English GitHub issue containing
 reproduction, actual/expected behavior, evidence and code pointers, acceptance criteria, and relevant
-QA/compatibility impact. Verify publication. Sanitize private paths, internal runtime identifiers,
-credentials, and unrelated log content. Use structured arguments or a body file for multiline text.
+QA/compatibility impact, with its type set when it is created: `gh issue create --type <Bug|Feature|Task>`,
+or `gh issue edit <n> --type <T>` immediately after. Verify publication. Sanitize private paths,
+internal runtime identifiers, credentials, and unrelated log content. Use structured arguments or a body file for multiline text.
 For an existing issue, reuse it; do not create a duplicate. A closed issue or existing PR requires
 checking whether work remains before creating another implementation.
 
