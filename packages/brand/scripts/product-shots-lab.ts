@@ -71,8 +71,9 @@ export async function startSeededApp(repo: string, webDist?: string): Promise<Se
     if (!webDist) run("bun", ["run", "build"], join(repo, "web"), env, "web/ build");
     run("go", ["run", "./scripts/demo-seed", "--home", home, "--replace"], repo, env, "demo-seed");
     run(bin, ["config", "set", "http.port", String(port), "--scope", "user"], repo, env, "config");
-    run(bin, ["daemon", "start"], repo, env, "daemon start");
+    // Mark started first: a start that spawns the daemon but exits non-zero must still be stopped.
     started = true;
+    run(bin, ["daemon", "start"], repo, env, "daemon start");
     const base = `http://127.0.0.1:${port}`;
     await waitForApi(base, 60_000);
     return { base, stop };

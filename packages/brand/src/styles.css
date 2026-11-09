@@ -145,11 +145,14 @@ body,
    sky holds 3:1 on paper, so this pair is for display headings only. */
 .band-paper h1 em,
 .band-paper h2 em,
-.band-paper h3 em,
-.band-paper p em {
+.band-paper h3 em {
   background: linear-gradient(45deg, var(--color-brand-volt), var(--color-brand-sky));
   -webkit-background-clip: text;
   background-clip: text;
+}
+/* Body emphasis on paper stays flat volt (AA): the sky end is display-only. */
+.band-paper p em {
+  color: var(--b-accent);
 }
 /* A title word in flat glint where the gradient cannot print (Offline cover). */
 h1 em.em-glint {

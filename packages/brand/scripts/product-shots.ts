@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   PRODUCT_SHOT_PINS,
+  SEED_WORKSPACE,
   SHOT_THEMES,
   productShotFile,
   resolveAppPins,
@@ -318,9 +319,11 @@ async function main() {
 
   // Story pins resolve against a Storybook index first: no daemon starts for a broken pin.
   let storybook: string | undefined;
+  let builtStorybook: string | undefined;
   let stories: ReturnType<typeof resolveStoryPins>["resolved"] = [];
   if (pins.some(p => p.source === "story")) {
     storybook = args.storybookDir ?? buildStorybook();
+    if (!args.storybookDir) builtStorybook = storybook;
     const indexFile = join(storybook, "index.json");
     if (!existsSync(indexFile)) fail(`no Storybook index at ${indexFile}`);
     const story = resolveStoryPins(JSON.parse(readFileSync(indexFile, "utf8")), pins);
@@ -334,8 +337,29 @@ async function main() {
   const staging = mkdtempSync(join(tmpdir(), "brand-product-shots-"));
   let server: Server | undefined;
   let browser: Browser | undefined;
+  const cleanup = async () => {
+    await browser?.close();
+    server?.close();
+    lab?.stop();
+    rmSync(staging, { recursive: true, force: true });
+    if (builtStorybook) rmSync(builtStorybook, { recursive: true, force: true });
+  };
+  // Ctrl+C mid-run must not leave a seeded daemon or temp dirs behind.
+  const onSignal = () => void cleanup().finally(() => process.exit(130));
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   try {
-    const app = resolveAppPins(await seededWorkspaces(appBase), pins);
+    const workspaces = await seededWorkspaces(appBase);
+    const app = resolveAppPins(workspaces, pins);
+    // closeAllWindows mutates the daemon's layout: only ever touch a seeded lab, never a real desktop.
+    if (args.baseUrl && !workspaces.some(w => w.name === SEED_WORKSPACE)) {
+      throw new Error(
+        [
+          `${appBase} is not a demo-seeded app (no "${SEED_WORKSPACE}" workspace); refusing to touch its windows`,
+          ...app.missing.map(m => `pinned screen missing from the seed — ${m}`),
+        ].join("\nerror: ")
+      );
+    }
     if (app.missing.length) {
       throw new Error(
         app.missing.map(m => `pinned screen missing from the seed — ${m}`).join("\nerror: ")
@@ -380,10 +404,9 @@ async function main() {
     console.log(rows.join("\n"));
     console.log(`wrote ${rows.length} captures → ${args.out}`);
   } finally {
-    await browser?.close();
-    server?.close();
-    lab?.stop();
-    rmSync(staging, { recursive: true, force: true });
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+    await cleanup();
   }
 }
 
