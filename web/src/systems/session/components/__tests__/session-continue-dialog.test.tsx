@@ -220,6 +220,7 @@ describe("SessionContinueDialog", () => {
     { edit: "unsupported reasoning", effort: "high", speed: "normal" },
     { edit: "advanced option", effort: "high", speed: "normal" },
     { edit: "provider", effort: "high", speed: "normal" },
+    { edit: "none-only model", effort: "high", speed: "normal" },
   ] as const)(
     // Invariant: inherited ACP values remain visible; only explicit differences are submitted.
     // Owning layer and canonical suite: this Continue dialog request boundary.
@@ -258,13 +259,16 @@ describe("SessionContinueDialog", () => {
           id: "gpt-6-astra",
           provider: "codex",
           name: "GPT-6-Astra",
-          efforts: ["medium", "high"],
+          efforts: edit === "none-only model" ? ["none"] : ["medium", "high"],
           availability: "live",
           curated: true,
-          configurations: [
-            { reasoning_effort: "medium", fast: true },
-            { reasoning_effort: "high", fast: true },
-          ],
+          configurations:
+            edit === "none-only model"
+              ? [{ reasoning_effort: "none" }]
+              : [
+                  { reasoning_effort: "medium", fast: true },
+                  { reasoning_effort: "high", fast: true },
+                ],
           acp_options: [
             { id: "thinking", label: "Thinking", kind: "boolean", current_bool: false },
             {
@@ -288,6 +292,15 @@ describe("SessionContinueDialog", () => {
           ],
         });
       }
+      if (edit === "none-only model") {
+        runtimeCatalog.models.push({
+          ...runtimeCatalog.models[0]!,
+          id: "reasoning-target",
+          name: "Reasoning target",
+          efforts: ["high"],
+          configurations: [{ reasoning_effort: "high" }],
+        });
+      }
       const sent: ContinueSessionRequest[] = [];
       renderDialog({ onContinue: request => sent.push(request) });
 
@@ -301,6 +314,13 @@ describe("SessionContinueDialog", () => {
         );
         expect(sent).toHaveLength(0);
       }
+      if (edit === "none-only model") {
+        await user.click(screen.getByTestId("session-continue-submit"));
+        expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+          "This model does not support the configured reasoning effort. Choose another model or agent."
+        );
+        expect(sent).toHaveLength(0);
+      }
       await user.click(screen.getByTestId("session-continue-runtime-select"));
       await user.click(await screen.findByTestId("runtime-selector-advanced-toggle"));
       const thinking = await screen.findByTestId("runtime-selector-option-thinking");
@@ -310,6 +330,11 @@ describe("SessionContinueDialog", () => {
         else if (edit === "advanced option") await user.click(thinking);
         else if (edit === "provider") {
           await user.click(screen.getByRole("option", { name: /Opus target/ }));
+        } else if (edit === "none-only model") {
+          await user.click(screen.getByRole("option", { name: /Reasoning target/ }));
+          fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
+            key: "End",
+          });
         } else {
           fireEvent.keyDown(await screen.findByTestId("runtime-selector-reasoning-track"), {
             key: edit === "reasoning" ? "Home" : "End",
@@ -321,7 +346,12 @@ describe("SessionContinueDialog", () => {
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.runtime).toEqual({
         provider: edit === "provider" ? "claude" : "codex",
-        model: edit === "provider" ? "opus-target" : "gpt-6-astra",
+        model:
+          edit === "provider"
+            ? "opus-target"
+            : edit === "none-only model"
+              ? "reasoning-target"
+              : "gpt-6-astra",
         reasoning_effort: effort,
         speed,
         ...(edit === "advanced option"

@@ -71,6 +71,7 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
+/** Project the controlled runtime through its catalog and manage picker interactions. */
 export function useRuntimeSelector({
   value,
   onChange,

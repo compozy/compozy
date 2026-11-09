@@ -27,6 +27,8 @@ Editing Fast or reasoning does not promote an inherited permission mode to an ex
 When the model advertises selectable levels, an unsupported configured effort is refused visibly
 until the user chooses a supported effort. Missing or unobserved capability data leaves validation
 to the daemon and preserves the chosen effort on the wire, including during a catalog refresh.
+An authoritative `none`-only model with an incompatible carried level is refused before creation;
+the existing model/agent selectors provide recovery without silently changing the effort.
 
 An additional confirmed defect is at the unbound runtime's first bind: it walks the target agent's
 fallback chain even when a derived child explicitly selected another runtime. A rejected Codex
@@ -44,7 +46,7 @@ observable failure modes without claiming an exact reconstruction of that histor
   and declared-route choices, and inherited ACP mode retention with a thinking override.
 - Focused derive/fork/fallback checks pass with `CGO_ENABLED=1` and `-race`.
 - Pinned golangci-lint v2.15.0 on `./internal/session`: zero issues.
-- Root Turborepo selector/Continue/composer suites: 140 tests passed; Web typecheck passed.
+- Root Turborepo selector/Continue/composer suites: 141 tests passed; Web typecheck passed.
 - React Doctor on the changed Web files: 100/100, no findings; focused oxlint and formatting pass.
 - Real daemon journeys above passed through public CLI/API and the rendered Web. Provider,
   model and effort agree across selected/requested/effective/last-known; Normal and Fast were

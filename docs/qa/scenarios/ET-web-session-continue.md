@@ -105,6 +105,9 @@ differ; editing an advanced switch submits that difference without copying uncha
 If a model advertises selectable levels and the agent's effort is absent from those choices,
 Continue must explain the refusal and allow choosing a supported effort. A missing model or an
 unobserved level set must preserve the chosen effort and let the daemon validate it.
+If a model advertises only `none` while the agent carries a reasoning level, Continue refuses
+before creating a child and directs the user to choose another model or agent. Choosing a model
+that supports that level then allows submission.
 
 ## Deleted root ancestor regression
 

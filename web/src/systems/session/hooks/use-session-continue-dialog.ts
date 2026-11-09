@@ -145,11 +145,16 @@ export function useSessionContinueDialog({
         : "");
     if (
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE &&
-      selectedModel?.efforts.some(level => level !== "none") &&
+      selectedModel &&
+      selectedModel.efforts.length > 0 &&
       effort !== "" &&
       !modelSupportsReasoningEffort(selectedModel, effort)
     ) {
-      setSubmitError("Choose a reasoning effort supported by this model before continuing.");
+      setSubmitError(
+        selectedModel.efforts.some(level => level !== "none")
+          ? "Choose a reasoning effort supported by this model before continuing."
+          : "This model does not support the configured reasoning effort. Choose another model or agent."
+      );
       return;
     }
     const trimmedMessage = message.trim();
