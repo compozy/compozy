@@ -1475,7 +1475,7 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
-				userResolver := userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+				userResolver := &userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
 				h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db))
 				cleanupTestManager(t, h.manager)
 				opts := CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"}
@@ -1590,23 +1590,6 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 			},
 		)
 	}
-}
-
-type userLifecycleResolver struct {
-	WorkspaceResolver
-	resolved workspacepkg.ResolvedWorkspace
-}
-
-var _ workspacepkg.UserRuntimeResolver = userLifecycleResolver{}
-
-func (r userLifecycleResolver) ResolveUser(
-	_ context.Context,
-	profileID string,
-) (workspacepkg.ResolvedWorkspace, error) {
-	resolved := r.resolved
-	resolved.ProfileID = profileID
-	resolved.ProfileName = "default"
-	return resolved, nil
 }
 
 // sessionBindingIntegrationResolver uses real worktree usage leases and SQLite.

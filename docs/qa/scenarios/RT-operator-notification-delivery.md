@@ -25,3 +25,9 @@ QA impact 2026-08-16: Task 02 added the notify service and all agent-managed tra
 task_08 owns execution after the web notifier lands.
 
 QA 2026-08-16 Herdr parity: The full runtime E2E exercised the public HTTP, UDS, CLI, and native-tool paths, including matching persisted projections, restart recovery, scoped denials, bounded wait/notify/cancel/stop races, and stable negative outcomes (65/66/69/75/78, agent_scope_denied, and queue-full).
+
+QA impact 2026-11-09 (User-scope notifications): send from a User session (no workspace) through
+`compozy__notify` and the check-in source/authority approval notices. Each returns `delivered`
+with one live catalog client and carries an empty workspace id; the User scope cannot be
+workspace-muted, so `muted_workspace` never applies. Project-session mutes are unchanged.
+Focused coverage: `TestPublishOperatorNotification` with the real SQLite attention repository.

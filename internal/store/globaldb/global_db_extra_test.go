@@ -632,6 +632,50 @@ func TestUserEventSummarySelection(t *testing.T) {
 			t.Fatalf("unfiltered events = %#v, %v", rows, err)
 		}
 	})
+
+	t.Run("Should retain session events of a User-scope session without a workspace", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		at := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+		if err := db.RegisterSession(ctx, new(SessionInfo{
+			ID:            "sess-user-events",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "User",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			SessionType:   defaultSessionType,
+			State:         "active",
+			CreatedAt:     at,
+			UpdatedAt:     at,
+		})); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		for _, eventType := range []string{"tool_call", "tool_result", "usage"} {
+			if err := db.WriteEventSummary(ctx, EventSummary{
+				ID: "user-" + eventType, ProfileID: store.DefaultProfileID, SessionID: "sess-user-events",
+				Type: eventType, AgentName: "coder", Timestamp: at,
+			}); err != nil {
+				t.Fatalf("WriteEventSummary(%s) error = %v", eventType, err)
+			}
+		}
+		rows, err := db.ListEventSummaries(ctx, EventSummaryQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceaccess.UserSelector,
+			SessionID:   "sess-user-events",
+		})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("User session events = %#v, %v; want 3", rows, err)
+		}
+		err = db.WriteEventSummary(ctx, EventSummary{
+			ProfileID: store.DefaultProfileID, SessionID: "sess-unregistered",
+			Type: "tool_call", AgentName: "coder", Timestamp: at,
+		})
+		if err == nil || !strings.Contains(err.Error(), "event summary workspace_id is required") {
+			t.Fatalf("unregistered session without workspace error = %v, want workspace_id required", err)
+		}
+	})
 }
 
 // Invariant: relocation preserves every persisted value and the cursor high-water
