@@ -216,6 +216,7 @@ jobs:
           bun run lint
           bunx turbo run typecheck test --filter='!@compozy/desktop' --log-order=stream
           bunx turbo run build --filter=./web
+          bunx turbo run build --filter=@compozy/brand
           bunx turbo run test:package --filter=@compozy/client
 
       - name: Verify app SDK documentation and package preparation
