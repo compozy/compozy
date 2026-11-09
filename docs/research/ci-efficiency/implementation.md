@@ -127,3 +127,12 @@ Each selected Turbo invocation must emit a fresh summary; missing or stale summa
 fail the lane. Malformed Turbo task metadata conservatively selects all workspaces.
 The selected prompt-enhancer workspace now runs its build. Classifier self-tests
 cover these failure paths and missing/skipped heavy integration jobs.
+
+The next review round adds literal computed member/key handling and rejects dynamic
+option keys whose value cannot be established. The canonical plugin suite now
+covers these forms alongside positive controls. Frontend invocations record their
+new receipt paths in a per-lane manifest; reporting reads only that manifest, so
+older reports cannot inflate hit counts or select an unrelated cold audit. The
+existing self-test injects an invalid stale receipt and verifies it is ignored.
+Heavy-gate tests now exercise web-only, desktop-only and disabled-heavy selections.
+The named census bootstrap subtest checks the exact source-parsing failure.

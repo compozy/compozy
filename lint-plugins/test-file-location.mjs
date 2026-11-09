@@ -97,12 +97,17 @@ function positiveDeadlineWithin(node, budget) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= budget;
 }
 
+/** Resolve only literal computed keys; dynamic expressions stay unknown. */
+function propertyName(node, property = node.property) {
+  return node.computed ? property?.value : (property?.name ?? property?.value);
+}
+
 /** Follow supported Vitest modifiers and factories back to a test or suite root. */
 function isTestFunction(node, roots = ["test", "it"]) {
   if (node?.type === "Identifier") return roots.includes(node.name);
-  if (node?.type === "MemberExpression" && !node.computed) {
+  if (node?.type === "MemberExpression") {
     return (
-      ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(node.property.name) &&
+      ["concurrent", "sequential", "only", "skip", "todo", "fails"].includes(propertyName(node)) &&
       isTestFunction(node.object, roots)
     );
   }
@@ -114,16 +119,15 @@ function isTestFunction(node, roots = ["test", "it"]) {
         : undefined;
   return (
     factory?.type === "MemberExpression" &&
-    !factory.computed &&
-    ["each", "for", "skipIf", "runIf"].includes(factory.property.name) &&
+    ["each", "for", "skipIf", "runIf"].includes(propertyName(factory)) &&
     isTestFunction(factory.object, roots)
   );
 }
 
 /** Find unconditional skips anywhere in an already recognized declaration chain. */
 function hasSkippedDeclaration(node) {
-  if (node?.type === "MemberExpression" && !node.computed) {
-    return node.property.name === "skip" || hasSkippedDeclaration(node.object);
+  if (node?.type === "MemberExpression") {
+    return propertyName(node) === "skip" || hasSkippedDeclaration(node.object);
   }
   if (node?.type === "CallExpression") return hasSkippedDeclaration(node.callee);
   if (node?.type === "TaggedTemplateExpression") return hasSkippedDeclaration(node.tag);
@@ -138,7 +142,8 @@ function unsafeOptions(options, budget) {
         property.argument.type !== "ObjectExpression" || unsafeOptions(property.argument, budget)
       );
     }
-    const key = property.key?.name ?? property.key?.value;
+    const key = propertyName(property, property.key);
+    if (property.computed && key === undefined) return true;
     return (
       key === "retry" || (key === "timeout" && !positiveDeadlineWithin(property.value, budget))
     );

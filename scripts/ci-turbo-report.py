@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-files = sorted(Path('.turbo/runs').glob('*.json'))
+files = [Path(path) for path in json.loads(Path('.turbo/ci-receipts.json').read_text())]
 if not files:
     raise RuntimeError('No Turbo receipts recorded for this frontend lane')
 tasks = []

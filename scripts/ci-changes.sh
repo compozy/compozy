@@ -194,6 +194,30 @@ EOF
   if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
     echo "required integration skip was accepted" >&2; return 1
   fi
+  local scenario expected job skipped
+  while IFS='|' read -r scenario expected; do
+    projection=$(jq --arg scenario "$scenario" '
+      .changes.outputs = {backend: "false", web: "false", desktop: "false", heavy: "true"} |
+      if $scenario == "disabled" then .changes.outputs.heavy = "false"
+      else .changes.outputs[$scenario] = "true" end |
+      ."go-integration".result = "success" | ."go-terminal-windows".result = "success" |
+      ."e2e-runtime".result = "success" | ."e2e-web".result = "success" | ."e2e-desktop".result = "success"
+    ' <<<"$projection")
+    for job in go-integration go-terminal-windows e2e-runtime e2e-web e2e-desktop; do
+      skipped=$(jq --arg job "$job" '.[$job].result = "skipped"' <<<"$projection")
+      if [[ " $expected " == *" $job "* ]]; then
+        if require_lanes heavy <<<"$skipped"; then
+          echo "required $scenario/$job skip was accepted" >&2; return 1
+        fi
+      else
+        require_lanes heavy <<<"$skipped" || return 1
+      fi
+    done
+  done <<'HEAVY'
+web|e2e-runtime e2e-web e2e-desktop
+desktop|e2e-desktop
+disabled|
+HEAVY
   python3 - <<'CHECK'
 import importlib.util
 import json
@@ -236,15 +260,21 @@ with tempfile.TemporaryDirectory() as directory:
                     pass
             def write_receipt(*args, **kwargs):
                 (root / '.turbo/runs/current.json').write_text('{"tasks": []}')
+            (root / '.turbo/runs/older.json').write_text('invalid stale receipt')
             with patch('subprocess.run', side_effect=write_receipt):
                 runpy.run_path(frontend)
+            runpy.run_path(report)
             with patch('subprocess.run'):
                 try:
                     runpy.run_path(frontend)
                     raise AssertionError('stale Turbo receipt accepted')
                 except RuntimeError:
                     pass
-            runpy.run_path(report)
+            try:
+                runpy.run_path(report)
+                raise AssertionError('empty current-run manifest accepted')
+            except RuntimeError:
+                pass
     finally:
         os.chdir(previous)
 CHECK

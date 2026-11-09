@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 lane = sys.argv[1]
+receipt_manifest = Path('.turbo/ci-receipts.json')
+receipt_manifest.parent.mkdir(exist_ok=True)
+receipt_manifest.write_text('[]')
+current_receipts = []
 selected = json.loads(os.environ['CI_WORKSPACES'])
 all_packages = '*' in selected
 site_sdk = {'@compozy/site', '@compozy/client', '@compozy/extension-sdk', '@compozy/extension-react', '@compozy/example-prompt-enhancer', '@compozy/view-program-fixture'}
@@ -32,6 +36,8 @@ def turbo(tasks, targets):
         receipts = set(Path('.turbo/runs').glob('*.json')) - before
         if len(receipts) != 1:
             raise RuntimeError(f'Expected one new Turbo receipt for {tasks}: got {len(receipts)}')
+        current_receipts.extend(str(path) for path in sorted(receipts))
+        receipt_manifest.write_text(json.dumps(current_receipts))
 
 if lane == 'lint':
     run('bun', 'run', 'lint')

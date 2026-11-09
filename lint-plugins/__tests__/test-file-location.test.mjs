@@ -143,4 +143,27 @@ describe("deterministic unit test conventions", () => {
       ])
     ).toHaveLength(0);
   });
+  it("checks computed skip members and rejects unresolved option keys", () => {
+    const base = { type: "Identifier", name: "test" };
+    const member = value => ({
+      type: "MemberExpression",
+      computed: true,
+      object: base,
+      property: { type: "Literal", value },
+    });
+    expect(messages(member("skip"), [])).toHaveLength(1);
+    expect(messages(member("only"), [])).toHaveLength(0);
+    expect(
+      messages({ ...member("skip"), property: { type: "Identifier", name: "skip" } }, [])
+    ).toHaveLength(0);
+    const options = (key, value) => [
+      { value: "name" },
+      { type: "ObjectExpression", properties: [{ computed: true, key, value: { value } }] },
+      {},
+    ];
+    expect(messages(base, options({ type: "Identifier", name: "k" }, 3))).toHaveLength(1);
+    expect(messages(base, options({ type: "Literal", value: "retry" }, 3))).toHaveLength(1);
+    expect(messages(base, options({ type: "Literal", value: "timeout" }, 0))).toHaveLength(1);
+    expect(messages(base, options({ type: "Literal", value: "timeout" }, 1000))).toHaveLength(0);
+  });
 });

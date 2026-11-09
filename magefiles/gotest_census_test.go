@@ -292,45 +292,52 @@ func TestCensusPruneMissingSource(t *testing.T) {
 
 // TestCensusUpdateBootstrap owns the integration-first persisted census contract.
 func TestCensusUpdateBootstrap(t *testing.T) {
-	root := t.TempDir()
-	t.Chdir(root)
-	t.Setenv("COMPOZY_CENSUS_LANE", "integration")
-	t.Setenv("CENSUS_RUN_ID", "trusted-run")
-	writeTestFile(t, root, "magefiles/.keep", "")
-	writeTestFile(t, root, "receipts/gotest-shard0-0.json", `{"Action":"pass","Package":"example/package","Elapsed":2}`)
-	if err := TestCensusUpdate("receipts"); err != nil {
-		t.Fatal(err)
-	}
-	census, err := loadGoTestCensus(goTestCensusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if census.Integration == nil || census.Integration.SourceRun != "trusted-run" {
-		t.Fatalf("integration provenance missing: %+v", census)
-	}
-	if census.DefaultPackageSeconds <= 0 || census.DefaultSplitTestSeconds <= 0 {
-		t.Fatalf("root defaults invalid: %+v", census)
-	}
-	before, err := os.ReadFile(goTestCensusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, root, "internal/daemon/broken_test.go", "package daemon\nfunc broken(")
-	writeTestFile(
-		t, root, "receipts/gotest-shard0-0.json",
-		`{"Action":"pass","Package":"github.com/compozy/compozy/internal/daemon","Test":"TestObserved","Elapsed":3}`,
-	)
-	t.Setenv("CENSUS_RUN_ID", "must-not-persist")
-	if err := TestCensusUpdate("receipts"); err == nil {
-		t.Fatal("expected source parsing error")
-	}
-	after, err := os.ReadFile(goTestCensusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("failed refresh changed persisted census or provenance")
-	}
+	t.Run("Should bootstrap integration and preserve census on source parsing failure", func(t *testing.T) {
+		root := t.TempDir()
+		t.Chdir(root)
+		t.Setenv("COMPOZY_CENSUS_LANE", "integration")
+		t.Setenv("CENSUS_RUN_ID", "trusted-run")
+		writeTestFile(t, root, "magefiles/.keep", "")
+		writeTestFile(
+			t, root, "receipts/gotest-shard0-0.json",
+			`{"Action":"pass","Package":"example/package","Elapsed":2}`,
+		)
+		if err := TestCensusUpdate("receipts"); err != nil {
+			t.Fatal(err)
+		}
+		census, err := loadGoTestCensus(goTestCensusPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if census.Integration == nil || census.Integration.SourceRun != "trusted-run" {
+			t.Fatalf("integration provenance missing: %+v", census)
+		}
+		if census.DefaultPackageSeconds <= 0 || census.DefaultSplitTestSeconds <= 0 {
+			t.Fatalf("root defaults invalid: %+v", census)
+		}
+		before, err := os.ReadFile(goTestCensusPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeTestFile(t, root, "internal/daemon/broken_test.go", "package daemon\nfunc broken(")
+		writeTestFile(
+			t, root, "receipts/gotest-shard0-0.json",
+			`{"Action":"pass","Package":"github.com/compozy/compozy/internal/daemon",`+
+				`"Test":"TestObserved","Elapsed":3}`,
+		)
+		t.Setenv("CENSUS_RUN_ID", "must-not-persist")
+		if err := TestCensusUpdate("receipts"); err == nil ||
+			!strings.Contains(err.Error(), "parse "+filepath.Join("internal", "daemon", "broken_test.go")+":") {
+			t.Fatalf("expected broken source parsing error, got %v", err)
+		}
+		after, err := os.ReadFile(goTestCensusPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatal("failed refresh changed persisted census or provenance")
+		}
+	})
 }
 
 func TestIntegrationObservationIdentity(t *testing.T) {
