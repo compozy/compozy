@@ -52,4 +52,6 @@ export const grid3 = "grid gap-4 sm:grid-cols-2 lg:grid-cols-3";
 export const grid4 = "grid gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
 export const btnMd = "min-h-11 px-5 text-[15px]";
-export const btnPrimary = `${voltFill} hover:bg-(--color-brand-hover)`;
+/** Volt fills keep white text, so they hover darker (deep, 7.5:1), never to the theme brand hover. */
+export const voltHover = "hover:bg-(--color-brand-deep)";
+export const btnPrimary = `${voltFill} ${voltHover}`;

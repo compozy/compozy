@@ -22,7 +22,7 @@ export function NotFound() {
         <p className="m-0">
           <Link
             to="/"
-            className="inline-flex min-h-11 items-center rounded-[10px] bg-(--color-brand-volt) px-5 text-[15px] font-medium text-(--color-fg-strong) no-underline hover:bg-(--color-brand-hover)"
+            className="inline-flex min-h-11 items-center rounded-[10px] bg-(--color-brand-volt) px-5 text-[15px] font-medium text-(--color-fg-strong) no-underline hover:bg-(--color-brand-deep)"
           >
             Go to Foundations
           </Link>
