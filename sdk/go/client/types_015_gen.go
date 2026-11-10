@@ -7,6 +7,66 @@ import (
 	"time"
 )
 
+// ProviderModelRefreshRequest is a daemon API value.
+type ProviderModelRefreshRequest struct {
+	SourceID  string `json:"source_id,omitempty"`
+	Force     bool   `json:"force,omitzero"`
+	RequestID string `json:"request_id,omitempty"`
+}
+
+// ProviderModelRefreshResponse is a daemon API value.
+type ProviderModelRefreshResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+	Error   string                            `json:"error,omitempty"`
+}
+
+// ProviderModelStatusResponse is a daemon API value.
+type ProviderModelStatusResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+}
+
+// ProviderRecommendedAction is a daemon API value.
+type ProviderRecommendedAction string
+
+// ProviderRuntimeLiveApply is a daemon API value.
+type ProviderRuntimeLiveApply string
+
+// ProviderRuntimeStrategy is a daemon API value.
+type ProviderRuntimeStrategy string
+
+// ProviderStatusPayload is a daemon API value.
+type ProviderStatusPayload struct {
+	Name          string                         `json:"name"`
+	DisplayName   string                         `json:"display_name,omitempty"`
+	Default       bool                           `json:"default"`
+	Mode          string                         `json:"mode,omitempty"`
+	EnvPolicy     string                         `json:"env_policy,omitempty"`
+	HomePolicy    string                         `json:"home_policy,omitempty"`
+	State         string                         `json:"state"`
+	Code          string                         `json:"code,omitempty"`
+	Message       string                         `json:"message,omitempty"`
+	StatusCommand string                         `json:"status_command,omitempty"`
+	Login         ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt   *time.Time                     `json:"last_probe_at,omitempty"`
+}
+
+// ProviderSummaryPayload is a daemon API value.
+type ProviderSummaryPayload struct {
+	ReviewerMode     string                                    `json:"reviewer_mode"`
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	DisplayName      string                                    `json:"display_name,omitempty"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
+}
+
+// ProviderUsageAccount is a daemon API value.
+type ProviderUsageAccount struct {
+	Label string `json:"label"`
+	Plan  string `json:"plan"`
+}
+
 // ProviderUsageAmount is a daemon API value.
 type ProviderUsageAmount struct {
 	Value string `json:"value"`
@@ -387,64 +447,3 @@ type ResolutionReason string
 
 // ResolutionStatus is a daemon API value.
 type ResolutionStatus string
-
-// ResolveToolApprovalRequest is a daemon API value.
-type ResolveToolApprovalRequest struct {
-	Decision ApprovalOutcome `json:"decision"`
-}
-
-// ResolveWorkspaceRequest is a daemon API value.
-type ResolveWorkspaceRequest struct {
-	Path string `json:"path"`
-}
-
-// ResolvedWorktreeMode is a daemon API value.
-type ResolvedWorktreeMode string
-
-// ResourceKind is a daemon API value.
-type ResourceKind string
-
-// ResourceOwner is a daemon API value.
-type ResourceOwner struct {
-	Kind ResourceOwnerKind `json:"kind"`
-	ID   string            `json:"id"`
-}
-
-// ResourceOwnerKind is a daemon API value.
-type ResourceOwnerKind string
-
-// ResourceRecordPayload is a daemon API value.
-type ResourceRecordPayload struct {
-	Kind      ResourceKind    `json:"kind"`
-	ID        string          `json:"id"`
-	Version   int64           `json:"version"`
-	Scope     ResourceScope   `json:"scope"`
-	Owner     ResourceOwner   `json:"owner"`
-	Source    ResourceSource  `json:"source"`
-	Spec      json.RawMessage `json:"spec"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
-}
-
-// ResourceResponse is a daemon API value.
-type ResourceResponse struct {
-	Record ResourceRecordPayload `json:"record"`
-}
-
-// ResourceScope is a daemon API value.
-type ResourceScope struct {
-	Kind ResourceScopeKind `json:"kind"`
-	ID   string            `json:"id,omitempty"`
-}
-
-// ResourceScopeKind is a daemon API value.
-type ResourceScopeKind string
-
-// ResourceSource is a daemon API value.
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
-}
-
-// ResourceSourceKind is a daemon API value.
-type ResourceSourceKind string

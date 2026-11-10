@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
 
@@ -39,7 +40,7 @@ jobs:
               run_id="$candidate"
               break
             fi
-          done < <(gh run list --workflow CI --status success --limit 40 --json databaseId --jq '.[].databaseId')
+          done < <(gh run list --workflow CI --branch main --event push --status success --limit 40 --json databaseId --jq '.[].databaseId')
           if [[ -z "$run_id" ]]; then
             echo "No successful CI run with gotest-json artifacts in the last 40; nothing to refresh."
           else
@@ -52,8 +53,41 @@ jobs:
         if: env.CENSUS_RUN_ID != ''
         run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/gotest-json
 
+      - name: Download trusted integration timing receipts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/integration-json
+          run_id=""
+          candidates=$(gh run list --workflow release.yml --branch main --event push --status success --limit 40 --json databaseId --jq '.[].databaseId')
+          while read -r candidate; do
+            [[ -z "$candidate" ]] && continue
+            names=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate}/artifacts?per_page=100" --jq '.artifacts[] | select(.expired == false) | .name')
+            complete=true
+            for shard in 0 1 2 3 4 5 6 7; do
+              if ! grep -qx "integration-artifacts-$shard" <<<"$names"; then complete=false; break; fi
+            done
+            if [[ "$complete" == true ]]; then run_id="$candidate"; break; fi
+          done <<<"$candidates"
+          if [[ -z "$run_id" ]]; then
+            echo "::notice::No complete unexpired integration receipts in the last 40 successful main push Release runs."
+          else
+            gh run download "$run_id" --pattern 'integration-artifacts-*' --dir /tmp/integration-json
+            mkdir -p /tmp/integration-census
+            find /tmp/integration-json -name 'gotest-shard*.json' -exec cp {} /tmp/integration-census/ \;
+            echo "INTEGRATION_CENSUS_RUN_ID=$run_id" >> "$GITHUB_ENV"
+          fi
+
+      - name: Fold integration timing data
+        if: env.INTEGRATION_CENSUS_RUN_ID != ''
+        env:
+          COMPOZY_CENSUS_LANE: integration
+          CENSUS_RUN_ID: ${{ env.INTEGRATION_CENSUS_RUN_ID }}
+        run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/integration-census
+
       - name: Publish the refresh branch when the census changed
-        if: env.CENSUS_RUN_ID != ''
+        if: env.CENSUS_RUN_ID != '' || env.INTEGRATION_CENSUS_RUN_ID != ''
         env:
           # The enterprise policy blocks GITHUB_TOKEN from creating pull
           # requests. With an optional CENSUS_PR_TOKEN (fine-grained PAT with
@@ -73,7 +107,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
           git add magefiles/gotest_census.json
-          git commit -m "ci: refresh go unit-test shard census"
+          git commit -m "ci: refresh go test shard census"
           git push --force origin "$branch"
           if gh pr view "$branch" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Refresh PR already open for $branch."
@@ -84,8 +118,8 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --head "$branch" \
-              --title "ci: refresh go unit-test shard census" \
-              --body "Automated weekly refresh of magefiles/gotest_census.json from the shard timing artifacts of CI run ${CENSUS_RUN_ID}."
+              --title "ci: refresh go test shard census" \
+              --body "Automated weekly refresh of magefiles/gotest_census.json from trusted main-push timing artifacts. Unit CI run: ${CENSUS_RUN_ID:-none}. Integration Release run: ${INTEGRATION_CENSUS_RUN_ID:-none}."
             exit 0
           fi
           compare_url="https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"

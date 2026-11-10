@@ -2380,6 +2380,11 @@ type ToolProcess struct {
 	CompletedAt    sql.NullString `json:"completed_at"`
 }
 
+type UsageCostRepairState struct {
+	Singleton int64 `json:"singleton"`
+	Pending   int64 `json:"pending"`
+}
+
 type UserScopeMigration struct {
 	SourceWorkspaceID     string         `json:"source_workspace_id"`
 	SourceRoot            string         `json:"source_root"`

@@ -369,8 +369,11 @@ recovery, and `session continue|fork`. The replay never exceeds `max_replay_byte
 `max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
 `max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
 lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
-them. CompozyOS has no compaction settings: the agent owns its context window,
-and compaction is observed or requested through the experimental surfaces in
+them. Claude sessions accept `providers.claude.auto_compact_window` (100000–1000000 tokens),
+capped at the model window and always forwarded as a full token count,
+with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
+default; the value is forwarded on new, load and resume. This is independent of retired
+`session.compaction` keys, which remain archived on load. Manual compaction is requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 

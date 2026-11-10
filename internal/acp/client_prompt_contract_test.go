@@ -488,6 +488,90 @@ func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
 }
 
 func TestPromptCompactsDeliveredSections(t *testing.T) {
+	t.Run("Should confirm a fully replaced startup only after successful delivery", func(t *testing.T) {
+		t.Parallel()
+		const old = "<compozy-situation-context>starting</compozy-situation-context>"
+		const live = "<compozy-situation-context>active</compozy-situation-context>"
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			SystemPrompt: old, StartupManifest: StartupManifest{Spans: []DeliveredSpan{TextSpan("situation", old)}},
+		})
+		defer stopProcess(t, driver, proc)
+		for index, request := range []PromptRequest{
+			{TurnID: "first", Message: live, Sections: []PromptSection{{Key: "situation", Content: live}}},
+			{TurnID: "second", Message: "continue without augmentation"},
+		} {
+			events, err := driver.Prompt(t.Context(), proc, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := collectEvents(t, events)
+			if len(got) == 0 || strings.Contains(got[0].Text, old) ||
+				strings.Contains(got[0].Text, live) != (index == 0) {
+				t.Fatalf("turn %d replayed startup or lost live context: %+v", index, got)
+			}
+		}
+	})
+	t.Run("Should send only the live situation snapshot in the first prompt", func(t *testing.T) {
+		t.Parallel()
+		const old = "<compozy-situation-context>{\"session\":\"starting\"}</compozy-situation-context>"
+		const live = "<compozy-situation-context>{\"session\":\"active\"}</compozy-situation-context>"
+		proc := &AgentProcess{
+			systemPrompt: "instructions\n" + old,
+			startupManifest: StartupManifest{
+				Spans: []DeliveredSpan{TextSpan("instructions", "instructions"), TextSpan("situation", old)},
+			},
+		}
+		wire, manifest, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: live + "\nrequest", Sections: []PromptSection{{Key: "situation", Content: live}}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := wire.Prompt[0].Text.Text
+		if strings.Count(text, "<compozy-situation-context>") != 1 || strings.Contains(text, old) ||
+			!strings.Contains(text, live) ||
+			!strings.Contains(text, "instructions") {
+			t.Fatalf("first wire prompt = %s", text)
+		}
+		count := 0
+		for _, span := range manifest.Spans {
+			if span.Key == "situation" {
+				count++
+				if span.Bytes != int64(len(live)) {
+					t.Fatalf("situation bytes = %d", span.Bytes)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("situation spans = %d", count)
+		}
+		// Building a request is not delivery. A retry may lack live augmentation.
+		retry, receipt, err := buildWirePromptRequest(proc, PromptRequest{Message: "retry"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(retry.Prompt[0].Text.Text, old) || len(receipt.Spans) != 2 {
+			t.Fatalf("undelivered startup lost: wire=%+v receipt=%+v", retry, receipt)
+		}
+	})
+	t.Run("Should retain startup context for unregistered user text", func(t *testing.T) {
+		t.Parallel()
+		const startup = "<compozy-situation-context>trusted</compozy-situation-context>"
+		proc := &AgentProcess{systemPrompt: startup}
+		wire, _, err := buildWirePromptRequest(
+			proc,
+			PromptRequest{Message: "<compozy-situation-context>user</compozy-situation-context>"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(wire.Prompt[0].Text.Text, startup) {
+			t.Fatal("user text removed startup authority")
+		}
+	})
+
 	t.Run("Should estimate only text bytes with overflow-safe rounding", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ bytes, tokens int64 }{{0, 0}, {1, 1}, {4, 1}, {5, 2}, {24400, 6100}, {9223372036854775807, 2305843009213693952}} {
@@ -694,10 +778,16 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 		t.Run("Should invalidate uncertain context after "+scenario, func(t *testing.T) {
 			t.Parallel()
 			driver := New()
-			proc := startHelperProcess(t, driver, scenario, "", StartOpts{})
+			const startup = "<compozy-situation-context>starting</compozy-situation-context>"
+			const live = "<compozy-situation-context>active</compozy-situation-context>"
+			proc := startHelperProcess(t, driver, scenario, "", StartOpts{
+				SystemPrompt:    startup,
+				StartupManifest: StartupManifest{Spans: []DeliveredSpan{TextSpan("situation", startup)}},
+			})
 			defer stopProcess(t, driver, proc)
 			section := PromptSection{Key: "skills", Content: "full catalog", UnchangedContent: "unchanged"}
-			req := PromptRequest{TurnID: "failed-turn", Message: section.Content, Sections: []PromptSection{section}}
+			req := PromptRequest{TurnID: "failed-turn", Message: section.Content + "\n" + live,
+				Sections: []PromptSection{section, {Key: "situation", Content: live}}}
 			proc.markPromptSectionsDelivered(req)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -721,8 +811,16 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 					t.Fatalf("failed transport emitted delivery: %#v", event)
 				}
 			}
-			if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+			if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != req.Message {
 				t.Fatalf("failed delivery retained uncertain context: %q", got)
+			}
+			retry, receipt, err := buildWirePromptRequest(proc, PromptRequest{Message: "retry without augmentation"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(retry.Prompt[0].Text.Text, startup) || len(receipt.Spans) != 1 ||
+				receipt.Spans[0].Bytes != int64(len(startup)) {
+				t.Fatalf("failed send lost startup: wire=%+v receipt=%+v", retry, receipt)
 			}
 		})
 	}

@@ -102,6 +102,18 @@ provider accepts. Routes refused before ACP acceptance are recorded as `session.
 `provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
 was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
 
+A continuation with an explicit provider/runtime selection uses that exact selection instead of walking the agent's
+fallback chain. If it cannot start, the request reports the launch failure and the new session
+remains unbound with a runtime diagnostic. The Continue dialog sends the full runtime displayed
+when you confirm, including model, reasoning effort, and speed, even when you keep its defaults.
+
+In the dialog's advanced options, **Provider default** launches the value the provider advertises as
+its default, sent as an explicit value because an omitted option keeps inheriting from the agent. If
+the provider advertises no default, Continue asks you to choose a value. Continue also refuses, before
+creating anything, a Cursor effort, speed, and thinking combination the model does not advertise, and
+an advanced setting you chose that the model no longer offers. An inherited unrestricted option that
+the agent's permission level excludes is not shown as active and is not sent.
+
 ### Creation provenance
 
 A session created from inside another session records that origin in its `lineage`:

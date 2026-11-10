@@ -49,6 +49,7 @@ describe("static public route metadata", () => {
     });
   });
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- The first dynamic import compiles the real Next layout and dependency tree; preserve its cold-import deadline.
   it(
     "keeps root metadata aligned with site identity and design tokens",
     { timeout: 60_000 },

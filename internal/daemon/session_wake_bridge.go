@@ -88,8 +88,28 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		}
 		return fmt.Errorf("%w: %s", session.ErrSpawnWakeSessionNotLive, creatorID)
 	}
+	// The in-memory attention cache does not survive restart or eviction. Reuse
+	// the durable admission identity so replaying the same revision costs no turn.
+	alreadyAdmitted, ledgerErr := childWakeAdmitted(
+		deliveryCtx,
+		sessions,
+		creatorID,
+		normalized.WakeEventID,
+	)
+	if ledgerErr != nil {
+		complete()
+		// No dispatch was attempted. A retry rechecks the durable identity before
+		// enqueueing, including when this failed read hid an earlier admission.
+		return fmt.Errorf("%w: %w", session.ErrSpawnWakeRetryable, ledgerErr)
+	}
+	if alreadyAdmitted {
+		complete()
+		return nil
+	}
+
 	events, err := sessions.PromptSynthetic(deliveryCtx, creatorID, session.SyntheticPromptOpts{
-		Message: sessionWakePromptMessage(normalized),
+		MessageID: normalized.WakeEventID,
+		Message:   sessionWakePromptMessage(normalized),
 		Metadata: acp.PromptSyntheticMeta{
 			ChildSessionID: normalized.ChildSessionID,
 			ChildAgentName: normalized.ChildAgentName,
@@ -110,6 +130,22 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	}
 	bridge.drainWakeEvents(creatorID, normalized, events, complete)
 	return nil
+}
+
+func childWakeAdmitted(
+	ctx context.Context,
+	sessions sessionWakeSessionManager,
+	creatorID, wakeID string,
+) (bool, error) {
+	ledger, ok := sessions.(monitorWakeLedger)
+	if !ok {
+		return false, nil
+	}
+	admitted, err := ledger.SyntheticWakeAdmitted(ctx, creatorID, wakeID)
+	if err != nil {
+		return false, fmt.Errorf("daemon: read child wake admission for %q: %w", creatorID, err)
+	}
+	return admitted, nil
 }
 
 func sessionWakePromptMessage(event session.SpawnWakeEvent) string {

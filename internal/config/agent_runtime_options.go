@@ -15,8 +15,10 @@ type ACPOptionSelection = runtimeoption.Selection
 // AgentRuntimeDefaults keeps optional speed and ACP selections compact while
 // its embedded fields preserve the flat agent wire format.
 type AgentRuntimeDefaults struct {
-	Speed      speedpkg.Speed       `json:"speed,omitempty"       yaml:"speed,omitempty"       toml:"speed,omitempty"`
-	ACPOptions []ACPOptionSelection `json:"acp_options,omitempty" yaml:"acp_options,omitempty" toml:"acp_options,omitempty"`
+	AutoCompactWindow *int                 `json:"auto_compact_window,omitempty" yaml:"auto_compact_window,omitempty" toml:"auto_compact_window,omitempty"`
+	LeanEnvironment   *bool                `json:"lean_environment,omitempty"    yaml:"lean_environment,omitempty"    toml:"lean_environment,omitempty"`
+	Speed             speedpkg.Speed       `json:"speed,omitempty"               yaml:"speed,omitempty"               toml:"speed,omitempty"`
+	ACPOptions        []ACPOptionSelection `json:"acp_options,omitempty"         yaml:"acp_options,omitempty"         toml:"acp_options,omitempty"`
 }
 
 // NormalizeACPOptionSelections validates, copies, and sorts ACP option defaults by ID.
@@ -134,7 +136,63 @@ func setAgentRuntimeACPOptions(state **AgentRuntimeDefaults, selections []ACPOpt
 }
 
 func clearEmptyAgentRuntimeDefaults(state **AgentRuntimeDefaults) {
-	if *state != nil && (*state).Speed == "" && len((*state).ACPOptions) == 0 {
+	if *state != nil && (*state).Speed == "" && len((*state).ACPOptions) == 0 && (*state).AutoCompactWindow == nil &&
+		(*state).LeanEnvironment == nil {
 		*state = nil
 	}
+}
+
+func (a *ResolvedAgent) AutoCompactWindowValue() *int {
+	if a == nil || a.AgentRuntimeDefaults == nil {
+		return nil
+	}
+	return cloneAutoCompactWindow(a.AutoCompactWindow)
+}
+
+func (a *ResolvedAgent) setAutoCompactWindow(value *int) {
+	if value == nil {
+		return
+	}
+	if a.AgentRuntimeDefaults == nil {
+		a.AgentRuntimeDefaults = &AgentRuntimeDefaults{}
+	}
+	a.AutoCompactWindow = cloneAutoCompactWindow(value)
+}
+
+// LeanEnvironmentValue returns the optional reduced Claude environment selection.
+func (a *ResolvedAgent) LeanEnvironmentValue() *bool {
+	if a == nil || a.AgentRuntimeDefaults == nil {
+		return nil
+	}
+	return cloneBoolRef(a.LeanEnvironment)
+}
+
+func (a *ResolvedAgent) setLeanEnvironment(value *bool) {
+	if value == nil {
+		return
+	}
+	if a.AgentRuntimeDefaults == nil {
+		a.AgentRuntimeDefaults = &AgentRuntimeDefaults{}
+	}
+	a.LeanEnvironment = cloneBoolRef(value)
+}
+
+// LeanEnvironmentValue returns the authored selection without exposing compact storage.
+func (a AgentDef) LeanEnvironmentValue() *bool {
+	if a.AgentRuntimeDefaults == nil {
+		return nil
+	}
+	return cloneBoolRef(a.LeanEnvironment)
+}
+
+// SetLeanEnvironment stores an independent copy of the authored selection.
+func (a *AgentDef) SetLeanEnvironment(value *bool) {
+	if a.AgentRuntimeDefaults == nil {
+		if value == nil {
+			return
+		}
+		a.AgentRuntimeDefaults = &AgentRuntimeDefaults{}
+	}
+	a.LeanEnvironment = cloneBoolRef(value)
+	clearEmptyAgentRuntimeDefaults(&a.AgentRuntimeDefaults)
 }

@@ -22,6 +22,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 	return ProviderConfig{
 		ReviewerMode:        src.ReviewerMode,
 		SessionEnv:          MergeSessionEnv(nil, src.SessionEnv),
+		AutoCompactWindow:   cloneAutoCompactWindow(src.AutoCompactWindow),
 		Command:             src.Command,
 		CommandIsBuiltin:    src.CommandIsBuiltin,
 		DisplayName:         src.DisplayName,

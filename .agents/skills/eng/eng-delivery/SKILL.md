@@ -41,6 +41,8 @@ Search for a duplicate before creating one, and reuse an existing issue. A close
 
 File issues in English on GitHub with reproduction, actual and expected behavior, evidence with code pointers, acceptance criteria, and QA or compatibility impact. Remove private paths, internal runtime identifiers, credentials and unrelated log content. Verify publication.
 
+Every issue gets a type when it is created, including follow-ups filed by executors: `gh issue create --type <Bug|Feature|Task>`, or `gh issue edit <n> --type <T>` immediately after. Use Bug for defects and regressions, Feature for new capabilities, and Task for tests, chores, build and dependency work.
+
 Independent issues get separate worktrees; several symptoms of one defect stay together.
 
 ## Pull request

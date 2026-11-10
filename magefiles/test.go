@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/e2elane"
 )
@@ -107,6 +108,7 @@ func exactGoTestRunPattern(tests []string) string {
 
 // TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
+	preparedAt := time.Now()
 	ctx := context.Background()
 	invocations, err := goIntegrationTestInvocations(ctx)
 	if err != nil {
@@ -116,6 +118,7 @@ func TestIntegration() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Integration preparation (package and source discovery): %s\n", time.Since(preparedAt))
 	packageLimit := goIntegrationPackageLimit
 	if strings.TrimSpace(os.Getenv(goTestPackageLimitEnvVar)) != "" {
 		packageLimit = goUnitTestPackageLimit()
@@ -129,7 +132,15 @@ func TestIntegration() error {
 			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
 		}
 		args = append(args, invocation.packages...)
-		if err := runGotestsum(ctx, nil, args...); err != nil {
+		startedAt := time.Now()
+		err := runGotestsum(ctx, nil, args...)
+		fmt.Printf(
+			"Integration invocation %d packages=%v wall=%s (remaining compilation, setup and execution)\n",
+			index,
+			invocation.packages,
+			time.Since(startedAt),
+		)
+		if err != nil {
 			return err
 		}
 	}

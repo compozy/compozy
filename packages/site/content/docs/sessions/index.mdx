@@ -553,3 +553,18 @@ permissions for the two most common operator questions: "can I re-enter this liv
     meta="Secrets"
   />
 </RouteList>
+
+## Per-turn costs
+
+`compozy session usage <session-id> --turns -o json` shows the cost of each turn.
+When an agent reports a cumulative session cost, CompozyOS subtracts the previous report before
+adding it to the session and daily totals. A lower report contributes zero; its raw value is saved
+as the next turn's baseline. The baseline survives restarting CompozyOS or releasing an idle runtime.
+Adapters that report per-turn amounts keep their reported charges.
+
+A drop omits that one turn's cost, an undercount of at most one turn per drop. A restart whose first
+report equals or exceeds the previous total is still indistinguishable from continuation and can
+also undercount. These figures describe reported activity; they are not an invoice.
+
+The upgrade recomputes historical costs from complete per-session ledgers. Where the required evidence
+is missing or incomplete, cost becomes unknown. Tokens, turn counts and timestamps are preserved.

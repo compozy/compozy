@@ -3178,6 +3178,22 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
+			name:   "Should update only the provider compaction window",
+			method: http.MethodPut,
+			path:   "/api/settings/providers/claude",
+			body: contract.PutSettingsProviderRequest{
+				Settings: contract.SettingsProviderWritePayload{AutoCompactWindow: new(200000)},
+			},
+			assert: func(t *testing.T, service *stubSettingsService) {
+				t.Helper()
+				provider := service.LastPutCollectionRequest.Provider
+				if provider == nil || provider.AutoCompactWindow == nil || *provider.AutoCompactWindow != 200000 {
+					t.Fatalf("provider compaction update = %+v", provider)
+				}
+			},
+			assertResponse: assertAppliedSettingsMutation,
+		},
+		{
 			name:   "put provider",
 			method: http.MethodPut,
 			path:   "/api/settings/providers/openai",

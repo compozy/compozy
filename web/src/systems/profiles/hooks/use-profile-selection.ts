@@ -4,7 +4,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import { putProfileSelection } from "../adapters/profiles-api";
+import { ProfileApiError, putProfileSelection } from "../adapters/profiles-api";
 import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
 import { profileViewKey } from "../lib/profile-scope";
 import { rememberedAfterSwitches, type SelectionSwitch } from "../lib/profile-scope-resolver";
@@ -119,6 +119,14 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
   };
 }
 
+/**
+ * Only a client-error answer proves the daemon did not apply the write. A lost answer, a server
+ * error, or a proxy's 5xx leaves the outcome unknown.
+ */
+function refusedWrite(error: unknown): boolean {
+  return error instanceof ProfileApiError && error.status >= 400 && error.status < 500;
+}
+
 async function rememberProfileView(view: ProfileView): Promise<ProfileView> {
   if (view.kind === "aggregate") return view;
   await putProfileSelection({ scope: "global", profile: view.profile });
@@ -167,7 +175,9 @@ export function useSwitchProfile() {
     onError: (error, _view, context) => {
       // Switches overlap: the store rolls this one back along the pending chain, so a later
       // switch keeps the view and a chain of failures returns to where the operator started.
-      if (context && context.switchId !== null) failProfileSwitch(context.switchId);
+      if (context && context.switchId !== null) {
+        failProfileSwitch(context.switchId, { refused: refusedWrite(error) });
+      }
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
         tone: "error",

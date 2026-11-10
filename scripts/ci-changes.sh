@@ -15,7 +15,7 @@ set -euo pipefail
 # classify prints the space-separated areas for one repository-relative path.
 classify() {
   case "$1" in
-    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh)
+    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
       echo "backend web desktop ci_infra"
       return
       ;;
@@ -74,11 +74,49 @@ summarize() {
         web) web=true ;;
         desktop) desktop=true ;;
         ci_infra) ci_infra=true ;;
-        unclassified) echo "No CI rule matches $path; verifying every area." >&2 ;;
+        unclassified) ci_infra=true; echo "No CI rule matches $path; verifying every area." >&2 ;;
       esac
     done
   done
   printf 'backend=%s\nweb=%s\ndesktop=%s\nci_infra=%s\n' "$backend" "$web" "$desktop" "$ci_infra"
+}
+
+# Validate the workflow's needs projection against the selection contract.
+require_lanes() {
+  jq -e --arg kind "${1:-fast}" '
+    . as $needs | .changes.outputs as $o |
+    ($o.backend == "true") as $backend |
+    ($o.web == "true") as $web |
+    ($o.desktop == "true") as $desktop |
+    ($o.heavy == "true") as $heavy |
+    {
+      changes: true, preflight: true, frontend: $web,
+      "go-static": $backend, "go-test": $backend, "sdk-go-test": $backend,
+      "go-build": $backend, "go-peer-darwin": $backend,
+      desktop: ($desktop or $web),
+      "go-integration": ($heavy and $backend),
+      "go-terminal-windows": ($heavy and $backend),
+      "e2e-runtime": ($heavy and ($backend or $web)),
+      "e2e-web": ($heavy and ($backend or $web)),
+      "e2e-desktop": ($heavy and ($backend or $web or $desktop))
+    } as $expected |
+    (if $kind == "fast" then
+      ["changes", "preflight", "frontend", "go-static", "go-test", "sdk-go-test", "go-build", "go-peer-darwin", "desktop"]
+     elif $kind == "heavy" then
+      ["changes", "preflight", "go-integration", "go-terminal-windows", "e2e-runtime", "e2e-web", "e2e-desktop"]
+     else ["invalid-gate-kind"] end) as $required |
+    ($required | all(. as $key | $needs | has($key))) and
+    ($needs.changes.result == "success") and
+    ($needs.preflight.result == "success") and
+    ([$o.backend, $o.web, $o.desktop, $o.heavy] |
+      all(. == "true" or . == "false")) and
+    ($needs | to_entries | all(
+      .key as $key |
+      ($expected | has($key)) and
+      (.value.result == "success" or
+        (.value.result == "skipped" and $expected[$key] == false))
+    ))
+  ' >/dev/null
 }
 
 self_test() {
@@ -127,11 +165,145 @@ EOF
     echo "ci-changes self-test: $failures classification(s) drifted" >&2
     return 1
   fi
-  echo "ci-changes self-test: classification table holds"
+  local projection
+  projection='{"changes":{"result":"success","outputs":{"backend":"false","web":"true","desktop":"false","heavy":"false"}},"preflight":{"result":"success"},"frontend":{"result":"success"}}'
+  projection=$(jq '. + {"go-static":{"result":"skipped"},"go-test":{"result":"skipped"},"sdk-go-test":{"result":"skipped"},"go-build":{"result":"skipped"},"go-peer-darwin":{"result":"skipped"},"desktop":{"result":"success"}}' <<<"$projection")
+  require_lanes <<<"$projection"
+  if jq 'del(.frontend)' <<<"$projection" | require_lanes; then
+    echo "missing frontend was accepted" >&2; return 1
+  fi
+  if jq '.frontend.result = "skipped"' <<<"$projection" | require_lanes; then
+    echo "required frontend skip was accepted" >&2; return 1
+  fi
+  jq '.changes.outputs.web = "false" | .frontend.result = "skipped"' <<<"$projection" | require_lanes
+  for result in failure cancelled; do
+    if jq --arg result "$result" '.frontend.result = $result' <<<"$projection" | require_lanes; then
+      echo "frontend $result was accepted" >&2; return 1
+    fi
+  done
+  if jq '.preflight.result = "skipped"' <<<"$projection" | require_lanes; then
+    echo "preflight skip was accepted" >&2; return 1
+  fi
+  projection=$(jq '.changes.outputs.backend = "true" | .changes.outputs.heavy = "true" |
+    {changes, preflight, "go-integration": {result: "success"},
+     "go-terminal-windows": {result: "success"}, "e2e-runtime": {result: "success"},
+     "e2e-web": {result: "success"}, "e2e-desktop": {result: "success"}}' <<<"$projection")
+  require_lanes heavy <<<"$projection"
+  if jq 'del(."go-integration")' <<<"$projection" | require_lanes heavy; then
+    echo "missing integration was accepted" >&2; return 1
+  fi
+  if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
+    echo "required integration skip was accepted" >&2; return 1
+  fi
+  local scenario expected job skipped
+  while IFS='|' read -r scenario expected; do
+    projection=$(jq --arg scenario "$scenario" '
+      .changes.outputs = {backend: "false", web: "false", desktop: "false", heavy: "true"} |
+      if $scenario == "disabled" then .changes.outputs.heavy = "false"
+      else .changes.outputs[$scenario] = "true" end |
+      ."go-integration".result = "success" | ."go-terminal-windows".result = "success" |
+      ."e2e-runtime".result = "success" | ."e2e-web".result = "success" | ."e2e-desktop".result = "success"
+    ' <<<"$projection")
+    for job in go-integration go-terminal-windows e2e-runtime e2e-web e2e-desktop; do
+      skipped=$(jq --arg job "$job" '.[$job].result = "skipped"' <<<"$projection")
+      if [[ " $expected " == *" $job "* ]]; then
+        if require_lanes heavy <<<"$skipped"; then
+          echo "required $scenario/$job skip was accepted" >&2; return 1
+        fi
+      else
+        require_lanes heavy <<<"$skipped" || return 1
+      fi
+    done
+  done <<'HEAVY'
+web|e2e-runtime e2e-web e2e-desktop
+desktop|e2e-desktop
+disabled|
+HEAVY
+  jq 'with_entries(if .key == "changes" or .key == "preflight" then . else .value.result = "skipped" end)' <<<"$projection" | require_lanes heavy
+  python3 - <<'CHECK'
+import importlib.util
+import json
+import tempfile
+import os
+import runpy
+import subprocess
+from pathlib import Path
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location("ci_workspaces", "scripts/ci-workspaces.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert "compozy-web" in module.select(["packages/ui/src/index.ts"])
+assert "@compozy/site" in module.select(["internal/config/config.go"])
+assert "@compozy/lint-plugins" in module.select(["packages/ui/src/primitives.ts"])
+assert module.select(["unknown/input"]) == module.select(["package.json"])
+assert "compozy-web" in module.select(["web/deleted.ts"])
+assert module.select(["internal/session/manager.go"]) == []
+assert module.select(["AGENTS.md", ".agents/agents/example.md", "docs/_memory/lessons/example.md"]) == []
+assert "@compozy/site" in module.select(["docs/_memory/glossary.md"])
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / 'package.json').write_text('{"workspaces": []}')
+    (root / 'turbo.json').write_text('{"tasks": {"test": "invalid"}}')
+    assert module.select(['changed.ts'], root) == ['*']
+    (root / 'package.json').write_text('{"workspaces": ["lint-plugins"]}')
+    (root / 'lint-plugins').mkdir()
+    (root / 'lint-plugins/package.json').write_text('{"name": "@compozy/lint-plugins"}')
+    (root / '.turbo/runs').mkdir(parents=True)
+    frontend = str(Path('scripts/ci-frontend.py').resolve())
+    report = str(Path('scripts/ci-turbo-report.py').resolve())
+    previous = Path.cwd()
+    try:
+        os.chdir(root)
+        with patch.dict(os.environ, CI_WORKSPACES='["@compozy/lint-plugins"]'), patch('sys.argv', [frontend, 'web']):
+            with patch('subprocess.run'):
+                try:
+                    runpy.run_path(frontend)
+                    raise AssertionError('missing Turbo receipt accepted')
+                except RuntimeError:
+                    pass
+            def write_receipt(*args, **kwargs):
+                (root / '.turbo/runs/current.json').write_text('{"tasks": []}')
+            (root / '.turbo/runs/older.json').write_text('invalid stale receipt')
+            with patch('subprocess.run', side_effect=write_receipt):
+                runpy.run_path(frontend)
+            runpy.run_path(report)
+            (root / '.turbo/runs/current.json').write_text(json.dumps({'tasks': [{
+                'taskId': '@compozy/lint-plugins#test', 'package': '@compozy/lint-plugins',
+                'task': 'test', 'cache': {'status': 'HIT'}}]}))
+            with patch('subprocess.run') as audit:
+                runpy.run_path(report)
+                audit.assert_called_once_with(['bunx', '--no-install', 'turbo', 'run', 'test',
+                    '--filter=@compozy/lint-plugins', '--cache=', '--concurrency=2'], check=True)
+            failure = subprocess.CalledProcessError(7, ['turbo', 'test'])
+            with patch('subprocess.run', side_effect=failure):
+                try:
+                    runpy.run_path(report)
+                    raise AssertionError('failed cold audit was accepted')
+                except subprocess.CalledProcessError as error:
+                    assert error is failure
+            with patch('subprocess.run'):
+                try:
+                    runpy.run_path(frontend)
+                    raise AssertionError('stale Turbo receipt accepted')
+                except RuntimeError:
+                    pass
+            try:
+                runpy.run_path(report)
+                raise AssertionError('empty current-run manifest accepted')
+            except RuntimeError:
+                pass
+    finally:
+        os.chdir(previous)
+CHECK
+  echo "ci-changes self-test: classification, closure and gate contracts hold"
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
   self_test
+elif [[ "${1:-}" == "--classify" ]]; then
+  classify "$2"
+elif [[ "${1:-}" == "--require-lanes" ]]; then
+  require_lanes "${2:-fast}"
 else
   summarize
 fi

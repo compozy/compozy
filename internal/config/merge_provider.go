@@ -1,6 +1,9 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	if o.AutoCompactWindow != nil {
+		dst.AutoCompactWindow = new(*o.AutoCompactWindow)
+	}
 	if o.ReviewerMode != nil {
 		dst.ReviewerMode = *o.ReviewerMode
 	}

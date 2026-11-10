@@ -10,6 +10,7 @@ import {
 } from "./runtime-list-model";
 import {
   advancedRuntimeOptions,
+  normalizeRuntimeSelectorValue,
   sanitizeRuntimeACPSelections,
   setRuntimeACPSelection,
 } from "./runtime-advanced-options-model";
@@ -42,6 +43,7 @@ export interface UseRuntimeSelectorArgs {
   acpOptions?: RuntimeACPOption[];
   allowCustomProvider?: boolean;
   speed?: RuntimeSpeed;
+  retainUnavailableOptions?: boolean;
 }
 
 function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
@@ -70,6 +72,7 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
+/** Project the controlled runtime through its catalog and manage picker interactions. */
 export function useRuntimeSelector({
   value,
   onChange,
@@ -78,6 +81,7 @@ export function useRuntimeSelector({
   acpOptions,
   allowCustomProvider = false,
   speed,
+  retainUnavailableOptions = false,
 }: UseRuntimeSelectorArgs) {
   const popupStore = useStore(runtimeSelectorPopupLogic);
   const popupState = useSelector(popupStore, snapshot => snapshot.context);
@@ -107,24 +111,11 @@ export function useRuntimeSelector({
   const reasoningState = resolveReasoningState(selectedModel);
   const effectiveACPOptions = acpOptions ?? selectedModel?.acp_options;
   const advancedOptions = advancedRuntimeOptions(effectiveACPOptions);
-  const sanitizedACPSelections = sanitizeRuntimeACPSelections(
-    value.acp_options,
-    effectiveACPOptions
-  );
-  const normalizedReasoning =
-    value.reasoning_effort !== "" &&
-    !modelSupportsReasoningEffort(selectedModel, value.reasoning_effort)
-      ? ""
-      : value.reasoning_effort;
-  const normalizedValue: RuntimeSelectorValue = {
-    ...value,
-    reasoning_effort: normalizedReasoning,
-    ...(effectiveACPOptions
-      ? sanitizedACPSelections
-        ? { acp_options: sanitizedACPSelections }
-        : { acp_options: undefined }
-      : {}),
-  };
+  const normalizedValue = normalizeRuntimeSelectorValue(value, selectedModel, effectiveACPOptions);
+  // Only a model pick re-projects selections when the surface refuses unavailable ones itself.
+  const editableValue = retainUnavailableOptions
+    ? { ...normalizedValue, acp_options: value.acp_options }
+    : normalizedValue;
 
   const isFavoriteModel = (model: RuntimeModelOption) =>
     favorites.isFavorite(runtimeModelKey(model.provider, model.id));
@@ -259,18 +250,19 @@ export function useRuntimeSelector({
   const setReasoning = (effort: RuntimeSelectorValue["reasoning_effort"]) => {
     if (isProviderManaged(activeProvider)) return;
     if (effort !== "" && !modelSupportsReasoningEffort(selectedModel, effort)) return;
-    onChange({ ...normalizedValue, reasoning_effort: effort });
+    onChange({ ...editableValue, reasoning_effort: effort });
   };
 
-  const setACPOption = (selection: RuntimeACPOptionSelection | null) => {
+  const setACPOption = (optionID: string, selection: RuntimeACPOptionSelection | null) => {
     if (isProviderManaged(activeProvider)) return;
     const nextSelections = setRuntimeACPSelection(
-      normalizedValue.acp_options,
+      editableValue.acp_options,
+      optionID,
       selection,
-      effectiveACPOptions
+      retainUnavailableOptions ? undefined : effectiveACPOptions
     );
     onChange({
-      ...normalizedValue,
+      ...editableValue,
       ...(nextSelections ? { acp_options: nextSelections } : { acp_options: undefined }),
     });
   };

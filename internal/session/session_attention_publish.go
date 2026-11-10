@@ -11,6 +11,7 @@ import (
 
 // publishAttentionCommit keeps observer failures from failing an already committed mutation.
 func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, commit store.SessionAttentionCommit) {
+	sessionID = strings.TrimSpace(sessionID)
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	unlock, err := m.lockAttentionCommit(readCtx, sessionID)
@@ -37,10 +38,16 @@ func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, 
 			err,
 		)
 		if m.attentionStore != nil {
-			m.PublishPendingInteractionCommits([]store.SessionAttentionCommit{{
+			pending := []store.SessionAttentionCommit{{
 				Before:      commit.Before,
 				Interaction: &store.PendingInteraction{SessionID: sessionID},
-			}}, nil)
+			}}
+			if !m.PublishPendingInteractionCommits(pending, nil) {
+				// Closed worker admission must not discard an ordinary committed notification.
+				retryCtx, retryCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+				defer retryCancel()
+				m.reconcileAcknowledgedInteractions(retryCtx, pending, nil)
+			}
 		}
 	}
 }
@@ -52,6 +59,7 @@ func (m *Manager) emitAttentionCommit(
 	commit store.SessionAttentionCommit,
 	refreshCatalog bool,
 ) (func(), error) {
+	sessionID = strings.TrimSpace(sessionID)
 	m.attentionCommitMu.Lock()
 	if m.attentionPublished == nil {
 		m.attentionPublished = make(map[string]store.SessionAttention)
@@ -134,7 +142,12 @@ func (m *Manager) rememberPublishedAttention(after *Info) {
 		m.attentionCommitMu.Unlock()
 		return
 	}
-	m.attentionPublished[after.ID] = store.SessionAttention{
+	m.attentionPublished[after.ID] = attentionProjectionFromInfo(after)
+	m.attentionCommitMu.Unlock()
+}
+
+func attentionProjectionFromInfo(after *Info) store.SessionAttention {
+	return store.SessionAttention{
 		PendingPermissionCount: after.PendingPermissionCount,
 		PendingClarifyCount:    after.PendingClarifyCount,
 		AttentionRevision:      after.AttentionRevision,
@@ -145,7 +158,6 @@ func (m *Manager) rememberPublishedAttention(after *Info) {
 		EndedEarlyTurnID:       after.EndedEarlyTurnID,
 		FailureSeenAt:          cloneTimePointer(after.FailureSeenAt),
 	}
-	m.attentionCommitMu.Unlock()
 }
 
 func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {

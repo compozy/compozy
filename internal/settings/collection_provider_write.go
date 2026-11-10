@@ -75,6 +75,9 @@ func (s *service) putProvider(
 	modelCuration *ProviderModelCurationRequest,
 	secrets []ProviderSecretWrite,
 ) (MutationResult, error) {
+	// A newly supported window-only request edits one value, not the provider's
+	// authored launch policy. Keep full provider PUT replacement semantics intact.
+	windowOnly := settings.AutoCompactWindow != nil && !settings.ModelsSet && len(providerSettingsMap(settings)) == 1
 	reconciledSettings, err := s.reconcileProviderCuratedWrite(ctx, name, settings, modelCuration)
 	if err != nil {
 		return MutationResult{}, err
@@ -99,7 +102,7 @@ func (s *service) putProvider(
 		if err != nil {
 			return MutationResult{}, err
 		}
-		classification, err = s.classifyProviderWrite(ctx, name, settings)
+		classification, err = s.classifyProviderWrite(ctx, name, settings, windowOnly)
 		if err != nil {
 			return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 		}
@@ -123,6 +126,9 @@ func (s *service) putProvider(
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			path := []string{string(CollectionProviders), name}
+			if windowOnly {
+				return editor.SetValue(append(path, "auto_compact_window"), *settings.AutoCompactWindow)
+			}
 			if err := editor.Delete(path); err != nil {
 				return err
 			}
@@ -145,7 +151,7 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.SteerCapability != "" && settings.SessionEnv != nil {
+		settings.SteerCapability != "" && settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -164,6 +170,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
+	}
+	if settings.AutoCompactWindow == nil {
+		settings.AutoCompactWindow = provider.AutoCompactWindow
 	}
 	if settings.SessionEnv == nil {
 		settings.SessionEnv = compozyconfig.MergeSessionEnv(nil, provider.SessionEnv)
@@ -225,22 +234,23 @@ func (s *service) prepareProviderSecretWrites(
 
 func providerConfigFromSettings(settings ProviderSettings) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
-		Command:         strings.TrimSpace(settings.Command),
-		SteerCapability: settings.SteerCapability,
-		DisplayName:     strings.TrimSpace(settings.DisplayName),
-		Models:          providerModelsConfigFromSettings(settings.Models),
-		Harness:         settings.Harness,
-		RuntimeProvider: strings.TrimSpace(settings.RuntimeProvider),
-		Transport:       strings.TrimSpace(settings.Transport),
-		BaseURL:         strings.TrimSpace(settings.BaseURL),
-		AuthMode:        settings.AuthMode,
-		EnvPolicy:       settings.EnvPolicy,
-		HomePolicy:      settings.HomePolicy,
-		AuthStatusCmd:   strings.TrimSpace(settings.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
-		AuthACPMethod:   strings.TrimSpace(settings.AuthACPMethod),
-		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
-		SessionEnv:      compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		Command:           strings.TrimSpace(settings.Command),
+		SteerCapability:   settings.SteerCapability,
+		DisplayName:       strings.TrimSpace(settings.DisplayName),
+		Models:            providerModelsConfigFromSettings(settings.Models),
+		Harness:           settings.Harness,
+		RuntimeProvider:   strings.TrimSpace(settings.RuntimeProvider),
+		Transport:         strings.TrimSpace(settings.Transport),
+		BaseURL:           strings.TrimSpace(settings.BaseURL),
+		AuthMode:          settings.AuthMode,
+		EnvPolicy:         settings.EnvPolicy,
+		HomePolicy:        settings.HomePolicy,
+		AuthStatusCmd:     strings.TrimSpace(settings.AuthStatusCmd),
+		AuthLoginCmd:      strings.TrimSpace(settings.AuthLoginCmd),
+		AuthACPMethod:     strings.TrimSpace(settings.AuthACPMethod),
+		CredentialSlots:   providerCredentialSlotsFromSettings(settings.CredentialSlots),
+		SessionEnv:        compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		AutoCompactWindow: settings.AutoCompactWindow,
 	}
 }
 

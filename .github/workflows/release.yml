@@ -778,8 +778,8 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: make test-integration
 
-      - name: Upload integration artifacts on failure
-        if: failure()
+      - name: Upload integration timing and failure artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: integration-artifacts-${{ matrix.shard_index }}

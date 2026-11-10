@@ -104,10 +104,15 @@ func appendIdentitySections(
 		}
 	}
 	if hasSession(payload.Session) {
-		sections, err = appendRenderedSection(sections, "session", payload.Session)
+		sessionPayload := payload.Session
+		sessionPayload.Lineage = nil
+		sections, err = appendRenderedSection(sections, "session", sessionPayload)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if payload.Session.Lineage != nil {
+		return appendRenderedSection(sections, "lineage", payload.Session.Lineage)
 	}
 	return sections, nil
 }

@@ -4,6 +4,19 @@ package client
 
 import "time"
 
+// AgentInstanceProposalSource is a daemon API value.
+type AgentInstanceProposalSource struct {
+	SourceID   string `json:"source_id,omitempty"`
+	SourceRef  string `json:"source_ref,omitempty"`
+	ItemKey    string `json:"item_key,omitempty"`
+	URL        string `json:"url,omitempty"`
+	Kind       string `json:"kind"`
+	EventID    string `json:"event_id"`
+	TriggerID  string `json:"trigger_id"`
+	RunID      string `json:"run_id"`
+	ReceivedAt string `json:"received_at"`
+}
+
 // AgentInstanceReportPayload is a daemon API value.
 type AgentInstanceReportPayload struct {
 	Diagnostics   []string                   `json:"diagnostics,omitempty"`
@@ -239,6 +252,8 @@ type AgentPayload struct {
 	Label              string                              `json:"label"`
 	ResolvedAppearance map[string]any                      `json:"resolved_appearance"`
 	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow  *int                                `json:"auto_compact_window,omitempty"`
+	LeanEnvironment    *bool                               `json:"lean_environment,omitempty"`
 	Name               string                              `json:"name"`
 	Provider           string                              `json:"provider"`
 	Command            string                              `json:"command,omitempty"`
@@ -431,17 +446,3 @@ type AgentSoulPutByPathRequest struct {
 
 // AgentSoulRevisionAction is a daemon API value.
 type AgentSoulRevisionAction string
-
-// AgentSoulRevisionPayload is a daemon API value.
-type AgentSoulRevisionPayload struct {
-	ID             string                             `json:"id"`
-	AgentName      string                             `json:"agent_name"`
-	SourcePath     string                             `json:"source_path"`
-	Action         AgentSoulRevisionAction            `json:"action"`
-	PreviousDigest string                             `json:"previous_digest,omitempty"`
-	NewDigest      string                             `json:"new_digest,omitempty"`
-	Diagnostics    []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Actor          AuthoredContextActorPayload        `json:"actor"`
-	Origin         *AuthoredContextActorPayload       `json:"origin,omitempty"`
-	CreatedAt      time.Time                          `json:"created_at"`
-}

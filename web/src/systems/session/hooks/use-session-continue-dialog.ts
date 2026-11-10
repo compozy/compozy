@@ -4,10 +4,20 @@ import type { RuntimeSpeed } from "@/lib/api-contract";
 import {
   type AgentPayload,
   normalizeRuntimeSpeed,
-  resolveAgentRuntimeValue,
+  resolveAgentSessionRuntimeValue,
   useAgents,
 } from "@/systems/agent";
-import type { RuntimeSelectorValue } from "@/systems/runtime";
+import {
+  modelSupportsReasoningEffort,
+  normalizeRuntimeSelectorValue,
+  runtimeACPSelectionsEqual,
+  sanitizeRuntimeACPSelections,
+  type RuntimeACPOption,
+  type RuntimeACPOptionSelection,
+  type RuntimeModelOption,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
+import { useSessionContinueRuntimeOptions } from "./use-session-continue-runtime-options";
 
 import type { ContinueSessionRequest } from "../adapters/session-derive-api";
 import {
@@ -45,10 +55,77 @@ interface RuntimeOverride {
   speed: RuntimeSpeed;
 }
 
-function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runtime"] {
+/** An inherited selection left as-is stays daemon-owned instead of becoming an override. */
+function isUnchangedInherited(
+  selection: RuntimeACPOptionSelection,
+  value: RuntimeSelectorValue,
+  inherited: RuntimeSelectorValue
+): boolean {
+  return (
+    value.provider === inherited.provider &&
+    (inherited.acp_options ?? []).some(option => runtimeACPSelectionsEqual([selection], [option]))
+  );
+}
+
+/** The provider's advertised default for an option, when it names a valid value. */
+function advertisedDefault(option: RuntimeACPOption): RuntimeACPOptionSelection | null {
+  if (option.kind === "boolean" && typeof option.current_bool === "boolean") {
+    return { id: option.id, bool_value: option.current_bool };
+  }
+  const value = option.current_value_id?.trim();
+  return option.kind === "select" && value && option.values?.some(item => item.value === value)
+    ? { id: option.id, value_id: value }
+    : null;
+}
+
+/**
+ * Inherited options the operator returned to the provider default. An omitted option keeps
+ * inheriting from the agent, so a reset travels as the advertised default value. Selector
+ * normalization only removes selections the descriptors cannot honor, so a still-valid inherited
+ * option that is absent was cleared by the operator.
+ */
+function providerDefaultResets(
+  value: RuntimeSelectorValue,
+  inherited: RuntimeSelectorValue,
+  options: readonly RuntimeACPOption[] | undefined
+) {
+  const resets: RuntimeACPOptionSelection[] = [];
+  const unknown: RuntimeACPOption[] = [];
+  if (!options || value.provider !== inherited.provider) return { resets, unknown };
+  const optionsByID = new Map(options.map(option => [option.id, option]));
+  const selectedIDs = new Set(value.acp_options?.map(selection => selection.id));
+  for (const selection of inherited.acp_options ?? []) {
+    const option = optionsByID.get(selection.id);
+    if (
+      !option ||
+      selectedIDs.has(selection.id) ||
+      !sanitizeRuntimeACPSelections([selection], options)
+    ) {
+      continue;
+    }
+    const reset = advertisedDefault(option);
+    if (!reset) unknown.push(option);
+    else if (!runtimeACPSelectionsEqual([reset], [selection])) resets.push(reset);
+  }
+  return { resets, unknown };
+}
+
+/** Serialize the confirmed runtime without converting omitted speed into agent inheritance. */
+function runtimeRequest(
+  override: RuntimeOverride,
+  inherited: RuntimeSelectorValue,
+  resets: readonly RuntimeACPOptionSelection[]
+): ContinueSessionRequest["runtime"] {
   const provider = override.value.provider.trim();
   if (provider === "") return undefined;
   const model = override.value.model.trim();
+  // Keep inherited values visible, but leave unchanged defaults daemon-owned.
+  const acpOverrides = [
+    ...(override.value.acp_options ?? []).filter(
+      selection => !isUnchangedInherited(selection, override.value, inherited)
+    ),
+    ...resets,
+  ];
   return {
     provider,
     ...(model ? { model } : {}),
@@ -58,8 +135,98 @@ function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runt
     // Always explicit: an omitted speed inherits the agent's default, so a
     // fast-default agent switched to normal would still run fast.
     speed: override.speed,
-    ...(override.value.acp_options ? { acp_options: override.value.acp_options } : {}),
+    ...(acpOverrides.length > 0 ? { acp_options: acpOverrides } : {}),
   };
+}
+
+/** Match daemon effort inheritance: only the same provider and model keep the agent's effort. */
+function continuedRuntimeEffort(value: RuntimeSelectorValue, inherited: RuntimeSelectorValue) {
+  if (value.reasoning_effort) return value.reasoning_effort;
+  return value.provider === inherited.provider && value.model === inherited.model
+    ? inherited.reasoning_effort
+    : "";
+}
+
+/** Thinking as the daemon resolves it: the selection, then the advertised value, else off. */
+function cursorThinking(
+  model: RuntimeModelOption,
+  selections: readonly RuntimeACPOptionSelection[] | undefined
+): boolean {
+  const selected = selections?.find(selection => selection.id === "thinking")?.bool_value;
+  return (
+    selected ?? model.acp_options?.find(option => option.id === "thinking")?.current_bool ?? false
+  );
+}
+
+/** Check Cursor's observed effort, speed and thinking axes as one configuration. */
+function cursorConfigurationError(
+  model: RuntimeModelOption,
+  effort: RuntimeSelectorValue["reasoning_effort"],
+  speed: RuntimeSpeed,
+  selections: readonly RuntimeACPOptionSelection[] | undefined
+): string | null {
+  // The daemon matches an omitted effort against the model default; the wire keeps it omitted.
+  const resolvedEffort = effort || model.default_effort || "";
+  const pairs = (model.configurations ?? []).filter(
+    configuration =>
+      (!resolvedEffort ||
+        !configuration.reasoning_effort ||
+        configuration.reasoning_effort === resolvedEffort) &&
+      (configuration.fast == null || configuration.fast === (speed === "fast"))
+  );
+  if (pairs.length === 0) {
+    return "Choose a supported reasoning effort and speed combination before continuing.";
+  }
+  const thinking = cursorThinking(model, selections);
+  return pairs.some(pair => pair.thinking == null || pair.thinking === thinking)
+    ? null
+    : "Choose a thinking setting supported by this reasoning effort and speed before continuing.";
+}
+
+/** Validate observed runtime combinations; unknown capability data stays daemon-owned. */
+function runtimeCompatibilityError(
+  model: RuntimeModelOption | undefined,
+  effort: RuntimeSelectorValue["reasoning_effort"],
+  speed: RuntimeSpeed,
+  provider: string,
+  selections: readonly RuntimeACPOptionSelection[] | undefined
+): string | null {
+  if (!model) return null;
+  if (model.efforts.length > 0 && effort !== "" && !modelSupportsReasoningEffort(model, effort)) {
+    return model.efforts.some(level => level !== "none")
+      ? "Choose a reasoning effort supported by this model before continuing."
+      : "This model does not support the configured reasoning effort. Choose another model or agent.";
+  }
+  return provider === "cursor" && model.configurations?.length
+    ? cursorConfigurationError(model, effort, speed, selections)
+    : null;
+}
+
+/** The option's display label, falling back to its ID once its descriptor is gone. */
+function optionLabel(id: string, options: readonly RuntimeACPOption[]): string {
+  return options.find(option => option.id === id)?.label?.trim() || id;
+}
+
+/** Refuse advanced choices the current descriptors rule out instead of dropping them silently. */
+function advancedOptionsError(
+  requested: RuntimeSelectorValue,
+  inherited: RuntimeSelectorValue,
+  options: readonly RuntimeACPOption[] | undefined,
+  unknownDefaults: readonly RuntimeACPOption[]
+): string | null {
+  if (!options) return null;
+  const stale = requested.acp_options?.find(
+    selection =>
+      !isUnchangedInherited(selection, requested, inherited) &&
+      !sanitizeRuntimeACPSelections([selection], options)
+  );
+  if (stale) {
+    return `This model no longer offers the "${optionLabel(stale.id, options)}" setting you chose. Reselect the model to continue without it.`;
+  }
+  const unknown = unknownDefaults[0];
+  return unknown
+    ? `This provider doesn't advertise a default for "${optionLabel(unknown.id, options)}". Choose a value before continuing.`
+    : null;
 }
 
 export interface UseSessionContinueDialogInput {
@@ -90,6 +257,7 @@ export function useSessionContinueDialog({
   const [message, setMessage] = useState("");
   const [placement, setPlacement] = useState<SessionDerivePlacement>("new-window");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [runtimeValidationRequested, setRuntimeValidationRequested] = useState(false);
   const idempotencyKey = useSessionDeriveIdempotencyKey();
   const preview = useSessionDerivePreview(workspaceId, source.id, { enabled: open });
   const mutation = useSessionContinue();
@@ -106,9 +274,38 @@ export function useSessionContinueDialog({
   const selectedRoute = routes.some(option => option.route === route)
     ? route
     : SESSION_CONTINUE_DEFAULT_ROUTE;
-  const runtimeValue = runtime?.value ?? resolveAgentRuntimeValue(agent);
+  const runtimeOptions = useSessionContinueRuntimeOptions(workspaceId, open);
+  const agentRuntime = resolveAgentSessionRuntimeValue(agent);
+  const requestedValue = runtime?.value ?? agentRuntime;
+  const selectedModel = runtimeOptions.models.find(
+    model => model.provider === requestedValue.provider && model.id === requestedValue.model
+  );
+  const runtimeValue = normalizeRuntimeSelectorValue(requestedValue, selectedModel);
   const runtimeSpeed =
     runtime?.speed ?? (normalizeRuntimeSpeed(agent?.effective_runtime?.speed) || "normal");
+  const effort = continuedRuntimeEffort(requestedValue, agentRuntime);
+  const provider = runtimeOptions.providers.find(option => option.id === requestedValue.provider);
+  const defaultResets = providerDefaultResets(
+    requestedValue,
+    agentRuntime,
+    selectedModel?.acp_options
+  );
+  const runtimeValidationError =
+    selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
+      ? (runtimeCompatibilityError(
+          selectedModel,
+          effort,
+          runtimeSpeed,
+          provider?.runtime_provider ?? requestedValue.provider,
+          runtimeValue.acp_options
+        ) ??
+        advancedOptionsError(
+          requestedValue,
+          agentRuntime,
+          selectedModel?.acp_options,
+          defaultResets.unknown
+        ))
+      : null;
   const isSubmitting = mutation.isPending;
   const measured = preview.view.state === "ready" || preview.view.state === "truncated";
   const canSubmit = !isSubmitting && measured && agent !== undefined;
@@ -119,13 +316,31 @@ export function useSessionContinueDialog({
     setRuntime(null);
     setRoute(SESSION_CONTINUE_DEFAULT_ROUTE);
     setSubmitError(null);
+    setRuntimeValidationRequested(false);
   };
 
   const submit = () => {
     if (!canSubmit) return;
+    if (runtimeValidationError) {
+      setRuntimeValidationRequested(true);
+      return;
+    }
     const trimmedMessage = message.trim();
     const runtimeBody =
-      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE && runtime ? runtimeRequest(runtime) : null;
+      selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE
+        ? runtimeRequest(
+            {
+              value: {
+                ...runtimeValue,
+                // Catalog refreshes cannot erase an explicit choice; ACP validates unknown support.
+                reasoning_effort: effort,
+              },
+              speed: runtimeSpeed,
+            },
+            agentRuntime,
+            defaultResets.resets
+          )
+        : null;
     const request: ContinueSessionRequest = {
       agent_name: agentName,
       idempotency_key: idempotencyKey,
@@ -134,6 +349,7 @@ export function useSessionContinueDialog({
       ...(runtimeBody ? { runtime: runtimeBody } : {}),
     };
     setSubmitError(null);
+    setRuntimeValidationRequested(false);
     mutation.mutate(
       { workspaceId, sourceId: source.id, request },
       {
@@ -158,11 +374,12 @@ export function useSessionContinueDialog({
     agentsLoading: agentsQuery.isLoading,
     agentName,
     selectAgent,
-    runtimeValue,
+    runtimeSelectorValue: requestedValue,
     runtimeSpeed,
+    runtimeOptions,
     onRuntimeChange: (value: RuntimeSelectorValue, speed?: RuntimeSpeed) =>
       setRuntime({ value, speed: speed ?? runtimeSpeed }),
-    onRuntimeSpeedChange: (speed: RuntimeSpeed) => setRuntime({ value: runtimeValue, speed }),
+    onRuntimeSpeedChange: (speed: RuntimeSpeed) => setRuntime({ value: requestedValue, speed }),
     routes,
     route: selectedRoute,
     onRouteChange: setRoute,
@@ -172,7 +389,7 @@ export function useSessionContinueDialog({
     onPlacementChange: setPlacement,
     canChoosePlacement: handlers.openInThisWindow !== undefined,
     previewView: preview.view,
-    submitError,
+    submitError: (runtimeValidationRequested ? runtimeValidationError : null) ?? submitError,
     isSubmitting,
     canSubmit,
     submit,

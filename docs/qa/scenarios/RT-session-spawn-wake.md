@@ -152,3 +152,30 @@ the hook completes successfully, and the creator wake is delivered after the chi
 lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
 TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
 this change does not claim a new local E2E run.
+
+QA impact 2026-11-09 (harness token efficiency): replay the same child's attention revision
+after its first wake was admitted, including after daemon restart. The durable message identity
+must prevent a second turn. A new revision still wakes the parent, and failure to read the ledger
+must be reported rather than acknowledged as delivered. Monitor batching, reply-watch coverage
+and informative child events keep their existing behavior.
+
+QA impact 2026-11-09 (lifecycle baseline ordering): repeat the synchronous creator-to-child
+presence callback for lifecycle publication as well as ordinary and reconciled interaction
+publication. The callback must finish after the child publication lock is released. The canonical
+attention hook suite owns this boundary check; completed-wake suppression for canceled turns
+remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.
+
+QA impact 2026-11-09 (native settlement callback): complete a parent turn with unfinished
+provider-native work. Native interruption and parent attention settlement must finish before
+lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
+the parent receives a durable settled revision without waiting for cancellation. The canonical
+attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.
+
+QA impact 2026-11-09 (direct attention publication): delay clarification resolution publication
+until after an early-stop dismissal. Require exactly one waiting-for-input-to-idle event/hook,
+with no creator wake. Repeat with a first dismissal and delayed presence publication to ensure
+the clearing edge is retained once. Reconcile a padded session ID together with its canonical
+ID, retry it, then remove the session; require one edge and no retained baseline. Close worker
+admission before a transient ordinary publication read failure and require bounded synchronous
+recovery with one hook and one creator wake after unlock. The existing attention ordering and
+hook suites verify these SQLite schedules; CI owns the full transport/extension journey.

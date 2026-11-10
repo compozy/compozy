@@ -363,6 +363,35 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+		{
+			name: "Should keep harness controls optional with their declared scalar types",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				for _, name := range []string{
+					"AgentEffectiveRuntimePayload", "AgentPayload", "CreateAgentPayload", "DuplicateAgentOverrides",
+					"SettingsProviderSettingsPayload", "SettingsProviderWritePayload",
+				} {
+					schema := componentSchema(t, doc, name)
+					fields := map[string]string{"auto_compact_window": "integer"}
+					if !strings.HasPrefix(name, "SettingsProvider") {
+						fields["lean_environment"] = "boolean"
+					}
+					for field, kind := range fields {
+						value := propertySchema(t, schema, field)
+						if value.Type == nil || !value.Type.Is(kind) || slices.Contains(schema.Required, field) {
+							t.Fatalf(
+								"%s.%s must be optional %s: schema=%+v required=%v",
+								name,
+								field,
+								kind,
+								value,
+								schema.Required,
+							)
+						}
+					}
+				}
+			},
+		},
 
 		{
 			name: "Should describe the inactive-session native compaction refusal",
@@ -3282,6 +3311,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentEffectivePermissions(baseline) == 0 {
 			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
 		}
+		// #1424: agent effective runtime names the inherited ACP options permission policy excludes.
+		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
+			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
+		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
@@ -5966,6 +5999,31 @@ func addAgentEffectivePermissions(value any) int {
 			properties["permissions"] = map[string]any{"type": "string"}
 			count++
 		}
+	}
+	return count
+}
+
+func addAgentPolicyExcludedACPOptions(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["sources"] == nil || properties["session_env_status"] == nil {
+			return count
+		}
+		acpOptions, ok := properties["acp_options"].(map[string]any)
+		if !ok || properties["policy_excluded_acp_options"] != nil {
+			return count
+		}
+		properties["policy_excluded_acp_options"] = maps.Clone(acpOptions)
+		count++
 	}
 	return count
 }

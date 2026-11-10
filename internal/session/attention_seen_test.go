@@ -98,9 +98,38 @@ func TestManagerMarkAttentionSeen(t *testing.T) {
 			t.Fatalf("ReturnDueLaterSessions() = %d, %v, want the session back", returned, err)
 		}
 
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
 		seen, err := h.manager.MarkAttentionSeen(ctx, sess.ID)
 		if err != nil || seen.LaterReturnedAt != nil || BadgeForInfo(seen) != BadgeStopped {
 			t.Fatalf("MarkAttentionSeen(back from Later) = %#v, %v, want a plain stopped session", seen, err)
+		}
+		if len(edges) != 1 || edges[0].From != string(BadgeNeedsAttention) || edges[0].To != string(BadgeStopped) {
+			t.Fatalf("Later dismissal hooks: %+v", edges)
+		}
+		count := 0
+		for len(events) > 0 {
+			if event := <-events; event.Attention != nil {
+				count++
+				if event.Attention.From != BadgeNeedsAttention || event.Attention.To != BadgeStopped {
+					t.Fatalf("Later dismissal edge: %+v", event)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("Later dismissal events: %d", count)
 		}
 	})
 }
@@ -189,6 +218,199 @@ func TestAttentionBlockerForInfo(t *testing.T) {
 // Owner: session manager; canonical suite: TestManagerAttentionCommitOrdering.
 func TestManagerAttentionCommitOrdering(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish a nonresident dismissal without another catalog snapshot", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		sess := createSession(t, h)
+		h.manager.setEndedEarly(t.Context(), sess, "dismiss-nonresident")
+		h.manager.removeActive(sess.ID)
+		t.Cleanup(func() {
+			h.manager.sessionCatalog = db
+			h.manager.mu.Lock()
+			h.manager.sessions[sess.ID] = sess
+			h.manager.mu.Unlock()
+			reportSessionStop(t, h, sess.ID)
+		})
+		h.manager.sessionCatalog = &dismissalSnapshotFailureCatalog{SessionCatalog: db}
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		for range 2 {
+			seen, err := h.manager.MarkAttentionSeen(t.Context(), sess.ID)
+			if err != nil || seen.EndedEarlyTurnID != "" {
+				t.Fatalf("dismissal: %+v, %v", seen, err)
+			}
+			h.manager.sessionCatalog = db
+		}
+		if len(edges) != 1 || edges[0].From != string(BadgeNeedsAttention) || edges[0].To != string(BadgeIdle) {
+			t.Fatalf("nonresident dismissal hooks: %+v", edges)
+		}
+		count := 0
+		for len(events) > 0 {
+			if event := <-events; event.Attention != nil {
+				count++
+			}
+		}
+		canonical, err := db.GetSessionAttention(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 || canonical.EndedEarlyTurnID != "" {
+			t.Fatalf("dismissal state: count=%d canonical=%+v", count, canonical)
+		}
+	})
+	for _, publishedQuestion := range []bool{false, true} {
+		name := "Should retain the first dismissal baseline before delayed presence publication"
+		if publishedQuestion {
+			name = "Should dismiss from the published question instead of the unpublished early stop"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, _ := newMentionHarness(t)
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			ctx := t.Context()
+			if publishedQuestion {
+				question, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+					SessionID: sess.ID, InteractionID: "dismiss-question", ProviderRequestID: "dismiss-question",
+					Kind: store.PendingInteractionKindClarify,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.manager.commitTransitionPendingInteraction(
+					ctx,
+					sess.ID,
+					store.PendingInteractionTransition{
+						InteractionID: question.Interaction.InteractionID,
+						Status:        store.PendingInteractionStatusCanceled,
+						At:            h.manager.now(),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.manager.setEndedEarly(ctx, sess, "unpublished-turn")
+			// Commit presence without publishing, then restore a dismissible occurrence.
+			delayed, err := h.manager.commitAttention(ctx, sess.ID, func() (store.SessionAttentionCommit, error) {
+				return h.manager.attentionStore.MarkSessionSeen(ctx, sess.ID, h.manager.now())
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.manager.setEndedEarly(ctx, sess, "dismiss-turn")
+			var edges []hookspkg.SessionAttentionChangedPayload
+			h.manager.hooks.Attention = attentionHookFunc(
+				func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					edges = append(edges, p)
+					return p, nil
+				},
+			)
+			events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+				ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			sess.mu.Lock()
+			originalLineage := sess.Lineage
+			sess.Lineage = &store.SessionLineage{
+				ParentSessionID: "creator",
+				RootSessionID:   "creator",
+				SpawnDepth:      1,
+				NotifyCreator:   true,
+			}
+			sess.mu.Unlock()
+			t.Cleanup(func() { sess.mu.Lock(); sess.Lineage = originalLineage; sess.mu.Unlock() })
+			wakes := 0
+			h.manager.spawnWakeNotifier = attentionWakeFunc(
+				func(context.Context, string, SpawnWakeEvent) error { wakes++; return nil },
+			)
+			if _, err := h.manager.MarkAttentionSeen(ctx, sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			h.manager.publishAttentionCommit(ctx, sess.ID, delayed)
+			from := BadgeNeedsAttention
+			if publishedQuestion {
+				from = BadgeWaitingForInput
+			}
+			if len(edges) != 1 || edges[0].From != string(from) || edges[0].To != string(BadgeIdle) {
+				t.Fatalf("dismissal edges: %+v", edges)
+			}
+			count := 0
+			for len(events) > 0 {
+				if event := <-events; event.Attention != nil {
+					count++
+					if event.Attention.From != from || event.Attention.To != BadgeIdle {
+						t.Fatalf("catalog edge: %+v", event)
+					}
+				}
+			}
+			canonical, err := h.manager.attentionStore.GetSessionAttention(ctx, sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 || wakes != 0 || canonical.EndedEarlyTurnID != "" || BadgeForInfo(sess.Info()) != BadgeIdle {
+				t.Fatalf("dismissal final state: events=%d wakes=%d canonical=%+v", count, wakes, canonical)
+			}
+		})
+	}
+	t.Run("Should canonicalize padded reconciliation keys and forget them on removal", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newMentionHarness(t)
+		sess := createSession(t, h)
+		ctx := t.Context()
+		commit, err := h.manager.commitCreatePendingInteraction(ctx, store.PendingInteractionCreate{
+			SessionID:         sess.ID,
+			InteractionID:     "padded",
+			ProviderRequestID: "padded",
+			Kind:              store.PendingInteractionKindClarify,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var edges []hookspkg.SessionAttentionChangedPayload
+		h.manager.hooks.Attention = attentionHookFunc(
+			func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges = append(edges, p)
+				return p, nil
+			},
+		)
+		padded := commit
+		padded.Interaction = new(*commit.Interaction)
+		padded.Interaction.SessionID = "  " + sess.ID + "  "
+		publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{padded, commit})
+		publishAttentionCommitsAndWait(t, h.manager, []store.SessionAttentionCommit{padded})
+		if len(edges) != 1 || edges[0].From != string(BadgeIdle) || edges[0].To != string(BadgeWaitingForInput) {
+			t.Fatalf("padded reconciliation edges: %+v", edges)
+		}
+		canonical, err := h.manager.attentionStore.GetSessionAttention(ctx, sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if canonical.PendingClarifyCount != 1 || len(sess.Info().PendingInteractions) != 1 {
+			t.Fatalf("projection mismatch: %+v", canonical)
+		}
+		reportSessionStop(t, h, sess.ID)
+		h.manager.remove(sess.ID)
+		h.manager.attentionCommitMu.Lock()
+		defer h.manager.attentionCommitMu.Unlock()
+		if len(h.manager.attentionPublished) != 0 {
+			t.Fatalf("retained baselines: %+v", h.manager.attentionPublished)
+		}
+	})
 	for _, kind := range []string{"early", store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
 		t.Run("Should preserve newer "+kind+" attention after dismissal", func(t *testing.T) {
 			t.Parallel()
@@ -581,4 +803,19 @@ func (s *pausedTransitionStore) MarkSessionSeen(
 ) (store.SessionAttentionCommit, error) {
 	s.entered <- struct{}{}
 	return s.SessionAttentionStore.MarkSessionSeen(ctx, id, at)
+}
+
+// dismissalSnapshotFailureCatalog rejects a redundant publication read after Status has succeeded.
+type dismissalSnapshotFailureCatalog struct {
+	store.SessionCatalog
+}
+
+func (c *dismissalSnapshotFailureCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	if query.Limit == 1 {
+		return nil, errors.New("injected post-dismissal snapshot failure")
+	}
+	return c.SessionCatalog.ListSessions(ctx, query)
 }

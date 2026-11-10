@@ -101,6 +101,51 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 
 func TestStoppedSessionDiscardsLatePromptEvents(t *testing.T) {
 	t.Parallel()
+	t.Run("Should discard batched usage when stop closes its cost baseline read", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		ctx := testutil.Context(t)
+		var before *Info
+		active.setRecorder(&promptDeliveryQueryRecorder{
+			EventRecorder: active.recorderHandle(),
+			afterQueryRead: func(ctx context.Context) error {
+				if err := h.manager.Stop(ctx, active.ID); err != nil {
+					return err
+				}
+				before = active.Info()
+				return store.ErrClosed
+			},
+		})
+		turn := &promptTurnDispatchState{session: active, turnID: "late-cost-turn"}
+		out := make(chan acp.AgentEvent, 2)
+		event := acp.AgentEvent{
+			Type:  acp.EventTypeUsage,
+			Usage: &acp.TokenUsage{CostAmount: new(3.0), CostCurrency: new("USD")},
+		}
+		failure, errorText, stopPump := h.manager.handlePromptPumpChunkBatch(
+			ctx,
+			ctx,
+			active,
+			turn,
+			out,
+			&promptPumpLoopState{},
+			[]acp.AgentEvent{event},
+			&promptPumpFatal{},
+		)
+		if failure != nil || errorText != "" || stopPump {
+			t.Fatalf("closed baseline became prompt failure: %v %q stop=%t", failure, errorText, stopPump)
+		}
+		after := active.Info()
+		if len(out) != 0 || before.State != StateStopped || after.State != StateStopped ||
+			after.StopReason != before.StopReason ||
+			!reflect.DeepEqual(after.Failure, before.Failure) {
+			t.Fatalf("late usage changed terminal state: before=%+v after=%+v", before, after)
+		}
+		if got := countTranscriptMarkers(t, h.manager, active.ID, transcript.MarkerPostStop); got != 1 {
+			t.Fatalf("post-stop markers=%d, want 1", got)
+		}
+	})
 	for _, tc := range []struct{ batched, postRecord bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
 		batched := tc.batched
 		t.Run(

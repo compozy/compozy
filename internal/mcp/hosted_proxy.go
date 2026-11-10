@@ -307,7 +307,7 @@ func callHostedTool(
 }
 
 func hostedToolDescription(descriptor tools.Descriptor) string {
-	sections := make([]string, 0, 6)
+	sections := make([]string, 0, 2)
 	if title := strings.TrimSpace(descriptor.Presentation().DisplayTitle); title != "" {
 		if description := strings.TrimSpace(descriptor.Description); description != "" {
 			sections = append(sections, title+"\n\n"+description)
@@ -321,16 +321,7 @@ func hostedToolDescription(descriptor tools.Descriptor) string {
 	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
 		sections = append(sections, "Compozy canonical tool ID: "+id)
 	}
-	if toolsets := hostedToolsetNames(descriptor.Toolsets); toolsets != "" {
-		sections = append(sections, "Compozy toolsets: "+toolsets)
-	}
-	if tags := hostedDescriptionValues(descriptor.Tags); tags != "" {
-		sections = append(sections, "Tags: "+tags)
-	}
-	if hints := hostedDescriptionValues(descriptor.SearchHints); hints != "" {
-		sections = append(sections, "Search hints: "+hints)
-	}
-	sections = append(sections, "Call the harness-returned tool reference.")
+
 	return strings.Join(sections, "\n\n")
 }
 
@@ -366,20 +357,6 @@ func hostedSearchHint(descriptor tools.Descriptor) string {
 		}
 	}
 	return strings.Join(values, " | ")
-}
-
-func hostedToolsetNames(toolsets []tools.ToolsetID) string {
-	values := make([]string, 0, len(toolsets))
-	for _, toolset := range toolsets {
-		if value := strings.TrimSpace(toolset.String()); value != "" {
-			values = append(values, value)
-		}
-	}
-	return strings.Join(values, ", ")
-}
-
-func hostedDescriptionValues(values []string) string {
-	return strings.Join(cleanedValues(values), ", ")
 }
 
 func cleanedValues(values []string) []string {

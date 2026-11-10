@@ -99,7 +99,8 @@ Agent list and detail responses identify the effective definition with `origin` 
 `workspace`) and `workspace_id` when the winner is workspace-local. They also return the resolved
 `skills` policy, a canonical `definition_digest`, and a workspace-scoped `effective_runtime`
 projection. That projection reports provider, model, reasoning effort, speed, ACP options, and source
-metadata without rewriting the authored fields. Use it instead of inferring the winner or runtime
+metadata without rewriting the authored fields. `policy_excluded_acp_options` lists the inherited
+unrestricted ACP options a new session drops because of its permission level. Use it instead of inferring the winner or runtime
 from a filesystem path.
 
 A workspace definition shadows a global definition with the same name. Updates, duplicates, and

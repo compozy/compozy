@@ -188,6 +188,8 @@ For an operator-authored new definition, send `name` plus `command`/`args` for s
 `session_env_status` metadata under `effective_runtime`: reference, source, presence, and whether
 the declaration is required. These reads never resolve Vault plaintext. The Web Configuration
 tab displays the same metadata; unrelated Settings edits preserve authored environment maps.
+`effective_runtime.policy_excluded_acp_options` lists the inherited unrestricted ACP options a new
+session drops under its permission level; `effective_runtime.acp_options` still reports them.
 
 Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
@@ -477,3 +479,16 @@ publication; reads project it as `auto_accept_status`. Picks use the main sessio
 permissions and preserve proposal text inside an untrusted fence. Auto picks are
 synthetic turns and count toward the unattended limit. Pause/archive cancels
 queued auto picks; picks never retarget a rotated main session.
+
+## Reduced Claude environment
+
+Set `lean_environment: true` in an `AGENT.md` definition to exclude Claude Code MCP
+servers outside the CompozyOS launch, claude.ai connectors, and auto-memory. CompozyOS
+still supplies the session's configured MCP servers. Repository `CLAUDE.md`
+instructions, native skills, built-in tools, and settings hooks remain available.
+The option applies on creation and resume and is ignored by non-Claude providers.
+
+Daemon `system` and heartbeat `triage` sessions always use this reduced environment.
+User and spawned worker sessions retain the existing environment unless their
+definition opts in; `false` keeps the ordinary environment for these roles. The
+input-only title pass retains its stricter tool-free environment.

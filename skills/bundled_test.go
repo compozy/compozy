@@ -75,6 +75,28 @@ func TestBundledFSContainsOnlyCompozySkill(t *testing.T) {
 func TestLoadContentReturnsSkillBody(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should route to every bundled reference and retain native control boundaries", func(t *testing.T) {
+		t.Parallel()
+		content, err := LoadContent("compozy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, reference := range expectedCompozyReferences {
+			if !strings.Contains(content, reference) {
+				t.Fatalf("reference %s is unreachable from the router", reference)
+			}
+		}
+		for _, token := range []string{
+			"compozy__skill_view", "compozy__tool_artifact_read", "data_base64", "next_offset",
+			"compozy__monitor_create", "compozy__terminal_exec", "still_running", "terminal_id",
+			"never bypass withheld capabilities", "A delegated assignment or role label alone grants no Task claim",
+		} {
+			if !strings.Contains(content, token) {
+				t.Fatalf("router lost required control boundary %q", token)
+			}
+		}
+	})
+
 	t.Run("Should strip frontmatter", func(t *testing.T) {
 		t.Parallel()
 

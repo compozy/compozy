@@ -203,8 +203,11 @@ export type AgentDraftRuntime = {
 
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  auto_compact_window?: number | null;
+  lean_environment?: boolean | null;
   model?: string;
   permissions?: string;
+  policy_excluded_acp_options?: Array<AgentACPOptionSelection>;
   provider: string;
   reasoning_effort?: string;
   session_env?: {
@@ -608,6 +611,7 @@ export type AgentPayload = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   definition_digest: string;
@@ -620,6 +624,7 @@ export type AgentPayload = {
   kind?: string;
   label: string;
   layer?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerJSON>;
   model?: string;
   name: string;
@@ -1821,6 +1826,7 @@ export type CreateAgentPayload = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
@@ -1832,6 +1838,7 @@ export type CreateAgentPayload = {
    */
   kind?: "on_demand" | "always_on";
   label?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerInput>;
   model?: string;
   name: string;
@@ -2146,6 +2153,7 @@ export type DuplicateAgentOverrides = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   clear_acp_options?: boolean;
   clear_speed?: boolean;
@@ -2157,6 +2165,7 @@ export type DuplicateAgentOverrides = {
    * Agent kind: on_demand (default) or always_on; fixed at creation.
    */
   kind?: "on_demand" | "always_on";
+  lean_environment?: boolean | null;
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -9186,6 +9195,7 @@ export type SettingsProviderSettingsPayload = {
   auth_acp_method?: string;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   command_inherited?: boolean;
@@ -9246,6 +9256,7 @@ export type SettingsProviderWritePayload = {
   auth_login_command?: string | null;
   auth_mode?: string;
   auth_status_command?: string;
+  auto_compact_window?: number | null;
   base_url?: string;
   command?: string;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
@@ -13393,6 +13404,7 @@ export type CreateAgentPayloadWritable = {
   appearance?: {
     [key: string]: unknown;
   };
+  auto_compact_window?: number | null;
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
@@ -13404,6 +13416,7 @@ export type CreateAgentPayloadWritable = {
    */
   kind?: "on_demand" | "always_on";
   label?: string;
+  lean_environment?: boolean | null;
   mcp_servers?: Array<AgentMCPServerInputWritable>;
   model?: string;
   name: string;

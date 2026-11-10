@@ -55,6 +55,7 @@ function expectNoSkippedHeadingLevels(): void {
 }
 
 describe("public heading hierarchy", () => {
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- The full asynchronous page and accessible heading tree render together; this bounds real DOM traversal.
   it("keeps the landing page to one primary heading", async () => {
     render(await HomePage());
 

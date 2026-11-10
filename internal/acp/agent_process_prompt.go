@@ -159,33 +159,40 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string, bool, SystemPromptDeliveryMode) {
-	if maintenance {
-		return message, false, ""
+func (p *AgentProcess) nextPromptText(
+	message string,
+	req PromptRequest,
+) (string, bool, SystemPromptDeliveryMode, StartupManifest) {
+	if req.BypassesContext() {
+		return message, false, "", StartupManifest{}
 	}
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()
 	defer p.systemPromptMu.Unlock()
 
-	systemPrompt := strings.TrimSpace(p.systemPrompt)
-	if p.systemPromptSent || systemPrompt == "" {
-		return userMessage, false, ""
+	systemPrompt, manifest := p.startupPromptForRequest(req)
+	systemPrompt = strings.TrimSpace(systemPrompt)
+	if p.systemPromptSent || strings.TrimSpace(p.systemPrompt) == "" {
+		return userMessage, false, "", StartupManifest{}
+	}
+	if len(manifest.Spans) == 0 && systemPrompt != "" {
+		manifest = OpaqueStartupManifest(systemPrompt, false)
 	}
 
 	delivery := p.systemPromptDelivery
 	if delivery == "" {
 		delivery = SystemPromptDeliveryFirstTurnPrefix
 	}
-	if delivery == SystemPromptDeliveryNative {
-		return userMessage, true, delivery
+	if delivery == SystemPromptDeliveryNative || systemPrompt == "" {
+		return userMessage, true, delivery, manifest
 	}
 	return strings.TrimSpace(
 		"Session instructions (treat as system guidance for this conversation):\n\n" +
 			systemPrompt +
 			"\n\nUser request:\n\n" +
 			userMessage,
-	), true, delivery
+	), true, delivery, manifest
 }
 
 // ReplacePendingStartupPrompt swaps startup guidance that has not reached the provider:
