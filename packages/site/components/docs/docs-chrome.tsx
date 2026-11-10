@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { DocsChromeContext, type DocsChromeValue } from "@/components/docs/docs-chrome-context";
 import { FOCUS, LINE } from "@/components/docs/docs-classes";
+import { DocsModal } from "@/components/docs/docs-modal";
 import { useDocsChrome } from "@/components/docs/hooks/use-docs-chrome";
 
 export function DocsChromeProvider({ children }: { children: ReactNode }) {
@@ -49,22 +50,15 @@ export function DocsDrawer({ children }: { children: ReactNode }) {
   const { menu, close } = useDocsChrome();
   if (!menu) return null;
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      <button
-        type="button"
-        aria-label="Close navigation"
-        onClick={close}
-        className="absolute inset-0 cursor-default bg-site-dark-700 backdrop-blur-sm"
-      />
-      <dialog
-        open
-        aria-modal="true"
-        aria-label="Docs navigation"
-        className={cn(
-          "docs-rail absolute inset-y-0 right-auto left-0 m-0 h-full max-h-none w-[min(340px,88vw)] overflow-y-auto border-y-0 border-r border-l-0 bg-[#0c0c0c] px-4 pt-4 pb-10 text-fg",
-          LINE
-        )}
-      >
+    <DocsModal
+      label="Docs navigation"
+      onClose={close}
+      className={cn(
+        "docs-rail fixed inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-[min(340px,88vw)] max-w-none overflow-y-auto border-y-0 border-r border-l-0 bg-[#0c0c0c] lg:hidden",
+        LINE
+      )}
+    >
+      <div className="min-h-full px-4 pt-4 pb-10">
         <button
           type="button"
           aria-label="Close navigation"
@@ -77,7 +71,7 @@ export function DocsDrawer({ children }: { children: ReactNode }) {
           <XIcon className="size-4" aria-hidden />
         </button>
         {children}
-      </dialog>
-    </div>
+      </div>
+    </DocsModal>
   );
 }
