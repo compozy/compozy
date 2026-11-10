@@ -3,14 +3,21 @@ package shellwait
 import (
 	"encoding/json"
 	"io"
+	"strings"
 )
 
 // HookCommandName is the hidden CLI verb a provider PreToolUse hook runs.
 const HookCommandName = "shell-wait-hook"
 
+const subagentWaitDenyReason = "CompozyOS monitors wake the parent session, not a Claude provider-native subagent. " +
+	"Do not register a monitor or end your turn expecting a monitor to resume you. " +
+	"Return the pending work and any terminal_id to your parent so it can register the monitor and resume you, " +
+	"or use a separate CompozyOS child session for work that needs its own wake."
+
 const powerShellToolName = "PowerShell"
 
 type hookInput struct {
+	AgentID   string `json:"agent_id"`
 	ToolName  string `json:"tool_name"`
 	ToolInput struct {
 		Command string `json:"command"`
@@ -23,22 +30,32 @@ type hookDecision struct {
 	PermissionDecisionReason string `json:"permissionDecisionReason"`
 }
 
-// RunHook answers one PreToolUse hook call: it writes a deny decision for a
-// shell wait and nothing otherwise. Every failure allows the command, because a
-// broken guard must never stop a session's shell.
+// RunHook refuses unsupported waits; malformed input fails open.
 func RunHook(stdin io.Reader, stdout io.Writer) {
 	var input hookInput
 	if err := json.NewDecoder(stdin).Decode(&input); err != nil {
 		return
 	}
-	finding, found := detectForTool(input)
-	if !found {
-		return
+	reason := ""
+	if input.ToolName == "compozy__monitor_create" || strings.HasSuffix(input.ToolName, "__compozy__monitor_create") {
+		if strings.TrimSpace(input.AgentID) == "" {
+			return
+		}
+		reason = subagentWaitDenyReason
+	} else {
+		finding, found := detectForTool(input)
+		if !found {
+			return
+		}
+		reason = DenyReason(finding)
+		if strings.TrimSpace(input.AgentID) != "" {
+			reason = subagentWaitDenyReason
+		}
 	}
 	decision := map[string]hookDecision{"hookSpecificOutput": {
 		HookEventName:            "PreToolUse",
 		PermissionDecision:       "deny",
-		PermissionDecisionReason: DenyReason(finding),
+		PermissionDecisionReason: reason,
 	}}
 	if err := json.NewEncoder(stdout).Encode(decision); err != nil {
 		return

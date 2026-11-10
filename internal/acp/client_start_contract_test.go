@@ -2427,11 +2427,15 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 			)
 		}
 		hooks := options.Settings.Hooks.PreToolUse
-		if len(hooks) != 1 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
+		if len(hooks) != 2 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
 			hooks[0].Hooks[0].Type != "command" ||
 			!strings.Contains(hooks[0].Hooks[0].Command, "run_in_background") ||
 			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
-			t.Fatalf("%s PreToolUse hooks = %#v, want one shell run_in_background deny hook", method, hooks)
+			t.Fatalf("%s PreToolUse hooks = %#v, want shell background and subagent monitor guards", method, hooks)
+		}
+		if hooks[1].Matcher != "(^|.*__)compozy__monitor_create$" || len(hooks[1].Hooks) != 1 ||
+			!strings.Contains(hooks[1].Hooks[0].Command, "__internal shell-wait-hook") {
+			t.Fatalf("%s monitor guard = %#v", method, hooks[1])
 		}
 		// Only the four SDK task lifecycle messages are forwarded, never every raw SDK message.
 		wantFilters := []map[string]string{
