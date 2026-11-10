@@ -2215,7 +2215,8 @@ describe("session lifecycle batches", () => {
   }
 
   // Invariant: selection parity verbs apply only to eligible rows, keep owner routing and
-  // report each failure after all outstanding targets settle. Owner: lifecycle batch hook.
+  // publish per-item progress and report each failure after all outstanding targets settle.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
   it.each(["mark-seen", "make-top-level"] as const)(
     "Should apply %s with per-item outcomes",
     async action => {
@@ -2227,7 +2228,7 @@ describe("session lifecycle batches", () => {
         lineage: {
           ...createdSession.lineage,
           kind: "provenance",
-          parent_session_id: "parent",
+          parent_session_id: `parent-${index}`,
           root_session_id: `parent-${index}`,
         },
       })) as SessionPayload[];
@@ -2258,7 +2259,21 @@ describe("session lifecycle batches", () => {
       });
       const mutation = action === "mark-seen" ? markSessionSeen : clearSessionParent;
       await waitFor(() => expect(mutation).toHaveBeenCalledTimes(5));
+      await waitFor(() =>
+        expect(result.current.batchResults.map(row => row.status)).toEqual([
+          "running",
+          "failed",
+          "done",
+          "done",
+          "done",
+        ])
+      );
       expect(result.current.actions.pendingAction).toBe(action);
+      expect(result.current.actions.pendingSessionId).toBe(eligible[0]!.id);
+      act(() => result.current.actions.onMoveToLater?.(createdSession));
+      expect(result.current.laterDialog.open).toBe(false);
+      act(() => result.current.actions.onBackFromLater?.(createdSession));
+      expect(resumeSessionFromLater).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
       await act(async () => release());
       await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());

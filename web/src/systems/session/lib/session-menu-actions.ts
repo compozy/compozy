@@ -16,9 +16,9 @@ import {
   Undo2,
   UserRound,
 } from "@compozy/ui/icons";
-import type { SessionPayload } from "../types";
-import { batchSkipReason } from "./session-batch-feedback";
-import { sessionCanMakeTopLevel } from "./session-reparent";
+import type { SessionPayload } from "@/systems/session/types";
+import { batchSkipReason } from "@/systems/session/lib/session-batch-feedback";
+import { sessionCanMakeTopLevel } from "@/systems/session/lib/session-reparent";
 
 /** Labels, icons and batch eligibility have one owner for row and selection menus. */
 export const SESSION_MENU_ACTIONS = {
@@ -89,6 +89,7 @@ export type SessionBatchMenuActionId = {
     : never;
 }[SessionMenuActionId];
 
+/** Row wording names the stop-first archive consequence for live sessions. */
 export function sessionRowAction(id: SessionMenuActionId, session: SessionPayload) {
   const definition = SESSION_MENU_ACTIONS[id];
   return {
@@ -101,6 +102,7 @@ export function sessionRowAction(id: SessionMenuActionId, session: SessionPayloa
   };
 }
 
+/** Selection wording and eligibility come from the same definitions as row actions. */
 export function sessionBatchAction(id: SessionBatchMenuActionId, liveArchive = false) {
   const definition = SESSION_MENU_ACTIONS[id];
   return {

@@ -1,10 +1,14 @@
 import { useRef } from "react";
 import { toast } from "@compozy/ui";
-import { runSessionBatch } from "../lib/session-batch";
-import { batchSkipNote, batchVerbPast, reportBatch } from "../lib/session-batch-feedback";
-import { sessionBatchAction } from "../lib/session-menu-actions";
-import type { SessionPayload } from "../types";
-import { useMarkSessionSeen } from "./use-mark-session-seen";
+import { runSessionBatch, type SessionBatchResult } from "@/systems/session/lib/session-batch";
+import {
+  batchSkipNote,
+  batchVerbPast,
+  reportBatch,
+} from "@/systems/session/lib/session-batch-feedback";
+import { sessionBatchAction } from "@/systems/session/lib/session-menu-actions";
+import type { SessionPayload } from "@/systems/session/types";
+import { useMarkSessionSeen } from "@/systems/session/hooks/use-mark-session-seen";
 
 type MenuBatchAction = "mark-seen" | "make-top-level";
 
@@ -12,7 +16,8 @@ type MenuBatchAction = "mark-seen" | "make-top-level";
 export function useSessionBatchMenuActions(
   busy: boolean,
   detach: (session: SessionPayload) => Promise<unknown>,
-  setPendingAction: (action: MenuBatchAction | null) => void
+  setPendingAction: (action: MenuBatchAction | null) => void,
+  onProgress: (results: readonly SessionBatchResult[]) => void
 ) {
   const markSeen = useMarkSessionSeen();
   const running = useRef(false);
@@ -41,7 +46,7 @@ export function useSessionBatchMenuActions(
         ids: eligible.map(session => session.id),
         sessions: eligible,
         previous: [],
-        onProgress: () => {},
+        onProgress,
         execute: id =>
           action === "mark-seen" ? markSeen.mutateAsync(byId.get(id)!) : detach(byId.get(id)!),
       });

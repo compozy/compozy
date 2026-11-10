@@ -1,4 +1,4 @@
-import { useSessionBatchMenuActions } from "./use-session-batch-menu-actions";
+import { useSessionBatchMenuActions } from "@/systems/session/hooks/use-session-batch-menu-actions";
 import {
   batchSkipReason,
   batchSkipNote,
@@ -19,7 +19,6 @@ import {
 
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
-  readArchivedDescendants,
   sessionBatchCoverage,
   sessionChildrenChoice,
   sessionChildrenScope,
@@ -39,13 +38,14 @@ import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
 import { useSessionDeleteTrees } from "./use-session-delete-trees";
 import {
   archiveTarget,
+  notifyArchivedSessions,
   loadSessionProcessChoice,
   descendantsOf,
   sessionArchiveChoiceState,
   reportActionError,
   reportDeletedSessions,
   settleTreeTarget,
-} from "./session-lifecycle-helpers";
+} from "@/systems/session/hooks/session-lifecycle-helpers";
 import { useSessionReparent } from "./use-session-reparent";
 import { useSessionLaterActions } from "./use-session-later-actions";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
@@ -137,7 +137,8 @@ export function useSessionLifecycleActions(
   const menuBatch = useSessionBatchMenuActions(
     ownPending !== null || later.pendingAction !== null,
     reparent.detachAsync,
-    setBatchAction
+    setBatchAction,
+    setBatchResults
   );
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionId = lifecyclePendingSessionId({
@@ -148,16 +149,8 @@ export function useSessionLifecycleActions(
     laterSessionId: later.pendingSessionId,
   });
 
-  /** A host's follow-up failing does not undo an archive the daemon confirmed. */
-  const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
-    const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
-    const results = await Promise.allSettled(
-      [session, ...children].map(target => onArchiveSuccess?.(target))
-    );
-    for (const result of results) {
-      if (result.status === "rejected") reportActionError("archive", result.reason);
-    }
-  };
+  const notifyArchived = (session: SessionPayload, trees?: SessionTrees) =>
+    notifyArchivedSessions(queryClient, session, trees, onArchiveSuccess);
 
   /** Lock lifecycle controls until the bounded batch has settled every target. */
   const runBatch = async (
