@@ -17923,3 +17923,86 @@ func TestNativeSessionResultViews(t *testing.T) {
 		)
 	}
 }
+
+func TestNativeToolHookResultViews(t *testing.T) {
+	t.Parallel()
+	for _, view := range []toolspkg.ResultView{"", toolspkg.ResultViewCompact, toolspkg.ResultViewFull} {
+		t.Run("Should report the resolved request view "+string(view), func(t *testing.T) {
+			t.Parallel()
+			descriptor := toolspkg.Descriptor{
+				ID: "compozy__hook_views", Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo}, ReadOnly: true,
+			}
+			if view != "" {
+				descriptor.SetResultViews(&toolspkg.ResultViews{})
+			}
+			call := toolspkg.CallRequest{
+				ToolID:     descriptor.ID,
+				ToolCallID: "call-views",
+				Input:      json.RawMessage(`{}`),
+				View:       view,
+				PinnedView: view,
+			}
+			wantRef := hookspkg.ToolCallRef{
+				ToolID: descriptor.ID.String(), ToolCallID: call.ToolCallID, ReadOnly: true,
+				HasResultViews: view != "", PinnedResultView: string(view),
+			}
+			var events []string
+			hooks := &fakeHookRuntime{
+				onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+					events = append(events, "pre")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("pre-call ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+				onToolPostCall: func(_ context.Context, payload hookspkg.ToolPostCallPayload) error {
+					events = append(events, "post")
+					if payload.ToolCallRef != wantRef || payload.ResultView != string(view) {
+						t.Errorf(
+							"post-call ref/view=%#v/%s, want %#v/%s",
+							payload.ToolCallRef,
+							payload.ResultView,
+							wantRef,
+							view,
+						)
+					}
+					return nil
+				},
+				onToolPostError: func(_ context.Context, payload hookspkg.ToolPostErrorPayload) error {
+					events = append(events, "error")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("post-error ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+			}
+			runner := &nativeToolHookRunner{hooks: hooks, binder: &nativeWorkspaceInputBinder{}}
+			if _, _, err := runner.PreCall(t.Context(), toolspkg.Scope{}, descriptor, call); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runner.PostCall(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				toolspkg.ToolResult{},
+			); err != nil {
+				t.Fatal(err)
+			}
+			failure := errors.New("handler failed")
+			if got, err := runner.PostError(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				failure,
+			); err != nil ||
+				!errors.Is(got, failure) {
+				t.Fatalf("PostError=%v, %v", got, err)
+			}
+			if !slices.Equal(events, []string{"pre", "post", "error"}) {
+				t.Fatalf("hook events=%v", events)
+			}
+		})
+	}
+}

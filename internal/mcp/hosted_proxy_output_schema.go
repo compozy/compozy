@@ -8,9 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// hostedDeclaredSchemaPointer locates the declared schema inside the widened advertised schema.
-const hostedDeclaredSchemaPointer = "#/anyOf/0"
-
 // hostedResultEnvelopeSchema accepts the structured continuation emitted when the canonical
 // payload is unavailable, most commonly because the result exceeded the tool result budget.
 const hostedResultEnvelopeSchema = `{
@@ -54,42 +51,45 @@ const hostedErrorEnvelopeSchema = `{
 	}
 }`
 
-// hostedOutputSchema widens a descriptor output schema so every hosted result shape validates:
-// the declared payload, the structured result continuation, or a typed tool error. MCP clients
-// validate structuredContent against the advertised schema, including on error results.
-func hostedOutputSchema(schema json.RawMessage) any {
-	if len(schema) == 0 {
+// hostedOutputSchema accepts each declared view, the result continuation, and typed tool errors.
+func hostedOutputSchema(descriptor tools.Descriptor) any {
+	schemas := []json.RawMessage{descriptor.OutputSchema}
+	if views := descriptor.ResultViews(); views != nil {
+		schemas = []json.RawMessage{views.Compact.Schema, views.Full.Schema}
+	}
+	if len(schemas[0]) == 0 {
 		return nil
 	}
-	decoded, err := decodeHostedJSON(schema)
-	if err != nil {
-		return cloneRaw(schema)
-	}
-	declared, ok := decoded.(map[string]any)
-	if !ok {
-		return cloneRaw(schema)
-	}
 	wrapped := map[string]any{"type": "object"}
-	if dialect, present := declared["$schema"]; present {
-		wrapped["$schema"] = dialect
-		delete(declared, "$schema")
+	branches := make([]any, 0, len(schemas)+2)
+	for index, schema := range schemas {
+		decoded, err := decodeHostedJSON(schema)
+		if err != nil {
+			return cloneRaw(schema)
+		}
+		declared, ok := decoded.(map[string]any)
+		if !ok {
+			return cloneRaw(schema)
+		}
+		if dialect, present := declared["$schema"]; present {
+			if index == 0 {
+				wrapped["$schema"] = dialect
+			}
+			delete(declared, "$schema")
+		}
+		rebaseHostedSchemaRefs(declared, "#/anyOf/"+strconv.Itoa(index))
+		branches = append(branches, declared)
 	}
-	if _, embedded := declared["$id"]; !embedded {
-		// Without its own $id the declared schema shares the advertised document, so every local
-		// JSON pointer it uses must now start at its new location.
-		rebaseHostedSchemaRefs(declared)
-	}
-	wrapped["anyOf"] = []any{
-		declared,
+	wrapped["anyOf"] = append(branches,
 		json.RawMessage(hostedResultEnvelopeSchema),
 		json.RawMessage(hostedErrorEnvelopeSchema),
-	}
+	)
 	return wrapped
 }
 
 // rebaseHostedSchemaRefs rewrites local "#" and "#/..." references of one schema object in place.
 // Plain-name anchors ("#name") are location-independent and stay unchanged.
-func rebaseHostedSchemaRefs(schema map[string]any) {
+func rebaseHostedSchemaRefs(schema map[string]any, pointer string) {
 	if _, embedded := schema["$id"]; embedded {
 		return
 	}
@@ -97,29 +97,29 @@ func rebaseHostedSchemaRefs(schema map[string]any) {
 		switch keyword {
 		case "$ref", "$dynamicRef":
 			if ref, ok := value.(string); ok && (ref == "#" || strings.HasPrefix(ref, "#/")) {
-				schema[keyword] = hostedDeclaredSchemaPointer + strings.TrimPrefix(ref, "#")
+				schema[keyword] = pointer + strings.TrimPrefix(ref, "#")
 			}
 		case "const", "enum", "default", "examples":
 			// Instance values, not subschemas.
 		case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas":
 			if children, ok := value.(map[string]any); ok {
 				for _, child := range children {
-					rebaseHostedSchemaValue(child)
+					rebaseHostedSchemaValue(child, pointer)
 				}
 			}
 		default:
-			rebaseHostedSchemaValue(value)
+			rebaseHostedSchemaValue(value, pointer)
 		}
 	}
 }
 
-func rebaseHostedSchemaValue(value any) {
+func rebaseHostedSchemaValue(value any, pointer string) {
 	switch typed := value.(type) {
 	case map[string]any:
-		rebaseHostedSchemaRefs(typed)
+		rebaseHostedSchemaRefs(typed, pointer)
 	case []any:
 		for _, item := range typed {
-			rebaseHostedSchemaValue(item)
+			rebaseHostedSchemaValue(item, pointer)
 		}
 	}
 }

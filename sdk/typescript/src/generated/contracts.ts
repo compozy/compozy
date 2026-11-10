@@ -6136,6 +6136,8 @@ export interface ToolCallRef {
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
+  has_result_views?: boolean;
+  pinned_result_view?: string;
 }
 
 export interface ToolPostCallPayload {
@@ -6159,9 +6161,12 @@ export interface ToolPostCallPayload {
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
+  has_result_views?: boolean;
+  pinned_result_view?: string;
   title?: string;
   tool_input?: JSONValue;
   tool_result?: JSONValue;
+  result_view?: string;
 }
 
 export interface ToolPostErrorPatch {
@@ -6193,6 +6198,8 @@ export interface ToolPostErrorPayload {
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
+  has_result_views?: boolean;
+  pinned_result_view?: string;
   title?: string;
   tool_input?: JSONValue;
   error?: string;
@@ -6219,6 +6226,8 @@ export interface ToolPreCallPayload {
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
+  has_result_views?: boolean;
+  pinned_result_view?: string;
   tool_input?: JSONValue;
 }
 

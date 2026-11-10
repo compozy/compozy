@@ -96,6 +96,9 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		if err := json.Unmarshal(declaration, &root); err != nil {
 			t.Fatalf("json.Unmarshal(OutputSchema) error = %v", err)
 		}
+		if branches, ok := root["anyOf"].([]any); !ok || len(branches) != 3 {
+			t.Fatalf("single-result anyOf = %#v, want declared, continuation, error", root["anyOf"])
+		}
 		if root["type"] != "object" {
 			t.Fatalf("OutputSchema root type = %#v, want object as MCP requires", root["type"])
 		}
@@ -1435,5 +1438,195 @@ func TestHostedRequestIdentity(t *testing.T) {
 				t.Fatal(hostedToolCallID(req))
 			}
 		}
+	})
+}
+
+func TestHostedResultViews(t *testing.T) {
+	t.Parallel()
+	t.Run("Should advertise both views with independent local references", func(t *testing.T) {
+		t.Parallel()
+		descriptor := hostedResultViewDescriptor(t)
+		tool := hostedMCPTool(descriptor)
+		advertised := compileHostedOutputSchema(t, &tool)
+		input, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !equalJSON(t, input, descriptor.InputSchema) || !strings.Contains(string(input), `"result_view"`) {
+			t.Fatalf("advertised input lost selector: %s", input)
+		}
+		root, ok := tool.OutputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("output schema = %T, want object", tool.OutputSchema)
+		}
+		branches, ok := root["anyOf"].([]any)
+		if !ok || len(branches) != 4 {
+			t.Fatalf("anyOf = %#v, want compact, full, continuation, error", root["anyOf"])
+		}
+		for _, tc := range []struct {
+			name    string
+			payload string
+			valid   bool
+		}{
+			{"Should accept compact", `{"record":{"id":"r1"}}`, true},
+			{"Should accept full", `{"record":{"id":"r1","detail":"complete"}}`, true},
+			{"Should reject an invalid compact reference", `{"record":{"id":7}}`, false},
+			{"Should reject an invalid full reference", `{"record":{"id":"r1","detail":7}}`, false},
+			{"Should reject undeclared fields", `{"record":{"id":"r1","extra":true}}`, false},
+			{"Should accept continuation", `{"truncated":true}`, true},
+			{"Should accept typed error", `{"error":{"code":"tool_denied","message":"denied"}}`, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				if err := validateHostedStructuredContent(
+					t,
+					advertised,
+					json.RawMessage(tc.payload),
+				); (err == nil) != tc.valid {
+					t.Fatalf("validation=%v, want valid=%t: %s", err, tc.valid, tc.payload)
+				}
+			})
+		}
+	})
+
+	t.Run("Should round trip both views through MCP and real dispatch", func(t *testing.T) {
+		t.Parallel()
+		descriptor := hostedResultViewDescriptor(t)
+		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
+			SystemPermissionMode: tools.PermissionModeApproveAll,
+		}, nil, tools.NativeTool{
+			Descriptor: descriptor,
+			Call: func(_ context.Context, _ tools.Scope, req tools.CallRequest) (tools.ToolResult, error) {
+				if string(req.Input) != "{}" {
+					t.Errorf("handler input retained selector: %s", req.Input)
+				}
+				payload := `{"record":{"id":"r1"}}`
+				if req.View == tools.ResultViewFull {
+					payload = `{"record":{"id":"r1","detail":"complete"}}`
+				}
+				return tools.ToolResult{Structured: json.RawMessage(payload)}, nil
+			},
+		})
+		scope := tools.Scope{SessionID: "sess-views", WorkspaceID: "ws-views", AgentName: "general"}
+		views, err := registry.SessionProjection(t.Context(), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proxy := &hostedProxyClientStub{block: func(req HostedCallRequest) (HostedCallResponse, error) {
+			result, err := registry.Call(t.Context(), scope, tools.CallRequest{
+				ToolID: tools.ToolID(req.ToolName), ToolCallID: req.ToolCallID, Input: req.Input,
+			})
+			return HostedCallResponse{Result: result}, err
+		}}
+		server := newHostedProxyTestServer()
+		applyHostedTools(server, proxy, "bind-views", views)
+		client := connectHostedProxyClient(t, server)
+		listed, err := client.ListTools(t.Context(), nil)
+		if err != nil || len(listed.Tools) != 1 {
+			t.Fatalf("ListTools=%#v, %v", listed, err)
+		}
+		advertised := compileHostedOutputSchema(t, listed.Tools[0])
+		for _, view := range []string{"", "compact", "full"} {
+			arguments := map[string]any{}
+			if view != "" {
+				arguments[tools.ResultViewInputKey] = view
+			}
+			result, err := client.CallTool(t.Context(), &sdkmcp.CallToolParams{
+				Name: descriptor.ID.String(), Arguments: arguments,
+			})
+			if err != nil || result.IsError {
+				t.Fatalf("CallTool(%q)=%#v, %v", view, result, err)
+			}
+			payload, err := json.Marshal(result.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := validateHostedStructuredContent(t, advertised, payload); err != nil {
+				t.Fatalf("%q result rejected: %s: %v", view, payload, err)
+			}
+			want := `{"record":{"id":"r1"}}`
+			if view == "full" {
+				want = `{"record":{"id":"r1","detail":"complete"}}`
+			}
+			if !equalJSON(t, payload, []byte(want)) {
+				t.Fatalf("%q result=%s, want %s", view, payload, want)
+			}
+		}
+	})
+}
+
+func hostedResultViewDescriptor(t *testing.T) tools.Descriptor {
+	t.Helper()
+	descriptor := hostedToolView("compozy__hosted_views").Descriptor
+	descriptor.Source = tools.BuiltinSource()
+	descriptor.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,` +
+		`"properties":{"result_view":` + tools.ResultViewSelectorSchema + `}}`)
+	compact := json.RawMessage(`{"type":"object","required":["record"],"additionalProperties":false,` +
+		`"properties":{"record":{"$ref":"#/$defs/record"}},` +
+		`"$defs":{"record":{"type":"object","required":["id"],"additionalProperties":false,` +
+		`"properties":{"id":{"type":"string"}}}}}`)
+	full := json.RawMessage(`{"type":"object","required":["record"],"additionalProperties":false,` +
+		`"properties":{"record":{"$ref":"#/$defs/record"}},` +
+		`"$defs":{"record":{"type":"object","required":["id","detail"],"additionalProperties":false,` +
+		`"properties":{"id":{"type":"string"},"detail":{"type":"string"}}}}}`)
+	descriptor.OutputSchema = compact
+	descriptor.SetResultViews(&tools.ResultViews{
+		Compact: tools.ResultViewContract{Schema: compact}, Full: tools.ResultViewContract{Schema: full},
+	})
+	return descriptor
+}
+
+func TestHostedResultViewCatalogSize(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report the full-policy general session tools list size", func(t *testing.T) {
+		t.Parallel()
+		descriptors := builtin.NativeDescriptors()
+		nativeTools := make([]tools.NativeTool, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			nativeTools = append(nativeTools, tools.NativeTool{
+				Descriptor: descriptor,
+				Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
+					return tools.ToolResult{}, nil
+				},
+			})
+		}
+		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
+			SystemPermissionMode: tools.PermissionModeApproveAll,
+		}, nil, nativeTools...)
+		views, err := registry.SessionProjection(t.Context(), tools.Scope{
+			SessionID: "sess-full-policy", WorkspaceID: "ws-full-policy", AgentName: "general",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(views) != len(descriptors) {
+			t.Fatalf("full policy projected %d of %d tools", len(views), len(descriptors))
+		}
+		server := newHostedProxyTestServer()
+		applyHostedTools(server, &hostedProxyClientStub{}, "bind-full-policy", views)
+		listed, err := connectHostedProxyClient(t, server).ListTools(t.Context(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := json.Marshal(listed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := &sdkmcp.ListToolsResult{Tools: make([]*sdkmcp.Tool, 0, len(views))}
+		withViews := 0
+		for _, view := range views {
+			if view.Descriptor.ResultViews() != nil {
+				withViews++
+			}
+			view.Descriptor.SetResultViews(nil)
+			tool := hostedMCPTool(view.Descriptor)
+			before.Tools = append(before.Tools, &tool)
+		}
+		baseline, err := json.Marshal(before)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("S3 tools/list JSON result: tools=%d views=%d before=%d after=%d delta=%d bytes",
+			len(views), withViews, len(baseline), len(after), len(after)-len(baseline))
 	})
 }
