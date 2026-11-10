@@ -4485,10 +4485,12 @@ func TestNativeSubagentPersistenceOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		settlementCtx, cancelSettlement := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancelSettlement()
 		select {
 		case <-entered:
-		case <-t.Context().Done():
-			t.Fatal(t.Context().Err())
+		case <-settlementCtx.Done():
+			t.Fatalf("native settlement did not start: %v", settlementCtx.Err())
 		}
 		if _, err := h.manager.Prompt(t.Context(), active.ID, "second"); !errors.Is(err, ErrPromptInProgress) {
 			t.Fatalf("prompt during native settlement error = %v, want ErrPromptInProgress", err)
