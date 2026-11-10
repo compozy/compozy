@@ -88,6 +88,8 @@ function PageActions({ markdownUrl, pageUrl, githubUrl }: DocPageActionsContext)
 
 export function DocsMasthead(props: {
   place: DocsPlace;
+  /** Replaces the plain page title, as the CLI template's command in mono does. */
+  title?: ReactNode;
   /** What the page is, in a few words: reading time, or a count for generated references. */
   facts?: string;
   maturity?: MaturityLevel;
@@ -101,7 +103,7 @@ export function DocsMasthead(props: {
     <header className={cn("border-b pb-8", LINE)}>
       <Breadcrumb place={place} />
       <h1 className="mt-6 font-display text-[38px]/[1.08] font-normal tracking-[-0.03em] text-balance text-fg md:text-[50px]/[1.05]">
-        {place.title}
+        {props.title ?? place.title}
       </h1>
       {place.description ? (
         <p className="mt-4 max-w-[680px] text-[18px]/[1.55] text-pretty text-muted-foreground md:text-[19px]/[1.55]">

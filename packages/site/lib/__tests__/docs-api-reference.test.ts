@@ -10,6 +10,7 @@ import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
 import { generateSDKCodeSamples, withSDKCodeSamples, type SDKSampleManifest } from "../sdk-samples";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
+import { apiOperationCount } from "../api-reference";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
@@ -212,5 +213,20 @@ describe("api reference", () => {
     expect(html).toMatch(/<caption[^>]*>tasks<\/caption>/);
     expect(html.indexOf("listSessions")).toBeLessThan(html.indexOf("getTask"));
     expect(html.indexOf("getTask")).toBeLessThan(html.indexOf("listTasks"));
+  });
+});
+
+describe("apiOperationCount", () => {
+  it("Should count the endpoints a generated resource page passes to OpenAPIPage", () => {
+    const source = [
+      "export default function Layout(props) {",
+      '  return <OpenAPIPage document="compozy" webhooks={[]} operations={[{"path":"/api/sessions","method":"get"},{"path":"/api/sessions","method":"post"},{"path":"/api/sessions/{session_id}","method":"delete"}]} showTitle />;',
+      "}",
+    ].join("\n");
+    expect(apiOperationCount(source)).toBe(3);
+  });
+
+  it("Should report no endpoints for hand-written pages", () => {
+    expect(apiOperationCount('## API overview\n\nSee `{"path":"/api/x","method":"get"}`.')).toBe(0);
   });
 });
