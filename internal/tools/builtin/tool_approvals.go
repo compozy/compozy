@@ -57,6 +57,8 @@ func toolApprovalDescriptors() []toolspkg.Descriptor {
 		[]string{"revoke tool approval", "remove tool permission"},
 	)
 	revoke.OutputSchema = json.RawMessage(toolApprovalsRevokeOutputSchema)
+	set = withResultViews(set, approvalSetCompactSchema, string(set.OutputSchema))
+	list = withResultViews(list, approvalListCompactSchema, string(list.OutputSchema))
 	return []toolspkg.Descriptor{set, list, revoke}
 }
 

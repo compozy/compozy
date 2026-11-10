@@ -790,6 +790,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
 		t.Parallel()
 
+		set := descriptors[toolspkg.ToolIDToolApprovalsSet]
+		set.OutputSchema = set.ResultViews().Full.Schema
+		list := descriptors[toolspkg.ToolIDToolApprovalsList]
+		list.OutputSchema = list.ResultViews().Full.Schema
 		grant := `{
 			"id":"grant-1",
 			"profile_id":"01JPROFILEMARKETING0000000",
@@ -806,12 +810,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}`
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsSet],
+			set,
 			`{"grant":`+grant+`}`,
 		)
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsList],
+			list,
 			`{"grants":[`+grant+`],"total":1}`,
 		)
 	})
@@ -1219,7 +1223,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertWindowManagerResultSchemas(
 			t,
 			descriptors[toolspkg.ToolIDDesktopCreate].OutputSchema,
-			descriptors[toolspkg.ToolIDLayoutPreview].OutputSchema,
+			descriptors[toolspkg.ToolIDLayoutPreview].ResultViews().Full.Schema,
 		)
 		assertWindowManagerLayoutDocumentSchemas(
 			t,

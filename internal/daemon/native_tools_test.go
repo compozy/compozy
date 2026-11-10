@@ -4245,7 +4245,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			input string
 		}{
 			{toolspkg.ToolIDToolInfo, `{"tool_id":"compozy__session_status"}`},
-			{toolspkg.ToolIDToolSearch, `{"query":"compozy__session_status","limit":1}`},
+			{toolspkg.ToolIDToolSearch, `{"query":"compozy__session_status","limit":1,"result_view":"full"}`},
 		} {
 			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 				ToolID: tc.id, Input: json.RawMessage(tc.input),
@@ -12538,7 +12538,7 @@ func collectNativeToolListPages(
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolList,
 			Input: json.RawMessage(fmt.Sprintf(
-				`{"offset":%d,"limit":%d}`,
+				`{"offset":%d,"limit":%d,"result_view":"full"}`,
 				offset,
 				maxNativeToolListLimit,
 			)),

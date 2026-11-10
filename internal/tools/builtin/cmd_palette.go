@@ -37,6 +37,7 @@ func cmdPaletteDescriptors() []toolspkg.Descriptor {
 		[]string{"run command palette command", "invoke command"},
 	)
 	invoke.OutputSchema = json.RawMessage(cmdPaletteInvokeOutputSchema)
+	list = withResultViews(list, paletteListCompactSchema, string(list.OutputSchema))
 	return []toolspkg.Descriptor{list, invoke}
 }
 

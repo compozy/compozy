@@ -39,10 +39,7 @@ func (n *daemonNativeTools) toolList(
 		return toolspkg.ToolResult{}, err
 	}
 	page := nativeToolListPageFromViews(views, offset, limit)
-	return structuredResult(
-		page,
-		fmt.Sprintf("%d of %d tools", page.Count, page.Total),
-	)
+	return toolListViews.result(req.View, page)
 }
 
 func (n *daemonNativeTools) toolSearch(
@@ -65,7 +62,7 @@ func (n *daemonNativeTools) toolSearch(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"tools": views}, fmt.Sprintf("%d tools", len(views)))
+	return toolSearchViews.result(req.View, views)
 }
 
 func (n *daemonNativeTools) toolInfo(
@@ -103,10 +100,7 @@ func (n *daemonNativeTools) skillList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SkillPayloadsFromSkills(limitSkills(skillList, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillSearch(
@@ -124,10 +118,7 @@ func (n *daemonNativeTools) skillSearch(
 	}
 	filtered := searchSkills(skillList, input.Query)
 	payload := core.SkillPayloadsFromSkills(limitSkills(filtered, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillView(

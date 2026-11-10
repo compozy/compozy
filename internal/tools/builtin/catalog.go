@@ -67,7 +67,17 @@ func toolListDescriptor() toolspkg.Descriptor {
 }
 
 func catalogDescriptors() []toolspkg.Descriptor {
-	return catalogTools
+	descriptors := make([]toolspkg.Descriptor, len(catalogTools))
+	for i, d := range catalogTools {
+		switch d.ID {
+		case toolspkg.ToolIDToolList:
+			d = withResultViews(d, toolListCompactSchema, string(d.OutputSchema))
+		case toolspkg.ToolIDToolSearch:
+			d = withResultViews(d, toolSearchCompactSchema, string(d.OutputSchema))
+		}
+		descriptors[i] = d
+	}
+	return descriptors
 }
 
 const toolListInputSchema = `{

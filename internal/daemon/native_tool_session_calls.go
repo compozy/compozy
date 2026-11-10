@@ -92,10 +92,7 @@ func (n *daemonNativeTools) commandList(
 		)
 	}
 	payload := core.SessionCommandsResponseFromCatalog(catalog)
-	return structuredResult(map[string]any{
-		"commands": payload.Commands,
-		"revision": payload.Revision,
-	}, fmt.Sprintf("%d commands", len(payload.Commands)))
+	return commandListViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionHealth(
