@@ -1,8 +1,8 @@
 # QA Run Report — 2026-11-10 — site redesign R4 walk
 
-- **Scope:** compozy.com redesign on PR #1408 after review fixes R1–R3 and R4 (leftovers, walk fixes), branch `site/fix-r4`.
+- **Scope:** compozy.com redesign on PR #1408 after review fixes R1–R3 and R4 (leftovers, walk fixes), branch `feat/brand-identity-v1-2` (walked on the executor branch `site/fix-r4`, squashed as `d2695346a`).
 - **Cadence tier:** targeted
-- **Build:** `1f11b53b6` (walk fixes) on `1634af6ab` · **Environment:** `bunx turbo run build --filter=./packages/site`, then `next start -p 4615` with `COMPOZY_SITE_GITHUB_TOKEN`; Chrome through Playwright at 1440×900 and 390×844, dark, reduced motion and JavaScript-off legs where the scenario asks. GitHub-down legs ran on a throwaway copy of the same build on port 4616 with `api.github.com` fetches failing and the prerendered pages aged so ISR regenerated them.
+- **Build:** `d2695346a` · **Environment:** `bunx turbo run build --filter=./packages/site`, then `next start -p 4615` with `COMPOZY_SITE_GITHUB_TOKEN`; Chrome through Playwright at 1440×900 and 390×844, dark, reduced motion and JavaScript-off legs where the scenario asks. GitHub-down legs ran on a throwaway copy of the same build on port 4616 with `api.github.com` fetches failing and the prerendered pages aged so ISR regenerated them.
 - **Started:** 2026-11-10T13:40Z · **Status:** closed
 
 ## Personas
@@ -23,12 +23,12 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | — | J-evaluate-compozy-beta / ET-site-landing | Dora | draft parity, live numbers | Blocked (human decision) | comparison table content | 1f11b53b6 |
+| 1 | — | J-evaluate-compozy-beta / ET-site-landing | Dora | draft parity, live numbers | Blocked (human decision) | comparison table content | d2695346a |
 | 2 | — | J-evaluate-compozy-beta / ET-site-download | Dora | platforms, copy, GitHub down | Pass | | |
-| 3 | — | J-evaluate-compozy-beta / ET-site-marketplace-catalog | Dora | states, jumps, routes | Fixed | catalog jump offset | 1f11b53b6 |
-| 4 | — | J-evaluate-compozy-beta / ET-site-changelog | Bruno | states, URL state, GitHub down | Fixed | pulse bars overlap | 1f11b53b6 |
-| 5 | — | J-evaluate-compozy-beta / ET-site-blog | Dora | filters, rail, reading | Fixed | anchor offset, prose leading | 1f11b53b6 |
-| 6 | — | J-evaluate-compozy-beta / ET-site-docs-shell | Dora | shell, rail, palette | Fixed | palette selection, caption | 1f11b53b6 |
+| 3 | — | J-evaluate-compozy-beta / ET-site-marketplace-catalog | Dora | states, jumps, routes | Fixed | catalog jump offset | d2695346a |
+| 4 | — | J-evaluate-compozy-beta / ET-site-changelog | Bruno | states, URL state, GitHub down | Fixed | pulse bars overlap | d2695346a |
+| 5 | — | J-evaluate-compozy-beta / ET-site-blog | Dora | filters, rail, reading | Fixed | anchor offset, prose leading | d2695346a |
+| 6 | — | J-evaluate-compozy-beta / ET-site-docs-shell | Dora | shell, rail, palette | Fixed | palette selection, caption | d2695346a |
 | 7 | — | J-evaluate-compozy-beta / ET-site-docs-reference-pages | Dora | CLI and API templates | Pass | | |
 | 8 | — | J-build-external-app / ET-site-docs-sdk-reference | Ana | language, filter, deep link | Pass | | |
 | 9 | — | J-evaluate-compozy-beta / ET-site-404-og-feeds-llms | Dora | 404, OG, feeds, llms, sweep | Pass | | |
