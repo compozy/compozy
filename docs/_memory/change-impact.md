@@ -5699,4 +5699,5 @@ path is policy-routed away from the main-table default device (Cloudflare WARP, 
 - **Web.** Not applicable.
 - **Official skill.** Not applicable; `skills/compozy/` behavior is unchanged.
 - **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
-  evidence and its remaining external limit.
+  evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
+  a TLS `401 gateway_device_unauthenticated` at the pairing gate.

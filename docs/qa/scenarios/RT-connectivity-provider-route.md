@@ -63,5 +63,9 @@ The embedded tsnet node now disables Tailscale's logical netns, so its control/D
 `ip route get`. Pre-fix evidence: `ss -tanpe` showed `SYN-SENT 10.113.90.100%br0:… ->
 192.200.0.110:443` and `Up()` ended at the deadline; post-fix the same dial reaches the control
 plane in 1.7s and returns the API error for a dummy key. `TestTSNetNodeUsesHostRouting` covers
-the dialer contract. The full healthy/address walk still needs an authorized tailnet key, so the
-scenario remains blocked-verify.
+the dialer contract. With an approved tailnet device, `gateway provider enable tailscale --tier
+private` reached `observed: up` / `health: healthy` and advertised a live
+`https://compozy-gateway-1.<tailnet>.ts.net:8443`; the advertised URL answered `401
+gateway_device_unauthenticated` over valid TLS in 84 ms. Device approval (a key that is not
+pre-authorized leaves tsnet at `NeedsMachineAuth`) is external to the product. The public tier,
+outage and restart branches are outside this walk, so the scenario keeps blocked-verify.
