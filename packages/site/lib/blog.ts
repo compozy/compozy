@@ -27,17 +27,6 @@ export function postsByCategory(category: BlogCategory): Post[] {
   return sortedPostsCache.filter(post => post.category === category);
 }
 
-export function categoryCounts(): Record<BlogCategory, number> {
-  const counts = Object.fromEntries(BLOG_CATEGORIES.map(c => [c, 0])) as Record<
-    BlogCategory,
-    number
-  >;
-  for (const post of sortedPostsCache) {
-    counts[post.category as BlogCategory] += 1;
-  }
-  return counts;
-}
-
 export function featuredPost(): Post | undefined {
   return sortedPostsCache.find(post => post.featured) ?? sortedPostsCache[0];
 }

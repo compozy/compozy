@@ -5,7 +5,7 @@ import { cn } from "@compozy/ui";
 import { Search } from "@compozy/ui/icons";
 import { m, useScroll } from "motion/react";
 
-import plateWatch from "@/components/marketplace/assets/plate-watch.jpg";
+import { ASSET } from "@/components/landing/assets";
 import { EntryLogo } from "@/components/marketplace/entry-card";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
@@ -72,7 +72,7 @@ export function MarketplaceHero({
   return (
     <section className="relative overflow-hidden pt-[150px] pb-20 md:min-h-[720px] md:pt-[190px]">
       <Plate
-        src={plateWatch.src}
+        src={ASSET.plateWatch}
         className="inset-x-0 top-[420px] bottom-0 h-[calc(100%-420px)] w-full object-[50%_40%] opacity-75 [mask-image:linear-gradient(180deg,transparent,black_26%,black_56%,transparent_100%)]"
       />
       <div

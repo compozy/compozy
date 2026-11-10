@@ -1,6 +1,8 @@
 /** A CLI command page: the generated help text, laid out as a signature, examples and a flag table. */
 import { CopyIconButton, cn } from "@compozy/ui";
 import { ArrowRight } from "@compozy/ui/icons";
+import { COMPOZY_CODE_THEMES } from "@compozy/ui/lib/code-theme";
+import { highlight } from "fumadocs-core/highlight";
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import Markdown, { type Components } from "react-markdown";
@@ -48,17 +50,31 @@ function Signature({ usage }: { usage: string }) {
   );
 }
 
-function Examples({ examples }: { examples: readonly CliExample[] }) {
+const isPromptLine = (code: string) => !code.includes("\n") && !code.startsWith("#");
+
+/**
+ * A one-line command stays a prompt line; longer examples get Shiki colours at build time (this is a
+ * server component, so no highlighter reaches the client) inside the frame fenced MDX code uses.
+ */
+function highlightExample(code: string) {
+  if (isPromptLine(code)) return Promise.resolve(<DocsCode code={code} language="bash" />);
+  return highlight(code, {
+    lang: "bash",
+    themes: { light: COMPOZY_CODE_THEMES.light, dark: COMPOZY_CODE_THEMES.dark },
+    components: { pre: props => <DocsPre {...props} /> },
+  });
+}
+
+async function Examples({ examples }: { examples: readonly CliExample[] }) {
+  const blocks = await Promise.all(examples.map(example => highlightExample(example.code)));
   return (
     <ol className="m-0 list-none p-0">
-      {examples.map(example => (
+      {examples.map((example, index) => (
         <li key={example.code} className={cn("border-t py-6 first:border-t-0 first:pt-0", LINE)}>
           {example.note ? (
             <p className="m-0 text-[15.5px]/[1.5] text-fg/85">{example.note}</p>
           ) : null}
-          <div className="[&>div]:mt-3 [&>div]:mb-0">
-            <DocsCode code={example.code} language="bash" />
-          </div>
+          <div className="[&>div]:mt-3 [&>div]:mb-0">{blocks[index]}</div>
         </li>
       ))}
     </ol>

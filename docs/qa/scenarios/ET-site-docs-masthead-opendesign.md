@@ -23,3 +23,5 @@ typography align. The next QA cycle owns visual parity against site-example-page
 on desktop mid-width and mobile wrap of the action cluster.
 
 qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The masthead title face moved from Playfair Display to Instrument Sans (`.site-doc-masthead__title` reads `--font-display`); body and lead are Figtree. Expectation updated and status reset to untested; the earlier pass predates the face change.
+
+QA impact 2026-11-10 (site redesign): the OpenDesign masthead context row and its `.site-doc-masthead*` rules were deleted. The docs draft masthead (breadcrumb, title, description, facts, page actions) replaced it; current coverage is ET-site-docs-shell. This file stays as history and is reset to untested so no stale verdict counts.

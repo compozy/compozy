@@ -1,16 +1,5 @@
 import type { ChangelogCategory, ChangelogHeading, ChangelogChannel } from "./types";
 
-interface MarkdownNode {
-  type: string;
-  value?: string;
-  depth?: number;
-  url?: string;
-  data?: {
-    hProperties?: Record<string, string>;
-  };
-  children?: MarkdownNode[];
-}
-
 interface ParsedSemver {
   major: number;
   minor: number;
@@ -223,69 +212,4 @@ export function extractPullRequestNumbers(body: string): number[] {
   }
 
   return numbers;
-}
-
-function textFromNode(node: MarkdownNode): string {
-  if (node.type === "text" || node.type === "inlineCode") return node.value ?? "";
-  return node.children?.map(textFromNode).join("") ?? "";
-}
-
-function linkTextNode(node: MarkdownNode, linkedNumbers: Set<number>): MarkdownNode[] {
-  if (node.type !== "text" || !node.value) return [node];
-
-  const nodes: MarkdownNode[] = [];
-  let cursor = 0;
-  for (const match of node.value.matchAll(PULL_REQUEST_PATTERN)) {
-    const number = Number(match[1]);
-    const index = match.index ?? 0;
-    if (!linkedNumbers.has(number)) continue;
-    if (index > cursor) nodes.push({ type: "text", value: node.value.slice(cursor, index) });
-    nodes.push({
-      type: "link",
-      url: `https://github.com/compozy/compozy/pull/${number}`,
-      children: [{ type: "text", value: `#${number}` }],
-    });
-    cursor = index + match[0].length;
-  }
-  if (cursor === 0) return [node];
-  if (cursor < node.value.length) nodes.push({ type: "text", value: node.value.slice(cursor) });
-  return nodes;
-}
-
-function transformMarkdownNode(node: MarkdownNode, linkedNumbers: Set<number>): void {
-  if (
-    !node.children ||
-    node.type === "link" ||
-    node.type === "code" ||
-    node.type === "inlineCode"
-  ) {
-    return;
-  }
-
-  node.children = node.children.flatMap(child => {
-    if (child.type === "text") return linkTextNode(child, linkedNumbers);
-    transformMarkdownNode(child, linkedNumbers);
-    return [child];
-  });
-}
-
-export function remarkReleaseStructure(options?: { pullRequestNumbers?: number[] }) {
-  const linkedNumbers = new Set(options?.pullRequestNumbers ?? []);
-
-  return (tree: MarkdownNode) => {
-    const occurrences = new Map<string, number>();
-    const visit = (node: MarkdownNode) => {
-      if (node.type === "heading") {
-        const id = uniqueHeadingId(textFromNode(node), occurrences);
-        node.data = {
-          ...node.data,
-          hProperties: { ...node.data?.hProperties, id },
-        };
-      }
-      node.children?.forEach(visit);
-    };
-
-    visit(tree);
-    transformMarkdownNode(tree, linkedNumbers);
-  };
 }

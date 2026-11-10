@@ -46,3 +46,5 @@ tiles, and section order are untouched. Status stays untested pending the same f
 2026-09-27 hero refresh: the landing uses the isolated-lab 2580×1654 capture with one queued Task and the two built-in Loops. The screenshot receipt belongs to the current retirement QA report.
 
 QA impact 2026-10-07 (memory removal): the landing's Memory & Dream section was deleted, the bento is two cards, and the positioning and comparison copy no longer name memory (the Hero Lock is unchanged). Count the ordered sections from the rendered page when walking; do not expect a memory or Dream proof. Stale pass verdict reset to untested; historical evidence preserved; no QA session ran.
+
+QA impact 2026-11-10 (site redesign): the landing was rebuilt from the approved landing draft on live numbers. The OS shell capture (`/images/hero/os-shell-capture-v2.png`) and the old hero background were deleted with the old landing sections; the hero still equals the COPY.md Hero Lock. Walk the claim on ET-site-landing; earlier notes above are history.

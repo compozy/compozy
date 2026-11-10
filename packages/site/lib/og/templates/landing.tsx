@@ -12,7 +12,7 @@ const EYEBROW = "COMPOZYOS";
 const FOOTER_RAIL = [
   { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.brandText, lowercase: false },
   { label: "compozy.com", color: COLORS.textSecondary, lowercase: true },
-  { label: "CREATE · AUTOMATE · SUPERVISE", color: COLORS.textSecondary, lowercase: false },
+  { label: "KEEP EVERY AGENT RUNNING", color: COLORS.textSecondary, lowercase: false },
 ] as const;
 
 const canvasStyle: CSSProperties = {

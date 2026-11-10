@@ -14,7 +14,6 @@ export {
 } from "./marketplace-catalog-schema";
 export type ExtensionEntry = z.infer<typeof extensionEntrySchema>;
 
-export const MARKETPLACE_FEED_FILENAMES = ["v3/extensions.json", "v3/marketplaces.json"] as const;
 export const MARKETPLACE_SEARCH_COMMAND = "compozy marketplace search";
 export const extensionEntries: ExtensionEntry[] = extensionFeedSchema.parse(extensionsFeed).entries;
 export const marketplacePresets = marketplacePresetsSchema.parse(presetsFeed).entries;

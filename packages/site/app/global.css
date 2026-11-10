@@ -11,7 +11,6 @@
 @import "./styles/ui-variants.css";
 @import "./styles/docs.css";
 @import "./styles/docs-api.css";
-@import "./styles/site-graphics.css";
 @import "./styles/site-shell.css";
 
 /*
@@ -48,14 +47,10 @@
   --tracking-body: -0.006em;
   --radius-md: 10px;
   --radius-lg: 14px;
-  /* Compact rows and inline chips hold the 8px corner the bare `rounded` gave them. */
-  --radius-site-row: 8px;
   --height-button-default: 30px;
   /* The hero's floating product window. The shared tokens retired the window
      radius and shadow with the flat shell; the site keeps them for its mock. */
   --radius-window: 12px;
-  /* Blog wire card (BlogWireCard): capped narrower than the prose column. */
-  --max-width-wire-card: 520px;
   --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   /* Button labels moved to the 14.5px product body; the site keeps 12.5px. */
   --text-body: 0.78125rem;
@@ -79,60 +74,16 @@
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
-  --text-site-hero: clamp(2.6rem, 5vw, 4.5rem);
   --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
-  --text-site-hero-section: clamp(2.6rem, 5.5vw, 4.2rem);
-  --text-site-blog-title: clamp(2.6rem, 5.4vw, 4.6rem);
-  --text-site-doc-title: clamp(2.4rem, 4vw, 3.4rem);
-  --text-site-doc-lead: 1.125rem;
-  --text-site-doc-lead--line-height: 1.65;
-  --text-site-doc-prose: 1rem;
-  --text-site-doc-prose--line-height: var(--leading-doc-body);
-  --text-site-doc-prose-compact: 0.95rem;
-  --text-site-doc-prose-compact--line-height: 1.75;
-  --text-site-doc-subheading: 1.25rem;
-  --text-site-doc-subheading--line-height: 1.25;
-  --text-site-api-body: 0.9375rem;
-  --text-site-api-body--line-height: 1.65;
-  --text-site-api-heading: 1.625rem;
-  --text-site-api-heading--line-height: 1.15;
-  --text-site-api-subheading: 1.125rem;
-  --text-site-api-code: 0.8125rem;
-  --text-site-protocol-title: clamp(2.4rem, 5vw, 3.8rem);
-  --text-site-page-title: clamp(2.4rem, 4.4vw, 4rem);
-  --text-site-article-title: clamp(2.4rem, 4.4vw, 3.6rem);
-  --text-site-section-title: clamp(2.2rem, 4.6vw, 3.6rem);
-  --text-site-category-title: clamp(2.2rem, 4vw, 3.4rem);
-  --text-site-cta-title: clamp(2rem, 4.5vw, 3.2rem);
-  --text-site-feature-title: clamp(2rem, 3.4vw, 2.8rem);
-  --text-site-subsection-title: clamp(1.9rem, 3.4vw, 2.6rem);
   --text-site-doc-heading: clamp(1.6rem, 2.6vw, 2.15rem);
   --text-group-label: 0.625rem;
   --text-group-label--line-height: 0.75rem;
-  --text-site-release-title: clamp(1.6rem, 3vw, 2.1rem);
-  --text-site-empty-title: clamp(1.55rem, 3vw, 2rem);
-  --text-site-quote: clamp(1.5rem, 2.4vw, 1.95rem);
-  --text-site-card-title: clamp(1.45rem, 3vw, 1.9rem);
   --text-site-subheading: clamp(1.25rem, 1.7vw, 1.45rem);
-  --text-site-bento-2xl: 2.5rem;
-  --text-site-bento-xl: 2.35rem;
-  --text-site-bento-lg: 2rem;
-  --text-site-bento-md: 1.9rem;
-  --text-site-bento-sm: 1.8rem;
-  --text-site-bento-xs: 1.65rem;
   --leading-small-body: var(--text-small-body--line-height);
-  --leading-doc-body: 1.8;
   --radius-chip: var(--radius-chip);
   --radius-mono-badge: var(--radius-mono-badge);
   --radius-diagram: var(--radius-xl);
   --radius-icon-well: 0.75rem;
-  --container-site-layout-width: var(--site-layout-width);
-  --spacing-site-doc-sidebar-section-label-offset: var(--site-doc-sidebar-section-label-offset);
-  --spacing-site-doc-sidebar-group-gap: var(--site-doc-sidebar-group-gap);
-  --tracking-site-doc-sidebar-section-label: var(--site-doc-sidebar-section-label-tracking);
-  --tracking-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-tracking);
-  --color-site-doc-sidebar-section-label: var(--site-doc-sidebar-section-label-color);
-  --color-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-color);
   /* Translucent site tones (v1.2 redesign): `bg-site-light-040`, `border-site-light-100`,
      `bg-site-dark-400`. Values live in :root as `--site-light-*` / `--site-dark-*`. */
   --color-site-light-025: var(--site-light-025);
@@ -208,58 +159,6 @@
   --theme-shadow-pop: 0 0 0 1px var(--color-line-soft);
 }
 
-:root {
-  --site-layout-width: 1200px;
-  --site-doc-hairline: 1px;
-  --site-doc-sidebar-section-label-offset: 1.625rem;
-  --site-doc-sidebar-section-label-tracking: 0.09em;
-  --site-doc-sidebar-section-label-color: color-mix(
-    in srgb,
-    var(--color-brand) 65%,
-    var(--color-muted-foreground)
-  );
-  --site-doc-sidebar-group-gap: 0.4375rem;
-  --site-doc-sidebar-group-label-tracking: 0.08em;
-  --site-doc-sidebar-group-label-color: color-mix(in srgb, var(--color-subtle) 72%, transparent);
-  --site-doc-masthead-crumb-gap: 0.5rem;
-  --site-doc-masthead-crumb-tracking: 0.08em;
-  --site-doc-masthead-crumb-rule-width: 0.875rem;
-  --site-doc-section-offset: 4rem;
-  --site-doc-section-rule-gap: 1rem;
-  --site-doc-section-leading: 1.1;
-  --site-doc-subsection-offset: 2.25rem;
-  --site-doc-prose-width: 72ch;
-  --site-doc-list-indent: 1.3rem;
-  --site-doc-code-padding-inline: 0.38rem;
-  --site-doc-code-padding-block: 0.12rem;
-  --site-doc-link-underline-offset: 0.24em;
-  --site-doc-section-offset-compact: 3.25rem;
-  --site-api-content-width: 90rem;
-  --site-api-operation-separation: 3rem;
-  --site-api-column-gap: 2rem;
-  --site-api-column-gap-medium: 2.5rem;
-  --site-api-column-gap-wide: 3.5rem;
-  --site-api-sticky-row-fallback: 2rem;
-  --site-api-sticky-offset: 1rem;
-  --site-api-example-width: 22rem;
-  --site-api-example-width-wide: 26rem;
-  --site-api-content-gap: 1.25rem;
-  --site-api-heading-content-gap: 0.875rem;
-  --site-api-subheading-offset: 2.5rem;
-  --site-api-schema-min-width: 18rem;
-  --site-bento-overlay-runtime: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
-    transparent 68%
-  );
-  --site-bento-overlay-extensibility: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
-    transparent 58%
-  );
-}
 /*
  * Override Fumadocs UI tokens with the DESIGN.md dark operator palette.
  * The root layout pins `.dark` on <html>; docs routes additionally mount
@@ -292,12 +191,6 @@
   --color-fd-diff-remove-symbol: var(--color-destructive);
   --color-fd-diff-add: var(--color-success-tint);
   --color-fd-diff-add-symbol: var(--color-success);
-}
-
-/* Remove fumadocs banner wrapper padding on landing page only */
-body:has(.site-home) .bg-fd-secondary\/50.p-3 {
-  padding: 0;
-  background: transparent;
 }
 
 body {

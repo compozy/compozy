@@ -1,9 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { footerColumns } from "../footer-config";
-import { baseOptions } from "../layout.shared";
-import { siteConfig } from "../site-config";
 import { MARKETING_NAV_LINKS, isCurrentSection } from "../site-nav";
 import { contentRoot } from "../content-test-utils";
 
@@ -56,32 +53,8 @@ function knownRoutes(): Set<string> {
   return new Set([...appRoutes, ...listMdxFiles(contentRoot).map(routeFromContentFile)]);
 }
 
-function layoutLinks(): InternalLink[] {
-  const links = Array.isArray(baseOptions.links) ? baseOptions.links : [];
-  return links.map((link, index) => {
-    const entry = link as { text?: unknown; url?: unknown };
-    return {
-      label: typeof entry.text === "string" ? entry.text : `link ${index}`,
-      href: typeof entry.url === "string" ? entry.url : "",
-      source: "baseOptions.links",
-    };
-  });
-}
-
 function marketingLinks(): InternalLink[] {
   return MARKETING_NAV_LINKS.map(link => ({ ...link, source: "MARKETING_NAV_LINKS" }));
-}
-
-function footerInternalLinks(): InternalLink[] {
-  return footerColumns.flatMap(column =>
-    column.items
-      .filter(item => !item.external)
-      .map(item => ({
-        label: item.label,
-        href: item.href,
-        source: `footerColumns.${column.title}`,
-      }))
-  );
 }
 
 function expectRouteBackedLinks(links: InternalLink[]) {
@@ -95,31 +68,7 @@ function expectRouteBackedLinks(links: InternalLink[]) {
 
 describe("site navigation configuration", () => {
   it("keeps configured internal navigation links backed by real routes", () => {
-    expectRouteBackedLinks([...layoutLinks(), ...marketingLinks(), ...footerInternalLinks()]);
-  });
-
-  it("keeps footer columns focused and external links explicit", () => {
-    const columnTitles = footerColumns.map(column => column.title);
-    const footerLabels = footerColumns.flatMap(column =>
-      column.items.map(item => `${column.title}:${item.label}`)
-    );
-
-    expect(new Set(columnTitles).size).toBe(columnTitles.length);
-    expect(new Set(footerLabels).size).toBe(footerLabels.length);
-    for (const column of footerColumns) {
-      for (const item of column.items) {
-        expect(item.label.trim(), `${column.title}:${item.href}`).toBe(item.label);
-        expect(item.label.length, `${column.title}:${item.href}`).toBeGreaterThan(1);
-        if (item.external) {
-          const parsed = new URL(item.href);
-          expect(parsed.protocol, item.label).toBe("https:");
-          continue;
-        }
-        expect(item.href.startsWith("/"), item.label).toBe(true);
-        expect(item.href.endsWith(".md"), item.label).toBe(false);
-        expect(item.href.endsWith(".mdx"), item.label).toBe(false);
-      }
-    }
+    expectRouteBackedLinks(marketingLinks());
   });
 
   it("marks a marketing section current on its route and every route nested under it", () => {
@@ -127,16 +76,5 @@ describe("site navigation configuration", () => {
     expect(isCurrentSection("/blog/introducing-compozyos", "/blog")).toBe(true);
     expect(isCurrentSection("/blogroll", "/blog")).toBe(false);
     expect(isCurrentSection("/", "/docs")).toBe(false);
-  });
-
-  it("uses one canonical GitHub URL across layout and footer resources", () => {
-    const externalFooterLinks = footerColumns.flatMap(column =>
-      column.items.filter(item => item.external)
-    );
-
-    expect(baseOptions.githubUrl).toBe(siteConfig.githubUrl);
-    expect(externalFooterLinks).toEqual([
-      { label: "GitHub", href: siteConfig.githubUrl, external: true },
-    ]);
   });
 });

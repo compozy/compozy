@@ -2,14 +2,7 @@
 import { cn } from "@compozy/ui";
 import Link from "next/link";
 
-import plateBranch from "@/components/marketplace/assets/plate-branch.jpg";
-import plateFinal from "@/components/marketplace/assets/plate-final.jpg";
-import plateGates from "@/components/marketplace/assets/plate-gates.jpg";
-import plateOrder from "@/components/marketplace/assets/plate-order.jpg";
-import platePulses from "@/components/marketplace/assets/plate-pulses.jpg";
-import plateTerrain from "@/components/marketplace/assets/plate-terrain.jpg";
-import ucSpec from "@/components/marketplace/assets/uc-spec.jpg";
-import ucTriage from "@/components/marketplace/assets/uc-triage.jpg";
+import { ASSET } from "@/components/landing/assets";
 import { EntryLogo } from "@/components/marketplace/entry-card";
 import { CONTAINER } from "@/components/site/layout";
 import { Reveal } from "@/components/site/motion";
@@ -17,14 +10,14 @@ import { H2 } from "@/components/site/primitives";
 import { firstSentence, type MarketplaceCard } from "@/lib/marketplace-view";
 
 const ART = [
-  plateTerrain,
-  ucTriage,
-  platePulses,
-  plateBranch,
-  plateFinal,
-  plateGates,
-  plateOrder,
-  ucSpec,
+  ASSET.plateTerrain,
+  ASSET.ucTriage,
+  ASSET.platePulses,
+  ASSET.plateBranch,
+  ASSET.plateFinal,
+  ASSET.plateGates,
+  ASSET.plateOrder,
+  ASSET.ucSpec,
 ];
 
 export function Featured({ entries }: { entries: readonly MarketplaceCard[] }) {
@@ -43,7 +36,7 @@ export function Featured({ entries }: { entries: readonly MarketplaceCard[] }) {
             >
               <span className="relative grid h-[210px] place-items-center overflow-hidden bg-black">
                 <img
-                  src={ART[index % ART.length].src}
+                  src={ART[index % ART.length]}
                   alt=""
                   aria-hidden
                   draggable={false}

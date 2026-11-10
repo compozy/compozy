@@ -110,7 +110,8 @@ describe("Landing OpenGraph image (root)", () => {
     expect(copy).toContain("COMPOZYOS");
     expect(copy).not.toMatch(/\bBETA\b/u);
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
-    expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
+    expect(copy).toContain("KEEP EVERY AGENT RUNNING");
+    expect(copy).not.toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");
 
     for (const value of PALETTE_VALUES) {

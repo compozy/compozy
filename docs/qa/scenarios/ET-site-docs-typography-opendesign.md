@@ -46,3 +46,5 @@ Evidence: `computed-styles.json`, `computed-styles-2.json`, `site-docs-loops.png
 `evidence:` path.
 
 qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The site faces moved: display Playfair Display → Instrument Sans, sans Geist → Figtree, mono JetBrains Mono → Geist Mono (`packages/site/app/global.css`). The 2026-08-09 walk below verified the retired faces; status reset to untested for a re-walk on the new faces.
+
+QA impact 2026-11-10 (site redesign): the three-voice docs ramp and its `--text-site-doc-*` / `--site-doc-*` tokens were replaced by the docs draft's reading type; the unused tokens were deleted and DESIGN.md regenerated. Current coverage is ET-site-docs-shell; this file stays as history and is reset to untested so no stale verdict counts.

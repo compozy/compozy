@@ -16,9 +16,7 @@ import { CodeFrame } from "@/components/docs/docs-prose";
 import { operationAnchor } from "@/lib/api-reference";
 
 const PREVIEW = 12;
-// The underline is placed explicitly: the site does not ship the custom variants the Tabs use.
-const TAB =
-  "h-8 rounded-[9px] px-3 text-[13px] after:inset-x-0 after:-bottom-px after:h-tab-underline";
+const TAB = "h-8 rounded-[9px] px-3 text-[13px]";
 const LABEL = "m-0 mb-1 flex items-baseline gap-3 text-[15px] font-normal text-fg";
 
 const METHOD_TONE: Record<string, string> = {
