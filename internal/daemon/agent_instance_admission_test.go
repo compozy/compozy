@@ -1414,3 +1414,93 @@ type nativeInstanceProfileOwners []profile.Profile
 func (owners nativeInstanceProfileOwners) ListIdentities(context.Context) ([]profile.Profile, error) {
 	return owners, nil
 }
+
+func TestNativeInstanceEnsureMainDryRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		exists bool
+		byID   bool
+		code   toolspkg.ErrorCode
+	}{
+		{name: "Should classify a missing named target as not found", code: toolspkg.ErrorCodeAgentInstanceNotFound},
+		{name: "Should classify a missing explicit target as not found", byID: true, code: toolspkg.ErrorCodeAgentInstanceNotFound},
+		{name: "Should reject unsupported dry run without starting a main", exists: true, code: toolspkg.ErrorCodeInvalidInput},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openDaemonTestGlobalDB(t)
+			id := "ainst-missing"
+			if tc.exists {
+				instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, AgentName: "coder",
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				id = instance.ID
+			}
+			api := &core.AgentInstanceAPI{Store: db.Instances()}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				AgentInstances: func() *core.AgentInstanceAPI { return api },
+			}, nativeApproveAllPolicyInputs())
+			input := map[string]any{"agent": "coder", "dry_run": true}
+			if tc.byID || tc.exists {
+				input["id"] = id
+			}
+			raw, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{
+				Operator: true, ProfileID: store.DefaultProfileID,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceEnsureMain, Input: raw})
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != tc.code {
+				t.Fatalf("ensure main error = %v, want %s", err, tc.code)
+			}
+			if tc.exists {
+				instance, err := db.Instances().Get(t.Context(), id)
+				if err != nil || instance.MainSessionID != "" {
+					t.Fatalf("dry run changed instance: %+v, %v", instance, err)
+				}
+			} else if !errors.Is(err, agentinstance.ErrNotFound) {
+				t.Fatalf("missing target lost error identity: %v", err)
+			}
+		})
+	}
+}
+
+func TestNativeInstanceListCapacity(t *testing.T) {
+	t.Run("Should retain profile capacity when the caller agent has no visible instances", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		_, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		api := &core.AgentInstanceAPI{
+			Store: db.Instances(), CountActive: db.Instances().CountActive, MaxActiveInstances: 10,
+		}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			AgentInstances: func() *core.AgentInstanceAPI { return api },
+		}}
+		result, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{
+			ProfileID: store.DefaultProfileID, AgentName: "reviewer",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceList, Input: []byte("{}")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page contract.AgentInstanceListResponse
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Instances) != 0 || page.ActiveCount != 1 || page.MaxActiveInstances != 10 {
+			t.Fatalf("filtered list capacity = %+v", page)
+		}
+	})
+}

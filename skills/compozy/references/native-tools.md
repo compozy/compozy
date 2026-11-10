@@ -1255,3 +1255,20 @@ and cancels pending/orphaned interactions in stopped sessions in the instance's 
 lineage. Live sessions' requests still need an answer. New failures raise attention again.
 Reports retain their provider delivery state and history; acknowledgement does not deliver them
 to the provider. The catalog stream updates open avatars without a reload.
+
+### Instance list capacity and missing targets
+
+Instance lists return authorized rows after agent, workspace, state and pagination filters.
+The native list defaults to the calling agent and workspace; use `peers: true` for reachable
+always-on agents. An empty list does not establish that the profile has no instances.
+`active_count` measures occupied capacity across all workspaces in the selected profiles,
+independent of row filters and pagination. `max_active_instances` is the cap for each profile,
+including when an all-profiles read sums counts. The CLI list uses the same capacity semantics
+but filters agent names only when `--agent` is provided. These capacity semantics apply only to
+ordinary lists: `peers: true` (CLI `--peers`) leaves both capacity fields at zero to mean
+unavailable, not unused capacity.
+
+Ensure-main requires an existing instance. A missing native target returns
+`agent_instance_not_found`, not a backend health error. Ensure-main does not support
+`dry_run`; the native tool rejects it before starting a main and the CLI offers no such flag.
+Use instance get (CLI `agent instance show`) to inspect without starting a session.
