@@ -330,6 +330,43 @@ func TestManagerAttentionCommitOrdering(t *testing.T) {
 					edges[0].To != string(wantBadge) || wakes.Load() != 0 {
 					t.Fatalf("dismissal events=%d hooks=%+v wakes=%d", count, edges, wakes.Load())
 				}
+				if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: sess.ID, InteractionID: "after-failed-status", ProviderRequestID: "after-failed-status",
+					Kind: store.PendingInteractionKindPermission,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.manager.MarkAttentionSeen(
+					t.Context(),
+					sess.ID,
+				); !errors.Is(
+					err,
+					ErrAttentionRequiresAction,
+				) {
+					t.Fatalf("retry with new permission = %v, want refusal", err)
+				}
+				current, err := db.GetSessionAttention(t.Context(), sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if current.PendingPermissionCount != 1 || current.AttentionRevision <= canonical.AttentionRevision {
+					t.Fatalf("retry lost newer permission: %+v", current)
+				}
+				if len(edges) != 2 || edges[1].From != string(wantBadge) || edges[1].To != string(BadgeWaitingForAuth) {
+					t.Fatalf("retry reapplied stale dismissal: %+v", edges)
+				}
+				newerEvents := 0
+				for len(events) > 0 {
+					if event := <-events; event.Attention != nil {
+						newerEvents++
+						if event.Attention.From != wantBadge || event.Attention.To != BadgeWaitingForAuth {
+							t.Fatalf("new permission event: %+v", event)
+						}
+					}
+				}
+				if newerEvents != 1 {
+					t.Fatalf("new permission events=%d, want one", newerEvents)
+				}
 			},
 		)
 	}
