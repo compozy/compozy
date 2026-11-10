@@ -194,7 +194,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"heartbeat": payload}, string(payload.ValidationStatus))
+	return agentHeartbeatStatusViews.result(req.View, payload)
 }
 
 // agentHeartbeatWake requests a Heartbeat wake using the caller Profile and workspace identity.

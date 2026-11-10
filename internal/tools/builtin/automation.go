@@ -16,7 +16,7 @@ const (
 )
 
 var automationTools = []toolspkg.Descriptor{
-	nativeAutomationDescriptor(
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsList,
 		"automation_jobs_list",
 		"Automation Jobs List",
@@ -28,8 +28,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey, descriptorKeywordCatalog},
 		[]string{"automation jobs", "scheduled jobs"},
-	),
-	nativeAutomationDescriptor(
+	), automationJobsListCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsGet,
 		"automation_jobs_get",
 		"Automation Jobs Get",
@@ -40,8 +40,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey},
 		[]string{"automation job details", "scheduled job"},
-	),
-	nativeAutomationDescriptor(
+	), automationJobRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsCreate,
 		"automation_jobs_create",
 		"Automation Jobs Create",
@@ -52,8 +52,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"create automation job", "add scheduled job"},
-	),
-	nativeAutomationDescriptor(
+	), automationJobRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsUpdate,
 		"automation_jobs_update",
 		"Automation Jobs Update",
@@ -64,7 +64,7 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"update automation job", "edit scheduled job"},
-	),
+	), automationJobRecordCompactOutputSchema, `{"type":"object"}`),
 	nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsDelete,
 		"automation_jobs_delete",
@@ -77,7 +77,7 @@ var automationTools = []toolspkg.Descriptor{
 		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"delete automation job", "remove scheduled job"},
 	),
-	nativeAutomationDescriptor(
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsEnable,
 		"automation_jobs_enable",
 		"Automation Jobs Enable",
@@ -88,8 +88,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"enable automation job", "activate scheduled job"},
-	),
-	nativeAutomationDescriptor(
+	), automationJobRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsDisable,
 		"automation_jobs_disable",
 		"Automation Jobs Disable",
@@ -100,7 +100,7 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"disable automation job", "pause scheduled job"},
-	),
+	), automationJobRecordCompactOutputSchema, `{"type":"object"}`),
 	nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsTrigger,
 		"automation_jobs_trigger",
@@ -125,7 +125,7 @@ var automationTools = []toolspkg.Descriptor{
 		[]string{automationAutomationKey, automationJobsKey, automationRunsKey, historyTag},
 		[]string{"automation job history", "job runs"},
 	),
-	nativeAutomationDescriptor(
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersList,
 		"automation_triggers_list",
 		"Automation Triggers List",
@@ -137,8 +137,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey, descriptorKeywordCatalog},
 		[]string{"automation triggers", "event triggers"},
-	),
-	nativeAutomationDescriptor(
+	), automationTriggersListCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersGet,
 		"automation_triggers_get",
 		"Automation Triggers Get",
@@ -149,8 +149,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey},
 		[]string{"automation trigger details", "event trigger"},
-	),
-	nativeAutomationDescriptor(
+	), automationTriggerRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersCreate,
 		"automation_triggers_create",
 		"Automation Triggers Create",
@@ -161,8 +161,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"create automation trigger", "add event trigger"},
-	),
-	nativeAutomationDescriptor(
+	), automationTriggerRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersUpdate,
 		"automation_triggers_update",
 		"Automation Triggers Update",
@@ -173,7 +173,7 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"update automation trigger", "edit event trigger"},
-	),
+	), automationTriggerRecordCompactOutputSchema, `{"type":"object"}`),
 	nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersDelete,
 		"automation_triggers_delete",
@@ -186,7 +186,7 @@ var automationTools = []toolspkg.Descriptor{
 		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"delete automation trigger", "remove event trigger"},
 	),
-	nativeAutomationDescriptor(
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersEnable,
 		"automation_triggers_enable",
 		"Automation Triggers Enable",
@@ -197,8 +197,8 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"enable automation trigger", "activate event trigger"},
-	),
-	nativeAutomationDescriptor(
+	), automationTriggerRecordCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersDisable,
 		"automation_triggers_disable",
 		"Automation Triggers Disable",
@@ -209,7 +209,7 @@ var automationTools = []toolspkg.Descriptor{
 		false,
 		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"disable automation trigger", "pause event trigger"},
-	),
+	), automationTriggerRecordCompactOutputSchema, `{"type":"object"}`),
 	nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationTriggersHistory,
 		"automation_triggers_history",

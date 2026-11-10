@@ -116,7 +116,7 @@ func (n *daemonNativeTools) agentCreate(
 		entry.WorkspaceID = created.WorkspaceID
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
-	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
+	return agentRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) nativeAgentCreateProfileName(

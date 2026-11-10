@@ -2563,7 +2563,7 @@ func TestNativeHeartbeatSourcesCatalog(t *testing.T) {
 		result, err := native.agentHeartbeatSources(
 			t.Context(),
 			tools.Scope{Operator: true, ProfileID: store.DefaultProfileID},
-			tools.CallRequest{ToolID: tools.ToolIDAgentHeartbeatSources, Input: input},
+			tools.CallRequest{ToolID: tools.ToolIDAgentHeartbeatSources, Input: input, View: tools.ResultViewFull},
 		)
 		if err != nil {
 			t.Fatal(err)

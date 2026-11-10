@@ -14326,7 +14326,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
 					Input: json.RawMessage(
-						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true}`,
+						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true,"result_view":"full"}`,
 					),
 				},
 			)

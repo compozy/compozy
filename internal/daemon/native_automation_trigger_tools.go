@@ -38,7 +38,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := payloads[0]
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersCreate(
@@ -64,7 +64,7 @@ func (n *daemonNativeTools) automationTriggersCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(created)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersUpdate(
@@ -113,7 +113,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationTriggersDelete(
@@ -273,7 +273,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationSetTriggerEnabled(
@@ -303,7 +303,7 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
+	return triggerRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationRunsForQuery(

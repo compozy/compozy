@@ -102,7 +102,7 @@ func (n *daemonNativeTools) agentInstanceCall(
 		return toolspkg.ToolResult{}, err
 	}
 	if action == "list" {
-		return n.listNativeInstances(ctx, api, input, actor, query)
+		return n.listNativeInstances(ctx, api, input, actor, query, req.View)
 	}
 	instance, err := nativeInstanceTarget(ctx, api, actor, input.ID, query)
 	if err != nil {
@@ -115,7 +115,7 @@ func (n *daemonNativeTools) agentInstanceCall(
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID,
 			errors.New("ensure_main does not support dry_run; use agent_instance_get to inspect the instance"))
 	}
-	return executeNativeInstanceAction(ctx, api, actor, instance, input, action)
+	return executeNativeInstanceAction(ctx, api, actor, instance, input, action, req.View)
 }
 
 func executeNativeInstanceAction(
@@ -125,6 +125,7 @@ func executeNativeInstanceAction(
 	instance agentinstance.Instance,
 	input nativeInstanceInput,
 	action string,
+	view toolspkg.ResultView,
 ) (toolspkg.ToolResult, error) {
 	var err error
 	switch action {
@@ -172,7 +173,7 @@ func executeNativeInstanceAction(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance updated")
+	return agentInstanceRecordViews.result(view, payload)
 }
 
 func nativeInstanceReports(
@@ -273,16 +274,16 @@ const (
 
 func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.AgentInstanceAPI,
 	input nativeInstanceInput, actor workspaceaccess.ActorRef,
-	query agentinstance.ListQuery) (toolspkg.ToolResult, error) {
+	query agentinstance.ListQuery, view toolspkg.ResultView) (toolspkg.ToolResult, error) {
 	if input.Peers {
 		query.AllWorkspaces = input.AllWorkspaces || input.Workspace == ""
 		page, err := api.PeersPage(ctx, query, actor, n.deps.WorkspaceAccess)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		return structuredResult(page, "Reachable instance peers")
+		return agentInstancePeersViews.result(view, page)
 	}
-	return nativeInstanceList(ctx, api, actor, query)
+	return nativeInstanceList(ctx, api, actor, query, view)
 }
 
 func nativeInstanceError(id toolspkg.ToolID, err error, maxActive int) error {

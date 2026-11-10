@@ -41,7 +41,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		"Restore an archived project to the active catalog with its data and workspace ID unchanged.",
 		"unarchive project",
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentList,
 		"agent_list",
 		"Agent List",
@@ -54,7 +54,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog, toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCatalog},
 		[]string{"available agents", "agent catalog", "list agents"},
-	),
+	), agentListCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDWorkspaceList,
 		"workspace_list",
@@ -99,7 +99,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]string{workspaceWorkspaceKey, "describe"},
 		[]string{"workspace describe", "workspace detail"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentCreate,
 		"agent_create",
 		"Agent Create",
@@ -112,7 +112,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCreate},
 		[]string{"create agent", "author agent definition"},
-	),
+	), agentRecordCompactOutputSchema, `{"type":"object"}`),
 }
 
 func workspaceDescriptors() []toolspkg.Descriptor {

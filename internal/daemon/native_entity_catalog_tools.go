@@ -52,10 +52,7 @@ func (n *daemonNativeTools) agentList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.AgentPayloadsFromEntries(entries, &resolved.Config)
-	return structuredResult(
-		map[string]any{nativeToolsAgentsKey: payload},
-		fmt.Sprintf("%d agents", len(payload)),
-	)
+	return agentListViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) vaultList(
