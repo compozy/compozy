@@ -24,8 +24,10 @@ export interface SessionListChildBranchProps {
  * order, then "Show N more" for the rest and "Show less" to fold back. A child
  * past the cap that is open, selected, or needs you stays in its place among
  * the shown rows, so the list never hides what the operator is working on.
- * Keyboard cycles and ranges still walk every child: landing on a hidden one
- * opens or selects it, which shows it.
+ * Once shown, such a child stays until "Show less", so a row does not vanish
+ * under the pointer or from focus when it is deselected or left. Keyboard
+ * cycles and ranges still walk every child: landing on a hidden one opens or
+ * selects it, which shows it.
  */
 export function SessionListChildBranch({
   sessionId,
@@ -36,24 +38,38 @@ export function SessionListChildBranch({
   testIdPrefix,
 }: SessionListChildBranchProps) {
   const [expanded, setExpanded] = useState(false);
-  const capped = childSessions.filter(
-    (child, index) =>
-      index < CHILD_BRANCH_LIMIT ||
-      child.id === currentSessionId ||
-      selectedIds?.has(child.id) === true ||
-      isNeedsYouBadge(child.badge)
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
+  const pinned = (child: SessionPayload, index: number) =>
+    index < CHILD_BRANCH_LIMIT ||
+    child.id === currentSessionId ||
+    selectedIds?.has(child.id) === true ||
+    isNeedsYouBadge(child.badge);
+  // Remember each child the pins brought past the cap (state adjusted during render).
+  const newlyRevealed = childSessions.filter(
+    (child, index) => index >= CHILD_BRANCH_LIMIT && pinned(child, index) && !revealed.has(child.id)
   );
-  const shown = expanded ? childSessions : capped;
-  const foldable = capped.length < childSessions.length;
+  if (newlyRevealed.length > 0) {
+    setRevealed(new Set([...revealed, ...newlyRevealed.map(child => child.id)]));
+  }
+  const capped = childSessions.filter(pinned);
+  const shown = expanded
+    ? childSessions
+    : childSessions.filter((child, index) => pinned(child, index) || revealed.has(child.id));
+  const hidden = childSessions.length - shown.length;
+  const foldable = shown.length > capped.length;
+  const fold = () => {
+    setExpanded(false);
+    setRevealed(new Set());
+  };
 
   return (
     <div className={BRANCH_RAIL}>
       {shown.map(child => childRow(child))}
-      {foldable ? (
+      {hidden > 0 || foldable ? (
         <SessionListBranchMore
-          count={childSessions.length - shown.length}
+          count={hidden}
           onShowMore={() => setExpanded(true)}
-          onShowLess={() => setExpanded(false)}
+          onShowLess={fold}
           testId={`${testIdPrefix}-children-more-${sessionId}`}
         />
       ) : null}

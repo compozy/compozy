@@ -111,7 +111,9 @@ export interface VisibleSessionOrderOptions {
  * Projects the row order the shared session catalog renders for the served
  * sessions. Closed groups, folders, and threads are excluded because the cycle
  * shortcut must never focus a row the operator cannot currently see; a search
- * forces folders open exactly as the list does.
+ * forces folders open exactly as the list does. An open thread keeps every
+ * child, including those behind its "Show N more": landing on one opens or
+ * selects it, which shows it.
  */
 export function visibleSessionOrder(
   sessions: readonly SessionPayload[],

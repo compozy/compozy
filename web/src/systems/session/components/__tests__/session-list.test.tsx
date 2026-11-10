@@ -1026,6 +1026,36 @@ describe("SessionList subagents", () => {
         "true"
       );
       expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+
+      // Deselecting a revealed child keeps it in place until Show less folds the list back.
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-8"));
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+      expect(childRowIds()).toHaveLength(8);
+      fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-7",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 1 more" })).toBeInTheDocument();
+    });
+
+    it("Should select every child with select all and show them", () => {
+      renderList({ sessions: parentWithChildren(8) });
+
+      const first = screen.getByTestId("session-sidebar-session-child-1");
+      fireEvent.click(first, { metaKey: true });
+      fireEvent.keyDown(first, { key: "a", metaKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("9 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
     });
   });
 
