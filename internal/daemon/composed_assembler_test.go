@@ -108,6 +108,56 @@ func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh native root symlinks before suppressing a skill", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		source := filepath.Join(root, "source", "review")
+		nativeRoot := filepath.Join(root, ".claude", "skills")
+		replacement := filepath.Join(root, "replacement")
+		for _, dir := range []string{source, filepath.Dir(nativeRoot), replacement} {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		path := filepath.Join(source, "SKILL.md")
+		if err := os.WriteFile(path, []byte("Review body"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Dir(source), nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		policy := newSkillInjectionPolicyResolver()
+		policy.lookupEnv = func(string) (string, bool) { return "", false }
+		filter := policy.resolve(HarnessSessionContext{SessionID: "root-refresh", Provider: "claude", Workspace: root})
+		winner := &skillspkg.Skill{
+			Meta:     skillspkg.SkillMeta{Name: "review"},
+			FilePath: path,
+			RootDir:  filepath.Dir(source),
+			Origin:   compozyconfig.SkillSourceAgents,
+		}
+		if filter(winner) {
+			t.Fatal("exact live native exposure was not suppressed")
+		}
+		if err := os.Remove(nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("removed native root must restore injection")
+		}
+		if err := os.Symlink(replacement, nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("repointed native root must restore injection")
+		}
+		if err := os.Symlink(source, filepath.Join(replacement, "review")); err != nil {
+			t.Fatal(err)
+		}
+		if filter(winner) {
+			t.Fatal("restored exact native exposure was not suppressed")
+		}
+	})
+
 	t.Run("Should suppress native skills only for their provider", func(t *testing.T) {
 		t.Parallel()
 

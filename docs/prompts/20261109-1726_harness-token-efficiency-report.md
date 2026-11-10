@@ -664,3 +664,27 @@ git diff --check
 ```
 
 The test-shape checker accepts the transcript upgrade suite. It reports seven pre-existing direct-test shapes and one pre-existing discarded error in the larger lifecycle suite; comparison against the prior committed file confirms these findings predate the added subtest. The new behavior is covered in the existing owning suites without relaxing any assertion or adding a new test file.
+
+
+## PR #1437 — first CI and external review round
+
+Published ready at `f74617459` with `ci:full`. The independent Claude reviewer approved that head and reran all 16 archived-transcript/post-stop cases. The publication hook timed out twice during Go lint after its formatting and JS/TS checks passed; publication used its documented skip option with the successful scoped lint receipts above. The hook is not counted as green.
+
+The first CI Preflight passed generated-artifact and installer validation, then rejected two uses of the retired product name in the reduced-environment reference. Both now say CompozyOS. Its two failed Go shards also exposed stale contract expectations: the open/reopen suite still expected session migration 10, and the historical OpenAPI comparison lacked the six exact schemas receiving the approved optional harness settings. The tests now require migration 11 and allow only `auto_compact_window` / `lean_environment` on those declared components; existing fields, requiredness and schema comparisons remain enforced.
+
+Greptile's two findings were reproduced before fixing production code:
+
+- **Canonical migration baselines:** unreleased session migration 11 now derives prior-turn reports from canonical `usage`/`done` events, grouped by turn and currency in sequence order. A missing `token_usage` row no longer clears a retained event cost or inflates the next turn. Existing projected monetary rows are reconciled against the same reports without changing their token fields. The canonical suite includes reports `1, 3, 4, 0.5, 2` with the second projection row absent and requires costs `1, 2, 1, 0.5, 1.5` after upgrade and repeated reopen. The unpublished migration checksum was regenerated through Atlas, followed by `make codegen`; global migration 199 is unchanged.
+- **Live native root identity:** retain original absolute native root paths and perform exact-file checks through those paths on every catalog decision. Remove cached symlink targets and the root-only suppression shortcut. A removed or repointed `.claude/skills` restores injection; a newly restored exact exposure suppresses it again. Existing native-root tests now create the actual files whose exposure they assert.
+
+Focused verification passed, with zero normal/integration lint findings:
+
+```sh
+go run ./.tmp/w10-atlas-hash.go && make codegen
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/store/sessiondb ./internal/store/globaldb ./internal/store ./internal/daemon ./internal/api/spec -run '^(TestSessionDBUsageCostMigration|TestTranscriptProjectionUpgrade|TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent|TestGlobalDBUsageCostRepair|TestProductionMigrationStreams|TestMigrationSchemaEquivalence|TestComposedAssemblerFiltersProviderNativeSkillsAtStartup|TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots|TestResolveSessionNativeSkillRoots|TestDocumentPreservesSchemaSemantics)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/daemon ./internal/store/sessiondb ./internal/api/spec' make go-lint
+bash scripts/check-product-language.sh skills/compozy/references/agent-definitions.md
+git diff --check
+```
+
+The test-shape checker passes the two daemon suites and the API addition suite. Its file-wide Setenv/Parallel warning on `session_db_test.go` is unchanged from the committed file: the environment-changing subtest is serial, and the independent migration subtests do not mutate the environment. No broader local suites, codegen drift gate or E2E were run for this round. CI and external review of the correction head remain pending.

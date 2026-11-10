@@ -483,7 +483,7 @@ queued auto picks; picks never retarget a rotated main session.
 ## Reduced Claude environment
 
 Set `lean_environment: true` in an `AGENT.md` definition to exclude Claude Code MCP
-servers outside the Compozy launch, claude.ai connectors, and auto-memory. Compozy
+servers outside the CompozyOS launch, claude.ai connectors, and auto-memory. CompozyOS
 still supplies the session's configured MCP servers. Repository `CLAUDE.md`
 instructions, native skills, built-in tools, and settings hooks remain available.
 The option applies on creation and resume and is ignored by non-Claude providers.

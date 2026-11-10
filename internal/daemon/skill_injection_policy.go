@@ -59,13 +59,10 @@ type sessionSkillInjectionProfile struct {
 	provider    string
 	nativeRoots map[string]struct{}
 	logger      *slog.Logger
-	rootMu      sync.Mutex
-	rootCache   map[string]string
 }
 
 const (
 	maxSkillInjectionProfiles = 512
-	maxSkillRootCacheEntries  = 256
 	nativeProviderClaude      = "claude"
 )
 
@@ -122,7 +119,6 @@ func (r *skillInjectionPolicyResolver) newProfile(
 		provider:    sessionCtx.Provider,
 		nativeRoots: set,
 		logger:      r.logger,
-		rootCache:   make(map[string]string),
 	}
 }
 
@@ -130,9 +126,7 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 	if p == nil || skill == nil || canonicalNativeSkillProvider(p.provider) == "" {
 		return true
 	}
-	_, native := p.nativeRoots[p.canonicalSkillRoot(skill.RootDir)]
-	native = native && nativeProviderReadsOrigin(p.provider, skill.Origin)
-	if !native && !p.hasNativeExposure(skill) {
+	if !p.hasNativeExposure(skill) {
 		return true
 	}
 	logger := p.logger
@@ -150,7 +144,7 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 }
 
 // Check the winning file, not just its name: a native homonym can contain a
-// different skill. Do not cache this result because exposures can change live.
+// different skill. Resolve the original root path on every check: symlinks can change.
 func (p *sessionSkillInjectionProfile) hasNativeExposure(skill *skillspkg.Skill) bool {
 	if skill.FilePath == "" || skill.Meta.Name == "" {
 		return false
@@ -166,21 +160,6 @@ func (p *sessionSkillInjectionProfile) hasNativeExposure(skill *skillspkg.Skill)
 		}
 	}
 	return false
-}
-
-func (p *sessionSkillInjectionProfile) canonicalSkillRoot(path string) string {
-	trimmed := strings.TrimSpace(path)
-	p.rootMu.Lock()
-	defer p.rootMu.Unlock()
-	if cached, ok := p.rootCache[trimmed]; ok {
-		return cached
-	}
-	if len(p.rootCache) >= maxSkillRootCacheEntries {
-		clear(p.rootCache)
-	}
-	canonical := canonicalNativeSkillRoot(trimmed)
-	p.rootCache[trimmed] = canonical
-	return canonical
 }
 
 type nativeSkillRootResolution struct {
@@ -251,10 +230,6 @@ func nativeProviderHome(
 	return strings.TrimSpace(homePaths.OperatorHomeDir)
 }
 
-func nativeProviderReadsOrigin(provider string, origin string) bool {
-	return strings.TrimSpace(origin) == compozyconfig.SkillSourceClaude && provider == nativeProviderClaude
-}
-
 func canonicalNativeSkillRoots(roots []string) []string {
 	seen := make(map[string]struct{}, len(roots))
 	result := make([]string, 0, len(roots))
@@ -280,10 +255,6 @@ func canonicalNativeSkillRoot(root string) string {
 	absolute, err := filepath.Abs(trimmed)
 	if err != nil {
 		return filepath.Clean(trimmed)
-	}
-	resolved, err := filepath.EvalSymlinks(absolute)
-	if err == nil {
-		return filepath.Clean(resolved)
 	}
 	return filepath.Clean(absolute)
 }

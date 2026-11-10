@@ -3,22 +3,34 @@
 ALTER TABLE `token_usage` ADD COLUMN `reported_cost_amount` real NULL;
 UPDATE token_usage SET reported_cost_amount = cost_amount;
 CREATE TEMP TABLE usage_cost_baselines AS
-WITH ordered AS (
+WITH reports AS (
+    SELECT turn_id, sequence, json_extract(content, '$.usage.CostAmount') AS cost_amount,
+           trim(json_extract(content, '$.usage.CostCurrency')) AS cost_currency
+    FROM events
+    WHERE type IN ('usage', 'done') AND json_valid(content)
+      AND json_type(content, '$.usage.CostAmount') IN ('real', 'integer')
+      AND json_extract(content, '$.usage.CostAmount') >= 0
+      AND json_extract(content, '$.usage.CostAmount') <= 1.7976931348623157e308
+      AND length(trim(json_extract(content, '$.usage.CostCurrency'))) > 0
+), ranked AS (
+    SELECT *, MIN(sequence) OVER (PARTITION BY turn_id, cost_currency) AS first_sequence,
+           ROW_NUMBER() OVER (PARTITION BY turn_id, cost_currency ORDER BY sequence DESC) AS latest
+    FROM reports
+), ordered AS (
     SELECT turn_id, cost_currency, cost_amount,
-           LAG(cost_amount, 1, 0) OVER (
-               PARTITION BY trim(cost_currency) ORDER BY
-               COALESCE((SELECT MIN(sequence) FROM events WHERE events.turn_id = token_usage.turn_id), 9223372036854775807),
-               timestamp, turn_id
-           ) AS previous
-    FROM token_usage
-    WHERE cost_amount >= 0 AND cost_amount <= 1.7976931348623157e308
-      AND length(trim(cost_currency)) > 0
+           LAG(cost_amount, 1, 0) OVER (PARTITION BY cost_currency ORDER BY first_sequence) AS previous
+    FROM ranked WHERE latest = 1
 )
 SELECT *, CASE WHEN cost_amount < previous THEN cost_amount ELSE cost_amount - previous END AS turn_cost
 FROM ordered;
+CREATE UNIQUE INDEX usage_cost_baselines_turn_currency ON usage_cost_baselines(turn_id, cost_currency);
 UPDATE token_usage SET cost_amount = (
     SELECT turn_cost FROM usage_cost_baselines WHERE usage_cost_baselines.turn_id = token_usage.turn_id
-) WHERE reported_cost_amount IS NOT NULL;
+      AND usage_cost_baselines.cost_currency = trim(token_usage.cost_currency)
+), reported_cost_amount = COALESCE((
+    SELECT cost_amount FROM usage_cost_baselines WHERE usage_cost_baselines.turn_id = token_usage.turn_id
+      AND usage_cost_baselines.cost_currency = trim(token_usage.cost_currency)
+), reported_cost_amount) WHERE reported_cost_amount IS NOT NULL;
 -- Canonical payloads retain their original monetary evidence. All other fields,
 -- event IDs, ordering and archive flags remain unchanged.
 UPDATE events SET content = json_set(content,
