@@ -10,7 +10,7 @@ import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
 import { generateSDKCodeSamples, withSDKCodeSamples, type SDKSampleManifest } from "../sdk-samples";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
-import { apiOperationCount } from "../api-reference";
+import { apiOperationCount, operationAnchor } from "../api-reference";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
@@ -228,5 +228,21 @@ describe("apiOperationCount", () => {
 
   it("Should report no endpoints for hand-written pages", () => {
     expect(apiOperationCount('## API overview\n\nSee `{"path":"/api/x","method":"get"}`.')).toBe(0);
+  });
+});
+
+describe("operationAnchor", () => {
+  it("Should give every operation of the contract its own anchor, even when summaries repeat", () => {
+    const document = JSON.parse(readFileSync(OPENAPI_PATH, "utf8")) as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const anchors = Object.entries(document.paths).flatMap(([path, methods]) =>
+      Object.keys(methods).map(method => operationAnchor(method, path))
+    );
+    expect(anchors.length).toBeGreaterThan(0);
+    expect(new Set(anchors).size).toBe(anchors.length);
+    expect(operationAnchor("get", "/api/workspaces/{workspace_id}/sessions")).toBe(
+      "op-get-api-workspaces-workspace-id-sessions"
+    );
   });
 });

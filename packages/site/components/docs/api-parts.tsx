@@ -13,7 +13,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { BELOW_HEADER, FOCUS, LINE } from "@/components/docs/docs-classes";
 import { CodeFrame } from "@/components/docs/docs-prose";
-import { headingSlug } from "@/lib/cli-doc";
+import { operationAnchor } from "@/lib/api-reference";
 
 const PREVIEW = 12;
 // The underline is placed explicitly: the site does not ship the custom variants the Tabs use.
@@ -106,7 +106,7 @@ export function EndpointIndex({ items }: { items: readonly OperationItem[] }) {
         {shown.map(entry => (
           <li key={entry.key}>
             <a
-              href={`#${headingSlug(entry.summary)}`}
+              href={`#${operationAnchor(entry.method, entry.path)}`}
               className={cn(
                 "grid items-baseline gap-x-5 gap-y-1 py-3 transition-colors hover:bg-site-light-025 md:grid-cols-[56px_minmax(0,0.9fr)_minmax(0,1fr)]",
                 FOCUS

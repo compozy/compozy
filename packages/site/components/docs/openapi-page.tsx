@@ -20,6 +20,7 @@ import {
   Transports,
 } from "@/components/docs/api-parts";
 import { LINE } from "@/components/docs/docs-classes";
+import { operationAnchor } from "@/lib/api-reference";
 
 export type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
@@ -62,6 +63,7 @@ export const OpenAPIPage = createOpenAPIPage({
     ),
     renderOperationLayout: (slots, { path, method, operation }) => (
       <section
+        id={operationAnchor(method, path)}
         className={cn(
           "site-api-endpoint grid gap-x-14 gap-y-8 border-t py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
           LINE

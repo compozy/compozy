@@ -8,3 +8,15 @@ export function apiOperationCount(source: string): number {
   if (!source.includes("<OpenAPIPage")) return 0;
   return source.match(OPERATION)?.length ?? 0;
 }
+
+/**
+ * The anchor of one endpoint section. Summaries repeat within a resource ("List sessions" is both
+ * the global and the workspace route), so the anchor comes from the method and path instead.
+ */
+export function operationAnchor(method: string, path: string): string {
+  const slug = `${method}-${path}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `op-${slug}`;
+}

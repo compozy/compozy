@@ -12,8 +12,11 @@ import { isSdkLang, type SdkLang } from "@/lib/sdk-reference-model";
 const STORAGE_KEY = "compozy.sdk.lang";
 const DEFAULT_LANG: SdkLang = "ts";
 const listeners = new Set<() => void>();
+/** The choice made in this tab. Storage only carries it between visits, so a blocked store still switches. */
+let chosen: SdkLang | null = null;
 
 function readStored(): SdkLang {
+  if (chosen) return chosen;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     return isSdkLang(stored) ? stored : DEFAULT_LANG;
@@ -25,7 +28,10 @@ function readStored(): SdkLang {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) listener();
+    if (event.key !== STORAGE_KEY) return;
+    // Another tab changed the language: follow it.
+    chosen = null;
+    listener();
   };
   window.addEventListener("storage", onStorage);
   return () => {
@@ -39,10 +45,11 @@ export function useSdkLang(): SdkLang {
 }
 
 export function setSdkLang(lang: SdkLang): void {
+  chosen = lang;
   try {
     window.localStorage.setItem(STORAGE_KEY, lang);
   } catch {
-    // Storage can be unavailable (private mode); the choice then lasts for this render only.
+    // Storage can be unavailable (private mode); the choice then lasts for this tab only.
   }
   for (const listener of listeners) listener();
 }
