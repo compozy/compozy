@@ -24,7 +24,7 @@ export function Chip({ children, brand = false }: ChipProps) {
     <div
       style={{
         ...chipBaseStyle,
-        border: `1px solid ${brand ? COLORS.brand : COLORS.border}`,
+        border: `1px solid ${brand ? COLORS.beamTo : COLORS.hairline}`,
         color: brand ? COLORS.brandText : COLORS.textSecondary,
       }}
     >

@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import ErrorPage from "@/app/error";
 import NotFound from "@/app/not-found";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/missing",
+}));
+
+vi.mock("@/components/site/github-stars-api", () => ({
+  loadGithubStars: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -20,18 +28,12 @@ vi.mock("next/link", () => ({
 }));
 
 describe("fallback pages", () => {
-  it("routes missing pages back into the docs catalog", () => {
+  it("routes missing pages back to home and the docs", () => {
     render(<NotFound />);
 
-    expect(screen.getByText("Not found")).toBeDefined();
-    expect(
-      screen.getByRole("heading", { name: "This route is not in the runtime." })
-    ).toBeDefined();
-    expect(screen.getByText(/not part of the published CompozyOS site/)).toBeDefined();
-    expect(screen.getByRole("link", { name: "Runtime docs" }).getAttribute("href")).toBe("/docs/");
-    expect(screen.getByRole("link", { name: "Sessions" }).getAttribute("href")).toBe(
-      "/docs/sessions/"
-    );
+    expect(screen.getByRole("heading", { level: 1, name: "This page is not here." })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Back to home" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: "Read the docs" }).getAttribute("href")).toBe("/docs");
   });
 
   it("lets operators retry recoverable render failures without exposing raw errors", () => {

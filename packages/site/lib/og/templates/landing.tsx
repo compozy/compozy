@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
 import { LogoLockup, SymbolGlyph } from "../logo";
-import { COLORS, FONTS, SIZE } from "../tokens";
+import { BEAM, COLORS, FONTS, SIZE, GLOW } from "../tokens";
 
 const HEADLINE = "The system around the agent, already built.";
 const SUBHEAD =
@@ -21,7 +21,8 @@ const canvasStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   justifyContent: "space-between",
-  background: COLORS.canvas,
+  backgroundColor: COLORS.canvas,
+  backgroundImage: GLOW,
   color: COLORS.textPrimary,
   fontFamily: FONTS.sans,
   padding: "72px",
@@ -45,7 +46,7 @@ const symbolTileStyle: CSSProperties = {
   width: "120px",
   height: "120px",
   background: COLORS.surface,
-  border: `1px solid ${COLORS.border}`,
+  border: `1px solid ${COLORS.edge}`,
   borderRadius: "28px",
 };
 
@@ -74,7 +75,9 @@ export async function renderLandingOG(): Promise<ImageResponse> {
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           <LogoLockup height={64} letteringFill={COLORS.textPrimary} />
           <div style={eyebrowStyle}>
-            <span style={{ width: "96px", height: "1px", background: COLORS.border }} />
+            <span
+              style={{ width: "96px", height: "2px", borderRadius: "2px", backgroundImage: BEAM }}
+            />
             <span>{EYEBROW}</span>
           </div>
         </div>
@@ -96,7 +99,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
             fontFamily: FONTS.display,
             fontSize: "80px",
             lineHeight: 0.96,
-            letterSpacing: "-0.025em",
+            letterSpacing: "-0.03em",
             color: COLORS.textPrimary,
             fontWeight: 400,
           }}
@@ -122,7 +125,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
           display: "flex",
           flexDirection: "row",
           alignItems: "stretch",
-          borderTop: `1px solid ${COLORS.border}`,
+          borderTop: `1px solid ${COLORS.hairline}`,
           paddingTop: "28px",
         }}
       >
@@ -133,7 +136,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
               ...footerRailItemStyle,
               paddingLeft: idx === 0 ? "0" : "32px",
               paddingRight: idx === FOOTER_RAIL.length - 1 ? "0" : "32px",
-              borderLeft: idx === 0 ? "none" : `1px solid ${COLORS.border}`,
+              borderLeft: idx === 0 ? "none" : `1px solid ${COLORS.hairline}`,
               color: entry.color,
               textTransform: entry.lowercase ? "lowercase" : "uppercase",
             }}

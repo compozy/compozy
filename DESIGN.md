@@ -592,6 +592,28 @@ tokens:
       diagram-node-stroke-width: "1.4px"
       bento-overlay-runtime: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )"
       bento-overlay-extensibility: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )"
+      light-025: "rgb(255 255 255 / 0.025)"
+      light-030: "rgb(255 255 255 / 0.03)"
+      light-040: "rgb(255 255 255 / 0.04)"
+      light-050: "rgb(255 255 255 / 0.05)"
+      light-060: "rgb(255 255 255 / 0.06)"
+      light-070: "rgb(255 255 255 / 0.07)"
+      light-080: "rgb(255 255 255 / 0.08)"
+      light-090: "rgb(255 255 255 / 0.09)"
+      light-100: "rgb(255 255 255 / 0.1)"
+      light-120: "rgb(255 255 255 / 0.12)"
+      light-150: "rgb(255 255 255 / 0.15)"
+      light-200: "rgb(255 255 255 / 0.2)"
+      light-250: "rgb(255 255 255 / 0.25)"
+      light-350: "rgb(255 255 255 / 0.35)"
+      dark-030: "rgb(0 0 0 / 0.03)"
+      dark-100: "rgb(0 0 0 / 0.1)"
+      dark-150: "rgb(0 0 0 / 0.15)"
+      dark-400: "rgb(0 0 0 / 0.4)"
+      dark-450: "rgb(0 0 0 / 0.45)"
+      dark-550: "rgb(0 0 0 / 0.55)"
+      dark-600: "rgb(0 0 0 / 0.6)"
+      dark-700: "rgb(0 0 0 / 0.7)"
 ---
 
 # Design System: CompozyOS
@@ -1481,7 +1503,14 @@ Figtree.
 | `--site-api-sticky-row-fallback`            | `2rem`                                                                                                                                                              | `--site-api-sticky-offset`               | `1rem`                                                                                                                                                              | `--site-api-example-width`                | `22rem`                                                     |
 | `--site-api-example-width-wide`             | `26rem`                                                                                                                                                             | `--site-api-content-gap`                 | `1.25rem`                                                                                                                                                           | `--site-api-heading-content-gap`          | `0.875rem`                                                  |
 | `--site-api-subheading-offset`              | `2.5rem`                                                                                                                                                            | `--site-api-schema-min-width`            | `18rem`                                                                                                                                                             | `--site-diagram-node-stroke-width`        | `1.4px`                                                     |
-| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-extensibility`     | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` |                                           |                                                             |
+| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-extensibility`     | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` | `--site-light-025`                        | `rgb(255 255 255 / 0.025)`                                  |
+| `--site-light-030`                          | `rgb(255 255 255 / 0.03)`                                                                                                                                           | `--site-light-040`                       | `rgb(255 255 255 / 0.04)`                                                                                                                                           | `--site-light-050`                        | `rgb(255 255 255 / 0.05)`                                   |
+| `--site-light-060`                          | `rgb(255 255 255 / 0.06)`                                                                                                                                           | `--site-light-070`                       | `rgb(255 255 255 / 0.07)`                                                                                                                                           | `--site-light-080`                        | `rgb(255 255 255 / 0.08)`                                   |
+| `--site-light-090`                          | `rgb(255 255 255 / 0.09)`                                                                                                                                           | `--site-light-100`                       | `rgb(255 255 255 / 0.1)`                                                                                                                                            | `--site-light-120`                        | `rgb(255 255 255 / 0.12)`                                   |
+| `--site-light-150`                          | `rgb(255 255 255 / 0.15)`                                                                                                                                           | `--site-light-200`                       | `rgb(255 255 255 / 0.2)`                                                                                                                                            | `--site-light-250`                        | `rgb(255 255 255 / 0.25)`                                   |
+| `--site-light-350`                          | `rgb(255 255 255 / 0.35)`                                                                                                                                           | `--site-dark-030`                        | `rgb(0 0 0 / 0.03)`                                                                                                                                                 | `--site-dark-100`                         | `rgb(0 0 0 / 0.1)`                                          |
+| `--site-dark-150`                           | `rgb(0 0 0 / 0.15)`                                                                                                                                                 | `--site-dark-400`                        | `rgb(0 0 0 / 0.4)`                                                                                                                                                  | `--site-dark-450`                         | `rgb(0 0 0 / 0.45)`                                         |
+| `--site-dark-550`                           | `rgb(0 0 0 / 0.55)`                                                                                                                                                 | `--site-dark-600`                        | `rgb(0 0 0 / 0.6)`                                                                                                                                                  | `--site-dark-700`                         | `rgb(0 0 0 / 0.7)`                                          |
 
 <!-- END:tokens:site-layout -->
 

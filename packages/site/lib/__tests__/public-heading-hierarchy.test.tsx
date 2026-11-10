@@ -33,6 +33,10 @@ vi.mock("next/server", () => ({
   connection: vi.fn(),
 }));
 
+vi.mock("@/components/site/github-stars-api", () => ({
+  loadGithubStars: async () => null,
+}));
+
 vi.mock("@/lib/changelog/github-client", () => ({
   loadChangelogReleases: async () => ({ status: "ready", releases: [] }),
 }));
@@ -94,7 +98,7 @@ describe("public heading hierarchy", () => {
     cleanup();
 
     render(<NotFound />);
-    expectSingleH1("This route is not in the runtime.");
+    expectSingleH1("This page is not here.");
     cleanup();
 
     render(<ErrorPage error={new Error("render failed")} reset={vi.fn()} />);

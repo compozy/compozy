@@ -126,6 +126,30 @@
   --tracking-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-tracking);
   --color-site-doc-sidebar-section-label: var(--site-doc-sidebar-section-label-color);
   --color-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-color);
+  /* Translucent site tones (v1.2 redesign): `bg-site-light-040`, `border-site-light-100`,
+     `bg-site-dark-400`. Values live in :root as `--site-light-*` / `--site-dark-*`. */
+  --color-site-light-025: var(--site-light-025);
+  --color-site-light-030: var(--site-light-030);
+  --color-site-light-040: var(--site-light-040);
+  --color-site-light-050: var(--site-light-050);
+  --color-site-light-060: var(--site-light-060);
+  --color-site-light-070: var(--site-light-070);
+  --color-site-light-080: var(--site-light-080);
+  --color-site-light-090: var(--site-light-090);
+  --color-site-light-100: var(--site-light-100);
+  --color-site-light-120: var(--site-light-120);
+  --color-site-light-150: var(--site-light-150);
+  --color-site-light-200: var(--site-light-200);
+  --color-site-light-250: var(--site-light-250);
+  --color-site-light-350: var(--site-light-350);
+  --color-site-dark-030: var(--site-dark-030);
+  --color-site-dark-100: var(--site-dark-100);
+  --color-site-dark-150: var(--site-dark-150);
+  --color-site-dark-400: var(--site-dark-400);
+  --color-site-dark-450: var(--site-dark-450);
+  --color-site-dark-550: var(--site-dark-550);
+  --color-site-dark-600: var(--site-dark-600);
+  --color-site-dark-700: var(--site-dark-700);
 }
 
 /*
@@ -257,6 +281,72 @@
     color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
     transparent 58%
   );
+}
+
+/*
+ * Translucent tones of the v1.2 redesign, mirrored from the approved landing draft
+ * (web/src/drafts/landing/landing.css). White and black at fixed alphas over the
+ * #0a0a0a surface; utilities come from the `--color-site-*` aliases above.
+ */
+:root {
+  --site-light-025: rgb(255 255 255 / 0.025);
+  --site-light-030: rgb(255 255 255 / 0.03);
+  --site-light-040: rgb(255 255 255 / 0.04);
+  --site-light-050: rgb(255 255 255 / 0.05);
+  --site-light-060: rgb(255 255 255 / 0.06);
+  --site-light-070: rgb(255 255 255 / 0.07);
+  --site-light-080: rgb(255 255 255 / 0.08);
+  --site-light-090: rgb(255 255 255 / 0.09);
+  --site-light-100: rgb(255 255 255 / 0.1);
+  --site-light-120: rgb(255 255 255 / 0.12);
+  --site-light-150: rgb(255 255 255 / 0.15);
+  --site-light-200: rgb(255 255 255 / 0.2);
+  --site-light-250: rgb(255 255 255 / 0.25);
+  --site-light-350: rgb(255 255 255 / 0.35);
+  --site-dark-030: rgb(0 0 0 / 0.03);
+  --site-dark-100: rgb(0 0 0 / 0.1);
+  --site-dark-150: rgb(0 0 0 / 0.15);
+  --site-dark-400: rgb(0 0 0 / 0.4);
+  --site-dark-450: rgb(0 0 0 / 0.45);
+  --site-dark-550: rgb(0 0 0 / 0.55);
+  --site-dark-600: rgb(0 0 0 / 0.6);
+  --site-dark-700: rgb(0 0 0 / 0.7);
+}
+
+/*
+ * Marketing shell (`SiteShell`): the redesign drafts render on the shared neutral
+ * text ramp, not the warm D9 pins above, so routes inside the shell restore it.
+ */
+.site-marketing {
+  --color-fg: #ececec;
+  --color-fg-strong: #ffffff;
+  --color-muted-foreground: #989898;
+  --color-subtle: #8e8e8e;
+  --color-faint: #8d8d8d;
+}
+
+/* Hash targets land below the floating marketing header. */
+html:has(.site-marketing) {
+  scroll-padding-top: 88px;
+}
+
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes landing-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes landing-caret {
+  50% {
+    opacity: 0;
+  }
 }
 
 /*

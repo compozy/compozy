@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { footerColumns } from "../footer-config";
 import { baseOptions } from "../layout.shared";
 import { siteConfig } from "../site-config";
+import { MARKETING_NAV_LINKS, isCurrentSection } from "../site-nav";
 import { contentRoot } from "../content-test-utils";
 
 type InternalLink = {
@@ -67,6 +68,10 @@ function layoutLinks(): InternalLink[] {
   });
 }
 
+function marketingLinks(): InternalLink[] {
+  return MARKETING_NAV_LINKS.map(link => ({ ...link, source: "MARKETING_NAV_LINKS" }));
+}
+
 function footerInternalLinks(): InternalLink[] {
   return footerColumns.flatMap(column =>
     column.items
@@ -90,7 +95,7 @@ function expectRouteBackedLinks(links: InternalLink[]) {
 
 describe("site navigation configuration", () => {
   it("keeps configured internal navigation links backed by real routes", () => {
-    expectRouteBackedLinks([...layoutLinks(), ...footerInternalLinks()]);
+    expectRouteBackedLinks([...layoutLinks(), ...marketingLinks(), ...footerInternalLinks()]);
   });
 
   it("keeps footer columns focused and external links explicit", () => {
@@ -115,6 +120,13 @@ describe("site navigation configuration", () => {
         expect(item.href.endsWith(".mdx"), item.label).toBe(false);
       }
     }
+  });
+
+  it("marks a marketing section current on its route and every route nested under it", () => {
+    expect(isCurrentSection("/blog", "/blog")).toBe(true);
+    expect(isCurrentSection("/blog/introducing-compozyos", "/blog")).toBe(true);
+    expect(isCurrentSection("/blogroll", "/blog")).toBe(false);
+    expect(isCurrentSection("/", "/docs")).toBe(false);
   });
 
   it("uses one canonical GitHub URL across layout and footer resources", () => {

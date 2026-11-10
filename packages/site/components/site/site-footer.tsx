@@ -1,106 +1,44 @@
-import { Eyebrow, Logo, cn } from "@compozy/ui";
-import { GithubLogo } from "@compozy/ui/logos";
+/** The one-line marketing footer from the landing draft. */
+import { Logo, cn } from "@compozy/ui";
 import Link from "next/link";
 
-import { SectionFrame } from "@/components/landing/primitives/section-frame";
-import { type FooterColumn, type FooterLink, footerColumns } from "@/lib/footer-config";
+import { CONTAINER, FOCUS, HAIRLINE } from "@/components/site/layout";
 import { siteConfig } from "@/lib/site-config";
+import { MARKETING_NAV_LINKS } from "@/lib/site-nav";
 
-const CURRENT_YEAR = new Date().getFullYear();
-
-const LINK_CLASS =
-  "inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:rounded-sm";
-
-const COLUMN_TITLE_CLASS = "eyebrow text-muted-foreground";
-
-function FooterLinkItem({ item }: { item: FooterLink }) {
-  if (item.external) {
-    return (
-      <a href={item.href} target="_blank" rel="noreferrer noopener" className={LINK_CLASS}>
-        {item.label}
-      </a>
-    );
-  }
-
-  return (
-    <Link href={item.href} className={LINK_CLASS}>
-      {item.label}
-    </Link>
-  );
-}
-
-function FooterColumnGroup({ column, className }: { column: FooterColumn; className?: string }) {
-  return (
-    <nav aria-label={column.title} className={cn("flex flex-col gap-4", className)}>
-      <h2 className={COLUMN_TITLE_CLASS}>{column.title}</h2>
-      <ul className="flex flex-col gap-2.5">
-        {column.items.map(item => (
-          <li key={`${column.title}-${item.label}`}>
-            <FooterLinkItem item={item} />
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
+const LINK = cn(
+  "rounded-[4px] text-[14px] text-muted-foreground transition-colors hover:text-fg",
+  FOCUS
+);
 
 export function SiteFooter() {
-  const [runtime, resources] = footerColumns;
-
   return (
-    <footer className="mt-auto border-t border-line bg-canvas">
-      <SectionFrame padY="lg">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12 lg:grid-cols-12">
-          <div className="flex flex-col gap-5 md:col-span-2 lg:col-span-5">
-            <Link href="/" aria-label="CompozyOS home" className="inline-flex w-fit">
-              <Logo variant="logo" decorative className="h-8 w-auto" />
-            </Link>
-            <p className="max-w-[44ch] text-sm leading-relaxed text-muted-foreground">
-              {siteConfig.description}
-            </p>
-            <a
-              href={siteConfig.githubUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              aria-label="CompozyOS on GitHub"
-              className={cn(
-                "inline-flex size-9 items-center justify-center rounded-full border border-line text-muted-foreground transition-colors",
-                "hover:border-muted-foreground hover:text-fg",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-              )}
-            >
-              <GithubLogo aria-hidden className="size-4" />
-            </a>
-          </div>
-
-          <FooterColumnGroup column={runtime} className="lg:col-span-2" />
-          <FooterColumnGroup column={resources} className="lg:col-span-3" />
-        </div>
-
-        <div
-          className={cn(
-            "mt-14 flex flex-col gap-3 border-t border-line pt-6",
-            "md:flex-row md:items-center md:justify-between"
-          )}
+    <footer className={cn("border-t", HAIRLINE)}>
+      <div
+        className={cn(
+          CONTAINER,
+          "flex flex-col gap-6 py-9 md:flex-row md:items-center md:justify-between"
+        )}
+      >
+        <Link
+          href="/"
+          aria-label="CompozyOS home"
+          className={cn("flex self-start rounded-[8px] md:self-auto", FOCUS)}
         >
-          <p className="text-xs text-subtle">
-            © {CURRENT_YEAR} {siteConfig.name}.
-          </p>
-          <a
-            href={siteConfig.githubUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            className={cn(
-              "inline-flex items-center gap-2 text-subtle transition-colors",
-              "hover:text-fg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:rounded-sm"
-            )}
-          >
-            <Eyebrow>Open source · CompozyOS on GitHub</Eyebrow>
-            <span aria-hidden="true">→</span>
+          <Logo variant="logo" decorative className="h-[22px]" />
+        </Link>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-7 gap-y-3">
+          {MARKETING_NAV_LINKS.map(link => (
+            <Link key={link.href} href={link.href} className={LINK}>
+              {link.label}
+            </Link>
+          ))}
+          <a href={siteConfig.githubUrl} target="_blank" rel="noopener noreferrer" className={LINK}>
+            GitHub
           </a>
-        </div>
-      </SectionFrame>
+        </nav>
+        <p className="m-0 text-[14px] text-muted-foreground">Keep every agent running.</p>
+      </div>
     </footer>
   );
 }

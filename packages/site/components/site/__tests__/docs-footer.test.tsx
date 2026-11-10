@@ -3,7 +3,7 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { footerColumns } from "@/lib/footer-config";
 import { siteConfig } from "@/lib/site-config";
-import { SiteFooter } from "../site-footer";
+import { DocsFooter } from "../docs-footer";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -20,10 +20,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-describe("SiteFooter", () => {
+describe("DocsFooter", () => {
   // eslint-disable-next-line compozy-testing/deterministic-tests -- Accessible-name traversal covers the full footer SVG/link tree; assertions remain synchronous and this bounds DOM work.
   it("renders the public site identity and release footer copy", () => {
-    render(<SiteFooter />);
+    render(<DocsFooter />);
 
     const footer = screen.getByRole("contentinfo");
     const homeLink = screen.getByRole("link", { name: "CompozyOS home" });
@@ -40,7 +40,7 @@ describe("SiteFooter", () => {
   }, 15_000);
 
   it("renders every configured footer column as accessible navigation", () => {
-    render(<SiteFooter />);
+    render(<DocsFooter />);
 
     for (const column of footerColumns) {
       const navigation = screen.getByRole("navigation", { name: column.title });
@@ -54,7 +54,7 @@ describe("SiteFooter", () => {
   });
 
   it("keeps public GitHub links explicit, external, and opener-safe", () => {
-    render(<SiteFooter />);
+    render(<DocsFooter />);
 
     const githubLinks = screen
       .getAllByRole("link")

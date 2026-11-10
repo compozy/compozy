@@ -1,20 +1,12 @@
-import { HomeLayout } from "fumadocs-ui/layouts/home";
-import { baseOptions } from "@/lib/layout.shared";
-import { HomeHeader } from "@/components/site/home-header";
-import { HomeMainContainer } from "@/components/site/home-main-container";
 import type { ReactNode } from "react";
+
+import { SiteShell } from "@/components/site/site-shell";
 
 export default function BlogLayout({ children }: { children: ReactNode }) {
   return (
-    <HomeLayout
-      {...baseOptions}
-      slots={{
-        ...baseOptions.slots,
-        header: HomeHeader,
-        container: HomeMainContainer,
-      }}
-    >
-      {children}
-    </HomeLayout>
+    <SiteShell>
+      {/* Pre-redesign body: offset below the floating header until this surface's slice replaces it. */}
+      <div className="site-home flex flex-1 flex-col bg-canvas pt-[76px]">{children}</div>
+    </SiteShell>
   );
 }

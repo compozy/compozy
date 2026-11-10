@@ -80,8 +80,9 @@ function asMockImageResponse(value: unknown): MockedImageResponse {
   return value as MockedImageResponse;
 }
 
-const PALETTE_HEXES = ["#0a0a0a", "#1b1b1b", "#383838", "#ececec", "#989898", "#4a9dff"];
-const RETIRED_HEXES = ["#E8572A", "#141312"];
+const BEAM = "linear-gradient(90deg, #1df0d7, #1f87fc)";
+const PALETTE_VALUES = ["#0a0a0a", "#ececec", "#989898", "rgba(255, 255, 255, 0.08)", BEAM];
+const RETIRED_HEXES = ["#E8572A", "#141312", "#1b1b1b", "#383838"];
 
 describe("Landing OpenGraph image (root)", () => {
   it("publishes a static 1200x630 PNG response with embedded fonts", async () => {
@@ -112,8 +113,11 @@ describe("Landing OpenGraph image (root)", () => {
     expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");
 
-    for (const hex of PALETTE_HEXES) {
-      expect(styleValues).toContain(hex);
+    for (const value of PALETTE_VALUES) {
+      expect(
+        styleValues.some(style => style.includes(value)),
+        value
+      ).toBe(true);
     }
     for (const hex of RETIRED_HEXES) {
       expect(styleValues).not.toContain(hex);
@@ -131,7 +135,7 @@ describe("Landing OpenGraph image (root)", () => {
 });
 
 describe("Docs OpenGraph template", () => {
-  it("renders the docs eyebrow, technical path, and Figtree title", async () => {
+  it("renders the docs eyebrow, technical path, and Instrument Sans title on the beam palette", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({
@@ -154,10 +158,10 @@ describe("Docs OpenGraph template", () => {
     expect(copy).toContain("compozy.com");
 
     expect(types).toContain(LogoLockup);
-    expect(styleValues).toContain("#4a9dff");
+    expect(styleValues).toContain(BEAM);
     expect(styleValues).toContain("#0a0a0a");
     expect(styleValues).toContain("Figtree");
-    expect(styleValues).not.toContain("Instrument Sans");
+    expect(styleValues).toContain("Instrument Sans");
   });
 });
 
@@ -186,7 +190,7 @@ describe("Blog OpenGraph template", () => {
 
     expect(types).toContain(LogoLockup);
     expect(styleValues).toContain("Instrument Sans");
-    expect(styleValues).toContain("#4a9dff");
+    expect(styleValues).toContain(BEAM);
   });
 
   it("hides date and author bits when not provided", async () => {

@@ -6,7 +6,6 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { Toaster, UIProvider } from "@compozy/ui";
-import { SiteFooter } from "@/components/site/site-footer";
 import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
 
@@ -114,7 +113,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               theme={{ enabled: false }}
             >
               {children}
-              <SiteFooter />
             </RootProvider>
           </SiteSearchProvider>
         </UIProvider>
