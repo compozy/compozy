@@ -36,6 +36,7 @@ interface UseWorkspacesOptions extends UseWorkspaceOptions {
   notifyOnChangeProps?: NotifyOnChangeProps;
 }
 
+/** The registered workspace catalog, polled every 10 s while observed. */
 export function useWorkspaces(options: UseWorkspacesOptions = {}) {
   return useQuery({
     ...workspacesListOptions(options.enabled ?? true),

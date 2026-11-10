@@ -18,6 +18,10 @@ import {
 } from "../stores/active-workspace-store";
 import { useUserHomeDir } from "./use-user-home-dir";
 
+/**
+ * The active destination resolved against the workspace catalog, plus the
+ * catalog's load state and the actions that move the destination.
+ */
 export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
   const requestedBreadthMode = useBreadthMode();

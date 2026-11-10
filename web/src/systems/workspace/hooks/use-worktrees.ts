@@ -51,6 +51,7 @@ function useListingCatalog(workspaceIDs: readonly string[]) {
   });
 }
 
+/** One workspace's worktree listing, gated on the catalog's view of its root. */
 export function useWorktrees(workspaceID: string | null, options: UseWorktreesOptions = {}) {
   const catalog = useListingCatalog(workspaceID === null ? [] : [workspaceID]);
   const workspace = catalog.data?.find(item => item.id === workspaceID);
