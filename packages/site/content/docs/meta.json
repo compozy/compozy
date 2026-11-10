@@ -38,6 +38,7 @@
         "configuration",
         "---Reference---",
         "cli",
-        "api"
+        "api",
+        "sdk"
     ]
 }

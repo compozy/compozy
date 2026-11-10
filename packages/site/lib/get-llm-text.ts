@@ -4,6 +4,7 @@ import { remark } from "remark";
 import remarkGfm from "remark-gfm";
 import remarkMdx from "remark-mdx";
 import type { docsSource } from "@/lib/source";
+import { expandSdkResources } from "@/lib/sdk-reference-markdown";
 import { absoluteUrl } from "@/lib/site-config";
 
 const processor = remark().use(remarkMdx).use(remarkInclude).use(remarkGfm);
@@ -29,6 +30,8 @@ export async function getLLMText(page: DocsPage): Promise<string> {
     "",
     description,
     "",
-    String(processed.value),
+    // Generated SDK stubs hold one component; their Markdown lists the methods it renders. It is
+    // expanded after the MDX pass, which would read `<name>` in a description as JSX.
+    expandSdkResources(String(processed.value)),
   ].join("\n");
 }

@@ -12,6 +12,7 @@ import {
   pluginDisplayName,
   pluginSearchCommand,
 } from "@/lib/marketplace-plugins";
+import { sdkSearchData } from "@/lib/sdk-reference-markdown";
 import { docsSource } from "@/lib/source";
 
 type SearchPage = {
@@ -37,6 +38,7 @@ type TocHeading = {
 const DOC_PATH_LABELS: Readonly<Record<string, string>> = {
   cli: "CLI reference",
   api: "API reference",
+  sdk: "SDK reference",
   protocol: "Protocol spec",
   guide: "Implementation guide",
   mcp: "MCP",
@@ -110,7 +112,7 @@ function buildDocIndexes(pages: SearchPage[]): AdvancedIndex[] {
   return sortedByURL(pages).map(page => ({
     title: page.data.title,
     description: page.data.description,
-    structuredData: page.data.structuredData,
+    structuredData: sdkSearchData(page.url, page.data.structuredData),
     id: page.url,
     url: page.url,
     breadcrumbs: buildDocBreadcrumbs(page.url),

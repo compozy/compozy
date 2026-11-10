@@ -20,6 +20,8 @@ import { getDocsPageSource } from "@/lib/get-llm-text";
 import { getDocsShell, neighboursOf, type DocsShell } from "@/lib/docs-shell";
 import { normalizeDocsUrl } from "@/lib/docs-navigation";
 import { openapi } from "@/lib/openapi";
+import { isSdkUrl, sdkFacts, sdkResourceForUrl } from "@/lib/sdk-reference";
+import { SDK_PROSE } from "@/components/sdk/sdk-classes";
 import { absoluteUrl, canonicalPath, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
 import { docsSource } from "@/lib/source";
 import { cn } from "@compozy/ui";
@@ -88,9 +90,16 @@ function sidebarGroups(shell: DocsShell, sectionId: string | null): DocsSidebarG
 type DocTemplate =
   | { kind: "cli"; cli: CliDoc }
   | { kind: "api"; endpoints: number }
+  | { kind: "sdk" }
   | { kind: "article" };
 
-function templateOf(slug: string[], content: string, description: string): DocTemplate {
+function templateOf(
+  slug: string[],
+  url: string,
+  content: string,
+  description: string
+): DocTemplate {
+  if (sdkResourceForUrl(url) !== undefined) return { kind: "sdk" };
   // Generated CLI pages are parsed once here, at build, into the command template.
   const cli = slug[0] === "cli" ? readCliDoc(slug.join("/"), content, description) : null;
   if (cli) return { kind: "cli", cli };
@@ -101,10 +110,10 @@ function templateOf(slug: string[], content: string, description: string): DocTe
 
 type PageToc = { depth: number; url: string; title: ReactNode }[];
 
-/** API pages have no rail: their endpoint index plays that part, as in the draft. */
+/** API and SDK resource pages have no rail: their endpoint index plays that part, as in the draft. */
 function tocOf(template: DocTemplate, pageToc: PageToc): DocsTocItem[] {
   if (template.kind === "cli") return cliToc(template.cli);
-  if (template.kind === "api") return [];
+  if (template.kind === "api" || template.kind === "sdk") return [];
   return pageToc.flatMap(item =>
     item.depth === 2 || item.depth === 3
       ? [{ id: tocIdOf(item.url), title: textOf(item.title), depth: item.depth }]
@@ -112,11 +121,32 @@ function tocOf(template: DocTemplate, pageToc: PageToc): DocsTocItem[] {
   );
 }
 
-/** The masthead facts the draft shows: endpoints for API pages, nothing for CLI commands. */
-function factsOf(template: DocTemplate, content: string): string | undefined {
+/** The masthead facts the draft shows: endpoints for API pages, method counts for SDK pages, nothing for CLI commands. */
+function factsOf(template: DocTemplate, url: string, content: string): string | undefined {
   if (template.kind === "cli") return undefined;
   if (template.kind === "api") return `${template.endpoints} endpoints`;
-  return `${readingMinutes(content)} min read`;
+  return sdkFacts(url) ?? `${readingMinutes(content)} min read`;
+}
+
+/** Layout per template: reference pages run full width and keep their chrome at reading width. */
+function layoutOf(template: DocTemplate, url: string) {
+  const reference = template.kind === "api" || template.kind === "sdk";
+  let bodyClass = cn("pt-9", DOCS_PROSE, isSdkUrl(url) && SDK_PROSE);
+  if (template.kind === "api") bodyClass = "pt-0";
+  if (template.kind === "sdk") bodyClass = DOCS_PROSE;
+  return {
+    wide: reference,
+    chromeClass: reference ? "max-w-[860px]" : undefined,
+    bodyClass,
+    // API pages have no "On this page" disclosure: their endpoint index plays that part.
+    disclosure: template.kind !== "api",
+  };
+}
+
+/** CLI commands title in mono, as the draft does. */
+function mastheadTitle(template: DocTemplate, title: string): ReactNode {
+  if (template.kind !== "cli") return null;
+  return <span className="docs-count font-mono text-[0.72em]">{title}</span>;
 }
 
 export default async function Page(props: PageProps) {
@@ -164,9 +194,9 @@ export default async function Page(props: PageProps) {
   }
 
   const content = await getDocsPageSource(page);
-  const template = templateOf(slug, content, page.data.description ?? "");
+  const template = templateOf(slug, url, content, page.data.description ?? "");
   const toc = tocOf(template, page.data.toc);
-  const api = template.kind === "api";
+  const layout = layoutOf(template, url);
   const { previous, next } = neighboursOf(shell, url);
 
   return (
@@ -181,19 +211,15 @@ export default async function Page(props: PageProps) {
       >
         <DocsSidebar groups={groups} activeUrl={url} />
       </aside>
-      <DocsPageFrame toc={toc} wide={api}>
-        <div className={cn(api && "max-w-[860px]")}>
+      <DocsPageFrame toc={toc} wide={layout.wide}>
+        <div className={layout.chromeClass}>
           <DocsMasthead
             place={place}
-            title={
-              template.kind === "cli" ? (
-                <span className="docs-count font-mono text-[0.72em]">{place.title}</span>
-              ) : null
-            }
-            facts={factsOf(template, content)}
+            title={mastheadTitle(template, place.title)}
+            facts={factsOf(template, url, content)}
             maturity={page.data.maturity}
             actions={buildActionUrls(page.url, slug, page.path)}
-            toc={api ? null : <DocsTocDisclosure toc={toc} />}
+            toc={layout.disclosure ? <DocsTocDisclosure toc={toc} /> : null}
           />
         </div>
         {template.kind === "cli" ? (
@@ -201,11 +227,11 @@ export default async function Page(props: PageProps) {
             <CliBody cli={template.cli} />
           </div>
         ) : (
-          <div className={cn(api ? "pt-0" : cn("pt-9", DOCS_PROSE))}>
+          <div className={layout.bodyClass}>
             <MDX components={getMDXComponents(openapiPreload)} />
           </div>
         )}
-        <div className={cn(api && "max-w-[860px]")}>
+        <div className={layout.chromeClass}>
           <DocsPager previous={previous} next={next} />
         </div>
       </DocsPageFrame>

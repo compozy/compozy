@@ -1,0 +1,158 @@
+---
+title: Prompt
+description: Send input to a session and read the reply as a stream or an accepted receipt.
+---
+
+<SdkLangBar />
+
+## Send a prompt
+
+The daemon either streams the reply or accepts the input without streaming it, for example when it is queued or steered. An accepted result carries `status`, `delivery`, and `queue_position` instead of chunks. A prompt stream does not reconnect. Stopping your reader does not cancel the agent's turn: call `cancelSessionPrompt` to cancel it.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+compozy.prompt(input: PromptInput): Promise<PromptReply>
+```
+
+<SdkFields title="Options">
+  <SdkField name="workspaceId" type="string" required />
+  <SdkField name="sessionId" type="string" required />
+  <SdkField name="message" type="string" required />
+  <SdkField name="mode" type={'"queue" | "interrupt" | "steer"'}>
+    Use `queue` when a session may be busy. `interrupt` and `steer` replace the active turn
+    according to the session's admission rules.
+  </SdkField>
+  <SdkField name="idempotencyKey" type="string">
+    Generated when omitted. Supply the same key when retrying the same input to preserve its message
+    identity and replay the daemon's receipt.
+  </SdkField>
+  <SdkField name="expectedTurnId" type="string">
+    Sent to the daemon as `expected_turn_id`.
+  </SdkField>
+  <SdkField name="signal" type="AbortSignal">
+    Stops reading without canceling the daemon's turn.
+  </SdkField>
+</SdkFields>
+
+```ts title="Example"
+import { Compozy } from "@compozy/client";
+
+const compozy = await Compozy.connect();
+const reply = await compozy.prompt({
+  workspaceId: "workspace-id",
+  sessionId: "session-id",
+  message: "Hello",
+});
+if (reply.kind === "stream") {
+  for await (const chunk of reply.chunks) console.log(chunk);
+}
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+func (c *Client) Prompt(ctx context.Context, in PromptInput) (*PromptStream, error)
+```
+
+<SdkFields title="Fields">
+  <SdkField name="WorkspaceID" type="string" required>
+    The client rejects an empty value.
+  </SdkField>
+  <SdkField name="SessionID" type="string" required>
+    The client rejects an empty value.
+  </SdkField>
+  <SdkField name="Message" type="string" />
+  <SdkField name="Mode" type="string">
+    A busy-input mode: `queue`, `interrupt` or `steer`. Omitted when empty.
+  </SdkField>
+  <SdkField name="IdempotencyKey" type="string">
+    Generated when empty. The message identity is derived from the key, so a retry with the same key
+    keeps it.
+  </SdkField>
+  <SdkField name="ExpectedTurnID" type="string">
+    Sent to the daemon as `expected_turn_id` when set.
+  </SdkField>
+</SdkFields>
+
+```go title="Example"
+c, err := client.New(ctx)
+if err != nil { return err }
+
+stream, err := c.Prompt(ctx, client.PromptInput{WorkspaceID: "workspace-id", SessionID: "session-id", Message: "Hello"})
+if err != nil { return err }
+defer stream.Close()
+for {
+  chunk, err := stream.Next()
+  if errors.Is(err, io.EOF) { break }
+  if err != nil { return err }
+  fmt.Print(chunk.TextDelta())
+}
+```
+
+</SdkSymbol>
+
+## Read the reply
+
+Inspect whether the input was accepted before reading chunks.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+type PromptReply =
+  | { kind: "accepted"; result: PromptResult }
+  | {
+      kind: "stream";
+      chunks: AsyncIterable<UIMessageChunk>;
+      toReadableStream(): ReadableStream<UIMessageChunk>;
+    };
+```
+
+`chunks` ends after a `finish` or `abort` chunk. A stream that ends earlier, or whose signal is aborted, throws `CompozyStreamError`.
+
+```ts title="Example"
+if (reply.kind === "stream") {
+  for await (const chunk of reply.chunks) {
+    if (chunk.type === "text-delta") process.stdout.write(chunk.delta);
+  }
+} else {
+  console.log(reply.result.status, reply.result.queue_position);
+}
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+func (s *PromptStream) Accepted() (*SendPromptResultPayload, bool)
+func (s *PromptStream) Next() (PromptChunk, error)
+func (s *PromptStream) Close() error
+```
+
+For accepted input, `Accepted()` returns the payload and `true`, and `Next()` returns `io.EOF`. Otherwise `Next()` returns chunks until `io.EOF`; a stream that ends before its `finish` or `abort` chunk returns a `*StreamError` wrapping `io.ErrUnexpectedEOF`. A `PromptChunk` carries its `Type` and its JSON in `Raw`; `TextDelta()` returns the text of a `text-delta` chunk.
+
+```go title="Example"
+if accepted, ok := stream.Accepted(); ok {
+    fmt.Println(accepted.Status, accepted.QueuePosition)
+    return nil
+}
+```
+
+</SdkSymbol>
+
+## Forward the stream from a server route
+
+Use `promptResponse()` in a server route to forward the AI SDK UI message stream unchanged. Accepted input is returned with status 202 and its JSON body.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+compozy.promptResponse(input: PromptInput): Promise<Response>
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go" none />

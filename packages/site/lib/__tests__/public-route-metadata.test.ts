@@ -15,30 +15,40 @@ import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 import { NextRequest } from "next/server";
 
-const mockedDocs = vi.hoisted(() => ({
-  protocolPages: [
-    {
-      data: { description: "Implemented protocol surface.", title: "Implementation Status" },
-      slugs: ["loops", "reference", "grammar"],
-      url: "/docs/loops/reference/grammar",
-    },
-  ],
-  runtimePages: [
-    {
-      data: { description: "Runtime docs overview.", title: "How to use these docs" },
-      slugs: ["how-to-use-these-docs"],
-      url: "/docs/how-to-use-these-docs",
-    },
-    {
-      data: {
-        description: "Prepare a project workspace for agent execution.",
-        title: "Prepare a project workspace",
+type MockedDocsPage = {
+  data: { description: string; title: string };
+  slugs: string[];
+  url: string;
+  /** The page's MDX body; defaults to an H1 of its title. */
+  body?: string;
+};
+
+const mockedDocs = vi.hoisted(
+  (): { protocolPages: MockedDocsPage[]; runtimePages: MockedDocsPage[] } => ({
+    protocolPages: [
+      {
+        data: { description: "Implemented protocol surface.", title: "Implementation Status" },
+        slugs: ["loops", "reference", "grammar"],
+        url: "/docs/loops/reference/grammar",
       },
-      slugs: ["use-cases", "prepare-a-project-workspace"],
-      url: "/docs/use-cases/prepare-a-project-workspace",
-    },
-  ],
-}));
+    ],
+    runtimePages: [
+      {
+        data: { description: "Runtime docs overview.", title: "How to use these docs" },
+        slugs: ["how-to-use-these-docs"],
+        url: "/docs/how-to-use-these-docs",
+      },
+      {
+        data: {
+          description: "Prepare a project workspace for agent execution.",
+          title: "Prepare a project workspace",
+        },
+        slugs: ["use-cases", "prepare-a-project-workspace"],
+        url: "/docs/use-cases/prepare-a-project-workspace",
+      },
+    ],
+  })
+);
 
 const mockedOG = vi.hoisted(() => ({
   renderBlog: vi.fn(async () => new Response("blog-og")),
@@ -68,7 +78,8 @@ vi.mock("@/lib/source", () => ({
         ...page,
         data: {
           ...page.data,
-          getText: async () => `---\ntitle: ${page.data.title}\n---\n# ${page.data.title}`,
+          getText: async () =>
+            `---\ntitle: ${page.data.title}\n---\n${page.body ?? `# ${page.data.title}`}`,
           info: { fullPath: `${page.slugs.join("/")}.mdx` },
         },
         path: `${page.slugs.join("/")}.mdx`,
@@ -204,6 +215,41 @@ describe("public route metadata", () => {
           params: Promise.resolve({ slug: legacySlug }),
         })
       ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    }
+  });
+
+  it("lists SDK pages in llms.txt and serves a resource page's methods as Markdown", async () => {
+    const pages = [
+      {
+        data: { description: "Typed TypeScript and Go clients.", title: "SDK Reference" },
+        slugs: ["sdk"],
+        url: "/docs/sdk",
+      },
+      {
+        data: { description: "98 methods on the Sessions resource.", title: "Sessions" },
+        slugs: ["sdk", "sessions"],
+        url: "/docs/sdk/sessions",
+        body: '<SdkResource id="sessions" />',
+      },
+    ];
+    mockedDocs.runtimePages.push(...pages);
+    try {
+      const index = await (await llmsGET()).text();
+      const reference = index.slice(index.indexOf("## Reference"));
+      expect(reference).toContain(`[SDK Reference](${absoluteUrl("/docs/sdk")})`);
+      expect(reference).toContain(`[Sessions](${absoluteUrl("/docs/sdk/sessions")})`);
+
+      const response = await llmsMarkdownGET(new NextRequest("https://compozy.com/llms.mdx"), {
+        params: Promise.resolve({ slug: ["docs", "sdk", "sessions"] }),
+      });
+      const markdown = await response.text();
+      expect(markdown).not.toContain("<SdkResource");
+      expect(markdown).toContain("## listSessions");
+      expect(markdown).toContain("`compozy.sessions.listSessions({ query })`");
+      expect(markdown).toContain("`c.ListSessions(ctx, ListSessionsParams)`");
+      expect(markdown).toContain("## prompt");
+    } finally {
+      mockedDocs.runtimePages.splice(-pages.length);
     }
   });
 

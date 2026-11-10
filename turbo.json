@@ -86,6 +86,28 @@
                 "content/docs/api/meta.json"
             ]
         },
+        "@compozy/site#generate:sdk": {
+            "inputs": [
+                "scripts/generate-sdk-reference.ts",
+                "lib/sdk-reference-build.ts",
+                "lib/sdk-reference-model.ts",
+                "$TURBO_ROOT$/openapi/compozy.json",
+                "$TURBO_ROOT$/openapi/sdk-samples.json",
+                "$TURBO_ROOT$/sdk/client/src/generated/sdk/types.gen.ts",
+                "$TURBO_ROOT$/sdk/client/src/generated/sse/types.gen.ts",
+                "$TURBO_ROOT$/sdk/go/client/*.go"
+            ],
+            "outputs": [
+                "content/docs/sdk/*.mdx",
+                "!content/docs/sdk/index.mdx",
+                "!content/docs/sdk/client.mdx",
+                "!content/docs/sdk/prompt.mdx",
+                "!content/docs/sdk/events.mdx",
+                "!content/docs/sdk/errors.mdx",
+                "content/docs/sdk/meta.json",
+                "lib/sdk-reference-data.json"
+            ]
+        },
         "@compozy/site#generate:install": {
             "inputs": [
                 "scripts/generate-install-template.ts",
@@ -94,11 +116,13 @@
             "outputs": ["lib/install/template-content.ts"]
         },
         "@compozy/site#generate:content": {
-            "dependsOn": ["generate:openapi", "generate:install"],
+            "dependsOn": ["generate:openapi", "generate:sdk", "generate:install"],
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!content/docs/api/meta.json",
-                "!content/docs/api/support.mdx"
+                "!content/docs/api/support.mdx",
+                "!content/docs/sdk/meta.json",
+                "!lib/sdk-reference-data.json"
             ],
             "outputs": [".source/**", ".velite/**"]
         },

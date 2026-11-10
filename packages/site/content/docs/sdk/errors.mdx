@@ -1,0 +1,105 @@
+---
+title: Errors
+description: What the clients raise when the daemon is away, misconfigured, or returns an error.
+---
+
+<SdkLangBar />
+
+## API errors
+
+The daemon returned an HTTP error. Secrets and request headers are never retained.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+class CompozyApiError extends Error
+```
+
+<SdkFields title="Options">
+<SdkField name="status" type="number" />
+<SdkField name="code" type="string">The daemon's `code`, or `http_<status>` when it sent none.</SdkField>
+<SdkField name="details" type="unknown" />
+<SdkField name="currentTurnId" type="string | undefined">The daemon's `current_turn_id`, when present.</SdkField>
+</SdkFields>
+
+`message` is the daemon's `error` or `message`, or the HTTP status text.
+
+```ts title="Example"
+import { CompozyApiError } from "@compozy/client";
+
+try {
+  await compozy.tasks.listTasks({ query: { status: "in_progress" } });
+} catch (error) {
+  if (error instanceof CompozyApiError) {
+    console.error(error.status, error.code, error.message, error.details);
+  } else {
+    throw error;
+  }
+}
+```
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+type APIError struct
+```
+
+<SdkFields title="Fields">
+  <SdkField name="Status" type="int" />
+  <SdkField name="Code" type="string" />
+  <SdkField name="Message" type="string">
+    The daemon's `error` or `message`, or the HTTP status text.
+  </SdkField>
+  <SdkField name="Details" type="map[string]any" />
+  <SdkField name="CurrentTurnID" type="string" />
+  <SdkField name="ConfigPath" type="string" />
+  <SdkField name="UnknownKeys" type="[]string" />
+</SdkFields>
+
+```go title="Example"
+var apiErr *client.APIError
+if errors.As(err, &apiErr) {
+    fmt.Println(apiErr.Status, apiErr.Code, apiErr.Message)
+}
+```
+
+</SdkSymbol>
+
+## Connection and stream errors
+
+Each client reports an unreachable daemon, an invalid configuration, and a broken stream with its own error.
+
+<SdkSymbol lang="ts">
+
+```ts title="Signature"
+class CompozyUnavailableError extends Error
+class CompozyConfigError extends Error
+class CompozyStreamError extends Error
+class CompozyBinaryNotFoundError extends Error
+```
+
+Connection failures raise `CompozyUnavailableError`; invalid discovery configuration raises `CompozyConfigError`. Malformed event data and an interrupted prompt stream raise `CompozyStreamError`. `Compozy.start()` raises `CompozyBinaryNotFoundError` when it cannot find the `compozy` binary.
+
+</SdkSymbol>
+
+<SdkSymbol lang="go">
+
+```go title="Signature"
+var ErrUnavailable error
+type StreamError struct
+```
+
+`New` wraps `ErrUnavailable` when no daemon answers; check it with `errors.Is`.
+
+<SdkFields title="Fields">
+  <SdkField name="Op" type="string">
+    The operation whose stream failed.
+  </SdkField>
+  <SdkField name="Err" type="error">
+    The underlying decoding, transport, or context error.
+  </SdkField>
+</SdkFields>
+
+</SdkSymbol>

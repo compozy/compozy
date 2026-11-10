@@ -276,6 +276,38 @@ describe("public search index", () => {
     );
   });
 
+  it("indexes SDK reference pages, with one entry per method on a resource page", async () => {
+    const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
+    const { sdkReference } = await import("@/lib/sdk-reference");
+    const sessions = sdkReference().resources.find(resource => resource.id === "sessions");
+    const pages = [
+      { url: "/docs/sdk", title: "SDK Reference" },
+      { url: "/docs/sdk/prompt", title: "Prompt" },
+      { url: "/docs/sdk/sessions", title: "Sessions" },
+    ].map(({ url, title }) => ({
+      url,
+      data: { title, description: "", structuredData: { headings: [], contents: [] } },
+    }));
+    mockedContent.runtimePages.push(...pages);
+    try {
+      const indexes = await buildPublicSearchIndexes();
+      const byUrl = new Map(indexes.map(index => [index.url, index]));
+      for (const { url } of pages) expect(byUrl.get(url)?.tag).toBe("Reference");
+      expect(byUrl.get("/docs/sdk")?.breadcrumbs).toEqual(["Reference"]);
+      expect(byUrl.get("/docs/sdk/prompt")?.breadcrumbs).toEqual(["Reference", "SDK reference"]);
+      const resource = byUrl.get("/docs/sdk/sessions")?.structuredData;
+      expect(resource?.headings.map(heading => heading.id)).toEqual(
+        sessions?.ops.map(method => method.id)
+      );
+      expect(resource?.contents).toContainEqual({
+        heading: "listSessions",
+        content: expect.stringContaining("ListSessions"),
+      });
+    } finally {
+      mockedContent.runtimePages.splice(-pages.length);
+    }
+  });
+
   it("indexes every marketplace surface under the Marketplace group", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { extensionEntries, marketplaceEntryPath } = await import("@/lib/marketplace-catalog");
