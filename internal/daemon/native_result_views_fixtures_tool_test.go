@@ -140,6 +140,7 @@ func nativeResultViewFixturesTool(t *testing.T) []nativeResultViewFixture {
 			MustKeep: []string{
 				"grant.id",
 				"grant.profile_id",
+				"grant.profile_archived",
 				"grant.workspace_id",
 				"grant.agent_name",
 				"grant.tool_id",
@@ -163,6 +164,7 @@ func nativeResultViewFixturesTool(t *testing.T) []nativeResultViewFixture {
 				"total",
 				"grants.0.id",
 				"grants.0.profile_id",
+				"grants.0.profile_archived",
 				"grants.0.workspace_id",
 				"grants.0.agent_name",
 				"grants.0.tool_id",

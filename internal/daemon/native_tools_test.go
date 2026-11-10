@@ -3113,6 +3113,28 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
+		for _, catalog := range []struct {
+			id      toolspkg.ToolID
+			compact toolspkg.ToolResult
+			input   string
+		}{
+			{toolspkg.ToolIDSkillList, listResult, `{"result_view":"full"}`},
+			{toolspkg.ToolIDSkillSearch, searchResult, `{"query":"sessions","result_view":"full"}`},
+		} {
+			if bytes.Contains(catalog.compact.Structured, []byte(`"diagnostics"`)) {
+				t.Fatalf("%s compact includes healthy diagnostic internals: %s", catalog.id, catalog.compact.Structured)
+			}
+			full, callErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: catalog.id,
+				Input:  json.RawMessage(catalog.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			requireNativeStructuredContains(t, full, []byte(`"diagnostics"`))
+			requireNativeStructuredContains(t, full, []byte(`"verification_status":"passed"`))
+		}
+
 		artifactStore := openDaemonTestToolArtifactStore(t)
 		workspaceResolver := nativeTestWorkspaceService(t)
 		const reducedBudget = 32 << 10

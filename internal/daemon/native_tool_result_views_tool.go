@@ -7,30 +7,32 @@ import (
 )
 
 type compactApprovalGrant struct {
-	ID          string                         `json:"id"`
-	Decision    toolspkg.ApprovalGrantDecision `json:"decision"`
-	CreatedAt   time.Time                      `json:"created_at"`
-	LastUsedAt  time.Time                      `json:"last_used_at"`
-	ProfileID   string                         `json:"profile_id"`
-	WorkspaceID string                         `json:"workspace_id"`
-	AgentName   string                         `json:"agent_name,omitempty"`
-	ToolID      toolspkg.ToolID                `json:"tool_id"`
-	InputDigest string                         `json:"input_digest,omitempty"`
-	AccessScope string                         `json:"access_scope,omitempty"`
+	ID              string                         `json:"id"`
+	Decision        toolspkg.ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time                      `json:"created_at"`
+	LastUsedAt      time.Time                      `json:"last_used_at"`
+	ProfileArchived bool                           `json:"profile_archived,omitzero"`
+	ProfileID       string                         `json:"profile_id"`
+	WorkspaceID     string                         `json:"workspace_id"`
+	AgentName       string                         `json:"agent_name,omitempty"`
+	ToolID          toolspkg.ToolID                `json:"tool_id"`
+	InputDigest     string                         `json:"input_digest,omitempty"`
+	AccessScope     string                         `json:"access_scope,omitempty"`
 }
 
 func projectCompactApprovalGrant(p toolspkg.ApprovalGrant) compactApprovalGrant {
 	return compactApprovalGrant{
-		ID:          p.ID,
-		Decision:    p.Decision,
-		CreatedAt:   p.CreatedAt,
-		LastUsedAt:  p.LastUsedAt,
-		ProfileID:   p.ProfileID,
-		WorkspaceID: p.WorkspaceID,
-		AgentName:   p.AgentName,
-		ToolID:      p.ToolID,
-		InputDigest: p.InputDigest,
-		AccessScope: p.AccessScope,
+		ID:              p.ID,
+		Decision:        p.Decision,
+		CreatedAt:       p.CreatedAt,
+		LastUsedAt:      p.LastUsedAt,
+		ProfileArchived: p.ProfileArchived,
+		ProfileID:       p.ProfileID,
+		WorkspaceID:     p.WorkspaceID,
+		AgentName:       p.AgentName,
+		ToolID:          p.ToolID,
+		InputDigest:     p.InputDigest,
+		AccessScope:     p.AccessScope,
 	}
 }
 

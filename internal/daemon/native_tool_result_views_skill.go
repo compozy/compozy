@@ -27,7 +27,18 @@ func projectCompactSkillCatalogEntry(p contract.SkillPayload) compactSkillCatalo
 		OwnerID:     p.OwnerID,
 		Enabled:     p.Enabled,
 		Activation:  p.Activation,
-		Diagnostics: p.Diagnostics,
+		Diagnostics: compactSkillDiagnostics(p.Diagnostics),
 		Exposures:   p.Exposures,
 	}
+}
+
+func compactSkillDiagnostics(diagnostics []contract.SkillDiagnosticPayload) []contract.SkillDiagnosticPayload {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.State != contract.SkillDiagnosticStateValid ||
+			diagnostic.VerificationStatus != contract.SkillVerificationStatusPassed ||
+			len(diagnostic.Warnings) > 0 || diagnostic.Failure != nil || len(diagnostic.ActivationReasons) > 0 {
+			return diagnostics
+		}
+	}
+	return nil
 }
