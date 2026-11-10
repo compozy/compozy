@@ -90,15 +90,19 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	}
 	// The in-memory attention cache does not survive restart or eviction. Reuse
 	// the durable admission identity so replaying the same revision costs no turn.
-	if admitted, ledgerErr := childWakeAdmitted(
+	alreadyAdmitted, ledgerErr := childWakeAdmitted(
 		deliveryCtx,
 		sessions,
 		creatorID,
 		normalized.WakeEventID,
-	); ledgerErr != nil ||
-		admitted {
+	)
+	if ledgerErr != nil {
 		complete()
 		return ledgerErr
+	}
+	if alreadyAdmitted {
+		complete()
+		return nil
 	}
 
 	events, err := sessions.PromptSynthetic(deliveryCtx, creatorID, session.SyntheticPromptOpts{

@@ -93,18 +93,25 @@ func TestSessionWakeBridge(t *testing.T) {
 				t.Fatal(wakeErr)
 			}
 		}
-		if manager.promptCalls != 1 || manager.promptOpts.MessageID != event.WakeEventID {
-			t.Fatalf("replayed revision admitted %d prompts", manager.promptCalls)
+		manager.mu.Lock()
+		calls, messageID := manager.promptCalls, manager.promptOpts.MessageID
+		manager.mu.Unlock()
+		if calls != 1 || messageID != event.WakeEventID {
+			t.Fatalf("replayed revision admitted %d prompts", calls)
 		}
 		event.WakeEventID = "session-wake:child:1:2:needs_attention"
 		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); wakeErr != nil {
 			t.Fatal(wakeErr)
 		}
-		if manager.promptCalls != 2 {
+		manager.mu.Lock()
+		calls = manager.promptCalls
+		ledgerErr := errors.New("ledger unavailable")
+		manager.ledgerErr = ledgerErr
+		manager.mu.Unlock()
+		if calls != 2 {
 			t.Fatal("new attention revision was suppressed")
 		}
-		manager.ledgerErr = errors.New("ledger unavailable")
-		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); !errors.Is(wakeErr, manager.ledgerErr) {
+		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); !errors.Is(wakeErr, ledgerErr) {
 			t.Fatalf("uncertain admission was silently acknowledged: %v", wakeErr)
 		}
 		t.Log("same attention revision: 3 deliveries -> 1 admission; new revision: 1 -> 1")

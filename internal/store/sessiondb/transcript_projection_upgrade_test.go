@@ -18,6 +18,55 @@ import (
 
 func TestTranscriptProjectionUpgrade(t *testing.T) {
 	t.Parallel()
+	// Owner: persisted transcript upgrade. Cost metadata may accompany any entry;
+	// upgrading must preserve user identity and replay assistant monetary evidence.
+	t.Run("Should reopen cost-bearing user entries without changing their identity", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		owner := testSessionDBOwner("sess-user-cost-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Record(ctx, canonicalStoreEvent(t, acp.AgentEvent{
+			Type: acp.EventTypeUserMessage, SessionID: owner.SessionID, TurnID: "turn-cost", Text: "Request",
+			Usage: &acp.TokenUsage{CostAmount: new(2.0), ReportedCostAmount: new(3.0), CostCurrency: new("USD")},
+		}, "coder")); err != nil {
+			t.Fatal(err)
+		}
+		before, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil || len(before.Entries) != 1 {
+			t.Fatalf("before=%+v error=%v", before, err)
+		}
+		want, err := json.Marshal(before)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE transcript_projection_state SET projection_version=3`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			reopened, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := json.Marshal(page)
+			if err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("reopened=%s want=%s error=%v", got, want, err)
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should upgrade archived cost history without restoring its removed transcript entry", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

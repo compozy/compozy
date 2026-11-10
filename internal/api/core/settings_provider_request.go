@@ -112,6 +112,7 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload)
 		strings.TrimSpace(payload.AuthStatusCmd) == "" &&
 		payload.AuthLoginCmd == nil &&
 		payload.AuthACPMethod == nil &&
+		payload.AutoCompactWindow == nil &&
 		len(payload.CredentialSlots) == 0 && payload.SessionEnv == nil
 }
 

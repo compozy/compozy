@@ -2650,7 +2650,7 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 			},
 		})
 		defer stopProcess(t, driver, proc)
-		text, included, _ := proc.nextPromptText("hello", false)
+		text, included, _, _ := proc.nextPromptText("hello", PromptRequest{Message: "hello"})
 		if !included || strings.Contains(text, "unconfirmed tools") ||
 			!strings.Contains(text, "confirmed runtime guidance") {
 			t.Fatalf("first prompt = %q", text)

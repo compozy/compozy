@@ -3588,16 +3588,15 @@ func TestAutoCompactWindow(t *testing.T) {
 		}
 	})
 	for _, tc := range []struct {
-		name, value string
-		valid       bool
+		name, value, wantErr string
 	}{
-		{"Should accept the minimum", "100000", true},
-		{"Should accept the maximum", "1000000", true},
-		{"Should reject zero", "0", false},
-		{"Should reject a negative window", "-1", false},
-		{"Should reject below minimum", "99999", false},
-		{"Should reject above maximum", "1000001", false},
-		{"Should reject malformed input", "\"200k\"", false},
+		{"Should accept the minimum", "100000", ""},
+		{"Should accept the maximum", "1000000", ""},
+		{"Should reject zero", "0", "auto_compact_window"},
+		{"Should reject a negative window", "-1", "auto_compact_window"},
+		{"Should reject below minimum", "99999", "auto_compact_window"},
+		{"Should reject above maximum", "1000001", "auto_compact_window"},
+		{"Should reject malformed input", "\"200k\"", "toml:"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -3613,9 +3612,9 @@ func TestAutoCompactWindow(t *testing.T) {
 				t.Fatal(err)
 			}
 			cfg, err := LoadForHome(home, withoutDotEnv())
-			if !tc.valid {
-				if err == nil {
-					t.Fatal("invalid window accepted")
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("window error = %v, want %q", err, tc.wantErr)
 				}
 				return
 			}

@@ -688,3 +688,28 @@ git diff --check
 ```
 
 The test-shape checker passes the two daemon suites and the API addition suite. Its file-wide Setenv/Parallel warning on `session_db_test.go` is unchanged from the committed file: the environment-changing subtest is serial, and the independent migration subtests do not mutate the environment. No broader local suites, codegen drift gate or E2E were run for this round. CI and external review of the correction head remain pending.
+
+## PR #1437 — first CodeRabbit review corrections
+
+CodeRabbit reviewed `f74617459`. Its missing-projection cost finding was already fixed by `46c918028`, including the real schema-10 upgrade with an absent projection row. Greptile subsequently reviewed `46c918028` and reported both earlier findings fixed. The remaining valid CodeRabbit findings were reproduced in the existing owning suites before the production fixes:
+
+- **Unconfirmed startup delivery:** assembling the first request used to mutate the retained startup snapshot. A failed or canceled send followed by a retry without live augmentation therefore lost both snapshots. Startup text and its delivery spans now come from one request-local copy; only successful, non-canceled delivery advances the sent marker. Tests cover unsent preparation, request failure, cancellation, and successful replacement of the entire startup snapshot without replaying it on the next turn.
+- **Cost-bearing user entries:** the monetary projection upgrade required every affected entry to be an assistant entry, although canonical user events can carry usage metadata. It now resolves the persisted entry identity and uses the existing projector for that kind, while still rejecting a missing identity. Repeated read-only upgrade/reopen preserves the user entry and its stable identity. The existing assistant and archived-history cases still pass.
+- **Single-setting provider write:** a PUT containing only `auto_compact_window` was rejected as empty. The shared API decoder now includes that field in its emptiness check; the canonical handler suite requires HTTP 200 and the exact forwarded window.
+- **Review assertions and clarity:** description-size comparisons now build their historical baseline independently and reject repeated discovery boilerplate. Invalid windows require specific diagnostics; canonical migration checks require all expected events and non-nil monetary evidence. Wake tests read stub state under its mutex, and the admission path separates errors from already-admitted success. Native exposure lookup rejects path-like skill names before joining them to a native root.
+
+No public schema or migration bytes changed in this round, so no generated artifact needed regeneration. No token/character savings were remeasured; the earlier paired measurements remain evidence for the original successful-delivery path, not a new provider-backed benchmark.
+
+Focused tests passed in all six packages, the native-root selection passed, and real clear-recovery/rewind integration passed in both packages. Scoped lint reported zero issues in normal and integration lanes, including the final native-name guard:
+
+```sh
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/acp ./internal/api/core ./internal/config ./internal/daemon ./internal/mcp ./internal/store/sessiondb -run '^(TestPromptCompactsDeliveredSections|TestPromptAttachesSystemPromptDeliveryMetadata|TestSettingsCollectionHandlersDelegateValidPayloads|TestAutoCompactWindow|TestSessionWakeBridge|TestHostedProxyHelpers|TestSessionDBUsageCostMigration|TestTranscriptProjectionUpgrade)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/daemon -run '^(TestComposedAssemblerFiltersProviderNativeSkillsAtStartup|TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots|TestResolveSessionNativeSkillRoots)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/acp -run '^(TestStartFinalizesRuntimeGuidance|TestPromptMaintenancePreservesStartupDelivery|TestPromptPrependsSystemPromptOnce)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test -tags=integration ./internal/session ./internal/store/sessiondb -run '^(TestClearConversationFailureRecovery|TestConversationRewindRestartsSameSessionFromRetainedPrefix|TestSessionDBAppendEventIfAbsent)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/acp ./internal/api/core ./internal/config ./internal/daemon ./internal/mcp ./internal/store/sessiondb' make go-lint
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/daemon' make go-lint
+git diff --check
+```
+
+The test-shape checker reports no new findings: each modified suite was compared with its prior committed version. Existing file-wide/legacy-shape findings remain unchanged; the daemon, hosted-tool and transcript-upgrade suites pass outright. CI on `46c918028` had completed Preflight (including generators), Go lint, Desktop and React Doctor successfully when inspected; those results do not certify the next correction head. Full/race/E2E validation, live-provider savings and production-wide repair remain CI-owned or unverified as specified above.

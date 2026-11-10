@@ -156,6 +156,11 @@ func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 		if filter(winner) {
 			t.Fatal("restored exact native exposure was not suppressed")
 		}
+		unsafeName := *winner
+		unsafeName.Meta.Name = "../skills/review"
+		if !filter(&unsafeName) {
+			t.Fatal("a path-like name must not be treated as a native skill exposure")
+		}
 	})
 
 	t.Run("Should suppress native skills only for their provider", func(t *testing.T) {

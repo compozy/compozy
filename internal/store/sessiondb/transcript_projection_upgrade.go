@@ -87,8 +87,8 @@ func upgradeTranscriptProjectionTx(ctx context.Context, tx *store.WriteTx, sessi
 		if resolveErr != nil {
 			return resolveErr
 		}
-		if !found || identity.Kind != transcript.EntryKindAssistant {
-			return fmt.Errorf("%w: upgraded event references missing assistant entry %q",
+		if !found {
+			return fmt.Errorf("%w: upgraded event references missing entry %q",
 				transcript.ErrProjectionCorrupt, key)
 		}
 		events, loadErr := loadAssignedEvents(ctx, tx, sessionID, key)

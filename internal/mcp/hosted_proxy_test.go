@@ -793,7 +793,11 @@ func TestHostedProxyHelpers(t *testing.T) {
 				t.Fatalf("tool %s changed its identity or input contract", descriptor.ID)
 			}
 			// The base renderer repeated discovery metadata and invocation boilerplate.
-			legacy := tool.Description
+			legacy := strings.TrimSpace(descriptor.Presentation().DisplayTitle)
+			if description := strings.TrimSpace(descriptor.Description); description != "" {
+				legacy = strings.TrimSpace(legacy + "\n\n" + description)
+			}
+			legacy = strings.TrimSpace(legacy + "\n\nCompozy canonical tool ID: " + descriptor.ID.String())
 			if len(descriptor.Toolsets) > 0 {
 				var names []string
 				for _, id := range descriptor.Toolsets {
@@ -808,6 +812,11 @@ func TestHostedProxyHelpers(t *testing.T) {
 				legacy += "\n\nSearch hints: " + strings.Join(cleanedValues(descriptor.SearchHints), ", ")
 			}
 			legacy += "\n\nCall the harness-returned tool reference."
+			for _, removed := range []string{"\n\nCompozy toolsets:", "\n\nTags:", "\n\nSearch hints:", "Call the harness-returned tool reference."} {
+				if strings.Contains(tool.Description, removed) {
+					t.Fatalf("tool %s repeated discovery metadata %q", descriptor.ID, removed)
+				}
+			}
 			before += len(legacy)
 			after += len(tool.Description)
 			if tool.Meta["anthropic/alwaysLoad"] == true {

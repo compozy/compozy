@@ -5302,12 +5302,15 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if len(events) != len(costs) {
+					t.Fatalf("done events=%d, want %d", len(events), len(costs))
+				}
 				for i, row := range events {
 					event, err := transcript.UnmarshalAgentEvent(row.Content)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if event.Usage.CostAmount == nil || *event.Usage.CostAmount != costs[i] ||
+					if event.Usage == nil || event.Usage.CostAmount == nil || *event.Usage.CostAmount != costs[i] ||
 						event.Usage.ReportedCostAmount == nil ||
 						*event.Usage.ReportedCostAmount != amounts[i] {
 						t.Fatalf("canonical usage=%+v", event.Usage)

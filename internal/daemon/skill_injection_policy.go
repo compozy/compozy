@@ -146,7 +146,8 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 // Check the winning file, not just its name: a native homonym can contain a
 // different skill. Resolve the original root path on every check: symlinks can change.
 func (p *sessionSkillInjectionProfile) hasNativeExposure(skill *skillspkg.Skill) bool {
-	if skill.FilePath == "" || skill.Meta.Name == "" {
+	if skill.FilePath == "" || skill.Meta.Name == "" || skill.Meta.Name == "." || skill.Meta.Name == ".." ||
+		strings.ContainsAny(skill.Meta.Name, `/\`) {
 		return false
 	}
 	winner, err := os.Stat(skill.FilePath)
