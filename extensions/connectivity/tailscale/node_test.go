@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"testing"
+	"time"
 
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
@@ -35,7 +36,9 @@ func TestTSNetNodeRouting(t *testing.T) {
 				t.Fatalf("newTSNetNode() error = %v", err)
 			}
 			t.Cleanup(func() {
-				if closeErr := node.Close(context.Background()); closeErr != nil {
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+				defer cancel()
+				if closeErr := node.Close(ctx); closeErr != nil {
 					t.Logf("node.Close(cleanup) error = %v", closeErr)
 				}
 			})
