@@ -2035,6 +2035,29 @@ func (q *Queries) ReserveSubagent(ctx context.Context, arg ReserveSubagentParams
 	return result.RowsAffected()
 }
 
+const resumeNativeSubagent = `-- name: ResumeNativeSubagent :execrows
+UPDATE session_subagents SET status = 'running', work_state = 'working',
+ parent_turn_id = ?1, result = NULL, error = NULL, result_truncated = 0,
+ progress = '', settled_at = NULL, updated_at = ?2
+WHERE id = ?3 AND origin = 'provider_native'
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND settled_at < ?2
+`
+
+type ResumeNativeSubagentParams struct {
+	Turn string `json:"turn"`
+	Now  string `json:"now"`
+	ID   string `json:"id"`
+}
+
+func (q *Queries) ResumeNativeSubagent(ctx context.Context, arg ResumeNativeSubagentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resumeNativeSubagent, arg.Turn, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const rewriteSubagentWakeInput = `-- name: RewriteSubagentWakeInput :execrows
 UPDATE session_input_queue
 SET text = ?1,

@@ -957,3 +957,23 @@ func (w *subagentWorktreeStub) Observe(context.Context, string, string, string) 
 	}
 	return w.facts
 }
+
+func (d *memorySubagents) ResumeNativeSubagent(
+	_ context.Context,
+	id, turn string,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	changed := row.Origin == store.SubagentOriginProviderNative && store.IsSubagentStatusTerminal(row.Status) &&
+		row.SettledAt != nil &&
+		at.After(*row.SettledAt)
+	if changed {
+		row.Status, row.WorkState, row.ParentTurnID = store.SubagentStatusRunning, store.SubagentWorkStateWorking, turn
+		row.Result, row.Error, row.SettledAt = nil, nil, nil
+		row.ResultTruncated, row.Progress, row.UpdatedAt = false, "", at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}

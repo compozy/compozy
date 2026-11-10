@@ -335,6 +335,7 @@ type SubagentStore interface {
 		ctx context.Context, id string, usage SubagentUsage, at time.Time,
 	) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
+	ResumeNativeSubagent(ctx context.Context, id, turn string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 	// UpdateSubagentChildActivity records a delegated child's liveness; it never changes status.
 	UpdateSubagentChildActivity(

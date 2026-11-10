@@ -1032,6 +1032,70 @@ func TestSubagentModelValidation(t *testing.T) {
 
 // UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
 func TestSubagentNativeLifecycle(t *testing.T) {
+	t.Run("Should reopen completed background work and settle its next result", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "toolu_resume",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		apply := func(ev NativeSubagentEvent) {
+			t.Helper()
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		apply(launch)
+		done := nativeTaskEvent(
+			"toolu_resume",
+			acp.NativeTaskKindState,
+			acp.NativeTaskStatusCompleted,
+			new("first answer"),
+		)
+		done.At = at.Add(time.Second)
+		apply(done)
+		id := subagentID("parent", "toolu_resume")
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		// A delayed activity frame from before completion cannot reopen the row.
+		resume := nativeTaskEvent("toolu_resume", acp.NativeTaskKindState, acp.NativeTaskStatusRunning, nil)
+		resume.At = at
+		apply(resume)
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		delete(s.nativeKnown, "parent")
+		resume.At = at.Add(2 * time.Second)
+		resume.ParentTurnID = "next-turn"
+		snap := runtime.snapshots["parent"]
+		snap.TurnID = "next-turn"
+		runtime.snapshots["parent"] = snap
+
+		apply(resume)
+		row := db.rows[id]
+		if row.Status != "running" || row.WorkState != "working" || row.SettledAt != nil || row.Result != nil ||
+			row.ParentTurnID != "next-turn" {
+			t.Fatal(row)
+		}
+		done.ParentTurnID = "next-turn"
+		done.At = at.Add(3 * time.Second)
+		done.Task.Summary = new("second answer")
+		apply(done)
+		apply(done)
+		row = db.rows[id]
+		if row.Status != "completed" || row.Result == nil || *row.Result != "second answer" || row.SettledAt == nil ||
+			!row.SettledAt.Equal(done.At) ||
+			len(runtime.queues) != 0 {
+			t.Fatal(row, runtime.queues)
+		}
+	})
+
 	// Invariant: the launching call's input streams in, so a later event of the same call fills
 	// the model and subagent type the first one lacked, without erasing them afterwards.
 	t.Run("Should record the model and type a later streamed event names", func(t *testing.T) {

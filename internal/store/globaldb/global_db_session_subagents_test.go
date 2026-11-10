@@ -1158,6 +1158,66 @@ func TestGlobalDBSubagentWakeFailures(t *testing.T) {
 // Invariant: native recovery selects only unfinished provider-owned work without crossing delivery ownership.
 // Owner: globaldb read and transition boundary.
 func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
+	t.Run("Should resume only native terminal work with newer activity", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		row := store.SessionSubagent{
+			ID:                 "resumed-native",
+			WorkspaceID:        ws,
+			ParentSessionID:    parent,
+			ParentTurnID:       "first",
+			Origin:             store.SubagentOriginProviderNative,
+			ProviderToolCallID: "call",
+			IdempotencyKey:     "call",
+			RequestFingerprint: "call",
+			Title:              "Native",
+			Depth:              1,
+			WakePolicy:         store.SubagentWakePolicySettledOnly,
+			Status:             store.SubagentStatusRunning,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+		if _, _, err := s.ReserveSubagent(t.Context(), row); err != nil {
+			t.Fatal(err)
+		}
+		end := now.Add(time.Second)
+		if _, _, err := s.FinalizeSubagent(
+			t.Context(),
+			store.SubagentFinalize{ID: row.ID, Status: "completed", Result: new("first"), SettledAt: end},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", now); err != nil || changed {
+			t.Fatal(changed, err)
+		}
+		got, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", end.Add(time.Second))
+		if err != nil || !changed || got.Status != "running" || got.Result != nil || got.SettledAt != nil ||
+			got.ParentTurnID != "second" {
+			t.Fatal(got, changed, err)
+		}
+		if _, changed, err := s.ResumeNativeSubagent(
+			t.Context(),
+			row.ID,
+			"second",
+			end.Add(2*time.Second),
+		); err != nil ||
+			changed {
+			t.Fatal(changed, err)
+		}
+		delegated := reserveSubagent(t, s, ws, parent, "delegated-resume", now)
+		finalizeSubagent(t, s, delegated.ID, end)
+		if _, changed, err := s.ResumeNativeSubagent(
+			t.Context(),
+			delegated.ID,
+			"second",
+			end.Add(time.Second),
+		); err != nil ||
+			changed {
+			t.Fatal(changed, err)
+		}
+	})
+
 	t.Run("Should return only unfinalized native rows and preserve no delivery on dispose", func(t *testing.T) {
 		t.Parallel()
 		db, ws, parent, now := subagentFixture(t)

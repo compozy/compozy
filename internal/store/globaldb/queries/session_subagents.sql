@@ -275,3 +275,11 @@ SELECT EXISTS (
       AND NOT (wake_policy = 'settled_only' AND delivery = 'none'
         AND status IN ('completed','failed','canceled','interrupted'))
 );
+
+-- name: ResumeNativeSubagent :execrows
+UPDATE session_subagents SET status = 'running', work_state = 'working',
+ parent_turn_id = sqlc.arg(turn), result = NULL, error = NULL, result_truncated = 0,
+ progress = '', settled_at = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND origin = 'provider_native'
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND settled_at < sqlc.arg(now);

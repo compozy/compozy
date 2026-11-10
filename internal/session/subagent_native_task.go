@@ -41,19 +41,36 @@ func (s *subagentService) onNativeTask(ctx context.Context, parent string, ev Na
 
 func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev NativeSubagentEvent) (bool, error) {
 	call, known := s.observeNativeTaskCall(parent, ev)
-	if !known {
-		s.queueNativeTask(parent, ev)
-		return false, nil
-	}
 	row, err := s.store.GetSubagent(ctx, ev.WorkspaceID, subagentID(parent, ev.ProviderToolCallID))
 	if errors.Is(err, store.ErrSubagentNotFound) {
+		if !known {
+			s.queueNativeTask(parent, ev)
+		}
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
+	if row.Origin != store.SubagentOriginProviderNative {
+		return false, nil
+	}
+	if !known && !nativeTaskActive(ev.Task) {
+		return false, nil
+	}
+
+	row, resumed, err := s.resumeNativeTask(ctx, row, ev)
+	if err != nil {
+		return false, err
+	}
+	if resumed {
+		call = s.rememberNativeCall(
+			parent,
+			NativeSubagentEvent{ProviderToolCallID: ev.ProviderToolCallID, Background: true},
+		)
+	}
+
 	// A frame of another turn is stale: it never touches a later turn's row.
-	if row.Origin != store.SubagentOriginProviderNative || row.ParentTurnID != ev.ParentTurnID {
+	if row.ParentTurnID != ev.ParentTurnID {
 		s.logger.DebugContext(ctx, "subagent.native_task_stale", "subagent_id", row.ID, "turn_id", ev.ParentTurnID)
 		return false, nil
 	}
@@ -321,7 +338,7 @@ func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
 		if ev.Task.Background != nil && *ev.Task.Background {
 			c.background = true
 		}
-		if _, terminal := nativeTaskOutcome(ev.Task); terminal {
+		if _, terminal := nativeTaskOutcome(ev.Task); terminal || nativeTaskActive(ev.Task) {
 			c.tasks = append(c.tasks, ev)
 		}
 		return
@@ -403,6 +420,16 @@ func (s *subagentService) replayNativeCall(
 		current, err := s.store.GetSubagent(ctx, row.WorkspaceID, row.ID)
 		if err != nil {
 			return err
+		}
+		if nativeTaskActive(ev.Task) {
+			updated, changed, err := s.store.ResumeNativeSubagent(ctx, current.ID, ev.ParentTurnID, ev.At)
+			if err != nil {
+				return err
+			}
+			if changed {
+				s.publish(ctx, updated)
+			}
+			continue
 		}
 		if err := s.recordNativeUsage(ctx, &current, &ev); err != nil {
 			return err
