@@ -8,6 +8,9 @@ import (
 
 func providerSettingsMap(settings ProviderSettings) map[string]any {
 	values := make(map[string]any)
+	if settings.AutoCompactWindow != nil {
+		values["auto_compact_window"] = *settings.AutoCompactWindow
+	}
 	if settings.SteerCapability != "" {
 		values["steer_capability"] = string(settings.SteerCapability)
 	}

@@ -1061,3 +1061,17 @@ func TestCheckInHostedLaunch(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Type{SessionTypeSystem, SessionTypeTriage, SessionTypeUser, SessionTypeSpawned} {
+		t.Run("Should choose a lean default for role "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			automatic := kind == SessionTypeSystem || kind == SessionTypeTriage
+			if sessionLeanEnvironment(kind, nil) != automatic || !sessionLeanEnvironment(kind, new(true)) ||
+				sessionLeanEnvironment(kind, new(false)) != automatic {
+				t.Fatal("incorrect role or explicit setting")
+			}
+		})
+	}
+}

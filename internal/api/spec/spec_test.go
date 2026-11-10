@@ -363,6 +363,35 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+		{
+			name: "Should keep harness controls optional with their declared scalar types",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				for _, name := range []string{
+					"AgentEffectiveRuntimePayload", "AgentPayload", "CreateAgentPayload", "DuplicateAgentOverrides",
+					"SettingsProviderSettingsPayload", "SettingsProviderWritePayload",
+				} {
+					schema := componentSchema(t, doc, name)
+					fields := map[string]string{"auto_compact_window": "integer"}
+					if !strings.HasPrefix(name, "SettingsProvider") {
+						fields["lean_environment"] = "boolean"
+					}
+					for field, kind := range fields {
+						value := propertySchema(t, schema, field)
+						if value.Type == nil || !value.Type.Is(kind) || slices.Contains(schema.Required, field) {
+							t.Fatalf(
+								"%s.%s must be optional %s: schema=%+v required=%v",
+								name,
+								field,
+								kind,
+								value,
+								schema.Required,
+							)
+						}
+					}
+				}
+			},
+		},
 
 		{
 			name: "Should describe the inactive-session native compaction refusal",

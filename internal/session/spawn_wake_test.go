@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -132,6 +133,39 @@ func TestSpawnWakeReasonForBadge(t *testing.T) {
 
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
+	// The manager owns reservations: pre-dispatch failures can retry, while
+	// admitted or uncertain outcomes must retain duplicate suppression.
+	for _, test := range []struct {
+		name      string
+		err       error
+		wantCalls int
+	}{
+		{name: "Should retry a pre-dispatch lookup failure", err: fmt.Errorf("lookup: %w", ErrSpawnWakeRetryable), wantCalls: 2},
+		{name: "Should retain an uncertain delivery reservation", err: errors.New("delivery outcome unknown"), wantCalls: 1},
+		{name: "Should retain an admitted wake reservation", wantCalls: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			notifier := &recordingSpawnWakeNotifier{err: test.err}
+			manager := spawnWakeTestManager(notifier, nil)
+			info := spawnWakeTestInfo(true)
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			notifier.mu.Lock()
+			notifier.err = nil
+			notifier.mu.Unlock()
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForInput)
+			_, events := notifier.calls()
+			if len(events) != test.wantCalls {
+				t.Fatalf("wake calls = %d, want %d", len(events), test.wantCalls)
+			}
+			for _, event := range events {
+				if event.WakeEventID != events[0].WakeEventID {
+					t.Fatal("retry changed the durable admission identity")
+				}
+			}
+		})
+	}
 
 	t.Run("Should deliver one wake per cause episode", func(t *testing.T) {
 		t.Parallel()

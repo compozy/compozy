@@ -261,7 +261,7 @@ func (m *Manager) handlePromptPumpEvent(
 	}
 
 	fatalPromptFailure := promptFatalFailure(normalized)
-	if err := m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent); err != nil {
+	if err := m.recordPromptEventWithCost(ctx, turnState, loop, &normalized, runtimeEvent); err != nil {
 		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, normalized.Type, err) {
 			return nil, "", false
 		}

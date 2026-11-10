@@ -29,7 +29,7 @@ type sessionWriteRequest struct {
 	kind     sessionWriteKind
 	event    store.SessionEvent
 	events   []store.SessionEvent
-	usage    store.TokenUsage
+	usage    *store.TokenUsage
 	hook     hookspkg.HookRunRecord
 	archive  store.EventArchiveRequest
 	rewind   *store.ConversationRewindRequest

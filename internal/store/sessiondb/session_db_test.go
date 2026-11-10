@@ -1672,7 +1672,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
 				}
 				status, err := store.Status(ctx, opened.db, MigrationStream())
-				if err != nil || status.Version != 10 || status.AppliedCount != 10 ||
+				if err != nil || status.Version != 11 || status.AppliedCount != 11 ||
 					(attempt > 0 && status != previousStatus) {
 					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
 				}
@@ -1697,8 +1697,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 10 || firstStatus.AppliedCount != 10 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 10", firstStatus)
+		if firstStatus.Version != 11 || firstStatus.AppliedCount != 11 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 11", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -1846,8 +1846,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 10 || status.AppliedCount != 10 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 10", status)
+		if status.Version != 11 || status.AppliedCount != 11 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 11", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -5193,4 +5193,135 @@ func turnIDs(history []store.TurnHistory) []string {
 		ids = append(ids, turn.TurnID)
 	}
 	return ids
+}
+
+// Invariant: migration 11 preserves raw monetary evidence and all non-cost usage,
+// while canonical history and the per-turn ledger agree after upgrade and reopen.
+func TestSessionDBUsageCostMigration(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		missing        bool
+		amounts, costs []float64
+	}{
+		{name: "Should preserve raw reports while charging zero for a dropped counter", amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should resume increments from a lagging restored counter", amounts: []float64{10, 12, 11.5, 12.5}, costs: []float64{10, 2, 0, 1}},
+		{name: "Should derive costs from canonical history when a usage projection is missing", missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			owner := testSessionDBOwner("sess-cost-upgrade")
+			old, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+				return store.Apply(ctx, db, sessionMigrationPrefixBefore(t, "00011_schema.sql"))
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := old.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner(singleton, session_id, workspace_id) VALUES (1,?,?)`,
+				owner.SessionID,
+				owner.WorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			amounts, costs := tc.amounts, tc.costs
+			for i, amount := range amounts {
+				turn := fmt.Sprintf("turn-cost-%d", i)
+				stamp := time.Date(2026, 7, 15, 12, i, 0, 0, time.UTC)
+				usage := acp.TokenUsage{
+					TurnID:       turn,
+					CostAmount:   new(amount),
+					CostCurrency: new("USD"),
+					TotalTokens:  new(int64(5)),
+					Timestamp:    stamp,
+				}
+				content, err := transcript.MarshalAgentEvent(
+					acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, Usage: &usage},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := old.ExecContext(
+					ctx,
+					`INSERT INTO events(id,sequence,turn_id,type,agent_name,content,timestamp) VALUES (?,?,?,'done','coder',?,?)`,
+					turn,
+					i+1,
+					turn,
+					content,
+					store.FormatTimestamp(stamp),
+				); err != nil {
+					t.Fatal(err)
+				}
+				if tc.missing && i == 1 {
+					continue
+				}
+				if _, err := old.ExecContext(
+					ctx,
+					`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,'USD',?)`,
+					turn,
+					amount,
+					store.FormatTimestamp(stamp),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := old.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				ledger, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := ledger.ListTokenUsage(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantRows := len(costs)
+				if tc.missing {
+					wantRows--
+				}
+				if len(rows) != wantRows {
+					t.Fatalf("rows=%v", rows)
+				}
+				for i, row := range rows {
+					if tc.missing && i >= 1 {
+						i++
+					}
+					if row.CostAmount == nil || *row.CostAmount != costs[i] || row.ReportedCostAmount == nil ||
+						*row.ReportedCostAmount != amounts[i] ||
+						row.TotalTokens == nil ||
+						*row.TotalTokens != 5 ||
+						row.CacheReadTokens == nil ||
+						*row.CacheReadTokens != 4 {
+						t.Fatalf("usage %d=%+v", i, row)
+					}
+				}
+				events, err := ledger.Query(ctx, store.EventQuery{Type: acp.EventTypeDone})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(events) != len(costs) {
+					t.Fatalf("done events=%d, want %d", len(events), len(costs))
+				}
+				for i, row := range events {
+					event, err := transcript.UnmarshalAgentEvent(row.Content)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if event.Usage == nil || event.Usage.CostAmount == nil || *event.Usage.CostAmount != costs[i] ||
+						event.Usage.ReportedCostAmount == nil ||
+						*event.Usage.ReportedCostAmount != amounts[i] {
+						t.Fatalf("canonical usage=%+v", event.Usage)
+					}
+				}
+				if err := ledger.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
 }

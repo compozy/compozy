@@ -38,23 +38,25 @@ type CreateAgentPayload struct {
 	Label              string         `json:"label,omitempty"`
 	ResolvedAppearance map[string]any `json:"resolved_appearance,omitempty"`
 
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Name            string                              `json:"name"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort                     `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	SessionApproval string                              `json:"session_approval,omitempty"`
-	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	LeanEnvironment   *bool                               `json:"lean_environment,omitempty"`
+	Name              string                              `json:"name"`
+	Provider          string                              `json:"provider,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	Model             string                              `json:"model,omitempty"`
+	ReasoningEffort   ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed             Speed                               `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools             []string                            `json:"tools,omitempty"`
+	Toolsets          []string                            `json:"toolsets,omitempty"`
+	DenyTools         []string                            `json:"deny_tools,omitempty"`
+	SessionApproval   string                              `json:"session_approval,omitempty"`
+	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
+	Permissions       SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath      []string                            `json:"category_path,omitempty"`
+	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
 	// FallbackChain declares ordered pre-acceptance routes; omitted keeps no chain on
 	// create and replaces the whole chain on update.
 	FallbackChain []AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`

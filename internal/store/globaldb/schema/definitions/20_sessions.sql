@@ -584,3 +584,9 @@ CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_ses
 CREATE INDEX idx_session_subagents_worktree_cleanup ON session_subagents(worktree_cleanup) WHERE worktree_cleanup = 'pending';
 
 CREATE INDEX idx_token_usage_daily_activity ON token_usage_daily(profile_id, agent_name, workspace_id, day);
+
+-- A one-time, resumable cross-ledger data migration. Fresh databases need no repair.
+CREATE TABLE usage_cost_repair_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    pending INTEGER NOT NULL CHECK (pending IN (0, 1))
+);

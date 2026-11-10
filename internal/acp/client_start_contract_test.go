@@ -2650,7 +2650,7 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 			},
 		})
 		defer stopProcess(t, driver, proc)
-		text, included, _ := proc.nextPromptText("hello", false)
+		text, included, _, _ := proc.nextPromptText("hello", PromptRequest{Message: "hello"})
 		if !included || strings.Contains(text, "unconfirmed tools") ||
 			!strings.Contains(text, "confirmed runtime guidance") {
 			t.Fatalf("first prompt = %q", text)
@@ -2885,6 +2885,110 @@ func TestCheckInHostedStartup(t *testing.T) {
 			if len(opts.MCPServers) != 2 || opts.MCPServers[0].Name != "raw" {
 				t.Fatal("start constraint mutated caller slice")
 			}
+		}
+	})
+}
+
+func TestClaudeAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, configured := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should preserve compact window configuration on %s configured %t", tc.name, configured),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+					}
+					if configured {
+						opts.ProviderConfig = &compozyconfig.ProviderConfig{AutoCompactWindow: new(200000)}
+					}
+					proc := startHelperProcess(t, New(), tc.scenario, "", opts)
+					defer stopProcess(t, New(), proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								Env map[string]string `json:"env"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got, present := meta.ClaudeCode.Options.Env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"]
+					if present != configured || configured && got != "200000" {
+						t.Fatalf("window = %q, present = %t", got, present)
+					}
+				},
+			)
+		}
+	}
+}
+
+func TestClaudeLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, enabled := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf(
+					"Should preserve repository instructions and managed tools on %s lean %t",
+					tc.name,
+					enabled,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+						LeanEnvironment: enabled,
+					}
+					driver := New()
+					proc := startHelperProcess(t, driver, tc.scenario, "", opts)
+					defer stopProcess(t, driver, proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								StrictMCP bool              `json:"strictMcpConfig"`
+								Env       map[string]string `json:"env"`
+								Tools     *[]string         `json:"tools"`
+								Skills    *[]string         `json:"skills"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got := meta.ClaudeCode.Options
+					if got.StrictMCP != enabled || (got.Env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1") != enabled ||
+						(got.Env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false") != enabled {
+						t.Fatalf("options = %+v", got)
+					}
+					if got.Env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] != "" || got.Tools != nil || got.Skills != nil {
+						t.Fatal("lean environment removed coding instructions or tools")
+					}
+				},
+			)
+		}
+	}
+	t.Run("Should leave other provider environments unchanged", func(t *testing.T) {
+		t.Parallel()
+		if claudeCodeSessionMeta(StartOpts{Command: "codex-acp", LeanEnvironment: true}) != nil {
+			t.Fatal("Claude options escaped to another provider")
 		}
 	})
 }

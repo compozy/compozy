@@ -981,6 +981,15 @@ The session usage endpoint
 owns subscription billing; `unknown` has no amount because rates or aggregate provenance are
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+ACP monetary reports are session counters. Per-turn `cost_amount` is the increment since the last
+recorded report. A lower report contributes zero; its raw value is retained as the next turn's baseline.
+The baseline survives runtime release and daemon restart. Adapter-declared per-turn amounts are
+exempt from subtraction. A drop omits that one turn's cost (at most one turn per drop). A counter
+restart whose first report equals or exceeds the previous total is indistinguishable from continuation
+and can also undercount. This is an accounting correction, not a billing invoice.
+The upgrade repairs historical session and daily costs from complete per-session ledgers. Missing,
+partial or ambiguous evidence becomes `unknown/none`; token counts and turn counts stay unchanged.
+
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
 estimates only; CompozyOS does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
@@ -2074,3 +2083,7 @@ dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`
 file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
 allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
 artifact atomically; `-o json` reports its kind and path, not the binary payload.
+
+Child attention wakes reuse their durable event identity as the input message ID. Replaying an
+already admitted revision after restart does not start another turn; a new attention revision
+remains a new wake. Admission-read failures are reported instead of silently suppressing a wake.

@@ -252,6 +252,8 @@ type AgentPayload struct {
 	Label              string                              `json:"label"`
 	ResolvedAppearance map[string]any                      `json:"resolved_appearance"`
 	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow  *int                                `json:"auto_compact_window,omitempty"`
+	LeanEnvironment    *bool                               `json:"lean_environment,omitempty"`
 	Name               string                              `json:"name"`
 	Provider           string                              `json:"provider"`
 	Command            string                              `json:"command,omitempty"`

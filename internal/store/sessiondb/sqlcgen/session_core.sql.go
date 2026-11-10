@@ -469,7 +469,7 @@ func (q *Queries) InsertHookRun(ctx context.Context, arg InsertHookRunParams) er
 const listTokenUsage = `-- name: ListTokenUsage :many
 SELECT turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
        cache_read_tokens, cache_write_tokens, context_used, context_size,
-       cost_amount, cost_currency, timestamp
+       cost_amount, reported_cost_amount, cost_currency, timestamp
 FROM token_usage
 ORDER BY timestamp ASC, turn_id ASC
 `
@@ -494,6 +494,7 @@ func (q *Queries) ListTokenUsage(ctx context.Context) ([]TokenUsage, error) {
 			&i.ContextUsed,
 			&i.ContextSize,
 			&i.CostAmount,
+			&i.ReportedCostAmount,
 			&i.CostCurrency,
 			&i.Timestamp,
 		); err != nil {
@@ -599,12 +600,12 @@ const upsertTokenUsage = `-- name: UpsertTokenUsage :exec
 INSERT INTO token_usage (
     turn_id, input_tokens, output_tokens, total_tokens, thought_tokens,
     cache_read_tokens, cache_write_tokens, context_used, context_size,
-    cost_amount, cost_currency, timestamp
+    cost_amount, reported_cost_amount, cost_currency, timestamp
 ) VALUES (
     ?1, ?2, ?3,
     ?4, ?5, ?6,
     ?7, ?8, ?9,
-    ?10, ?11, ?12
+    ?10, ?11, ?12, ?13
 )
 ON CONFLICT(turn_id) DO UPDATE SET
     input_tokens = COALESCE(excluded.input_tokens, token_usage.input_tokens),
@@ -616,23 +617,25 @@ ON CONFLICT(turn_id) DO UPDATE SET
     context_used = COALESCE(excluded.context_used, token_usage.context_used),
     context_size = COALESCE(excluded.context_size, token_usage.context_size),
     cost_amount = COALESCE(excluded.cost_amount, token_usage.cost_amount),
+    reported_cost_amount = COALESCE(excluded.reported_cost_amount, token_usage.reported_cost_amount),
     cost_currency = COALESCE(excluded.cost_currency, token_usage.cost_currency),
     timestamp = excluded.timestamp
 `
 
 type UpsertTokenUsageParams struct {
-	TurnID           string          `json:"turn_id"`
-	InputTokens      sql.NullInt64   `json:"input_tokens"`
-	OutputTokens     sql.NullInt64   `json:"output_tokens"`
-	TotalTokens      sql.NullInt64   `json:"total_tokens"`
-	ThoughtTokens    sql.NullInt64   `json:"thought_tokens"`
-	CacheReadTokens  sql.NullInt64   `json:"cache_read_tokens"`
-	CacheWriteTokens sql.NullInt64   `json:"cache_write_tokens"`
-	ContextUsed      sql.NullInt64   `json:"context_used"`
-	ContextSize      sql.NullInt64   `json:"context_size"`
-	CostAmount       sql.NullFloat64 `json:"cost_amount"`
-	CostCurrency     sql.NullString  `json:"cost_currency"`
-	Timestamp        string          `json:"timestamp"`
+	TurnID             string          `json:"turn_id"`
+	InputTokens        sql.NullInt64   `json:"input_tokens"`
+	OutputTokens       sql.NullInt64   `json:"output_tokens"`
+	TotalTokens        sql.NullInt64   `json:"total_tokens"`
+	ThoughtTokens      sql.NullInt64   `json:"thought_tokens"`
+	CacheReadTokens    sql.NullInt64   `json:"cache_read_tokens"`
+	CacheWriteTokens   sql.NullInt64   `json:"cache_write_tokens"`
+	ContextUsed        sql.NullInt64   `json:"context_used"`
+	ContextSize        sql.NullInt64   `json:"context_size"`
+	CostAmount         sql.NullFloat64 `json:"cost_amount"`
+	ReportedCostAmount sql.NullFloat64 `json:"reported_cost_amount"`
+	CostCurrency       sql.NullString  `json:"cost_currency"`
+	Timestamp          string          `json:"timestamp"`
 }
 
 func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error {
@@ -647,6 +650,7 @@ func (q *Queries) UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsagePara
 		arg.ContextUsed,
 		arg.ContextSize,
 		arg.CostAmount,
+		arg.ReportedCostAmount,
 		arg.CostCurrency,
 		arg.Timestamp,
 	)

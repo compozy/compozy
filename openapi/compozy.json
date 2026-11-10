@@ -682,6 +682,14 @@
             },
             "type": "array"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
+          },
           "model": {
             "type": "string"
           },
@@ -2081,6 +2089,10 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -2138,6 +2150,10 @@
           },
           "layer": {
             "type": "string"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
           },
           "mcp_servers": {
             "items": {
@@ -6637,6 +6653,10 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -6678,6 +6698,10 @@
           },
           "label": {
             "type": "string"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
           },
           "mcp_servers": {
             "items": {
@@ -7883,6 +7907,10 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -7919,6 +7947,10 @@
               "always_on"
             ],
             "type": "string"
+          },
+          "lean_environment": {
+            "nullable": true,
+            "type": "boolean"
           },
           "model": {
             "type": "string"
@@ -32905,6 +32937,10 @@
           "auth_status_command": {
             "type": "string"
           },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
+          },
           "base_url": {
             "type": "string"
           },
@@ -33080,6 +33116,10 @@
           },
           "auth_status_command": {
             "type": "string"
+          },
+          "auto_compact_window": {
+            "nullable": true,
+            "type": "integer"
           },
           "base_url": {
             "type": "string"

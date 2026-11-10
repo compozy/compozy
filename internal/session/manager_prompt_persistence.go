@@ -43,18 +43,19 @@ func (m *Manager) recordPromptTokenUsageProjection(
 	// The canonical AgentEvent, including usage, is already committed. This
 	// rebuildable projection is attempted once and must never replay the event.
 	usage := store.TokenUsage{
-		TurnID:           event.Usage.TurnID,
-		InputTokens:      event.Usage.InputTokens,
-		OutputTokens:     event.Usage.OutputTokens,
-		TotalTokens:      event.Usage.TotalTokens,
-		ThoughtTokens:    event.Usage.ThoughtTokens,
-		CacheReadTokens:  event.Usage.CacheReadTokens,
-		CacheWriteTokens: event.Usage.CacheWriteTokens,
-		ContextUsed:      event.Usage.ContextUsed,
-		ContextSize:      event.Usage.ContextSize,
-		CostAmount:       event.Usage.CostAmount,
-		CostCurrency:     event.Usage.CostCurrency,
-		Timestamp:        event.Usage.Timestamp,
+		TurnID:             event.Usage.TurnID,
+		InputTokens:        event.Usage.InputTokens,
+		OutputTokens:       event.Usage.OutputTokens,
+		TotalTokens:        event.Usage.TotalTokens,
+		ThoughtTokens:      event.Usage.ThoughtTokens,
+		CacheReadTokens:    event.Usage.CacheReadTokens,
+		CacheWriteTokens:   event.Usage.CacheWriteTokens,
+		ContextUsed:        event.Usage.ContextUsed,
+		ContextSize:        event.Usage.ContextSize,
+		CostAmount:         event.Usage.CostAmount,
+		ReportedCostAmount: event.Usage.ReportedCostAmount,
+		CostCurrency:       event.Usage.CostCurrency,
+		Timestamp:          event.Usage.Timestamp,
 	}
 	if err := recorder.RecordTokenUsage(ctx, usage); err != nil {
 		failure := sessionFailureFromError(err, store.FailureTransport)

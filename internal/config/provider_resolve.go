@@ -345,6 +345,8 @@ func resolvedAgentFromProvider(
 		Reasoning:             provider.Models.Reasoning,
 		Prompt:                agent.Prompt,
 	}
+	resolved.setAutoCompactWindow(cmp.Or(agent.AutoCompactWindow, provider.AutoCompactWindow))
+	resolved.setLeanEnvironment(agent.LeanEnvironmentValue())
 	resolved.SetSpeed(speed)
 	resolved.SetACPOptions(agent.ACPOptionsValue())
 	return resolved
