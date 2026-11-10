@@ -187,3 +187,12 @@ Repeat mark-seen and require no duplicate event/hook or creator wake, including 
 notify_creator enabled and a return from Later. The existing Manager dismissal/ordering suite
 executes these SQLite schedules with an injected store read failure. The response still reports
 the read error; CI owns the broader transport/extension journey.
+
+QA impact 2026-11-10 (native parent settlement): capture parent turn-end snapshots while a
+permission keeps both badges at `waiting-for-auth`, resolve the permission, then publish the
+delayed lifecycle snapshots. Unfinished native work must become interrupted exactly once;
+canonical parent attention must settle and catalog/hook edges must agree without duplicate
+permission-clearing edges. Owning SQLite/manager regression: the native-work cases in
+`TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen`. Retain canceled-turn wake
+suppression, unrelated-session progress, and shutdown lock cancellation. CI owns the full
+public-surface walkthrough; focused daemon integration uses real ACP subprocesses and SQLite.
