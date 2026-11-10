@@ -9,15 +9,17 @@ import { absoluteUrl } from "@/lib/site-config";
 const processor = remark().use(remarkMdx).use(remarkInclude).use(remarkGfm);
 
 type DocsPage = InferPageType<typeof docsSource>;
-type DocsPageDataExtras = DocsPage["data"] & {
-  _file?: { absolutePath: string };
-  content?: string;
-};
+
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;
+
+/** The page's MDX body as authored, without its frontmatter. */
+export async function getDocsPageSource(page: DocsPage): Promise<string> {
+  return (await page.data.getText("raw")).replace(FRONTMATTER, "");
+}
 
 export async function getLLMText(page: DocsPage): Promise<string> {
-  const data = page.data as DocsPageDataExtras;
-  const value = data.content ?? "";
-  const path = data._file?.absolutePath ?? page.url;
+  const value = await getDocsPageSource(page);
+  const path = page.data.info.fullPath;
   const processed = await processor.process({ path, value });
   const description = page.data.description ?? "";
 

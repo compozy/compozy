@@ -68,7 +68,8 @@ vi.mock("@/lib/source", () => ({
         ...page,
         data: {
           ...page.data,
-          content: `# ${page.data.title}`,
+          getText: async () => `---\ntitle: ${page.data.title}\n---\n# ${page.data.title}`,
+          info: { fullPath: `${page.slugs.join("/")}.mdx` },
         },
         path: `${page.slugs.join("/")}.mdx`,
       };

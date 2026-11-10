@@ -204,18 +204,6 @@
 
 :root {
   --site-layout-width: 1200px;
-  --site-doc-layout-width: 96rem;
-  --site-doc-sidebar-width: 16rem;
-  --site-doc-toc-width: 14rem;
-  --site-doc-sidebar-marker-offset: 0.75rem;
-  --site-doc-sidebar-marker-inset: 0.375rem;
-  --site-doc-sidebar-nested-marker-offset: 0.6875rem;
-  --site-doc-sidebar-tree-indent: 0.875rem;
-  --site-doc-sidebar-tree-gutter: 0.625rem;
-  --site-doc-sidebar-tree-line-inset: 0.25rem;
-  --site-doc-sidebar-first-group-gap: 0.375rem;
-  --site-doc-toc-gutter: 1rem;
-  --site-doc-index-label-width: 11.875rem;
   --site-doc-hairline: 1px;
   --site-doc-sidebar-section-label-offset: 1.625rem;
   --site-doc-sidebar-section-label-tracking: 0.09em;
@@ -227,25 +215,9 @@
   --site-doc-sidebar-group-gap: 0.4375rem;
   --site-doc-sidebar-group-label-tracking: 0.08em;
   --site-doc-sidebar-group-label-color: color-mix(in srgb, var(--color-subtle) 72%, transparent);
-  --site-doc-masthead-context-gap: 1rem;
-  --site-doc-masthead-context-height: 1.75rem;
   --site-doc-masthead-crumb-gap: 0.5rem;
   --site-doc-masthead-crumb-tracking: 0.08em;
   --site-doc-masthead-crumb-rule-width: 0.875rem;
-  --site-doc-masthead-action-gap: 0.375rem;
-  --site-doc-masthead-title-offset: 1.125rem;
-  --site-doc-masthead-title-leading: 1.02;
-  --site-doc-masthead-title-tracking: -0.02em;
-  --site-doc-masthead-lead-offset: 1rem;
-  --site-doc-masthead-lead-width: 64ch;
-  --site-doc-masthead-meta-gap: 1.25rem;
-  --site-doc-masthead-meta-offset: 1.5rem;
-  --site-doc-masthead-meta-rule-gap: 0.875rem;
-  --site-doc-inline-gap: 0.4375rem;
-  --site-doc-meta-icon-opacity: 0.7;
-  --site-doc-action-padding-inline: 0.625rem;
-  --site-doc-action-success-border: color-mix(in srgb, var(--color-success) 35%, transparent);
-  --site-doc-action-success-background: color-mix(in srgb, var(--color-success) 10%, transparent);
   --site-doc-section-offset: 4rem;
   --site-doc-section-rule-gap: 1rem;
   --site-doc-section-leading: 1.1;
@@ -269,7 +241,6 @@
   --site-api-heading-content-gap: 0.875rem;
   --site-api-subheading-offset: 2.5rem;
   --site-api-schema-min-width: 18rem;
-  --site-diagram-node-stroke-width: 1.4px;
   --site-bento-overlay-runtime: linear-gradient(
     180deg,
     color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
@@ -323,13 +294,6 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
   background: transparent;
 }
 
-/* neutral.css ships a sidebar-specific override; realign it to DESIGN.md. */
-.dark #nd-sidebar {
-  --color-fd-muted: var(--color-canvas-soft);
-  --color-fd-secondary: var(--color-canvas-soft);
-  --color-fd-muted-foreground: var(--color-muted-foreground);
-}
-
 body {
   background: var(--color-canvas);
   color: var(--color-fg);
@@ -348,120 +312,6 @@ a {
 ::selection {
   background: color-mix(in srgb, var(--color-brand) 28%, transparent);
   color: var(--color-fg);
-}
-
-#nd-sidebar {
-  width: var(--fd-sidebar-width);
-  border-inline-end: 1px solid var(--color-line);
-  border-color: var(--color-line);
-  background: color-mix(in srgb, var(--color-canvas-soft) 55%, var(--color-canvas)) !important;
-}
-
-#nd-sidebar [data-active="true"] {
-  background: var(--color-brand-tint);
-  color: var(--color-brand);
-}
-
-#nd-sidebar .docs-sb-item[data-active="true"]::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: calc(-1 * var(--site-doc-sidebar-marker-offset));
-  top: var(--site-doc-sidebar-marker-inset);
-  bottom: var(--site-doc-sidebar-marker-inset);
-  width: 2px;
-  border-radius: 1px;
-  background: var(--color-brand);
-}
-
-#nd-sidebar .docs-sb-kids .docs-sb-item[data-active="true"]::before {
-  inset-inline-start: calc(-1 * var(--site-doc-sidebar-nested-marker-offset));
-}
-
-#nd-sidebar .docs-sb-folder[data-state="open"] > .docs-sb-folder-head:not([data-active="true"]) {
-  color: var(--color-fg);
-}
-
-#nd-sidebar .docs-sb-item svg:not([data-icon]) {
-  stroke-width: 1.6;
-}
-
-#nd-sidebar .docs-sb-folder-head svg[data-icon] {
-  transition: transform var(--duration-base) var(--ease-out);
-}
-
-#nd-sidebar .docs-sb-kids {
-  position: relative;
-  margin-inline-start: var(--site-doc-sidebar-tree-indent);
-  padding-inline-start: var(--site-doc-sidebar-tree-gutter);
-}
-
-#nd-sidebar .docs-sb-kids::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: 0;
-  top: var(--site-doc-sidebar-tree-line-inset);
-  bottom: var(--site-doc-sidebar-tree-line-inset);
-  width: 1px;
-  background: var(--color-line-strong);
-}
-
-#nd-sidebar .docs-sb-kids > .docs-sb-group:first-child {
-  margin-top: var(--site-doc-sidebar-first-group-gap);
-}
-
-#nd-sidebar [data-sidebar-body] {
-  background: transparent;
-}
-
-#nd-page {
-  background: transparent;
-}
-
-#nd-page > * {
-  max-width: 100% !important;
-}
-
-#nd-notebook-layout {
-  --fd-layout-width: 100vw !important;
-}
-
-#nd-toc {
-  width: var(--site-doc-toc-width);
-  border-inline-start: 1px solid var(--color-line);
-  padding-inline-start: var(--site-doc-toc-gutter);
-}
-
-#nd-toc [aria-current="true"],
-#nd-toc [data-active="true"],
-#nd-toc a:hover {
-  color: var(--color-brand);
-}
-
-a p.text-fd-muted-foreground.truncate {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-button span.truncate[class*="transition-"] {
-  overflow: visible;
-  line-height: 1.15;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-@media (max-width: 1024px) {
-  #nd-toc {
-    width: 100%;
-    border-inline-start: 0;
-    padding-inline-start: 0;
-  }
-}
-
-@media (min-width: 768px) {
-  #nd-notebook-layout {
-    --fd-sidebar-width: var(--site-doc-sidebar-width);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

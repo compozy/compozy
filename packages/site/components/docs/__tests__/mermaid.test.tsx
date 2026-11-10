@@ -26,7 +26,8 @@ describe("Mermaid", () => {
     });
     mermaidMock.render.mockReset();
     mermaidMock.render.mockImplementation(async (id: string) => ({
-      svg: `<svg id="${id}"><title>diagram</title></svg>`,
+      // Mermaid output already carries a class; the renderer must still parse it.
+      svg: `<svg id="${id}" class="flowchart"><title>diagram</title></svg>`,
     }));
   });
 
@@ -42,7 +43,7 @@ describe("Mermaid", () => {
     rerender(<Mermaid chart="graph TD; B-->C" />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Mermaid diagram")).toBeTruthy();
+      expect(screen.getByLabelText("Mermaid diagram").querySelector("svg.flowchart")).toBeTruthy();
     });
     expect(mermaidMock.initialize).toHaveBeenCalledTimes(2);
     expect(mermaidMock.initialize).toHaveBeenNthCalledWith(
@@ -51,12 +52,10 @@ describe("Mermaid", () => {
         securityLevel: "strict",
         theme: "base",
         themeVariables: expect.objectContaining({
-          background: "var(--color-rail)",
-          primaryBorderColor: "var(--color-brand)",
-          primaryTextColor: "var(--color-fg)",
-          lineColor: "var(--color-muted-foreground)",
-          actorBorder: "var(--color-brand)",
-          fontFamily: "var(--font-sans)",
+          background: "#0d0d0d",
+          primaryTextColor: "#ececec",
+          lineColor: "#1f87fc",
+          signalColor: "#1f87fc",
         }),
       })
     );

@@ -1,16 +1,61 @@
-/* Docs reading surface and masthead. API workbench overrides live in docs-api.css. */
-.site-doc-masthead {
-  margin-bottom: 0;
+/*
+ * Docs shell (`app/docs/layout.tsx`, ported from the approved `web/src/drafts/docs` draft).
+ * The draft reads on the neutral text ramp, as the marketing shell does; the warm D9 pins in
+ * global.css stay for everything outside these two shells.
+ */
+.site-docs {
+  --color-fg: #ececec;
+  --color-fg-strong: #ffffff;
+  --color-muted-foreground: #989898;
+  --color-subtle: #8e8e8e;
+  --color-faint: #8d8d8d;
 }
 
-.site-doc-masthead__context {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-context-gap);
-  min-height: var(--site-doc-masthead-context-height);
-  flex-wrap: wrap;
+/* Quiet scrollbars for the side rails; the section tabs scroll without one. */
+.docs-rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--site-light-120) transparent;
 }
 
+.docs-tabs {
+  scrollbar-width: none;
+}
+
+.docs-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hash targets land below the fixed two-row docs header. */
+html:has(.docs-root) {
+  scroll-padding-top: 128px;
+}
+
+.docs-count {
+  letter-spacing: normal;
+}
+
+/* Workflow steps and the section map number themselves. */
+.docs-steps {
+  counter-reset: docs-step;
+}
+
+.docs-steps > li {
+  counter-increment: docs-step;
+}
+
+.docs-step-number::before {
+  content: counter(docs-step);
+}
+
+/* Shiki keeps its dual-theme tokens; the frame owns the surface. */
+.docs-prose pre.shiki {
+  background: transparent;
+}
+
+/*
+ * The marketplace trail reuses the former docs masthead crumbs
+ * (components/marketplace/marketplace-crumbs.tsx).
+ */
 .site-doc-masthead__crumbs {
   display: flex;
   align-items: center;
@@ -49,100 +94,10 @@
   color: var(--color-fg);
 }
 
-.site-doc-masthead__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-action-gap);
-  margin-inline-start: auto;
-}
-
-.site-doc-masthead__title {
-  margin-top: var(--site-doc-masthead-title-offset);
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-site-doc-title);
-  line-height: var(--site-doc-masthead-title-leading);
-  letter-spacing: var(--site-doc-masthead-title-tracking);
-  color: var(--color-fg);
-  overflow-wrap: break-word;
-}
-
-.site-doc-masthead__lead {
-  margin-top: var(--site-doc-masthead-lead-offset);
-  max-width: var(--site-doc-masthead-lead-width);
-  font-size: var(--text-site-doc-lead);
-  line-height: var(--text-site-doc-lead--line-height);
-  color: var(--color-muted-foreground);
-}
-
-.site-doc-masthead__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--site-doc-masthead-meta-gap);
-  flex-wrap: wrap;
-  margin-top: var(--site-doc-masthead-meta-offset);
-  padding-top: var(--site-doc-masthead-meta-rule-gap);
-  border-top: var(--site-doc-hairline) solid var(--color-line);
-  font-size: var(--text-small-body);
-  line-height: var(--text-small-body--line-height);
-  color: var(--color-subtle);
-}
-
-.site-doc-masthead__meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--site-doc-inline-gap);
-}
-
-.site-doc-masthead__meta-icon {
-  width: var(--text-card-title);
-  height: var(--text-card-title);
-  opacity: var(--site-doc-meta-icon-opacity);
-}
-
-.site-doc-masthead__meta-item strong {
-  color: var(--color-muted-foreground);
-  font-weight: 500;
-}
-
-.site-doc-page-action {
-  height: var(--height-search);
-  gap: var(--site-doc-inline-gap);
-  padding-inline: var(--site-doc-action-padding-inline);
-  border-radius: var(--radius-md);
-  background: var(--color-canvas-soft);
-  font-size: var(--text-form-label);
-  font-weight: 500;
-  color: var(--color-muted-foreground);
-}
-
-.site-doc-page-action:hover:not(:disabled) {
-  color: var(--color-fg);
-  background: var(--color-elevated);
-  border-color: var(--color-line-strong);
-}
-
-.site-doc-page-action[data-copy-state="copied"] {
-  color: var(--color-success);
-  border-color: var(--site-doc-action-success-border);
-  background: var(--site-doc-action-success-background);
-}
-
-.site-doc-page-action[data-copy-state="failed"] {
-  color: var(--color-destructive);
-}
-
-.site-doc-page-action--icon {
-  width: var(--height-search);
-  padding-inline: 0;
-  justify-content: center;
-}
-
-.site-doc-page-action svg:not([class*="size-"]) {
-  width: var(--text-card-title);
-  height: var(--text-card-title);
-}
-
+/*
+ * Generated API reference pages (`/docs/api/**`) still render through fumadocs-openapi with the
+ * previous reading styles until the API template is redrawn (docs-api.css owns the workbench).
+ */
 .site-doc-body {
   color: var(--color-muted-foreground);
   font-size: var(--text-site-doc-prose);

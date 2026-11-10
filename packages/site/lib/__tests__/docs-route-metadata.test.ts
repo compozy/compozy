@@ -29,6 +29,7 @@ const mockedDocs = vi.hoisted(() => {
                 ...page,
                 body: () => null,
                 toc: [],
+                getText: async () => "---\ntitle: x\n---\nBody text",
               },
             }
           : null;
@@ -77,17 +78,44 @@ vi.mock("@/lib/source", () => ({
   docsSource: mockedDocs.docsSource,
 }));
 
-vi.mock("fumadocs-ui/page", () => ({
-  DocsBody: ({ children }: { children?: ReactNode }) => children,
-  DocsPage: ({ children }: { children?: ReactNode }) => children,
-}));
-
-vi.mock("@/components/docs/doc-page-masthead", () => ({
-  DocPageMasthead: (props: { pageUrl?: string }) => {
-    mockedPageRender.mastheads.push(props);
+vi.mock("@/components/docs/docs-masthead", () => ({
+  DocsMasthead: (props: { actions: { pageUrl?: string } }) => {
+    mockedPageRender.mastheads.push(props.actions);
     return null;
   },
+  DocsPager: () => null,
 }));
+
+vi.mock("@/components/docs/docs-toc", () => ({
+  DocsPageFrame: ({ children }: { children?: ReactNode }) => children,
+  DocsTocDisclosure: () => null,
+}));
+
+vi.mock("@/lib/docs-shell", () => {
+  const shell = {
+    total: mockedDocs.docsPages.length,
+    sections: [],
+    tabs: [],
+    pages: [],
+    byUrl: new Map(
+      mockedDocs.docsPages.map(page => [
+        page.url,
+        {
+          url: page.url,
+          title: page.title,
+          description: page.description,
+          section: null,
+          trail: [],
+          node: { key: page.url, name: page.title, url: page.url },
+        },
+      ])
+    ),
+  };
+  return {
+    getDocsShell: () => shell,
+    neighboursOf: () => ({ previous: null, next: null }),
+  };
+});
 
 vi.mock("@/components/seo/structured-data", () => ({
   BreadcrumbListJsonLd: (props: { items: Array<{ name: string; path: string }> }) => {
@@ -102,15 +130,6 @@ vi.mock("@/components/seo/structured-data", () => ({
 
 vi.mock("@/mdx-components", () => ({
   getMDXComponents: () => ({}),
-}));
-
-vi.mock("@/lib/doc-masthead-meta", () => ({
-  resolveDocMastheadMeta: () => ({
-    audience: "operators",
-    crumbs: [],
-    product: "CompozyOS",
-    sectionPageCount: 1,
-  }),
 }));
 
 vi.mock("@/lib/openapi", () => ({

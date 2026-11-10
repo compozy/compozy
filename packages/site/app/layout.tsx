@@ -6,7 +6,6 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { Toaster, UIProvider } from "@compozy/ui";
-import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
 
 const SITE_TOASTER_STYLE = {
@@ -102,19 +101,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             // D9: the site's toasts keep the lifted canvas-soft surface and soft hairline.
             style={SITE_TOASTER_STYLE}
           />
-          <SiteSearchProvider>
-            <RootProvider
-              search={{
-                SearchDialog: SiteSearchDialog,
-                options: {
-                  api: "/api/search",
-                },
-              }}
-              theme={{ enabled: false }}
-            >
-              {children}
-            </RootProvider>
-          </SiteSearchProvider>
+          {/* Docs search is the docs shell's own palette (components/docs/docs-search.tsx), a
+              client of the same `/api/search` index; Fumadocs' dialog and its ⌘K are off. */}
+          <RootProvider search={{ enabled: false }} theme={{ enabled: false }}>
+            {children}
+          </RootProvider>
         </UIProvider>
         <Analytics />
         <SpeedInsights />

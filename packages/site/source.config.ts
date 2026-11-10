@@ -19,6 +19,9 @@ export const docs = defineDocs({
 export default defineConfig({
   mdxOptions: {
     rehypeCodeOptions: {
+      // The docs code frame labels each block by language and turns one-line shell commands into
+      // a prompt line; the class on `code` is how the `pre` renderer learns the language.
+      addLanguageClass: true,
       themes: {
         light: COMPOZY_CODE_THEMES.light,
         dark: COMPOZY_CODE_THEMES.dark,

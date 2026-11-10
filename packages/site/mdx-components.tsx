@@ -2,6 +2,15 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import samples from "../../openapi/sdk-samples.json";
 import { withSDKCodeSamples, type SDKSampleManifest } from "@/lib/sdk-samples";
 import {
+  DocsH2,
+  DocsH3,
+  DocsInlineCode,
+  DocsLink,
+  DocsPre,
+  DocsTable,
+} from "@/components/docs/docs-prose";
+import {
+  Callout,
   GuideCard,
   GuideGrid,
   OperatorNote,
@@ -44,6 +53,13 @@ export function getMDXComponents(openapiPreload?: OpenAPIPagePreload) {
   const OpenAPIPage = createPreloadedOpenAPIPage(openapiPreload);
   return {
     ...defaultMdxComponents,
+    h2: DocsH2,
+    h3: DocsH3,
+    a: DocsLink,
+    code: DocsInlineCode,
+    pre: DocsPre,
+    table: DocsTable,
+    Callout,
     OpenAPIPage,
     APIPage: OpenAPIPage,
     CurrentReleaseTag,

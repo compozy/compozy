@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@compozy/ui";
-import { Check, Copy } from "lucide-react";
+import { Button, cn } from "@compozy/ui";
+import { Check, Copy } from "@compozy/ui/icons";
 import { useEffect, useRef, useState } from "react";
 
 const cache = new Map<string, string>();
@@ -81,14 +81,14 @@ export function LLMCopyButton({ markdownUrl }: LLMCopyButtonProps) {
 
   return (
     <Button
-      className="site-doc-page-action h-search"
+      className={cn("h-8 gap-2 rounded-[10px] px-3 text-[13px]", failed && "text-destructive")}
       data-copy-state={dataState}
       disabled={copyPending}
       size="sm"
       variant="outline"
       onClick={onClick}
     >
-      {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+      {copied ? <Check aria-hidden className="text-brand-strong" /> : <Copy aria-hidden />}
       {label}
     </Button>
   );
