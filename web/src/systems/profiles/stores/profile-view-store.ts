@@ -32,6 +32,12 @@ interface ProfileViewContext {
 interface PendingSwitch {
   previous: ProfileView | null;
   previousSwitch: number;
+  /**
+   * Whether returning to `previous` cannot be persisted: it was itself left by a rollback with an
+   * unknown outcome, or a write between them failed without an answer. A later refusal proves
+   * nothing about those writes, so the uncertainty travels with the fallback.
+   */
+  previousRolledBack: boolean;
 }
 
 /**
@@ -77,7 +83,11 @@ export const profileViewStore = createStore({
         viewRolledBack: false,
         pending: {
           ...context.pending,
-          [epoch]: { previous: context.view, previousSwitch: context.viewSwitch },
+          [epoch]: {
+            previous: context.view,
+            previousSwitch: context.viewSwitch,
+            previousRolledBack: context.viewRolledBack,
+          },
         },
       };
     },
@@ -94,17 +104,21 @@ export const profileViewStore = createStore({
     switchFailed: (context, event: { switch: number; refused: boolean }) => {
       const failed = context.pending[event.switch];
       if (failed === undefined) return undefined;
+      const rolledBack = failed.previousRolledBack || !event.refused;
       const pending: Record<number, PendingSwitch> = {};
       for (const [id, entry] of Object.entries(context.pending)) {
         if (Number(id) === event.switch) continue;
-        pending[Number(id)] = entry.previousSwitch === event.switch ? { ...failed } : entry;
+        pending[Number(id)] =
+          entry.previousSwitch === event.switch
+            ? { ...failed, previousRolledBack: rolledBack }
+            : entry;
       }
       if (context.viewSwitch !== event.switch) return { ...context, pending };
       return {
         ...context,
         view: failed.previous,
         viewSwitch: failed.previousSwitch,
-        viewRolledBack: !event.refused,
+        viewRolledBack: rolledBack,
         pending,
       };
     },

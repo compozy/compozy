@@ -164,6 +164,26 @@ describe("profile view store", () => {
     expect(persistedView()).toEqual({ kind: "aggregate" });
   });
 
+  it("Should keep an unanswered write's doubt when a later switch is refused [#1436]", () => {
+    // In sequence: the first write's answer is lost, then the retry is refused.
+    setProfileView({ kind: "aggregate" });
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "marketing" }) ?? 0);
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "open-design" }) ?? 0, {
+      refused: true,
+    });
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toBeNull();
+
+    // Overlapping: the earlier write's answer is lost while the later one is still on screen.
+    setProfileView({ kind: "aggregate" });
+    const lost = setProfileView({ kind: "profile", profile: "marketing" }) ?? 0;
+    const refused = setProfileView({ kind: "profile", profile: "open-design" }) ?? 0;
+    failProfileSwitch(lost);
+    failProfileSwitch(refused, { refused: true });
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(persistedView()).toBeNull();
+  });
+
   it("Should keep All profiles for a reload when the daemon refused the switch [#1436]", () => {
     setProfileView({ kind: "aggregate" });
     const refused = setProfileView({ kind: "profile", profile: "marketing" }) ?? 0;

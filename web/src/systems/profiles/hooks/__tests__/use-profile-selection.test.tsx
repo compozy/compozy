@@ -288,6 +288,11 @@ describe("global profile selection", () => {
       kept: true,
     },
     { label: "lost its answer", error: new TypeError("Failed to fetch"), kept: false },
+    {
+      label: "sent a gateway error for",
+      error: new ProfileApiError("bad gateway", 502, "", ""),
+      kept: false,
+    },
   ])(
     "Should keep All profiles for a reload only when the daemon $label the switch [#1436]",
     async ({ error, kept }) => {

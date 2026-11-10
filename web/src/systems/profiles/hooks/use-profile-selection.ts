@@ -119,6 +119,14 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
   };
 }
 
+/**
+ * Only a client-error answer proves the daemon did not apply the write. A lost answer, a server
+ * error, or a proxy's 5xx leaves the outcome unknown.
+ */
+function refusedWrite(error: unknown): boolean {
+  return error instanceof ProfileApiError && error.status >= 400 && error.status < 500;
+}
+
 async function rememberProfileView(view: ProfileView): Promise<ProfileView> {
   if (view.kind === "aggregate") return view;
   await putProfileSelection({ scope: "global", profile: view.profile });
@@ -167,9 +175,8 @@ export function useSwitchProfile() {
     onError: (error, _view, context) => {
       // Switches overlap: the store rolls this one back along the pending chain, so a later
       // switch keeps the view and a chain of failures returns to where the operator started.
-      // Only a daemon answer proves the write was not applied; a lost answer leaves it unknown.
       if (context && context.switchId !== null) {
-        failProfileSwitch(context.switchId, { refused: error instanceof ProfileApiError });
+        failProfileSwitch(context.switchId, { refused: refusedWrite(error) });
       }
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
