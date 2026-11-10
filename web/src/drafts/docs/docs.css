@@ -1,0 +1,29 @@
+/* Docs-only finish: quiet scrollbars for the side rails and anchor offsets under the fixed header. */
+.docs-rail {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+
+.docs-tabs {
+  scrollbar-width: none;
+}
+
+.docs-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+html:has(.docs-root) {
+  scroll-padding-top: 128px;
+}
+
+.docs-prose table {
+  width: 100%;
+}
+
+.docs-prose :is(th, td) {
+  vertical-align: top;
+}
+
+.docs-count {
+  letter-spacing: normal;
+}
