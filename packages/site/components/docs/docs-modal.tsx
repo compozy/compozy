@@ -12,7 +12,7 @@ export function DocsModal(props: {
   className?: string;
   children: ReactNode;
 }) {
-  const ref = useModalDialog();
+  const ref = useModalDialog(props.onClose);
   return (
     <dialog
       ref={ref}
@@ -21,10 +21,6 @@ export function DocsModal(props: {
       onCancel={event => {
         event.preventDefault();
         props.onClose();
-      }}
-      onClick={event => {
-        // The dialog's own box is covered by its content, so a click that lands on it is the backdrop.
-        if (event.target === event.currentTarget) props.onClose();
       }}
       className={cn(
         "p-0 text-fg backdrop:bg-site-dark-700 backdrop:backdrop-blur-sm",
