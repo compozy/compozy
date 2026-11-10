@@ -17,15 +17,11 @@ import {
   type MarketplaceCategoryId,
 } from "@/lib/marketplace-view";
 
-interface View {
-  category: MarketplaceCategoryId | null;
-  query: string;
-}
-
 function jumpToCatalog() {
   document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/** Native `replaceState` keeps `useSearchParams` in sync without a navigation or a scroll reset. */
 function writeCategory(category: MarketplaceCategoryId | null) {
   const url = new URL(window.location.href);
   if (category) url.searchParams.set("category", category);
@@ -33,31 +29,35 @@ function writeCategory(category: MarketplaceCategoryId | null) {
   window.history.replaceState(null, "", url);
 }
 
+/**
+ * Controlled by the URL: the category comes in as a prop and a pick goes out through
+ * `writeCategory`, so `/marketplace` (header, footer, back) and `?category=` always agree with the
+ * view. Search stays local.
+ */
 export function MarketplaceBrowse({
   entries,
-  initialCategory,
+  category,
 }: {
   entries: readonly MarketplaceCard[];
-  initialCategory: MarketplaceCategoryId | null;
+  category: MarketplaceCategoryId | null;
 }) {
-  const [view, setView] = useState<View>({ category: initialCategory, query: "" });
+  const [query, setQuery] = useState("");
   const featured = entries.filter(entry => entry.featured);
   const categoryCount = categoriesWithEntries(entries).length;
-  const browseCategory = (category: MarketplaceCategoryId | null) => {
-    setView({ category, query: "" });
-    writeCategory(category);
+  const browseCategory = (next: MarketplaceCategoryId | null) => {
+    setQuery("");
+    writeCategory(next);
     requestAnimationFrame(jumpToCatalog);
   };
-  const search = (query: string) => setView(current => ({ ...current, query }));
-  const browsing = view.category === null && view.query.trim() === "";
+  const browsing = category === null && query.trim() === "";
   return (
     <>
       <MarketplaceHero
         entries={entries}
         categoryCount={categoryCount}
-        query={view.query}
-        onQuery={query => {
-          search(query);
+        query={query}
+        onQuery={value => {
+          setQuery(value);
           requestAnimationFrame(() => {
             jumpToCatalog();
             document
@@ -69,18 +69,19 @@ export function MarketplaceBrowse({
       {browsing ? <Featured entries={featured} /> : null}
       <Browser
         entries={entries}
-        category={view.category}
-        query={view.query}
+        category={category}
+        query={query}
         onCategory={browseCategory}
-        onQuery={search}
+        onQuery={setQuery}
       />
     </>
   );
 }
 
-/** Reads the starting category from the URL; render it inside a Suspense boundary. */
+/** Reads the category from the URL on every change; render it inside a Suspense boundary. */
 export function MarketplaceBrowseFromUrl({ entries }: { entries: readonly MarketplaceCard[] }) {
   const requested = useSearchParams().get("category");
-  const initialCategory = isCategoryId(requested) ? requested : null;
-  return <MarketplaceBrowse entries={entries} initialCategory={initialCategory} />;
+  return (
+    <MarketplaceBrowse entries={entries} category={isCategoryId(requested) ? requested : null} />
+  );
 }

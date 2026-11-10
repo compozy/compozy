@@ -139,6 +139,10 @@ describe("public route metadata", () => {
     expect(urls).not.toContain(absoluteUrl("/marketplace/bridges/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bundled/spec-cycle/"));
     expect(urls).toContain(absoluteUrl("/marketplace/example-extension/"));
+    const { marketplacePluginPath, marketplacePlugins } = await import("@/lib/marketplace-plugins");
+    for (const entry of marketplacePlugins) {
+      expect(urls).toContain(absoluteUrl(`${marketplacePluginPath(entry)}/`));
+    }
     expect(urls.filter(url => url.includes("/changelog"))).toEqual([
       absoluteUrl("/changelog/"),
       absoluteUrl("/changelog/feed.xml"),

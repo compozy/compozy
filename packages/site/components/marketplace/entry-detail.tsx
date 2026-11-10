@@ -41,8 +41,8 @@ function defaultLabel(input: EntryInput): string | null {
   return typeof input.default === "boolean" ? String(input.default) : input.default;
 }
 
-/** What the package asks for at install time, and the command that takes the values. */
-function Inputs({ entry, inputs }: { entry: ExtensionEntry; inputs: readonly EntryInput[] }) {
+/** What the package asks for at install time; the aside carries the install command. */
+function Inputs({ inputs }: { inputs: readonly EntryInput[] }) {
   return (
     <ContentsBlock title="Inputs">
       <ul className="m-0 list-none p-0">
@@ -93,7 +93,6 @@ function Inputs({ entry, inputs }: { entry: ExtensionEntry; inputs: readonly Ent
         </Link>
         .
       </Muted>
-      <DetailCommand command={installCommand(entry)} />
     </ContentsBlock>
   );
 }
@@ -125,7 +124,13 @@ export function EntryDetail({ entry }: { entry: ExtensionEntry }) {
               terminal.
             </Muted>
           }
-          command={<DetailCommand command={marketplaceSearchCommand(entry)} />}
+          command={
+            <>
+              <DetailCommand command={marketplaceSearchCommand(entry)} />
+              {/* Every catalog extension installs from the terminal, with or without inputs. */}
+              <DetailCommand command={installCommand(entry)} />
+            </>
+          }
           facts={
             <>
               <Row term="Type">Extension</Row>
@@ -145,7 +150,7 @@ export function EntryDetail({ entry }: { entry: ExtensionEntry }) {
       relatedTitle={`More in ${categoryLabel(card.category)}`}
       related={relatedCards(card)}
     >
-      {inputs.length > 0 ? <Inputs entry={entry} inputs={inputs} /> : null}
+      {inputs.length > 0 ? <Inputs inputs={inputs} /> : null}
     </DetailFrame>
   );
 }

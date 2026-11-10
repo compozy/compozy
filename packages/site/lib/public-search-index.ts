@@ -6,6 +6,12 @@ import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
 import { bundledExtensionDescription, MARKETPLACE_DESCRIPTION } from "@/lib/marketplace-copy";
 import { extensionEntries, marketplaceEntryPath, installCommand } from "@/lib/marketplace-catalog";
+import {
+  marketplacePluginPath,
+  marketplacePlugins,
+  pluginDisplayName,
+  pluginSearchCommand,
+} from "@/lib/marketplace-plugins";
 import { docsSource } from "@/lib/source";
 
 type SearchPage = {
@@ -198,6 +204,24 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
+  const plugins = marketplacePlugins.map<AdvancedIndex>(entry => ({
+    id: marketplacePluginPath(entry),
+    url: marketplacePluginPath(entry),
+    title: pluginDisplayName(entry.plugin),
+    description: entry.plugin.description ?? "",
+    breadcrumbs: ["Marketplace"],
+    tag: "Marketplace",
+    structuredData: {
+      headings: [],
+      contents: [
+        {
+          heading: undefined,
+          content: joinContent(entry.plugin.description ?? "", pluginSearchCommand(entry)),
+        },
+      ],
+    },
+  }));
+
   const bundled = bundledExtensions.map<AdvancedIndex>(extension => ({
     id: extension.path,
     url: extension.path,
@@ -223,7 +247,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
-  return [overview, ...entries, ...bundled];
+  return [overview, ...entries, ...plugins, ...bundled];
 }
 
 export async function buildPublicSearchIndexes(): Promise<AdvancedIndex[]> {

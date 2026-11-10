@@ -20,7 +20,7 @@ export default function MarketplacePage() {
   return (
     <>
       {/* The prerendered page starts on All; the URL's `?category=` applies once it hydrates. */}
-      <Suspense fallback={<MarketplaceBrowse entries={marketplaceCards} initialCategory={null} />}>
+      <Suspense fallback={<MarketplaceBrowse entries={marketplaceCards} category={null} />}>
         <MarketplaceBrowseFromUrl entries={marketplaceCards} />
       </Suspense>
       <FromTheApp />

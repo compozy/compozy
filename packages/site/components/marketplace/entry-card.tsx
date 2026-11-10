@@ -16,7 +16,8 @@ const SIZE = {
   xl: "size-[88px] rounded-[22px]",
 };
 
-/** The icon renders at two thirds of its tile. */
+const TILE_PX = { sm: 40, md: 48, lg: 72, xl: 88 };
+/** The icon renders at two thirds of its tile unless it bleeds. */
 const ICON_PX = { sm: 26, md: 32, lg: 48, xl: 58 };
 
 type LogoSize = keyof typeof SIZE;
@@ -26,7 +27,7 @@ export function EntryLogo({
   size = "md",
   className,
 }: {
-  entry: Pick<MarketplaceCard, "name" | "icon">;
+  entry: Pick<MarketplaceCard, "name" | "icon"> & Partial<Pick<MarketplaceCard, "bleed" | "light">>;
   size?: LogoSize;
   className?: string;
 }) {
@@ -52,17 +53,21 @@ export function EntryLogo({
     );
   }
   return (
-    <span aria-hidden data-rung="icon" className={cn(base, "bg-[#1c1c1c]")}>
+    <span
+      aria-hidden
+      data-rung="icon"
+      className={cn(base, entry.light ? "bg-white" : "bg-[#1c1c1c]")}
+    >
       <Image
         src={entry.icon}
         alt=""
-        width={ICON_PX[size]}
-        height={ICON_PX[size]}
+        width={entry.bleed ? TILE_PX[size] : ICON_PX[size]}
+        height={entry.bleed ? TILE_PX[size] : ICON_PX[size]}
         draggable={false}
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => setFailed(entry.icon)}
-        className="block size-[66%] object-contain"
+        className={cn("block object-contain", entry.bleed ? "size-full" : "size-[66%]")}
       />
     </span>
   );

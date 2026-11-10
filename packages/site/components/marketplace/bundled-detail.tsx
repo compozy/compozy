@@ -25,11 +25,14 @@ function plural(count: number, noun: string) {
 function bundledCard(extension: BundledExtension): MarketplaceCard {
   return {
     id: extension.name,
+    kind: "extension",
     name: extension.displayName,
     author: BUNDLED_AUTHOR,
     category: "more",
     description: extension.description,
     icon: null,
+    bleed: false,
+    light: false,
     featured: false,
     href: extension.path,
   };

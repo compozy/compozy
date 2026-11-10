@@ -280,6 +280,7 @@ describe("public search index", () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { extensionEntries, marketplaceEntryPath } = await import("@/lib/marketplace-catalog");
     const { bundledExtensions } = await import("@/lib/marketplace-bundled");
+    const { marketplacePluginPath, marketplacePlugins } = await import("@/lib/marketplace-plugins");
 
     const marketplace = (await buildPublicSearchIndexes()).filter(
       index => index.tag === "Marketplace"
@@ -289,6 +290,10 @@ describe("public search index", () => {
     expect(urls.has("/marketplace")).toBe(true);
     for (const entry of extensionEntries) {
       expect(urls.has(marketplaceEntryPath(entry))).toBe(true);
+    }
+    expect(marketplacePlugins.length).toBeGreaterThan(0);
+    for (const entry of marketplacePlugins) {
+      expect(urls.has(marketplacePluginPath(entry))).toBe(true);
     }
     expect(urls.has("/marketplace/skills")).toBe(false);
     expect(urls.has("/marketplace/mcp")).toBe(false);

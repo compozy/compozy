@@ -17,6 +17,13 @@ vi.mock("@/lib/source", () => ({
   },
 }));
 
+/** The marketplace browser reads `?category=`; tests drive it through this value. */
+const urlSearch = vi.hoisted(() => ({ current: new URLSearchParams() }));
+vi.mock("next/navigation", async importOriginal => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useSearchParams: () => urlSearch.current,
+}));
+
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
@@ -28,6 +35,7 @@ import { SourcesAndIncluded } from "@/components/marketplace/closing";
 import { EntryCard, EntryLogo } from "@/components/marketplace/entry-card";
 import { EntryDetail } from "@/components/marketplace/entry-detail";
 import { fieldTiles } from "@/components/marketplace/hero-field";
+import { MarketplaceBrowseFromUrl } from "@/components/marketplace/marketplace-browse";
 import BundledExtensionPage, {
   generateStaticParams as generateBundledExtensionParams,
 } from "@/app/marketplace/bundled/[name]/page";
@@ -52,9 +60,22 @@ import {
   parseMarketplaceCatalog,
 } from "../marketplace-catalog";
 import {
+  isCategoryId,
+  listedPlugins,
+  marketplacePlugins,
+  pluginDisplayName,
+  pluginEntryIds,
+  pluginSnapshot,
+  resolveCategory,
+} from "../marketplace-plugins";
+import { svgHints } from "@/scripts/marketplace-icon-hints";
+import { pluginSnapshotSchema } from "../marketplace-plugins-schema";
+import {
   categoriesWithEntries,
   marketplaceCards,
+  matchesCard,
   relatedCards,
+  sortCards,
   toCard,
   type MarketplaceCategoryId,
 } from "../marketplace-view";
@@ -412,19 +433,25 @@ describe("marketplace rendering boundary", () => {
     return { ...render(<Harness />), onCategory };
   }
 
-  // Invariant: the page view model keeps every current entry, in the daemon's category order, with
-  // only categories that have entries. Owner: lib/marketplace-view. Canonical suite: this file.
-  it("Should derive cards, categories with counts and related entries from the current catalog", () => {
-    expect(marketplaceCards.map(card => card.id)).toEqual(
-      extensionEntries.map(entry => entry.entry_id)
-    );
+  // Invariant: the page view model lists every curated extension plus every plugin left after the
+  // supersede rule, each in exactly one category, under unique ids, with only non-empty categories.
+  // Owner: lib/marketplace-view. Canonical suite: this file.
+  it("Should merge extensions and listed plugins into one card per entry", () => {
+    expect(marketplaceCards).toHaveLength(extensionEntries.length + marketplacePlugins.length);
+    const ids = marketplaceCards.map(card => card.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(marketplaceCards.map(card => card.href)).size).toBe(ids.length);
+    for (const entry of extensionEntries) {
+      expect(marketplaceCards.find(card => card.id === entry.entry_id)?.kind).toBe("extension");
+    }
     const categories = categoriesWithEntries(marketplaceCards);
     expect(categories.every(category => category.count > 0)).toBe(true);
-    expect(categories.reduce((sum, category) => sum + category.count, 0)).toBe(
-      extensionEntries.length
-    );
+    expect(categories.reduce((sum, category) => sum + category.count, 0)).toBe(ids.length);
     expect(marketplaceCards.filter(card => card.featured).map(card => card.id)).toEqual(
-      extensionEntries.filter(entry => entry["x-compozy"]?.featured).map(entry => entry.entry_id)
+      sortCards(marketplaceCards.filter(card => card.featured)).map(card => card.id)
+    );
+    expect(marketplaceCards.findIndex(card => !card.featured)).toBe(
+      marketplaceCards.filter(card => card.featured).length
     );
     const postgres = toCard(findEntry("postgres")!);
     expect(postgres).toMatchObject({ category: "data", href: "/marketplace/postgres" });
@@ -451,12 +478,14 @@ describe("marketplace rendering boundary", () => {
     expect(screen.getByRole("link", { name: "Context7" }).getAttribute("href")).toBe(
       "/marketplace/context7"
     );
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getAllByRole("link")).toHaveLength(
+      marketplaceCards.filter(card => matchesCard(card, "context7")).length
+    );
     fireEvent.change(search, { target: { value: "no-such-package" } });
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.getByText(/Nothing matches/)).toBeTruthy();
     fireEvent.change(search, { target: { value: "" } });
-    expect(screen.getByRole("heading", { name: /^All/ })).toBeDefined();
+    expect(screen.getByRole("heading", { name: `All ${marketplaceCards.length}` })).toBeDefined();
     const nav = screen.getByRole("navigation", { name: "Categories" });
     expect(within(nav).getAllByRole("button")).toHaveLength(
       categoriesWithEntries(marketplaceCards).length + 1
@@ -465,12 +494,22 @@ describe("marketplace rendering boundary", () => {
     expect(onCategory).toHaveBeenCalledWith("data");
   }, 15_000);
 
-  it("Should list every entry of a category with its count", () => {
+  // Invariant: the rail count of a category equals the entries its view lists once fully loaded.
+  it("Should list every entry of a category with the count the rail shows", () => {
     renderBrowser("data");
     const expected = marketplaceCards.filter(card => card.category === "data");
+    const rail = screen.getByRole("navigation", { name: "Categories" });
+    expect(within(rail).getByRole("button", { name: /Data & Analytics/ }).textContent).toContain(
+      String(expected.length)
+    );
     expect(
       screen.getByRole("heading", { name: `Data & Analytics ${expected.length}` })
     ).toBeDefined();
+    let more = screen.queryByRole("button", { name: "Load more" });
+    while (more) {
+      fireEvent.click(more);
+      more = screen.queryByRole("button", { name: "Load more" });
+    }
     expect(screen.getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(
       expected.map(card => card.href)
     );
@@ -486,6 +525,38 @@ describe("marketplace rendering boundary", () => {
     card.unmount();
     const detail = render(<EntryDetail entry={entry} />);
     expect(detail.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
+  });
+
+  // Invariant: every catalog extension shows its install command, inputs or not.
+  it("Should show the install command for an extension that declares no inputs", () => {
+    const entry = extensionEntries.find(item => !item.inputs?.length);
+    if (!entry) throw new Error("The catalog needs an extension without inputs for this case");
+    render(<EntryDetail entry={entry} />);
+    expect(screen.getByText(installCommand(entry))).toBeDefined();
+    expect(screen.getByText(marketplaceSearchCommand(entry))).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Inputs" })).toBeNull();
+  });
+
+  // Invariant: the selected category follows `?category=` in both directions, without navigating.
+  it("Should keep the selected category in step with the URL", () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const rail = () => screen.getByRole("navigation", { name: "Categories" });
+    const current = () =>
+      within(rail())
+        .getAllByRole("button")
+        .find(button => button.getAttribute("aria-current") === "true")?.textContent;
+    urlSearch.current = new URLSearchParams("category=data");
+    const view = render(<MarketplaceBrowseFromUrl entries={marketplaceCards} />);
+    expect(current()).toMatch(/^Data & Analytics/);
+
+    fireEvent.click(within(rail()).getByRole("button", { name: /^Design/ }));
+    expect(String(replaceState.mock.lastCall?.[2])).toMatch(/\?category=design$/);
+
+    urlSearch.current = new URLSearchParams();
+    view.rerender(<MarketplaceBrowseFromUrl entries={marketplaceCards} />);
+    expect(current()).toMatch(/^All/);
+    replaceState.mockRestore();
+    urlSearch.current = new URLSearchParams();
   });
 
   it("Should show declared extension inputs with the owning install command", () => {
@@ -526,16 +597,173 @@ describe("marketplace rendering boundary", () => {
   });
 
   it("Should enumerate current detail routes and reject unknown identities", async () => {
-    expect(generateMarketplaceEntryParams()).toEqual(
-      extensionEntries.map(entry => ({ entryId: entry.entry_id }))
-    );
+    expect(generateMarketplaceEntryParams()).toEqual([
+      ...extensionEntries.map(entry => ({ entryId: entry.entry_id })),
+      ...marketplacePlugins.map(entry => ({ entryId: entry.id })),
+    ]);
     const element = await MarketplaceEntryPage({
       params: Promise.resolve({ entryId: extensionEntries[0].entry_id }),
     });
     const detail = render(element);
     expect(detail.getByRole("heading", { level: 1, name: extensionEntries[0].name })).toBeDefined();
+    detail.unmount();
+    const plugin = marketplacePlugins.find(entry => entry.plugin.source === "compozy-plugins")!;
+    const pluginPage = render(
+      await MarketplaceEntryPage({ params: Promise.resolve({ entryId: plugin.id }) })
+    );
+    expect(
+      pluginPage.getByRole("heading", { level: 1, name: pluginDisplayName(plugin.plugin) })
+    ).toBeDefined();
+    expect(pluginPage.getByText("Plugin")).toBeDefined();
+    expect(pluginPage.getByText("Unverified")).toBeDefined();
+    expect(pluginPage.getByText(`compozy marketplace search ${plugin.plugin.name}`)).toBeDefined();
     await expect(
       MarketplaceEntryPage({ params: Promise.resolve({ entryId: "not-in-catalog" }) })
     ).rejects.toThrow();
+  });
+});
+
+// Invariant: the plugin snapshot is projected as the daemon projects preset marketplaces: category
+// resolution, curated-only featured flags, superseded entries hidden, collision-free route ids.
+// Owner: lib/marketplace-plugins. Canonical suite: marketplace-catalog.test.tsx.
+describe("marketplace plugin snapshot", () => {
+  const plugin = (fields: Partial<(typeof pluginSnapshot.plugins)[number]>) => ({
+    source: "compozy-plugins",
+    name: "example",
+    ...fields,
+  });
+
+  it("Should parse the checked-in snapshot with every source's plugins accounted for", () => {
+    expect(pluginSnapshotSchema.parse(pluginSnapshot)).toEqual(pluginSnapshot);
+    expect(pluginSnapshot.sources.map(source => source.name)).toEqual([
+      "claude-plugins-official",
+      "compozy-plugins",
+    ]);
+    for (const source of pluginSnapshot.sources) {
+      expect(pluginSnapshot.plugins.filter(item => item.source === source.name)).toHaveLength(
+        source.plugins
+      );
+    }
+    expect(
+      pluginSnapshot.plugins.some(
+        item => item.source !== "compozy-plugins" && (item.featured || item.compozy_category)
+      )
+    ).toBe(false);
+    expect(() =>
+      pluginSnapshotSchema.parse({
+        ...pluginSnapshot,
+        plugins: [pluginSnapshot.plugins[0], pluginSnapshot.plugins[0]],
+      })
+    ).toThrow(/duplicated/);
+  });
+
+  it.each([
+    ["design", "productivity", "design"],
+    [undefined, "Developer Tools", "development"],
+    [undefined, "database", "data"],
+    [undefined, "monitoring", "cloud"],
+    [undefined, "location", "more"],
+    [undefined, "unheard-of", "more"],
+    ["invented", undefined, "more"],
+  ])("Should resolve explicit %s / publisher %s to %s", (explicit, source, expected) => {
+    expect(resolveCategory(explicit, source)).toBe(expected);
+  });
+
+  it("Should place every listed plugin in exactly one known category", () => {
+    for (const entry of marketplacePlugins) {
+      expect(isCategoryId(entry.category)).toBe(true);
+      expect(marketplaceCards.filter(card => card.id === entry.id)).toHaveLength(1);
+    }
+  });
+
+  it("Should hide every plugin a listed extension or curated plugin supersedes", () => {
+    const listed = new Set(
+      marketplacePlugins.map(entry => `${entry.plugin.source}/${entry.plugin.name}`)
+    );
+    for (const entry of extensionEntries) {
+      for (const key of entry["x-compozy"]?.supersedes ?? []) expect(listed.has(key)).toBe(false);
+    }
+    for (const item of pluginSnapshot.plugins) {
+      for (const key of item.supersedes ?? []) expect(listed.has(key)).toBe(false);
+    }
+    const kept = listedPlugins([
+      plugin({ name: "kept" }),
+      plugin({ name: "replacer", supersedes: ["claude-plugins-official/old"] }),
+      plugin({ source: "claude-plugins-official", name: "old" }),
+    ]);
+    expect(kept.map(entry => entry.plugin.name)).toEqual(["kept", "replacer"]);
+  });
+
+  it.each([
+    [{ name: "figma", display_name: "Figma" }, "Figma"],
+    [{ name: "asana" }, "Asana"],
+    [{ name: "aws-serverless" }, "AWS Serverless"],
+    [{ name: "agent_sdk-dev" }, "Agent SDK Dev"],
+    [{ name: "postHog-mcp" }, "Posthog MCP"],
+    [{ name: "PagerDuty" }, "PagerDuty"],
+  ])("Should show %o as %s", (fields, expected) => {
+    expect(pluginDisplayName(fields)).toBe(expected);
+  });
+
+  it("Should keep raw slugs for routes and commands while search also matches the shown name", () => {
+    const entry = marketplacePlugins.find(item => item.plugin.name === "aws-serverless");
+    if (!entry) throw new Error("aws-serverless is expected in the current snapshot");
+    const card = marketplaceCards.find(item => item.id === entry.id)!;
+    expect(card.name).toBe(pluginDisplayName(entry.plugin));
+    expect(card.href).toBe(`/marketplace/${entry.id}`);
+    expect(matchesCard(card, "aws-serverless")).toBe(true);
+    expect(matchesCard(card, card.name.toLowerCase())).toBe(true);
+  });
+
+  // Invariant: inside every category featured entries lead, then entries with an icon, so a
+  // section's first cards are never monograms while logos remain.
+  it("Should order featured entries, then entries with an icon, then the rest", () => {
+    for (const category of categoriesWithEntries(marketplaceCards)) {
+      const ranks = marketplaceCards
+        .filter(card => card.category === category.id)
+        .map(card => (card.featured ? 0 : card.icon ? 1 : 2));
+      expect(ranks).toEqual(ranks.toSorted((a, b) => a - b));
+    }
+    const [plain, logo] = sortCards([
+      { ...marketplaceCards.at(-1)!, id: "a", name: "A", icon: null, featured: false },
+      { ...marketplaceCards.at(-1)!, id: "z", name: "Z", icon: "/x.png", featured: false },
+    ]);
+    expect([plain.id, logo.id]).toEqual(["z", "a"]);
+  });
+
+  it.each([
+    ['<svg><path d="M0"/></svg>', true],
+    ['<svg><path fill="#000"/><path fill="currentColor"/></svg>', true],
+    ['<svg color="white"><path fill="currentColor"/></svg>', false],
+    ["<svg><path fill='#005EEB'/><path fill='#7CFF41'/></svg>", false],
+    ['<svg><path style="fill: #111111"/></svg>', true],
+  ])("Should put SVG %s on the light tile: %s", (svg, light) => {
+    expect(svgHints(svg)).toEqual({ bleed: false, light });
+  });
+
+  it("Should record tile hints only for plugins that have an icon", () => {
+    for (const item of pluginSnapshot.plugins) {
+      if (item.bleed || item.light) expect(item.icon).toBeDefined();
+      expect(item.bleed && item.light).toBeFalsy();
+    }
+    for (const entry of extensionEntries) {
+      if (entry.icon?.includes("/catalog/icons/")) {
+        expect(pluginSnapshot.extension_icons[entry.entry_id]).toBeDefined();
+      }
+    }
+  });
+
+  it("Should keep extension ids and suffix only plugin names that collide", () => {
+    const shared = plugin({ name: "shared" });
+    const twin = plugin({ source: "claude-plugins-official", name: "shared" });
+    const taken = plugin({ name: "context7" });
+    const solo = plugin({ name: "solo" });
+    const ids = pluginEntryIds([shared, twin, taken, solo], new Set(["context7"]));
+    expect([...ids.values()]).toEqual([
+      "shared~compozy-plugins",
+      "shared~claude-plugins-official",
+      "context7~compozy-plugins",
+      "solo",
+    ]);
   });
 });
