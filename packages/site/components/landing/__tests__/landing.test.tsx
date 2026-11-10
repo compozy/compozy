@@ -105,6 +105,10 @@ describe("Install", () => {
 
     expect(ctaHref("Download for macOS")).toBe("/download");
     expect(screen.getByText("Start the daemon")).toBeDefined();
+    // Homebrew, npm and Go install only the binary: provider setup stays ahead of the daemon.
+    const steps = screen.getAllByRole("listitem").map(item => item.textContent ?? "");
+    expect(steps.findIndex(text => text.includes("compozy install"))).toBe(0);
+    expect(steps.findIndex(text => text.includes("compozy daemon start"))).toBe(1);
 
     fireEvent.click(screen.getByRole("tab", { name: "Installer" }));
     expect(screen.getByText(VERIFIED_INSTALLER_COMMAND)).toBeDefined();

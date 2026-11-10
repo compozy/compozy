@@ -724,6 +724,8 @@ exit 23
     expect(readme).toContain(firstSessionCommand);
     // The landing renders the shared install constants instead of copying them.
     expect(landing).toContain('from "@/lib/release/install-commands"');
+    expect(landing).toContain('command: "compozy install"');
+    expect(landing).toContain(firstSessionCommand);
     for (const guidePath of [rootMigrationGuidePath, migrationPagePath]) {
       expect(readSiteFile(guidePath)).toContain(latestReleaseUrl);
     }

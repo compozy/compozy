@@ -75,7 +75,7 @@ export function DetailPanels() {
             }}
             onClick={() => setActive(index)}
             className={cn(
-              "group relative h-[520px] min-w-0 basis-0 cursor-pointer overflow-hidden rounded-[26px] border bg-black text-left transition-[flex-grow,border-color] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-none focus-visible:shadow-focus-ring lg:h-auto",
+              "group relative h-[520px] min-w-0 cursor-pointer lg:basis-0 overflow-hidden rounded-[26px] border bg-black text-left transition-[flex-grow,border-color] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-none focus-visible:shadow-focus-ring lg:h-auto",
               on ? "border-site-light-250 lg:grow-[2.7]" : "border-site-light-100 lg:grow"
             )}
           >

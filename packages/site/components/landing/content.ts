@@ -160,3 +160,21 @@ export function installMethods(tag: string) {
     { id: "Go", command: goInstallCommand(tag) },
   ];
 }
+
+/**
+ * First-run steps after any install method. Homebrew, npm and Go ship only the binary, so the
+ * provider setup stays an explicit step ahead of the daemon.
+ */
+export const INSTALL_STEPS: ReadonlyArray<{ title: string; command: string; note?: string }> = [
+  {
+    title: "Pick a provider",
+    command: "compozy install",
+    note: "The verified installer opens this for you.",
+  },
+  { title: "Start the daemon", command: "compozy daemon start" },
+  {
+    title: "Open a session",
+    command: "compozy session new --agent general --name first-run",
+    note: "from the repository you want to work on",
+  },
+];

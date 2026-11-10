@@ -7,6 +7,7 @@ import {
   COMPARE_ROWS,
   HREF,
   INSTALL_COMMAND,
+  INSTALL_STEPS,
   installMethods,
 } from "@/components/landing/content";
 import { FinalScene } from "@/components/landing/final-scene";
@@ -148,26 +149,28 @@ export function Install({ releaseTag }: { releaseTag: string }) {
               ))}
             </Tabs>
             <ol className="m-0 list-none border-t border-site-light-100 p-0">
-              <li className="flex gap-4 p-7">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand font-mono text-[13px] text-brand-ink">
-                  1
-                </span>
-                <div>
-                  <p className="m-0 text-[17px] text-fg">Start the daemon</p>
-                  <p className="m-0 mt-2 font-mono text-[15px] text-brand-strong">
-                    <Typed text="compozy daemon start" />
-                  </p>
-                </div>
-              </li>
-              <li className="flex gap-4 border-t border-site-light-100 p-7">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-site-light-100 font-mono text-[13px] text-fg">
-                  2
-                </span>
-                <div>
-                  <p className="m-0 text-[17px] text-fg">Open a session</p>
-                  <Muted className="mt-1">from the repository you want to work on</Muted>
-                </div>
-              </li>
+              {INSTALL_STEPS.map((step, index) => (
+                <li
+                  key={step.command}
+                  className={cn("flex gap-4 p-7", index > 0 && "border-t border-site-light-100")}
+                >
+                  <span
+                    className={cn(
+                      "grid size-8 shrink-0 place-items-center rounded-full font-mono text-[13px]",
+                      index === 0 ? "bg-brand text-brand-ink" : "bg-site-light-100 text-fg"
+                    )}
+                  >
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="m-0 text-[17px] text-fg">{step.title}</p>
+                    <p className="m-0 mt-2 font-mono text-[15px] break-words text-brand-strong">
+                      {index === 0 ? <Typed text={step.command} /> : step.command}
+                    </p>
+                    {step.note ? <Muted className="mt-1">{step.note}</Muted> : null}
+                  </div>
+                </li>
+              ))}
             </ol>
           </div>
         </Reveal>
