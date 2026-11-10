@@ -96,6 +96,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = string(reason.Code)
 		payload.Details = lifecycleReasonDetails(reason.Meta)
 	}
+	enrichProviderEnabledError(&payload, err)
 	payload.Diagnostic = errorDiagnosticItem(message, err)
 	enrichSessionInputError(&payload, err)
 	return payload
@@ -207,12 +208,24 @@ func errorDiagnosticItem(message string, err error) *contract.DiagnosticItem {
 		ID:            strings.ReplaceAll(code, "_", "."),
 		Code:          code,
 		Category:      category,
-		Title:         "Role operation failed",
+		Title:         diagnosticFallbackTitle(code),
 		Message:       message,
 		Severity:      contract.SeverityError,
 		DataFreshness: contract.FreshnessLive,
 	})
 	return &item
+}
+
+// diagnosticFallbackTitle names coded errors that carry no title of their own.
+func diagnosticFallbackTitle(code string) string {
+	switch code {
+	case contract.CodeProviderDisabled:
+		return "Provider is disabled"
+	case contract.CodeProviderDefaultDisableRejected:
+		return "Default provider can't be disabled"
+	default:
+		return "Role operation failed"
+	}
 }
 
 func lifecycleReasonDetails(meta map[string]string) map[string]string {
@@ -271,5 +284,16 @@ func enrichWorkspaceConfigError(payload *contract.ErrorPayload, err error) {
 				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
 			}
 		}
+	}
+}
+
+// enrichProviderEnabledError maps the disabled-provider gate and the default-provider lock ahead of
+// generic provider codes.
+func enrichProviderEnabledError(payload *contract.ErrorPayload, err error) {
+	switch {
+	case errors.Is(err, compozyconfig.ErrProviderDisabled):
+		payload.Code = contract.CodeProviderDisabled
+	case errors.Is(err, compozyconfig.ErrProviderDefaultDisableRejected):
+		payload.Code = contract.CodeProviderDefaultDisableRejected
 	}
 }

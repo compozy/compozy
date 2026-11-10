@@ -18,7 +18,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 	runtime *sessionStartRuntime,
 ) (acp.StartOpts, error) {
 	spec := accepted.spec
-	routes := sessionOwnedStartRoutes(spec, runtime)
+	routes := enabledFallbackRoutes(&spec.workspace.Config, sessionOwnedStartRoutes(spec, runtime), spec.startLogger(m))
 	if len(routes) == 0 {
 		return m.launchAcceptedSessionAttempt(accepted, runtime)
 	}

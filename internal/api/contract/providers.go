@@ -67,7 +67,9 @@ type ProviderSummaryPayload struct {
 	DisplayName      string                                    `json:"display_name,omitempty"`
 	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
 	Default          bool                                      `json:"default"`
-	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
+	// Enabled reports providers.<name>.enabled; disabled providers stay listed (inventory surface).
+	Enabled    bool                      `json:"enabled"`
+	AuthStatus ProviderAuthStatusPayload `json:"auth_status"`
 }
 
 // ProviderAuthStatusPayload is the shared provider-auth readiness payload.

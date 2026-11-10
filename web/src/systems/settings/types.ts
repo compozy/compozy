@@ -50,6 +50,7 @@ export type SettingsProviderLoginDescriptor = NonNullable<
 >["login"];
 export type SettingsProviderDetail = OperationResponse<"getSettingsProvider", 200>["provider"];
 export type SettingsProviderRequest = OperationRequestBody<"putSettingsProvider">;
+export type SettingsProviderEnabledResult = OperationResponse<"setSettingsProviderEnabled", 200>;
 export type SettingsProviderCredentialSlotRequest = NonNullable<
   NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
 >[number];

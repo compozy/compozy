@@ -98,7 +98,7 @@ func (s *service) putProvider(
 	var target compozyconfig.WriteTarget
 	classification := providerWriteClassification{}
 	if len(values) != 0 {
-		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
+		target, err = s.providerTableWriteTarget(ctx, name, values)
 		if err != nil {
 			return MutationResult{}, err
 		}
@@ -142,6 +142,19 @@ func (s *service) putProvider(
 		mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0),
 		target.Path(),
 	), nil
+}
+
+// providerTableWriteTarget resolves the global write target of a provider table rebuild and
+// carries the authored providers.<name>.enabled into values, so a full edit never flips it (BR-11).
+func (s *service) providerTableWriteTarget(
+	ctx context.Context,
+	name string,
+	values map[string]any,
+) (compozyconfig.WriteTarget, error) {
+	if err := s.preserveAuthoredProviderEnabled(ctx, name, values); err != nil {
+		return compozyconfig.WriteTarget{}, err
+	}
+	return compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
 }
 
 func (s *service) preserveProviderOptionalFields(

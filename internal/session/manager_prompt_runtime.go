@@ -420,9 +420,10 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	spec.command = strings.TrimSpace(command)
 	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
-	// The bound route records whether an unrestricted preference was already present at session start.
-	boundRoute := session.providerRoutingSnapshot()
-	dropInheritedUnrestricted := compozyconfig.HasUnrestrictedACPOption(spec.provider, boundRoute.ACPOptionsValue())
+	// The provider route records whether an unrestricted preference was already present at session start.
+	providerRoute := session.providerRoutingSnapshot()
+	spec.admission, spec.boundRoute = admissionRuntimeChange, boundRoute(&meta)
+	dropInheritedUnrestricted := compozyconfig.HasUnrestrictedACPOption(spec.provider, providerRoute.ACPOptionsValue())
 	runtime, err := m.resolvePromptStartRuntime(ctx, session, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err

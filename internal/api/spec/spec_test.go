@@ -3328,6 +3328,14 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAttentionNotificationSessionOrigin(baseline) == 0 {
 			t.Fatal("approved notification session origin addition: no historical notification schema found")
 		}
+		// #1326: provider inventory and settings payloads report the always-present enabled state.
+		if addProviderEnabledFields(baseline) == 0 {
+			t.Fatal("approved provider enabled addition: no historical provider payload schemas found")
+		}
+		// #1326: launches on a disabled provider return their own tool error code.
+		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
+			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -5973,6 +5981,41 @@ func addSettingsProviderLastProbeAt(value any) int {
 			properties["last_probe_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 			count++
 		}
+	}
+	return count
+}
+
+// addProviderEnabledFields adds the required enabled boolean to provider summary and settings
+// provider payloads.
+func addProviderEnabledFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addProviderEnabledFields(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addProviderEnabledFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["enabled"] != nil {
+			return count
+		}
+		summary := properties["reviewer_mode"] != nil && properties["runtime_strategy"] != nil &&
+			properties["auth_status"] != nil
+		settings := properties["command_inherited"] != nil && properties["credential_slots"] != nil
+		if !summary && !settings {
+			return count
+		}
+		properties["enabled"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(slices.Clone(required), "enabled")
+		slices.SortFunc(required, func(left, right any) int {
+			return strings.Compare(left.(string), right.(string))
+		})
+		node["required"] = required
+		count++
 	}
 	return count
 }

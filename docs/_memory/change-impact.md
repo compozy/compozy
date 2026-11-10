@@ -177,6 +177,38 @@ Owner: `fix/oversized-skill-deferred-delivery`. QA:
 - Official skill `skills/compozy/`: `references/tools-and-skills.md` documents deferred delivery.
   Web/Docs: no change; the site never documented the limit.
 
+## Disable providers you don't use — issue #1326
+
+Owner: `feat/disable-providers` (spec `.compozy/tasks/provider-enable-toggle/`). QA: new
+`docs/qa/scenarios/RT-provider-enable-toggle.md` plus the provider settings, runtime selector and
+usage scenarios updated by the spec's QA task.
+
+- Config (SD-013 additive, no migration): optional `providers.<id>.enabled` (default `true`),
+  global and profile layers only; workspace and workspace-profile overlays are rejected at load and
+  write. Disabling the effective `defaults.provider` is rejected
+  (`provider_default_disable_rejected`). Lifecycle `providers.*.enabled` is Live.
+- New diagnostic codes `provider_disabled` and `provider_default_disable_rejected`
+  (CategoryProvider). Starts, resumes, runtime changes, spawns and loop/goal runs on a disabled
+  provider fail with `provider_disabled` (409); running sessions continue.
+- Fallbacks and roles: agent fallback chains and role fallbacks skip disabled routes
+  (`fallback.route_skipped`, `reason=provider_disabled`); a role with a disabled primary uses its
+  first enabled fallback, and a role with no enabled route reports `provider_disabled` (resolution
+  error and role status diagnostic).
+- Native tools: `compozy__config_set`/`compozy__config_get` accept the bool path; selection tools
+  (`compozy__provider_models_list`, `compozy__subagent_capabilities`) omit disabled providers;
+  session create/spawn and loop/goal starts return `provider_disabled`. No tool ID changes.
+- HTTP/UDS (additive): `enabled` on provider inventory (reported for the selected profile) and
+  settings payloads; new
+  `PATCH /api/settings/providers/{name}/enabled`; workspace provider options and model catalog
+  routes omit disabled providers. CLI `provider list` gains an `ENABLED` column / `enabled` field;
+  `config set` output gains additive `warnings`.
+- Hooks, extension SDKs and manifests: unchanged; extension model catalog sources are filtered at
+  read time. Gateway providers are a separate concept and untouched. Workspace data isolation:
+  unaffected (the key is not workspace-scoped).
+- Web: Settings → Providers switch, Disabled group and filter; pickers and usage surfaces drop
+  disabled providers. Docs: config reference and provider docs; official skill `skills/compozy/`
+  `references/configuration.md` documents the key.
+
 ## Usage backoff, one collection per account, sign-in after restart — issue #1302
 
 Owner: `fix/usage-backoff-signin-boot`. QA: `docs/qa/scenarios/ET-provider-usage-surfaces.md`,

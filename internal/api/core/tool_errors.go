@@ -92,7 +92,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeSessionLaterStopFailed,
 		toolspkg.ErrorCodeAttentionRequiresAction,
 		toolspkg.ErrorCodeSessionMessageHopLimit,
-		toolspkg.ErrorCodeAgentInstanceStarting:
+		toolspkg.ErrorCodeAgentInstanceStarting,
+		toolspkg.ErrorCodeProviderDisabled:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeSessionMessageRateLimited:
 		return http.StatusTooManyRequests

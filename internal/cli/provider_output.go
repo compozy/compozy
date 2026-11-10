@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 
 	"strings"
 
@@ -94,13 +95,14 @@ func providerListBundle(record contract.ProviderListResponse) outputBundle {
 				rows = append(rows, []string{
 					stringOrDash(provider.Name),
 					stringOrDash(provider.DisplayName),
+					strconv.FormatBool(provider.Enabled),
 					stringOrDash(provider.AuthStatus.State),
 					stringOrDash(provider.AuthStatus.Mode),
 				})
 			}
 			return renderHumanTable(
 				"Providers",
-				[]string{providerNameValue, "Display Name", providerStateValue, providerAuthModeValue},
+				[]string{providerNameValue, "Display Name", "Enabled", providerStateValue, providerAuthModeValue},
 				rows,
 			), nil
 		},

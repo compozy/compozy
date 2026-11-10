@@ -410,6 +410,21 @@ stderr tail of the current or last process. Isolated homes live under
 `npx` and `uvx` package caches persist in `$COMPOZY_HOME/cache/mcp/npm` and
 `$COMPOZY_HOME/cache/mcp/uv`.
 
+## Turn Off A Provider
+
+`providers.<id>.enabled = false` turns off a provider the operator doesn't use. It is global and
+profile config only (workspace layers are rejected), applies live, and defaults to `true`. Set it with
+`compozy config set providers.<id>.enabled false`, `compozy__config_set`, or
+`PATCH /api/settings/providers/{name}/enabled`.
+
+- Inventories (`compozy provider list`, `GET /api/providers`, Settings) keep the provider with
+  `enabled: false`; selection surfaces (pickers, model catalog, `compozy__provider_models_list`,
+  `compozy__subagent_capabilities`, usage) drop it.
+- New starts, stopped-session resumes, runtime changes and loop/goal runs on it fail with
+  `provider_disabled` (HTTP 409); running sessions continue. Fallback chains and roles skip it.
+- The default provider can't be turned off (`provider_default_disable_rejected`); change
+  `defaults.provider` first. Re-enabling removes the key and an emptied `[providers.<id>]` block.
+
 ## Provider Sign-In Recovery
 
 `session.auth_recovery` controls how long a turn waits when the provider sign-in goes missing mid-turn:

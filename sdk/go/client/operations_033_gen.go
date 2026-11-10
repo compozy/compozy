@@ -180,6 +180,22 @@ func (c *Client) SetSessionRuntime(ctx context.Context, params SetSessionRuntime
 	return &out, nil
 }
 
+// SetSettingsProviderEnabledParams carries the path, query, and header parameters.
+type SetSettingsProviderEnabledParams struct {
+	Name string `url:"name"`
+}
+
+// SetSettingsProviderEnabled Enable or disable one provider
+func (c *Client) SetSettingsProviderEnabled(ctx context.Context, params SetSettingsProviderEnabledParams, body SetSettingsProviderEnabledRequest) (*SettingsProviderEnabledResponse, error) {
+	path := "/api/settings/providers/{name}/enabled"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsProviderEnabledResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SetTaskExecutionProfileParams carries the path, query, and header parameters.
 type SetTaskExecutionProfileParams struct {
 	ID      string  `url:"id"`
@@ -417,33 +433,6 @@ func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body
 // StreamCmdPaletteParams carries the path, query, and header parameters.
 type StreamCmdPaletteParams struct {
 	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// StreamCmdPalette Stream command palette catalog invalidations
-func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
-	path := "/api/cmd-palette/stream"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[CmdPaletteCatalogChangedEvent](ctx, c, "GET", path, nil, nil, "streamCmdPalette")
-}
-
-// StreamCmdPaletteViewParams carries the path, query, and header parameters.
-type StreamCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

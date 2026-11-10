@@ -15,6 +15,7 @@ import {
   providerDraftToRequest,
 } from "../lib/provider-draft";
 import { useSettingsProviders } from "./use-settings-collections";
+import { isProviderEnabled } from "@/systems/providers";
 import { useDeleteSettingsProvider, usePutSettingsProvider } from "./use-settings-mutations";
 import {
   deriveProviderStateLabel,
@@ -66,10 +67,15 @@ export function useSettingsProvidersPage() {
     total: providers.length,
     installed: providerStates.filter(state => state === "installed").length,
     binaryMissing: providerStates.filter(state => state === "binary-missing").length,
-    needsSetup: providerStates.filter(state => state !== "installed" && state !== "binary-missing")
-      .length,
+    needsSetup: providerStates.filter(
+      state => state !== "installed" && state !== "binary-missing" && state !== "disabled"
+    ).length,
+    disabled: providerStates.filter(state => state === "disabled").length,
   };
-  const filteredProviders = applyProviderFilters(providers, filters);
+  const { filteredProviders, disabledProviders } = partitionProviders(
+    applyProviderFilters(providers, filters),
+    filters.statusFilter
+  );
 
   const setStatusFilter = (next: ProviderStateLabel | null) => {
     setFilters(current => ({ ...current, statusFilter: next }));
@@ -146,6 +152,7 @@ export function useSettingsProvidersPage() {
     envelope,
     providers,
     filteredProviders,
+    disabledProviders,
     filters,
     setStatusFilter,
     setNameQuery,
@@ -173,6 +180,22 @@ export function useSettingsProvidersPage() {
     confirmDelete,
     lastAction: inspectorFlow.lastAction,
     dismissLastAction: () => inspectorStore.trigger.lastActionDismissed(),
+  };
+}
+
+/**
+ * Enabled providers fill the grid; disabled ones go to their own group after it. The "Disabled"
+ * status filter is the exception: the grid then holds the disabled set and the group is empty.
+ */
+function partitionProviders(
+  providers: SettingsProviderEntry[],
+  statusFilter: ProviderStateLabel | null
+): { filteredProviders: SettingsProviderEntry[]; disabledProviders: SettingsProviderEntry[] } {
+  if (statusFilter === "disabled") return { filteredProviders: providers, disabledProviders: [] };
+  const disabled = (provider: SettingsProviderEntry) => !isProviderEnabled(provider.settings);
+  return {
+    filteredProviders: providers.filter(provider => !disabled(provider)),
+    disabledProviders: providers.filter(disabled),
   };
 }
 

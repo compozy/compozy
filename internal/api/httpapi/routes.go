@@ -348,6 +348,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", privileged, handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", privileged, handlers.SetSettingsProviderEnabled)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)

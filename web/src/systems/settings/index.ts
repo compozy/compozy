@@ -250,6 +250,7 @@ export {
   mcpAllocatedRuntimeName,
   mcpOwnerExtensionName,
   mcpServerProvenanceLine,
+  DisabledProvidersGroup,
   ProviderCard,
   ProviderCardGrid,
   ProviderEditForm,

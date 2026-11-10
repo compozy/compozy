@@ -14,7 +14,10 @@ import {
   sanitizeRuntimeACPSelections,
   setRuntimeACPSelection,
 } from "./runtime-advanced-options-model";
-import { runtimeSelectorPopupLogic } from "./runtime-selector-store";
+import {
+  runtimeSelectorPopupLogic,
+  type RuntimeSelectorPopupState,
+} from "./runtime-selector-store";
 import { useRuntimeFavorites } from "./use-runtime-favorites";
 import {
   modelSupportsFast,
@@ -42,9 +45,13 @@ export interface UseRuntimeSelectorArgs {
   models: RuntimeModelOption[];
   acpOptions?: RuntimeACPOption[];
   allowCustomProvider?: boolean;
+  /** Every disabled provider id, including ones already dropped from `providers`. */
+  disabledProviderIds?: ReadonlySet<string>;
   speed?: RuntimeSpeed;
   retainUnavailableOptions?: boolean;
 }
+
+const NO_DISABLED_PROVIDERS: ReadonlySet<string> = new Set();
 
 function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
   return provider?.runtime_strategy === "provider_managed";
@@ -72,6 +79,69 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
+/** Popup-local view; a closed popup reads as the catalog with no query, filter, or cursor. */
+function popupView(state: RuntimeSelectorPopupState) {
+  if (state.phase === "open") return { open: true, ...state };
+  return {
+    open: false,
+    railFilter: "all" as RailFilter,
+    query: "",
+    entryMode: "catalog" as const,
+    advancedExpanded: false,
+    activeRow: null,
+    favoriteAnnouncement: "",
+  };
+}
+
+/**
+ * A provider that never takes new picks: provider-managed, or disabled. A disabled provider stays
+ * listed only to show the current value, and an exact `provider/model` entry may name one that is
+ * not listed at all, so the full disabled set is checked too.
+ */
+function refusesPicks(
+  provider: string,
+  providerById: Map<string, RuntimeProviderOption>,
+  disabledProviderIds: ReadonlySet<string>
+): boolean {
+  const option = providerById.get(provider);
+  return (
+    isProviderManaged(option) || disabledProviderIds.has(provider) || option?.disabled === true
+  );
+}
+
+interface CustomTargetContext {
+  activeCustomProvider: string;
+  allowCustomProvider: boolean;
+  providerById: Map<string, RuntimeProviderOption>;
+  disabledProviderIds: ReadonlySet<string>;
+}
+
+/** Resolve a custom model ID to its (provider, model) target, or null when it must be refused. */
+function resolveCustomTarget(
+  modelId: string,
+  {
+    activeCustomProvider,
+    allowCustomProvider,
+    providerById,
+    disabledProviderIds,
+  }: CustomTargetContext
+): { provider: string; id: string } | null {
+  let id = modelId.trim();
+  if (id.length === 0) return null;
+  let provider = activeCustomProvider;
+  if (provider.length === 0 && allowCustomProvider) {
+    const separator = id.indexOf("/");
+    if (separator <= 0 || separator === id.length - 1) return null;
+    provider = id.slice(0, separator).trim();
+    id = id.slice(separator + 1).trim();
+  }
+  // Fail closed on a missing/unknown provider — a custom ID must never be
+  // emitted with an empty or guessed provider (no default substitution).
+  if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider))) return null;
+  if (refusesPicks(provider, providerById, disabledProviderIds)) return null;
+  return { provider, id };
+}
+
 /** Project the controlled runtime through its catalog and manage picker interactions. */
 export function useRuntimeSelector({
   value,
@@ -80,20 +150,16 @@ export function useRuntimeSelector({
   models,
   acpOptions,
   allowCustomProvider = false,
+  disabledProviderIds = NO_DISABLED_PROVIDERS,
   speed,
   retainUnavailableOptions = false,
 }: UseRuntimeSelectorArgs) {
   const popupStore = useStore(runtimeSelectorPopupLogic);
   const popupState = useSelector(popupStore, snapshot => snapshot.context);
-  const open = popupState.phase === "open";
-  const railFilter = popupState.phase === "open" ? popupState.railFilter : "all";
-  const query = popupState.phase === "open" ? popupState.query : "";
-  const entryMode = popupState.phase === "open" ? popupState.entryMode : "catalog";
-  const advancedExpanded = popupState.phase === "open" ? popupState.advancedExpanded : false;
   // The active row is a compound (provider,model) cursor, never a list index.
   // The derived index below therefore follows the model through reordering.
-  const activeRow = popupState.phase === "open" ? popupState.activeRow : null;
-  const favoriteAnnouncement = popupState.phase === "open" ? popupState.favoriteAnnouncement : "";
+  const { open, railFilter, query, entryMode, advancedExpanded, activeRow, favoriteAnnouncement } =
+    popupView(popupState);
 
   const providerById = new Map(providers.map(provider => [provider.id, provider]));
   const modelByKey = new Map(
@@ -130,8 +196,12 @@ export function useRuntimeSelector({
     providerById,
     value.provider
   );
-  const activeCustomProvider =
+  const customCandidate =
     catalogCustomProvider || (allowCustomProvider ? value.provider.trim() : "");
+  const activeCustomProvider =
+    disabledProviderIds.has(customCandidate) || providerById.get(customCandidate)?.disabled === true
+      ? ""
+      : customCandidate;
 
   const listModel = open
     ? buildRuntimeListModel({
@@ -214,30 +284,27 @@ export function useRuntimeSelector({
   const pickModel = (provider: string, modelId: string) => {
     const id = modelId.trim();
     if (id.length === 0) return;
-    if (isProviderManaged(providerById.get(provider))) return;
+    if (refusesPicks(provider, providerById, disabledProviderIds)) return;
     const model = modelByKey.get(runtimeModelKey(provider, id));
     if (model?.disabled) return;
     emitSelection(provider, id, model);
   };
 
   const pickCustom = (modelId: string) => {
-    let id = modelId.trim();
-    if (id.length === 0) return false;
-    let provider = activeCustomProvider;
-    if (provider.length === 0 && allowCustomProvider) {
-      const separator = id.indexOf("/");
-      if (separator <= 0 || separator === id.length - 1) return false;
-      provider = id.slice(0, separator).trim();
-      id = id.slice(separator + 1).trim();
-    }
-    // Fail closed on a missing/unknown provider — a custom ID must never be
-    // emitted with an empty or guessed provider (no default substitution).
-    if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider)))
-      return false;
-    if (isProviderManaged(providerById.get(provider))) return false;
+    const target = resolveCustomTarget(modelId, {
+      activeCustomProvider,
+      allowCustomProvider,
+      providerById,
+      disabledProviderIds,
+    });
+    if (!target) return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
-    emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));
+    emitSelection(
+      target.provider,
+      target.id,
+      modelByKey.get(runtimeModelKey(target.provider, target.id))
+    );
     return true;
   };
 

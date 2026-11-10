@@ -58,6 +58,7 @@ type ProviderSummaryPayload struct {
 	DisplayName      string                                    `json:"display_name,omitempty"`
 	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
 	Default          bool                                      `json:"default"`
+	Enabled          bool                                      `json:"enabled"`
 	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
 }
 

@@ -103,6 +103,9 @@ const (
 	ErrorCodeAgentInstanceNotFound ErrorCode = "agent_instance_not_found"
 	// ErrorCodeAgentInstanceStarting reports a target instance without a main session yet.
 	ErrorCodeAgentInstanceStarting ErrorCode = "agent_instance_starting"
+	// ErrorCodeProviderDisabled reports a start, resume or runtime change on a provider the
+	// operator disabled with providers.<id>.enabled = false.
+	ErrorCodeProviderDisabled ErrorCode = "provider_disabled"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

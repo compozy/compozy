@@ -43,6 +43,20 @@ function nativeACPEntry(overrides: Record<string, unknown> = {}): SettingsProvid
   } as SettingsProviderEntry;
 }
 
+// UT-025 (web half): the switch owns `enabled`; a full-edit save never carries it, so a dialog
+// opened before a toggle cannot turn the provider back on (or off).
+describe("providerDraftToRequest enabled", () => {
+  it.each([true, false])(
+    "never sends enabled for a provider with enabled = %s (UT-025)",
+    enabled => {
+      const draft = providerDraftFromEntry(nativeACPEntry({ enabled }));
+      const request = providerDraftToRequest({ ...draft, display_name: "Renamed" }, "");
+      expect("enabled" in (request.settings ?? {})).toBe(false);
+      expect(JSON.stringify(request)).not.toContain("enabled");
+    }
+  );
+});
+
 describe("providerDraft ACP sign-in method", () => {
   it("loads the protocol method from the entry", () => {
     expect(providerDraftFromEntry(nativeACPEntry()).auth_acp_method).toBe("oauth-personal");

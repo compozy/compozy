@@ -7,11 +7,14 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -111,8 +114,69 @@ func (n *daemonNativeTools) providerModelsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
 	}
-	payload := core.ProviderModelListPayloadFromModels(models)
-	return structuredResult(payload, fmt.Sprintf("%d provider models", len(payload.Models)))
+	cfg, err := n.selectionConfig(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.ProviderModelListPayloadFromModels(core.SelectableProviderModels(&cfg, models))
+	summary := fmt.Sprintf("%d provider models", len(payload.Models))
+	if disabledErr := cfg.RequireEnabledProvider(providerID); disabledErr != nil {
+		summary += "; " + disabledErr.Error() + " (provider_disabled)"
+	}
+	return structuredResult(payload, summary)
+}
+
+// selectionConfig resolves the caller's effective config for selection filtering: the scope's
+// workspace with its profile layers (the source session admission uses), else the active global
+// snapshot plus the selected profile's own enabled overrides, so pending global edits stay isolated
+// (B-013) and every profile, default included, keeps its overrides (BR-2). A scope that cannot be
+// resolved is an error: the unscoped config could offer a provider the scope disables.
+func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.Scope) (compozyconfig.Config, error) {
+	active := n.activeConfig(ctx)
+	var profiles session.ProfileNameResolver
+	if n.deps.Profiles != nil {
+		profiles = n.deps.Profiles
+	}
+	profileID := strings.TrimSpace(scope.ProfileID)
+	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" {
+		if n.deps.WorkspaceResolver == nil {
+			return compozyconfig.Config{}, fmt.Errorf(
+				"provider models: resolve workspace %q config: workspace resolver is unavailable",
+				workspaceID,
+			)
+		}
+		resolved, err := resolveRuntimeProfileWorkspace(ctx, n.deps.WorkspaceResolver, profiles, workspaceID, profileID)
+		if err != nil {
+			return compozyconfig.Config{}, fmt.Errorf(
+				"provider models: resolve workspace %q config: %w",
+				workspaceID,
+				err,
+			)
+		}
+		return resolved.Config, nil
+	}
+	if profileID == "" {
+		return active, nil
+	}
+	profileName, err := resolvePromptSkillsProfileName(ctx, profiles, profileID)
+	if err != nil {
+		return compozyconfig.Config{}, fmt.Errorf("provider models: resolve profile %q: %w", profileID, err)
+	}
+	return compozyconfig.WithProfileProviderEnabled(&active, n.deps.HomePaths, profileName)
+}
+
+// activeConfig reads the live active config through settings, falling back to the boot snapshot.
+func (n *daemonNativeTools) activeConfig(ctx context.Context) compozyconfig.Config {
+	if n.deps.Settings != nil {
+		if source, ok := n.deps.Settings().(interface {
+			ActiveConfig(context.Context) (compozyconfig.Config, error)
+		}); ok {
+			if cfg, err := source.ActiveConfig(ctx); err == nil {
+				return cfg
+			}
+		}
+	}
+	return n.deps.Config
 }
 
 func (n *daemonNativeTools) providerModelsCurate(

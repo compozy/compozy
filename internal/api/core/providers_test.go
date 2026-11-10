@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -730,4 +731,122 @@ type activeProviderSettings struct {
 
 func (s *activeProviderSettings) ActiveConfig(context.Context) (compozyconfig.Config, error) {
 	return compozyconfig.CloneConfig(&s.config), s.err
+}
+
+func TestProviderInventoryEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list a disabled provider with enabled false next to enabled ones", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		settings := &activeProviderSettings{config: providerAuthTestConfig(t)}
+		native := settings.config.Providers["native"]
+		native.Enabled = new(false)
+		settings.config.Providers["native"] = native
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config:    compozyconfig.CloneConfig(&settings.config),
+			Settings:  settings,
+			HomePaths: homePaths,
+		})
+		router := gin.New()
+		router.GET("/providers", handlers.ListProviders)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/providers", http.NoBody),
+		)
+		var inventory contract.ProviderListResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &inventory); err != nil {
+			t.Fatalf("decode inventory: %v; body=%s", err, response.Body.String())
+		}
+		enabled := map[string]bool{}
+		for _, provider := range inventory.Providers {
+			enabled[provider.Name] = provider.Enabled
+		}
+		if got, listed := enabled["native"]; !listed || got {
+			t.Fatalf("native enabled = %v listed = %v, want listed and disabled", got, listed)
+		}
+		if !enabled["public"] {
+			t.Fatalf("public enabled = false, want true; inventory=%v", enabled)
+		}
+	})
+
+	for _, tc := range []struct {
+		name          string
+		globalEnabled *bool
+		profileTOML   string
+		want          bool
+	}{
+		{
+			name:          "Should report a profile re-enable over a global disable",
+			globalEnabled: new(false),
+			profileTOML:   "[providers.native]\nenabled = true\n",
+			want:          true,
+		},
+		{
+			name:        "Should report a profile disable over an enabled global",
+			profileTOML: "[providers.native]\nenabled = false\n",
+			want:        false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			profileDir := filepath.Join(homePaths.ProfilesDir, compozyconfig.DefaultProfileDirName)
+			if err := os.MkdirAll(profileDir, 0o700); err != nil {
+				t.Fatalf("mkdir profile: %v", err)
+			}
+			profileFile := filepath.Join(profileDir, compozyconfig.ConfigName)
+			if err := os.WriteFile(profileFile, []byte(tc.profileTOML), 0o600); err != nil {
+				t.Fatalf("write profile config: %v", err)
+			}
+			settings := &activeProviderSettings{config: providerAuthTestConfig(t)}
+			native := settings.config.Providers["native"]
+			native.Enabled = tc.globalEnabled
+			settings.config.Providers["native"] = native
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				Config:    compozyconfig.CloneConfig(&settings.config),
+				Settings:  settings,
+				HomePaths: homePaths,
+			})
+			router := gin.New()
+			router.GET("/providers", handlers.ListProviders)
+			router.GET("/providers/:provider_id", handlers.GetProvider)
+
+			var inventory contract.ProviderListResponse
+			serveProviderJSON(t, router, "/providers", &inventory)
+			var listed *contract.ProviderSummaryPayload
+			for i := range inventory.Providers {
+				if inventory.Providers[i].Name == "native" {
+					listed = &inventory.Providers[i]
+				}
+			}
+			if listed == nil || listed.Enabled != tc.want {
+				t.Fatalf("list native = %+v, want enabled %v", listed, tc.want)
+			}
+			var single contract.ProviderSummaryPayload
+			serveProviderJSON(t, router, "/providers/native", &single)
+			if single.Enabled != tc.want {
+				t.Fatalf("get native enabled = %v, want %v", single.Enabled, tc.want)
+			}
+		})
+	}
+}
+
+func serveProviderJSON(t *testing.T, router http.Handler, path string, out any) {
+	t.Helper()
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d; body=%s", path, response.Code, response.Body.String())
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), out); err != nil {
+		t.Fatalf("decode %s: %v; body=%s", path, err, response.Body.String())
+	}
 }

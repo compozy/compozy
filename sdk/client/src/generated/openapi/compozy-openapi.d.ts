@@ -3800,6 +3800,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/providers/{name}/enabled": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Enable or disable one provider */
+    patch: operations["setSettingsProviderEnabled"];
+    trace?: never;
+  };
   "/api/settings/reload": {
     parameters: {
       query?: never;
@@ -14190,6 +14207,7 @@ export interface components {
       auth_status: components["schemas"]["ProviderAuthStatusPayload"];
       default: boolean;
       display_name?: string;
+      enabled: boolean;
       name: string;
       reviewer_mode: string;
       /** @enum {string} */
@@ -16500,6 +16518,9 @@ export interface components {
       expected_revision: number | null;
       runtime: components["schemas"]["PromptRuntimeSelectionPayload"];
     };
+    SetSettingsProviderEnabledRequest: {
+      enabled: boolean;
+    };
     SettingsActionMetadataPayload: {
       available: boolean;
       /** @enum {string} */
@@ -17296,6 +17317,10 @@ export interface components {
       source?: string;
       target_env: string;
     };
+    SettingsProviderEnabledResponse: {
+      apply: components["schemas"]["SettingsApplyResponse"];
+      provider: components["schemas"]["SettingsProviderItemPayload"];
+    };
     SettingsProviderFallbackPayload: {
       settings: components["schemas"]["SettingsProviderSettingsPayload"];
       source: components["schemas"]["SettingsSourceRefPayload"];
@@ -17377,6 +17402,7 @@ export interface components {
       command_inherited?: boolean;
       credential_slots?: components["schemas"]["SettingsProviderCredentialSlotPayload"][];
       display_name?: string;
+      enabled: boolean;
       env_policy?: string;
       harness?: string;
       home_policy?: string;
@@ -20197,6 +20223,7 @@ export interface components {
         | "profile_selection_conflict"
         | "profile_session_conflict"
         | "profile_unavailable"
+        | "provider_disabled"
         | "reasoning_effort_unsupported"
         | "recording_already_started"
         | "recording_not_active"
@@ -20410,6 +20437,7 @@ export interface components {
         | "profile_selection_conflict"
         | "profile_session_conflict"
         | "profile_unavailable"
+        | "provider_disabled"
         | "reasoning_effort_unsupported"
         | "recording_already_started"
         | "recording_not_active"
@@ -41705,6 +41733,79 @@ export interface operations {
       };
       /** @description Provider not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  setSettingsProviderEnabled: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetSettingsProviderEnabledRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsProviderEnabledResponse"];
+        };
+      };
+      /** @description Invalid enabled payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Disabling the default provider is rejected */
+      422: {
         headers: {
           [name: string]: unknown;
         };

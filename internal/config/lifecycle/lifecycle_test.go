@@ -74,6 +74,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify the provider enabled toggle as live",
+			path:          "providers.gemini.enabled",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify provider descendants as restart required",
 			path:          "providers.codex.command",
 			wantLifecycle: RestartRequired,

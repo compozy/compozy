@@ -37,6 +37,16 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	if err != nil {
 		return err
 	}
+	admission := admissionRuntimeChange
+	if session != nil {
+		admission = runtimeChangeAdmission(
+			boundRoute(meta),
+			acceptedRoute{provider: providerID, model: selection.Model},
+		)
+	}
+	if err := requireEnabledRuntimeProvider(&workspace.Config, providerID, admission, m.logger); err != nil {
+		return err
+	}
 	provider, err := workspace.Config.ResolveProvider(providerID)
 	if err != nil {
 		return err

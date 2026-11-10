@@ -215,6 +215,8 @@ func statusForSessionLookupError(err error) (int, bool) {
 
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
+	case errors.Is(err, compozyconfig.ErrProviderDisabled):
+		return http.StatusConflict, true
 	case errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid),
 		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
 		errors.Is(err, workspacepkg.ErrAgentNotAvailable),

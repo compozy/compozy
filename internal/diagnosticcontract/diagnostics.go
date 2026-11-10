@@ -121,6 +121,8 @@ const (
 	CodeProviderClassificationUnknown      = "provider_classification_unknown"
 	CodeProviderCLIMissing                 = "provider_cli_missing"
 	CodeProviderCredentialUnresolved       = "provider_credential_unresolved"
+	CodeProviderDefaultDisableRejected     = "provider_default_disable_rejected"
+	CodeProviderDisabled                   = "provider_disabled"
 	CodeProviderLoginRequiresLocalTTY      = "provider_login_requires_local_tty"
 	CodeProviderAuthenticated              = "provider_authenticated"
 	CodeProviderNotAuthenticated           = "provider_not_authenticated"
@@ -285,6 +287,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderClassificationUnknown, Category: CategoryProvider},
 	{Code: CodeProviderCLIMissing, Category: CategoryProvider},
 	{Code: CodeProviderCredentialUnresolved, Category: CategoryProvider},
+	{Code: CodeProviderDefaultDisableRejected, Category: CategoryProvider},
+	{Code: CodeProviderDisabled, Category: CategoryProvider},
 	{Code: CodeProviderLoginRequiresLocalTTY, Category: CategoryProvider},
 	{Code: CodeProviderAuthenticated, Category: CategoryProvider},
 	{Code: CodeProviderNotAuthenticated, Category: CategoryProvider},

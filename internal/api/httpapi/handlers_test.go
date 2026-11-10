@@ -597,6 +597,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
+		"PATCH /api/settings/providers/:name/enabled",
 		"PUT /api/tool-approval-grants",
 		"PUT /api/workspaces/:workspace_id/loops/:name/annotations",
 		"PUT /api/workspaces/:workspace_id/loops/:name/config",

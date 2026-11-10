@@ -4117,3 +4117,35 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 		)
 	}
 }
+
+func TestProviderUsageResolverDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve disabled providers to the disabled usage status per alias", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		cfg.Providers["gemini"] = compozyconfig.ProviderConfig{Enabled: new(false)}
+		cfg.Providers["claude-mm2"] = compozyconfig.ProviderConfig{
+			Command: "claude-agent-acp", RuntimeProvider: "claude", Enabled: new(false),
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatalf("Targets() error = %v", err)
+		}
+		statuses := make(map[string]providerusage.Status, len(targets))
+		for _, target := range targets {
+			statuses[target.ProviderID] = target.Status
+		}
+		for _, id := range []string{"gemini", "claude-mm2"} {
+			if statuses[id] != providerusage.StatusDisabled {
+				t.Fatalf("target %s status = %q, want disabled", id, statuses[id])
+			}
+		}
+		if statuses["claude"] == providerusage.StatusDisabled {
+			t.Fatal("target claude disabled, want aliases independent")
+		}
+	})
+}

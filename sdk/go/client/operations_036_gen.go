@@ -8,6 +8,31 @@ import (
 	"strings"
 )
 
+// TerminateSessionProcesses Terminate identity-verified session processes
+func (c *Client) TerminateSessionProcesses(ctx context.Context, params TerminateSessionProcessesParams, body TerminateSessionProcessesRequest) (*TerminateSessionProcessesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminateSessionProcessesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// TriggerAutomationJobParams carries the path, query, and header parameters.
+type TriggerAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // TriggerAutomationJob Trigger one automation job immediately
 func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
 	path := "/api/automation/jobs/{id}/trigger"
@@ -413,32 +438,6 @@ func (c *Client) UpdateProfile(ctx context.Context, params UpdateProfileParams, 
 	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	var out Profile
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSessionPresenceParams carries the path, query, and header parameters.
-type UpdateSessionPresenceParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateSessionPresence Update operator session presence
-func (c *Client) UpdateSessionPresence(ctx context.Context, params UpdateSessionPresenceParams, body SessionPresenceRequest) (*SessionPresenceResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/presence"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionPresenceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

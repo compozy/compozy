@@ -2691,6 +2691,12 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: false,
 			},
 			{
+				name:        "Should allow provider enabled toggle",
+				path:        "providers.gemini.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow full roles section",
 				path:        "roles",
 				wantKind:    configSetTable,
@@ -2953,4 +2959,61 @@ func TestConfigCommandsAlwaysOnPathAlias(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestConfigSetCarriesDaemonReloadWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render daemon reload warnings in JSON and human output", func(t *testing.T) {
+		t.Parallel()
+
+		const warning = "providers gemini enabled change was not applied live: pending restart"
+		client := &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{Status: "running", PID: 42}, nil
+			},
+			reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+				return SettingsMutationRecord{
+					Lifecycle:       contract.SettingsApplyLifecycleRestartRequired,
+					NextAction:      contract.SettingsApplyNextActionRestartDaemon,
+					RestartRequired: true,
+					Warnings:        []string{warning},
+				}, nil
+			},
+		}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+
+		out, _, err := executeRootCommand(t, deps, "config", "set", "providers.gemini.enabled", "false", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set providers.gemini.enabled error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set) error = %v", err)
+		}
+		if len(record.Warnings) != 1 || record.Warnings[0] != warning || !record.RestartRequired {
+			t.Fatalf("config set record = %#v, want the daemon warning and restart required", record)
+		}
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"providers.gemini.enabled",
+			"false",
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("config set human error = %v", err)
+		}
+		if !strings.Contains(human, warning) {
+			t.Fatalf("config set human output = %q, want the warning", human)
+		}
+	})
 }

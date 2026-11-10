@@ -26,14 +26,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if len(path) == 4 && path[0] == compozyconfig.LoopsConfigKey && path[1] == compozyconfig.LoopInputsConfigKey {
 		return configSetLoopInput, false, nil
 	}
-	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {
-		return configSetBool, false, nil
-	}
-	if len(path) == 5 &&
-		path[0] == configProvidersKey &&
-		path[2] == configModelsKey &&
-		path[3] == configDiscoveryKey &&
-		path[4] == configEnabledKey {
+	if isProviderBoolMutationPath(path) {
 		return configSetBool, false, nil
 	}
 	if isProviderMutationPath(path) {
@@ -93,6 +86,19 @@ func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bo
 		return configSetString, false, false
 	}
 	return kind, policy.Redacted, true
+}
+
+// isProviderBoolMutationPath matches providers.<id>.session_mcp, providers.<id>.enabled and
+// providers.<id>.models.discovery.enabled.
+func isProviderBoolMutationPath(path []string) bool {
+	if len(path) == 3 && path[0] == configProvidersKey {
+		return path[2] == configSessionMCPKey || path[2] == configEnabledKey
+	}
+	return len(path) == 5 &&
+		path[0] == configProvidersKey &&
+		path[2] == configModelsKey &&
+		path[3] == configDiscoveryKey &&
+		path[4] == configEnabledKey
 }
 
 func isProviderLoginCommandPath(path []string) bool {

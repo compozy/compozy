@@ -150,6 +150,8 @@ type ProviderConfig struct {
 	AuthLoginCmd      string               `toml:"auth_login_command,omitempty"`
 	AuthACPMethod     string               `toml:"auth_acp_method,omitempty"`
 	SessionMCP        *bool                `toml:"session_mcp,omitempty"`
+	// Enabled gates selection and new launches; nil means enabled (see EffectiveEnabled).
+	Enabled *bool `toml:"enabled,omitempty"`
 	// SessionMCPTransport chooses how per-session stdio MCP servers reach the
 	// agent. "http" serves them through a loopback HTTP bridge for agents that
 	// accept only remote MCP servers over ACP; empty or "stdio" passes them as-is.

@@ -104,7 +104,7 @@ func (c *Config) validateProviders() error {
 		}
 	}
 
-	return nil
+	return c.validateDefaultProviderEnabled()
 }
 
 // Validate ensures the default agent setting is present and valid, and that

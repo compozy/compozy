@@ -6098,6 +6098,7 @@ export type ProviderSummaryPayload = {
   auth_status: ProviderAuthStatusPayload;
   default: boolean;
   display_name?: string;
+  enabled: boolean;
   name: string;
   reviewer_mode: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
@@ -8314,6 +8315,10 @@ export type SetSessionRuntimeRequest = {
   runtime: PromptRuntimeSelectionPayload;
 };
 
+export type SetSettingsProviderEnabledRequest = {
+  enabled: boolean;
+};
+
 export type SettingsActionMetadataPayload = {
   available: boolean;
   behavior: "applied_now" | "restart_required" | "action_trigger";
@@ -9122,6 +9127,11 @@ export type SettingsProviderCredentialStatusPayload = {
   target_env: string;
 };
 
+export type SettingsProviderEnabledResponse = {
+  apply: SettingsApplyResponse;
+  provider: SettingsProviderItemPayload;
+};
+
 export type SettingsProviderFallbackPayload = {
   settings: SettingsProviderSettingsPayload;
   source: SettingsSourceRefPayload;
@@ -9201,6 +9211,7 @@ export type SettingsProviderSettingsPayload = {
   command_inherited?: boolean;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
   display_name?: string;
+  enabled: boolean;
   env_policy?: string;
   harness?: string;
   home_policy?: string;
@@ -11925,6 +11936,7 @@ export type ToolCallEventPayload = {
     | "profile_selection_conflict"
     | "profile_session_conflict"
     | "profile_unavailable"
+    | "provider_disabled"
     | "reasoning_effort_unsupported"
     | "recording_already_started"
     | "recording_not_active"
@@ -12133,6 +12145,7 @@ export type ToolErrorPayload = {
     | "profile_selection_conflict"
     | "profile_session_conflict"
     | "profile_unavailable"
+    | "provider_disabled"
     | "reasoning_effort_unsupported"
     | "recording_already_started"
     | "recording_not_active"
@@ -28333,6 +28346,57 @@ export type PutSettingsProviderResponses = {
 
 export type PutSettingsProviderResponse =
   PutSettingsProviderResponses[keyof PutSettingsProviderResponses];
+
+export type SetSettingsProviderEnabledData = {
+  /**
+   * JSON request body
+   */
+  body: SetSettingsProviderEnabledRequest;
+  path: {
+    /**
+     * Provider name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/providers/{name}/enabled";
+};
+
+export type SetSettingsProviderEnabledErrors = {
+  /**
+   * Invalid enabled payload
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Provider not found
+   */
+  404: ErrorPayload;
+  /**
+   * Disabling the default provider is rejected
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type SetSettingsProviderEnabledError =
+  SetSettingsProviderEnabledErrors[keyof SetSettingsProviderEnabledErrors];
+
+export type SetSettingsProviderEnabledResponses = {
+  /**
+   * OK
+   */
+  200: SettingsProviderEnabledResponse;
+};
+
+export type SetSettingsProviderEnabledResponse =
+  SetSettingsProviderEnabledResponses[keyof SetSettingsProviderEnabledResponses];
 
 export type ReloadSettingsData = {
   body?: never;

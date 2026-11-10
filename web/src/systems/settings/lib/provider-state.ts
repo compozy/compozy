@@ -1,8 +1,11 @@
 import type { PillTone } from "@compozy/ui";
 
+import { isProviderEnabled } from "@/systems/providers";
+
 import type { SettingsProviderEntry } from "../types";
 
 export type ProviderStateLabel =
+  | "disabled"
   | "installed"
   | "binary-missing"
   | "unconfigured"
@@ -31,6 +34,8 @@ function authMode(provider: SettingsProviderEntry): string {
 }
 
 export function deriveProviderStateLabel(provider: SettingsProviderEntry): ProviderStateLabel {
+  // Turned off is a choice: it outranks install and sign-in facts, which stop mattering.
+  if (!isProviderEnabled(provider.settings)) return "disabled";
   const authState = provider.auth_status?.state?.trim() || "unknown";
   if (!provider.command_available || authState === "missing_cli") return "binary-missing";
   if (!providerCredentialsConfigured(provider) || authState === "missing_credential") {
@@ -65,6 +70,14 @@ function signInCheckCta(provider: SettingsProviderEntry): ProviderStateView["cta
 export function getProviderStateView(provider: SettingsProviderEntry): ProviderStateView {
   const label = deriveProviderStateLabel(provider);
   switch (label) {
+    case "disabled":
+      return {
+        tone: "neutral",
+        label,
+        display: "Disabled",
+        hint: null,
+        cta: { label: "Edit settings", intent: "edit" },
+      };
     case "installed":
       return {
         tone: "success",

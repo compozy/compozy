@@ -9,23 +9,25 @@ import (
 )
 
 type SettingsProviderSettingsPayload struct {
-	SessionEnv        map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
-	AutoCompactWindow *int                                    `json:"auto_compact_window,omitempty"`
-	SteerCapability   config.SteerCapability                  `json:"steer_capability,omitempty"`
-	Command           string                                  `json:"command,omitempty"`
-	CommandInherited  bool                                    `json:"command_inherited,omitempty"`
-	DisplayName       string                                  `json:"display_name,omitempty"`
-	Models            *SettingsProviderModelsPayload          `json:"models,omitzero"`
-	Harness           string                                  `json:"harness,omitempty"`
-	RuntimeProvider   string                                  `json:"runtime_provider,omitempty"`
-	Transport         string                                  `json:"transport,omitempty"`
-	BaseURL           string                                  `json:"base_url,omitempty"`
-	AuthMode          string                                  `json:"auth_mode,omitempty"`
-	EnvPolicy         string                                  `json:"env_policy,omitempty"`
-	HomePolicy        string                                  `json:"home_policy,omitempty"`
-	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
-	AuthACPMethod     string                                  `json:"auth_acp_method,omitempty"`
-	CredentialSlots   []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	SteerCapability   config.SteerCapability              `json:"steer_capability,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	CommandInherited  bool                                `json:"command_inherited,omitempty"`
+	DisplayName       string                              `json:"display_name,omitempty"`
+	// Enabled is the effective providers.<name>.enabled value; read only (PATCH .../enabled toggles it).
+	Enabled         bool                                    `json:"enabled"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness         string                                  `json:"harness,omitempty"`
+	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
+	Transport       string                                  `json:"transport,omitempty"`
+	BaseURL         string                                  `json:"base_url,omitempty"`
+	AuthMode        string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	HomePolicy      string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthACPMethod   string                                  `json:"auth_acp_method,omitempty"`
+	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
 // SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.

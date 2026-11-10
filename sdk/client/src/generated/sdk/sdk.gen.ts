@@ -1488,6 +1488,9 @@ import type {
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
+  SetSettingsProviderEnabledData,
+  SetSettingsProviderEnabledErrors,
+  SetSettingsProviderEnabledResponses,
   SetTaskExecutionProfileData,
   SetTaskExecutionProfileErrors,
   SetTaskExecutionProfileResponses,
@@ -7134,6 +7137,33 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/providers/{name}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Enable or disable one provider
+   */
+  public setSettingsProviderEnabled<ThrowOnError extends boolean = true>(
+    options: Options<SetSettingsProviderEnabledData, ThrowOnError>
+  ): RequestResult<
+    SetSettingsProviderEnabledResponses,
+    SetSettingsProviderEnabledErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      SetSettingsProviderEnabledResponses,
+      SetSettingsProviderEnabledErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/providers/{name}/enabled",
       ...options,
       headers: {
         "Content-Type": "application/json",

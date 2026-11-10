@@ -3191,3 +3191,43 @@ func TestSubagentFingerprintCompatibility(t *testing.T) {
 		}
 	})
 }
+
+func TestSubagentCapabilitiesOmitDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit disabled providers from capabilities", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		_, options, err := runtime.Capabilities(t.Context(), parent)
+		if err != nil {
+			t.Fatalf("Capabilities() error = %v", err)
+		}
+		for _, option := range options {
+			if option.Provider == "codex" {
+				t.Fatalf("Capabilities() listed disabled codex: %#v", option)
+			}
+		}
+	})
+
+	t.Run("Should refuse a disabled target with provider_disabled before probing it", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.cfg.Providers["absent"] = compozyconfig.ProviderConfig{
+			Command: "compozy-test-nonexistent-provider", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		setHarnessProviderEnabled(t, h, "absent", false)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "claude"}
+		for _, provider := range []string{"codex", "absent"} {
+			_, err := runtime.Resolve(t.Context(), parent, SubagentTarget{Provider: provider})
+			detail, ok := errors.AsType[*SubagentError](err)
+			if !ok || detail.Code != "provider_disabled" || !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("Resolve(%s) error = %v, want a provider_disabled subagent error", provider, err)
+			}
+		}
+	})
+}

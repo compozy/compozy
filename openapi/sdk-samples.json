@@ -3459,6 +3459,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "setSettingsProviderEnabled": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.setSettingsProviderEnabled({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetSettingsProviderEnabled(ctx, client.SetSettingsProviderEnabledParams{Name: \"name\"}, client.SetSettingsProviderEnabledRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "setTaskExecutionProfile": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.setTaskExecutionProfile({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetTaskExecutionProfile(ctx, client.SetTaskExecutionProfileParams{ID: \"id\"}, client.ExecutionProfile{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
