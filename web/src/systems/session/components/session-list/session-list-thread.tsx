@@ -14,6 +14,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { SessionListBranch } from "./session-list-branch";
 import { BRANCH_NODE, BRANCH_RAIL } from "./session-list-branch-rail";
+import { SessionListChildBranch } from "./session-list-child-branch";
 import { SessionListBranchToggle } from "./session-list-branch-toggle";
 import { SessionListRow, type SessionListRowProps } from "./session-list-row";
 import { SessionListSubagentBranch } from "./session-list-subagent-branch";
@@ -75,6 +76,7 @@ function SessionListThreadView({
     <SessionListBranchRow
       session={session}
       childSessions={foldable}
+      selectedIds={selection?.selectedIds}
       collapsed={collapsed}
       subagentThreads={subagentThreads}
       onThreadBranchChange={onThreadBranchChange}
@@ -222,9 +224,11 @@ function SessionListBranchRow({
   testIdPrefix,
   row,
   childRow,
+  selectedIds,
 }: {
   session: SessionPayload;
   childSessions: readonly SessionPayload[];
+  selectedIds?: ReadonlySet<string>;
   collapsed: boolean;
   subagentThreads: SessionSubagentFolds;
   onThreadBranchChange: SessionThreadBranchChange;
@@ -248,7 +252,14 @@ function SessionListBranchRow({
   const branchId = `${testIdPrefix}-branch-${session.id}`;
   const list = (shown: SessionThreadSegment) =>
     shown === "children" ? (
-      <div className={BRANCH_RAIL}>{childSessions.map(child => childRow?.(child))}</div>
+      <SessionListChildBranch
+        sessionId={session.id}
+        childSessions={childSessions}
+        currentSessionId={currentSessionId}
+        selectedIds={selectedIds}
+        childRow={child => childRow?.(child)}
+        testIdPrefix={testIdPrefix}
+      />
     ) : (
       <div className={BRANCH_RAIL}>
         <SessionListSubagentBranch
