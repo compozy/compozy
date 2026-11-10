@@ -2472,77 +2472,88 @@ permissions = ["gateway.private"]
 func TestSessionEventsFollowIntegration(t *testing.T) {
 	t.Parallel()
 
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	sessionOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"demo",
-		"--cwd",
-		h.workspace,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("session new error = %v", err)
-	}
-	var created SessionRecord
-	if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
+	t.Run("Should finish the followed session before daemon teardown", func(t *testing.T) {
+		t.Parallel()
 
-	if _, _, err := executeRootCommand(t, h.deps, "session", "prompt", created.ID, "hello", "-o", "json"); err != nil {
-		t.Fatalf("session prompt error = %v", err)
-	}
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		sessionOut, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"session",
+			"new",
+			"--agent",
+			"coder",
+			"--name",
+			"demo",
+			"--cwd",
+			h.workspace,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("session new error = %v", err)
+		}
+		var created SessionRecord
+		if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+			t.Fatalf("json.Unmarshal(session new) error = %v", err)
+		}
 
-	cmd := newRootCommand(h.deps)
-	var stderr bytes.Buffer
-	stdout := &lockedBuffer{}
-	cmd.SetOut(stdout)
-	cmd.SetErr(&stderr)
-	cmd.SetArgs([]string{"session", "events", created.ID, "--follow", "-o", "json"})
+		if _, _, err := executeRootCommand(
+			t, h.deps, "session", "prompt", created.ID, "hello", "-o", "json",
+		); err != nil {
+			t.Fatalf("session prompt error = %v", err)
+		}
 
-	done := make(chan error, 1)
-	go func() {
-		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-		defer cancel()
-		done <- cmd.ExecuteContext(ctx)
-	}()
+		cmd := newRootCommand(h.deps)
+		var stderr bytes.Buffer
+		stdout := &lockedBuffer{}
+		cmd.SetOut(stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetArgs([]string{"session", "events", created.ID, "--follow", "-o", "json"})
 
-	waitForCondition(t, 3*time.Second, func() bool {
-		return strings.Contains(stdout.String(), `"type":"agent_message"`)
+		done := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			done <- cmd.ExecuteContext(ctx)
+		}()
+
+		waitForCondition(t, 3*time.Second, func() bool {
+			return strings.Contains(stdout.String(), `"type":"agent_message"`)
+		})
+
+		// Join session finalization before daemon teardown; a terminal stream frame is not a stop receipt.
+		stopIntegrationSessionAndRead(t, h.deps, created.ID)
+
+		if err := <-done; err != nil {
+			t.Fatalf("follow command error = %v", err)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+		if len(lines) < 2 {
+			t.Fatalf("follow output lines = %d, want at least 2", len(lines))
+		}
+		var sawAgentMessage, sawSessionStopped bool
+		for _, line := range lines {
+			var event SessionEventRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				t.Fatalf("json.Unmarshal(follow line) error = %v; line=%s", err, line)
+			}
+			if event.Type == "agent_message" {
+				sawAgentMessage = true
+			}
+			if event.Type == session.EventTypeSessionStopped {
+				sawSessionStopped = true
+			}
+		}
+		if !sawAgentMessage || !sawSessionStopped {
+			t.Fatalf("follow output = %q, want streamed agent_message and session_stopped events", stdout.String())
+		}
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop error = %v", err)
+		}
 	})
-
-	if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-		t.Fatalf("daemon stop error = %v", err)
-	}
-
-	if err := <-done; err != nil {
-		t.Fatalf("follow command error = %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("follow output lines = %d, want at least 2", len(lines))
-	}
-	var sawAgentMessage bool
-	for _, line := range lines {
-		var event SessionEventRecord
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			t.Fatalf("json.Unmarshal(follow line) error = %v; line=%s", err, line)
-		}
-		if event.Type == "agent_message" {
-			sawAgentMessage = true
-		}
-	}
-	if !sawAgentMessage {
-		t.Fatalf("follow output = %q, want streamed agent_message event", stdout.String())
-	}
 }
 
 func TestWorkspaceCommandsIntegration(t *testing.T) {
