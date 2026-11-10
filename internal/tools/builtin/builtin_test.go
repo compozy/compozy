@@ -434,7 +434,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionUnarchive],
-				[]string{"profile", "session_id", "workspace"},
+				[]string{"profile", "result_view", "session_id", "workspace"},
 			)
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
@@ -2017,7 +2017,7 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"name", "profile", "session_id", "workspace"},
+		[]string{"name", "profile", "result_view", "session_id", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
 		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
@@ -2042,7 +2042,7 @@ func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descr
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"parent_session_id", "profile", "session_id", "top_level", "workspace"},
+		[]string{"parent_session_id", "profile", "result_view", "session_id", "top_level", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
@@ -2296,7 +2296,7 @@ func assertSessionRuntimeMutationSchemas(
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", id, err)
 		}
-		wantFields := []string{"expected_revision", "profile", "session_id", "workspace"}
+		wantFields := []string{"expected_revision", "profile", "result_view", "session_id", "workspace"}
 		if id == toolspkg.ToolIDSessionRuntimeSet {
 			wantFields = append(wantFields, "runtime")
 		}

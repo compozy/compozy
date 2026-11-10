@@ -381,11 +381,8 @@ func (n *daemonNativeTools) sessionDescribe(
 	if resolved.RootMissing {
 		payload.Diagnostics = core.MissingWorkspaceDiagnostics(resolved.ID)
 	}
-	return structuredResult(map[string]any{
-		nativeToolsSessionKey:     payload,
-		nativeToolsEventsKey:      eventPayload,
-		nativeToolsEventsPageKey:  eventsPage,
-		nativeToolsHistoryKey:     sessionHistoryPayload(history, info),
-		nativeToolsHistoryPageKey: historyPage,
-	}, info.ID)
+	return sessionDescribeViews.result(req.View, sessionDescribeResult{
+		Session: payload, Events: eventPayload, EventsPage: eventsPage,
+		History: sessionHistoryPayload(history, info), HistoryPage: historyPage,
+	})
 }

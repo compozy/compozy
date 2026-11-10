@@ -14684,7 +14684,9 @@ func TestNativeSubagentBindings(t *testing.T) {
 			result, err := n.subagentToolBindings()[tc.id].call(
 				t.Context(),
 				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws"},
-				toolspkg.CallRequest{ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input)},
+				toolspkg.CallRequest{
+					ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input), View: toolspkg.ResultViewFull,
+				},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -16402,7 +16404,8 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 				Workspaces: workspaces, Sessions: manager,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1"}`),
+				ToolID: toolID,
+				Input:  json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1","result_view":"full"}`),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -16421,6 +16424,7 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 			}
 			for _, descriptor := range builtintools.NativeDescriptors() {
 				if descriptor.ID == toolID {
+					descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 					requireNativeOutputSchemaAccepts(t, descriptor, encoded)
 				}
 			}

@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -37,11 +35,7 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, descriptorKeywordArchive},
 		keywords,
 	)
-	if archived {
-		return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
-	}
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 const sessionArchiveInputSchema = `{

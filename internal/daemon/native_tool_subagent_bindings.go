@@ -103,7 +103,7 @@ func (n *daemonNativeTools) subagentCapabilities(
 	if err != nil {
 		return subagentFailure(err, "")
 	}
-	return structuredResult(subagentCapabilitiesPayload(result), "Subagent capabilities")
+	return subagentCapabilitiesViews.result(req.View, result)
 }
 
 func (n *daemonNativeTools) subagentDelegate(

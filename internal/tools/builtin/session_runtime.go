@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -23,8 +21,7 @@ func sessionRuntimeSetDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsRuntimeKey, "set"},
 		[]string{"select session runtime", "set default runtime"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionCreateOutputSchema)
 }
 
 func sessionRuntimeClearDescriptor() toolspkg.Descriptor {
@@ -42,8 +39,7 @@ func sessionRuntimeClearDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsRuntimeKey, "clear"},
 		[]string{"clear session runtime", "clear default runtime"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionCreateOutputSchema)
 }
 
 const sessionRuntimeSelectionSchema = `{

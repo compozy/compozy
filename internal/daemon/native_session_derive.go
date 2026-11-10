@@ -76,7 +76,7 @@ func (n *daemonNativeTools) sessionContinue(
 			ExpectedMaxSequence: input.ExpectedMaxSequence,
 		},
 	})
-	return nativeDeriveResult(req.ToolID, result, err)
+	return nativeDeriveResult(req, result, err)
 }
 
 type sessionForkInput struct {
@@ -129,7 +129,7 @@ func (n *daemonNativeTools) sessionFork(
 			ExpectedMaxSequence: input.ExpectedMaxSequence,
 		},
 	})
-	return nativeDeriveResult(req.ToolID, result, err)
+	return nativeDeriveResult(req, result, err)
 }
 
 // nativeDeriveTarget resolves the derive manager and the caller-visible workspace. It
@@ -161,19 +161,19 @@ func (n *daemonNativeTools) nativeDeriveTarget(
 // payload (code and, after the child was committed, child_session_id) as the tool
 // error's partial result, so the calling agent can still reach the committed child.
 func nativeDeriveResult(
-	toolID toolspkg.ToolID,
+	req toolspkg.CallRequest,
 	result session.DeriveResult,
 	err error,
 ) (toolspkg.ToolResult, error) {
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeDeriveToolError(toolID, core.DeriveFailure(err, result))
+		return toolspkg.ToolResult{}, nativeDeriveToolError(req.ToolID, core.DeriveFailure(err, result))
 	}
 	payload := contract.SessionDeriveResponse{Derived: core.SessionDerivedPayloadFromResult(result)}
 	if result.Child != nil {
 		child := core.SessionPayloadFromInfo(result.Child)
 		payload.Session = &child
 	}
-	return structuredResult(payload, result.ChildSessionID)
+	return sessionDeriveViews.result(req.View, payload)
 }
 
 func nativeDeriveToolError(toolID toolspkg.ToolID, err error) error {

@@ -363,7 +363,7 @@ func (n *daemonNativeTools) sessionRewind(
 			MaxSequence: result.MaxSequence, DraftText: result.DraftText, Replayed: result.Replayed,
 		},
 	}
-	return structuredResult(payload, payload.Rewind.TargetMessageID)
+	return sessionRewindViews.result(req.View, payload)
 }
 
 func requiredNativeNonNegativeInt64(id toolspkg.ToolID, field string, value *int64) (int64, error) {
