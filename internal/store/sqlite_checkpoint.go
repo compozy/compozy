@@ -56,6 +56,7 @@ func openPassiveCheckpointer(ctx context.Context, path string, restart bool) (*P
 	return worker, nil
 }
 
+// run checkpoints each second and refreshes statistics hourly, backing off after failed attempts.
 func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
 	defer func() {
 		p.err = errors.Join(p.restart.close(), db.Close())
@@ -63,7 +64,7 @@ func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
 	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var optimizedAt time.Time
+	var nextOptimizeAt time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,19 +73,21 @@ func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
 			if err := p.checkpoint(ctx, db); err != nil && ctx.Err() == nil && !IsSQLiteBusy(err) {
 				slog.Warn("sqlite passive checkpoint failed", "error", err)
 			}
-			if now.Sub(optimizedAt) >= time.Hour {
+			if !now.Before(nextOptimizeAt) {
 				if err := optimizeSQLite(ctx, db); err != nil {
+					nextOptimizeAt = now.Add(time.Minute)
 					if ctx.Err() == nil && !IsSQLiteBusy(err) && !errors.Is(err, context.DeadlineExceeded) {
 						slog.Warn("sqlite statistics maintenance failed", "error", err)
 					}
 				} else {
-					optimizedAt = now
+					nextOptimizeAt = now.Add(time.Hour)
 				}
 			}
 		}
 	}
 }
 
+// optimizeSQLite bounds statistics maintenance with cancellation on the nonwaiting maintenance handle.
 func optimizeSQLite(ctx context.Context, db *sql.DB) error {
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()

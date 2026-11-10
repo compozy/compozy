@@ -52,7 +52,8 @@ asserts one family call containing all roots across multiple scopes. No addition
 abstraction or public read model was needed.
 
 The existing core/telemetry checkpoint worker also runs statistics maintenance on its first
-one-second tick and hourly after success. Failed attempts retry on subsequent ticks. It uses
+one-second tick and hourly after success. Failed attempts back off for one minute while
+checkpoints continue every second. It uses
 `PRAGMA optimize = 0x10012`: consider all tables because this dedicated connection has no
 application-query history, keep SQLite's bounded analysis flag, and request statistics refresh.
 A 100 ms context deadline bounds interruptible execution; the maintenance connection retains

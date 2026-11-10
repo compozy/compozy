@@ -4328,6 +4328,7 @@ func (r *sessionFamilyQueryRecorder) QueryContext(ctx context.Context, query str
 	return r.DB.QueryContext(ctx, query, args...)
 }
 
+// sessionWorkFamilyFixture seeds 120 seven-member trees without statistics and with upgraded index order.
 func sessionWorkFamilyFixture(tb testing.TB) (*GlobalDB, string) {
 	tb.Helper()
 	ctx := tb.Context()
@@ -4381,6 +4382,7 @@ DROP TABLE IF EXISTS sqlite_stat1;`); err != nil {
 	return db, ids
 }
 
+// BenchmarkSessionWorkFamily measures a complete batched family read without planner statistics.
 func BenchmarkSessionWorkFamily(b *testing.B) {
 	db, ids := sessionWorkFamilyFixture(b)
 	b.ReportAllocs()
