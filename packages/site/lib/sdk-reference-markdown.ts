@@ -7,7 +7,9 @@ import {
   methodName,
   optionsOf,
   returnsOf,
+  SDK_NO_GO_EQUIVALENT,
   signatureOf,
+  isSdkLang,
   type SdkLang,
   type SdkMethod,
   type SdkOption,
@@ -116,6 +118,62 @@ export function expandSdkOverview(source: string, guides: () => readonly SdkGuid
         )
         .join("\n")
     );
+}
+
+/** JSX attributes as the guides write them: `name="…"`, `type={'…'}`, or a bare flag. */
+const ATTRS = String.raw`(?:\s+\w+(?:=(?:"[^"]*"|\{'[^']*'\}|\{"[^"]*"\}))?)*`;
+const ATTR = /(\w+)(?:=(?:"([^"]*)"|\{'([^']*)'\}|\{"([^"]*)"\}))?/g;
+
+function attrsOf(raw: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  for (const [, name = "", ...values] of raw.matchAll(ATTR)) {
+    attrs.set(name, values.find(value => value !== undefined) ?? "");
+  }
+  return attrs;
+}
+
+const FIELD = new RegExp(
+  String.raw`^[ \t]*<SdkField(${ATTRS})\s*(?:\/>|>([\s\S]*?)<\/SdkField>)`,
+  "gm"
+);
+const FIELDS_OPEN = new RegExp(String.raw`^[ \t]*<SdkFields(${ATTRS})\s*>[ \t]*\n`, "gm");
+const LANG_OPEN = new RegExp(String.raw`^[ \t]*<(?:SdkLang|SdkSymbol)(${ATTRS})\s*(\/?)>`, "gm");
+const CLOSE = /\n*^[ \t]*<\/(?:SdkLang|SdkSymbol|SdkFields)>[ \t]*$/gm;
+
+/** `<SdkField>`: one list item, as the resource pages list options. */
+function fieldItem(tag: string, raw: string, children: string | undefined): string {
+  const attrs = attrsOf(raw);
+  const name = attrs.get("name");
+  const type = attrs.get("type");
+  if (name === undefined || type === undefined) return tag;
+  const required = attrs.has("required") ? ", required" : "";
+  const text = children?.replace(/\s+/g, " ").trim();
+  return `- \`${name}\` (\`${type}\`${required})${text ? `: ${text}` : ""}`;
+}
+
+/** `<SdkLang>` and `<SdkSymbol>`: the content they show for one client, under its name. */
+function langLabel(tag: string, raw: string, selfClosing: string): string {
+  const attrs = attrsOf(raw);
+  const lang = attrs.get("lang");
+  if (!isSdkLang(lang)) return tag;
+  if (!selfClosing) return `**${LANG_LABEL[lang]}**`;
+  return attrs.has("none") ? `**${LANG_LABEL[lang]}**\n\n${SDK_NO_GO_EQUIVALENT}` : tag;
+}
+
+/**
+ * Unwraps the client guides' per-language content: each `<SdkLang>` and `<SdkSymbol>` block under
+ * a "TypeScript" or "Go" label, each `<SdkFields>` as a titled list of its `<SdkField>` rows. The
+ * page shows one language at a time; the Markdown keeps both.
+ */
+export function expandSdkLanguages(source: string): string {
+  return source
+    .replace(FIELD, fieldItem)
+    .replace(FIELDS_OPEN, (tag, raw: string) => {
+      const title = attrsOf(raw).get("title");
+      return title ? `${title}:\n\n` : tag;
+    })
+    .replace(LANG_OPEN, langLabel)
+    .replace(CLOSE, "");
 }
 
 /** One search entry per method, so a method name or summary finds its resource page. */

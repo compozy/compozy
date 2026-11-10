@@ -8,6 +8,7 @@ import type { MouseEvent, ReactNode } from "react";
 
 import { BEAM, FOCUS } from "@/components/docs/docs-classes";
 import { useRevealCurrent } from "@/components/docs/hooks/use-reveal-current";
+import { containsUrl } from "@/lib/docs-navigation";
 import type { DocsNavNode } from "@/lib/docs-shell";
 
 export interface DocsSidebarGroup {
@@ -34,11 +35,6 @@ const ROW = cn(
 function shortLabel(name: string) {
   if (!name.startsWith("compozy ")) return name;
   return name.split(" ").at(-1) ?? name;
-}
-
-function containsUrl(node: DocsNavNode, url: string): boolean {
-  if (node.url === url) return true;
-  return (node.children ?? []).some(child => !child.separator && containsUrl(child, url));
 }
 
 function Glyph({ icon }: { icon: ReactNode }) {

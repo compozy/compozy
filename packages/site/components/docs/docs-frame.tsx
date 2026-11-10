@@ -12,7 +12,7 @@ import { useState, type ReactNode } from "react";
 import { DocsDrawer } from "@/components/docs/docs-chrome";
 import { BELOW_HEADER, LINE } from "@/components/docs/docs-classes";
 import { DocsSidebar, type DocsSidebarGroup } from "@/components/docs/docs-sidebar";
-import { currentSectionId, normalizeDocsUrl } from "@/lib/docs-navigation";
+import { currentSectionId, foldersHolding, normalizeDocsUrl } from "@/lib/docs-navigation";
 
 export interface DocsFrameSection extends DocsSidebarGroup {
   /** Top-level path segments under `/docs/` the section owns. */
@@ -30,7 +30,24 @@ export function DocsFrame({
   children: ReactNode;
 }) {
   const url = normalizeDocsUrl(usePathname());
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const [folders, setFolders] = useState<{ url: string; toggled: Record<string, boolean> }>({
+    url,
+    toggled: {},
+  });
+  // Landing on a page inside a folder the reader closed opens it again, with its ancestors, so the
+  // current row shows; folders toggled anywhere else keep their state.
+  if (folders.url !== url) {
+    const reopened = new Set(
+      foldersHolding(
+        sections.flatMap(section => section.nodes),
+        url
+      )
+    );
+    const toggled = Object.fromEntries(
+      Object.entries(folders.toggled).filter(([key]) => !reopened.has(key))
+    );
+    setFolders({ url, toggled });
+  }
   const sectionId = currentSectionId(sections, url);
   // The sidebar shows the page's section; pages outside every section see all of them.
   const groups = sectionId ? sections.filter(section => section.id === sectionId) : sections;
@@ -38,8 +55,10 @@ export function DocsFrame({
     <DocsSidebar
       groups={groups}
       activeUrl={url}
-      toggled={toggled}
-      onToggle={(key, open) => setToggled(current => ({ ...current, [key]: open }))}
+      toggled={folders.toggled}
+      onToggle={(key, open) =>
+        setFolders(current => ({ ...current, toggled: { ...current.toggled, [key]: open } }))
+      }
     />
   );
   const drawer = <DocsDrawer>{sidebar}</DocsDrawer>;

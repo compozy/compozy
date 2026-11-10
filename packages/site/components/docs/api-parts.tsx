@@ -12,6 +12,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { BELOW_HEADER, FOCUS, LINE } from "@/components/docs/docs-classes";
 import { CodeFrame } from "@/components/docs/docs-prose";
+import { useOpenAtFragment } from "@/components/docs/hooks/use-open-at-fragment";
 import { operationAnchor } from "@/lib/api-reference";
 
 const PREVIEW = 12;
@@ -159,9 +160,11 @@ export function Transports({ transports }: { transports: unknown }) {
  */
 export function ApiResponses({ schema }: { schema: ReactNode }) {
   const { responses } = useOperation();
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const frame = useOpenAtFragment<HTMLDivElement>(schemaOpen, setSchemaOpen);
   if (responses.length === 0) return null;
   return (
-    <div className="mt-9">
+    <div ref={frame} className="mt-9">
       <p className={LABEL}>Responses</p>
       <dl className={cn("m-0 divide-y divide-site-light-080 border-y", LINE)}>
         {responses.map(({ status, response }) => (
@@ -182,9 +185,11 @@ export function ApiResponses({ schema }: { schema: ReactNode }) {
         <Disclosure
           label="Response schema"
           size="md"
-          // Kept in the DOM while closed, as the `<details>` it replaces was: find-in-page and the
-          // schema's anchors still reach it.
-          keepMounted
+          // Findable while closed, as the `<details>` it replaces was: find-in-page and a link to
+          // an id inside the schema open it.
+          hiddenUntilFound
+          open={schemaOpen}
+          onOpenChange={setSchemaOpen}
           className="mt-3"
           triggerProps={{ className: "h-8 py-0 text-[13.5px] font-normal" }}
           contentProps={{ className: "api-response-schema pt-3" }}

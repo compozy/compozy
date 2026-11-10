@@ -75,6 +75,8 @@
                 "scripts/generate-openapi.ts",
                 "lib/openapi.ts",
                 "lib/docs-navigation.ts",
+                "lib/api-reference-build.ts",
+                "lib/sdk-reference-build.ts",
                 "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
                 "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
                 "$TURBO_ROOT$/openapi/compozy.json",
@@ -83,7 +85,8 @@
             "outputs": [
                 "content/docs/api/*.mdx",
                 "!content/docs/api/index.mdx",
-                "content/docs/api/meta.json"
+                "content/docs/api/meta.json",
+                "lib/api-reference-data.json"
             ]
         },
         "@compozy/site#generate:sdk": {
@@ -124,7 +127,8 @@
                 "!content/docs/api/meta.json",
                 "!content/docs/api/support.mdx",
                 "!content/docs/sdk/meta.json",
-                "!lib/sdk-reference-data.json"
+                "!lib/sdk-reference-data.json",
+                "!lib/api-reference-data.json"
             ],
             "outputs": [".source/**", ".velite/**"]
         },

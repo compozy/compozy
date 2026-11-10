@@ -10,7 +10,12 @@ import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
 import { generateSDKCodeSamples, withSDKCodeSamples, type SDKSampleManifest } from "../sdk-samples";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
-import { apiOperationCount, operationAnchor } from "../api-reference";
+import { apiOperationCount, apiOperations, operationAnchor } from "../api-reference";
+import {
+  apiOperationKey,
+  buildApiOperationFacts,
+  type ApiOpenAPIDocument,
+} from "../api-reference-build";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
@@ -228,6 +233,43 @@ describe("apiOperationCount", () => {
 
   it("Should report no endpoints for hand-written pages", () => {
     expect(apiOperationCount('## API overview\n\nSee `{"path":"/api/x","method":"get"}`.')).toBe(0);
+  });
+});
+
+describe("buildApiOperationFacts", () => {
+  it("Should list every operation's parameters and body fields as the contract types them", () => {
+    const document = loadOpenAPI() as ApiOpenAPIDocument;
+    const facts = buildApiOperationFacts(document);
+    const operations = Object.entries(document.paths ?? {}).flatMap(([path, methods]) =>
+      Object.keys(methods).map(method => apiOperationKey(method, path))
+    );
+    expect(Object.keys(facts).sort()).toEqual(operations.sort());
+
+    const spawn = facts[apiOperationKey("post", "/api/agent/spawn")];
+    expect(spawn?.parameters).toContainEqual({
+      name: "X-Compozy-Session-ID",
+      in: "header",
+      type: "string",
+      required: true,
+      description: "Daemon-issued active session id",
+    });
+    expect(spawn?.body).toMatchObject({ contentType: "application/json", required: true });
+    expect(spawn?.body?.type).toBe("AgentSpawnRequest");
+    expect(spawn?.body?.fields).toContainEqual({
+      name: "agent_name",
+      type: "string",
+      required: true,
+    });
+    expect(spawn?.body?.fields).toContainEqual({ name: "model", type: "string", required: false });
+  });
+
+  it("Should read a generated page's operations in page order", () => {
+    const source =
+      '<OpenAPIPage operations={[{"path":"/api/b","method":"post"},{"path":"/api/a","method":"get"}]} />';
+    expect(apiOperations(source)).toEqual([
+      { method: "post", path: "/api/b" },
+      { method: "get", path: "/api/a" },
+    ]);
   });
 });
 

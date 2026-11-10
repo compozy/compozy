@@ -53,3 +53,16 @@ export const Framed: Story = {
     children: <Facts />,
   },
 };
+
+/** Closed but findable: find-in-page and a link to an id inside the panel open it. */
+export const HiddenUntilFound: Story = {
+  args: { label: "Response schema", size: "md", hiddenUntilFound: true, children: <Facts /> },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const panel = canvasElement.querySelector("[data-slot='disclosure-content']");
+    await expect(panel).toHaveAttribute("hidden", "until-found");
+    await userEvent.click(canvas.getByRole("button", { name: "Response schema" }));
+    await expect(canvas.getByText("4312")).toBeVisible();
+  },
+};

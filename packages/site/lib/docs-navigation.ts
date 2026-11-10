@@ -121,6 +121,28 @@ export interface DocsSection {
   items: Node[];
 }
 
+/** A sidebar row as far as folder state cares: its key, landing page and children. */
+interface NavFolderNode {
+  key: string;
+  url?: string;
+  separator?: boolean;
+  children?: readonly NavFolderNode[];
+}
+
+/** Whether `url` is this row's page or a page somewhere inside it. */
+export function containsUrl(node: NavFolderNode, url: string): boolean {
+  if (node.url === url) return true;
+  return (node.children ?? []).some(child => !child.separator && containsUrl(child, url));
+}
+
+/** The keys of the folders that hold the page at `url`: its folder and that folder's ancestors. */
+export function foldersHolding(nodes: readonly NavFolderNode[], url: string): string[] {
+  return nodes.flatMap(node => {
+    if (node.separator || !node.children?.length || !containsUrl(node, url)) return [];
+    return [node.key, ...foldersHolding(node.children, url)];
+  });
+}
+
 /** `/docs/sessions/lifecycle/` and `/docs/sessions/lifecycle` name the same page. */
 export function normalizeDocsUrl(url: string): string {
   const path = url.split(/[?#]/, 1)[0] ?? "";

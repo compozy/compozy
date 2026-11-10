@@ -11,6 +11,7 @@ import {
   buildSdkReference,
   renderResourceStub,
   renderSdkMeta,
+  SDK_GUIDE_PAGES,
   type OpenAPIDocument,
   type SdkReferenceInputs,
 } from "@/lib/sdk-reference-build";
@@ -21,7 +22,11 @@ import {
   type SdkLang,
   type SdkReference,
 } from "@/lib/sdk-reference-model";
-import { expandSdkOverview, sdkResourceMarkdown } from "@/lib/sdk-reference-markdown";
+import {
+  expandSdkLanguages,
+  expandSdkOverview,
+  sdkResourceMarkdown,
+} from "@/lib/sdk-reference-markdown";
 import { sdkFacts } from "@/lib/sdk-reference";
 import type { SDKSampleManifest } from "@/lib/sdk-samples";
 
@@ -230,5 +235,15 @@ describe("SDK counts and overview Markdown", () => {
     expect(markdown).toContain("- [Client](/docs/sdk/client): Create a client.");
     const first = reference.resources[0];
     expect(markdown).toContain(`- [${first?.title}](/docs/sdk/${first?.slug}): `);
+  });
+
+  it("leaves no SDK component tag in the overview or any client guide", () => {
+    for (const slug of ["index", ...SDK_GUIDE_PAGES]) {
+      const page = readFileSync(resolve(siteRoot, `content/docs/sdk/${slug}.mdx`), "utf8");
+      const body = page.replace(/^---\n[\s\S]*?\n---\n/, "");
+      const markdown = expandSdkLanguages(expandSdkOverview(body, () => []));
+      expect(markdown.match(/<\/?Sdk\w*[^\n]*/g) ?? [], slug).toEqual([]);
+      expect(markdown, slug).toContain("**TypeScript**");
+    }
   });
 });

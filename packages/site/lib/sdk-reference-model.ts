@@ -78,6 +78,9 @@ export const SDK_LANGS: readonly { id: SdkLang; label: string; module: string }[
   { id: "go", label: "Go", module: 'import "github.com/compozy/compozy/sdk/go/client"' },
 ];
 
+/** What a Go `SdkSymbol` marked `none` says: the symbol exists in TypeScript only. */
+export const SDK_NO_GO_EQUIVALENT = "TypeScript only. The Go client has no equivalent.";
+
 export function isSdkLang(value: unknown): value is SdkLang {
   return value === "ts" || value === "go";
 }

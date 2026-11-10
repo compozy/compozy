@@ -1,6 +1,8 @@
 import type { InferPageType } from "fumadocs-core/source";
+import { expandApiOperations } from "@/lib/api-reference-markdown";
 import { SDK_GUIDE_PAGES } from "@/lib/sdk-reference-build";
 import {
+  expandSdkLanguages,
   expandSdkOverview,
   expandSdkResources,
   type SdkGuideLink,
@@ -38,8 +40,11 @@ function sdkGuides(): SdkGuideLink[] {
 
 export async function getLLMText(page: DocsPage): Promise<string> {
   // The authored Markdown with its includes embedded and its imports and exports dropped.
-  const value = await page.data.getText("processed");
+  const processed = await page.data.getText("processed");
   const description = page.data.description ?? "";
+  // A generated API page keeps its operations in the export the processed text drops.
+  const value =
+    page.slugs[0] === "api" ? expandApiOperations(processed, getDocsPageSource(page)) : processed;
 
   return [
     `# ${page.data.title}`,
@@ -48,6 +53,6 @@ export async function getLLMText(page: DocsPage): Promise<string> {
     description,
     "",
     // SDK pages hold components; their Markdown lists what they render.
-    expandSdkOverview(expandSdkResources(value), sdkGuides),
+    expandSdkLanguages(expandSdkOverview(expandSdkResources(value), sdkGuides)),
   ].join("\n");
 }

@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 import { LINE } from "@/components/docs/docs-classes";
 import { SdkLang } from "@/components/sdk/sdk-lang";
-import type { SdkLang as Lang } from "@/lib/sdk-reference-model";
+import { SDK_NO_GO_EQUIVALENT, type SdkLang as Lang } from "@/lib/sdk-reference-model";
 
 export function SdkSymbol({
   lang,
@@ -23,7 +23,7 @@ export function SdkSymbol({
     <SdkLang lang={lang}>
       {none ? (
         <p className="not-prose my-0 rounded-[12px] border border-site-light-090 px-4 py-3 text-[14.5px] text-muted-foreground">
-          TypeScript only. The Go client has no equivalent.
+          {SDK_NO_GO_EQUIVALENT}
         </p>
       ) : (
         <div className="flex flex-col gap-7 [&>*]:my-0!">{children}</div>

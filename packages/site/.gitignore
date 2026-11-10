@@ -11,6 +11,7 @@ tsconfig.tsbuildinfo
 /content/docs/api/*.mdx
 /content/docs/api/meta.json
 !/content/docs/api/index.mdx
+/lib/api-reference-data.json
 .vercel
 .env*
 
