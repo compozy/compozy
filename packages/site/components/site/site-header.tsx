@@ -27,7 +27,9 @@ function StarButton() {
         FOCUS
       )}
     >
-      <Star className="size-3.5" aria-hidden /> Star on GitHub
+      {/* On the narrowest phones only the star shows, so the menu button is never clipped. */}
+      <Star className="size-3.5" aria-hidden />{" "}
+      <span className="max-[379px]:sr-only">Star on GitHub</span>
       {stars === null ? null : (
         <span className="ml-2 hidden border-l border-site-light-150 pl-3 font-mono text-[12.5px] text-muted-foreground tabular-nums sm:inline">
           {STAR_FORMAT.format(stars)}
