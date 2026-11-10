@@ -1542,6 +1542,8 @@ func nativeLoopNodeMutationRecorder(
 }
 
 type nativeLoopServiceStub struct {
+	getLoopRequestFn       func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
+	listLoopRequestsFn     func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error)
 	listLoopsFn            func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
 	createLoopFn           func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
 	getLoopFn              func(context.Context, string, string) (contract.LoopResponse, error)
@@ -1994,21 +1996,26 @@ func (s *nativeLoopServiceStub) ApproveLoopRun(
 }
 
 func (s *nativeLoopServiceStub) ListLoopRequests(
-	context.Context,
-	string,
-	core.LoopRequestListQuery,
+	ctx context.Context,
+	workspace string,
+	query core.LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if s.listLoopRequestsFn != nil {
+		return s.listLoopRequestsFn(ctx, workspace, query)
+	}
 	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
 }
 
 func (s *nativeLoopServiceStub) GetLoopRequest(
-	context.Context,
-	string,
-	string,
-	int,
-	string,
-	int,
+	ctx context.Context,
+	workspace, run string,
+	generation int,
+	node string,
+	item int,
 ) (contract.LoopRequestPayload, error) {
+	if s.getLoopRequestFn != nil {
+		return s.getLoopRequestFn(ctx, workspace, run, generation, node, item)
+	}
 	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
 }
 

@@ -78,7 +78,12 @@ const cmdPaletteInvokeOutputSchema = `{
 		"status":{"type":"string"},
 		"result":{"type":"object","additionalProperties":true},
 		"approval_id":{"type":"string"},
-		"invocation_id":{"type":"string"}
+		"invocation_id":{"type":"string"},
+		"profile_lens":{
+            "type":"object",
+            "properties":{"profile_lens_id":{"type":"string"},"profile_name":{"type":"string"}},
+            "additionalProperties":false
+        }
 	},
 	"additionalProperties":false
 }`

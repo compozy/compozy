@@ -31,6 +31,7 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -18009,4 +18010,152 @@ func TestNativeToolHookResultViews(t *testing.T) {
 			}
 		})
 	}
+}
+
+// UT-032: handler payloads carrying corrected fields satisfy the declared output contract.
+func TestNativeCorrectedOutputSchemas(t *testing.T) {
+	t.Parallel()
+	opened := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	request := contract.LoopRequestPayload{
+		WorkspaceID: "ws-a",
+		ProfileID:   "profile-a",
+		LoopRunID:   "run-a",
+		Generation:  1,
+		NodeID:      "ask",
+		Kind:        "ask",
+		State:       "pending",
+		Context:     json.RawMessage(`{}`),
+		Decisions:   []string{"respond"},
+		Agents:      "allow",
+		OpenedAt:    opened,
+	}
+	grant := materializedApprovalGrant(
+		"grant-a",
+		toolspkg.ApprovalGrantKey{
+			ProfileID:   "profile-a",
+			WorkspaceID: "ws-a",
+			ToolID:      toolspkg.ToolIDLoopRuns,
+			AccessScope: "workspace:ws-b",
+		},
+		toolspkg.ApprovalGrantAllow,
+	)
+	loopRuns := contract.LoopRunsResponse{
+		Runs:       []contract.LoopRunPayload{},
+		Aggregates: contract.LoopRunsAggregatePayload{Historical: 1},
+	}
+	loopStatus := contract.LoopRunResponse{
+		Run: contract.LoopRunPayload{ID: "run-a", CompletionState: "complete"},
+		Generations: []contract.LoopGenerationPayload{
+			{
+				Generation:  1,
+				Origin:      "initial",
+				RouteCauses: []contract.LoopRouteCausePayload{},
+				Verdicts: []contract.LoopGateVerdictPayload{
+					{
+						GateID:         "gate",
+						ItemIndex:      2,
+						Outcome:        "approved",
+						BlockingIssues: []contract.LoopGateBlockingIssuePayload{},
+						Criteria:       []contract.LoopGateCriterionDetailPayload{},
+					},
+				},
+				Outputs: []contract.LoopGenerationOutput{
+					{NodeID: "agent", Status: "succeeded", SessionID: "sess-a"},
+				},
+			},
+		},
+		NodeControls: []contract.LoopNodeControlPayload{},
+		Waits:        []contract.LoopNodeWaitPayload{},
+		Requests:     []contract.LoopRequestPayload{},
+		Amendments:   []contract.LoopNodeAmendmentPayload{},
+	}
+	loopRequests := contract.LoopRequestsResponse{Items: []contract.LoopRequestPayload{request}}
+	inputs := map[toolspkg.ToolID]string{
+		toolspkg.ToolIDLoopRuns:          `{}`,
+		toolspkg.ToolIDLoopStatus:        `{"run_id":"run-a"}`,
+		toolspkg.ToolIDLoopRequests:      `{}`,
+		toolspkg.ToolIDLoopRequest:       `{"run_id":"run-a","generation":1,"node_id":"ask"}`,
+		toolspkg.ToolIDCmdPaletteInvoke:  `{"id":"core.test"}`,
+		toolspkg.ToolIDToolApprovalsSet:  `{"tool_id":"compozy__loop_runs","decision":"allow","scope":"tool"}`,
+		toolspkg.ToolIDToolApprovalsList: `{}`,
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		rawInput, ok := inputs[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should accept returned fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			service := &nativeLoopServiceStub{
+				listLoopRunsFn: func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
+					return loopRuns, nil
+				},
+				getLoopRunFn: func(context.Context, string, string) (contract.LoopRunResponse, error) {
+					return loopStatus, nil
+				},
+				listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+					return loopRequests, nil
+				},
+				getLoopRequestFn: func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error) {
+					return request, nil
+				},
+			}
+			palette := &nativeCmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{Status: "completed"}}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions:   nativeTestSessionManager("ws-a"),
+					Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"ws-a": "ws-a"}},
+					Loops:      func() core.LoopService { return service },
+					CmdPalette: func() cmdpalette.Registry { return palette },
+					ApprovalGrants: &correctedOutputGrantStore{
+						recordingApprovalGrantStore: &recordingApprovalGrantStore{
+							grants: []toolspkg.ApprovalGrant{grant},
+						},
+					},
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input := json.RawMessage(rawInput)
+			if descriptor.ResultViews() != nil {
+				var fields map[string]any
+				if err := json.Unmarshal(input, &fields); err != nil {
+					t.Fatal(err)
+				}
+				fields[toolspkg.ResultViewInputKey] = "full"
+				var err error
+				input, err = json.Marshal(fields)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: "ws-a",
+					SessionID:   "sess-a",
+					AgentName:   "codex",
+				},
+				toolspkg.CallRequest{ToolID: descriptor.ID, Input: input},
+			)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if views := descriptor.ResultViews(); views != nil {
+				descriptor.OutputSchema = views.Full.Schema
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, result.Structured)
+		})
+	}
+}
+
+type correctedOutputGrantStore struct{ *recordingApprovalGrantStore }
+
+func (s *correctedOutputGrantStore) PutApprovalGrant(
+	context.Context,
+	toolspkg.ApprovalGrant,
+) (toolspkg.ApprovalGrant, error) {
+	return s.grants[0], nil
 }

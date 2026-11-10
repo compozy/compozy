@@ -106,6 +106,7 @@ const toolApprovalGrantOutputObjectSchema = `{
 		"agent_name":{"type":"string"},
 		"tool_id":{"type":"string"},
 		"input_digest":{"type":"string"},
+		"access_scope":{"type":"string"},
 		"decision":{"type":"string","enum":["allow","reject"]},
 		"created_at":{"type":"string","format":"date-time"},
 		"last_used_at":{"type":"string","format":"date-time"}

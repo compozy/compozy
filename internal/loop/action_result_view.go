@@ -55,7 +55,7 @@ func validatePinnedActionContract(
 	}
 	_, currentOutput := current.OutputSchemaFor(view)
 	currentInput := current.InputSchemaDigest
-	// Remove the pre-view translation in the first release after the one shipping views (issue #1462).
+	// Remove this translation and supersededActionOutputDigests in the first release after shipping views (issue #1462).
 	if expected != nil && expected.FullOutputSchemaDigest == "" && current.FullOutputSchemaDigest != "" {
 		currentInput = current.PreViewInputSchemaDigest
 	}
@@ -64,7 +64,7 @@ func validatePinnedActionContract(
 		_, expectedOutput := expected.OutputSchemaFor(view)
 		if strings.TrimSpace(expected.ToolID) == kind &&
 			strings.TrimSpace(expected.InputSchemaDigest) == strings.TrimSpace(currentInput) &&
-			strings.TrimSpace(expectedOutput) == strings.TrimSpace(currentOutput) {
+			pinnedOutputDigestMatches(kind, expected, expectedOutput, currentOutput) {
 			return nil
 		}
 		meta["expected_input_schema_digest"] = strings.TrimSpace(expected.InputSchemaDigest)
@@ -88,4 +88,16 @@ func reviewToolInputSchema(snapshot ToolSchemaSnapshot) (json.RawMessage, error)
 		delete(properties, tools.ResultViewInputKey)
 	}
 	return json.Marshal(schema)
+}
+
+func pinnedOutputDigestMatches(kind string, expected *ToolSchemaSnapshot, pinned, current string) bool {
+	pinned, current = strings.TrimSpace(pinned), strings.TrimSpace(current)
+	if pinned == current {
+		return true
+	}
+	if expected.FullOutputSchemaDigest != "" {
+		return false
+	}
+	correction, ok := supersededActionOutputDigests[kind]
+	return ok && pinned == correction.old && current == correction.corrected
 }

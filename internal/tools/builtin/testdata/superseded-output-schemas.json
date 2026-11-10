@@ -1,0 +1,852 @@
+{
+    "compozy__cmd_palette_invoke": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+            "status": {
+                "type": "string"
+            },
+            "result": {
+                "type": "object",
+                "additionalProperties": true
+            },
+            "approval_id": {
+                "type": "string"
+            },
+            "invocation_id": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__loop_request": {
+        "type": "object",
+        "required": [
+            "loop_run_id",
+            "generation",
+            "node_id",
+            "item_index",
+            "kind",
+            "state",
+            "prompt",
+            "context",
+            "decisions",
+            "agents",
+            "opened_at"
+        ],
+        "properties": {
+            "loop_run_id": {
+                "type": "string",
+                "minLength": 1
+            },
+            "loop_name": {
+                "type": "string"
+            },
+            "generation": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "node_id": {
+                "type": "string",
+                "minLength": 1
+            },
+            "item_index": {
+                "type": "integer",
+                "minimum": 0
+            },
+            "kind": {
+                "type": "string",
+                "enum": ["ask", "review"]
+            },
+            "state": {
+                "type": "string",
+                "enum": ["pending", "answered", "expired", "canceled"]
+            },
+            "prompt": {
+                "type": "string"
+            },
+            "context": {},
+            "expect": {},
+            "edit_schema": {},
+            "respond_schema": {},
+            "proposed_preview": {},
+            "decisions": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "agents": {
+                "type": "string",
+                "enum": ["allow", "deny"]
+            },
+            "answered_decision": {
+                "type": "string"
+            },
+            "actor_kind": {
+                "type": "string"
+            },
+            "actor_id": {
+                "type": "string"
+            },
+            "opened_at": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "answered_at": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "resolved_at": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "expires_at": {
+                "type": "string",
+                "format": "date-time"
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__loop_requests": {
+        "type": "object",
+        "required": ["items", "aggregates", "next_cursor"],
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "loop_run_id",
+                        "generation",
+                        "node_id",
+                        "item_index",
+                        "kind",
+                        "state",
+                        "prompt",
+                        "context",
+                        "decisions",
+                        "agents",
+                        "opened_at"
+                    ],
+                    "properties": {
+                        "loop_run_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "loop_name": {
+                            "type": "string"
+                        },
+                        "generation": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "node_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "item_index": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "kind": {
+                            "type": "string",
+                            "enum": ["ask", "review"]
+                        },
+                        "state": {
+                            "type": "string",
+                            "enum": ["pending", "answered", "expired", "canceled"]
+                        },
+                        "prompt": {
+                            "type": "string"
+                        },
+                        "context": {},
+                        "expect": {},
+                        "edit_schema": {},
+                        "respond_schema": {},
+                        "proposed_preview": {},
+                        "decisions": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "agents": {
+                            "type": "string",
+                            "enum": ["allow", "deny"]
+                        },
+                        "answered_decision": {
+                            "type": "string"
+                        },
+                        "actor_kind": {
+                            "type": "string"
+                        },
+                        "actor_id": {
+                            "type": "string"
+                        },
+                        "opened_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "answered_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "resolved_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "expires_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "aggregates": {
+                "type": "object",
+                "required": ["pending"],
+                "properties": {
+                    "pending": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "additionalProperties": false
+            },
+            "next_cursor": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__loop_runs": {
+        "type": "object",
+        "required": ["runs", "aggregates"],
+        "properties": {
+            "runs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "not": {
+                        "required": ["generations"]
+                    },
+                    "required": ["id", "completion_state"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "completion_state": {
+                            "type": "string",
+                            "enum": ["complete", "partial"]
+                        },
+                        "best_generation": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "best_score": {
+                            "type": "number"
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "aggregates": {
+                "type": "object",
+                "required": ["total", "live", "terminal", "succeeded", "failed"],
+                "properties": {
+                    "total": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "live": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "terminal": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "succeeded": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "failed": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "additionalProperties": false
+            },
+            "next_cursor": {
+                "type": "string",
+                "description": "Opaque continuation cursor for the next page; omitted when no further page exists."
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__loop_status": {
+        "type": "object",
+        "required": [
+            "run",
+            "materialized_contract",
+            "effective_config",
+            "node_controls",
+            "waits",
+            "requests",
+            "amendments"
+        ],
+        "properties": {
+            "run": {
+                "type": "object",
+                "required": ["id", "completion_state"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "completion_state": {
+                        "type": "string",
+                        "enum": ["complete", "partial"]
+                    },
+                    "best_generation": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "best_score": {
+                        "type": "number"
+                    }
+                },
+                "additionalProperties": true
+            },
+            "executed_definition": {
+                "type": "object"
+            },
+            "materialized_contract": {
+                "type": "object"
+            },
+            "effective_config": {
+                "type": "object",
+                "properties": {
+                    "sources": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "additionalProperties": true
+            },
+            "generations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "generation",
+                        "parent_generation",
+                        "origin",
+                        "route_causes",
+                        "verdicts",
+                        "outputs"
+                    ],
+                    "properties": {
+                        "generation": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "parent_generation": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "origin": {
+                            "type": "string",
+                            "enum": [
+                                "initial",
+                                "stop_when",
+                                "reattempt",
+                                "gate_revise",
+                                "gate_next_generation",
+                                "dod_retry",
+                                "ratchet_restore",
+                                "requeue"
+                            ]
+                        },
+                        "route_causes": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["node_id", "item_index", "route", "cause", "at"],
+                                "properties": {
+                                    "node_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "item_index": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "route": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "cause": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "matched_when": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "boolean"
+                                    },
+                                    "at": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "verdicts": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["gate_id", "outcome"],
+                                "properties": {
+                                    "gate_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "outcome": {
+                                        "type": "string",
+                                        "enum": [
+                                            "approved",
+                                            "rejected",
+                                            "awaiting_approval",
+                                            "blocked",
+                                            "error",
+                                            "timeout",
+                                            "invalid_output"
+                                        ]
+                                    },
+                                    "score": {
+                                        "type": "number"
+                                    },
+                                    "route_cause_rank": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "blocking_issues": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "criteria": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "outputs": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["node_id", "status"],
+                                "properties": {
+                                    "generation": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "node_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "item_index": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "output_ref": {
+                                        "type": "string"
+                                    },
+                                    "task_run_id": {
+                                        "type": "string"
+                                    },
+                                    "child_loop_run_id": {
+                                        "type": "string"
+                                    },
+                                    "resolved_runtime": {
+                                        "type": "object"
+                                    },
+                                    "attempt": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "next_attempt_at": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    },
+                                    "failure_class": {
+                                        "type": "string"
+                                    },
+                                    "disposition": {
+                                        "type": "string"
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "node_controls": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "waits": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "requests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "loop_run_id",
+                        "generation",
+                        "node_id",
+                        "item_index",
+                        "kind",
+                        "state",
+                        "prompt",
+                        "context",
+                        "decisions",
+                        "agents",
+                        "opened_at"
+                    ],
+                    "properties": {
+                        "loop_run_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "loop_name": {
+                            "type": "string"
+                        },
+                        "generation": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "node_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "item_index": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "kind": {
+                            "type": "string",
+                            "enum": ["ask", "review"]
+                        },
+                        "state": {
+                            "type": "string",
+                            "enum": ["pending", "answered", "expired", "canceled"]
+                        },
+                        "prompt": {
+                            "type": "string"
+                        },
+                        "context": {},
+                        "expect": {},
+                        "edit_schema": {},
+                        "respond_schema": {},
+                        "proposed_preview": {},
+                        "decisions": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "agents": {
+                            "type": "string",
+                            "enum": ["allow", "deny"]
+                        },
+                        "answered_decision": {
+                            "type": "string"
+                        },
+                        "actor_kind": {
+                            "type": "string"
+                        },
+                        "actor_id": {
+                            "type": "string"
+                        },
+                        "opened_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "answered_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "resolved_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "expires_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "amendments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "loop_run_id",
+                        "generation",
+                        "node_id",
+                        "item_index",
+                        "amendment_seq",
+                        "actor_kind",
+                        "actor_id",
+                        "created_at"
+                    ],
+                    "properties": {
+                        "loop_run_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "generation": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "node_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "item_index": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "amendment_seq": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "original": {},
+                        "amended": {},
+                        "original_summary": {
+                            "type": "object",
+                            "required": ["byte_size", "content_hash"],
+                            "properties": {
+                                "byte_size": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "content_hash": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "amended_summary": {
+                            "type": "object",
+                            "required": ["byte_size", "content_hash"],
+                            "properties": {
+                                "byte_size": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "content_hash": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "actor_kind": {
+                            "type": "string"
+                        },
+                        "actor_id": {
+                            "type": "string"
+                        },
+                        "reason": {
+                            "type": "string"
+                        },
+                        "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "watch_events": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__tool_approvals_list": {
+        "type": "object",
+        "required": ["grants", "total"],
+        "properties": {
+            "grants": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/$defs/grant"
+                }
+            },
+            "total": {
+                "type": "integer",
+                "minimum": 0
+            }
+        },
+        "$defs": {
+            "grant": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "profile_id",
+                    "workspace_id",
+                    "tool_id",
+                    "decision",
+                    "created_at",
+                    "last_used_at"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "profile_id": {
+                        "type": "string"
+                    },
+                    "profile_name": {
+                        "type": "string"
+                    },
+                    "profile_color": {
+                        "type": "string"
+                    },
+                    "profile_icon": {
+                        "type": "string"
+                    },
+                    "profile_emoji": {
+                        "type": "string"
+                    },
+                    "profile_archived": {
+                        "type": "boolean"
+                    },
+                    "workspace_id": {
+                        "type": "string"
+                    },
+                    "agent_name": {
+                        "type": "string"
+                    },
+                    "tool_id": {
+                        "type": "string"
+                    },
+                    "input_digest": {
+                        "type": "string"
+                    },
+                    "decision": {
+                        "type": "string",
+                        "enum": ["allow", "reject"]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "last_used_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false
+    },
+    "compozy__tool_approvals_set": {
+        "type": "object",
+        "required": ["grant"],
+        "properties": {
+            "grant": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "profile_id",
+                    "workspace_id",
+                    "tool_id",
+                    "decision",
+                    "created_at",
+                    "last_used_at"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "profile_id": {
+                        "type": "string"
+                    },
+                    "profile_name": {
+                        "type": "string"
+                    },
+                    "profile_color": {
+                        "type": "string"
+                    },
+                    "profile_icon": {
+                        "type": "string"
+                    },
+                    "profile_emoji": {
+                        "type": "string"
+                    },
+                    "profile_archived": {
+                        "type": "boolean"
+                    },
+                    "workspace_id": {
+                        "type": "string"
+                    },
+                    "agent_name": {
+                        "type": "string"
+                    },
+                    "tool_id": {
+                        "type": "string"
+                    },
+                    "input_digest": {
+                        "type": "string"
+                    },
+                    "decision": {
+                        "type": "string",
+                        "enum": ["allow", "reject"]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "last_used_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false
+    }
+}
