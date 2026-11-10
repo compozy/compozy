@@ -63,6 +63,11 @@ export function worktreesListOptions(
   });
 }
 
+/** A listing parked on a gone root: only a later catalog observation re-enables it. */
+export function isWorktreeListGone(error: unknown): boolean {
+  return error instanceof WorktreeApiError && error.status === 410;
+}
+
 function isWorktreeListTerminalError(error: unknown): error is WorktreeApiError {
   return error instanceof WorktreeApiError && [400, 401, 403, 404, 410].includes(error.status);
 }

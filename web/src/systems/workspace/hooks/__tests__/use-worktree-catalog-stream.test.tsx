@@ -303,6 +303,70 @@ describe("useWorktreeCatalogStream", () => {
     }
   );
 
+  it.each([useWorktrees, () => useWorktreeListings([{ id: "a" }])])(
+    "Should re-render on an unchanged catalog refresh only while the listing is gone (%s)",
+    async useListing => {
+      const listing = {
+        worktrees: [],
+        discovered: [],
+        repo: { git_available: true, git_backed: true },
+      };
+      const fetch = vi.spyOn(worktreeApi, "fetchWorktrees").mockResolvedValue(listing);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      const rows = () => [{ id: "a", root_missing: false }];
+      const observed = Date.now() - 1_000;
+      client.setQueryData(workspaceKeys.list(), rows(), { updatedAt: observed });
+      let renders = 0;
+      const view = renderHook(
+        () => {
+          renders += 1;
+          return useListing("a");
+        },
+        { wrapper }
+      );
+      try {
+        await waitFor(() =>
+          expect(client.getQueryState(workspaceKeys.worktrees("a"))?.status).toBe("success")
+        );
+        const settled = renders;
+        // A poll answering the same rows only moves the catalog's refresh time.
+        await act(async () => {
+          client.setQueryData(workspaceKeys.list(), rows(), { updatedAt: observed + 1 });
+          // TanStack delivers observer notifications on a later macrotask.
+          await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        expect(renders).toBe(settled);
+
+        fetch.mockRejectedValue(
+          new worktreeApi.WorktreeApiError("Missing root", 410, { code: "workspace_root_missing" })
+        );
+        await act(async () => {
+          await client.invalidateQueries({ queryKey: workspaceKeys.worktrees("a") });
+          await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        expect(client.getQueryState(workspaceKeys.worktrees("a"))?.status).toBe("error");
+        expect(fetch).toHaveBeenCalledTimes(2);
+
+        fetch.mockResolvedValue(listing);
+        const gone = client.getQueryState(workspaceKeys.worktrees("a"))!.errorUpdatedAt;
+        await act(async () => {
+          client.setQueryData(workspaceKeys.list(), rows(), { updatedAt: gone + 1 });
+        });
+        await waitFor(() =>
+          expect(client.getQueryState(workspaceKeys.worktrees("a"))?.status).toBe("success")
+        );
+        expect(fetch).toHaveBeenCalledTimes(3);
+      } finally {
+        view.unmount();
+        client.clear();
+        fetch.mockRestore();
+      }
+    }
+  );
+
   it("Should keep the connection when the same workspace population is reordered", () => {
     const source = new FakeCatalogEventSource();
     const factory = vi.fn(() => source);
