@@ -173,3 +173,11 @@ ID, retry it, then remove the session; require one edge and no retained baseline
 admission before a transient ordinary publication read failure and require bounded synchronous
 recovery with one hook and one creator wake after unlock. The existing attention ordering and
 hook suites verify these SQLite schedules; CI owns the full transport/extension journey.
+
+QA impact 2026-11-10 (dismissal response read failure): let the initial Status and fenced
+dismissal succeed, then fail the final Status read. Require the canonical SQLite projection
+to be cleared and exactly one truthful clearing catalog event and attention hook before retry.
+Repeat mark-seen and require no duplicate event/hook or creator wake, including a child with
+notify_creator enabled and a return from Later. The existing Manager dismissal/ordering suite
+executes these SQLite schedules with an injected store read failure. The response still reports
+the read error; CI owns the broader transport/extension journey.
