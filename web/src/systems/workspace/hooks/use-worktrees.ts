@@ -17,7 +17,11 @@ import {
 } from "../adapters/worktree-api";
 import { activeWorkspaceStore } from "../stores/active-workspace-store";
 import { workspaceKeys } from "../lib/query-keys";
-import { worktreesAggregateOptions, worktreesListOptions } from "../lib/query-options";
+import {
+  isWorktreeListGone,
+  worktreesAggregateOptions,
+  worktreesListOptions,
+} from "../lib/query-options";
 import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
@@ -30,8 +34,25 @@ interface UseWorktreesOptions {
   enabled?: boolean;
 }
 
+/**
+ * The catalog as listings read it. Its refresh time matters only to a listing
+ * parked on a gone root, which a later observation re-enables; otherwise the
+ * caller re-renders only when the catalog data changes, not on every poll.
+ */
+function useListingCatalog(workspaceIDs: readonly string[]) {
+  const queryClient = useQueryClient();
+  return useWorkspaces({
+    notifyOnChangeProps: () =>
+      workspaceIDs.some(id =>
+        isWorktreeListGone(queryClient.getQueryState(workspaceKeys.worktrees(id))?.error)
+      )
+        ? ["data", "dataUpdatedAt"]
+        : ["data"],
+  });
+}
+
 export function useWorktrees(workspaceID: string | null, options: UseWorktreesOptions = {}) {
-  const catalog = useWorkspaces();
+  const catalog = useListingCatalog(workspaceID === null ? [] : [workspaceID]);
   const workspace = catalog.data?.find(item => item.id === workspaceID);
   return useQuery(
     worktreesListOptions(
@@ -65,12 +86,12 @@ export function useWorktreeListings(
   workspaces: ReadonlyArray<{ id: string }>,
   options: UseWorktreesOptions = {}
 ): WorktreeListingByWorkspace {
-  const catalog = useWorkspaces();
   const enabled = options.enabled ?? true;
   const workspaceIds: string[] = [];
   for (const workspace of workspaces) {
     if (workspace.id.trim() !== "") workspaceIds.push(workspace.id);
   }
+  const catalog = useListingCatalog(workspaceIds);
 
   return useQueries({
     queries: workspaceIds.map(id => {

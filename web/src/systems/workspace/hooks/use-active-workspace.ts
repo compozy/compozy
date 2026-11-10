@@ -34,7 +34,12 @@ export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   });
 
   return {
-    ...query,
+    // Named reads only: spreading the query would read every field, so each
+    // unchanged catalog poll would re-render every caller across the shell.
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
     ...resolution,
     workspaces: resolution.projectWorkspaces,
     hasWorkspaces: resolution.projectWorkspaces.length > 0,
