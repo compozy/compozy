@@ -1264,7 +1264,9 @@ always-on agents. An empty list does not establish that the profile has no insta
 `active_count` measures occupied capacity across all workspaces in the selected profiles,
 independent of row filters and pagination. `max_active_instances` is the cap for each profile,
 including when an all-profiles read sums counts. The CLI list uses the same capacity semantics
-but filters agent names only when `--agent` is provided.
+but filters agent names only when `--agent` is provided. These capacity semantics apply only to
+ordinary lists: `peers: true` (CLI `--peers`) leaves both capacity fields at zero to mean
+unavailable, not unused capacity.
 
 Ensure-main requires an existing instance. A missing native target returns
 `agent_instance_not_found`, not a backend health error. Ensure-main does not support

@@ -369,7 +369,9 @@ Instance list `active_count` measures occupied capacity across every workspace i
 profiles, independently of row filters and pagination. `max_active_instances` is the per-profile
 cap. An empty filtered page can therefore have a positive count. Native instance lists default to
 the caller's agent and workspace and return only authorized instances; CLI lists filter agent names
-only with `--agent`.
+only with `--agent`. These capacity semantics apply only to ordinary lists. Peer lists
+(`peers: true`, CLI `--peers`) leave both capacity fields at zero to mean unavailable,
+not unused capacity.
 
 Ensure-main requires an existing instance. Missing native targets return
 `agent_instance_not_found`. Ensure-main does not support dry runs: the native tool rejects
