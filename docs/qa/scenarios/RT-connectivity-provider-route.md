@@ -56,3 +56,12 @@ QA impact 2026-10-18: when a challenge response stalls after its headers and the
 expires, report endpoint probe timeout even if the reader completes with an empty body. Never
 advertise an endpoint from a canceled probe. The existing TestEndpointProbeDiagnostics real TLS
 case verifies this boundary; the full public-provider walk retains its independent lab requirements.
+
+QA impact 2026-11-10: hosts whose only internet path is a policy-routed interface (Cloudflare
+WARP, split-tunnel VPN) must establish without pinning sockets to the main-table default device.
+The embedded tsnet node now disables Tailscale's logical netns, so its control/DERP dials follow
+`ip route get`. Pre-fix evidence: `ss -tanpe` showed `SYN-SENT 10.113.90.100%br0:… ->
+192.200.0.110:443` and `Up()` ended at the deadline; post-fix the same dial reaches the control
+plane in 1.7s and returns the API error for a dummy key. `TestTSNetNodeUsesHostRouting` covers
+the dialer contract. The full healthy/address walk still needs an authorized tailnet key, so the
+scenario remains blocked-verify.
