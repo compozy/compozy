@@ -59,6 +59,7 @@ const agentHeartbeatCompactStatusSchema = `{
   "active":{"type":"boolean"},
   "valid":{"type":"boolean"},
   "validation_status":{"type":"string"},
+  "snapshot_id":{"type":"string"},
   "summary":{"type":"string"},
   "diagnostics":{"type":["array","null"],"items":{
     "type":"object",

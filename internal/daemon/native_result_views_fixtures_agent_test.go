@@ -308,6 +308,7 @@ func nativeAgentHeartbeatViewFixtures(t *testing.T) []nativeResultViewFixture {
 			MustKeep: []string{
 				"heartbeat.valid",
 				"heartbeat.validation_status",
+				"heartbeat.snapshot_id",
 				"heartbeat.diagnostics.0.message",
 				"heartbeat.wake_state.last_reason",
 				"heartbeat.wake_events.0.detail",

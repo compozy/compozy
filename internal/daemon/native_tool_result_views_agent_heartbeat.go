@@ -12,6 +12,7 @@ type compactAgentHeartbeatStatus struct {
 	Active           bool                                        `json:"active"`
 	Valid            bool                                        `json:"valid"`
 	ValidationStatus contract.AuthoredValidationStatus           `json:"validation_status"`
+	SnapshotID       string                                      `json:"snapshot_id,omitempty"`
 	Summary          string                                      `json:"summary,omitempty"`
 	Diagnostics      []contract.AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 	WakeState        *contract.HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
@@ -28,6 +29,7 @@ func compactHeartbeatStatus(p contract.HeartbeatStatusResponse) compactAgentHear
 		Active:           p.Active,
 		Valid:            p.Valid,
 		ValidationStatus: p.ValidationStatus,
+		SnapshotID:       p.SnapshotID,
 		Summary:          p.Summary,
 		Diagnostics:      p.Diagnostics,
 		WakeState:        p.WakeState,
