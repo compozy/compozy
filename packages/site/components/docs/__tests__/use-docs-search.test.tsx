@@ -1,11 +1,14 @@
 // Suite: docs search palette queries
 // Invariant: Search asks the canonical `/api/search/` route, a failed answer is reported as a
 // failure (never as "no page matches") and is not cached, and retrying asks again.
-// Boundary IN: useDocsSearch's requests and returned state.
+//   While a section filter's answer loads, the previous answer's hits from other sections are
+//   not offered, so Enter cannot open a page outside the picked section.
+// Boundary IN: useDocsSearch's requests and returned state; resultGroups' rows.
 // Boundary OUT: The search index and the palette's markup.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { resultGroups } from "../docs-search-results";
 import { useDocsSearch } from "../hooks/use-docs-search";
 
 const requests: string[] = [];
@@ -57,5 +60,34 @@ describe("useDocsSearch", () => {
     expect(again.result.current).toMatchObject({ loading: false, failed: false });
     expect(again.result.current.hits.map(hit => hit.title)).toEqual(["Loops"]);
     expect(requests).toEqual(["/api/search/"]);
+  });
+});
+
+describe("resultGroups", () => {
+  const tabs = [
+    {
+      id: "concepts",
+      label: "Core concepts",
+      count: 2,
+      href: "/docs/sessions",
+      heads: ["sessions"],
+    },
+    { id: "reference", label: "Reference", count: 2, href: "/docs/cli", heads: ["cli", "api"] },
+  ];
+  const staleHits = [
+    { url: "/docs/sessions", title: "Sessions", excerpt: null, breadcrumbs: ["Core concepts"] },
+    { url: "/docs/api/sessions", title: "Sessions", excerpt: null, breadcrumbs: ["Reference"] },
+  ];
+  const urlsOf = (tag: (typeof tabs)[number] | null) =>
+    resultGroups({ tabs, suggested: [] }, "sessions", staleHits, tag).flatMap(group =>
+      group.rows.map(row => row.url)
+    );
+
+  it("offers every section's hits without a filter", () => {
+    expect(urlsOf(null)).toEqual(["/docs/sessions", "/docs/api/sessions"]);
+  });
+
+  it("offers only the picked section's hits while the filtered answer is still loading", () => {
+    expect(urlsOf(tabs[1] ?? null)).toEqual(["/docs/api/sessions"]);
   });
 });

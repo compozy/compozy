@@ -23,10 +23,15 @@ import { useState, type ReactNode } from "react";
 
 import { FOCUS, LINE } from "@/components/docs/docs-classes";
 import { useDocsChrome } from "@/components/docs/hooks/use-docs-chrome";
-import { useDocsSearch, type SearchPageHit } from "@/components/docs/hooks/use-docs-search";
+import {
+  headOf,
+  resultGroups,
+  type DocsSearchSuggestion,
+  type ResultGroup,
+} from "@/components/docs/docs-search-results";
+import { useDocsSearch } from "@/components/docs/hooks/use-docs-search";
 import type { DocsTab } from "@/lib/docs-shell";
 
-const LIMIT = 8;
 const CHIP = cn(
   "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-pill border px-3 text-[13px] transition-colors",
   FOCUS
@@ -34,22 +39,12 @@ const CHIP = cn(
 const CHIP_ON = "border-site-light-350 bg-site-light-100 text-fg";
 const CHIP_OFF = "border-site-light-100 bg-transparent text-muted-foreground hover:text-fg";
 
-export interface DocsSearchSuggestion {
-  url: string;
-  title: string;
-  description: string;
-}
-
 interface DocsSearchProps {
   tabs: readonly DocsTab[];
   total: number;
   suggested: readonly DocsSearchSuggestion[];
   /** Top-level folder icons by path segment, as the sidebar draws them. */
   icons: Readonly<Record<string, ReactNode>>;
-}
-
-function headOf(url: string) {
-  return url.replace(/^\/docs\/?/, "").split("/")[0] ?? "";
 }
 
 function ResultRow(props: {
@@ -72,71 +67,19 @@ function ResultRow(props: {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14.5px] text-fg">{props.title}</span>
         <span className="block truncate text-[13px] text-muted-foreground">{props.detail}</span>
+        {/* Below `sm` the path column is gone, so the path takes its own line: pages that share a
+            title stay distinguishable on a phone. */}
+        {props.path && props.path !== props.detail ? (
+          <span className="mt-0.5 block truncate font-mono text-[11.5px] text-subtle sm:hidden">
+            {props.path}
+          </span>
+        ) : null}
       </span>
       <span className="mt-0.5 hidden max-w-[200px] shrink-0 truncate font-mono text-[11.5px] text-subtle sm:block">
         {props.path}
       </span>
     </CommandItem>
   );
-}
-
-function pathOf(hit: SearchPageHit) {
-  return hit.breadcrumbs.join(" / ");
-}
-
-interface Row {
-  url: string;
-  title: string;
-  detail: string;
-  path: string;
-}
-
-interface ResultGroup {
-  key: string;
-  heading: string;
-  rows: Row[];
-}
-
-function rowOf(hit: SearchPageHit): Row {
-  return { url: hit.url, title: hit.title, detail: hit.excerpt ?? pathOf(hit), path: pathOf(hit) };
-}
-
-/** The palette's groups, in display order: suggestions for an empty query, else hits by section. */
-function resultGroups(
-  props: DocsSearchProps,
-  query: string,
-  hits: readonly SearchPageHit[],
-  tag: string | null
-): ResultGroup[] {
-  if (!query.trim()) {
-    const rows = props.suggested.map(page => ({
-      url: page.url,
-      title: page.title,
-      detail: page.description,
-      path: "",
-    }));
-    return [{ key: "suggested", heading: "Start here", rows }];
-  }
-  // Pages that sit before the first section (the docs home, "How to use these docs") get their own group.
-  const sectioned = new Set(props.tabs.flatMap(tab => tab.heads));
-  const intro = tag === null ? hits.filter(hit => !sectioned.has(headOf(hit.url))) : [];
-  const groups: ResultGroup[] = [];
-  if (intro.length > 0)
-    groups.push({
-      key: "intro",
-      heading: `Docs · ${intro.length}`,
-      rows: intro.slice(0, LIMIT).map(rowOf),
-    });
-  for (const tab of props.tabs) {
-    const matched = hits.filter(hit => tab.heads.includes(headOf(hit.url)));
-    if (matched.length === 0) continue;
-    groups.push({
-      key: tab.id,
-      heading: `${tab.label} · ${matched.length}`,
-      rows: matched.slice(0, LIMIT).map(rowOf),
-    });
-  }
-  return groups;
 }
 
 function Results(props: {
@@ -186,7 +129,7 @@ function Palette(props: DocsSearchProps & { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<DocsTab | null>(null);
   const { hits, loading, failed, retry } = useDocsSearch(query, tag?.label ?? null);
-  const groups = resultGroups(props, query, hits, tag?.label ?? null);
+  const groups = resultGroups(props, query, hits, tag);
   const urls = groups.flatMap(group => group.rows.map(row => row.url));
   // The highlighted row. cmdk moves it only when the query text changes, so a section filter that
   // swaps the results would leave nothing for Enter to open: fall back to the first row shown.
