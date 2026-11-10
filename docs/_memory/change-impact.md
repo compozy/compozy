@@ -5764,3 +5764,26 @@ Updates the Session linked work audit above. Native link/unlink metadata and ris
 - **Docs and official skill.** `skills/compozy/references/` runtime, agent-definitions, loops, tools-and-skills (corrects line 260), new skill-authoring reference; site tutorials; glossary.
 - **QA.** `docs/qa/scenarios/` for pause and brake, held wakes, approvals, permission rules, skill review, events, compaction; extend `MS-web-stays-on-reports.md` and `RT-session-monitor-wake.md`.
 - **Final review corrections.** Daemon-originated tool approvals skip `permission_rules`; deny path rules match regardless of letter case; `approve-edits` and `auto` ask for edits without a contained location and for requests of kind `other` or no kind. `reviewer_mode` is always present on provider summaries (empty means no reviewer); mixed-case reviewer declarations cannot select a full-access mode. Automation event digests always admit the oldest event, and receipts report `policy_disabled` when effective heartbeat policy disables checks. Copilot declares no reviewer, so its `auto` falls back to `approve-edits`.
+
+## Tailscale embedded node host routing — 2026-11-10
+
+Fix for the bundled `tailscale` connectivity provider failing to establish on hosts whose internet
+path is policy-routed away from the main-table default device (Cloudflare WARP, split-tunnel VPN).
+
+- **Native tools.** Not applicable; no tool descriptor changes.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change. On affected hosts the provider now reaches the
+  control plane instead of returning `503 gateway_provider_degraded`.
+- **Extensibility and hooks.** Not applicable; no hook, SDK, or extension-definition change. The
+  provider subprocess calls `netns.SetEnabled(false)` before creating its tsnet node, so the
+  embedded node's control/DERP dials follow the host routing table instead of `SO_BINDTODEVICE`
+  pinned to the main-table default device.
+- **Config.** Not applicable; no new key. Silent device pinning is removed unless `ALL_PROXY` is
+  configured, where the proxy keeps precedence and a warning is logged; tsnet exposes no dialer
+  hook that could offer an opt-in `bind_interface`.
+- **Workspace data isolation.** Not applicable.
+- **User state.** Not applicable; no schema, migration, or file shape changes.
+- **Web.** Not applicable.
+- **Official skill.** Not applicable; `skills/compozy/` behavior is unchanged.
+- **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
+  evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
+  a TLS `401 gateway_device_unauthenticated` at the pairing gate.
