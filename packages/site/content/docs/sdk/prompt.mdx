@@ -20,8 +20,9 @@ compozy.prompt(input: PromptInput): Promise<PromptReply>
   <SdkField name="sessionId" type="string" required />
   <SdkField name="message" type="string" required />
   <SdkField name="mode" type={'"queue" | "interrupt" | "steer"'}>
-    Use `queue` when a session may be busy. `interrupt` and `steer` replace the active turn
-    according to the session's admission rules.
+    Use `queue` when a session may be busy. `interrupt` cancels the active turn and starts this one.
+    `steer` adds the input to the active turn when the provider supports live steering; otherwise
+    the session's admission rules decide how it is delivered.
   </SdkField>
   <SdkField name="idempotencyKey" type="string">
     Generated when omitted. Supply the same key when retrying the same input to preserve its message

@@ -65,7 +65,7 @@ export const OpenAPIPage = createOpenAPIPage({
       <section
         id={operationAnchor(method, path)}
         className={cn(
-          "site-api-endpoint grid gap-x-14 gap-y-8 border-t py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
+          "site-api-endpoint grid gap-x-14 gap-y-8 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
           LINE
         )}
       >

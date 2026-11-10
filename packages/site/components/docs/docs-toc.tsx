@@ -3,11 +3,12 @@
 /** "On this page": the section list beside the article, with the brand beam filling as you read. */
 import { cn } from "@compozy/ui";
 import { ChevronRight } from "@compozy/ui/icons";
-import { m, useReducedMotion, useScroll } from "motion/react";
+import { m, useScroll } from "motion/react";
 import { useRef, type ReactNode } from "react";
 
 import { BEAM, BELOW_HEADER, LINE } from "@/components/docs/docs-classes";
 import { useActiveHeading } from "@/components/docs/hooks/use-active-heading";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 export interface DocsTocItem {
   id: string;
@@ -57,7 +58,7 @@ export function DocsPageFrame({
   const body = useRef<HTMLElement>(null);
   const ids = toc.map(item => item.id);
   const active = useActiveHeading(ids);
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const { scrollYProgress } = useScroll({ target: body, offset: ["start 35%", "end 65%"] });
   return (
     <div

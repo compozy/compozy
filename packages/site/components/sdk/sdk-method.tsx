@@ -89,7 +89,7 @@ export function SdkMethodEntry({
     <section
       id={method.id}
       className={cn(
-        "grid scroll-mt-[184px] gap-x-14 gap-y-7 border-t py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
+        "grid scroll-mt-[184px] gap-x-14 gap-y-7 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
         LINE
       )}
     >
@@ -130,7 +130,7 @@ export function SdkMethodEntry({
           <span className={TAG}>{method.app ? "app tokens allowed" : "app tokens denied"}</span>
         </p>
       </div>
-      <div className={cn("min-w-0 lg:sticky lg:self-start lg:pt-16", BELOW_HEADER)}>
+      <div className={cn("min-w-0 xl:sticky xl:self-start xl:pt-16", BELOW_HEADER)}>
         {sample ? (
           <div className="[&>div]:my-0">
             <SdkSample code={sample} lang={lang} label={lang === "go" ? "main.go" : "example.ts"} />

@@ -299,6 +299,6 @@ export function ResponseExample({ tabs }: { tabs: readonly ResponseTab[] }) {
 /** The right column: samples, then the response, held under the header while the endpoint scrolls. */
 export function ApiExampleColumn({ children }: { children: ReactNode }) {
   return (
-    <div className={cn("min-w-0 lg:sticky lg:self-start lg:pt-6", BELOW_HEADER)}>{children}</div>
+    <div className={cn("min-w-0 xl:sticky xl:self-start xl:pt-6", BELOW_HEADER)}>{children}</div>
   );
 }
