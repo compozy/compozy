@@ -20,7 +20,7 @@ type nativeToolCatalogEntry struct {
 	OpenWorld                 bool                            `json:"open_world"`
 	InputSchemaDigest         string                          `json:"input_schema_digest"`
 	OutputSchemaDigest        string                          `json:"output_schema_digest,omitempty"`
-	ResultContract            string                          `json:"result_contract"`
+	ResultContract            string                          `json:"result_contract,omitempty"`
 	SingleResultReason        builtintools.SingleResultReason `json:"single_result_reason,omitempty"`
 	CompactOutputSchemaDigest string                          `json:"compact_output_schema_digest,omitempty"`
 	FullOutputSchemaDigest    string                          `json:"full_output_schema_digest,omitempty"`
@@ -55,9 +55,9 @@ func generateNativeToolCatalog() ([]byte, error) {
 			entry.ResultContract = "compact_full"
 			entry.CompactOutputSchemaDigest = views.Compact.Digest
 			entry.FullOutputSchemaDigest = views.Full.Digest
-		} else {
+		} else if reason, ok := builtintools.SingleResultReasonFor(descriptor.ID); ok {
 			entry.ResultContract = "single"
-			entry.SingleResultReason, _ = builtintools.SingleResultReasonFor(descriptor.ID)
+			entry.SingleResultReason = reason
 		}
 		slices.Sort(entry.Toolsets)
 		slices.Sort(entry.RequiredCapabilities)

@@ -22,7 +22,74 @@ import (
 
 	"github.com/compozy/compozy/internal/api/spec"
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
+
+func TestGenerateNativeToolCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report only declared result classifications", func(t *testing.T) {
+		t.Parallel()
+		data, err := generateNativeToolCatalog()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var entries []map[string]json.RawMessage
+		if err := json.Unmarshal(data, &entries); err != nil {
+			t.Fatal(err)
+		}
+		descriptors := builtintools.NativeDescriptors()
+		if len(entries) != len(descriptors) {
+			t.Fatalf("catalog entries = %d, want %d", len(entries), len(descriptors))
+		}
+		byID := make(map[toolspkg.ToolID]map[string]json.RawMessage, len(entries))
+		for _, entry := range entries {
+			var id toolspkg.ToolID
+			if err := json.Unmarshal(entry["tool_id"], &id); err != nil {
+				t.Fatal(err)
+			}
+			byID[id] = entry
+		}
+		for _, descriptor := range descriptors {
+			descriptor, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry, ok := byID[descriptor.ID]
+			if !ok {
+				t.Fatalf("catalog omitted %s", descriptor.ID)
+			}
+			want := map[string]string{}
+			if views := descriptor.ResultViews(); views != nil {
+				want["result_contract"] = "compact_full"
+				want["compact_output_schema_digest"] = views.Compact.Digest
+				want["full_output_schema_digest"] = views.Full.Digest
+			} else if reason, ok := builtintools.SingleResultReasonFor(descriptor.ID); ok {
+				want["result_contract"] = "single"
+				want["single_result_reason"] = string(reason)
+			}
+			for _, key := range []string{
+				"result_contract", "single_result_reason", "compact_output_schema_digest", "full_output_schema_digest",
+			} {
+				raw, present := entry[key]
+				expected, required := want[key]
+				if !required {
+					if present {
+						t.Fatalf("%s has undeclared %s: %s", descriptor.ID, key, raw)
+					}
+					continue
+				}
+				var got string
+				if err := json.Unmarshal(raw, &got); err != nil {
+					t.Fatal(err)
+				}
+				if got != expected {
+					t.Fatalf("%s %s = %q, want %q", descriptor.ID, key, got, expected)
+				}
+			}
+		}
+	})
+}
 
 func TestRunWithPaths(t *testing.T) {
 	t.Parallel()
