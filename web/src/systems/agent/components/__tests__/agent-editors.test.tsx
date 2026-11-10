@@ -13,7 +13,13 @@ import { setupServer } from "msw/node";
 import type { ReactElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
+import {
+  settingsGeneralSectionFixture,
+  settingsProvidersCollectionFixture,
+} from "@/systems/settings/mocks";
+import { handlers as statusHandlers } from "@/systems/status/mocks";
 
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 
@@ -49,7 +55,26 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
   useNavigate: () => vi.fn(),
 }));
 
-const server = setupServer(...profileHandlers, ...handlers);
+// The editors also read shell data: projects, tools, sessions, providers, models and Settings.
+// Serve all of it and fail any unhandled request in-process. MSW would otherwise pass it to a
+// real socket, and the refused connection fails the mocked requests queued on it (#1445).
+const shellHandlers = [
+  compozyApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] })),
+  compozyApiMock.get("/api/tools", () => HttpResponse.json({ tools: [] })),
+  compozyApiMock.get("/api/sessions", () =>
+    HttpResponse.json({ sessions: [], page: { has_more: false, limit: 50, total: 0 } })
+  ),
+  compozyApiMock.get("/api/providers", () => HttpResponse.json({ providers: [] })),
+  compozyApiMock.get("/api/settings/general", () =>
+    HttpResponse.json(settingsGeneralSectionFixture)
+  ),
+  compozyApiMock.get("/api/settings/providers", () =>
+    HttpResponse.json({ ...settingsProvidersCollectionFixture, providers: [] })
+  ),
+  compozyApiMock.get("/api/model-catalog/models", () => HttpResponse.json({ models: [] })),
+  compozyApiMock.get("/api/model-catalog/sources/status", () => HttpResponse.json({ sources: [] })),
+];
+const server = setupServer(...profileHandlers, ...statusHandlers, ...handlers, ...shellHandlers);
 const agent: AgentPayload = { ...primaryAgentFixture, label: "Triage Lead" };
 
 function props(overrides: Partial<AgentEditorProps> = {}): AgentEditorProps {
@@ -147,7 +172,7 @@ const MEMORY = `- 2026-10-31 · compozy · Dispatch one executor per issue.
 Prefer short status updates.
 `;
 
-beforeAll(() => server.listen());
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 beforeEach(() => resetAgentMockState());
 afterEach(() => {
   cleanup();
