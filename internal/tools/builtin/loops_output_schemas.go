@@ -83,7 +83,7 @@ const loopStatusOutputSchema = `{
 		},
 		"node_controls":{"type":"array","items":{"type":"object","additionalProperties":true}},
 		"waits":{"type":"array","items":{"type":"object","additionalProperties":true}},
-		"requests":{"type":"array","items":` + loopStatusRequestPayloadSchema + `},
+		"requests":{"type":"array","items":` + loopRequestPayloadSchema + `},
 		"amendments":{"type":"array","items":` + loopAmendmentPayloadSchema + `},
 		"watch_events":{"type":"object"}
 	},

@@ -29,15 +29,15 @@ const loopRespondInputSchema = `{"type":"object","required":["run_id","generatio
 
 const loopNodeAmendInputSchema = `{"type":"object","required":["run_id","node_id","payload"],"additionalProperties":false,"properties":{"workspace":{"type":"string"},"run_id":{"type":"string","minLength":1},"node_id":{"type":"string","minLength":1},"item_index":{"type":"integer","minimum":0},"payload":{},"reason":{"type":"string"}}}`
 
-const loopRequestPayloadPrefix = `{
+const loopRequestPayloadSchema = `{
 	"type":"object",
 	"required":[
 		"loop_run_id","generation","node_id","item_index","kind","state","prompt",
 		"context","decisions","agents","opened_at"
 	],
-	"properties":{`
-
-const loopRequestPayloadFields = `
+	"properties":{
+		"profile_id":{"type":"string"},
+		"workspace_id":{"type":"string"},
 		"loop_run_id":{"type":"string","minLength":1},
 		"loop_name":{"type":"string"},
 		"generation":{"type":"integer","minimum":1},
@@ -63,12 +63,6 @@ const loopRequestPayloadFields = `
 	},
 	"additionalProperties":false
 }`
-
-const loopStatusRequestPayloadSchema = loopRequestPayloadPrefix + loopRequestPayloadFields
-
-const loopRequestPayloadSchema = loopRequestPayloadPrefix + `
-        "profile_id":{"type":"string"},
-        "workspace_id":{"type":"string"},` + loopRequestPayloadFields
 
 const loopRequestsOutputSchema = `{
 	"type":"object",

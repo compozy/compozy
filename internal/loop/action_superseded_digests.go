@@ -20,7 +20,7 @@ var supersededActionOutputDigests = map[string]struct{ old, corrected string }{
 	},
 	"compozy__loop_status": {
 		"280b5ca2dee26b872c12a951e1c6f43bafabad5bb4df35031f1ff9b0dc532a3d",
-		"011aa07e2705aa5d02b64ec6346a342c6aaeefd251752096d5bdb83abc10ca0a",
+		"8b3eecb0e391806775601855fec631d41b8402fadb19e4c70044a5df1f157d85",
 	},
 	"compozy__tool_approvals_list": {
 		"941067bd81c6553ee7b51dab270340f6de777377122c6a59b4803ca7189ab915",

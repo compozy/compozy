@@ -18066,7 +18066,7 @@ func TestNativeCorrectedOutputSchemas(t *testing.T) {
 		},
 		NodeControls: []contract.LoopNodeControlPayload{},
 		Waits:        []contract.LoopNodeWaitPayload{},
-		Requests:     []contract.LoopRequestPayload{},
+		Requests:     []contract.LoopRequestPayload{request},
 		Amendments:   []contract.LoopNodeAmendmentPayload{},
 	}
 	loopRequests := contract.LoopRequestsResponse{Items: []contract.LoopRequestPayload{request}}

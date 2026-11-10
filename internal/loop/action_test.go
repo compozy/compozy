@@ -2169,7 +2169,7 @@ func TestActionRegistrySupersededOutputPins(t *testing.T) {
 				descriptor.InputSchemaDigest = "input-with-selector"
 				descriptor.OutputSchemaDigest = "compact"
 			}
-			for _, variant := range []string{"corrected", "unrelated", "input-drift", "future-output", "post-view"} {
+			for _, variant := range []string{"corrected", "unrelated", "input-drift", "future-output", "post-view", "wrong-tool", "compact-only-correction"} {
 				live := descriptor
 				expected := loop.ToolSchemaSnapshot{
 					ToolID:             descriptor.ID.String(),
@@ -2188,6 +2188,16 @@ func TestActionRegistrySupersededOutputPins(t *testing.T) {
 					} else {
 						live.OutputSchemaDigest = "future"
 					}
+				case "wrong-tool":
+					expected.ToolID = "compozy__other_tool"
+				case "compact-only-correction":
+					if single {
+						continue
+					}
+					views := live.ResultViews()
+					live.OutputSchemaDigest = views.Full.Digest
+					views.Full.Digest = "unrelated-full"
+					live.SetResultViews(views)
 				case "post-view":
 					expected.FullOutputSchemaDigest = digest
 				}
@@ -2241,6 +2251,8 @@ func correctedActionOutputSchema(t *testing.T, id string, old json.RawMessage) j
 		"compozy__loop_status": {
 			"properties.generations.items.properties.outputs.items.properties.session_id",
 			"properties.generations.items.properties.verdicts.items.properties.item_index",
+			"properties.requests.items.properties.profile_id",
+			"properties.requests.items.properties.workspace_id",
 		},
 		"compozy__loop_request": {"properties.profile_id", "properties.workspace_id"},
 		"compozy__loop_requests": {
