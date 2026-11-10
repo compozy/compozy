@@ -158,15 +158,21 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 		}
 		m.attentionCommitMu.Unlock()
 	}
-	after, err := m.Status(ctx, target)
-	if err != nil {
-		return nil, err
+	after, statusErr := m.Status(ctx, target)
+	if statusErr != nil {
+		// A response read failure must not discard an already committed clearing edge.
+		after = new(*before)
+		applyAttentionToInfo(after, commit.After)
+		after.LaterReturnedAt = cloneTimePointer(commit.After.LaterReturnedAt)
 	}
 	if commit.Outcome != "unchanged" {
 		// Captured snapshots preserve Later's origin without another fallible read or a creator wake.
 		m.publishAttentionEdge(ctx, before, after)
 		m.sessionLogger(nil).InfoContext(ctx, "session.attention.seen", "session_id", target,
 			"from", BadgeForInfo(before), "to", BadgeForInfo(after))
+	}
+	if statusErr != nil {
+		return nil, statusErr
 	}
 	return after, nil
 }
