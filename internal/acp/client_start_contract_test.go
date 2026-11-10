@@ -61,14 +61,20 @@ func TestStartInitializeContract(t *testing.T) {
 			)
 		}
 		var capabilities struct {
-			Meta     map[string]any `json:"_meta"`
-			Terminal bool           `json:"terminal"`
+			Meta        map[string]any `json:"_meta"`
+			Terminal    bool           `json:"terminal"`
+			Elicitation *struct {
+				Form json.RawMessage `json:"form"`
+			} `json:"elicitation"`
 		}
 		if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
 			t.Fatalf("decode initialize clientCapabilities: %v", err)
 		}
 		if !capabilities.Terminal {
 			t.Fatal("clientCapabilities.terminal = false, want true")
+		}
+		if capabilities.Elicitation == nil || len(capabilities.Elicitation.Form) == 0 {
+			t.Fatal("clientCapabilities.elicitation.form is absent, want form elicitation advertised")
 		}
 		if value, ok := capabilities.Meta["terminal_output"]; ok {
 			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want absent", value)

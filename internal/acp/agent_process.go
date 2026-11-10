@@ -97,6 +97,7 @@ type AgentProcess struct {
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
 	permissionEventHandler func(AgentEvent, bool)
+	elicitationAsker       ElicitationAsker
 	hostedApprovals        hostedApprovals
 	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string

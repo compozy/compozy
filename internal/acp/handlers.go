@@ -124,6 +124,8 @@ func (p *AgentProcess) handleInboundRequest(
 		return handleInboundRequest(ctx, params, p.handleWriteTextFile)
 	case acpsdk.ClientMethodSessionRequestPermission:
 		return handleInboundRequest(ctx, params, p.handleRequestPermission)
+	case acpsdk.ClientMethodElicitationCreate:
+		return p.handleCreateElicitation(ctx, params)
 	case acpsdk.ClientMethodTerminalCreate:
 		return handleInboundRequest(ctx, params, p.handleCreateTerminal)
 	case acpsdk.ClientMethodTerminalKill:
