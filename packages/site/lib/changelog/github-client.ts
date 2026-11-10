@@ -192,7 +192,9 @@ export async function loadChangelogReleases(): Promise<ChangelogReleasesResult> 
       const reachedCutoff = pagePayloads.some(payload =>
         releaseTagIsBefore(payload.tag_name, CHANGELOG_CUTOFF_TAG)
       );
-      if (pagePayloads.length < RELEASES_PER_PAGE || reachedCutoff) break;
+      // GitHub can return a short page before the end of the list (it hides some entries), so
+      // only an empty page or the cutoff ends the walk.
+      if (pagePayloads.length === 0 || reachedCutoff) break;
       if (page === MAX_RELEASE_PAGES) {
         throw new GitHubClientError(
           "invalid-response",
