@@ -416,7 +416,8 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 		schema, ok := c.outputSchema(node)
 		nodes[string(node.ID)] = refs.NodeSchema{
 			Output: schema, HasOutput: ok,
-			HasProgress: isControlKind(node, dsl.ControlFanOut),
+			HasProgress:     isControlKind(node, dsl.ControlFanOut),
+			AllowOpenOutput: c.toolAllowsOpenOutput(node),
 		}
 		if isControlKind(node, dsl.ControlGate) {
 			gates[string(node.ID)] = struct{}{}
@@ -458,28 +459,4 @@ func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
 
 func isCollectNode(node dsl.Node) bool {
 	return node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlCollect
-}
-
-func (c *lintContext) warnUnknownOutputReferences(
-	nodeID dsl.NodeID,
-	references []refs.Reference,
-	namespace refs.Namespace,
-) {
-	for _, reference := range references {
-		if len(reference.Path) < 3 || reference.Path[0] != namespaceNodesKey ||
-			reference.Path[2] != namespaceOutputKey {
-			continue
-		}
-		node, ok := namespace.Nodes[reference.Path[1]]
-		if !ok || node.HasOutput {
-			continue
-		}
-		c.warn(
-			nodeID,
-			refs.CodeUnresolvablePath,
-			"node %q has no declared output schema; path %q cannot be proven",
-			reference.Path[1],
-			reference.Raw,
-		)
-	}
 }

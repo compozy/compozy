@@ -137,6 +137,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
+			tools.ResultViewCompact,
 		)
 		if err != nil {
 			t.Fatalf("ResolvePinned() error = %v", err)
@@ -169,6 +170,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
+			tools.ResultViewCompact,
 		)
 		if !errors.Is(err, loop.ErrActionInvalidOutput) {
 			t.Fatalf("ResolvePinned() error = %v, want ErrActionInvalidOutput", err)
@@ -2010,4 +2012,114 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 			t.Fatal("Start context had no deadline, want node timeout deadline")
 		}
 	})
+}
+
+// Invariant: a pinned tool executes only its selected contract, translating pre-view snapshots once.
+func TestActionRegistryResultViewPins(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		view         tools.ResultView
+		preView      bool
+		oldInput     string
+		staleInput   bool
+		staleFull    bool
+		staleCompact bool
+		removeViews  bool
+		wantStale    bool
+	}{
+		{name: "Should ignore compact drift for a full node", view: tools.ResultViewFull, staleCompact: true},
+		{name: "Should reject full drift for a full node", view: tools.ResultViewFull, staleFull: true, wantStale: true},
+		{name: "Should ignore full drift for a compact node", view: tools.ResultViewCompact, staleFull: true},
+		{name: "Should reject compact drift for a compact node", view: tools.ResultViewCompact, staleCompact: true, wantStale: true},
+		{name: "Should compare the full pin when live views disappear", view: tools.ResultViewFull, removeViews: true, wantStale: true},
+		{name: "Should translate a pre-view input with properties", preView: true, oldInput: `{"type":"object","properties":{"id":{"type":"string"}}}`},
+		{name: "Should translate a pre-view input without properties", preView: true, oldInput: `{"type":"object","additionalProperties":false}`},
+		{name: "Should reject pre-view full drift", preView: true, staleFull: true, wantStale: true},
+		{name: "Should reject pre-view input drift", preView: true, staleInput: true, wantStale: true},
+		{name: "Should never translate a post-view stale input", view: tools.ResultViewFull, staleInput: true, wantStale: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const id tools.ToolID = "compozy__fixture"
+			oldInput := tc.oldInput
+			if oldInput == "" {
+				oldInput = `{"type":"object"}`
+			}
+			preDigest, err := tools.SchemaDigest(json.RawMessage(oldInput))
+			if err != nil {
+				t.Fatal(err)
+			}
+			descriptor := tools.Descriptor{ID: id, InputSchemaDigest: "input-views", OutputSchemaDigest: "compact"}
+			descriptor.SetResultViews(&tools.ResultViews{
+				Compact: tools.ResultViewContract{Digest: "compact"}, Full: tools.ResultViewContract{Digest: "full"},
+				PreViewInputSchemaDigest: preDigest,
+			})
+			expected := loop.ToolSchemaSnapshot{ToolID: id.String(), InputSchemaDigest: "input-views",
+				OutputSchemaDigest: "compact", FullOutputSchemaDigest: "full"}
+			wantView := tc.view
+			if tc.preView {
+				expected.InputSchemaDigest = preDigest
+				expected.OutputSchemaDigest = "full"
+				expected.FullOutputSchemaDigest = ""
+				wantView = tools.ResultViewFull
+			}
+			if tc.staleInput {
+				expected.InputSchemaDigest = "stale-input"
+			}
+			if tc.staleFull {
+				views := descriptor.ResultViews()
+				views.Full.Digest = "full-changed"
+				descriptor.SetResultViews(views)
+			}
+			if tc.staleCompact {
+				descriptor.OutputSchemaDigest = "compact-changed"
+			}
+			if tc.removeViews {
+				descriptor.SetResultViews(nil)
+			}
+			registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{id: {Descriptor: descriptor}},
+				callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)}}
+			actions := newActionRegistryForTest(t, registry)
+			executor, err := actions.ResolvePinned(t.Context(), tools.Scope{}, id.String(), &expected, tc.view)
+			if tc.wantStale {
+				reason, ok := errors.AsType[*loop.ReasonError](err)
+				if !ok || reason.Code != loop.ReasonCodeActionContractStale {
+					t.Fatalf("error = %v, want stale", err)
+				}
+				if reason.Meta["expected_output_schema_digest"] == "" ||
+					reason.Meta["current_output_schema_digest"] == "" {
+					t.Fatalf("missing digests: %#v", reason.Meta)
+				}
+				if tc.staleFull && reason.Meta["current_output_schema_digest"] != "full-changed" {
+					t.Fatal(reason.Meta)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			node := dsl.Node{ID: "inspect", Class: dsl.NodeClassAction, Kind: id.String(), Params: dsl.NodeParams{}}
+			if tc.view != "" {
+				node.Params[tools.ResultViewInputKey] = string(tc.view)
+			}
+			_, err = executor.Execute(
+				t.Context(),
+				node,
+				loop.ActionExecutionInput{AdmittedParams: dsl.NodeParams{"id": "edited"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call := registry.mustSingleCall(t)
+			var input map[string]any
+			if err := json.Unmarshal(call.Input, &input); err != nil {
+				t.Fatal(err)
+			}
+			if call.PinnedView != wantView || input[tools.ResultViewInputKey] != string(wantView) ||
+				input["id"] != "edited" {
+				t.Fatalf("call = %#v input = %s, want pinned %s after edit", call, call.Input, wantView)
+			}
+		})
+	}
 }

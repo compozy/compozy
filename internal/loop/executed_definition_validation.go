@@ -86,6 +86,10 @@ func validateExecutedToolSnapshots(
 			strings.TrimSpace(snapshot.OutputSchemaDigest) == "") {
 			return fmt.Errorf("%w: executed tool output snapshot %q is incomplete", ErrValidation, kind)
 		}
+		if (len(snapshot.FullOutputSchema) > 0 || snapshot.FullOutputSchemaDigest != "") &&
+			(!json.Valid(snapshot.FullOutputSchema) || strings.TrimSpace(snapshot.FullOutputSchemaDigest) == "") {
+			return fmt.Errorf("%w: executed tool full output snapshot %q is incomplete", ErrValidation, kind)
+		}
 	}
 	return nil
 }

@@ -154,7 +154,7 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 // Resolve returns the executor for a scoped action kind. Reserved kinds win before
 // falling through to the existing RuntimeRegistry.
 func (r *ActionRegistry) Resolve(ctx context.Context, scope tools.Scope, kind string) (ActionExecutor, error) {
-	return r.resolve(ctx, scope, kind, nil, false)
+	return r.resolve(ctx, scope, kind, nil, "", false)
 }
 
 // ResolvePinned returns an executor only when an open tool still matches the Run-owned schema contract.
@@ -163,8 +163,9 @@ func (r *ActionRegistry) ResolvePinned(
 	scope tools.Scope,
 	kind string,
 	expected *ToolSchemaSnapshot,
+	resultView tools.ResultView,
 ) (ActionExecutor, error) {
-	return r.resolve(ctx, scope, kind, expected, true)
+	return r.resolve(ctx, scope, kind, expected, resultView, true)
 }
 
 func (r *ActionRegistry) resolve(
@@ -172,6 +173,7 @@ func (r *ActionRegistry) resolve(
 	scope tools.Scope,
 	kind string,
 	expected *ToolSchemaSnapshot,
+	resultView tools.ResultView,
 	requirePinned bool,
 ) (ActionExecutor, error) {
 	if ctx == nil {
@@ -214,12 +216,14 @@ func (r *ActionRegistry) resolve(
 		return nil, unknownActionKindError(trimmed, err)
 	}
 	if requirePinned {
-		if err := validatePinnedActionContract(trimmed, view.Descriptor, expected); err != nil {
+		if err := validatePinnedActionContract(trimmed, view.Descriptor, expected, resultView); err != nil {
 			return nil, err
 		}
 	}
 	return &ToolCallActionExecutor{
 		runtime:               r.runtime,
+		hasResultViews:        view.Descriptor.ResultViews() != nil,
+		pinnedView:            pinnedActionResultView(expected, view.Descriptor, resultView, requirePinned),
 		toolID:                id,
 		eventReader:           r.events,
 		workspaceRootResolver: r.toolWorkspace,
@@ -228,30 +232,6 @@ func (r *ActionRegistry) resolve(
 			r.maxResultBytes,
 		),
 	}, nil
-}
-
-func validatePinnedActionContract(
-	kind string,
-	descriptor tools.Descriptor,
-	expected *ToolSchemaSnapshot,
-) error {
-	if expected != nil && strings.TrimSpace(expected.ToolID) == kind &&
-		strings.TrimSpace(expected.InputSchemaDigest) == strings.TrimSpace(descriptor.InputSchemaDigest) &&
-		strings.TrimSpace(expected.OutputSchemaDigest) == strings.TrimSpace(descriptor.OutputSchemaDigest) {
-		return nil
-	}
-	meta := map[string]string{actionKindMetaKey: kind}
-	if expected != nil {
-		meta["expected_input_schema_digest"] = strings.TrimSpace(expected.InputSchemaDigest)
-		meta["expected_output_schema_digest"] = strings.TrimSpace(expected.OutputSchemaDigest)
-	}
-	meta["current_input_schema_digest"] = strings.TrimSpace(descriptor.InputSchemaDigest)
-	meta["current_output_schema_digest"] = strings.TrimSpace(descriptor.OutputSchemaDigest)
-	return reasonError(
-		ReasonCodeActionContractStale,
-		fmt.Errorf("%w: action tool contract changed after Start", ErrActionInvalidOutput),
-		meta,
-	)
 }
 
 func unknownActionKindError(kind string, err error) error {

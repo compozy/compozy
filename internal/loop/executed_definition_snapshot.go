@@ -179,6 +179,7 @@ func cloneToolSchemaSnapshots(
 	for kind, snapshot := range snapshots {
 		snapshot.InputSchema = cloneRawMessage(snapshot.InputSchema)
 		snapshot.OutputSchema = cloneRawMessage(snapshot.OutputSchema)
+		snapshot.FullOutputSchema = cloneRawMessage(snapshot.FullOutputSchema)
 		cloned[kind] = snapshot
 	}
 	return cloned

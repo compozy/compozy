@@ -2203,3 +2203,96 @@ func TestCoordinatorRunnerShouldBoundEventWaitAdmission(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: review proposals cannot edit the view, and reviewed/amended outputs use that view's contract.
+func TestCoordinatorReviewResultViewContracts(t *testing.T) {
+	t.Parallel()
+	for _, view := range []string{"compact", "full"} {
+		t.Run("Should preserve the "+view+" view through review and amendments", func(t *testing.T) {
+			t.Parallel()
+			snapshot := ToolSchemaSnapshot{
+				ToolID: "compozy__fixture",
+				InputSchema: json.RawMessage(
+					`{"type":"object","properties":{"id":{"type":"string"},"result_view":{"type":"string","enum":["compact","full"]}},"required":["id"],"additionalProperties":false}`,
+				),
+				InputSchemaDigest:      "input",
+				OutputSchemaDigest:     "compact",
+				FullOutputSchemaDigest: "full",
+				OutputSchema: json.RawMessage(
+					`{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`,
+				),
+				FullOutputSchema: json.RawMessage(
+					`{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"string"}},"additionalProperties":false}`,
+				),
+			}
+			node := dsl.Node{ID: "inspect", Class: dsl.NodeClassAction, Kind: snapshot.ToolID,
+				Params: dsl.NodeParams{"id": "original", "result_view": view}, Review: &dsl.ReviewSpec{
+					Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionEdit, dsl.ReviewDecisionRespond},
+				}}
+			definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}}
+			resolved, err := NewCompiler(
+				WithCompilerToolSchemaSource(snapshotToolSchemas{snapshot.ToolID: snapshot}),
+			).Compile(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := controlLoopRun("looprun-view-"+view, nil)
+			coordinator := controlCoordinatorRun(run, 1)
+			runner := newCoordinatorRunnerForControlTest(t, run, coordinator, nil, coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{
+					1: {{Generation: 1, NodeID: "inspect", Status: generationOutputPending, Attempt: 1}},
+				},
+			}, resolved)
+			plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			if len(payload.Requests) != 1 {
+				t.Fatalf("requests = %#v", payload.Requests)
+			}
+			request := payload.Requests[0]
+			var proposal map[string]any
+			if err := json.Unmarshal(request.Proposed, &proposal); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := proposal["result_view"]; ok {
+				t.Fatalf("proposal includes selector: %s", request.Proposed)
+			}
+			var editSchema dsl.Schema
+			if err := json.Unmarshal(request.EditSchema, &editSchema); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(request.EditSchema), "result_view") {
+				t.Fatalf("edit schema includes selector: %s", request.EditSchema)
+			}
+			proposal["id"] = "edited"
+			edited, err := json.Marshal(proposal)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ValidateActionStructured(editSchema, ActionPromptResult{Structured: edited}); err != nil {
+				t.Fatal(err)
+			}
+			amendment, err := declaredNodeOutputSchema(resolved, node)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+			if string(request.RespondSchema) != string(want) || string(amendment) != string(want) {
+				t.Fatalf("respond=%s amend=%s want=%s", request.RespondSchema, amendment, want)
+			}
+			var outputSchema dsl.Schema
+			if err := json.Unmarshal(amendment, &outputSchema); err != nil {
+				t.Fatal(err)
+			}
+			_, err = ValidateActionStructured(
+				outputSchema,
+				ActionPromptResult{Structured: json.RawMessage(`{"id":"x","details":"full-only"}`)},
+			)
+			if (err == nil) != (view == "full") {
+				t.Fatalf("amend output validation = %v for %s", err, view)
+			}
+		})
+	}
+}

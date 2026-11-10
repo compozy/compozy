@@ -56,7 +56,7 @@ func (n Namespace) validatePreviousNodePath(path []string) *Error {
 		if !node.HasOutput {
 			return newPathError(CodeUnresolvablePath, path, "previous node output has no declared schema")
 		}
-		return validateSchemaPath(node.Output, path[4:], path)
+		return validateSchemaPath(node.Output, path[4:], path, node.AllowOpenOutput)
 	default:
 		return newPathError(CodeUnknownReference, path, "unknown previous node field %q", path[3])
 	}
@@ -83,7 +83,7 @@ func (n Namespace) validateBestNodePath(path []string) *Error {
 	if !node.HasOutput {
 		return newPathError(CodeUnresolvablePath, path, "best node output has no declared schema")
 	}
-	return validateSchemaPath(node.Output, path[4:], path)
+	return validateSchemaPath(node.Output, path[4:], path, node.AllowOpenOutput)
 }
 
 func (n Namespace) historyNode(path []string, root string) (NodeSchema, *Error) {

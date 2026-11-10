@@ -56,9 +56,10 @@ type Namespace struct {
 
 // NodeSchema exposes the referenceable output/status shape for one node.
 type NodeSchema struct {
-	Output      Schema
-	HasOutput   bool
-	HasProgress bool
+	Output          Schema
+	HasOutput       bool
+	HasProgress     bool
+	AllowOpenOutput bool
 }
 
 // Reference records one resolved template or CEL path.
@@ -71,6 +72,7 @@ type Reference struct {
 type Error struct {
 	Code             string
 	Path             []string
+	ReferencePath    []string
 	DeepestValidPath []string
 	AvailableFields  []string
 	AvailableNodes   []string
@@ -154,7 +156,7 @@ func (n Namespace) validateInputPath(path []string) *Error {
 	if !ok {
 		return newPathError(CodeUnknownReference, path, "unknown input %q", path[1])
 	}
-	return validateSchemaPath(schema, path[2:], path)
+	return validateSchemaPath(schema, path[2:], path, false)
 }
 
 func (n Namespace) validateNodePath(path []string) *Error {
@@ -181,7 +183,7 @@ func (n Namespace) validateNodePath(path []string) *Error {
 		if !node.HasOutput {
 			return nil
 		}
-		return validateSchemaPath(node.Output, path[3:], path)
+		return validateSchemaPath(node.Output, path[3:], path, node.AllowOpenOutput)
 	case namespaceProgress:
 		if !node.HasProgress {
 			return newPathError(CodeUnknownReference, path, "node %q does not expose fan-out progress", path[1])
@@ -202,17 +204,20 @@ func validateProgressPath(path []string, fieldIndex int) *Error {
 	return nil
 }
 
-func validateSchemaPath(schema Schema, path []string, original []string) *Error {
+func validateSchemaPath(schema Schema, path []string, original []string, allowOpen bool) *Error {
 	if len(path) == 0 {
 		return nil
 	}
-	if len(schema) == 0 {
+	if len(schema) == 0 && !allowOpen {
 		return newPathError(CodeUnresolvablePath, original, "schema has no child fields")
 	}
 
 	current := any(map[string]any(schema))
 	for idx, segment := range path {
 		next, ok := childSchema(current, segment)
+		if !ok && allowOpen && openSchemaObject(current) {
+			return nil
+		}
 		if !ok {
 			base := len(original) - len(path)
 			invalidPath := append([]string(nil), original[:base+idx+1]...)
@@ -221,6 +226,7 @@ func validateSchemaPath(schema Schema, path []string, original []string) *Error 
 			return &Error{
 				Code:             CodeUnresolvablePath,
 				Path:             invalidPath,
+				ReferencePath:    append([]string(nil), original...),
 				DeepestValidPath: deepest,
 				AvailableFields:  available,
 				Message:          schemaPathMessage(original, deepest, available),
@@ -280,8 +286,9 @@ func childFromProperties(properties any, segment string) (any, bool) {
 
 func newPathError(code string, path []string, format string, args ...any) *Error {
 	return &Error{
-		Code:    code,
-		Path:    append([]string(nil), path...),
-		Message: fmt.Sprintf(format, args...),
+		Code:          code,
+		Path:          append([]string(nil), path...),
+		ReferencePath: append([]string(nil), path...),
+		Message:       fmt.Sprintf(format, args...),
 	}
 }

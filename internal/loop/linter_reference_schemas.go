@@ -83,7 +83,7 @@ func (c *lintContext) sourceOutputSchema(node dsl.Node) (refs.Schema, bool) {
 
 func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if !dsl.IsReservedActionKind(node.Kind) {
-		return c.toolOutputSchema(node.Kind)
+		return c.toolOutputSchema(node)
 	}
 	switch dsl.ActionKind(node.Kind) {
 	case dsl.ActionGoal:
@@ -132,15 +132,16 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	}
 }
 
-func (c *lintContext) toolOutputSchema(kind string) (refs.Schema, bool) {
+func (c *lintContext) toolOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if c.linter.tools == nil {
 		return nil, false
 	}
-	snapshot, ok := c.linter.tools.Snapshot(kind)
-	if !ok || len(snapshot.OutputSchema) == 0 {
+	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+	raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+	if !ok || len(raw) == 0 {
 		return nil, false
 	}
-	schema, err := schemaFromJSON(snapshot.OutputSchema)
+	schema, err := schemaFromJSON(raw)
 	// An invalid tool schema cannot safely participate in downstream reference checks.
 	if err != nil {
 		return nil, false

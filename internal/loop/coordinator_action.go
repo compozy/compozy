@@ -154,6 +154,7 @@ func (r *CoordinatorRunner) resolvePinnedActionExecutor(
 		scope,
 		actionCtx.node.Kind,
 		pinnedSchema,
+		nodeResultView(actionCtx.node),
 	)
 }
 

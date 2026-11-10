@@ -2747,3 +2747,182 @@ func mustJSON(t *testing.T, value map[string]any) json.RawMessage {
 	}
 	return data
 }
+
+// Invariant: references and produces are checked against each node's literal view.
+func TestLinterResultViewReferences(t *testing.T) {
+	t.Parallel()
+	const compact = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
+	const full = `{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false},"scalar":{"type":"string"}},"additionalProperties":false}`
+	for _, tc := range []struct {
+		name     string
+		view     any
+		compact  string
+		full     string
+		path     string
+		produces bool
+		want     string
+		warning  bool
+		prefix   string
+	}{
+		{name: "Should accept compact fields", path: "id"},
+		{name: "Should reject moved fields from previous generations", prefix: "previous.", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should warn for open full fields from the best generation", prefix: "best.", view: "full", full: `{"type":"object"}`, path: "details.name", warning: true},
+		{name: "Should require full for a moved field", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should require full with an empty compact schema", compact: `{}`, path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should accept a declared full field", view: "full", path: "details.name"},
+		{name: "Should accept open full fields with a warning", view: "full", full: `{"type":"object"}`, path: "details.name", warning: true},
+		{name: "Should accept typeless open full fields with a warning", view: "full", full: `{}`, path: "details.name", warning: true},
+		{name: "Should accept object union full fields with a warning", view: "full", full: `{"type":["object","null"]}`, path: "details.name", warning: true},
+		{name: "Should require full for open full fields", full: `{"type":"object"}`, path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject unknown closed compact fields", path: "details.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject unknown closed full fields", view: "full", path: "details.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of a scalar full field", view: "full", path: "scalar.typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of a scalar root", view: "full", full: `{"type":"string"}`, path: "typo", want: refs.CodeUnresolvablePath},
+		{name: "Should reject children of an untyped array", view: "full", full: `{"type":"array"}`, path: "typo", want: refs.CodeUnresolvablePath},
+		{name: "Should require full for produced moved fields", path: "details.name", produces: true, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject produced fields absent from both views", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
+		{name: "Should reject produced fields absent from full", view: "full", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
+		{name: "Should accept produced open full fields with a warning", view: "full", full: `{"type":"object"}`, path: "details.name", produces: true, warning: true},
+		{name: "Should reject a templated selector", view: "{{ .inputs.view }}", path: "id", want: loop.CodeResultViewNotLiteral},
+		{name: "Should reject a non-string selector", view: true, path: "id", want: "schema_invalid"},
+		{name: "Should reject an unknown selector", view: "summary", path: "id", want: "schema_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fullSchema := tc.full
+			if fullSchema == "" {
+				fullSchema = full
+			}
+			compactSchema := tc.compact
+			if compactSchema == "" {
+				compactSchema = compact
+			}
+			snapshot := loop.ToolSchemaSnapshot{
+				ToolID:                 "compozy__fixture",
+				OutputSchema:           json.RawMessage(compactSchema),
+				FullOutputSchema:       json.RawMessage(fullSchema),
+				FullOutputSchemaDigest: "full",
+			}
+			inspect := dsl.Node{
+				ID:     "inspect",
+				Class:  dsl.NodeClassAction,
+				Kind:   snapshot.ToolID,
+				Params: dsl.NodeParams{},
+			}
+			if tc.view != nil {
+				inspect.Params["result_view"] = tc.view
+			}
+			if tc.produces {
+				var value any = "string"
+				parts := strings.Split(tc.path, ".")
+				for _, part := range slices.Backward(parts) {
+					value = map[string]any{part: value}
+				}
+				inspect.Produces = dsl.Schema(value.(map[string]any))
+			}
+			def := singleNodeDefinition(inspect)
+			def.Inputs = map[string]dsl.Input{"view": {Type: dsl.InputTypeString}}
+			if !tc.produces {
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:    "report",
+						Class: dsl.NodeClassAction,
+						Kind:  "run-agent",
+						Params: dsl.NodeParams{
+							"agent":  "codex",
+							"prompt": "Read {{ ." + tc.prefix + "nodes.inspect.output." + tc.path + " }}",
+						},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+			}
+			diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).
+				Lint(def)
+			var codes []string
+			warned := false
+			for _, diagnostic := range diagnostics {
+				if diagnostic.Severity == loop.SeverityWarning {
+					warned = warned || strings.Contains(diagnostic.Message, "cannot be proven")
+					continue
+				}
+				codes = append(codes, diagnostic.Code)
+				if diagnostic.Code == loop.CodeResultViewFieldRequiresFull &&
+					(!strings.Contains(diagnostic.Path, "nodes.inspect.output."+tc.path) || !strings.Contains(diagnostic.Message, snapshot.ToolID) || !strings.Contains(diagnostic.Message, "params of node \"inspect\"")) {
+					t.Fatalf("missing source metadata: %#v", diagnostic)
+				}
+			}
+			if tc.want == "" && len(codes) > 0 || tc.want != "" && !slices.Contains(codes, tc.want) {
+				t.Fatalf("diagnostics = %#v, want %q", diagnostics, tc.want)
+			}
+			if tc.want == refs.CodeUnresolvablePath && slices.Contains(codes, loop.CodeResultViewFieldRequiresFull) {
+				t.Fatal(diagnostics)
+			}
+			if tc.warning && !warned {
+				t.Fatalf("missing open schema warning: %#v", diagnostics)
+			}
+		})
+	}
+	t.Run("Should reject selectors on native single-result tools", func(t *testing.T) {
+		t.Parallel()
+		node := dsl.Node{
+			ID:     "inspect",
+			Class:  dsl.NodeClassAction,
+			Kind:   "compozy__fixture",
+			Params: dsl.NodeParams{"result_view": "full"},
+		}
+		diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{node.Kind: {ToolID: node.Kind, OutputSchema: json.RawMessage(compact)}})).
+			Lint(singleNodeDefinition(node))
+		requireLintMessageContains(
+			t,
+			diagnostics,
+			"schema_invalid",
+			`tool "compozy__fixture" returns a single result and does not accept "result_view"`,
+		)
+	})
+	t.Run("Should select views independently for two nodes on one tool", func(t *testing.T) {
+		t.Parallel()
+		snapshot := loop.ToolSchemaSnapshot{
+			ToolID:                 "compozy__fixture",
+			OutputSchema:           json.RawMessage(compact),
+			FullOutputSchema:       json.RawMessage(full),
+			FullOutputSchemaDigest: "full",
+		}
+		def := singleNodeDefinition(
+			dsl.Node{
+				ID:     "full",
+				Class:  dsl.NodeClassAction,
+				Kind:   snapshot.ToolID,
+				Params: dsl.NodeParams{"result_view": "full"},
+			},
+		)
+		def.Graph.Nodes = append(
+			def.Graph.Nodes,
+			dsl.Node{ID: "compact", Class: dsl.NodeClassAction, Kind: snapshot.ToolID},
+			dsl.Node{
+				ID:    "report",
+				Class: dsl.NodeClassAction,
+				Kind:  "run-agent",
+				Params: dsl.NodeParams{
+					"agent":  "codex",
+					"prompt": "{{ .nodes.full.output.details.name }} {{ .nodes.compact.output.details.name }}",
+				},
+			},
+		)
+		def.Graph.Edges = []dsl.Edge{{From: "full", To: "compact"}, {From: "compact", To: "report"}}
+		diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def)
+		count := 0
+		for _, diagnostic := range diagnostics {
+			if diagnostic.Severity == loop.SeverityError {
+				count++
+				if diagnostic.Code != loop.CodeResultViewFieldRequiresFull ||
+					diagnostic.Path != "nodes.compact.output.details.name" {
+					t.Fatal(diagnostic)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("diagnostics = %#v", diagnostics)
+		}
+	})
+}
