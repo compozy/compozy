@@ -953,6 +953,114 @@ describe("SessionList subagents", () => {
     expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
   });
 
+  // Invariant (#1474): an open child list shows six children in list order, then "Show N more"
+  // reveals the rest and "Show less" folds back; the same control ends the subagent list.
+  describe("child session cap", () => {
+    const parentWithChildren = (
+      count: number,
+      patch: Record<number, Partial<SessionPayload>> = {}
+    ) => [
+      row("parent"),
+      ...Array.from({ length: count }, (_, index) =>
+        row(`child-${index + 1}`, { lineage: lineage("parent"), ...patch[index + 1] })
+      ),
+    ];
+    const childRowIds = () =>
+      within(screen.getByTestId("session-sidebar-thread-parent"))
+        .getAllByTestId(/^session-sidebar-session-child-/)
+        .map(element => element.dataset.testid?.replace("session-sidebar-session-", ""));
+
+    it("Should cap the children at six and expand and collapse with Show more and Show less", async () => {
+      const user = userEvent.setup();
+      renderList({ sessions: [...parentWithChildren(9), row("after")] });
+
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+      ]);
+      expect(screen.getByTestId("session-sidebar-session-after")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Show 3 more" }));
+      expect(childRowIds()).toHaveLength(9);
+      await user.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    it("Should show no control while every child fits under the cap", () => {
+      renderList({ sessions: parentWithChildren(6) });
+
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
+
+    it("Should keep the open child and a child that needs you in place past the cap", () => {
+      renderList({
+        sessions: parentWithChildren(10, { 8: { badge: "waiting-for-input" } }),
+        currentSessionId: "child-10",
+      });
+
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-8",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 2 more" })).toBeInTheDocument();
+    });
+
+    it("Should select hidden children in a range and show them", () => {
+      renderList({ sessions: [...parentWithChildren(8), row("after")] });
+
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-5"), { metaKey: true });
+      fireEvent.click(screen.getByTestId("session-sidebar-session-after"), { shiftKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("5 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+
+      // Deselecting a revealed child keeps it in place until Show less folds the list back.
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-8"));
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+      expect(childRowIds()).toHaveLength(8);
+      fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-7",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 1 more" })).toBeInTheDocument();
+    });
+
+    it("Should select every child with select all and show them", () => {
+      renderList({ sessions: parentWithChildren(8) });
+
+      const first = screen.getByTestId("session-sidebar-session-child-1");
+      fireEvent.click(first, { metaKey: true });
+      fireEvent.keyDown(first, { key: "a", metaKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("9 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
+  });
+
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
     const parent = row("parent", summary(1, 3));
     const plainChild = row("plain", { lineage: lineage("parent") });

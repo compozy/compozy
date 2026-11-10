@@ -21,7 +21,7 @@ interface SessionListBulkSelectionInput {
   shelf: SessionListShelf;
   /** Every listed session; a grouped list joins what each expanded group reads. */
   sessions: readonly SessionPayload[];
-  /** The ids of the rows on screen, in order; ranges and select-all follow it. */
+  /** The ids of the rows the list shows or can reveal (children behind "Show N more"), in order; ranges and select-all follow it. */
   visibleOrder: readonly string[];
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
