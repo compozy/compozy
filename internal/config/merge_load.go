@@ -16,6 +16,14 @@ const configBaseURLKey = "base_url"
 
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
 
+// providerFullAccessDeprecationWarning names the replacement for the retired opt-in. Accept the
+// key through v0.5.6; remove permissionsOverlay.ProviderFullAccess and this warning in v0.5.7.
+const providerFullAccessDeprecationWarning = "permissions.provider_full_access is deprecated and has no effect: " +
+	"permissions.mode = \"approve-all\" now selects the provider's unrestricted mode, and " +
+	"permissions.mode = \"auto\" selects its reviewer mode; remove the key before v0.5.7"
+
+var warnProviderFullAccessDeprecation = sync.OnceFunc(func() { slog.Warn(providerFullAccessDeprecationWarning) })
+
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
 	if dst == nil {
@@ -37,10 +45,6 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 	if roleSource != RoleFieldSourceGlobal && overlay.Agents.Heartbeat.Sources.present() {
 		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")
 		overlay.Agents.Heartbeat.Sources = heartbeatSourcesOverlay{}
-	}
-	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
-		*overlay.Permissions.ProviderFullAccess {
-		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
 	}
 	if err := rejectWorkspaceProviderEnabled(overlay, roleSource); err != nil {
 		return err
@@ -322,7 +326,7 @@ func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 		dst.Mode = *o.Mode
 	}
 	if o.ProviderFullAccess != nil {
-		dst.ProviderFullAccess = *o.ProviderFullAccess
+		warnProviderFullAccessDeprecation()
 	}
 }
 

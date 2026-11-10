@@ -37,7 +37,6 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	}
 	runtimeConfig := spec.workspace.Config
 	if spec.sessionType == SessionTypeTriage {
-		runtimeConfig.Permissions.ProviderFullAccess = false
 		runtimeConfig.Permissions.Mode = compozyconfig.PermissionModeApproveReads
 		spec.permissions = compozyconfig.PermissionModeApproveReads
 		agentDef = compozyconfig.CloneAgentDef(agentDef)

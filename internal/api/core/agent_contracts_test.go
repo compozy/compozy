@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -226,6 +227,15 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
 	}
+	// The approve-all override also projects Claude's unrestricted mode beside the authored options.
+	wantEffectiveOptions := map[string]int{"codex": 2, "claude": 3}
+	bypass := func(option contract.AgentACPOptionSelection) bool {
+		return option.ID == "mode" && option.ValueID == "bypassPermissions"
+	}
+	if !slices.ContainsFunc(claudePayload.EffectiveRuntime.ACPOptions, bypass) {
+		t.Fatalf("claude effective options = %#v, want approve-all bypassPermissions",
+			claudePayload.EffectiveRuntime.ACPOptions)
+	}
 	for name, payload := range map[string]*contract.AgentPayload{
 		"codex":  &codexPayload,
 		"claude": &claudePayload,
@@ -239,7 +249,7 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 			t.Fatalf("%s authored ACP options = %#v", name, payload.ACPOptions)
 		}
 		if payload.EffectiveRuntime == nil || payload.EffectiveRuntime.Speed != contract.SpeedFast ||
-			len(payload.EffectiveRuntime.ACPOptions) != 2 {
+			len(payload.EffectiveRuntime.ACPOptions) != wantEffectiveOptions[name] {
 			t.Fatalf("%s effective runtime defaults = %#v", name, payload.EffectiveRuntime)
 		}
 	}

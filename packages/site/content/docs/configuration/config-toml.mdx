@@ -409,10 +409,9 @@ session_health_stale_after = "2m"
 session_health_hook_min_interval = "1m"
 
 [permissions]
-# Valid values: deny-all, approve-reads, approve-all.
+# Valid values: deny-all, approve-reads, approve-edits, auto, approve-all.
+# approve-all runs Codex, Claude Code, Antigravity, and Copilot in their unrestricted ACP mode.
 mode = "approve-all"
-# Opt in to the provider's unrestricted ACP mode when available (Codex, Claude Code, Antigravity, Copilot).
-provider_full_access = true
 
 [worktrees]
 # Empty uses $COMPOZY_HOME/worktrees/<workspace>/<name> for new managed checkouts.
@@ -1628,10 +1627,10 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                  |
-| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
-| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
+| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                             |
+| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                                |
+| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Deprecated, no effect: `approve-all` selects the provider's unrestricted mode. Loaded with a warning through v0.5.6; removed in v0.5.7. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never

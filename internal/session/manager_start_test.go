@@ -31,7 +31,6 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 			t.Parallel()
 			h := newHarness(t)
 			h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
-			h.cfg.Permissions.ProviderFullAccess = true
 			workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 			if err != nil {
 				t.Fatalf("Resolve() error = %v", err)

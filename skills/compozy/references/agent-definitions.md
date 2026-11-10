@@ -172,7 +172,7 @@ Built-in provider names include claude, codex, gemini, opencode, copilot, cursor
 
 For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
 
-Providers that accept only remote MCP servers over ACP set `session_mcp_transport = "http"` (the `copilot` built-in does): CompozyOS serves each per-session stdio MCP server on a loopback endpoint with a per-session bearer token and closes it with the provider process. `permissions.provider_full_access` maps to Copilot's `allow_all = on` option, and Copilot's Autopilot mode counts as unrestricted, so both require `approve-all`.
+Providers that accept only remote MCP servers over ACP set `session_mcp_transport = "http"` (the `copilot` built-in does): CompozyOS serves each per-session stdio MCP server on a loopback endpoint with a per-session bearer token and closes it with the provider process. `approve-all` selects Copilot's `allow_all = on` option, and Copilot's Autopilot mode counts as unrestricted, so both require `approve-all`.
 
 Per-agent MCP servers load from AGENT.md or an agent-local mcp.json sidecar. The Tools sheet's **Add MCP server** action and the additive `mcp_servers` create/update payload write only the sidecar; existing frontmatter keeps loading. Omitted or empty additions preserve all current servers. Sidecar entries replace same-name frontmatter servers.
 
@@ -381,12 +381,16 @@ The app labels the levels Ask before every action (`deny-all`), Ask before chang
 (`approve-all`); use the wire value in files, config, and calls.
 On-demand children resolve their own definition or settings level.
 
-| Level                       | Claude                                  | Codex                                       |
-| --------------------------- | --------------------------------------- | ------------------------------------------- |
-| `deny-all`, `approve-reads` | Existing read-only candidates           | `read-only`                                 |
-| `approve-edits`             | `acceptEdits`                           | `workspace-write`                           |
-| `auto`                      | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer    |
-| `approve-all`               | Existing permissive candidates          | `agent`, or explicit `provider_full_access` |
+| Level                       | Claude                                  | Codex                                    |
+| --------------------------- | --------------------------------------- | ---------------------------------------- |
+| `deny-all`, `approve-reads` | Existing read-only candidates           | `read-only`                              |
+| `approve-edits`             | `acceptEdits`                           | `workspace-write`                        |
+| `auto`                      | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer |
+| `approve-all`               | `bypassPermissions`                     | `agent-full-access`                      |
+
+`approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and `agy` `yolo`; an agent's explicit
+`mode` or `allow_all` selection wins, and a narrower session level drops it. The deprecated
+`permissions.provider_full_access` key has no effect and is removed in v0.5.7.
 
 Reviewer declarations use `[providers.<id>].reviewer_mode` in global or profile
 configuration. Workspace declarations are ignored with a diagnostic. Unrestricted

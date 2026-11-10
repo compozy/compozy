@@ -8,19 +8,18 @@ CompozyOS applies permissions in two layers:
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
-Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
-unrestricted provider commands: the ACP provider also chooses an operating mode. Set
-`permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
-`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex,
-`bypassPermissions` for Claude Code, `yolo` for Google Antigravity, and the `allow_all = on` option
-for GitHub Copilot CLI. Copilot's Autopilot mode also approves everything, so it counts as an
-unrestricted mode. Unsupported providers fail session resolution clearly instead
-of silently accepting this preference. Existing mode selection is unchanged when the setting is
-false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
-when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
-permissions never permit an unrestricted mode. This setting does not bypass an outer CompozyOS
-operating-system permissions; unrestricted provider commands run
-with the daemon user's access within those boundaries.
+Both layers are scoped to the session workspace. The ACP provider also chooses an operating mode,
+and `approve-all` (**Full access**) selects the provider's unrestricted mode for new sessions,
+including Loop roles: `agent-full-access` for Codex, `bypassPermissions` for Claude Code, `yolo` for
+Google Antigravity, and the `allow_all = on` option for GitHub Copilot CLI. Copilot's Autopilot mode
+also approves everything, so it counts as an unrestricted mode. Other providers keep their own
+`approve-all` mode negotiation. `auto` (**Auto-review**) selects the provider's reviewer mode instead.
+An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS permissions
+never permit an unrestricted mode. Unrestricted provider commands run with the daemon user's
+access inside the CompozyOS workspace and operating-system boundaries.
+
+`permissions.provider_full_access` is deprecated and has no effect: `approve-all` alone selects the
+unrestricted mode. CompozyOS still loads the key through v0.5.6 with a warning; v0.5.7 removes it.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway
@@ -66,8 +65,7 @@ and scripts need no edit.
 An on-demand agent with no `permissions` shows **Follow Settings** and names the current Settings
 level. An always-on agent with no `permissions` shows **Accept edits** marked Default. When the
 agent's provider declares no reviewer, **Auto-review** is marked Not available and the page
-says the agent uses Accept edits instead. On Codex, **Full access** explains that Codex keeps its own
-reviewer unless full access is turned on separately.
+says the agent uses Accept edits instead.
 
 The agent's Permissions page also holds two operator-only controls. **Whose requests can it answer?**
 writes `session_approval` for always-on agents: "Only its own sessions" (`children`) or "Any session it
