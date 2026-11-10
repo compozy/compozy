@@ -2,6 +2,8 @@ package tailscale
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net"
 	"testing"
 
@@ -9,33 +11,50 @@ import (
 	"tailscale.com/net/netns"
 )
 
-func TestTSNetNodeUsesHostRouting(t *testing.T) {
-	t.Setenv("ALL_PROXY", "")
-	t.Setenv("all_proxy", "")
+func TestTSNetNodeRouting(t *testing.T) {
 	t.Setenv("TS_AUTHKEY", "tskey-test")
-	// netns is process-global; leave the default enabled for sibling tests.
-	t.Cleanup(func() { netns.SetEnabled(true) })
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	node, err := newTSNetNode(t.TempDir(), nil)
-	if err != nil {
-		t.Fatalf("newTSNetNode() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := node.Close(context.Background()); err != nil {
-			t.Logf("node.Close(cleanup) error = %v", err)
-		}
-	})
+	for _, tt := range []struct {
+		name     string
+		proxyURL string
+	}{
+		{name: "ShouldUseHostRoutingWithoutProxy"},
+		{name: "ShouldKeepNetnsWhenOutboundProxyIsConfigured", proxyURL: "socks5://127.0.0.1:1080"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("ALL_PROXY", tt.proxyURL)
+			t.Setenv("all_proxy", "")
+			// netns is process-global; start each case from the default and
+			// leave the default enabled for sibling tests.
+			netns.SetEnabled(true)
+			t.Cleanup(func() { netns.SetEnabled(true) })
 
-	// tsnet takes its control-plane and DERP dialers from netns.FromDialer. With
-	// the logical netns enabled, that dialer carries a Control hook that sets
-	// SO_BINDTODEVICE to the main-table default-route device, which is what
-	// stranded establishes on hosts whose egress is policy-routed elsewhere.
-	dialer := netns.FromDialer(func(string, ...any) {}, netmon.NewStatic(), &net.Dialer{})
-	plain, ok := dialer.(*net.Dialer)
-	if !ok {
-		t.Fatalf("netns.FromDialer() type = %T, want *net.Dialer", dialer)
-	}
-	if plain.Control != nil {
-		t.Fatal("embedded node dialer pins sockets to a host device")
+			node, err := newTSNetNode(t.TempDir(), logger)
+			if err != nil {
+				t.Fatalf("newTSNetNode() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := node.Close(context.Background()); closeErr != nil {
+					t.Logf("node.Close(cleanup) error = %v", closeErr)
+				}
+			})
+
+			// tsnet takes its control-plane and DERP dialers from netns.FromDialer.
+			dialer := netns.FromDialer(func(string, ...any) {}, netmon.NewStatic(), &net.Dialer{})
+			if tt.proxyURL != "" {
+				if !netns.IsSOCKSDialer(dialer) {
+					t.Fatal("configured outbound proxy was dropped from the embedded node dialer")
+				}
+				return
+			}
+			plain, ok := dialer.(*net.Dialer)
+			if !ok {
+				t.Fatalf("netns.FromDialer() type = %T, want *net.Dialer", dialer)
+			}
+			if plain.Control != nil {
+				t.Fatal("embedded node dialer pins sockets to a host device")
+			}
+		})
 	}
 }

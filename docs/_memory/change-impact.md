@@ -5692,8 +5692,9 @@ path is policy-routed away from the main-table default device (Cloudflare WARP, 
   provider subprocess calls `netns.SetEnabled(false)` before creating its tsnet node, so the
   embedded node's control/DERP dials follow the host routing table instead of `SO_BINDTODEVICE`
   pinned to the main-table default device.
-- **Config.** Not applicable; no new key. Silent device pinning is removed, and tsnet exposes no
-  dialer hook that could offer an opt-in `bind_interface`.
+- **Config.** Not applicable; no new key. Silent device pinning is removed unless `ALL_PROXY` is
+  configured, where the proxy keeps precedence and a warning is logged; tsnet exposes no dialer
+  hook that could offer an opt-in `bind_interface`.
 - **Workspace data isolation.** Not applicable.
 - **User state.** Not applicable; no schema, migration, or file shape changes.
 - **Web.** Not applicable.
