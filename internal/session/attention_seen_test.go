@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -218,6 +219,155 @@ func TestAttentionBlockerForInfo(t *testing.T) {
 // Owner: session manager; canonical suite: TestManagerAttentionCommitOrdering.
 func TestManagerAttentionCommitOrdering(t *testing.T) {
 	t.Parallel()
+	for _, source := range []string{"early stop", "Later return"} {
+		t.Run(
+			"Should publish a committed "+source+" dismissal even when the final Status read fails",
+			func(t *testing.T) {
+				t.Parallel()
+				var clockMu sync.Mutex
+				now := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
+				h, db := newMentionHarness(t, WithNow(func() time.Time {
+					clockMu.Lock()
+					defer clockMu.Unlock()
+					return now
+				}))
+				sess := createSession(t, h)
+				wantBadge := BadgeIdle
+				if source == "Later return" {
+					returnAt := now.Add(time.Hour)
+					if _, err := h.manager.MoveToLater(
+						t.Context(),
+						h.workspaceID,
+						sess.ID,
+						LaterRequest{ReturnAt: &returnAt},
+					); err != nil {
+						t.Fatal(err)
+					}
+					clockMu.Lock()
+					now = returnAt
+					clockMu.Unlock()
+					if returned, err := h.manager.ReturnDueLaterSessions(t.Context()); err != nil || returned != 1 {
+						t.Fatalf("return from Later = %d, %v", returned, err)
+					}
+					wantBadge = BadgeStopped
+				} else {
+					h.manager.setEndedEarly(t.Context(), sess, "dismiss-status-failure")
+				}
+				h.manager.removeActive(sess.ID)
+				readMeta := h.manager.readSessionMeta
+				h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+					reader := readMeta
+					if reader == nil {
+						reader = store.ReadSessionMeta
+					}
+					meta, err := reader(path)
+					meta.Lineage = &store.SessionLineage{
+						ParentSessionID: "creator", RootSessionID: "creator", SpawnDepth: 1, NotifyCreator: true,
+					}
+					return meta, err
+				}
+				original := h.manager.attentionStore
+				wrapped := &dismissalStatusFailureStore{SessionAttentionStore: original}
+				h.manager.attentionStore = wrapped
+				t.Cleanup(func() {
+					h.manager.attentionStore = original
+					h.manager.mu.Lock()
+					h.manager.sessions[sess.ID] = sess
+					h.manager.mu.Unlock()
+					reportSessionStop(t, h, sess.ID)
+				})
+				var edges []hookspkg.SessionAttentionChangedPayload
+				h.manager.hooks.Attention = attentionHookFunc(
+					func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+						edges = append(edges, p)
+						return p, nil
+					},
+				)
+				var wakes atomic.Int32
+				h.manager.spawnWakeNotifier = attentionWakeFunc(
+					func(context.Context, string, SpawnWakeEvent) error { wakes.Add(1); return nil },
+				)
+				events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+					ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer cancel()
+				if _, err := h.manager.MarkAttentionSeen(
+					t.Context(),
+					sess.ID,
+				); !errors.Is(
+					err,
+					errDismissalStatusRead,
+				) {
+					t.Fatalf("dismissal error = %v, want post-commit read failure", err)
+				}
+				canonical, err := db.GetSessionAttention(t.Context(), sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if canonical.EndedEarlyTurnID != "" || canonical.LaterReturnedAt != nil {
+					t.Fatalf("dismissal did not commit: %+v", canonical)
+				}
+				if len(edges) != 1 {
+					t.Fatalf("committed dismissal hooks before retry: %+v", edges)
+				}
+				seen, err := h.manager.MarkAttentionSeen(t.Context(), sess.ID)
+				if err != nil || seen.EndedEarlyTurnID != "" || seen.LaterReturnedAt != nil {
+					t.Fatalf("retry = %+v, %v", seen, err)
+				}
+				count := 0
+				for len(events) > 0 {
+					if event := <-events; event.Attention != nil {
+						count++
+						if event.Attention.From != BadgeNeedsAttention || event.Attention.To != wantBadge {
+							t.Fatalf("dismissal event: %+v", event)
+						}
+					}
+				}
+				if count != 1 || len(edges) != 1 || edges[0].From != string(BadgeNeedsAttention) ||
+					edges[0].To != string(wantBadge) || wakes.Load() != 0 {
+					t.Fatalf("dismissal events=%d hooks=%+v wakes=%d", count, edges, wakes.Load())
+				}
+				if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: sess.ID, InteractionID: "after-failed-status", ProviderRequestID: "after-failed-status",
+					Kind: store.PendingInteractionKindPermission,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				_, err = h.manager.MarkAttentionSeen(t.Context(), sess.ID)
+				refusal, refused := errors.AsType[*AttentionRequiresActionError](err)
+				if !errors.Is(err, ErrAttentionRequiresAction) || !refused ||
+					refusal.Blocker != AttentionBlockerPendingPermission {
+					t.Fatalf("retry with new permission = %v, want a pending_permission refusal", err)
+				}
+				current, err := db.GetSessionAttention(t.Context(), sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if current.PendingPermissionCount != 1 || current.AttentionRevision <= canonical.AttentionRevision {
+					t.Fatalf("retry lost newer permission: %+v", current)
+				}
+				if len(edges) != 2 || edges[1].From != string(wantBadge) || edges[1].To != string(BadgeWaitingForAuth) {
+					t.Fatalf("retry reapplied stale dismissal: %+v", edges)
+				}
+				newerEvents := 0
+				for len(events) > 0 {
+					if event := <-events; event.Attention != nil {
+						newerEvents++
+						if event.Attention.From != wantBadge || event.Attention.To != BadgeWaitingForAuth {
+							t.Fatalf("new permission event: %+v", event)
+						}
+					}
+				}
+				if newerEvents != 1 {
+					t.Fatalf("new permission events=%d, want one", newerEvents)
+				}
+			},
+		)
+	}
+
 	t.Run("Should publish a nonresident dismissal without another catalog snapshot", func(t *testing.T) {
 		t.Parallel()
 		h, db := newMentionHarness(t)
@@ -818,4 +968,31 @@ func (c *dismissalSnapshotFailureCatalog) ListSessions(
 		return nil, errors.New("injected post-dismissal snapshot failure")
 	}
 	return c.SessionCatalog.ListSessions(ctx, query)
+}
+
+var errDismissalStatusRead = errors.New("injected post-commit Status read failure")
+
+type dismissalStatusFailureStore struct {
+	store.SessionAttentionStore
+	fail atomic.Bool
+}
+
+func (s *dismissalStatusFailureStore) DismissSessionAttention(
+	ctx context.Context, id string, fence store.SessionAttentionFence, at time.Time,
+) (store.SessionAttentionCommit, error) {
+	commit, err := s.SessionAttentionStore.DismissSessionAttention(ctx, id, fence, at)
+	if err == nil {
+		s.fail.Store(true)
+	}
+	return commit, err
+}
+
+func (s *dismissalStatusFailureStore) GetSessionAttention(
+	ctx context.Context,
+	id string,
+) (store.SessionAttention, error) {
+	if s.fail.Swap(false) {
+		return store.SessionAttention{}, errDismissalStatusRead
+	}
+	return s.SessionAttentionStore.GetSessionAttention(ctx, id)
 }

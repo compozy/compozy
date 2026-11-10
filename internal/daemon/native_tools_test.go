@@ -3333,6 +3333,143 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should classify unavailable agent skill catalogs without backend failures", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			definition string
+			wantCode   toolspkg.ErrorCode
+			wantCause  error
+			wantReason toolspkg.ReasonCode
+		}{
+			{name: "Should report a missing authored agent as unavailable", wantCode: toolspkg.ErrorCodeUnavailable, wantCause: skills.ErrAgentNotFound, wantReason: toolspkg.ReasonDependencyMissing},
+			{name: "Should report an invalid authored agent as invalid input", definition: "---\nname: [invalid\n---\n", wantCode: toolspkg.ErrorCodeInvalidInput, wantCause: skills.ErrAgentLocalInvalid, wantReason: toolspkg.ReasonSchemaInvalid},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				agentsDir := t.TempDir()
+				agentPath := filepath.Join(agentsDir, "fixture-agent", "AGENT.md")
+				if tc.definition != "" {
+					if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(agentPath, []byte(tc.definition), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				skillRegistry := skills.NewRegistry(
+					skills.RegistryConfig{BundledFS: skillbundled.FS(), GlobalAgentsDir: agentsDir},
+				)
+				if err := skillRegistry.LoadAll(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				manager := &nativeSessionAgentManager{
+					StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+					agent:              compozyconfig.AgentDef{Name: "fixture-agent", SourcePath: agentPath},
+				}
+				workspaceResolver := nativeTestWorkspaceService(t)
+				workspaceResolver.ResolveForProfileFn = func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+					resolved := workspacepkg.ResolvedWorkspace{
+						ID: "ws-fixture", RootDir: agentsDir,
+					}
+					if tc.definition != "" {
+						if _, err := compozyconfig.LoadAgentDefFile(agentPath); err != nil {
+							resolved.AgentDiagnostics = []workspacepkg.AgentDiagnostic{
+								{Name: "fixture-agent", Path: agentPath, Message: err.Error()},
+							}
+						}
+					}
+					return resolved, nil
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Skills:            skillRegistry,
+						Sessions:          manager,
+						WorkspaceResolver: workspaceResolver,
+						Workspaces:        workspaceResolver,
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						Operator:    true,
+						WorkspaceID: "ws-fixture",
+						SessionID:   "sess-fixture",
+						AgentName:   "fixture-agent",
+					},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"compozy"}`),
+					},
+				)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || toolErr.Code != tc.wantCode || !errors.Is(err, tc.wantCause) {
+					t.Fatalf("skill_view error = %#v, want %s wrapping %v", err, tc.wantCode, tc.wantCause)
+				}
+				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) {
+					t.Fatalf("skill_view reasons = %v, want %q", toolErr.ReasonCodes, tc.wantReason)
+				}
+				if toolErr.Operator == nil || toolErr.Operator.Recovery == "" ||
+					slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+					t.Fatalf("skill_view diagnostics = %#v, want actionable non-backend failure", toolErr)
+				}
+				public, err := json.Marshal(toolErr)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(public, []byte(agentsDir)) {
+					t.Fatalf("skill_view leaked private path: %s", public)
+				}
+			})
+		}
+	})
+
+	t.Run("Should keep missing skills distinct from catalog backend failures", func(t *testing.T) {
+		t.Parallel()
+		sessions := &nativeSessionAgentManager{
+			StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+			agent:              testPromptAgent("Read fixture skills."),
+		}
+		workspace := nativeTestWorkspaceService(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(
+				t,
+			),
+			Sessions:          sessions,
+			WorkspaceResolver: workspace,
+			Workspaces:        workspace,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				Operator:    true,
+				WorkspaceID: "ws-fixture",
+				SessionID:   "sess-fixture",
+				AgentName:   sessions.agent.Name,
+			},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		privateCause := errors.New("private backend path and credential")
+		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
+		requireToolReason(t, backendErr, toolspkg.ErrToolBackendFailed, toolspkg.ReasonBackendUnhealthy)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](backendErr)
+		if !ok || toolErr.Operator == nil || !strings.Contains(toolErr.Operator.Cause, "skill_catalog_resolve") ||
+			!errors.Is(backendErr, privateCause) {
+			t.Fatalf("catalog backend error = %#v", backendErr)
+		}
+		public, err := json.Marshal(toolErr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(public, []byte("private")) {
+			t.Fatalf("catalog backend leaked private cause: %s", public)
+		}
+	})
+
 	t.Run("Should report skill backend phase without exposing private backend errors", func(t *testing.T) {
 		t.Parallel()
 		privateCause := errors.New("private credential and skill contents")

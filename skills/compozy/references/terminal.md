@@ -119,6 +119,12 @@ that do not depend on it. For a plain delay, use `kind="timer"` instead. End you
 remaining step waits on a registered monitor or subagent; the daemon wakes this session when the
 monitor fires. If the exit code matters, read it from the wake's status line.
 
+Claude provider-native subagents cannot receive daemon monitor wakes: they share the parent's
+MCP session identity. Their `monitor_create` calls are refused by a PreToolUse hook when `agent_id`
+is present. Return pending work and any `terminal_id` to the parent, which can register the monitor
+and resume the subagent, or use a separate CompozyOS child session for independent wakes. Do not end
+a provider-native subagent turn expecting a monitor to resume it.
+
 Shell-wait guard. When a session can call both `terminal_exec` and `monitor_create`, CompozyOS refuses
 these waits in provider shells and the refusal names the exact replacement call. It refuses `gh pr
 checks --watch`, `gh run watch`, `watch`, `tail -f`, a `sleep` of 5 seconds or more, and polling loops,

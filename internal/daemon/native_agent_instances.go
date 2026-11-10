@@ -71,9 +71,7 @@ func (n *daemonNativeTools) agentInstanceCall(
 		return toolspkg.ToolResult{}, errors.New("agent instances unavailable")
 	}
 	defer func() {
-		if message := agentinstance.ErrorMessage(callErr, api.MaxActiveInstances); message != "" {
-			callErr = fmt.Errorf("%w: %s", callErr, message)
-		}
+		callErr = nativeInstanceError(req.ToolID, callErr, api.MaxActiveInstances)
 	}()
 	actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: scope.SessionID,
 		WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName, Operator: scope.Operator}
@@ -112,6 +110,10 @@ func (n *daemonNativeTools) agentInstanceCall(
 	}
 	if err := n.authorizeNativeInstanceAction(ctx, api, scope, actor, instance, input, action); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if action == "ensure_main" && input.DryRun {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID,
+			errors.New("ensure_main does not support dry_run; use agent_instance_get to inspect the instance"))
 	}
 	return executeNativeInstanceAction(ctx, api, actor, instance, input, action)
 }
@@ -281,4 +283,15 @@ func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.A
 		return structuredResult(page, "Reachable instance peers")
 	}
 	return nativeInstanceList(ctx, api, actor, query)
+}
+
+func nativeInstanceError(id toolspkg.ToolID, err error, maxActive int) error {
+	if errors.Is(err, agentinstance.ErrNotFound) {
+		return toolspkg.NewToolError(toolspkg.ErrorCodeAgentInstanceNotFound, id,
+			"This agent instance was not found in the selected scope.", err)
+	}
+	if message := agentinstance.ErrorMessage(err, maxActive); message != "" {
+		return fmt.Errorf("%w: %s", err, message)
+	}
+	return err
 }
