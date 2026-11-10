@@ -5,6 +5,8 @@
 // into that remembered choice (issue #792). A window pinned to one profile reads only that profile,
 // whatever the shell shows (issue #1183). A switch moves the remembered choice the aggregate acts as
 // at once, so X → Y → All never acts as X while the persist and reread are in flight (issue #1194).
+// Leaving All profiles keeps it for a reload after a failure only when the daemon refused the write
+// (issue #1436).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -24,6 +26,7 @@ import {
 import {
   fetchProfileSelection,
   fetchProfiles,
+  ProfileApiError,
   putProfileSelection,
 } from "../../adapters/profiles-api";
 import {
@@ -277,6 +280,34 @@ describe("global profile selection", () => {
     // The failed write stops counting as the remembered choice once it settles.
     await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
   });
+
+  it.each([
+    {
+      label: "refused",
+      error: new ProfileApiError("profile is archived", 409, "", ""),
+      kept: true,
+    },
+    { label: "lost its answer", error: new TypeError("Failed to fetch"), kept: false },
+  ])(
+    "Should keep All profiles for a reload only when the daemon $label the switch [#1436]",
+    async ({ error, kept }) => {
+      const { wrapper } = createWrapper();
+      vi.mocked(putProfileSelection).mockRejectedValue(error);
+      const { result } = renderHook(() => useSwitchProfile(), { wrapper });
+      act(() => setProfileView({ kind: "aggregate" }));
+
+      await act(async () => {
+        await result.current
+          .mutateAsync({ kind: "profile", profile: "marketing" })
+          .catch(() => undefined);
+      });
+
+      expect(localProfileView()).toEqual({ kind: "aggregate" });
+      flushStorage(profileViewStore);
+      const persisted = JSON.parse(window.localStorage.getItem("compozy:profile-view") ?? "{}");
+      expect(persisted.context.view).toEqual(kept ? { kind: "aggregate" } : null);
+    }
+  );
 
   it("Should keep All profiles across a reload and resolve a concrete view from the daemon", async () => {
     setProfileView({ kind: "aggregate" });

@@ -475,12 +475,17 @@ test.describe("Profiles", () => {
 
     // Leaving the aggregate returns to a real profile, and a fresh client resolves it. The reload
     // lands before the write answers: the dying document must not restore All profiles (#1436).
+    // The daemon already remembers marketing, so this leg does not depend on the held write's
+    // delivery, which the reload races by design.
     const releaseSelectionWrite = await holdSelectionWrite(appPage);
-    await ui.switcher.click();
-    await ui.switcherOption("marketing").click();
-    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    await releaseSelectionWrite();
+    try {
+      await ui.switcher.click();
+      await ui.switcherOption("marketing").click();
+      await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+    } finally {
+      await releaseSelectionWrite();
+    }
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     const selections =
       await runtime.requestJSON<Array<{ scope: string; profile: string }>>(

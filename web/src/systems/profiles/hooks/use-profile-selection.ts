@@ -4,7 +4,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import { putProfileSelection } from "../adapters/profiles-api";
+import { ProfileApiError, putProfileSelection } from "../adapters/profiles-api";
 import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
 import { profileViewKey } from "../lib/profile-scope";
 import { rememberedAfterSwitches, type SelectionSwitch } from "../lib/profile-scope-resolver";
@@ -167,7 +167,10 @@ export function useSwitchProfile() {
     onError: (error, _view, context) => {
       // Switches overlap: the store rolls this one back along the pending chain, so a later
       // switch keeps the view and a chain of failures returns to where the operator started.
-      if (context && context.switchId !== null) failProfileSwitch(context.switchId);
+      // Only a daemon answer proves the write was not applied; a lost answer leaves it unknown.
+      if (context && context.switchId !== null) {
+        failProfileSwitch(context.switchId, { refused: error instanceof ProfileApiError });
+      }
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
         tone: "error",
