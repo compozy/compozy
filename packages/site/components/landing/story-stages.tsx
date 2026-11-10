@@ -7,14 +7,14 @@ import { useState } from "react";
 
 import { ASSET } from "@/components/landing/assets";
 import { useProblemStage } from "@/components/landing/hooks/use-problem-stage";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 import { useStage } from "@/components/landing/hooks/use-stage";
 import { BEATS, FACES, PANES, PILE_LINE, type Pane } from "@/components/landing/story-data";
 import { TerminalPane } from "@/components/landing/terminal-pane";
 import { STAGE_FADE } from "@/components/site/layout";
 import { Muted } from "@/components/site/primitives";
 import { Camera, Plate, ProductWindow } from "@/components/site/primitives-client";
-import { useScrollTransform } from "@/components/landing/hooks/use-scroll-transform";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 
 function FlyingPane({
   pane,

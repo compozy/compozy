@@ -1,5 +1,6 @@
 import "./global.css";
-import { Figtree, Geist_Mono, Instrument_Sans } from "next/font/google";
+import { Figtree, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
@@ -19,11 +20,12 @@ const figtree = Figtree({
   display: "swap",
 });
 
-const instrumentSans = Instrument_Sans({
-  subsets: ["latin"],
+/** The display face is the same variable Instrument Sans file the app and the drafts load (`@fontsource-variable`). */
+const instrumentSans = localFont({
+  src: "../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2",
   variable: "--font-instrument-sans",
   display: "swap",
-  weight: ["400"],
+  weight: "400 700",
 });
 
 const geistMono = Geist_Mono({
@@ -55,7 +57,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "CompozyOS: one complete environment to create, automate, and supervise agent work",
+        alt: "CompozyOS: the autonomous control plane for your agents",
       },
     ],
   },

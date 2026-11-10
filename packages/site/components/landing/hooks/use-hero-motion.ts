@@ -4,8 +4,8 @@ import { useScroll } from "motion/react";
 import { useRef } from "react";
 
 import { useIsDesktop } from "@/components/site/hooks/use-is-desktop";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
-import { useScrollTransform } from "@/components/landing/hooks/use-scroll-transform";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 
 /** The hero's scroll choreography: the window straightens while the copy lifts away. */
 export function useHeroMotion() {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useStage } from "@/components/landing/hooks/use-stage";
-import { useScrollTransform } from "@/components/landing/hooks/use-scroll-transform";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 
 /** The pile of terminals fades out as the single board takes its place. */
 export function useProblemStage() {

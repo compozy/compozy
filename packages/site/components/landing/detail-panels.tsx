@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 
 import { ASSET } from "@/components/landing/assets";
 import type { Icon } from "@/components/site/primitives";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 const DETAIL_PANELS: ReadonlyArray<{
   icon: Icon;

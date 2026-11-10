@@ -8,7 +8,7 @@ import { BEATS, PANES, PILE_LINE } from "@/components/landing/story-data";
 import { AlwaysOnStage, Faces, ProblemStage } from "@/components/landing/story-stages";
 import { TerminalPane } from "@/components/landing/terminal-pane";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal, ScrollWords } from "@/components/landing/motion";
+import { Reveal, ScrollWords } from "@/components/site/motion";
 import {
   Camera,
   H2,

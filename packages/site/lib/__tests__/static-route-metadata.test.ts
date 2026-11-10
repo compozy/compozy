@@ -4,7 +4,10 @@ import { siteConfig } from "../site-config";
 vi.mock("next/font/google", () => ({
   Figtree: () => ({ variable: "--font-figtree" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
-  Instrument_Sans: () => ({ variable: "--font-instrument-sans" }),
+}));
+
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "--font-instrument-sans" }),
 }));
 
 describe("static public route metadata", () => {
@@ -57,7 +60,7 @@ describe("static public route metadata", () => {
       const { metadata, viewport } = await import("@/app/layout");
 
       expect(siteConfig.description).toBe(
-        "The system around the agent, already built. CompozyOS keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble."
+        "The autonomous control plane for your agents. See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
       );
       expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
       expect(metadata.applicationName).toBe(siteConfig.name);

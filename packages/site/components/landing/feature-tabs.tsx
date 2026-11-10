@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { FEATURES } from "@/components/landing/content";
 import { H3, Muted } from "@/components/site/primitives";
 import { Camera, ProductWindow } from "@/components/site/primitives-client";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 const ADVANCE_MS = 6500;
 
@@ -37,7 +37,7 @@ export function FeatureTabs() {
         setActive(String(value));
         setInteracted(true);
       }}
-      className="mt-14 flex-col gap-0 md:mt-20"
+      className="mt-14 gap-0 md:mt-20"
     >
       <div className="min-h-[108px]">
         {FEATURES.map(feature => (
@@ -62,7 +62,7 @@ export function FeatureTabs() {
         ))}
       </ProductWindow>
       <div className="relative z-10 -mt-8 flex justify-center">
-        <TabsList className="max-w-full flex-wrap justify-center gap-1 rounded-[20px] border border-site-light-150 bg-[#121212]/85 p-1.5 shadow-[0_24px_70px_-10px_#000] backdrop-blur-2xl h-auto">
+        <TabsList className="max-w-full flex-wrap justify-center gap-1 rounded-[20px] border border-site-light-150 bg-[#121212]/85 p-1.5 shadow-[0_24px_70px_-10px_#000] backdrop-blur-2xl group-data-horizontal/tabs:h-auto">
           {FEATURES.map(feature => {
             const on = feature.tab === active;
             return (

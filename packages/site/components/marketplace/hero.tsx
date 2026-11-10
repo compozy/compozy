@@ -3,10 +3,12 @@
 /** Search is the first thing to do here: the page opens on it, among logos people already know. */
 import { cn } from "@compozy/ui";
 import { Search } from "@compozy/ui/icons";
-import { m, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { m, useScroll } from "motion/react";
 
 import plateWatch from "@/components/marketplace/assets/plate-watch.jpg";
 import { EntryLogo } from "@/components/marketplace/entry-card";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 import { CONTAINER } from "@/components/site/layout";
 import { Marquee } from "@/components/site/motion";
 import { H1, LandingEyebrow, Lead, Plate } from "@/components/site/primitives";
@@ -18,25 +20,31 @@ const COLUMN_HALF = "calc(50% + 380px)";
 
 function FloatingLogo({ tile, index }: { tile: Tile; index: number }) {
   const [left, top, depth, size] = tile.slot;
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 700], reduced ? [0, 0] : [0, -170 * depth]);
+  const y = useScrollTransform(scrollY, [0, 700], reduced ? [0, 0] : [0, -170 * depth]);
   return (
     <div className="absolute" style={{ left: `${left}%`, top, transform: `translateX(-${left}%)` }}>
       <m.div style={{ y, opacity: 0.45 + depth * 0.55 }}>
         <m.div
-          initial={reduced ? false : { opacity: 0, scale: 0.7, y: 24 }}
-          animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, y: [0, -9, 0] }}
-          transition={{
-            opacity: { duration: 0.7, delay: 0.15 + index * 0.05 },
-            scale: { duration: 0.9, delay: 0.15 + index * 0.05, ease: [0.16, 1, 0.3, 1] },
-            y: {
-              duration: 6 + (index % 4),
-              delay: index * 0.2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            },
-          }}
+          initial={{ opacity: 0, scale: 0.7, y: 24 }}
+          animate={
+            reduced ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, scale: 1, y: [0, -9, 0] }
+          }
+          transition={
+            reduced
+              ? { duration: 0 }
+              : {
+                  opacity: { duration: 0.7, delay: 0.15 + index * 0.05 },
+                  scale: { duration: 0.9, delay: 0.15 + index * 0.05, ease: [0.16, 1, 0.3, 1] },
+                  y: {
+                    duration: 6 + (index % 4),
+                    delay: index * 0.2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  },
+                }
+          }
         >
           <EntryLogo
             entry={tile.entry}

@@ -1,5 +1,5 @@
 /** Marketing type ramp, links and calls to action on the shipped tokens (ported from the landing draft). */
-import { Button, cn } from "@compozy/ui";
+import { Button, buttonVariants, cn } from "@compozy/ui";
 import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 
@@ -139,15 +139,6 @@ export function TextLink({
   );
 }
 
-/** Base UI `render` element for a CTA link; external URLs open in a new tab. */
-function ctaLink(href: string) {
-  return isExternalHref(href) ? (
-    <Link href={href} target="_blank" rel="noopener noreferrer" />
-  ) : (
-    <Link href={href} />
-  );
-}
-
 /** Calls to action render as links when given `href`, as buttons otherwise. */
 interface CtaProps {
   children: ReactNode;
@@ -156,13 +147,53 @@ interface CtaProps {
   className?: string;
 }
 
+type CtaVariant = "primary" | "outline";
+
+/**
+ * One call to action: a real link (no button role) when it navigates, a button otherwise. The link
+ * wears the button's classes, so both look the same; external URLs open in a new tab.
+ */
+function Cta({
+  children,
+  href,
+  variant,
+  className,
+}: {
+  children: ReactNode;
+  href?: string;
+  variant: CtaVariant;
+  className: string;
+}) {
+  if (href === undefined) {
+    return (
+      <Button size="cta-lg" variant={variant} className={className}>
+        {children}
+      </Button>
+    );
+  }
+  const linkClass = cn(buttonVariants({ size: "cta-lg", variant }), className);
+  return isExternalHref(href) ? (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-slot="button"
+      className={linkClass}
+    >
+      {children}
+    </Link>
+  ) : (
+    <Link href={href} data-slot="button" className={linkClass}>
+      {children}
+    </Link>
+  );
+}
+
 export function PrimaryCta({ children, icon: Glyph, href, className }: CtaProps) {
   return (
-    <Button
-      size="cta-lg"
+    <Cta
+      href={href}
       variant="primary"
-      nativeButton={href === undefined}
-      render={href === undefined ? undefined : ctaLink(href)}
       className={cn(
         "group/cta relative h-[52px] overflow-hidden bg-[image:var(--gradient-brand)] bg-[length:190%_100%] bg-left px-7 text-[15.5px] text-[color:var(--color-on-gradient)] shadow-[0_0_44px_-6px_rgba(29,240,215,0.5)] transition-[background-position,box-shadow] duration-500 hover:bg-right hover:shadow-[0_0_56px_-4px_rgba(29,240,215,0.75)]",
         className
@@ -174,17 +205,15 @@ export function PrimaryCta({ children, icon: Glyph, href, className }: CtaProps)
       />
       {Glyph ? <Glyph /> : null}
       {children}
-    </Button>
+    </Cta>
   );
 }
 
 export function SecondaryCta({ children, icon: Glyph, href, className }: CtaProps) {
   return (
-    <Button
-      size="cta-lg"
+    <Cta
+      href={href}
       variant="outline"
-      nativeButton={href === undefined}
-      render={href === undefined ? undefined : ctaLink(href)}
       className={cn(
         "h-[52px] border-site-light-150 bg-site-light-030 px-7 text-[15.5px] backdrop-blur-md",
         className
@@ -192,6 +221,6 @@ export function SecondaryCta({ children, icon: Glyph, href, className }: CtaProp
     >
       {Glyph ? <Glyph /> : null}
       {children}
-    </Button>
+    </Cta>
   );
 }

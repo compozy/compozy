@@ -4,9 +4,9 @@ import { loadOGFonts } from "../fonts";
 import { LogoLockup, SymbolGlyph } from "../logo";
 import { BEAM, COLORS, FONTS, SIZE, GLOW } from "../tokens";
 
-const HEADLINE = "The system around the agent, already built.";
+const HEADLINE = "The autonomous control plane for your agents.";
 const SUBHEAD =
-  "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.";
+  "See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you.";
 const EYEBROW = "COMPOZYOS";
 
 const FOOTER_RAIL = [

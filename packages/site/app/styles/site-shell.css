@@ -26,6 +26,8 @@
   --site-dark-550: rgb(0 0 0 / 0.55);
   --site-dark-600: rgb(0 0 0 / 0.6);
   --site-dark-700: rgb(0 0 0 / 0.7);
+  /* The teal glow under the pointer on spotlight cards. */
+  --site-spot-teal: rgb(29 240 215 / 0.14);
 }
 
 /*
@@ -33,11 +35,21 @@
  * text ramp, not the warm D9 pins above, so routes inside the shell restore it.
  */
 .site-marketing {
+  /* The drafts render on the shared ui weight ladder (450 regular, 500 medium); the docs keep D9's. */
+  --font-weight-normal: 450;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+  font-weight: var(--font-weight-normal);
   --color-fg: #ececec;
   --color-fg-strong: #ffffff;
   --color-muted-foreground: #989898;
   --color-subtle: #8e8e8e;
   --color-faint: #8d8d8d;
+}
+
+/* A count set inside a display heading keeps its own spacing, not the heading's tight tracking. */
+.site-heading-count {
+  letter-spacing: normal;
 }
 
 /* Hash targets land below the floating marketing header. */

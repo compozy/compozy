@@ -585,6 +585,7 @@ tokens:
       dark-550: "rgb(0 0 0 / 0.55)"
       dark-600: "rgb(0 0 0 / 0.6)"
       dark-700: "rgb(0 0 0 / 0.7)"
+      spot-teal: "rgb(29 240 215 / 0.14)"
 ---
 
 # Design System: CompozyOS
@@ -1472,7 +1473,7 @@ Figtree.
 | `--site-light-250`                          | `rgb(255 255 255 / 0.25)`  | `--site-light-350`                       | `rgb(255 255 255 / 0.35)`                                                                                                                                           | `--site-dark-030`                         | `rgb(0 0 0 / 0.03)`                                                                                                                                                 |
 | `--site-dark-100`                           | `rgb(0 0 0 / 0.1)`         | `--site-dark-150`                        | `rgb(0 0 0 / 0.15)`                                                                                                                                                 | `--site-dark-400`                         | `rgb(0 0 0 / 0.4)`                                                                                                                                                  |
 | `--site-dark-450`                           | `rgb(0 0 0 / 0.45)`        | `--site-dark-550`                        | `rgb(0 0 0 / 0.55)`                                                                                                                                                 | `--site-dark-600`                         | `rgb(0 0 0 / 0.6)`                                                                                                                                                  |
-| `--site-dark-700`                           | `rgb(0 0 0 / 0.7)`         |                                          |                                                                                                                                                                     |                                           |                                                                                                                                                                     |
+| `--site-dark-700`                           | `rgb(0 0 0 / 0.7)`         | `--site-spot-teal`                       | `rgb(29 240 215 / 0.14)`                                                                                                                                            |                                           |                                                                                                                                                                     |
 
 <!-- END:tokens:site-layout -->
 

@@ -5,7 +5,7 @@ import { ASSET } from "@/components/landing/assets";
 import { DetailsRail } from "@/components/landing/details-rail";
 import { FeatureTabs } from "@/components/landing/feature-tabs";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal, ScrollWords } from "@/components/landing/motion";
+import { Reveal, ScrollWords } from "@/components/site/motion";
 import { H2, LandingEyebrow, Plate } from "@/components/site/primitives";
 
 export function BuiltIn() {

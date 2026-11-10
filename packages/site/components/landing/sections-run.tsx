@@ -15,8 +15,7 @@ import { ASSET } from "@/components/landing/assets";
 import { HREF } from "@/components/landing/content";
 import { Typed } from "@/components/landing/typed";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal, ScrollWords } from "@/components/landing/motion";
-import { Marquee } from "@/components/site/motion";
+import { Marquee, Reveal, ScrollWords } from "@/components/site/motion";
 import {
   H2,
   LandingEyebrow,

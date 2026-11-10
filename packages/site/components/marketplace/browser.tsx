@@ -139,10 +139,7 @@ export function Browser({
           <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
             <H3>
               {title}{" "}
-              <span
-                className="ml-1 font-mono text-[15px] text-subtle tabular-nums"
-                style={{ letterSpacing: "normal" }}
-              >
+              <span className="site-heading-count ml-1 font-mono text-[15px] text-subtle tabular-nums">
                 {found.length}
               </span>
             </H3>

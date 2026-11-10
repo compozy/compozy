@@ -10,8 +10,8 @@ import { Dust } from "@/components/landing/fx/dust";
 import { useIsDesktop } from "@/components/site/hooks/use-is-desktop";
 import { HAIRLINE } from "@/components/site/layout";
 import { Plate } from "@/components/site/primitives-client";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
-import { useScrollTransform } from "@/components/landing/hooks/use-scroll-transform";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 
 export function FinalScene({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);

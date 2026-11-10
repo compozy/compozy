@@ -2,9 +2,11 @@
 
 /** The reading column with the section rail beside it; the rail's beam fills as the body is read. */
 import { cn } from "@compozy/ui";
-import { m, useReducedMotion, useScroll } from "motion/react";
+import { m, useScroll } from "motion/react";
 import { useRef, type ReactNode, type RefObject } from "react";
 
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 import { Small } from "@/components/site/primitives";
 
 import { useActiveHeading } from "./hooks/use-active-heading";
@@ -22,8 +24,9 @@ function SectionRail({
   body: RefObject<HTMLDivElement | null>;
 }) {
   const active = useActiveHeading(sections.map(section => section.id));
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const { scrollYProgress } = useScroll({ target: body, offset: ["start 35%", "end 65%"] });
+  const fill = useScrollTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
     <nav
       aria-label="On this page"
@@ -33,7 +36,7 @@ function SectionRail({
       <div className="relative">
         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-site-light-120">
           <m.span
-            style={{ scaleY: reduced ? 1 : scrollYProgress }}
+            style={{ scaleY: reduced ? 1 : fill }}
             className="absolute inset-0 origin-top bg-[linear-gradient(180deg,#1df0d7,#1f87fc)]"
           />
         </span>

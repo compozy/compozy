@@ -13,7 +13,7 @@ import { FinalScene } from "@/components/landing/final-scene";
 import { PopCheck } from "@/components/landing/pop-check";
 import { Typed } from "@/components/landing/typed";
 import { CONTAINER } from "@/components/site/layout";
-import { Reveal, ScrollWords } from "@/components/landing/motion";
+import { Reveal, ScrollWords } from "@/components/site/motion";
 import {
   H2,
   InstallCommand,
@@ -122,9 +122,9 @@ export function Install({ releaseTag }: { releaseTag: string }) {
         </div>
         <Reveal>
           <div className="overflow-hidden rounded-[22px] border border-site-light-120 bg-[#101010] shadow-[0_0_120px_-40px_rgba(31,135,252,0.6)]">
-            <Tabs defaultValue="Desktop" className="flex-col gap-0">
+            <Tabs defaultValue="Desktop" className="gap-0">
               <div className="border-b border-site-light-100 p-2">
-                <TabsList className="flex-wrap gap-1 border-b-0 h-auto">
+                <TabsList className="flex-wrap gap-1 border-b-0 group-data-horizontal/tabs:h-auto">
                   {["Desktop", ...methods.map(method => method.id)].map(id => (
                     <TabsTrigger key={id} value={id} className={TAB}>
                       {id}

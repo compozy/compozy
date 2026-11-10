@@ -3,9 +3,10 @@
 /** The interactive and motion-backed marketing primitives: install command, product camera, windows, plates. */
 import { Button, cn } from "@compozy/ui";
 import { Check, Copy } from "@compozy/ui/icons";
-import { m, useReducedMotion, type MotionStyle } from "motion/react";
+import { m, type MotionStyle } from "motion/react";
 import { useState, type ReactNode } from "react";
 
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 import { WHOLE, focusToTransform, type Focus } from "@/components/site/layout";
 
 export function InstallCommand({ command, className }: { command: string; className?: string }) {
@@ -54,7 +55,7 @@ export function Camera({
   className?: string;
   duration?: number;
 }) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   return (
     <m.div
       className={cn("absolute inset-0", className)}

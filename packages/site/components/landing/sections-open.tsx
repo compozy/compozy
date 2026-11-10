@@ -26,8 +26,7 @@ import {
 import { HeroScene } from "@/components/landing/hero-scene";
 import { BUILTIN_PROVIDER_COUNT } from "@/components/landing/provider-data";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { CountUp, Reveal, WordsIn } from "@/components/landing/motion";
-import { Marquee } from "@/components/site/motion";
+import { CountUp, Marquee, Reveal, WordsIn } from "@/components/site/motion";
 import {
   H1,
   H2,

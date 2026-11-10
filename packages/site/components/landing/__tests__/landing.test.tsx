@@ -49,9 +49,9 @@ function heroLock() {
 
 afterEach(() => cleanup());
 
-/** The href behind a call to action, found by its visible label. */
-function ctaHref(label: string) {
-  return screen.getByText(label).closest("a")?.getAttribute("href");
+/** The href of a call to action, found as a link by its accessible name. */
+function ctaHref(name: string) {
+  return screen.getByRole("link", { name }).getAttribute("href");
 }
 
 describe("Hero", () => {

@@ -21,7 +21,7 @@ import { getCurrentRelease } from "@/lib/release/current-release";
 import { createPageMetadata, siteConfig } from "@/lib/site-config";
 import type { Metadata } from "next";
 
-const homeTitle = "CompozyOS — The system around the agent, already built";
+const homeTitle = "CompozyOS — The autonomous control plane for your agents";
 
 export const metadata: Metadata = {
   ...createPageMetadata({
@@ -40,7 +40,7 @@ export default async function HomePage() {
     releases.status === "ready" && releases.releases.length > 0 ? releases.releases.length : null;
   return (
     // The draft inherits the app's 13.5px/1.5 body; the marketing shell's base is larger.
-    <div className="text-body leading-normal tracking-[-0.01em]">
+    <div className="text-[13.5px] leading-normal tracking-[-0.01em]">
       <WebSiteJsonLd />
       <Hero />
       <Providers />

@@ -3,7 +3,7 @@
 /** Types its text the first time it scrolls into view; reduced motion shows it whole. */
 import { useInView } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 export function Typed({ text, className }: { text: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);

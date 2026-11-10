@@ -31,7 +31,7 @@ export function SpotlightCard({
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] opacity-0 transition-opacity duration-300 [background:radial-gradient(240px_circle_at_var(--spot-x)_var(--spot-y),rgb(29_240_215/0.14),transparent_72%)] group-hover/spot:opacity-100"
+        className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] opacity-0 transition-opacity duration-300 [background:radial-gradient(240px_circle_at_var(--spot-x)_var(--spot-y),var(--site-spot-teal),transparent_72%)] group-hover/spot:opacity-100"
       />
       {children}
       <span

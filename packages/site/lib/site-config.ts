@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "CompozyOS",
   url: "https://compozy.com",
   description:
-    "The system around the agent, already built. CompozyOS keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble.",
+    "The autonomous control plane for your agents. See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you.",
   githubUrl: "https://github.com/compozy",
   repoUrl: "https://github.com/compozy/compozy",
   repoBranch: "main",

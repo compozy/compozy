@@ -3,10 +3,12 @@
 /** One continuous release line. Betas run as a side branch that forks before 0.4 and merges back at 0.4. */
 import { Button, cn } from "@compozy/ui";
 import { GitBranch } from "@compozy/ui/icons";
-import { m, useInView, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { m, useInView, useScroll } from "motion/react";
 import Link from "next/link";
 import { useRef, type RefObject } from "react";
 
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
+import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 import { BEAM } from "@/components/site/layout";
 import { Muted, ProductWindow, TextLink } from "@/components/site/primitives";
 import { releaseCapture } from "@/lib/changelog/captures";
@@ -32,16 +34,17 @@ function hrefOf(version: string) {
 }
 
 function Spine({ target }: { target: RefObject<HTMLDivElement | null> }) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const { scrollYProgress } = useScroll({ target, offset: ["start 55%", "end 55%"] });
-  const head = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  const fill = useScrollTransform(scrollYProgress, [0, 1], [0, 1]);
+  const head = useScrollTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-y-0 left-[var(--rail)] w-0.5 -translate-x-1/2 bg-site-light-120"
     >
       <m.span
-        style={{ scaleY: reduced ? 1 : scrollYProgress }}
+        style={{ scaleY: reduced ? 1 : fill }}
         className={cn("absolute inset-0 origin-top", BEAM)}
       />
       {reduced ? null : (
@@ -57,8 +60,7 @@ function Spine({ target }: { target: RefObject<HTMLDivElement | null> }) {
 function Node({ release, className }: { release: TimelineRelease; className: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const passed = useInView(ref, { margin: "0px 0px -45% 0px" });
-  const reduced = useReducedMotion();
-  const lit = Boolean(reduced) || passed;
+  const lit = useReducedMotionSafe() || passed;
   const size = isMajor(release)
     ? "size-[18px]"
     : release.lead || release.noted

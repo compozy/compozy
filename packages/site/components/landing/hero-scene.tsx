@@ -10,7 +10,7 @@ import { Dust } from "@/components/landing/fx/dust";
 import { useHeroMotion } from "@/components/landing/hooks/use-hero-motion";
 import { CONTAINER, type Focus } from "@/components/site/layout";
 import { Camera, Plate, ProductWindow } from "@/components/site/primitives-client";
-import { useReducedMotionSafe } from "@/components/landing/hooks/use-reduced-motion-safe";
+import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 const WHOLE_FRAME: Focus = { x: 0, y: 0, w: 1 };
 const DRIFT: Focus = { x: 0.012, y: 0.012, w: 0.976 };

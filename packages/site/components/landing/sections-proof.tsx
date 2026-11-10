@@ -22,7 +22,7 @@ import { QUOTES } from "@/components/landing/content";
 import { DetailPanels } from "@/components/landing/detail-panels";
 import { LiveCount, LiveStars } from "@/components/landing/live-count";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal, ScrollWords } from "@/components/landing/motion";
+import { Reveal, ScrollWords } from "@/components/site/motion";
 import {
   H2,
   H3,

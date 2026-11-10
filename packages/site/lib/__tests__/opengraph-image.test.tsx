@@ -103,9 +103,9 @@ describe("Landing OpenGraph image (root)", () => {
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("The system around the agent, already built.");
+    expect(copy).toContain("The autonomous control plane for your agents.");
     expect(copy).toContain(
-      "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
+      "See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
     );
     expect(copy).toContain("COMPOZYOS");
     expect(copy).not.toMatch(/\bBETA\b/u);
