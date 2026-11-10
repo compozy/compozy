@@ -95,7 +95,7 @@ describe("public heading hierarchy", () => {
 
   it("keeps changelog and fallback pages to one primary heading", async () => {
     render(await ChangelogPage());
-    expectSingleH1("Complete notes for every CompozyOS release.");
+    expectSingleH1("Changelog");
     cleanup();
 
     render(<NotFound />);
