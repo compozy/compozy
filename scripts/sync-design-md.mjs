@@ -12,7 +12,10 @@ const runtimeCss = ["tokens.css", "terminal-tokens.css"]
 // The light theme re-declares theme-scoped tokens under `[data-theme="light"]:root`;
 // every other value is shared with the (default) dark theme.
 const lightCss = readFileSync(join(root, "packages/ui/src/tokens-light.css"), "utf8");
-const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8");
+// The site's theme lives in global.css; the redesign's shell tokens sit in their own file.
+const siteCss = ["packages/site/app/global.css", "packages/site/app/styles/site-shell.css"]
+  .map(file => readFileSync(join(root, file), "utf8"))
+  .join("\n");
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp":
