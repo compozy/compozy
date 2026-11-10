@@ -259,6 +259,7 @@ func (s *subagentService) interruptNative(ctx context.Context, parent, turn stri
 		}
 		changed = true
 	}
+	// The prompt slot stays reserved until settlement returns, so no later turn can own tracking here.
 	s.mu.Lock()
 	delete(s.nativeKnown, parent)
 	delete(s.nativeQueued, parent)

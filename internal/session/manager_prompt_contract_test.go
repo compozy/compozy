@@ -4405,8 +4405,9 @@ func TestRequestCompaction(t *testing.T) {
 // nativeOrderRecorder records the subagent transitions the prompt path drives, in order.
 type nativeOrderRecorder struct {
 	SubagentService
-	mu    sync.Mutex
-	calls []string
+	mu     sync.Mutex
+	calls  []string
+	settle func()
 }
 
 func (r *nativeOrderRecorder) record(call string) {
@@ -4437,6 +4438,9 @@ func (r *nativeOrderRecorder) OnNativeTurnDone(_ context.Context, _, turn string
 
 func (r *nativeOrderRecorder) OnParentTurnSettled(_ context.Context, _, turn string) error {
 	r.record("settled:" + turn)
+	if r.settle != nil {
+		r.settle()
+	}
 	return nil
 }
 
@@ -4450,9 +4454,62 @@ func (r *nativeOrderRecorder) Summaries(context.Context, []string) (map[string]s
 
 // Invariant: native Agent/Task events and the provider's answer reach the subagent service on the
 // persistence path, in ledger order and before turn settlement, even while nobody reads the prompt
-// stream (issue #766); owner: Manager prompt persistence.
+// stream (issue #766), and the next turn stays excluded until settlement returns; owner: Manager prompt persistence.
 func TestNativeSubagentPersistenceOrder(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reserve the next prompt until native settlement returns", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		entered := make(chan struct{}, 1)
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		recorder := &nativeOrderRecorder{settle: func() {
+			entered <- struct{}{}
+			<-release
+		}}
+		h.manager.SetSubagentService(recorder)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			source := make(chan acp.AgentEvent, 2)
+			source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: req.Message, TurnID: req.TurnID}.
+				WithProviderToolMetadata("", "Agent", "pending").
+				WithTool("Agent", json.RawMessage(`{"run_in_background":true}`), false)
+			source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+				PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(source)
+			return source, nil
+		}
+		output, err := h.manager.Prompt(t.Context(), active.ID, "first")
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-entered:
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		if _, err := h.manager.Prompt(t.Context(), active.ID, "second"); !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("prompt during native settlement error = %v, want ErrPromptInProgress", err)
+		}
+		if got := recorder.snapshot(); len(got) != 3 || got[0] != "native:first:pending:true" ||
+			!strings.HasPrefix(got[1], "done:") || got[2] != "settled:"+strings.TrimPrefix(got[1], "done:") {
+			t.Fatalf("calls during blocked settlement = %q", got)
+		}
+		unblock()
+		collectEvents(t, output)
+		output, err = h.manager.Prompt(t.Context(), active.ID, "second")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, output)
+		if got := recorder.snapshot(); len(got) != 6 || got[3] != "native:second:pending:true" ||
+			!strings.HasPrefix(got[4], "done:") || got[5] != "settled:"+strings.TrimPrefix(got[4], "done:") ||
+			got[1] == got[4] {
+			t.Fatalf("calls across settled turns = %q", got)
+		}
+	})
 	t.Run("Should ingest a background launch and the turn's answer before settling it", func(t *testing.T) {
 		t.Parallel()
 		// A one-event prompt buffer stalls the unread delivery pump after the first event.
