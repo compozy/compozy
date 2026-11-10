@@ -54,17 +54,20 @@ function enterStyle({
   y,
   blur,
   duration,
+  scale = 1,
 }: {
   delay: number;
   y: number;
   blur: number;
   duration: number;
+  scale?: number;
 }): EnterStyle {
   return {
     "--site-enter-delay": `${delay}s`,
     "--site-enter-y": `${y}px`,
     "--site-enter-blur": `${blur}px`,
     "--site-enter-duration": `${duration}s`,
+    "--site-enter-scale": `${scale}`,
   };
 }
 
@@ -77,16 +80,21 @@ export function Entrance({
   className,
   delay = 0,
   y = 28,
+  blur = 8,
+  scale = 1,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
   y?: number;
+  blur?: number;
+  /** The size it grows from, as a fraction of its own. */
+  scale?: number;
 }) {
   return (
     <div
       className={cn("site-enter", className)}
-      style={enterStyle({ delay, y, blur: 8, duration: 0.9 })}
+      style={enterStyle({ delay, y, blur, duration: 0.9, scale })}
     >
       {children}
     </div>

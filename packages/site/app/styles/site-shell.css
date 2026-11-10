@@ -73,12 +73,12 @@ html:has(.site-marketing) {
 /*
  * Above-the-fold entrance (`Entrance`, `WordsIn`). A CSS animation runs from the first paint,
  * so the served HTML is the settled content: it shows without JavaScript and before hydration,
- * and hydration does not restart it. Per element: --site-enter-y, -blur, -duration, -delay.
+ * and hydration does not restart it. Per element: --site-enter-y, -scale, -blur, -duration, -delay.
  */
 @keyframes site-enter {
   from {
     opacity: 0;
-    transform: translateY(var(--site-enter-y, 28px));
+    transform: translateY(var(--site-enter-y, 28px)) scale(var(--site-enter-scale, 1));
     filter: blur(var(--site-enter-blur, 8px));
   }
 }

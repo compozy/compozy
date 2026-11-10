@@ -11,7 +11,15 @@ import { ASSET } from "@/components/landing/assets";
 import { useProblemStage } from "@/components/landing/hooks/use-problem-stage";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 import { useStage } from "@/components/landing/hooks/use-stage";
-import { BEATS, FACES, PANES, PILE_LINE, type Pane } from "@/components/landing/story-data";
+import {
+  BEATS,
+  FACES,
+  PANES,
+  PILE_LINE,
+  STAGE_WINDOW,
+  beatSizes,
+  type Pane,
+} from "@/components/landing/story-data";
 import { TerminalPane } from "@/components/landing/terminal-pane";
 import { STAGE_FADE } from "@/components/site/layout";
 import { Muted } from "@/components/site/primitives";
@@ -209,6 +217,7 @@ export function AlwaysOnStage() {
                   alt={beat.alt}
                   active={index === active}
                   focus={beat.focus}
+                  sizes={beatSizes(STAGE_WINDOW, beat.focus)}
                 />
               ))}
             </ProductWindow>

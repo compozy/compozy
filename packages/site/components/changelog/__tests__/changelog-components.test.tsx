@@ -331,6 +331,33 @@ describe("changelog index", () => {
     expect(document.getElementById("v0.5.0")).not.toBeNull();
   });
 
+  it("writes the channel, the loaded pages and the search to the URL", async () => {
+    const stable = (minor: number) =>
+      release(`v0.${minor}.0`, {
+        prerelease: false,
+        channel: "stable",
+        publishedAt: `2026-${String(minor).padStart(2, "0")}-01T00:00:00Z`,
+      });
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: Array.from({ length: 13 }, (_, index) => stable(13 - index)),
+    });
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const written = () => new URL(String(replaceState.mock.lastCall?.[2])).search;
+    render(await ChangelogPage());
+
+    fireEvent.click(screen.getByRole("button", { name: "Include betas" }));
+    expect(written()).toBe("?betas=1");
+    fireEvent.click(screen.getByRole("button", { name: "Older releases" }));
+    expect(written()).toBe("?page=2");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search releases" }), {
+      target: { value: "0.5" },
+    });
+    expect(written()).toBe("?q=0.5");
+    replaceState.mockRestore();
+    window.history.replaceState(null, "", "/");
+  });
+
   it("renders the unavailable state when GitHub release data cannot be loaded", async () => {
     changelogClient.loadChangelogReleases.mockResolvedValueOnce({
       status: "unavailable",

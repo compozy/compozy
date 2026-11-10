@@ -2,13 +2,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadHero } from "@/components/download/download-hero";
-import { COMPARE_COLUMNS } from "@/components/landing/content";
+import { AllDownloads } from "@/components/download/sections";
+import { COMPARE_COLUMNS, INSTALL_STEPS } from "@/components/landing/content";
+import { SiteMotionProvider } from "@/components/site/motion-provider";
 import { InstallCommand } from "@/components/site/primitives";
-import { Community, Comparison, FinalCta, Hero, Install } from "@/components/landing";
+import { Automations, Community, Comparison, FinalCta, Hero, Install } from "@/components/landing";
 import { DESKTOP_TARGETS, type DesktopRelease } from "@/lib/release/desktop-downloads";
 import { siteConfig } from "@/lib/site-config";
 import {
@@ -71,6 +74,85 @@ describe("Hero", () => {
       "/docs"
     );
     expect(screen.getByText(VERIFIED_INSTALLER_COMMAND)).toBeDefined();
+  });
+});
+
+/** An inline style that hides an element: what the server serves before motion takes over. */
+const HIDDEN_STYLE = /opacity:\s*0(?![.\d])|scale\(0\)/;
+
+/** The server HTML of `node`, parsed into a detached container. */
+function served(node: ReactNode) {
+  const container = document.createElement("div");
+  container.innerHTML = renderToString(node);
+  return container;
+}
+
+/** The nearest element, from `node` up, whose inline style hides it. */
+function hiddenAncestor(node: Element) {
+  for (let el: Element | null = node; el; el = el.parentElement) {
+    if (HIDDEN_STYLE.test(el.getAttribute("style") ?? "")) return el;
+  }
+  return null;
+}
+
+/** The visible (aria-hidden) copy a `Typed` line draws next to its screen-reader text. */
+function typedText(container: Element, text: string) {
+  const reader = within(container as HTMLElement).getByText(text, { selector: ".sr-only" });
+  return reader.nextElementSibling?.textContent;
+}
+
+describe("Served motion", () => {
+  it("serves the hero visible: only decorative, textless frames start hidden", () => {
+    const hero = served(<Hero />);
+    const hidden = Array.from(hero.querySelectorAll("[style]")).filter(el =>
+      HIDDEN_STYLE.test(el.getAttribute("style") ?? "")
+    );
+    for (const el of hidden) {
+      expect(el.getAttribute("aria-hidden")).toBe("true");
+      expect(el.textContent).toBe("");
+    }
+  });
+
+  it("serves every comparison check and typed line in its final state", () => {
+    const checks = within(served(<Comparison />)).getAllByLabelText("Yes");
+    expect(checks.length).toBeGreaterThan(0);
+    expect(checks.map(hiddenAncestor)).toEqual(checks.map(() => null));
+
+    const command = INSTALL_STEPS[0]!.command;
+    expect(typedText(served(<Install releaseTag="v9.9.9" />), command)).toBe(command);
+    const briefing = "A briefing waiting for you every weekday at 08:30.";
+    expect(typedText(served(<Automations />), briefing)).toBe(briefing);
+  });
+
+  it("hydrates without a mismatch and replays only what starts out of view", async () => {
+    const command = INSTALL_STEPS[0]!.command;
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const hydrate = async (onScreen: boolean) => {
+      const page = (
+        <SiteMotionProvider>
+          <Install releaseTag="v9.9.9" />
+        </SiteMotionProvider>
+      );
+      const container = served(page);
+      document.body.append(container);
+      const rect = vi
+        .spyOn(Element.prototype, "getBoundingClientRect")
+        .mockReturnValue(DOMRect.fromRect({ y: onScreen ? 100 : 5000, height: 20 }));
+      const root = await act(async () => hydrateRoot(container, page));
+      // Motion values reach the DOM on the next animation frame.
+      await act(() => new Promise(resolve => requestAnimationFrame(() => resolve(undefined))));
+      const shown = typedText(container, command);
+      act(() => root.unmount());
+      rect.mockRestore();
+      container.remove();
+      return shown;
+    };
+
+    // On screen at hydration: stays as served. Below the fold: clears out of sight to type later.
+    expect(await hydrate(true)).toBe(command);
+    expect(await hydrate(false)).toBe("");
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });
 
@@ -247,6 +329,12 @@ describe("DownloadHero", () => {
     const link = screen.getByRole("link", { name: "Download for macOS" });
     expect(link.getAttribute("href")).toBe(dmg);
     expect(link.getAttribute("target")).toBeNull();
+  });
+
+  it("serves the All downloads header visible, since it can open in the first viewport", () => {
+    const container = served(<AllDownloads release={ready} releaseDate="Nov 6, 2026" />);
+    const heading = within(container).getByRole("heading", { name: "All downloads" });
+    expect(hiddenAncestor(heading)).toBeNull();
   });
 
   it("opens the release on GitHub in a new tab when the file is not listed", () => {

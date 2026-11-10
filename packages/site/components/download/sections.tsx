@@ -6,7 +6,7 @@ import { ArrowUpRight, ChevronDown, Download } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal } from "@/components/site/motion";
+import { Entrance, Reveal } from "@/components/site/motion";
 import { H2, H3, InstallCommand, Lead, Muted, Small } from "@/components/site/primitives";
 import type { DesktopRelease } from "@/lib/release/desktop-downloads";
 import {
@@ -154,7 +154,7 @@ export function AllDownloads({
   return (
     <section id="all-downloads">
       <div className={cn(CONTAINER, "pb-20 md:pb-24")}>
-        <Reveal>
+        <Entrance>
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <H2 size="sm">All downloads</H2>
             <p className="m-0 font-mono text-[14px] text-muted-foreground">
@@ -163,7 +163,7 @@ export function AllDownloads({
                 : "Latest release"}
             </p>
           </div>
-        </Reveal>
+        </Entrance>
         <div className="mt-10 divide-y divide-site-light-080 border-y border-site-light-080">
           {groups.map(group =>
             group.items.length > 0 ? (

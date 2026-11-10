@@ -3,14 +3,10 @@
 import { useInView, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useEffect, useRef } from "react";
 
+import { onScreen } from "@/components/site/hooks/use-arrival";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 const NUMBER = new Intl.NumberFormat("en-US");
-
-function onScreen(node: Element) {
-  const { top, bottom } = node.getBoundingClientRect();
-  return top < window.innerHeight && bottom > 0;
-}
 
 /**
  * A number that counts up once it scrolls into view. The server HTML and the first client render

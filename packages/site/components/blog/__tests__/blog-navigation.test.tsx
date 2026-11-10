@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BLOG_CATEGORIES, blogEntries, blogEntry, featuredPost, postAuthor } from "@/lib/blog";
@@ -28,10 +29,10 @@ vi.mock("next/link", () => ({
 
 afterEach(() => window.history.replaceState(null, "", "/"));
 
-function renderIndex(category: string | null = null) {
+function indexPage(category: string | null = null) {
   const lead = featuredPost();
   if (!lead) throw new Error("Expected generated blog content to include a post");
-  return render(
+  return (
     <BlogIndex
       entries={blogEntries()}
       categories={BLOG_CATEGORIES}
@@ -40,6 +41,10 @@ function renderIndex(category: string | null = null) {
       author={postAuthor(lead)}
     />
   );
+}
+
+function renderIndex(category: string | null = null) {
+  return render(indexPage(category));
 }
 
 function indexRows() {
@@ -66,6 +71,10 @@ describe("blog navigation", () => {
     const row = screen.getByRole("link", { name: new RegExp(entry.title) });
     expect(row.getAttribute("href")).toBe(entry.permalink);
     expect(within(row).getByText(entry.number)).toBeDefined();
+  });
+
+  it("serves the lead story and posters visible, before hydration and without JavaScript", () => {
+    expect(renderToString(indexPage())).not.toMatch(/style="[^"]*opacity:0[;"]/);
   });
 
   it("shows the lead story, posters and the full index on the front page", () => {

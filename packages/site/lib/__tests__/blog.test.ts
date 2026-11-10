@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { allPosts, blogEntries, blogPostCover, postNumber } from "../blog";
+import { allPosts, blogEntries, blogPostCover, postNumber, readingMinutes } from "../blog";
 import { filterEntries, formatPostDate, groupByMonth, monthOf, topTopics } from "../blog-index";
 
 const PUBLIC_DIR = join(__dirname, "..", "..", "public");
@@ -39,6 +39,16 @@ describe("blog loader", () => {
       posts.map((_, index) => String(index + 1).padStart(2, "0"))
     );
     expect(blogEntries().map(entry => entry.number)).toEqual(numbers);
+  });
+
+  it("rounds reading time to whole minutes, never below one", () => {
+    const minutes = (readingTime: number) =>
+      readingMinutes({ metadata: { readingTime, wordCount: 0 } });
+    expect(minutes(0)).toBe(1);
+    expect(minutes(0.2)).toBe(1);
+    expect(minutes(1.4)).toBe(1);
+    expect(minutes(1.6)).toBe(2);
+    expect(minutes(7.5)).toBe(8);
   });
 });
 

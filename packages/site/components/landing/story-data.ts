@@ -2,7 +2,7 @@
 import { CalendarClock, FileText, Hand, Webhook, type LucideIcon } from "@compozy/ui/icons";
 
 import { ASSET } from "@/components/landing/assets";
-import type { Focus } from "@/components/site/layout";
+import { WHOLE, type Focus } from "@/components/site/layout";
 
 export const PANES = [
   {
@@ -99,3 +99,32 @@ export const FACES = [
   "checkout-engineer",
   "docs-steward",
 ];
+
+/** A `sizes` slot: an optional media condition and the window's inner width under it. */
+type WindowSlot = readonly [media: string | null, width: string];
+
+/**
+ * The always-on window's inner width. Pinned (from `lg`): the free grid column, `min(100vw, 1720px)`
+ * less the 80px padding, the 340px beat list, the 48px gap and the 10px frame. Fallback: the page
+ * container (at most 1280px, 48px or 80px of padding) less the frame.
+ */
+export const STAGE_WINDOW: readonly WindowSlot[] = [
+  ["(min-width: 1720px)", "1242px"],
+  [null, "100vw - 478px"],
+];
+export const FALLBACK_WINDOW: readonly WindowSlot[] = [
+  ["(min-width: 1280px)", "1190px"],
+  ["(min-width: 768px)", "100vw - 90px"],
+  [null, "100vw - 58px"],
+];
+
+/**
+ * `sizes` for a beat's capture: the window's width times the camera's zoom on that beat, so a
+ * zoomed beat is served a file as wide as it is drawn instead of the window-sized one.
+ */
+export function beatSizes(window: readonly WindowSlot[], focus: Focus = WHOLE) {
+  const zoom = Number((1 / focus.w).toFixed(3));
+  return window
+    .map(([media, width]) => `${media ? `${media} ` : ""}calc((${width}) * ${zoom})`)
+    .join(", ");
+}

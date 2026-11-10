@@ -4,7 +4,13 @@ import { cn } from "@compozy/ui";
 import { ASSET } from "@/components/landing/assets";
 import { HREF } from "@/components/landing/content";
 import { Pinned } from "@/components/landing/pinned";
-import { BEATS, PANES, PILE_LINE } from "@/components/landing/story-data";
+import {
+  BEATS,
+  FALLBACK_WINDOW,
+  PANES,
+  PILE_LINE,
+  beatSizes,
+} from "@/components/landing/story-data";
 import { AlwaysOnStage, Faces, ProblemStage } from "@/components/landing/story-stages";
 import { TerminalPane } from "@/components/landing/terminal-pane";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
@@ -71,7 +77,12 @@ function AlwaysOnFallback() {
           </p>
           <Muted className="mt-2 mb-5">{beat.body}</Muted>
           <ProductWindow>
-            <Camera src={beat.src} alt={beat.alt} focus={beat.focus} />
+            <Camera
+              src={beat.src}
+              alt={beat.alt}
+              focus={beat.focus}
+              sizes={beatSizes(FALLBACK_WINDOW, beat.focus)}
+            />
           </ProductWindow>
         </div>
       ))}

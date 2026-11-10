@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ASSET } from "@/components/landing/assets";
 import { EntryLogo } from "@/components/marketplace/entry-card";
 import { CONTAINER } from "@/components/site/layout";
-import { Reveal } from "@/components/site/motion";
+import { Entrance } from "@/components/site/motion";
 import { H2 } from "@/components/site/primitives";
 import { firstSentence, type MarketplaceCard } from "@/lib/marketplace-cards";
 
@@ -25,12 +25,12 @@ export function Featured({ entries }: { entries: readonly MarketplaceCard[] }) {
   if (entries.length === 0) return null;
   return (
     <section className={cn(CONTAINER, "pt-8 pb-24")}>
-      <Reveal>
+      <Entrance>
         <H2 size="sm">Featured</H2>
-      </Reveal>
+      </Entrance>
       <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {entries.map((entry, index) => (
-          <Reveal key={entry.id} delay={index * 0.05}>
+          <Entrance key={entry.id} delay={index * 0.05}>
             <Link
               href={entry.href}
               className="group/feat block w-full cursor-pointer overflow-hidden rounded-[20px] border border-site-light-080 bg-site-light-025 p-0 text-left outline-none transition-[border-color] duration-300 hover:border-site-light-200 focus-visible:ring-2 focus-visible:ring-brand"
@@ -62,7 +62,7 @@ export function Featured({ entries }: { entries: readonly MarketplaceCard[] }) {
                 </span>
               </span>
             </Link>
-          </Reveal>
+          </Entrance>
         ))}
       </div>
     </section>

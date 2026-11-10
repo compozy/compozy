@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { parse as parseYaml } from "yaml";
 import { useState } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.unmock("next/image");
@@ -35,7 +36,10 @@ import { SourcesAndIncluded } from "@/components/marketplace/closing";
 import { EntryCard, EntryLogo } from "@/components/marketplace/entry-card";
 import { EntryDetail } from "@/components/marketplace/entry-detail";
 import { fieldTiles } from "@/components/marketplace/hero-field";
-import { MarketplaceBrowseFromUrl } from "@/components/marketplace/marketplace-browse";
+import {
+  MarketplaceBrowse,
+  MarketplaceBrowseFromUrl,
+} from "@/components/marketplace/marketplace-browse";
 import BundledExtensionPage, {
   generateStaticParams as generateBundledExtensionParams,
 } from "@/app/marketplace/bundled/[name]/page";
@@ -549,6 +553,36 @@ describe("marketplace rendering boundary", () => {
     view.rerender(<MarketplaceBrowseFromUrl entries={marketplaceCards} />);
     expect(current()).toMatch(/^All/);
     replaceState.mockRestore();
+    urlSearch.current = new URLSearchParams();
+  });
+
+  // Invariant: the hero logos and Featured, above the fold, are visible in the served HTML.
+  it("Should serve the browse view without content hidden until hydration", () => {
+    const html = renderToString(<MarketplaceBrowse entries={marketplaceCards} category={null} />);
+    expect(html).toContain("Featured");
+    expect(html).not.toMatch(/style="[^"]*opacity:0[;"]/);
+  });
+
+  // Invariant: a category pick scrolls to the catalog, once the render that shows the category lands.
+  it("Should jump to the catalog after a category pick", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    urlSearch.current = new URLSearchParams();
+    const view = render(<MarketplaceBrowseFromUrl entries={marketplaceCards} />);
+    const rail = screen.getByRole("navigation", { name: "Categories" });
+
+    fireEvent.click(within(rail).getByRole("button", { name: /^Design/ }));
+    // The category reaches the view through the URL; jumping before would aim at the old layout.
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    urlSearch.current = new URLSearchParams("category=design");
+    view.rerender(<MarketplaceBrowseFromUrl entries={marketplaceCards} />);
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById("catalog"));
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+
+    replaceState.mockRestore();
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
     urlSearch.current = new URLSearchParams();
   });
 

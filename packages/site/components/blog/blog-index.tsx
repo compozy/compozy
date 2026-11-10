@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation";
 
 import { useUrlBackedValue } from "@/components/site/hooks/use-url-backed-value";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { Reveal } from "@/components/site/motion";
+import { Entrance } from "@/components/site/motion";
 import { H1, H2, Lead, SecondaryCta } from "@/components/site/primitives";
 import type { PostAuthor } from "@/lib/blog";
 import {
@@ -177,14 +177,14 @@ export function BlogIndex({
       </div>
       {filtering ? null : (
         <>
-          <Reveal className="mt-12">
+          <Entrance className="mt-12">
             <LeadStory entry={lead} author={author} />
-          </Reveal>
+          </Entrance>
           <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {latest.map((entry, order) => (
-              <Reveal key={entry.slug} delay={order * 0.07}>
+              <Entrance key={entry.slug} delay={order * 0.07}>
                 <PosterCard entry={entry} />
-              </Reveal>
+              </Entrance>
             ))}
           </div>
         </>
