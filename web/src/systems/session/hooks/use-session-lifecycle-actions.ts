@@ -1,9 +1,9 @@
+import { useSessionBatchMenuActions } from "./use-session-batch-menu-actions";
 import {
   batchSkipReason,
   batchSkipNote,
   batchVerbPast,
   reportBatch,
-  type BatchVerb,
 } from "../lib/session-batch-feedback";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -134,6 +134,11 @@ export function useSessionLifecycleActions(
     onMovedToLater: onLaterSuccess,
   });
   const markSeen = useMarkSessionSeenAction();
+  const menuBatch = useSessionBatchMenuActions(
+    ownPending !== null || later.pendingAction !== null,
+    reparent.detachAsync,
+    setBatchAction
+  );
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionId = lifecyclePendingSessionId({
     batching: batchAction !== null,
@@ -154,7 +159,7 @@ export function useSessionLifecycleActions(
     }
   };
 
-  /** Lock lifecycle controls until the sequential batch has settled every target. */
+  /** Lock lifecycle controls until the bounded batch has settled every target. */
   const runBatch = async (
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
@@ -172,6 +177,8 @@ export function useSessionLifecycleActions(
       action,
       ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
       previous,
+      sessions,
+      coveredBy,
       onProgress: setBatchResults,
       execute: async id => {
         const session = sessions.find(candidate => candidate.id === id)!;
@@ -208,7 +215,7 @@ export function useSessionLifecycleActions(
   };
 
   const actOnMany = (
-    action: Exclude<BatchVerb, "later" | "back-from-later">,
+    action: "stop" | "archive" | "unarchive",
     sessions: readonly SessionPayload[]
   ) => {
     const eligible: SessionPayload[] = [];
@@ -414,6 +421,8 @@ export function useSessionLifecycleActions(
       onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       ...later.handlers,
       onMarkSeen: markSeen.onMarkSeen,
+      onMarkSeenMany: menuBatch.onMarkSeenMany,
+      onMakeTopLevelMany: menuBatch.onMakeTopLevelMany,
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {

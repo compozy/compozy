@@ -1,5 +1,5 @@
-import { Archive, Bookmark, Hash, RotateCcw, Square, Trash2, Undo2 } from "@compozy/ui/icons";
-
+import { Fragment } from "react";
+import { sessionBatchAction, type SessionBatchMenuActionId } from "../../lib/session-menu-actions";
 import {
   ContextMenuGroup,
   ContextMenuItem,
@@ -44,14 +44,11 @@ const SELECTION_MENU_KITS = {
 export type SessionSelectionMenuKind = keyof typeof SELECTION_MENU_KITS;
 export type SessionSelectionMenuKit = (typeof SELECTION_MENU_KITS)[SessionSelectionMenuKind];
 
-/** Archive stops live rows first, so the verb and count say so when the selection has any. */
-function archiveSelectionCopy(archivable: number, archivableLive: number) {
-  if (archivableLive === 0) return { label: "Archive", count: `${archivable} stopped` };
-  return {
-    label: "Stop and archive",
-    count: `${archivable} ${archivable === 1 ? "session" : "sessions"}`,
-  };
-}
+const SELECTION_TEST_SUFFIXES: Partial<Record<SessionBatchMenuActionId, string>> = {
+  "copy-id": "copy-ids",
+  "copy-title": "copy-titles",
+  delete: "delete-item",
+};
 
 /**
  * The selection's verbs in menu order. The selection bar's More menu and a
@@ -70,7 +67,27 @@ export function SessionSelectionMenuItems({
   const kit = SELECTION_MENU_KITS[kind];
   const { Item, Separator, Shortcut } = kit;
   const { disabled } = verbs;
-  const archiveCopy = archiveSelectionCopy(verbs.archivable, verbs.archivableLive);
+  const entries: Record<SessionBatchMenuActionId, { count: number; onClick?: () => void }> = {
+    "mark-seen": { count: verbs.markSeenable, onClick: verbs.onMarkSeen },
+    "make-top-level": { count: verbs.topLevelable, onClick: verbs.onMakeTopLevel },
+    stop: { count: verbs.stoppable, onClick: verbs.onStop },
+    later: { count: verbs.laterable, onClick: verbs.onMoveToLater },
+    "back-from-later": { count: verbs.backFromLaterable, onClick: verbs.onBackFromLater },
+    archive: { count: verbs.archivable, onClick: verbs.onArchive },
+    unarchive: { count: verbs.unarchivable, onClick: verbs.onUnarchive },
+    "copy-title": { count: verbs.count, onClick: verbs.onCopyTitles },
+    "copy-id": { count: verbs.count, onClick: verbs.onCopyIds },
+    delete: { count: verbs.count, onClick: verbs.onDelete },
+  };
+  const hints: Partial<Record<SessionBatchMenuActionId, string>> = {
+    stop: `${verbs.stoppable} active`,
+    archive:
+      verbs.archivableLive === 0
+        ? `${verbs.archivable} stopped`
+        : sessionCountLabel(verbs.archivable),
+    unarchive: `${verbs.unarchivable} archived`,
+    "back-from-later": `${verbs.backFromLaterable} in Later`,
+  };
   return (
     <>
       {verbs.folders ? (
@@ -84,67 +101,33 @@ export function SessionSelectionMenuItems({
           <Separator />
         </>
       ) : null}
-      <Item
-        disabled={disabled || verbs.stoppable === 0 || !verbs.onStop}
-        onClick={verbs.onStop}
-        data-testid={`${testId}-stop`}
-      >
-        <Square className="size-3" />
-        Stop<Shortcut>{verbs.stoppable} active</Shortcut>
-      </Item>
-      {verbs.onMoveToLater ? (
-        <Item
-          disabled={disabled || verbs.laterable === 0}
-          onClick={verbs.onMoveToLater}
-          data-testid={`${testId}-later`}
-        >
-          <Bookmark className="size-3" />
-          Move to Later…<Shortcut>{sessionCountLabel(verbs.laterable)}</Shortcut>
-        </Item>
-      ) : null}
-      {verbs.onBackFromLater && verbs.backFromLaterable > 0 ? (
-        <Item
-          disabled={disabled}
-          onClick={verbs.onBackFromLater}
-          data-testid={`${testId}-back-from-later`}
-        >
-          <Undo2 className="size-3" />
-          Back from Later<Shortcut>{verbs.backFromLaterable} in Later</Shortcut>
-        </Item>
-      ) : null}
-      <Item
-        disabled={disabled || verbs.archivable === 0 || !verbs.onArchive}
-        onClick={verbs.onArchive}
-        data-testid={`${testId}-archive`}
-      >
-        <Archive className="size-3" />
-        {archiveCopy.label}
-        <Shortcut>{archiveCopy.count}</Shortcut>
-      </Item>
-      <Item
-        disabled={disabled || verbs.unarchivable === 0 || !verbs.onUnarchive}
-        onClick={verbs.onUnarchive}
-        data-testid={`${testId}-unarchive`}
-      >
-        <RotateCcw className="size-3" />
-        Unarchive<Shortcut>{verbs.unarchivable} archived</Shortcut>
-      </Item>
-      <Item onClick={verbs.onCopyIds} data-testid={`${testId}-copy-ids`}>
-        <Hash className="size-3" />
-        Copy session IDs
-      </Item>
-      <Separator />
-      <Item
-        variant="destructive"
-        disabled={disabled || !verbs.onDelete}
-        onClick={verbs.onDelete}
-        data-testid={`${testId}-delete-item`}
-      >
-        <Trash2 className="size-3" />
-        Delete {sessionCountLabel(verbs.count)}
-        {/* The bar's menu keeps the list's ⌘⌫ hint; a row's portaled context menu cannot route that key. */}
-        {kind === "dropdown" ? <Shortcut>⌘⌫</Shortcut> : null}
-      </Item>
+      {(Object.keys(entries) as SessionBatchMenuActionId[]).map(id => {
+        const entry = entries[id];
+        const action = sessionBatchAction(id, verbs.archivableLive > 0);
+        const Icon = action.icon;
+        const copy = id === "copy-id" || id === "copy-title";
+        if ((id === "later" || id === "back-from-later") && !entry.onClick) return null;
+        if (id === "back-from-later" && entry.count === 0) return null;
+        const suffix = SELECTION_TEST_SUFFIXES[id] ?? id;
+        return (
+          <Fragment key={id}>
+            {id === "delete" ? <Separator /> : null}
+            <Item
+              variant={id === "delete" ? "destructive" : undefined}
+              disabled={(!copy && disabled) || entry.count === 0 || !entry.onClick}
+              onClick={entry.onClick}
+              data-testid={`${testId}-${suffix}`}
+            >
+              <Icon className="size-3" />
+              {id === "delete" ? `Delete ${sessionCountLabel(verbs.count)}` : action.label}
+              {!copy && id !== "delete" ? (
+                <Shortcut>{hints[id] ?? sessionCountLabel(entry.count)}</Shortcut>
+              ) : null}
+              {id === "delete" && kind === "dropdown" ? <Shortcut>⌘⌫</Shortcut> : null}
+            </Item>
+          </Fragment>
+        );
+      })}
     </>
   );
 }

@@ -75,6 +75,9 @@ vi.mock("../../adapters/session-archive-api", async importOriginal => ({
   listSessionDescendants: vi.fn(),
 }));
 
+vi.mock("../../adapters/session-mark-seen-api", () => ({ markSessionSeen: vi.fn() }));
+import { markSessionSeen } from "../../adapters/session-mark-seen-api";
+
 vi.mock("../../adapters/session-later-api", () => ({
   moveSessionToLater: vi.fn(),
   resumeSessionFromLater: vi.fn(),
@@ -2211,6 +2214,67 @@ describe("session lifecycle batches", () => {
     });
   }
 
+  // Invariant: selection parity verbs apply only to eligible rows, keep owner routing and
+  // report each failure after all outstanding targets settle. Owner: lifecycle batch hook.
+  it.each(["mark-seen", "make-top-level"] as const)(
+    "Should apply %s with per-item outcomes",
+    async action => {
+      const eligible = Array.from({ length: 5 }, (_, index) => ({
+        ...createdSession,
+        id: `eligible-${index}`,
+        name: `Eligible ${index}`,
+        attention_dismissible: true,
+        lineage: {
+          ...createdSession.lineage,
+          kind: "provenance",
+          parent_session_id: "parent",
+          root_session_id: `parent-${index}`,
+        },
+      })) as SessionPayload[];
+      let release!: () => void;
+      const held = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      let active = 0;
+      let peak = 0;
+      const execute = async (_workspace: string, id: string) => {
+        active++;
+        peak = Math.max(peak, active);
+        if (id === eligible[0]!.id) await held;
+        active--;
+        if (id === eligible[1]!.id) throw new Error("Denied for this session");
+        return { ...createdSession, id };
+      };
+      if (action === "mark-seen") vi.mocked(markSessionSeen).mockImplementation(execute);
+      else vi.mocked(clearSessionParent).mockImplementation(execute);
+      const { result } = lifecycle();
+      const selected = [
+        ...eligible,
+        { ...createdSession, attention_dismissible: false, lineage: undefined },
+      ];
+      act(() => {
+        if (action === "mark-seen") result.current.actions.onMarkSeenMany?.(selected);
+        else result.current.actions.onMakeTopLevelMany?.(selected);
+      });
+      const mutation = action === "mark-seen" ? markSessionSeen : clearSessionParent;
+      await waitFor(() => expect(mutation).toHaveBeenCalledTimes(5));
+      expect(result.current.actions.pendingAction).toBe(action);
+      expect(toast.error).not.toHaveBeenCalled();
+      await act(async () => release());
+      await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+      expect(peak).toBeLessThanOrEqual(3);
+      expect(peak).toBeGreaterThan(1);
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("4 sessions"), {
+        description: expect.stringContaining("Eligible 1: Denied for this session"),
+      });
+      expect(
+        vi
+          .mocked(mutation)
+          .mock.calls.every(call => call[0] === WORKSPACE_ID && call[2] === "default")
+      ).toBe(true);
+    }
+  );
+
   // Invariant: a failed current-detail read fails only its own target, without mutating stale data.
   // Owner/canonical suite: session lifecycle batches, mocked only at adapter I/O.
   it.each([false, true])(
@@ -2342,7 +2406,7 @@ describe("session lifecycle batches", () => {
     }
   );
 
-  it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
+  it("deletes independent sessions concurrently, keeps failures selected, and retries only their ids", async () => {
     const targets = [
       createdSession,
       { ...createdSession, id: "second" },
@@ -2366,11 +2430,11 @@ describe("session lifecycle batches", () => {
       result.current.deleteDialog.onConfirm();
       result.current.deleteDialog.onConfirm();
     });
-    await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(3));
     expect(result.current.deleteDialog.results?.map(row => row.status)).toEqual([
       "running",
-      "pending",
-      "pending",
+      "failed",
+      "done",
     ]);
     expect(result.current.actions.pendingAction).toBe("delete");
     act(() => result.current.deleteDialog.onOpenChange(false));
@@ -2453,7 +2517,7 @@ describe("session lifecycle batches", () => {
     }
   );
 
-  it("stops only eligible sessions sequentially and announces verified completion once", async () => {
+  it("stops eligible independent sessions concurrently and announces verified completion once", async () => {
     const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
     const starting = {
       ...createdSession,
@@ -2487,7 +2551,7 @@ describe("session lifecycle batches", () => {
         { ...stopped, id: "archived", archived_at: "2026-09-11" },
       ])
     );
-    await waitFor(() => expect(stopSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(stopSession).toHaveBeenCalledTimes(2));
     expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, "default", {
       wait: true,
     });

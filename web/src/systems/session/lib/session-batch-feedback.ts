@@ -6,6 +6,7 @@ import { getSessionDisplayTitle } from "./session-display-title";
 import { isSubagentSession } from "./session-hierarchy";
 
 export type BatchVerb = "stop" | "archive" | "unarchive" | "later" | "back-from-later";
+type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level";
 
 const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
 
@@ -30,14 +31,18 @@ export function batchSkipReason(action: BatchVerb, session: SessionPayload): str
   return archived ? null : "not archived";
 }
 
-export function batchVerbPast(action: BatchVerb): string {
+export function batchVerbPast(action: FeedbackVerb): string {
+  if (action === "mark-seen") return "marked as seen";
+  if (action === "make-top-level") return "made top-level";
   if (action === "later") return "moved to Later";
   if (action === "back-from-later") return "back from Later";
   return action === "stop" ? "stopped" : `${action}d`;
 }
 
 /** "Couldn't move 2 sessions to Later". */
-function batchFailureTitle(action: BatchVerb, count: string): string {
+function batchFailureTitle(action: FeedbackVerb, count: string): string {
+  if (action === "mark-seen") return `Couldn't mark ${count} as seen`;
+  if (action === "make-top-level") return `Couldn't make ${count} top-level`;
   if (action === "later") return `Couldn't move ${count} to Later`;
   if (action === "back-from-later") return `Couldn't bring ${count} back from Later`;
   return `Couldn't ${action} ${count}`;
@@ -63,7 +68,7 @@ export function batchSkipNote(skipped: ReadonlyMap<string, number>): string | un
  * selected sessions the verb does not apply to, by reason.
  */
 export function reportBatch(
-  action: BatchVerb,
+  action: FeedbackVerb,
   results: readonly SessionBatchResult[],
   sessions: readonly SessionPayload[],
   skipped: ReadonlyMap<string, number>

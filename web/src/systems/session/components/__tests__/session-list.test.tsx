@@ -186,6 +186,8 @@ function renderList(
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
     onMarkSeen: vi.fn(),
+    onMarkSeenMany: vi.fn(),
+    onMakeTopLevelMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -1658,6 +1660,47 @@ describe("SessionList row copy actions", () => {
     expect(writeText).toHaveBeenLastCalledWith("Stopped work");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
   });
+
+  // Invariant: row, toolbar and context menus share meaningful batch verbs; single-only
+  // actions never leak into the selection. Owner/canonical suite: SessionList menu interaction.
+  it.each(["toolbar", "context"])(
+    "Should expose row action parity in the %s selection menu",
+    async kind => {
+      const user = userEvent.setup();
+      const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+      const first = { ...sessions[0]!, attention_dismissible: true };
+      const child = {
+        ...sessions[1]!,
+        lineage: {
+          ...primarySessionFixture.lineage,
+          kind: "provenance",
+          parent_session_id: first.id,
+          root_session_id: first.id,
+        },
+      } as SessionPayload;
+      const { actions } = renderList({ sessions: [first, child] });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${first.id}`), { metaKey: true });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${child.id}`));
+      const open = async () => {
+        if (kind === "toolbar")
+          await user.click(screen.getByTestId("session-sidebar-selection-more"));
+        else fireEvent.contextMenu(screen.getByTestId(`session-sidebar-session-${first.id}`));
+        return screen.findByRole("menu");
+      };
+      let menu = await open();
+      expect(within(menu).queryByText("Rename session")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Fork session…")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Continue with another agent…")).not.toBeInTheDocument();
+      await user.click(within(menu).getByRole("menuitem", { name: /^Mark as seen/ }));
+      expect(actions.onMarkSeenMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await user.click(within(menu).getByRole("menuitem", { name: /^Make top-level/ }));
+      expect(actions.onMakeTopLevelMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await user.click(within(menu).getByRole("menuitem", { name: "Copy titles" }));
+      expect(writeText).toHaveBeenLastCalledWith("Running work\nStopped work");
+    }
+  );
 
   it("Should copy every selected session ID, one per line, from the selection menu", async () => {
     const user = userEvent.setup();

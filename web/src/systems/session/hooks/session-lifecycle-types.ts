@@ -5,6 +5,8 @@ import type { SessionPayload } from "../types";
 import type { SessionLaterConfirmation } from "./use-session-later-actions";
 
 export type SessionLifecycleAction =
+  | "mark-seen"
+  | "make-top-level"
   | "rename"
   | "stop"
   | "archive"
@@ -39,6 +41,8 @@ export interface SessionLifecycleActionHandlers {
   onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
   /** Clears a dismissible Needs you; absent where the host offers no Mark as seen. */
   onMarkSeen?: (session: SessionPayload) => void;
+  onMarkSeenMany?: (sessions: readonly SessionPayload[]) => void;
+  onMakeTopLevelMany?: (sessions: readonly SessionPayload[]) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void

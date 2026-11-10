@@ -207,9 +207,11 @@ describe("worktree batch lifecycle", () => {
       worktree: rows.find(row => row.id === id),
     }));
     let pending = 0;
+    let peak = 0;
     // The daemon allows one holder and eight waiters per repository.
     mocks.removeWorktree.mockImplementation(async () => {
       pending++;
+      peak = Math.max(peak, pending);
       const saturated = pending > 9;
       await Promise.resolve();
       pending--;
@@ -225,6 +227,7 @@ describe("worktree batch lifecycle", () => {
     });
     expect(result.current.results.map(row => row.status)).toEqual(rows.map(() => "success"));
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(rows.length);
+    expect(peak).toBe(3);
   });
 
   it("Should reconcile a lost successful response without another destructive request", async () => {
