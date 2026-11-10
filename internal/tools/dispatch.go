@@ -133,6 +133,9 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		}
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
+	if err := checkPinnedResultView(target.descriptor, patchedReq); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
+	}
 	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
@@ -170,7 +173,10 @@ func (r *RuntimeRegistry) invokeDispatchTarget(
 		}
 		target.audit.invoked = true
 	}
-	providerResult, err := target.handle.Call(ctx, patchedReq)
+	handlerReq := patchedReq
+	patchedReq.View, handlerReq.Input = resolveResultView(target.descriptor, patchedReq.Input)
+	handlerReq.View = patchedReq.View
+	providerResult, err := target.handle.Call(ctx, handlerReq)
 	if target.audit != nil {
 		target.audit.semanticError = bytes.Equal(providerResult.Metadata["is_error"], []byte("true"))
 	}

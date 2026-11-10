@@ -87,6 +87,9 @@ func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 		)
 	}
 	descriptor.OutputSchemaDigest = outputDigest
+	if err := populateResultViewDigests(&descriptor); err != nil {
+		return Descriptor{}, err
+	}
 	return descriptor, nil
 }
 

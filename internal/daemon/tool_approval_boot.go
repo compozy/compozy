@@ -26,15 +26,18 @@ func (i *boundToolApprovalIssuer) CreateToolApproval(
 	if len(req.Input) == 0 && strings.TrimSpace(req.InputDigest) != "" {
 		return i.tokens.CreateToolApproval(ctx, scope, req)
 	}
-	if _, err := toolspkg.ApprovalInputDigest(req.Input, req.InputDigest); err != nil {
+	view, err := i.registry.Get(ctx, scope, req.ToolID)
+	if err != nil {
+		return toolspkg.ApprovalTokenGrant{}, err
+	}
+	if _, err := toolspkg.ApprovalInputDigest(
+		toolspkg.ApprovalOperationInput(view.Descriptor, req.Input),
+		req.InputDigest,
+	); err != nil {
 		return toolspkg.ApprovalTokenGrant{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput, req.ToolID, "input digest is invalid",
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid,
 		)
-	}
-	view, err := i.registry.Get(ctx, scope, req.ToolID)
-	if err != nil {
-		return toolspkg.ApprovalTokenGrant{}, err
 	}
 	if len(req.Input) == 0 {
 		req.Input = json.RawMessage(`{}`)
@@ -43,7 +46,7 @@ func (i *boundToolApprovalIssuer) CreateToolApproval(
 	if err != nil {
 		return toolspkg.ApprovalTokenGrant{}, err
 	}
-	req.Input = boundInput
+	req.Input = toolspkg.ApprovalOperationInput(view.Descriptor, boundInput)
 	req.InputDigest = ""
 	return i.tokens.CreateToolApproval(ctx, scope, req)
 }

@@ -95,6 +95,9 @@ func (n *daemonNativeTools) setSessionArchived(
 		}
 	}
 	payload := core.SessionPayloadFromInfo(info)
+	if archived {
+		return sessionRecordViews.result(req.View, payload)
+	}
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 

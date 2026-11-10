@@ -9100,7 +9100,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"max_attempts":3`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","result_view":"full"}`), []byte(`"max_attempts":3`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"runtime_recovery_started"`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"page":{"limit":1,"has_more":false}`)},
 			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
@@ -15535,10 +15535,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSessionSpawn,
-			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,` +
-				`"skills":[],"toolsets":["compozy__sessions"],` +
-				`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
-				`"prompt":"Implement auth and commit."}`),
+			Input: json.RawMessage(
+				`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,"result_view":"full",` +
+					`"skills":[],"toolsets":["compozy__sessions"],` +
+					`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
+					`"prompt":"Implement auth and commit."}`,
+			),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(session_spawn) error = %v", err)
@@ -15921,7 +15923,11 @@ func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
 				t.Fatalf("envelope %s, want last_known runtime", envelope)
 			}
 			for _, toolID := range toolIDs {
-				requireNativeOutputSchemaAccepts(t, descriptors[toolID], envelope)
+				descriptor := descriptors[toolID]
+				if views := descriptor.ResultViews(); views != nil {
+					descriptor.OutputSchema = views.Full.Schema
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, envelope)
 			}
 		})
 	}
@@ -17324,4 +17330,475 @@ func (e *editingChangesEngine) Summary(
 		}
 	}
 	return s, err
+}
+
+func TestNativeResultViewHelper(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		view toolspkg.ResultView
+		full func(map[string]any) any
+		want string
+	}{
+		{"Should default an empty view to compact", "", nil, `{"id":"x"}`},
+		{"Should project compact", toolspkg.ResultViewCompact, nil, `{"id":"x"}`},
+		{"Should return the original full value", toolspkg.ResultViewFull, nil, `{"extra":"detail","id":"x"}`},
+		{"Should apply a full wrapper", toolspkg.ResultViewFull, func(p map[string]any) any { return map[string]any{"record": p} }, `{"record":{"extra":"detail","id":"x"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			views := resultViews[map[string]any]{
+				Compact: func(p map[string]any) any { return map[string]any{"id": p["id"]} },
+				Full:    tc.full,
+				Preview: func(map[string]any) string { return "x" },
+			}
+			got, err := views.result(tc.view, map[string]any{"id": "x", "extra": "detail"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got.Structured) != tc.want || got.Preview != "x" {
+				t.Fatalf("result=%#v", got)
+			}
+		})
+	}
+}
+
+type nativeResultViewFixture struct {
+	ToolID   toolspkg.ToolID
+	Name     string
+	Result   func(toolspkg.ResultView) (toolspkg.ToolResult, error)
+	MustKeep []string
+}
+
+func TestNativeResultViewContracts(t *testing.T) {
+	t.Parallel()
+	fixtures := map[toolspkg.ToolID][]nativeResultViewFixture{}
+	for _, family := range nativeResultViewFixtureFamilies {
+		for _, row := range family(t) {
+			fixtures[row.ToolID] = append(fixtures[row.ToolID], row)
+		}
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		if descriptor.ResultViews() == nil {
+			continue
+		}
+		t.Run("Should preserve both result contracts for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			if err := descriptor.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			rows := fixtures[descriptor.ID]
+			if len(rows) == 0 {
+				t.Fatalf("missing view fixture for %s", descriptor.ID)
+			}
+			var compactSchema, fullSchema map[string]any
+			if err := json.Unmarshal(descriptor.ResultViews().Compact.Schema, &compactSchema); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(descriptor.ResultViews().Full.Schema, &fullSchema); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range nativeResultSchemaPaths(compactSchema, nil) {
+				if !nativeResultSchemaAcceptsPath(fullSchema, path) {
+					t.Fatalf(
+						"%s compact schema path %s is not accepted by full",
+						descriptor.ID,
+						strings.Join(path, "."),
+					)
+				}
+			}
+			for _, row := range rows {
+				compact, err := row.Result(toolspkg.ResultViewCompact)
+				if err != nil {
+					t.Fatal(err)
+				}
+				full, err := row.Result(toolspkg.ResultViewFull)
+				if err != nil {
+					t.Fatal(err)
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, compact.Structured)
+				fullDescriptor := descriptor
+				fullDescriptor.OutputSchema = descriptor.ResultViews().Full.Schema
+				requireNativeOutputSchemaAccepts(t, fullDescriptor, full.Structured)
+				var c, f any
+				if err := json.Unmarshal(compact.Structured, &c); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(full.Structured, &f); err != nil {
+					t.Fatal(err)
+				}
+				requireNativeResultProjection(t, "$", c, f)
+				for _, path := range row.MustKeep {
+					if _, ok := nativeResultAtPath(c, strings.Split(path, ".")); !ok {
+						t.Fatalf("%s %s missing must-keep path %s", row.ToolID, row.Name, path)
+					}
+				}
+				if compact.Preview != full.Preview {
+					t.Fatal("preview differs by view")
+				}
+				t.Logf(
+					"%s/%s full=%d compact=%d reduction=%.2f%%",
+					row.ToolID,
+					row.Name,
+					len(full.Structured),
+					len(compact.Structured),
+					100*(1-float64(len(compact.Structured))/float64(len(full.Structured))),
+				)
+			}
+		})
+	}
+}
+
+func requireNativeResultProjection(t *testing.T, path string, compact, full any) {
+	t.Helper()
+	switch value := compact.(type) {
+	case map[string]any:
+		source, ok := full.(map[string]any)
+		if !ok {
+			t.Fatalf("%s full is not an object", path)
+		}
+		for key, item := range value {
+			original, exists := source[key]
+			if !exists {
+				t.Fatalf("%s.%s absent from full", path, key)
+			}
+			requireNativeResultProjection(t, path+"."+key, item, original)
+		}
+	case []any:
+		source, ok := full.([]any)
+		if !ok || len(source) != len(value) {
+			t.Fatalf("%s array shape changed", path)
+		}
+		for i, item := range value {
+			requireNativeResultProjection(t, fmt.Sprintf("%s.%d", path, i), item, source[i])
+		}
+	default:
+		if !reflect.DeepEqual(compact, full) {
+			t.Fatalf("%s compact=%v full=%v", path, compact, full)
+		}
+	}
+}
+
+func nativeResultAtPath(value any, path []string) (any, bool) {
+	if len(path) == 0 {
+		return value, true
+	}
+	switch node := value.(type) {
+	case map[string]any:
+		child, ok := node[path[0]]
+		if !ok {
+			return nil, false
+		}
+		return nativeResultAtPath(child, path[1:])
+	case []any:
+		index, err := strconv.Atoi(path[0])
+		if err != nil || index < 0 || index >= len(node) {
+			return nil, false
+		}
+		return nativeResultAtPath(node[index], path[1:])
+	default:
+		return nil, false
+	}
+}
+
+func nativeResultSchemaPaths(schema map[string]any, prefix []string) [][]string {
+	var paths [][]string
+	properties, _ := schema["properties"].(map[string]any)
+	for key, value := range properties {
+		path := append(slices.Clone(prefix), key)
+		paths = append(paths, path)
+		child, _ := value.(map[string]any)
+		paths = append(paths, nativeResultSchemaPaths(child, path)...)
+	}
+	if items, ok := schema["items"].(map[string]any); ok {
+		paths = append(paths, nativeResultSchemaPaths(items, append(slices.Clone(prefix), "[]"))...)
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				paths = append(paths, nativeResultSchemaPaths(node, prefix)...)
+			}
+		}
+	}
+	return paths
+}
+
+func nativeResultSchemaAcceptsPath(schema map[string]any, path []string) bool {
+	if len(path) == 0 {
+		return true
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				if nativeResultSchemaAcceptsPath(node, path) {
+					return true
+				}
+			}
+		}
+	}
+	if path[0] == "[]" {
+		items, ok := schema["items"].(map[string]any)
+		return !ok || nativeResultSchemaAcceptsPath(items, path[1:])
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	if child, ok := properties[path[0]].(map[string]any); ok {
+		return nativeResultSchemaAcceptsPath(child, path[1:])
+	}
+	object := schema["type"] == nil || schema["type"] == "object"
+	if types, ok := schema["type"].([]any); ok {
+		object = slices.Contains(types, any("object"))
+	}
+	return object && schema["additionalProperties"] != false
+}
+
+var nativeResultViewFixtureFamilies = []func(*testing.T) []nativeResultViewFixture{
+	nativeResultViewFixturesSession,
+	nativeResultViewFixturesSubagent,
+	nativeResultViewFixturesMonitor,
+	nativeResultViewFixturesClarify,
+	nativeResultViewFixturesNotify,
+	nativeResultViewFixturesAgent,
+	nativeResultViewFixturesAutomation,
+	nativeResultViewFixturesLoop,
+	nativeResultViewFixturesGoal,
+	nativeResultViewFixturesTask,
+	nativeResultViewFixturesWorkspace,
+	nativeResultViewFixturesWorktree,
+	nativeResultViewFixturesProfile,
+	nativeResultViewFixturesConfig,
+	nativeResultViewFixturesHooks,
+	nativeResultViewFixturesExtensions,
+	nativeResultViewFixturesMarketplace,
+	nativeResultViewFixturesProvider,
+	nativeResultViewFixturesResources,
+	nativeResultViewFixturesVault,
+	nativeResultViewFixturesGateway,
+	nativeResultViewFixturesMcp,
+	nativeResultViewFixturesObserve,
+	nativeResultViewFixturesLogs,
+	nativeResultViewFixturesWindow,
+	nativeResultViewFixturesDesktop,
+	nativeResultViewFixturesLayout,
+	nativeResultViewFixturesTerminal,
+	nativeResultViewFixturesTool,
+	nativeResultViewFixturesSkill,
+	nativeResultViewFixturesCmd,
+	nativeResultViewFixturesCommand,
+}
+
+func TestNativeSessionResultViews(t *testing.T) {
+	t.Parallel()
+	for _, bound := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve session facts and measure both views when bound is %t", bound),
+			func(t *testing.T) {
+				t.Parallel()
+				now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+				policy := nativeResultViewPermissions()
+				info := &session.Info{
+					ID:            "sess-view",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusFailed,
+					State:         session.StateStopped,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+					Lineage: &store.SessionLineage{
+						ParentSessionID: "sess-parent",
+						RootSessionID:   "sess-parent",
+						TTLExpiresAt:    &now,
+						PermissionPolicy: store.SessionPermissionPolicy{
+							Tools:          policy.Tools,
+							Skills:         policy.Skills,
+							MCPServers:     policy.MCPServers,
+							WorkspacePaths: policy.WorkspacePaths,
+						},
+					},
+					StopReason: "failed",
+					StopDetail: "provider failed",
+					Failure:    &store.SessionFailure{Kind: "runtime", Summary: "provider failed"},
+					PendingInteractions: []store.PendingInteraction{
+						{
+							SessionID:         "sess-view",
+							InteractionID:     "int-view",
+							Kind:              "permission",
+							ProviderRequestID: "req-view",
+							Status:            "pending",
+							CreatedAt:         now,
+						},
+					},
+				}
+				if bound {
+					info.RuntimeGeneration = 2
+					info.TranscriptEpoch = 1
+				}
+				created := &session.Info{
+					ID:            "sess-created",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusUnbound,
+					State:         session.StateActive,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
+				manager := &nativeOrchestrationSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "sess-parent" {
+							return &session.Info{
+								ID:          id,
+								ProfileID:   store.DefaultProfileID,
+								AgentName:   "general",
+								WorkspaceID: "ws-view",
+								State:       session.StateActive,
+							}, nil
+						}
+						if id == "sess-created" {
+							return created, nil
+						}
+						return info, nil
+					},
+					CreateAcceptedFn: func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) { return created, nil },
+					ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+						archived := *info
+						archived.ArchivedAt = &now
+						return &archived, nil
+					},
+					spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+						return &session.Session{
+							ID:            "sess-child",
+							AgentName:     "general",
+							WorkspaceID:   "ws-view",
+							RuntimeStatus: session.RuntimeStatusUnbound,
+							State:         session.StateActive,
+							Lineage: &store.SessionLineage{
+								SpawnDepth:       1,
+								SpawnRole:        "worker",
+								TTLExpiresAt:     &now,
+								PermissionPolicy: info.Lineage.PermissionPolicy,
+							},
+						}, nil
+					},
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Sessions:   manager,
+						Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, t.TempDir(), "ws-view"),
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				scope := toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					SessionID:   "sess-parent",
+					WorkspaceID: "ws-view",
+					AgentName:   "general",
+				}
+				for _, tc := range []struct {
+					id    toolspkg.ToolID
+					input string
+				}{
+					{toolspkg.ToolIDSessionStatus, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionArchive, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionSpawn, `{"agent_name":"general","ttl_seconds":600}`},
+					{toolspkg.ToolIDSessionCreate, `{"agent":"general"}`},
+				} {
+					compact, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+					)
+					if err != nil {
+						t.Fatalf("%s compact: %v", tc.id, err)
+					}
+					fullInput := strings.TrimSuffix(tc.input, "}") + `,"result_view":"full"}`
+					full, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(fullInput)},
+					)
+					if err != nil {
+						t.Fatalf("%s full: %v", tc.id, err)
+					}
+					descriptor, err := registry.Get(t.Context(), scope, tc.id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					requireNativeOutputSchemaAccepts(t, descriptor.Descriptor, compact.Structured)
+					var c, f any
+					if err := json.Unmarshal(compact.Structured, &c); err != nil {
+						t.Fatal(err)
+					}
+					if err := json.Unmarshal(full.Structured, &f); err != nil {
+						t.Fatal(err)
+					}
+					requireNativeResultProjection(t, "$", c, f)
+					reduction := 100 * (1 - float64(len(compact.Structured))/float64(len(full.Structured)))
+					t.Logf(
+						"IT-003 %s full=%d compact=%d reduction=%.2f%%",
+						tc.id,
+						len(full.Structured),
+						len(compact.Structured),
+						reduction,
+					)
+					if tc.id != toolspkg.ToolIDSessionCreate && reduction < 80 {
+						t.Fatalf("%s reduction %.2f%% < 80%%", tc.id, reduction)
+					}
+					if tc.id == toolspkg.ToolIDSessionStatus {
+						previous, err := core.SessionPayloadWithQueue(t.Context(), manager, info)
+						if err != nil {
+							t.Fatal(err)
+						}
+						owned, err := core.SessionPayloadsWithProfileOwners(
+							t.Context(),
+							[]contract.SessionPayload{previous},
+							nil,
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						expected, err := structuredResult(map[string]any{"session": owned[0]}, previous.ID)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !bytes.Equal(full.Structured, expected.Structured) {
+							t.Fatalf(
+								"full view changed previous payload: got %s want %s",
+								full.Structured,
+								expected.Structured,
+							)
+						}
+						for _, path := range []string{"session.lineage.permission_policy", "session.stop_reason", "session.stop_detail", "session.failure", "session.pending_interactions.0.interaction_id", "session.pending_interactions.0.kind"} {
+							value := c
+							if strings.Contains(path, "permission_policy") {
+								value = f
+							}
+							if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); !ok {
+								t.Fatalf("missing %s", path)
+							}
+						}
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok != bound {
+									t.Fatalf("%s presence=%v bound=%v", path, ok, bound)
+								}
+							}
+						}
+					}
+					if tc.id == toolspkg.ToolIDSessionCreate {
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok {
+									t.Fatalf("new session contains %s", path)
+								}
+							}
+						}
+					}
+				}
+			},
+		)
+	}
 }

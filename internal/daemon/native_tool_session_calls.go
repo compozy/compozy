@@ -49,7 +49,7 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsSessionKey: owned[0]}, payload.ID)
+	return sessionRecordViews.result(req.View, owned[0])
 }
 
 func (n *daemonNativeTools) commandList(

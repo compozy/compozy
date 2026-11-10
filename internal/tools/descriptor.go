@@ -140,6 +140,9 @@ func (d Descriptor) Validate() error {
 	if err := ValidateJSONObject("output_schema", d.OutputSchema, false); err != nil {
 		return err
 	}
+	if err := validateResultViews(d); err != nil {
+		return err
+	}
 	if d.ExecutionMetadata().MaxResultBytes < 0 {
 		return NewValidationError(
 			"max_result_bytes",

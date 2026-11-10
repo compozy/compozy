@@ -1,5 +1,7 @@
 package tools
 
+const ReasonResultViewPinned ReasonCode = "result_view_pinned"
+
 // ReasonCode is a deterministic machine-readable reason.
 type ReasonCode string
 

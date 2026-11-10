@@ -125,7 +125,7 @@ func (n *daemonNativeTools) sessionCreate(
 		return toolspkg.ToolResult{}, errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 const (

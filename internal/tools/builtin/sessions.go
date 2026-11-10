@@ -140,8 +140,7 @@ func sessionCreateDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, descriptorKeywordCreate},
 		[]string{"create session", "new session"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionCreateOutputSchema)
 }
 
 func sessionPromptDescriptor() toolspkg.Descriptor {

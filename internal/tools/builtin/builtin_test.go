@@ -426,7 +426,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionArchive],
-				[]string{"processes", "profile", "session_id", "stop", "with_children", "workspace"},
+				[]string{"processes", "profile", "result_view", "session_id", "stop", "with_children", "workspace"},
 			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
@@ -718,7 +718,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("session list input schema exposes internal dream type: %s", sessionList.InputSchema)
 		}
 
-		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].OutputSchema)
+		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].ResultViews().Full.Schema)
 		for _, requiredRecoveryContract := range []string{
 			`"recovering"`,
 			`"automatic_recovery"`,
@@ -844,6 +844,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if err := input.Validate(conflicting); err == nil {
 			t.Fatal("session_spawn input schema accepted worktree with new_worktree")
 		}
+		spawn.OutputSchema = spawn.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, spawn, `{
 			"session_id":"sess-child","spawn_role":"worker","spawn_depth":1,"ttl_expires_at":"2026-10-21T12:00:00Z",
 			"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]},
@@ -1972,7 +1973,7 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "new_worktree", "profile", "workspace", "worktree",
+		"agent", "name", "new_worktree", "profile", "result_view", "workspace", "worktree",
 	})
 	var newWorktree nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
@@ -4028,4 +4029,91 @@ func TestCheckInWritableInventory(t *testing.T) {
 			t.Fatal("notification write missing")
 		}
 	})
+}
+
+func TestResultViewDeclaration(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{emptyInputSchema, `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`} {
+		t.Run("Should inject the optional selector into "+input, func(t *testing.T) {
+			t.Parallel()
+			d := sessionEventsDescriptor()
+			d.InputSchema = json.RawMessage(input)
+			original := cloneDescriptor(d)
+			compact := `{"type":"object","additionalProperties":false}`
+			result := withResultViews(d, compact, string(d.OutputSchema))
+			digest, err := toolspkg.SchemaDigest(original.InputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ResultViews().PreViewInputSchemaDigest != digest {
+				t.Fatal("pre-view digest changed")
+			}
+			if string(result.OutputSchema) != compact ||
+				string(result.ResultViews().Full.Schema) != string(original.OutputSchema) {
+				t.Fatal("output contracts changed")
+			}
+			if !strings.HasSuffix(result.Description, resultViewDescription) {
+				t.Fatal("missing discovery sentence")
+			}
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			}
+			if err := json.Unmarshal(result.InputSchema, &schema); err != nil {
+				t.Fatal(err)
+			}
+			if string(schema.Properties[toolspkg.ResultViewInputKey]) != toolspkg.ResultViewSelectorSchema {
+				t.Fatalf("selector=%s", schema.Properties[toolspkg.ResultViewInputKey])
+			}
+			if slices.Contains(schema.Required, toolspkg.ResultViewInputKey) {
+				t.Fatal("selector is required")
+			}
+			if err := result.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			result.InputSchema = original.InputSchema
+			result.OutputSchema = original.OutputSchema
+			result.SetResultViews(nil)
+			result.ToolExecutionMetadata = original.ToolExecutionMetadata
+			result.Description = original.Description
+			if !reflect.DeepEqual(result, original) {
+				t.Fatal("unrelated descriptor metadata changed")
+			}
+		})
+	}
+}
+
+func TestSingleResultContracts(t *testing.T) {
+	t.Parallel()
+	descriptors := map[toolspkg.ToolID]toolspkg.Descriptor{}
+	for _, d := range NativeDescriptors() {
+		descriptors[d.ID] = d
+	}
+	for _, family := range singleResultFamilies {
+		for id, reason := range family {
+			t.Run("Should retain the single result contract of "+id.String(), func(t *testing.T) {
+				t.Parallel()
+				d, exists := descriptors[id]
+				if !exists {
+					t.Fatal("unknown single-result tool")
+				}
+				got, ok := SingleResultReasonFor(id)
+				if !ok || got != reason {
+					t.Fatal("reason lookup mismatch")
+				}
+				if !slices.Contains(
+					[]SingleResultReason{SingleResultContent, SingleResultMinimal, SingleResultCallerBounded},
+					reason,
+				) {
+					t.Fatal("invalid reason")
+				}
+				if d.ResultViews() != nil {
+					t.Fatal("single-result tool has views")
+				}
+				if err := d.Validate(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
 }

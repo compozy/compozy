@@ -92,7 +92,10 @@ func (b *toolApprovalBridge) RequestToolApproval(
 		request.CorrelationID = request.ToolCallID
 	}
 	call = *request
-	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+	descriptor := toolApprovalDescriptor(call, view)
+	operationCall := call
+	operationCall.Input = toolspkg.ApprovalOperationInput(descriptor, call.Input)
+	if handled, err := b.consumeLocalToolApproval(ctx, scope, operationCall); handled {
 		if err == nil {
 			setToolApprovalLabel(request, toolApprovalApprovedOnceLabel)
 			b.logToolApprovalApplied(ctx, scope, *request, "approval_token")
@@ -100,7 +103,7 @@ func (b *toolApprovalBridge) RequestToolApproval(
 		return err
 	}
 	if !promptPolicy.force {
-		if handled, durableErr := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
+		if handled, durableErr := b.consumeDurableToolApproval(ctx, scope, operationCall, toolID); handled {
 			if durableErr == nil {
 				setToolApprovalLabel(request, "approved_always")
 				b.logToolApprovalApplied(ctx, scope, *request, "remembered_grant")
@@ -134,14 +137,13 @@ func (b *toolApprovalBridge) RequestToolApproval(
 			toolspkg.ReasonApprovalUnreachable,
 		)
 	}
-	descriptor := toolApprovalDescriptor(call, view)
 	response, err := b.requestSessionToolApproval(
 		ctx, sessions, sessionID, call, descriptor, view, promptPolicy.remember,
 	)
 	if err != nil {
 		return err
 	}
-	err = b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome, promptPolicy.remember)
+	err = b.applyToolApprovalOutcome(ctx, scope, operationCall, toolID, response.Outcome, promptPolicy.remember)
 	if err == nil {
 		setToolApprovalLabel(request, toolApprovalOutcomeLabel(response.Outcome))
 		b.logToolApprovalApplied(ctx, scope, *request, "permission_response")
@@ -228,7 +230,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	remember bool,
 ) (acp.RequestPermissionResponse, error) {
 	toolID := toolApprovalID(call, view)
-	inputDigest, err := toolspkg.ApprovalInputDigest(call.Input, "")
+	inputDigest, err := toolspkg.ApprovalInputDigest(toolspkg.ApprovalOperationInput(descriptor, call.Input), "")
 	if err != nil {
 		return acp.RequestPermissionResponse{}, err
 	}

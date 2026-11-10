@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -2100,6 +2101,210 @@ func TestCheckInDispatchAccounting(t *testing.T) {
 			}
 			if recorder.begins != 1 || recorder.finishes != wantFinishes || called != tc.wantCalls {
 				t.Fatalf("begin=%d finish=%d calls=%d", recorder.begins, recorder.finishes, called)
+			}
+		})
+	}
+}
+
+// Result selection belongs to dispatch; hooks cannot replace the caller's pin or approval identity.
+func TestRuntimeRegistryDispatchResultViews(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, input, patch string
+		single             bool
+		code               ErrorCode
+		pin                ResultView
+		want               ResultView
+		reason             ReasonCode
+	}{
+		{name: "Should default to compact", input: `{"query":"x"}`, want: ResultViewCompact},
+		{name: "Should select full and strip the selector", input: `{"query":"x","result_view":"full"}`, want: ResultViewFull},
+		{name: "Should reject an unknown selector", input: `{"query":"x","result_view":"summary"}`, reason: ReasonSchemaInvalid},
+		{name: "Should reject a non-string selector", input: `{"query":"x","result_view":true}`, reason: ReasonSchemaInvalid},
+		{name: "Should reject a selector on single results", input: `{"query":"x","result_view":"full"}`, single: true, reason: ReasonSchemaInvalid},
+		{name: "Should preserve the descriptor input error code", input: `{"query":"x","result_view":"full"}`, single: true, code: ErrorCodeInvalidRequest, reason: ReasonSchemaInvalid},
+		{name: "Should resolve the hook selected view", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"full"}`, want: ResultViewFull},
+		{name: "Should reject an invalid hook selector", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"summary"}`, reason: ReasonSchemaInvalid},
+		{name: "Should enforce a pin before approval even when a hook clears it", input: `{"query":"x","result_view":"full"}`, patch: `{"query":"x","result_view":"compact"}`, pin: ResultViewFull, reason: ReasonResultViewPinned},
+		{name: "Should execute a matching pinned view", input: `{"query":"x","result_view":"full"}`, pin: ResultViewFull, want: ResultViewFull},
+		{name: "Should execute a matching hook and pin", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"full"}`, pin: ResultViewFull, want: ResultViewFull},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			if tc.single {
+				d = validDispatchDescriptor()
+			}
+			metadata := d.ExecutionMetadata()
+			metadata.InputErrorCode = tc.code
+			d.ToolExecutionMetadata = &metadata
+			calls := 0
+			sink := &recordingToolEventSink{}
+			bridge := &recordingApprovalBridge{}
+			hooks := &recordingHookRunner{
+				pre: func(_ context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error) {
+					if tc.patch != "" {
+						return CallRequest{Input: json.RawMessage(tc.patch)}, hookAllowedDecision(), nil
+					}
+					return call, hookAllowedDecision(), nil
+				},
+				post: func(_ context.Context, call CallRequest, result ToolResult) (ToolResult, error) {
+					expected := tc.input
+					if tc.patch != "" {
+						expected = tc.patch
+					}
+					if string(call.Input) != expected || call.View != tc.want {
+						t.Fatalf("post-call request = %#v", call)
+					}
+					return result, nil
+				},
+			}
+			provider := dispatchProviderWithHandle(
+				d,
+				&registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+						calls++
+						if req.View != tc.want || string(req.Input) != `{"query":"x"}` || req.PinnedView != tc.pin {
+							t.Fatalf("handler request=%#v", req)
+						}
+						return ToolResult{Structured: json.RawMessage(`{}`)}, nil
+					},
+				},
+			)
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithHookRunner(hooks),
+				WithApprovalBridge(bridge),
+				WithToolEventSink(sink),
+				WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+			)
+			_, err := registry.Call(
+				t.Context(),
+				Scope{SessionID: "sess-1"},
+				CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input), PinnedView: tc.pin, View: ResultViewFull},
+			)
+			if tc.reason != "" {
+				requireToolReason(t, err, tc.reason)
+				toolErr, ok := errors.AsType[*ToolError](err)
+				if !ok {
+					t.Fatal(err)
+				}
+				code := tc.code
+				if code == "" {
+					code = ErrorCodeInvalidInput
+				}
+				if tc.reason == ReasonResultViewPinned {
+					code = ErrorCodeDenied
+				}
+				if toolErr.Code != code {
+					t.Fatalf("code=%s want %s", toolErr.Code, code)
+				}
+				wantMessage := fmt.Sprintf(
+					"tool %q input %q must be one of %q, %q",
+					d.ID,
+					ResultViewInputKey,
+					ResultViewCompact,
+					ResultViewFull,
+				)
+				if tc.single {
+					wantMessage = fmt.Sprintf(
+						"tool %q returns a single result and does not accept %q",
+						d.ID,
+						ResultViewInputKey,
+					)
+				}
+				if tc.reason == ReasonResultViewPinned {
+					wantMessage = fmt.Sprintf("tool %q result view is pinned to %q by the caller", d.ID, tc.pin)
+				}
+				if toolErr.Message != wantMessage {
+					t.Fatalf("message=%q want %q", toolErr.Message, wantMessage)
+				}
+				if calls != 0 || len(bridge.calls) != 0 {
+					t.Fatalf("executions=%d approvals=%d", calls, len(bridge.calls))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || len(bridge.calls) != 1 {
+				t.Fatalf("executions=%d approvals=%d", calls, len(bridge.calls))
+			}
+			expected := tc.input
+			if tc.patch != "" {
+				expected = tc.patch
+			}
+			if string(bridge.calls[0].req.Input) != expected {
+				t.Fatalf("approval input=%s", bridge.calls[0].req.Input)
+			}
+			for _, event := range sink.snapshot() {
+				if event.Kind == ToolCallStarted &&
+					event.InputDigest != digestRaw(redactInputForEvents(json.RawMessage(tc.input), nil)) {
+					t.Fatalf("started input=%s", event.InputDigest)
+				}
+			}
+		})
+	}
+}
+
+func resultViewDispatchDescriptor() Descriptor {
+	d := validDispatchDescriptor()
+	d.InputSchema = json.RawMessage(
+		`{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"result_view":` + ResultViewSelectorSchema + `},"additionalProperties":false}`,
+	)
+	d.OutputSchema = json.RawMessage(`{"type":"object","additionalProperties":false}`)
+	d.SetResultViews(&ResultViews{
+		Compact: ResultViewContract{Schema: cloneRawMessage(d.OutputSchema)},
+		Full:    ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
+	})
+	return d
+}
+
+func TestRuntimeRegistryNonNativeResultView(t *testing.T) {
+	t.Parallel()
+	for _, backend := range []BackendKind{BackendExtensionHost, BackendMCP} {
+		t.Run("Should leave "+string(backend)+" input untouched", func(t *testing.T) {
+			t.Parallel()
+			d := extensionDenyAllDescriptor()
+			if backend == BackendMCP {
+				d.ID = "mcp__server__lookup"
+				d.Backend = BackendRef{Kind: BackendMCP, MCPServer: "server", MCPTool: "lookup"}
+				d.Source = SourceRef{Kind: SourceMCP, Owner: "server", RawServerName: "server", RawToolName: "lookup"}
+			}
+			d.InputSchema = json.RawMessage(`{"type":"object"}`)
+			for _, input := range []string{`{ "result_view" : "custom" }`, `{"result_view":"full"}`} {
+				called := false
+				provider := dispatchProviderWithSourceAndHandle(
+					d.Source,
+					d,
+					&registryTestHandle{
+						descriptor:   d,
+						availability: availableDispatchHandle(),
+						call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+							called = true
+							if req.View != "" || string(req.Input) != input {
+								t.Fatalf("request=%#v", req)
+							}
+							return ToolResult{}, nil
+						},
+					},
+				)
+				registry := mustDispatchRegistry(
+					t,
+					provider,
+					WithPolicyEvaluator(staticPolicyEvaluator{decision: hookAllowedDecision()}),
+				)
+				_, err := registry.Call(
+					t.Context(),
+					Scope{Operator: true},
+					CallRequest{ToolID: d.ID, Input: json.RawMessage(input), View: ResultViewFull},
+				)
+				if err != nil || !called {
+					t.Fatalf("called=%v err=%v", called, err)
+				}
 			}
 		})
 	}
