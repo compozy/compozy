@@ -92,18 +92,22 @@ func TestNativePlatformFailureResultViews(t *testing.T) {
 		},
 	}
 	cases := []struct {
-		name  string
-		id    toolspkg.ToolID
-		input string
-		deps  daemonNativeToolsDeps
-		field string
+		name    string
+		id      toolspkg.ToolID
+		input   string
+		deps    daemonNativeToolsDeps
+		field   string
+		want    string
+		wantErr bool
 	}{
 		{
-			name:  "Should preserve workspace archive blockers",
-			id:    toolspkg.ToolIDWorkspaceArchive,
-			input: `{"workspace":"ws-a"}`,
-			deps:  daemonNativeToolsDeps{Workspaces: workspaceService},
-			field: "blockers",
+			name:    "Should preserve workspace archive blockers",
+			id:      toolspkg.ToolIDWorkspaceArchive,
+			input:   `{"workspace":"ws-a"}`,
+			deps:    daemonNativeToolsDeps{Workspaces: workspaceService},
+			field:   "blockers",
+			want:    `{"blockers":[{"kind":"session","id":"sess-a","name":"Active"}]}`,
+			wantErr: true,
 		},
 		{
 			name:  "Should preserve worktree removal refusal",
@@ -120,7 +124,9 @@ func TestNativePlatformFailureResultViews(t *testing.T) {
 					}, worktree.ErrDirtyRequiresForce
 				},
 			}},
-			field: "risk",
+			field:   "risk",
+			want:    `{"code":"worktree_dirty","risk":{"changed_files":2}}`,
+			wantErr: true,
 		},
 		{
 			name:  "Should preserve provider refresh partial failure",
@@ -133,6 +139,7 @@ func TestNativePlatformFailureResultViews(t *testing.T) {
 				},
 			},
 			field: "error",
+			want:  `{"error":"refresh failed","sources":[{"provider_id":"claude","source_id":"config"}]}`,
 		},
 	}
 	for _, tc := range cases {
@@ -152,6 +159,9 @@ func TestNativePlatformFailureResultViews(t *testing.T) {
 				default:
 					result, err = n.providerModelsRefresh(t.Context(), toolspkg.Scope{}, req)
 				}
+				if (err != nil) != tc.wantErr {
+					t.Fatalf("error = %v, want error %t", err, tc.wantErr)
+				}
 				if err != nil {
 					failure, ok := errors.AsType[*toolspkg.ToolError](err)
 					if !ok || failure.PartialResult == nil {
@@ -166,6 +176,14 @@ func TestNativePlatformFailureResultViews(t *testing.T) {
 				if len(body[tc.field]) == 0 {
 					t.Fatalf("missing %s in %s", tc.field, result.Structured)
 				}
+				var want, actual any
+				if err := json.Unmarshal([]byte(tc.want), &want); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(result.Structured, &actual); err != nil {
+					t.Fatal(err)
+				}
+				requireNativeResultProjection(t, "failure", want, actual)
 				if previous != nil && !bytes.Equal(previous, result.Structured) {
 					t.Fatalf("partial result changed: %s vs %s", previous, result.Structured)
 				}

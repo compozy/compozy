@@ -6,38 +6,55 @@ import (
 )
 
 type compactExtension struct {
-	MissingInputs               []string                              `json:"missing_inputs,omitempty"`
-	Name                        string                                `json:"name"`
-	Profile                     string                                `json:"profile"`
-	WorkspaceID                 string                                `json:"workspace_id,omitempty"`
-	Version                     string                                `json:"version"`
-	Type                        string                                `json:"type"`
-	Format                      string                                `json:"format"`
-	Source                      string                                `json:"source"`
-	Enabled                     bool                                  `json:"enabled"`
-	State                       string                                `json:"state"`
-	MissingEnv                  []string                              `json:"missing_env,omitempty"`
-	GatewayRequirementDigest    string                                `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired bool                                  `json:"gateway_confirmation_required"`
-	Health                      string                                `json:"health,omitempty"`
-	HealthMessage               string                                `json:"health_message,omitempty"`
-	LastError                   string                                `json:"last_error,omitempty"`
-	FailureCode                 string                                `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                                   `json:"consecutive_failures"`
-	RestartBackoffMS            int64                                 `json:"restart_backoff_ms"`
-	GenerationHash              string                                `json:"generation_hash,omitempty"`
-	Dev                         bool                                  `json:"dev,omitzero"`
-	OriginPath                  string                                `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                                  `json:"update_available"`
-	RemoteVersion               string                                `json:"remote_version,omitempty"`
-	DigestMatched               bool                                  `json:"digest_matched"`
-	DaemonRunning               bool                                  `json:"daemon_running"`
-	Trust                       *contract.ExtensionTrustReportPayload `json:"trust,omitzero"`
-	Diagnostics                 []contract.DiagnosticItem             `json:"diagnostics,omitempty"`
+	InstallationProfile string                                     `json:"installation_profile,omitempty"`
+	Origin              *contract.MarketplaceOriginPayload         `json:"origin,omitzero"`
+	OverridesPublished  bool                                       `json:"overrides_published,omitzero"`
+	Inputs              []contract.ExtensionInputStatePayload      `json:"inputs,omitempty"`
+	MCPServers          []contract.MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
+	DeclaredProfiles    []contract.ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
+	Placements          []contract.ExtensionPlacementPayload       `json:"placements,omitempty"`
+	DormantPlacements   []contract.ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+
+	MissingInputs               []string                    `json:"missing_inputs,omitempty"`
+	Name                        string                      `json:"name"`
+	Profile                     string                      `json:"profile"`
+	WorkspaceID                 string                      `json:"workspace_id,omitempty"`
+	Version                     string                      `json:"version"`
+	Type                        string                      `json:"type"`
+	Format                      string                      `json:"format"`
+	Source                      string                      `json:"source"`
+	Enabled                     bool                        `json:"enabled"`
+	State                       string                      `json:"state"`
+	MissingEnv                  []string                    `json:"missing_env,omitempty"`
+	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest,omitempty"`
+	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
+	Health                      string                      `json:"health,omitempty"`
+	HealthMessage               string                      `json:"health_message,omitempty"`
+	LastError                   string                      `json:"last_error,omitempty"`
+	FailureCode                 string                      `json:"failure_code,omitempty"`
+	ConsecutiveFailures         int                         `json:"consecutive_failures"`
+	RestartBackoffMS            int64                       `json:"restart_backoff_ms"`
+	GenerationHash              string                      `json:"generation_hash,omitempty"`
+	Dev                         bool                        `json:"dev,omitzero"`
+	OriginPath                  string                      `json:"origin_path,omitempty"`
+	UpdateAvailable             bool                        `json:"update_available"`
+	RemoteVersion               string                      `json:"remote_version,omitempty"`
+	DigestMatched               bool                        `json:"digest_matched"`
+	DaemonRunning               bool                        `json:"daemon_running"`
+	Trust                       *compactPlatformTrust       `json:"trust,omitzero"`
+	Diagnostics                 []compactPlatformDiagnostic `json:"diagnostics,omitempty"`
 }
 
 func projectCompactExtension(p *contract.ExtensionPayload) compactExtension {
 	return compactExtension{
+		InstallationProfile:         p.InstallationProfile,
+		Origin:                      p.Origin,
+		OverridesPublished:          p.OverridesPublished,
+		Inputs:                      p.Inputs,
+		MCPServers:                  p.MCPServers,
+		DeclaredProfiles:            p.DeclaredProfiles,
+		Placements:                  p.Placements,
+		DormantPlacements:           p.DormantPlacements,
 		MissingInputs:               p.MissingInputs,
 		Name:                        p.Name,
 		Profile:                     p.Profile,
@@ -64,8 +81,8 @@ func projectCompactExtension(p *contract.ExtensionPayload) compactExtension {
 		RemoteVersion:               p.RemoteVersion,
 		DigestMatched:               p.DigestMatched,
 		DaemonRunning:               p.DaemonRunning,
-		Trust:                       p.Trust,
-		Diagnostics:                 p.Diagnostics,
+		Trust:                       compactTrust(p.Trust),
+		Diagnostics:                 compactPlatformDiagnostics(p.Diagnostics),
 	}
 }
 

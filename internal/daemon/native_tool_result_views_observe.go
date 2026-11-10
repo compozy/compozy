@@ -2,11 +2,13 @@ package daemon
 
 import (
 	"maps"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
 type compactHealth struct {
+	Activities     []compactObserveActivity             `json:"activities,omitempty"`
 	AgentProbes    []compactObserveProbe                `json:"agent_probes,omitempty"`
 	Status         string                               `json:"status"`
 	UptimeSeconds  int64                                `json:"uptime_seconds"`
@@ -20,6 +22,7 @@ type compactHealth struct {
 
 func projectCompactHealth(p contract.ObserveHealthPayload) compactHealth {
 	return compactHealth{
+		Activities:     compactObserveActivities(p.Activities),
 		AgentProbes:    compactObserveProbes(p.AgentProbes),
 		Status:         p.Status,
 		UptimeSeconds:  p.UptimeSeconds,
@@ -78,6 +81,42 @@ func compactObserveProbes(p []contract.AgentProbeHealthPayload) []compactObserve
 	result := make([]compactObserveProbe, len(p))
 	for i := range p {
 		result[i] = compactObserveProbe{p[i].AgentName, p[i].Provider, p[i].Status, p[i].Error}
+	}
+	return result
+}
+
+// Preserve active supervision state and limits; timing and activity traces stay in full.
+type compactObserveActivity struct {
+	SessionID        string     `json:"session_id"`
+	TurnID           string     `json:"turn_id,omitempty"`
+	DeadlineAt       *time.Time `json:"deadline_at,omitempty"`
+	CurrentTool      string     `json:"current_tool,omitempty"`
+	ToolCallID       string     `json:"tool_call_id,omitempty"`
+	IterationCurrent int        `json:"iteration_current"`
+	IterationMax     int        `json:"iteration_max"`
+	Status           string     `json:"status"`
+	StallState       string     `json:"stall_state,omitempty"`
+	StallReason      string     `json:"stall_reason,omitempty"`
+}
+
+func compactObserveActivities(p []contract.SessionActivityHealthPayload) []compactObserveActivity {
+	if p == nil {
+		return nil
+	}
+	result := make([]compactObserveActivity, len(p))
+	for i, a := range p {
+		result[i] = compactObserveActivity{
+			a.SessionID,
+			a.TurnID,
+			a.DeadlineAt,
+			a.CurrentTool,
+			a.ToolCallID,
+			a.IterationCurrent,
+			a.IterationMax,
+			a.Status,
+			a.StallState,
+			a.StallReason,
+		}
 	}
 	return result
 }

@@ -7,6 +7,7 @@ import (
 )
 
 type compactListing struct {
+	Trust            *compactPlatformTrust              `json:"trust,omitzero"`
 	Category         string                             `json:"category"`
 	Featured         bool                               `json:"featured"`
 	SourceRef        string                             `json:"source_ref,omitempty"`
@@ -32,6 +33,7 @@ type compactListing struct {
 
 func projectCompactListing(p contract.MarketplaceListingPayload) compactListing {
 	return compactListing{
+		Trust:            compactTrust(p.Trust),
 		Category:         p.Category,
 		Featured:         p.Featured,
 		SourceRef:        p.SourceRef,
@@ -57,20 +59,20 @@ func projectCompactListing(p contract.MarketplaceListingPayload) compactListing 
 }
 
 type compactSource struct {
-	Name         string                         `json:"name"`
-	Kind         string                         `json:"kind"`
-	Source       string                         `json:"source"`
-	Enabled      bool                           `json:"enabled"`
-	State        string                         `json:"state"`
-	Plugins      int                            `json:"plugins"`
-	Installable  int                            `json:"installable"`
-	LastReadAt   *time.Time                     `json:"last_read_at,omitempty"`
-	ErrorClass   string                         `json:"error_class,omitempty"`
-	Error        string                         `json:"error,omitempty"`
-	DocumentPath string                         `json:"document_path,omitempty"`
-	Owner        string                         `json:"owner,omitempty"`
-	Stability    string                         `json:"stability"`
-	Diagnostics  []compactMarketplaceDiagnostic `json:"diagnostics"`
+	Name         string                      `json:"name"`
+	Kind         string                      `json:"kind"`
+	Source       string                      `json:"source"`
+	Enabled      bool                        `json:"enabled"`
+	State        string                      `json:"state"`
+	Plugins      int                         `json:"plugins"`
+	Installable  int                         `json:"installable"`
+	LastReadAt   *time.Time                  `json:"last_read_at,omitempty"`
+	ErrorClass   string                      `json:"error_class,omitempty"`
+	Error        string                      `json:"error,omitempty"`
+	DocumentPath string                      `json:"document_path,omitempty"`
+	Owner        string                      `json:"owner,omitempty"`
+	Stability    string                      `json:"stability"`
+	Diagnostics  []compactPlatformDiagnostic `json:"diagnostics"`
 }
 
 func projectCompactSource(p contract.MarketplaceSourcePayload) compactSource {
@@ -88,7 +90,7 @@ func projectCompactSource(p contract.MarketplaceSourcePayload) compactSource {
 		DocumentPath: p.DocumentPath,
 		Owner:        p.Owner,
 		Stability:    p.Stability,
-		Diagnostics:  compactMarketplaceDiagnostics(p.Diagnostics),
+		Diagnostics:  compactPlatformDiagnostics(p.Diagnostics),
 	}
 }
 
@@ -122,33 +124,4 @@ func compactMarketplaceSources(p contract.MarketplaceSourcesResponse) any {
 		}
 	}
 	return map[string]any{"sources": sources}
-}
-
-type compactMarketplaceDiagnostic struct {
-	ID               string `json:"id"`
-	Code             string `json:"code"`
-	Severity         string `json:"severity"`
-	Category         string `json:"category"`
-	Title            string `json:"title"`
-	Message          string `json:"message"`
-	SuggestedCommand string `json:"suggested_command,omitempty"`
-}
-
-func compactMarketplaceDiagnostics(p []contract.DiagnosticItem) []compactMarketplaceDiagnostic {
-	if p == nil {
-		return nil
-	}
-	result := make([]compactMarketplaceDiagnostic, len(p))
-	for i, d := range p {
-		result[i] = compactMarketplaceDiagnostic{
-			d.ID,
-			d.Code,
-			d.Severity,
-			d.Category,
-			d.Title,
-			d.Message,
-			d.SuggestedCommand,
-		}
-	}
-	return result
 }

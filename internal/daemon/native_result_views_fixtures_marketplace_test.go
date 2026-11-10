@@ -15,7 +15,7 @@ func nativeResultViewFixturesMarketplace(t *testing.T) []nativeResultViewFixture
 		var payload contract.MarketplaceListResponse
 		if err := json.Unmarshal(
 			[]byte(
-				`{"categories":[{"id":"skills","label":"Skills","count":1}],"total":1,"next_cursor":"next","revision":"rev","stale":true,"refreshing":true,"error_class":"source_failed","error":"source failed","sources":[{"name":"source","kind":"git","state":"failed","count":1}],"items":[{"category":"skills","featured":false,"source_ref":"repo/path","installable":false,"install_blocker":"missing_digest","digest_sha256":"digest","name_conflict":{"source":"local","source_ref":"repo/path","entry_id":"other"},"entry_id":"sample","name":"sample","description":"Sample","install_slug":"sample","source":"repo","installed":false,"update_available":false,"icon":"data:image/svg+xml;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","trust":{"verdict":"unknown"}}]}`,
+				`{"categories":[{"id":"skills","label":"Skills","count":1}],"total":1,"next_cursor":"next","revision":"rev","stale":true,"refreshing":true,"error_class":"source_failed","error":"source failed","sources":[{"name":"source","kind":"git","state":"failed","count":1}],"items":[{"category":"skills","featured":false,"source_ref":"repo/path","installable":false,"install_blocker":"missing_digest","digest_sha256":"digest","name_conflict":{"source":"local","source_ref":"repo/path","entry_id":"other"},"entry_id":"sample","name":"sample","description":"Sample","install_slug":"sample","source":"repo","installed":false,"update_available":false,"icon":"data:image/svg+xml;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","trust":{"decision":"allow_unverified","registry_tier":"community","checksum_verified":false,"allow_unverified":true,"warnings":[{"id":"trust-a","code":"unverified","severity":"warn","category":"trust","title":"Unverified","message":"Checksum unavailable","data_freshness":"fresh","evidence":{"checksum":"missing"},"suggested_command":"compozy extensions provenance sample"}]}}]}`,
 			),
 			&payload,
 		); err != nil {
@@ -34,6 +34,9 @@ func nativeResultViewFixturesMarketplace(t *testing.T) []nativeResultViewFixture
 					"items.0.digest_sha256",
 					"items.0.install_blocker",
 					"items.0.name_conflict",
+					"items.0.trust.decision",
+					"items.0.trust.allow_unverified",
+					"items.0.trust.warnings.0.message",
 				},
 				Result: func(view toolspkg.ResultView) (toolspkg.ToolResult, error) {
 					return (resultViews[contract.MarketplaceListResponse]{Compact: compactMarketplace}).result(

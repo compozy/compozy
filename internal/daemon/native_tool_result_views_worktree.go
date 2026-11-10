@@ -5,6 +5,9 @@ import (
 )
 
 type compactWorktree struct {
+	ProfileID       string `json:"profile_id"`
+	ProfileArchived bool   `json:"profile_archived"`
+
 	ID            string `json:"id"`
 	WorkspaceID   string `json:"workspace_id"`
 	Name          string `json:"name"`
@@ -26,23 +29,25 @@ type compactWorktree struct {
 
 func projectCompactWorktree(p contract.WorktreePayload) compactWorktree {
 	return compactWorktree{
-		ID:            p.ID,
-		WorkspaceID:   p.WorkspaceID,
-		Name:          p.Name,
-		Branch:        p.Branch,
-		Path:          p.Path,
-		State:         p.State,
-		PendingPhase:  p.PendingPhase,
-		Origin:        p.Origin,
-		SetupState:    p.SetupState,
-		SetupError:    p.SetupError,
-		CreateError:   p.CreateError,
-		CreatedBranch: p.CreatedBranch,
-		RunID:         p.RunID,
-		Dirty:         p.Dirty,
-		Ahead:         p.Ahead,
-		Behind:        p.Behind,
-		AgentActivity: p.AgentActivity,
+		ProfileID:       p.ProfileID,
+		ProfileArchived: p.ProfileArchived,
+		ID:              p.ID,
+		WorkspaceID:     p.WorkspaceID,
+		Name:            p.Name,
+		Branch:          p.Branch,
+		Path:            p.Path,
+		State:           p.State,
+		PendingPhase:    p.PendingPhase,
+		Origin:          p.Origin,
+		SetupState:      p.SetupState,
+		SetupError:      p.SetupError,
+		CreateError:     p.CreateError,
+		CreatedBranch:   p.CreatedBranch,
+		RunID:           p.RunID,
+		Dirty:           p.Dirty,
+		Ahead:           p.Ahead,
+		Behind:          p.Behind,
+		AgentActivity:   p.AgentActivity,
 	}
 }
 

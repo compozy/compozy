@@ -5,6 +5,7 @@ import (
 )
 
 type compactModel struct {
+	Sources                []compactModelSource                         `json:"sources"`
 	ProviderID             string                                       `json:"provider_id"`
 	ModelID                string                                       `json:"model_id"`
 	DisplayName            string                                       `json:"display_name,omitempty"`
@@ -25,6 +26,7 @@ type compactModel struct {
 
 func projectCompactModel(p contract.ProviderModelPayload) compactModel {
 	return compactModel{
+		Sources:                compactModelSources(p.Sources),
 		ProviderID:             p.ProviderID,
 		ModelID:                p.ModelID,
 		DisplayName:            p.DisplayName,
@@ -45,28 +47,34 @@ func projectCompactModel(p contract.ProviderModelPayload) compactModel {
 }
 
 type compactApply struct {
-	Applied         bool                                   `json:"applied"`
-	Lifecycle       contract.SettingsApplyLifecycle        `json:"lifecycle"`
-	NextAction      contract.SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired bool                                   `json:"restart_required,omitzero"`
-	RestartScope    string                                 `json:"restart_scope,omitempty"`
-	Warnings        []string                               `json:"warnings,omitempty"`
-	PartialFailures []contract.SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped         bool                                   `json:"skipped,omitzero"`
-	SkippedReason   string                                 `json:"skipped_reason,omitempty"`
+	ApplyRecordID    string                                 `json:"apply_record_id"`
+	ActiveGeneration int64                                  `json:"active_generation"`
+	ActiveConfigHash string                                 `json:"active_config_hash"`
+	Applied          bool                                   `json:"applied"`
+	Lifecycle        contract.SettingsApplyLifecycle        `json:"lifecycle"`
+	NextAction       contract.SettingsApplyNextAction       `json:"next_action"`
+	RestartRequired  bool                                   `json:"restart_required,omitzero"`
+	RestartScope     string                                 `json:"restart_scope,omitempty"`
+	Warnings         []string                               `json:"warnings,omitempty"`
+	PartialFailures  []contract.SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
+	Skipped          bool                                   `json:"skipped,omitzero"`
+	SkippedReason    string                                 `json:"skipped_reason,omitempty"`
 }
 
 func projectCompactApply(p contract.SettingsApplyResponse) compactApply {
 	return compactApply{
-		Applied:         p.Applied,
-		Lifecycle:       p.Lifecycle,
-		NextAction:      p.NextAction,
-		RestartRequired: p.RestartRequired,
-		RestartScope:    p.RestartScope,
-		Warnings:        p.Warnings,
-		PartialFailures: p.PartialFailures,
-		Skipped:         p.Skipped,
-		SkippedReason:   p.SkippedReason,
+		ApplyRecordID:    p.ApplyRecordID,
+		ActiveGeneration: p.ActiveGeneration,
+		ActiveConfigHash: p.ActiveConfigHash,
+		Applied:          p.Applied,
+		Lifecycle:        p.Lifecycle,
+		NextAction:       p.NextAction,
+		RestartRequired:  p.RestartRequired,
+		RestartScope:     p.RestartScope,
+		Warnings:         p.Warnings,
+		PartialFailures:  p.PartialFailures,
+		Skipped:          p.Skipped,
+		SkippedReason:    p.SkippedReason,
 	}
 }
 
@@ -86,4 +94,23 @@ func compactProviderCuration(p *contract.ProviderModelCurationResponse) any {
 		Apply        compactApply   `json:"apply"`
 		DefaultSpeed contract.Speed `json:"default_speed,omitempty"`
 	}{projectCompactModel(p.Model), projectCompactApply(p.Apply), p.DefaultSpeed}
+}
+
+// A model's last_error holds only the first source error; keep every source outcome.
+type compactModelSource struct {
+	SourceID   string `json:"source_id"`
+	SourceKind string `json:"source_kind"`
+	Stale      bool   `json:"stale"`
+	LastError  string `json:"last_error,omitempty"`
+}
+
+func compactModelSources(p []contract.ModelCatalogSourceRefPayload) []compactModelSource {
+	if p == nil {
+		return nil
+	}
+	result := make([]compactModelSource, len(p))
+	for i, source := range p {
+		result[i] = compactModelSource{source.SourceID, source.SourceKind, source.Stale, source.LastError}
+	}
+	return result
 }
