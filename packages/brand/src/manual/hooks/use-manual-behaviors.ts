@@ -22,11 +22,15 @@ function useRevealOnScroll() {
   }, []);
 }
 
+/** Shows feedback in place of the button's content, then puts the original nodes back (swatches keep their markup). */
 function flash(btn: HTMLElement, text: string) {
-  const original = btn.textContent;
-  btn.textContent = text;
+  if (btn.dataset.flashing) return;
+  const original = Array.from(btn.childNodes);
+  btn.dataset.flashing = "true";
+  btn.replaceChildren(text);
   window.setTimeout(() => {
-    btn.textContent = original;
+    btn.replaceChildren(...original);
+    delete btn.dataset.flashing;
   }, 1200);
 }
 

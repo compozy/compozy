@@ -63,10 +63,15 @@ api_identifiers='(?x:
   | \bOperationStrategy\.single\(\{\s*root:[\t ]*"Compozy"
   | \bCompozy[\t ]+\w+[\t ]+\x60json:"compozy"\x60
 )'
-pattern="${api_identifiers}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
+# Words other people wrote stay as written: one beta-program quote shown on the landing.
+verbatim_quotes='(?x: \bemployee\x20of\x20the\x20week\x20is\x20going\x20to\x20be\x20Compozy\b )'
+# Published GitHub release notes are immutable history. The changelog prototype carries a snapshot of
+# them; the site itself reads them from GitHub at build time.
+history_snapshots=(--glob '!web/src/drafts/changelog/releases.json')
+pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
 
 set +e
-matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "$pattern" -- "${paths[@]}" 2>&1)"
+matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "${history_snapshots[@]}" "$pattern" -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 
@@ -115,6 +120,7 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
+    web/src/drafts/changelog/releases.json) return 0 ;;
     RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md | .release-notes/remove-agent-kind-aliases.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;

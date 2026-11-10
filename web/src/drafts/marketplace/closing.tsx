@@ -58,7 +58,7 @@ export function FromTheApp() {
 }
 
 const SOURCES = [
-  ["Compozy plugins", "Curated app plugins, on by default."],
+  ["CompozyOS plugins", "Curated app plugins, on by default."],
   ["Claude plugins", "Anthropic's official plugins, on by default."],
   ["Codex plugins", "OpenAI's plugin marketplace, off until you turn it on."],
 ];
@@ -69,7 +69,7 @@ const INCLUDED = [
     "Open Design",
     "Design interfaces, sites, slides, and prototypes built with your own components.",
   ],
-  ["Compozy skill", "Lets your agents operate sessions, Loops, tasks, and desktops."],
+  ["CompozyOS skill", "Lets your agents operate sessions, Loops, tasks, and desktops."],
 ];
 
 function Rows({ rows }: { rows: string[][] }) {
