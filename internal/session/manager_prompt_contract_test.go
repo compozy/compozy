@@ -4836,8 +4836,8 @@ func (r *promptDeliveryQueryRecorder) RecordPersisted(
 	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
 }
 
-// Invariant: per-turn charges telescope across manager/runtime restarts without
-// double-counting repeated usage notifications. Owner: prompt delivery; real ledger.
+// Invariant: cumulative reports charge increments and zero on drops across
+// manager/runtime restarts, without double-counting repeated usage notifications. Owner: prompt delivery; real ledger.
 func TestPromptCostAccounting(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -4845,7 +4845,8 @@ func TestPromptCostAccounting(t *testing.T) {
 		amounts, costs []float64
 	}{
 		{"Should continue a restored counter across manager restart", []float64{1, 3, 4}, []float64{1, 2, 1}},
-		{"Should restart a lower counter across manager restart", []float64{1, 0.5, 2}, []float64{1, 0.5, 1.5}},
+		{"Should charge zero for a lower counter across manager restart", []float64{1, 3, 0.5, 2}, []float64{1, 2, 0, 1.5}},
+		{"Should resume increments from a lagging restored counter across manager restart", []float64{10, 12, 11.5, 12.5}, []float64{10, 2, 0, 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -4854,7 +4855,7 @@ func TestPromptCostAccounting(t *testing.T) {
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 			var charged float64
 			for index, amount := range tc.amounts {
-				if index == 1 {
+				if index > 0 {
 					if err := h.manager.Stop(t.Context(), target.ID); err != nil {
 						t.Fatal(err)
 					}

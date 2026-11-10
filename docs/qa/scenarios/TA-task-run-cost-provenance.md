@@ -34,7 +34,9 @@ incompatible-provenance run failing closed to `unknown/none` with no amount.
 Run three turns reporting cumulative USD amounts 1, 3 and 4. Confirm per-turn costs 1, 2 and 1
 in usage/turns, transcript usage parts and the live prompt stream, with session/task/daily total 4.
 Release and resume the runtime, then restart the daemon: a restored report 5 contributes 1;
-a reset report 0.5 contributes 0.5. An explicitly per-turn adapter keeps its reported amounts.
+a lower report 0.5 contributes zero, and the next report 2 contributes 1.5. Also verify a lagging
+restore: `10, 12, 11.5, 12.5` produces `10, 2, 0, 1`, including across runtime restart.
+An explicitly per-turn adapter keeps its reported amounts.
 Upgrade a prior database with complete and missing session ledgers. Recomputed rows become actual;
 missing/partial histories become unknown with no amount. Token counts, turn counts and timestamps
 remain byte/value equivalent. Reopening must not repeat the repair.

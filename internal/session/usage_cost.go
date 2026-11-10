@@ -59,8 +59,13 @@ func normalizePromptCost(ctx context.Context, state *promptTurnDispatchState, ev
 }
 
 func turnCost(amount, previous float64, semantics compozyconfig.ProviderCostReporting) float64 {
-	if semantics == compozyconfig.ProviderCostPerTurn || amount < previous {
+	if semantics == compozyconfig.ProviderCostPerTurn {
 		return amount
+	}
+	if amount < previous {
+		// A restored counter can lag. Keep its raw report as the next baseline,
+		// but do not charge the already accumulated amount again.
+		return 0
 	}
 	return amount - previous
 }

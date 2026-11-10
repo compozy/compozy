@@ -21,7 +21,7 @@ WITH reports AS (
            LAG(cost_amount, 1, 0) OVER (PARTITION BY cost_currency ORDER BY first_sequence) AS previous
     FROM ranked WHERE latest = 1
 )
-SELECT *, CASE WHEN cost_amount < previous THEN cost_amount ELSE cost_amount - previous END AS turn_cost
+SELECT *, CASE WHEN cost_amount < previous THEN 0 ELSE cost_amount - previous END AS turn_cost
 FROM ordered;
 CREATE UNIQUE INDEX usage_cost_baselines_turn_currency ON usage_cost_baselines(turn_id, cost_currency);
 UPDATE token_usage SET cost_amount = (
@@ -37,7 +37,7 @@ UPDATE events SET content = json_set(content,
     '$.usage.ReportedCostAmount', json_extract(content, '$.usage.CostAmount'),
     '$.usage.CostAmount', (
         SELECT CASE WHEN json_extract(events.content, '$.usage.CostAmount') < previous
-                    THEN json_extract(events.content, '$.usage.CostAmount')
+                    THEN 0
                     ELSE json_extract(events.content, '$.usage.CostAmount') - previous END
         FROM usage_cost_baselines WHERE usage_cost_baselines.turn_id = events.turn_id
           AND trim(cost_currency) = trim(json_extract(events.content, '$.usage.CostCurrency'))

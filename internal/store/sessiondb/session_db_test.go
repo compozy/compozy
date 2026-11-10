@@ -5200,11 +5200,13 @@ func turnIDs(history []store.TurnHistory) []string {
 func TestSessionDBUsageCostMigration(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name    string
-		missing bool
+		name           string
+		missing        bool
+		amounts, costs []float64
 	}{
-		{name: "Should repair cumulative and restarted counters losslessly"},
-		{name: "Should derive costs from canonical history when a usage projection is missing", missing: true},
+		{name: "Should preserve raw reports while charging zero for a dropped counter", amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should resume increments from a lagging restored counter", amounts: []float64{10, 12, 11.5, 12.5}, costs: []float64{10, 2, 0, 1}},
+		{name: "Should derive costs from canonical history when a usage projection is missing", missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -5225,7 +5227,7 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			amounts, costs := []float64{1, 3, 4, 0.5, 2}, []float64{1, 2, 1, 0.5, 1.5}
+			amounts, costs := tc.amounts, tc.costs
 			for i, amount := range amounts {
 				turn := fmt.Sprintf("turn-cost-%d", i)
 				stamp := time.Date(2026, 7, 15, 12, i, 0, 0, time.UTC)

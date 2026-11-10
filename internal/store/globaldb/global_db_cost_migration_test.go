@@ -157,9 +157,9 @@ func seedCostRepairLedger(t *testing.T, globalPath, sessionID, workspaceID, agen
 	}
 	var previous float64
 	for index, amount := range amounts {
-		cost := amount
+		cost := 0.0
 		if amount >= previous {
-			cost -= previous
+			cost = amount - previous
 		}
 		previous = amount
 		turnID := fmt.Sprintf("cost-turn-%d", index)
@@ -395,7 +395,7 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 					t.Fatalf("non-cost fields changed: %+v", row)
 				}
 				if row.SessionID == "sess-repaired" &&
-					(row.TotalCost == nil || *row.TotalCost != 5 || row.CostStatus != "actual") {
+					(row.TotalCost == nil || *row.TotalCost != 4.5 || row.CostStatus != "actual") {
 					t.Fatalf("repaired=%+v", row)
 				}
 				if row.SessionID == "sess-missing" &&
@@ -419,7 +419,7 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 				Scan(&amount, &status, &turns, &tokens); err != nil {
 				t.Fatal(err)
 			}
-			if !amount.Valid || amount.Float64 != 5 || status != "actual" || turns != 4 || tokens != 20 {
+			if !amount.Valid || amount.Float64 != 4.5 || status != "actual" || turns != 4 || tokens != 20 {
 				t.Fatalf("daily=%+v %s %d %d", amount, status, turns, tokens)
 			}
 			var missingAmount sql.NullFloat64

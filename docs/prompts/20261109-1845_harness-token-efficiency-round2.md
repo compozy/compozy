@@ -51,10 +51,11 @@ Everything in the round 1 brief and report still applies. Facts established sinc
 - Normalize where usage is observed, for every ACP adapter. The default semantics follow the ACP
   schema: the reported amount is cumulative for the session's counter, and a turn's cost is the
   reported amount minus the last amount recorded for that session.
-- Counter restarts: a reported amount lower than the last recorded amount starts a new counter, and
-  that turn's cost is the reported amount. A restored counter (amount not lower) continues. State the
-  residual ambiguity in the docs and the report: a restart whose first amount exceeds the previous
-  total is indistinguishable from a continuation.
+- Counter drops — superseding operator decision, 2026-11-10: a lower report charges zero for that
+  turn, retains the raw amount and uses it as the next turn's baseline. This replaces this brief's
+  original full-report charge on a drop, which overcounted lagging restored counters. A drop can
+  undercount at most that one turn. A restart whose first report equals or exceeds the previous
+  total remains indistinguishable from continuation.
 - Survey every adapter CompozyOS ships a builtin provider for and that can report cost. Establish
   from the adapter source or documentation whether each reports a cumulative or a per-turn amount.
   An adapter that reports per-turn amounts is declared explicitly as such in provider/harness data and

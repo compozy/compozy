@@ -16,7 +16,7 @@ Eight workstreams have implementation commits. W10 now corrects cumulative accou
 | W7 | done | `31eb6c52e` | Durable admission prevents replaying the same child-wake revision |
 | W8 | moved to #1435 | — | Adapter-coordinated idle compaction experiment and implementation will ship separately |
 | W9 | done; token measurement unverified | `1ba6a448b` | Lean Claude environment for system/triage and opted-in agents |
-| W10 | done in round 2 | `09d60b814` | Durable per-turn increments, detected resets, migrated historical repair/unknown |
+| W10 | done in round 2 | `09d60b814` | Durable per-turn increments, zero-charge drops, migrated historical repair/unknown |
 
 ## Paired binary measurements
 
@@ -123,7 +123,7 @@ Compatibility: additive optional agent field co-shipped through API/CLI and gene
 
 ### W10 — completed in round 2
 
-Commit `09d60b814` normalizes cumulative reports, preserves raw evidence across restart and repairs historical costs through session migration 11 and global migration 199. The operator explicitly accepted undetectable high/equal first reports after counter reset as a residual undercount risk. See the complete round 2 implementation, survey, measurements, checks and migration notes below; the round 1 blocker is resolved under that decision.
+Commit `09d60b814` normalizes cumulative reports, preserves raw evidence across restart and repairs historical costs through session migration 11 and global migration 199. The operator subsequently approved zero charge on a counter drop, retaining the lower raw report as the next baseline. Accepted undercount risks are one turn per drop and an undetectable high/equal first report after a counter restart. See the complete round 2 implementation, survey, measurements, checks and migration notes below; the round 1 blocker is resolved under that decision.
 
 ## Round 1 focused verification commands
 
@@ -386,7 +386,7 @@ Usage is normalized in the session prompt owner before canonical persistence, ob
 
 ACP cumulative reporting is the default for every provider, including unknown adapters. Provider capability data explicitly identifies the verified cumulative adapters and has an explicit `per_turn` mode for exceptions. No builtin adapter was proven to report per-turn monetary amounts, so none is falsely declared an exception. Token counters are not normalized by this change.
 
-The accepted rule is `reported - previous` when the report is at least the previous amount; otherwise it is a new counter and contributes the full report. **Residual ambiguity:** a reset whose first report equals or exceeds the previous total looks like continuation and can undercount. This is the operator-approved limitation, not proof of exact invoice reconciliation. Restored and numerically detectable reset counters survive manager restart and runtime reattachment through the persisted raw baseline.
+The operator decision of 2026-11-10 supersedes the original restart rule: charge `reported - previous` for a non-decreasing report and zero for a lower report. Preserve every raw report and use the new, lower amount as the next turn's baseline. This avoids recharging accumulated spend when a restored counter lags. **Accepted limitations:** the drop turn is not counted (undercount of at most one turn per drop); a restart whose first report equals or exceeds the previous total remains indistinguishable from continuation. Neither rule proves exact invoice reconciliation. The raw baseline survives manager restart and runtime reattachment; explicitly per-turn adapters are unchanged.
 
 #### Migration and compatibility
 
@@ -404,8 +404,8 @@ These are deterministic accounting fixtures, not fresh measurements of operator 
 | Fixture | Previous additive result | Correct recorded turns | Correct total |
 | --- | ---: | --- | ---: |
 | Restored counter across manager restart: `1, 3, 4` | 8 | `1, 2, 1` | 4 |
-| Lower counter after restart: `1, 0.5, 2` | 3.5 | `1, 0.5, 1.5` | 3 |
-| Historical reset series: `1, 3, 0.5, 2` | 6.5 | `1, 2, 0.5, 1.5` | 5 |
+| Lower counter across runtime restarts: `1, 3, 0.5, 2` | 6.5 | `1, 2, 0, 1.5` | 4.5 |
+| Lagging restored counter, live and migrated: `10, 12, 11.5, 12.5` | 46 | `10, 2, 0, 1` | 13 |
 | Explicit per-turn reports: `1, 3, 0.5` | 4.5 | unchanged | 4.5 |
 | Missing historical ledger with stored aggregate 6.5 | `actual`, 6.5 | unavailable | `unknown`, no amount |
 
@@ -457,7 +457,7 @@ Source formatting used `golangci-lint fmt` on the explicit changed non-generated
 
 #### W10 release-note text
 
-> Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, including detected counter restarts. The upgrade preserves raw reports and rebuilds agent-reported historical costs from retained session ledgers. Included and estimated costs remain unchanged. Missing or incomplete evidence for agent-reported costs is shown as unknown; token counts, turn counts and timestamps are preserved. A counter reset whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
+> Fixed cumulative provider costs being added repeatedly as per-turn spend. Session, transcript, CLI, task and daily cost views now use turn increments, charging zero for a counter drop and using its retained raw report as the next baseline. The upgrade preserves raw reports and rebuilds agent-reported historical costs from retained session ledgers. Included and estimated costs remain unchanged. Missing or incomplete evidence for agent-reported costs is shown as unknown; token counts, turn counts and timestamps are preserved. A drop omits that one turn's cost (at most one turn per drop). A counter restart whose first report equals or exceeds the previous total can still undercount because it cannot be distinguished from continuation.
 
 ### W8 — survey retained for #1435: adapter-owned eligibility/deadline observation
 
@@ -495,7 +495,7 @@ W8 files changed: report only. Compatibility/migrations: no runtime/public/confi
 
 ### Round 2 remaining questions and unverified work
 
-- No additional operator decision is needed for W10. Its accepted numeric reset ambiguity remains documented; no reset epoch is invented.
+- No additional operator decision is needed for W10. Its accepted zero-charge drop and undetectable restart limitations remain documented; no reset epoch is invented.
 - W8 moved to #1435 for an experiment and separate PR; W6 moved to #1432 for compact/full native-tool result views. Neither is part of this delivery.
 - No production user database was modified or production billing series remeasured. Migration proof uses isolated SQLite fixtures, including real owner open/reopen and fresh-versus-replay equivalence.
 - No paid Claude warm-idle experiment, no live adapter matrix, and no browser/HTTP/UDS QA walkthrough was run in round 2. Existing integration suites ran against real storage/lifecycle owners with a fake ACP boundary. The three cost QA scenarios were updated, not marked newly walked.
@@ -674,7 +674,7 @@ The first CI Preflight passed generated-artifact and installer validation, then 
 
 Greptile's two findings were reproduced before fixing production code:
 
-- **Canonical migration baselines:** unreleased session migration 11 now derives prior-turn reports from canonical `usage`/`done` events, grouped by turn and currency in sequence order. A missing `token_usage` row no longer clears a retained event cost or inflates the next turn. Existing projected monetary rows are reconciled against the same reports without changing their token fields. The canonical suite includes reports `1, 3, 4, 0.5, 2` with the second projection row absent and requires costs `1, 2, 1, 0.5, 1.5` after upgrade and repeated reopen. The unpublished migration checksum was regenerated through Atlas, followed by `make codegen`; global migration 199 is unchanged.
+- **Canonical migration baselines:** unreleased session migration 11 now derives prior-turn reports from canonical `usage`/`done` events, grouped by turn and currency in sequence order. A missing `token_usage` row no longer clears a retained event cost or inflates the next turn. Existing projected monetary rows are reconciled against the same reports without changing their token fields. The canonical suite includes reports `1, 3, 4, 0.5, 2` with the second projection row absent and now requires costs `1, 2, 1, 0, 1.5` after upgrade and repeated reopen under the subsequent 2026-11-10 operator decision. The unpublished migration checksum was regenerated through Atlas, followed by `make codegen`; global migration 199 is unchanged.
 - **Live native root identity:** retain original absolute native root paths and perform exact-file checks through those paths on every catalog decision. Remove cached symlink targets and the root-only suppression shortcut. A removed or repointed `.claude/skills` restores injection; a newly restored exact exposure suppresses it again. Existing native-root tests now create the actual files whose exposure they assert.
 
 Focused verification passed, with zero normal/integration lint findings:
@@ -756,3 +756,32 @@ git diff --check
 ```
 
 All focused checks passed; normal and integration lint reported zero issues. The first lint attempt required the repository's `errors.AsType` convention in the new assertion; that was corrected before the passing run. No schema, migration or generated bytes changed. Full-repository taint analysis remains CI-owned and must confirm the new head; the earlier approval and local package result are not substitutes for that result. No new live-provider or production-data measurements were performed.
+
+## Operator correction — zero charge on cumulative counter drops (2026-11-10)
+
+The operator replaced the original full-report charge on a counter drop after reviewing 1,281 real sessions with monetary reports: 27 drops occurred in 24 sessions, and 17 landed at least halfway up the previous amount. A restored counter can lag rather than start at zero. In three independently migrated ledger copies, two totals matched the final raw counter; the third produced 242.55 against roughly 180 because the old drop rule charged a 62.40 report again after 66.73. These aggregate observations were supplied by the operator; this executor did not access those private ledgers.
+
+`turnCost` and both monetary expressions in unreleased session migration 11 now return zero on a drop, retain the raw report and use the lower amount as the next baseline. Non-decreasing reports remain increments, and explicitly per-turn adapters retain their reported amounts. Global repair has no second normalization rule: it sums the already normalized canonical ledger costs. Its fixture now uses the same zero-charge drop and expects 4.5 for `1, 3, 0.5, 2`. Included/estimated/other cost provenance remains untouched; global migration 199 does not change. Atlas regenerated the session checksum, and `make codegen` passed.
+
+The existing prompt suite restarts the manager before every subsequent turn, including both sides of a drop. Both live and schema-10-to-11 migration/reopen coverage assert `1, 3, 0.5, 2 → 1, 2, 0, 1.5` and lagging restore `10, 12, 11.5, 12.5 → 10, 2, 0, 1`, preserving the raw amounts. The migration suite retains its missing-projection case. Report examples, release notes, the superseded brief, official skill reference, site docs and the three affected QA scenarios now describe this decision. The accepted limitation is an uncounted drop turn (at most one turn per drop); a restart whose first report equals or exceeds the previous amount remains indistinguishable from continuation.
+
+Verification, with an isolated Go build cache:
+
+```sh
+go run ./.tmp/w10-atlas-hash.go && make codegen
+go test ./internal/session ./internal/store/sessiondb ./internal/store/globaldb ./internal/store -run '^(TestPromptCostAccounting|TestSessionDBUsageCostMigration|TestTranscriptProjectionUpgrade|TestGlobalDBUsageCostRepair|TestGlobalDBTokenCostMigration|TestProductionMigrationStreams|TestMigrationSchemaEquivalence)$' -count=1
+go test -tags=integration ./internal/session ./internal/store/sessiondb -run '^(TestClearConversationFailureRecovery|TestConversationRewindRestartsSameSessionFromRetainedPrefix|TestSessionDBAppendEventIfAbsent)$' -count=1
+COMPOZY_GO_LINT_SCOPES='./internal/session ./internal/store/sessiondb ./internal/store/globaldb' make go-lint
+bun x turbo run test --filter=compozy-web --only -- src/systems/agent/components/__tests__/agent-editors.test.tsx -t Permissions
+bun x turbo run test --filter=compozy-web --only -- src/systems/agent/components/__tests__/agent-editors.test.tsx
+```
+
+All selected Go packages and real recovery/rewind integration passed; normal and integration lint reported zero issues. The test-shape helper passed the global migration file; its prompt-contract and session-database findings were byte-identical to HEAD, with no new finding. The changed skill guidance was reviewed statically; triggers, metadata and reference links are unchanged. Formatting passed for the matched documentation files. Root Turbo executed uncached: 15 Permissions tests passed, then all 66 agent-editor tests passed. The initial integration-tagged selection also passed prompt-accounting and transcript-upgrade cases; the exact recovery selection above is the evidence for recovery and rewind.
+
+### Existing Web CI failure
+
+[CI run 42733804439, Frontend (web)](https://github.com/compozy/compozy/actions/runs/42733804439/job/129558466604) failed the default-reach round-trip test after 1,004 ms while the editor still showed its loading skeleton (9,233 other tests passed). The aggregate Verify failure was caused by this frontend lane. The branch changes no `web/` files relative to main `5f48b457f`; its generated TypeScript client changes only optional, erased types. The editor's draft is loaded by the unchanged `useAgentSettingsPage → useAgent → fetchAgent` path, against a synchronous MSW agent handler. No changed Go DTO serialization or runtime client code executes in that test.
+
+Both focused runs above passed, including the whole owning file. They also emitted the same existing MSW warnings for unhandled ancillary requests seen in CI; these are not a warning-free Web receipt. Evidence supports an intermittent harness/timing failure, with a load-sensitive cause still unproven. Duplicate searches found no matching issue; [#1445](https://github.com/compozy/compozy/issues/1445) records the evidence and investigation criteria. No test, timeout, coverage threshold or frontend production code was changed. The next accounting push supplies a second full-CI sample.
+
+No new provider-backed token/billing measurement, private-ledger migration, production-wide repair timing or browser/HTTP/UDS walk was performed. Full, race, E2E, repository-wide lint/typecheck and codegen drift gates remain CI-owned. Final delivery still requires all checks concluded without failures, renewed review coverage on the new head and zero unresolved threads.
