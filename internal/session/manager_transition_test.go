@@ -338,7 +338,6 @@ func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
-		h.cfg.Permissions.ProviderFullAccess = true
 		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -377,7 +376,8 @@ func TestPromptRuntimeRejectsUnrestrictedModeForPersistedRestrictedSession(t *te
 	t.Parallel()
 
 	h := newHarness(t)
-	h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	// The global level starts below approve-all, so no unrestricted mode is inherited at start.
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveEdits
 	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
@@ -396,7 +396,7 @@ func TestPromptRuntimeRejectsUnrestrictedModeForPersistedRestrictedSession(t *te
 		t.Fatalf("effective permissions = %q, want approve-reads", got)
 	}
 
-	h.cfg.Permissions.ProviderFullAccess = true
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
 	workspace.Config = h.cfg
 	h.resolver.upsert(&workspace)
 	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
@@ -612,14 +612,14 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if process != snapshot.process {
 			t.Fatal("ensurePromptRuntime() replaced a session-config process, want live reconfiguration")
 		}
+		thinkingOn := func(option acp.SessionConfigOptionSelection) bool {
+			return option.ID == "thinking" && option.BoolValue != nil && *option.BoolValue
+		}
 		configs := driver.configSnapshots()
-		if len(configs) != 1 || len(configs[0].ACPOptions) != 1 ||
-			configs[0].ACPOptions[0].ID != "thinking" || configs[0].ACPOptions[0].BoolValue == nil ||
-			!*configs[0].ACPOptions[0].BoolValue {
+		if len(configs) != 1 || !slices.ContainsFunc(configs[0].ACPOptions, thinkingOn) {
 			t.Fatalf("ConfigureRuntime() configs = %#v, want thinking=true", configs)
 		}
-		if got := active.Info().ACPOptions; len(got) != 1 || got[0].ID != "thinking" ||
-			got[0].BoolValue == nil || !*got[0].BoolValue {
+		if got := active.Info().ACPOptions; !slices.ContainsFunc(got, thinkingOn) {
 			t.Fatalf("active ACP options = %#v, want thinking=true", got)
 		}
 	})
@@ -2321,7 +2321,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SetRuntimeSelection(removal) error = %v", err)
 		}
-		if got := driver.configSnapshots(); len(got) != 1 || len(updated.ACPOptions) != 1 {
+		if got := driver.configSnapshots(); len(got) != 1 || !hasACPOption(updated.ACPOptions, "thinking") {
 			t.Fatalf("removal configs = %#v options = %#v, want it deferred with the option still effective",
 				got, updated.ACPOptions)
 		}

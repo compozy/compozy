@@ -161,8 +161,7 @@ const AlwaysOnDefaultPermissionMode = PermissionModeApproveEdits
 
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {
-	Mode               PermissionMode `toml:"mode"`
-	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
+	Mode PermissionMode `toml:"mode"`
 }
 
 const acpModeAuto = "auto"
