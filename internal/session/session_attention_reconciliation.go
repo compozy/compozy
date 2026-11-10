@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,11 +34,16 @@ func (m *Manager) PublishPendingInteractionCommits(
 	pending := make([]store.SessionAttentionCommit, 0, len(commits))
 	seen := make(map[string]bool)
 	for _, commit := range commits {
-		if commit.Interaction == nil || seen[commit.Interaction.SessionID] {
+		if commit.Interaction == nil {
 			continue
 		}
-		seen[commit.Interaction.SessionID] = true
+		id := strings.TrimSpace(commit.Interaction.SessionID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
 		commit.Interaction = new(*commit.Interaction)
+		commit.Interaction.SessionID = id
 		pending = append(pending, commit)
 	}
 	lifecycle := &m.attentionReconciliation
