@@ -83,6 +83,8 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 		return nil, WrapFailure(store.FailureProtocol, "ACP reasoning strategy validation failed", err)
 	}
 
+	ctx, spawn := startSpawnSpan(ctx, normalized.ProviderName)
+	defer func() { endSpan(spawn, startErr) }()
 	attempts := max(1, d.startAttempts)
 	for attempt := range attempts {
 		process, err = d.startSessionAttempt(ctx, normalized)

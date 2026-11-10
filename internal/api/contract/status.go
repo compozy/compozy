@@ -47,6 +47,30 @@ type StatusPayload struct {
 	Skills           SkillRuntimeStatusPayload        `json:"skills"`
 	Config           ConfigRuntimeStatusPayload       `json:"config"`
 	LogTail          LogTailStatusPayload             `json:"log_tail"`
+	// OTel is absent only from daemons that predate OTLP export; clients treat it as unknown.
+	OTel *OTelStatusPayload `json:"otel,omitzero"`
+}
+
+// OTelStatusPayload reports OTLP export state, target, and per-signal health.
+type OTelStatusPayload struct {
+	// State is disabled, inactive_observability_disabled, ok, or degraded.
+	State              string                  `json:"state"`
+	Protocol           string                  `json:"protocol,omitempty"`
+	EndpointHost       string                  `json:"endpoint_host,omitempty"`
+	SampleRatio        float64                 `json:"sample_ratio"`
+	ForwardToProviders bool                    `json:"forward_to_providers"`
+	Traces             OTelSignalStatusPayload `json:"traces"`
+	Metrics            OTelSignalStatusPayload `json:"metrics"`
+	DroppedSpans       int64                   `json:"dropped_spans"`
+}
+
+// OTelSignalStatusPayload reports one exported signal's health.
+type OTelSignalStatusPayload struct {
+	Enabled      bool      `json:"enabled"`
+	LastExportAt time.Time `json:"last_export_at,omitzero"`
+	// LastErrorClass is the fixed class of the last export failure; absent when the last export succeeded.
+	LastErrorClass string `json:"last_error_class,omitempty"`
+	FailedExports  int64  `json:"failed_exports"`
 }
 
 // DoctorPayload is the diagnostic probe result shared by HTTP, UDS, and CLI JSON.

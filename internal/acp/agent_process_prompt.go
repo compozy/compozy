@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type activePromptState struct {
@@ -36,6 +37,12 @@ type activePromptState struct {
 
 	usageMu sync.Mutex
 	usage   TokenUsage
+
+	// traceCtx is the span context of the turn that sent the prompt; it is set before the state is published and
+	// never changes, so readers take only promptMu.RLock.
+	traceCtx trace.SpanContext
+	// firstOutputAt is the Unix nano time of the provider's first message chunk, 0 until it arrives.
+	firstOutputAt atomic.Int64
 }
 
 type toolCallProjection struct {
@@ -62,13 +69,14 @@ func (p *AgentProcess) beginPrompt(
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
-	return p.beginPromptState(turnID, "", 0, bufferSize, cancelFns...)
+	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
 }
 
 func (p *AgentProcess) beginPromptForRun(
 	turnID string,
 	runID string,
 	generation int64,
+	traceCtx trace.SpanContext,
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
@@ -76,13 +84,14 @@ func (p *AgentProcess) beginPromptForRun(
 	if runID == "" || generation <= 0 {
 		return nil, errors.New("acp: prompt run identity is incomplete")
 	}
-	return p.beginPromptState(turnID, runID, generation, bufferSize, cancelFns...)
+	return p.beginPromptState(turnID, runID, generation, traceCtx, bufferSize, cancelFns...)
 }
 
 func (p *AgentProcess) beginPromptState(
 	turnID string,
 	runID string,
 	generation int64,
+	traceCtx trace.SpanContext,
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
@@ -105,6 +114,7 @@ func (p *AgentProcess) beginPromptState(
 		turnID:               turnID,
 		runID:                runID,
 		generation:           generation,
+		traceCtx:             traceCtx,
 		events:               make(chan AgentEvent, bufferSize),
 		ingest:               NewIngestGate(defaultIngestCapacity, defaultIngestMaxBytes),
 		activity:             make(chan struct{}, 1),
@@ -226,6 +236,9 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) bool {
 		return false
 	}
 
+	if event.Type == EventTypeAgentMessage && active.firstOutputAt.Load() == 0 {
+		active.firstOutputAt.CompareAndSwap(0, event.Timestamp.UnixNano())
+	}
 	active.sendMu.Lock()
 	defer active.sendMu.Unlock()
 	if active.closed {

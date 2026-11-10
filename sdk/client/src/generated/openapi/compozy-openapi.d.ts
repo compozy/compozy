@@ -13560,6 +13560,26 @@ export interface components {
       /** Format: double */
       y: number;
     };
+    OTelSignalStatusPayload: {
+      enabled: boolean;
+      /** Format: int64 */
+      failed_exports: number;
+      last_error_class?: string;
+      /** Format: date-time */
+      last_export_at?: string;
+    };
+    OTelStatusPayload: {
+      /** Format: int64 */
+      dropped_spans: number;
+      endpoint_host?: string;
+      forward_to_providers: boolean;
+      metrics: components["schemas"]["OTelSignalStatusPayload"];
+      protocol?: string;
+      /** Format: double */
+      sample_ratio: number;
+      state: string;
+      traces: components["schemas"]["OTelSignalStatusPayload"];
+    };
     ObserveFailureHealthPayload: {
       by_kind?: {
         [key: string]: number;
@@ -18389,6 +18409,7 @@ export interface components {
       health: components["schemas"]["ObserveHealthPayload"];
       log_tail: components["schemas"]["LogTailStatusPayload"];
       mcp_servers?: components["schemas"]["MCPServerStatusPayload"][];
+      otel?: components["schemas"]["OTelStatusPayload"] | null;
       providers?: components["schemas"]["ProviderStatusPayload"][];
       schema_version: string;
       sessions: components["schemas"]["SessionAggregatePayload"];

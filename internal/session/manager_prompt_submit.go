@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (m *Manager) reservePromptSlot(
@@ -50,6 +51,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
+	if req.deliveryCtx == nil {
+		req.deliveryCtx = ctx
+	}
 
 	var events <-chan acp.AgentEvent
 	profiling.Do(
@@ -67,16 +71,15 @@ func (m *Manager) submitProfiledPromptRequest(
 	ctx context.Context,
 	req promptRequest,
 	session *Session,
-) (<-chan acp.AgentEvent, error) {
-	if req.deliveryCtx == nil {
-		req.deliveryCtx = ctx
-	}
+) (_ <-chan acp.AgentEvent, err error) {
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, false)
 	proc, err := session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
 	if err != nil {
 		cancelPromptExecution()
 		return nil, err
 	}
+	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, req)
+	defer turnTrace.failSetup(session, &err)
 	slotReserved := true
 	stateOwned := true
 	defer func() {
@@ -125,6 +128,7 @@ func (m *Manager) submitProfiledPromptRequest(
 		return nil, err
 	}
 	turnState := newPromptRequestDispatchState(session, req, message)
+	turnState.turnTrace = turnTrace
 	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		return nil, err
 	}
@@ -277,7 +281,8 @@ func (m *Manager) submitPromptInReservedSlot(
 	m.recordBatchedPromptInputs(ctx, session, dispatchInput.batched)
 	m.consumeReservedPromptContext(session, req, replayBlock)
 
-	lifecycleCtx := m.fallbackLifecycleContext()
+	// The pump keeps the lifecycle's cancellation and carries the turn span for the work it persists.
+	lifecycleCtx := trace.ContextWithSpan(m.fallbackLifecycleContext(), trace.SpanFromContext(ctx))
 	m.startPromptPersistencePump(
 		lifecycleCtx,
 		session,

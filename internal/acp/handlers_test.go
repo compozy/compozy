@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {
@@ -1054,7 +1055,13 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.terminals.scope.SessionID = "compozy-session"
-	active, err := proc.beginPromptForRun("turn-terminal-lifecycle", "run-terminal-lifecycle", 17, 8)
+	active, err := proc.beginPromptForRun(
+		"turn-terminal-lifecycle",
+		"run-terminal-lifecycle",
+		17,
+		trace.SpanContext{},
+		8,
+	)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
 	}
@@ -1263,7 +1270,9 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 			},
 		}
 
-		active, err := proc.beginPromptForRun("turn-terminal-create-failure", "run-terminal-create-failure", 1, 4)
+		active, err := proc.beginPromptForRun(
+			"turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
+		)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}

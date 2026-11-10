@@ -3350,6 +3350,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
 			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
 		}
+		// otel-telemetry-export: status reports per-signal OpenTelemetry export health.
+		addOTelStatusSchema(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3559,6 +3561,51 @@ func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
 			},
 			"required": []any{"count", "profile_id", "workspace_id"},
 		},
+	}
+}
+
+func addOTelStatusSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := baseline
+	for _, key := range []string{
+		"paths", "/api/status", "get", "responses", "200", "content", "application/json", "schema", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved status otel addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["otel"]; exists {
+		t.Fatal("otel already exists in the historical status baseline")
+	}
+	signal := func() map[string]any {
+		return map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"enabled":          map[string]any{"type": "boolean"},
+				"last_export_at":   map[string]any{"type": "string", "format": "date-time"},
+				"last_error_class": map[string]any{"type": "string"},
+				"failed_exports":   map[string]any{"type": "integer", "format": "int64"},
+			},
+			"required": []any{"enabled", "failed_exports"},
+		}
+	}
+	// Optional and absent from older daemons; existing fields and the required set remain unchanged.
+	properties["otel"] = map[string]any{
+		"type":     "object",
+		"nullable": true,
+		"properties": map[string]any{
+			"state":                map[string]any{"type": "string"},
+			"protocol":             map[string]any{"type": "string"},
+			"endpoint_host":        map[string]any{"type": "string"},
+			"sample_ratio":         map[string]any{"type": "number", "format": "double"},
+			"forward_to_providers": map[string]any{"type": "boolean"},
+			"traces":               signal(),
+			"metrics":              signal(),
+			"dropped_spans":        map[string]any{"type": "integer", "format": "int64"},
+		},
+		"required": []any{"dropped_spans", "forward_to_providers", "metrics", "sample_ratio", "state", "traces"},
 	}
 }
 

@@ -108,6 +108,7 @@ type Server struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
+	telemetryStatus       core.TelemetryStatusSource
 	deadEntities          doctor.DeadEntitySource
 	agentLoader           core.AgentLoader
 	resourceAuth          []gin.HandlerFunc

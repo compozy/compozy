@@ -218,6 +218,7 @@ func (m *Manager) dispatchQueuedInput(
 	unlock()
 	dropped := map[string]struct{}{}
 	req.batchDropped = func(entryID string) { dropped[entryID] = struct{}{} }
+	req.queuedLinks = m.queuedTurnLinks.take(entry)
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	entry.batch = withoutDroppedQueuedInputs(entry.batch, dropped)
 	if err != nil {

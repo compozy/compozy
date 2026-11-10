@@ -115,6 +115,7 @@ type bootState struct {
 	viewPatches           *extensionCmdPaletteProvider
 	clarify               *clarifyBridge
 	observer              Observer
+	telemetry             *telemetrySlot
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout
 	hooks                 hookRuntime

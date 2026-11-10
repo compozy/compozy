@@ -223,6 +223,7 @@ type Daemon struct {
 	openRegistry           registryOpener
 	newSessionManager      sessionManagerFactory
 	newObserver            observerFactory
+	initTelemetry          telemetryInitializer
 	newExtensionManager    extensionManagerFactory
 	newAutomationManager   automationManagerFactory
 	newResourceReconcile   resourceReconcileDriverFactory

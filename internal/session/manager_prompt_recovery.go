@@ -80,6 +80,7 @@ func (m *Manager) attemptPromptRecovery(
 		}
 
 		request, message := recoveredPromptPayload(recovery, reason)
+		turnState.turnTrace.recovery()
 		source, _, err := m.startRecoveredPrompt(
 			recovery.executionCtx,
 			session,

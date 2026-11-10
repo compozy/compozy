@@ -19417,6 +19417,68 @@
         ],
         "type": "object"
       },
+      "OTelSignalStatusPayload": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "failed_exports": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_error_class": {
+            "type": "string"
+          },
+          "last_export_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "failed_exports"
+        ],
+        "type": "object"
+      },
+      "OTelStatusPayload": {
+        "properties": {
+          "dropped_spans": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "endpoint_host": {
+            "type": "string"
+          },
+          "forward_to_providers": {
+            "type": "boolean"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/OTelSignalStatusPayload"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "sample_ratio": {
+            "format": "double",
+            "type": "number"
+          },
+          "state": {
+            "type": "string"
+          },
+          "traces": {
+            "$ref": "#/components/schemas/OTelSignalStatusPayload"
+          }
+        },
+        "required": [
+          "dropped_spans",
+          "forward_to_providers",
+          "metrics",
+          "sample_ratio",
+          "state",
+          "traces"
+        ],
+        "type": "object"
+      },
       "ObserveFailureHealthPayload": {
         "properties": {
           "by_kind": {
@@ -36392,6 +36454,19 @@
               "$ref": "#/components/schemas/MCPServerStatusPayload"
             },
             "type": "array"
+          },
+          "otel": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OTelStatusPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "providers": {
             "items": {

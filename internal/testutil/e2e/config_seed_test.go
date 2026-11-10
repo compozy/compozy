@@ -92,6 +92,34 @@ func TestSeedConfigPersistsLogOverlay(t *testing.T) {
 	})
 }
 
+func TestSeedConfigPersistsOTelExportOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist an enabled OTLP export block with header refs", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Observability.OTel.Enabled = true
+				cfg.Observability.OTel.Endpoint = "http://127.0.0.1:4318"
+				cfg.Observability.OTel.MetricInterval = 5 * time.Second
+				cfg.Observability.OTel.Headers = map[string]string{"api-key": "env:TEST_OTLP_KEY"}
+			},
+		})
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		otel := loaded.Observability.OTel
+		if !otel.Enabled || otel.Endpoint != "http://127.0.0.1:4318" || otel.MetricInterval != 5*time.Second ||
+			otel.Headers["api-key"] != "env:TEST_OTLP_KEY" {
+			t.Fatalf("LoadForHome().Observability.OTel = %#v, want the seeded export block", otel)
+		}
+	})
+}
+
 func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 	t.Parallel()
 

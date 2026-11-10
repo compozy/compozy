@@ -230,6 +230,7 @@ type Manager struct {
 	inputAugmenter             PromptInputAugmenter
 	commandService             CommandService
 	inputQueue                 *inputqueue.Service
+	queuedTurnLinks            queuedTurnLinks
 	inputQueueStore            store.SessionInputQueueStore
 	promptAdmissionStore       store.SessionPromptAdmissionStore
 	attachmentOpener           AttachmentOpener

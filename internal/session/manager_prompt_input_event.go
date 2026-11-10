@@ -10,6 +10,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type promptRequest struct {
@@ -51,6 +52,8 @@ type promptRequest struct {
 	// batchDropped reports a batched entry that left the batch before the turn started and went back
 	// to the queue on its own.
 	batchDropped func(entryID string)
+	// queuedLinks are the spans that queued this request's inputs; its turn span starts as a root linked to them.
+	queuedLinks []trace.Link
 }
 
 func (m *Manager) recordPromptInputEvent(

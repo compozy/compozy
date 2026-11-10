@@ -4,6 +4,59 @@ package client
 
 import "time"
 
+// SettingsMCPServerResponse is a daemon API value.
+type SettingsMCPServerResponse struct {
+	Server SettingsMCPServerItemPayload `json:"server"`
+}
+
+// SettingsMCPServerRuntimeStatusPayload is a daemon API value.
+type SettingsMCPServerRuntimeStatusPayload struct {
+	Configured      bool   `json:"configured"`
+	Initialized     bool   `json:"initialized"`
+	State           string `json:"state"`
+	Probe           string `json:"probe"`
+	ToolCount       int    `json:"tool_count"`
+	ProtocolVersion string `json:"protocol_version,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Diagnostic      string `json:"diagnostic,omitempty"`
+}
+
+// SettingsMCPServersResponse is a daemon API value.
+type SettingsMCPServersResponse struct {
+	Collection      SettingsCollectionName         `json:"collection"`
+	Scope           SettingsLayeredScopeKind       `json:"scope"`
+	WorkspaceID     string                         `json:"workspace_id,omitempty"`
+	Profile         string                         `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind     `json:"available_scopes"`
+	MCPServers      []SettingsMCPServerItemPayload `json:"mcp_servers"`
+}
+
+// SettingsMarketplaceCatalogPayload is a daemon API value.
+type SettingsMarketplaceCatalogPayload struct {
+	BaseURL string `json:"base_url"`
+	TTL     string `json:"ttl"`
+	Timeout string `json:"timeout"`
+}
+
+// SettingsMarketplaceResponse is a daemon API value.
+type SettingsMarketplaceResponse struct {
+	Section         SettingsSectionName               `json:"section"`
+	Scope           SettingsUserScopeKind             `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind           `json:"available_scopes"`
+	Config          SettingsMarketplaceCatalogPayload `json:"config"`
+}
+
+// SettingsMutationBehavior is a daemon API value.
+type SettingsMutationBehavior string
+
+// SettingsObservabilityConfigPayload is a daemon API value.
+type SettingsObservabilityConfigPayload struct {
+	Enabled        bool                                   `json:"enabled"`
+	RetentionDays  int                                    `json:"retention_days"`
+	MaxGlobalBytes int64                                  `json:"max_global_bytes"`
+	Transcripts    SettingsObservabilityTranscriptPayload `json:"transcripts"`
+}
+
 // SettingsObservabilityResponse is a daemon API value.
 type SettingsObservabilityResponse struct {
 	Section         SettingsSectionName                 `json:"section"`
@@ -401,41 +454,4 @@ type SettingsSkillSourcePayload struct {
 	GlobalPath    string                           `json:"global_path,omitempty"`
 	Path          string                           `json:"path,omitempty"`
 	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
-}
-
-// SettingsSkillSourceRootPayload is a daemon API value.
-type SettingsSkillSourceRootPayload struct {
-	RootID        string                                  `json:"root_id"`
-	Path          string                                  `json:"path"`
-	Exists        bool                                    `json:"exists"`
-	Readable      bool                                    `json:"readable"`
-	ScannedCount  *int                                    `json:"scanned_count,omitzero"`
-	SkillCount    *int                                    `json:"skill_count,omitzero"`
-	Truncated     bool                                    `json:"truncated"`
-	SkippedLinks  []SettingsSkillSourceSkippedLinkPayload `json:"skipped_links"`
-	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`
-	Verification  SettingsSkillSourceVerificationPayload  `json:"verification"`
-	NativeReaders []string                                `json:"native_readers"`
-}
-
-// SettingsSkillSourceSkippedLinkPayload is a daemon API value.
-type SettingsSkillSourceSkippedLinkPayload struct {
-	Path   string `json:"path"`
-	Reason string `json:"reason"`
-}
-
-// SettingsSkillSourceVerificationPayload is a daemon API value.
-type SettingsSkillSourceVerificationPayload struct {
-	Blocked int `json:"blocked"`
-	Warned  int `json:"warned"`
-}
-
-// SettingsSkillsConfigPayload is a daemon API value.
-type SettingsSkillsConfigPayload struct {
-	Enabled                 bool     `json:"enabled"`
-	Sources                 []string `json:"sources"`
-	CustomSources           []string `json:"custom_sources"`
-	DisabledSkills          []string `json:"disabled_skills,omitempty"`
-	PollInterval            string   `json:"poll_interval"`
-	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }

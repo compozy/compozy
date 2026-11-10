@@ -9,6 +9,7 @@ import (
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	config := s.handlerDependencies()
 	config.sessionChanges = s.sessionChanges
+	config.telemetryStatus = s.telemetryStatus
 	config.staticFS = staticFS
 	config.boundHost = s.host
 	config.httpPort = s.port

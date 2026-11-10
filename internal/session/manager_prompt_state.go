@@ -23,11 +23,14 @@ type promptTurnDispatchState struct {
 	messageSeq       int
 	turnEnded        bool
 	// stopReason is the provider stop reason of the turn's terminal done event.
-	stopReason    acp.PromptStopReason
+	stopReason acp.PromptStopReason
+	// failed records that the turn's terminal event was an error.
+	failed        bool
 	openMessage   *promptMessageDispatchState
 	managed       *managedInputExecution
 	recovery      *promptRecoveryState
 	costBaselines map[string]float64
+	turnTrace     *promptTurnTrace
 }
 
 type promptRecoveryState struct {
