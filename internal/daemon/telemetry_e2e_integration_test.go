@@ -54,7 +54,7 @@ func TestDaemonE2EOTelExportReportsDegradedMetrics(t *testing.T) {
 			t.Fatalf("PromptSession() = %d updates, %v; want a completed turn", len(stream), err)
 		}
 
-		otel := waitForOTelStatus(t, ctx, harness, func(otel *compozycontract.OTelStatusPayload) bool {
+		otel := waitForOTelStatus(ctx, t, harness, func(otel *compozycontract.OTelStatusPayload) bool {
 			return otel.Metrics.LastErrorClass == "http_401"
 		})
 		if otel.State != "degraded" || otel.Metrics.FailedExports == 0 || !otel.Traces.Enabled ||
@@ -110,8 +110,8 @@ func (r *otlpReceiver) headerValues(path string) []string {
 
 // waitForOTelStatus polls compozy status --json until ready reports true for its otel section.
 func waitForOTelStatus(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	harness *e2etest.RuntimeHarness,
 	ready func(*compozycontract.OTelStatusPayload) bool,
 ) *compozycontract.OTelStatusPayload {

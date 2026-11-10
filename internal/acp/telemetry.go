@@ -50,7 +50,7 @@ func endRPCSpan(span trace.Span, err error) {
 	if _, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		err = telemetry.ProviderError(err)
 	}
-	endSpan(span, err)
+	telemetry.EndSpan(span, err)
 }
 
 // endPromptRPCSpan ends the session/prompt span with the time of the provider's first message chunk, when one came.
@@ -62,20 +62,6 @@ func endPromptRPCSpan(span trace.Span, active *activePromptState, stopReason acp
 		err = context.Canceled
 	}
 	endRPCSpan(span, err)
-}
-
-// endSpan ends span with the outcome of err: canceled work carries no error status.
-func endSpan(span trace.Span, err error) {
-	outcome := telemetry.OutcomeOK
-	switch {
-	case errors.Is(err, context.Canceled):
-		outcome = telemetry.OutcomeCancelled
-	case err != nil:
-		outcome = telemetry.OutcomeError
-		telemetry.MarkError(span, err)
-	}
-	span.SetAttributes(telemetry.AttrOutcome.String(outcome))
-	span.End()
 }
 
 // withTraceParent adds the prompt span's W3C traceparent to the ACP _meta next to CompozyOS's own keys, so a provider

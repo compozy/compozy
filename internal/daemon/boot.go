@@ -106,6 +106,7 @@ type bootState struct {
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
 	mcpToolProvider       daemonMCPToolProvider
+	nativeToolProvider    toolspkg.Provider
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    attachmentspkg.Store
 	toolsets              core.ToolsetRegistry

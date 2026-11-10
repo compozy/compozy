@@ -117,3 +117,21 @@ func MarkError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, "")
 	span.SetAttributes(AttrErrorType.String(Classify(err)))
 }
+
+// EndSpan ends span with compozy.outcome from err: canceled work gets OutcomeCancelled without an error status,
+// any other error gets OutcomeError through MarkError, and no error gets OutcomeOK.
+func EndSpan(span trace.Span, err error) {
+	if span == nil {
+		return
+	}
+	outcome := OutcomeOK
+	switch {
+	case errors.Is(err, context.Canceled):
+		outcome = OutcomeCancelled
+	case err != nil:
+		outcome = OutcomeError
+		MarkError(span, err)
+	}
+	span.SetAttributes(AttrOutcome.String(outcome))
+	span.End()
+}

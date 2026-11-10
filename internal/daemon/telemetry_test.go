@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/session/sessionid"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/telemetry"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
@@ -81,7 +82,8 @@ func TestBootTelemetryStartsAfterTheServersMountTheirRoutes(t *testing.T) {
 				cfg: compozyconfig.Config{
 					Providers: map[string]compozyconfig.ProviderConfig{"team-proxy": {}},
 				},
-				agentCatalog: newResourceCatalog(cloneAgentDef),
+				agentCatalog:       newResourceCatalog(cloneAgentDef),
+				nativeToolProvider: nativeToolListStub{ids: []toolspkg.ToolID{"compozy__session_list"}},
 			}
 			state.agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
 				{ID: "reviewer", Spec: compozyconfig.AgentDef{Name: "reviewer"}},
@@ -110,6 +112,7 @@ func TestBootTelemetryStartsAfterTheServersMountTheirRoutes(t *testing.T) {
 			}
 			assertMembership(t, "Providers", registries.Providers, []string{"claude", "team-proxy"}, "/home/ana/agent")
 			assertMembership(t, "Agents", registries.Agents, []string{"reviewer"}, "unregistered")
+			assertMembership(t, "ToolIDs", registries.ToolIDs, []string{"compozy__session_list"}, "mcp__github__echo")
 			if refs != nil {
 				t.Fatalf("secret resolver = %T, want none without a provider vault", refs)
 			}
@@ -379,4 +382,18 @@ func TestDaemonSyntheticIdentitiesMatchTelemetryValidators(t *testing.T) {
 			}
 		})
 	}
+}
+
+// nativeToolListStub is the daemon's native tool provider as telemetry membership reads it: List only.
+type nativeToolListStub struct {
+	toolspkg.Provider
+	ids []toolspkg.ToolID
+}
+
+func (s nativeToolListStub) List(context.Context, toolspkg.Scope) ([]toolspkg.Descriptor, error) {
+	descriptors := make([]toolspkg.Descriptor, 0, len(s.ids))
+	for _, id := range s.ids {
+		descriptors = append(descriptors, toolspkg.Descriptor{ID: id})
+	}
+	return descriptors, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/telemetry"
 )
 
 const (
@@ -84,7 +85,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 	}
 
 	ctx, spawn := startSpawnSpan(ctx, normalized.ProviderName)
-	defer func() { endSpan(spawn, startErr) }()
+	defer func() { telemetry.EndSpan(spawn, startErr) }()
 	attempts := max(1, d.startAttempts)
 	for attempt := range attempts {
 		process, err = d.startSessionAttempt(ctx, normalized)

@@ -94,7 +94,7 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 		ctx,
 		state.cfg.Observability,
 		refs,
-		telemetryRegistries(state),
+		telemetryRegistries(ctx, state),
 		version.Current(),
 		state.logger,
 	)
@@ -110,9 +110,9 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 }
 
 // telemetryRegistries holds what the sanitizer checks exported values against: route templates of the mounted
-// servers, traced ACP methods, hook events, provider and agent membership, and each identity attribute's owner
-// validator. Model and tool values have no registry yet and export as "other".
-func telemetryRegistries(state *bootState) telemetry.Registries {
+// servers, traced ACP methods, hook events, provider, agent, and native tool membership, and each identity
+// attribute's owner validator. Model values have no registry yet and export as "other".
+func telemetryRegistries(ctx context.Context, state *bootState) telemetry.Registries {
 	var routes []string
 	for _, server := range []Server{state.httpServer, state.udsServer} {
 		if lister, ok := server.(routeTemplateLister); ok {
@@ -133,6 +133,7 @@ func telemetryRegistries(state *bootState) telemetry.Registries {
 		Agents: func(name string) bool {
 			return agents.Contains(func(agent compozyconfig.AgentDef) bool { return agent.Name == name })
 		},
+		ToolIDs: nativeToolMembership(ctx, state.nativeToolProvider, state.logger),
 		IDs: map[attribute.Key]func(string) bool{
 			telemetry.AttrProfileID:    profile.IsProfileID,
 			telemetry.AttrWorkspaceID:  workspacepkg.IsWorkspaceIdentifier,
