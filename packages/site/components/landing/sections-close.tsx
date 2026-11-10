@@ -43,7 +43,7 @@ function Verdict({ value }: { value: CompareVerdict }) {
     return <Check aria-label="Yes" className="mx-auto size-5 text-[#0a0a0a]" />;
   }
   return (
-    <span aria-label={VERDICT_LABEL[value]} className="font-mono text-[12px] text-site-dark-450">
+    <span aria-label={VERDICT_LABEL[value]} className="font-mono text-[12px] text-site-dark-600">
       {value === "partial" ? "Partial" : "—"}
     </span>
   );
@@ -109,7 +109,7 @@ export function Comparison() {
           Why it holds: one runtime, one state model. Sessions, agents, approvals, and runs are core
           objects, so nothing has to be glued together.
         </p>
-        <p className="m-0 mt-3 text-[13px] text-site-dark-450">
+        <p className="m-0 mt-3 text-[13px] text-site-dark-600">
           Checked against the public documentation of{" "}
           {Object.entries(COMPARE_SOURCES).map(([name, href], index, all) => (
             <span key={name}>
