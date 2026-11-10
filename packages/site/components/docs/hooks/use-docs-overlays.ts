@@ -10,14 +10,21 @@ export function useDocsOverlays(pathname: string): DocsChromeValue {
     kind: null,
     path: pathname,
   });
-  // An overlay belongs to the page it was opened on: navigating closes it.
+  // An overlay belongs to the page it was opened on: navigating closes it for good, so coming
+  // back to that page (browser Back) does not find it open again.
+  if (overlay.path !== pathname && overlay.kind !== null) {
+    setOverlay({ kind: null, path: pathname });
+  }
   const kind = overlay.path === pathname ? overlay.kind : null;
   const current = useRef(pathname);
   const searchOpener = useRef<HTMLElement | null>(null);
   const showSearch = (path: string) => {
     const active = document.activeElement;
-    searchOpener.current =
-      active instanceof HTMLElement && active !== document.body ? active : null;
+    // Pressing the shortcut again inside the open palette keeps the original opener.
+    if (!(active instanceof HTMLElement) || !active.closest('[role="dialog"]')) {
+      searchOpener.current =
+        active instanceof HTMLElement && active !== document.body ? active : null;
+    }
     setOverlay({ kind: "search", path });
   };
   useEffect(() => {

@@ -39,7 +39,7 @@ export function OperatorNote({
 const TONES: Record<string, string> = {
   warn: "border-warning/40 [&>svg]:text-warning",
   warning: "border-warning/40 [&>svg]:text-warning",
-  error: "border-danger/45 [&>svg]:text-danger",
+  error: "border-destructive/45 [&>svg]:text-destructive",
 };
 
 export function Callout({

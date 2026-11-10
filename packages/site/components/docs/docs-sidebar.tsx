@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { BEAM, FOCUS } from "@/components/docs/docs-classes";
+import { useRevealCurrent } from "@/components/docs/hooks/use-reveal-current";
 import type { DocsNavNode } from "@/lib/docs-shell";
 
 export interface DocsSidebarGroup {
@@ -165,8 +166,9 @@ export function DocsSidebar({
   activeUrl: string;
 }) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const nav = useRevealCurrent<HTMLElement>(activeUrl);
   return (
-    <nav aria-label="Docs navigation" className="flex flex-col gap-7">
+    <nav ref={nav} aria-label="Docs navigation" className="flex flex-col gap-7">
       {groups.map(group => (
         <div key={group.id}>
           <p className="m-0 mb-2 flex items-baseline justify-between px-2 text-[13px] text-subtle">

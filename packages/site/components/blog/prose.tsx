@@ -181,7 +181,7 @@ export interface CalloutProps {
 
 const TONE: Partial<Record<NonNullable<CalloutProps["tone"]>, string>> = {
   warning: "border-warning/40 [&_.callout-label]:text-warning",
-  destructive: "border-danger/45 [&_.callout-label]:text-danger",
+  destructive: "border-destructive/45 [&_.callout-label]:text-destructive",
   brand: "border-brand/45 [&_.callout-label]:text-brand-strong",
   success: "border-success/40 [&_.callout-label]:text-success",
 };

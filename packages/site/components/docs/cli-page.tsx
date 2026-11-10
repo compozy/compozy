@@ -67,10 +67,17 @@ function highlightExample(code: string) {
 
 async function Examples({ examples }: { examples: readonly CliExample[] }) {
   const blocks = await Promise.all(examples.map(example => highlightExample(example.code)));
+  // The generator can repeat an example verbatim: later copies get a numbered key.
+  const seen = new Map<string, number>();
+  const keys = examples.map(example => {
+    const copies = seen.get(example.code) ?? 0;
+    seen.set(example.code, copies + 1);
+    return copies === 0 ? example.code : `${example.code}#${copies}`;
+  });
   return (
     <ol className="m-0 list-none p-0">
       {examples.map((example, index) => (
-        <li key={example.code} className={cn("border-t py-6 first:border-t-0 first:pt-0", LINE)}>
+        <li key={keys[index]} className={cn("border-t py-6 first:border-t-0 first:pt-0", LINE)}>
           {example.note ? (
             <p className="m-0 text-[15.5px]/[1.5] text-fg/85">{example.note}</p>
           ) : null}
@@ -152,13 +159,25 @@ function RestH3({ children }: ComponentProps<"h3">) {
   return <DocsH3 id={headingSlug(textOf(children))}>{children}</DocsH3>;
 }
 
+/**
+ * Fences in the generator's prose carry no language and are shell: they go through the prose code
+ * block as such, so they render as a command line or a terminal frame instead of inline code.
+ */
+function RestPre({ children }: ComponentProps<"pre">) {
+  return (
+    <DocsPre>
+      <code className="language-bash">{textOf(children).trim()}</code>
+    </DocsPre>
+  );
+}
+
 /** The remainder renders through the same prose components as every MDX page. */
 const REST_COMPONENTS: Components = {
   h2: RestH2,
   h3: RestH3,
   a: DocsLink,
   code: DocsInlineCode,
-  pre: DocsPre,
+  pre: RestPre,
   table: DocsTable,
 };
 

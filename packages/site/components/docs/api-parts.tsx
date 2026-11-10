@@ -24,7 +24,7 @@ const METHOD_TONE: Record<string, string> = {
   POST: "text-success",
   PUT: "text-warning",
   PATCH: "text-warning",
-  DELETE: "text-danger",
+  DELETE: "text-destructive",
 };
 
 /** The library's section titles, in the draft's sentence case. */

@@ -115,6 +115,27 @@ describe("parseCli", () => {
     expect(cli.inherited).toHaveLength(3);
     expect(cli.subcommands).toEqual([]);
   });
+
+  it("Should read the usage that closes a synopsis and keep the long description", () => {
+    const { source, description } = fixture("agent-create");
+    const cli = parseCli(source, description);
+
+    expect(cli.usage).toBe("compozy agent create <name> [flags]");
+    expect(cli.rest).toContain("### Synopsis");
+    expect(cli.rest).toContain("through a running CompozyOS daemon.");
+    expect(cli.rest).not.toContain("compozy agent create <name> [flags]");
+    expect(cli.examples).toHaveLength(1);
+  });
+
+  it("Should take the last command fence of a synopsis as usage, not the fences inside its prose", () => {
+    const { source, description } = fixture("completion-bash");
+    const cli = parseCli(source, description);
+
+    expect(cli.usage).toBe("compozy completion bash");
+    expect(cli.rest).toContain("source <(compozy completion bash)");
+    expect(cli.rest).toContain("#### macOS:");
+    expect(cli.rest).toContain("## Output Formats");
+  });
 });
 
 describe("readCliDoc", () => {

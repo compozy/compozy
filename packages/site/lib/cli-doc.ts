@@ -39,6 +39,7 @@ export interface CliHeading {
 
 const FENCE = "```\\n([\\s\\S]*?)\\n```";
 const USAGE = new RegExp(`^${FENCE}`, "m");
+const SYNOPSIS = /^### Synopsis\n+([\s\S]*?)(?=\n#{2,3} |$)/;
 const EXAMPLES = new RegExp(`### Examples\\n+${FENCE}\\n*`);
 const OPTIONS = new RegExp(`### Options\\n+${FENCE}\\n*`);
 const INHERITED = new RegExp(`### Options inherited from parent commands\\n+${FENCE}\\n*`);
@@ -102,6 +103,32 @@ export function isCliPage(slug: string, source: string) {
   return slug.startsWith("cli/") && COMMAND_HEADING.test(source) && OPTIONS.test(source);
 }
 
+/**
+ * The usage line and what is left. Short commands open with the usage fence. Commands with a long
+ * description open with `### Synopsis`: prose, sometimes with its own fences, closed by the usage
+ * fence, which is the last one-line fence that starts with the command.
+ */
+function usageOf(body: string): { usage: string; rest: string } {
+  if (body.startsWith("```")) {
+    return { usage: USAGE.exec(body)?.[1] ?? "", rest: body.replace(USAGE, "") };
+  }
+  const synopsis = SYNOPSIS.exec(body);
+  if (!synopsis) return { usage: "", rest: body };
+  const section = synopsis[1] ?? "";
+  let last: RegExpExecArray | undefined;
+  for (const fence of section.matchAll(new RegExp(FENCE, "g"))) {
+    const code = (fence[1] ?? "").trim();
+    if (code.startsWith("compozy") && !code.includes("\n")) last = fence;
+  }
+  if (!last) return { usage: "", rest: body };
+  const prose = (section.slice(0, last.index) + section.slice(last.index + last[0].length)).trim();
+  const after = body.slice(synopsis[0].length).trimStart();
+  return {
+    usage: (last[1] ?? "").trim(),
+    rest: [prose ? `### Synopsis\n\n${prose}` : "", after].filter(Boolean).join("\n\n"),
+  };
+}
+
 export function parseCli(source: string, description: string): CliDoc {
   const body = source.replace(COMMAND_HEADING, "").replace(description, "").trimStart();
   const examples = EXAMPLES.exec(body)?.[1];
@@ -114,9 +141,7 @@ export function parseCli(source: string, description: string): CliDoc {
     .replace(OPTIONS, "")
     .replace(SUBCOMMANDS, "")
     .trimStart();
-  const opensWithUsage = withoutSections.startsWith("```");
-  const usage = opensWithUsage ? (USAGE.exec(withoutSections)?.[1] ?? "") : "";
-  const rest = opensWithUsage ? withoutSections.replace(USAGE, "") : withoutSections;
+  const { usage, rest } = usageOf(withoutSections);
   return {
     usage,
     examples: examplesOf(examples),

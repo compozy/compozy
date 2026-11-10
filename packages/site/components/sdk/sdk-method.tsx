@@ -21,7 +21,7 @@ const METHOD_TONE: Record<string, string> = {
   POST: "text-success",
   PUT: "text-warning",
   PATCH: "text-warning",
-  DELETE: "text-danger",
+  DELETE: "text-destructive",
 };
 
 const TAG =
@@ -89,7 +89,7 @@ export function SdkMethodEntry({
     <section
       id={method.id}
       className={cn(
-        "grid scroll-mt-[184px] gap-x-14 gap-y-7 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
+        "grid scroll-mt-[64px] gap-x-14 gap-y-7 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
         LINE
       )}
     >
