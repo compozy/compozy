@@ -16,7 +16,7 @@ import {
   matchesCard,
   type MarketplaceCard,
   type MarketplaceCategoryId,
-} from "@/lib/marketplace-view";
+} from "@/lib/marketplace-cards";
 
 const PAGE = 48;
 const GRID = "grid gap-3 sm:grid-cols-2 xl:grid-cols-3";

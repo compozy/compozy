@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
-import { categoryLabel, firstSentence, type MarketplaceCard } from "@/lib/marketplace-view";
+import { categoryLabel, firstSentence, type MarketplaceCard } from "@/lib/marketplace-cards";
 
 const SIZE = {
   sm: "size-10 rounded-[11px]",

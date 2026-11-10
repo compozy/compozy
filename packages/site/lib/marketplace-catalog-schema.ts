@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MARKETPLACE_CATEGORY_IDS } from "@/lib/marketplace-cards";
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -92,20 +93,7 @@ const entryCommon = {
   updated_at: rfc3339.optional(),
 };
 
-export const MARKETPLACE_CATEGORY_IDS = [
-  "productivity",
-  "communication",
-  "design",
-  "development",
-  "data",
-  "cloud",
-  "finance",
-  "sales-marketing",
-  "research",
-  "security",
-  "ai-agents",
-  "more",
-] as const;
+export { MARKETPLACE_CATEGORY_IDS };
 
 /** Curated `<source>/<entry_id>` reference to a plugin entry this extension replaces. */
 const supersededEntry = z.string().refine(

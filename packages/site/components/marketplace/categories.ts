@@ -15,7 +15,7 @@ import {
   SquareCheck,
 } from "@compozy/ui/icons";
 
-import type { MarketplaceCategoryId } from "@/lib/marketplace-view";
+import type { MarketplaceCategoryId } from "@/lib/marketplace-cards";
 
 export const CATEGORY_ICONS: Record<MarketplaceCategoryId, typeof Compass> = {
   productivity: SquareCheck,

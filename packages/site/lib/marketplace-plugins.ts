@@ -4,11 +4,15 @@
  * curated featured flags, and the supersede rule against the curated extensions.
  */
 import { extensionEntries } from "@/lib/marketplace-catalog";
-import { MARKETPLACE_CATEGORY_IDS } from "@/lib/marketplace-catalog-schema";
+import {
+  MARKETPLACE_CATEGORY_IDS,
+  isCategoryId,
+  type MarketplaceCategoryId,
+} from "@/lib/marketplace-cards";
 import { pluginSnapshotSchema, type SnapshotPlugin } from "@/lib/marketplace-plugins-schema";
 import snapshotFile from "@/lib/marketplace-plugins.snapshot.json";
 
-export type MarketplaceCategoryId = (typeof MARKETPLACE_CATEGORY_IDS)[number];
+export { isCategoryId, type MarketplaceCategoryId };
 
 /** The name the daemon gives the curated extension feed's source. */
 export const CATALOG_SOURCE = "compozy-catalog";
@@ -37,10 +41,6 @@ const CATEGORY_ALIASES: Record<MarketplaceCategoryId, readonly string[]> = {
   "ai-agents": ["ai agents", "agent orchestration", "ai", "agents"],
   more: ["more", "location"],
 };
-
-export function isCategoryId(value: string | null | undefined): value is MarketplaceCategoryId {
-  return MARKETPLACE_CATEGORY_IDS.some(id => id === value);
-}
 
 /** `ResolveCategory`: an explicit CompozyOS category wins, then the alias table, then More. */
 export function resolveCategory(explicit: string | undefined, sourceCategory: string | undefined) {

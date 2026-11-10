@@ -7,7 +7,7 @@ import { EntryLogo } from "@/components/marketplace/entry-card";
 import { CONTAINER } from "@/components/site/layout";
 import { Reveal } from "@/components/site/motion";
 import { H2 } from "@/components/site/primitives";
-import { firstSentence, type MarketplaceCard } from "@/lib/marketplace-view";
+import { firstSentence, type MarketplaceCard } from "@/lib/marketplace-cards";
 
 const ART = [
   ASSET.plateTerrain,

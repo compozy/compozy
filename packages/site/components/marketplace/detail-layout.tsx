@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { EntryCard } from "@/components/marketplace/entry-card";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
 import { H1, H3, InstallCommand, PrimaryCta, Small } from "@/components/site/primitives";
-import { hostnameOf, type MarketplaceCard } from "@/lib/marketplace-view";
+import { hostnameOf, type MarketplaceCard } from "@/lib/marketplace-cards";
 
 export function Row({ term, children }: { term: string; children: ReactNode }) {
   return (

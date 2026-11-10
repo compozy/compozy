@@ -14,7 +14,7 @@ import { EntryLogo } from "@/components/marketplace/entry-card";
 import { HAIRLINE } from "@/components/site/layout";
 import { Muted } from "@/components/site/primitives";
 import { bundledExtensions, type BundledExtension } from "@/lib/marketplace-bundled";
-import type { MarketplaceCard } from "@/lib/marketplace-view";
+import type { MarketplaceCard } from "@/lib/marketplace-cards";
 
 const BUNDLED_AUTHOR = "CompozyOS";
 

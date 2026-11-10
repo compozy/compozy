@@ -5,7 +5,7 @@
  * The category is mirrored to `?category=` so an entry page can link back into it; search stays local.
  */
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Browser } from "@/components/marketplace/browser";
 import { Featured } from "@/components/marketplace/featured";
@@ -15,10 +15,10 @@ import {
   isCategoryId,
   type MarketplaceCard,
   type MarketplaceCategoryId,
-} from "@/lib/marketplace-view";
+} from "@/lib/marketplace-cards";
 
 function jumpToCatalog() {
-  document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("catalog")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 }
 
 /** Native `replaceState` keeps `useSearchParams` in sync without a navigation or a scroll reset. */
@@ -44,10 +44,19 @@ export function MarketplaceBrowse({
   const [query, setQuery] = useState("");
   const featured = entries.filter(entry => entry.featured);
   const categoryCount = categoriesWithEntries(entries).length;
+  // The jump waits for the render the new category causes: Featured leaves the page with it, so
+  // jumping earlier would aim at where the catalog used to be.
+  const jumpPending = useRef(false);
+  useEffect(() => {
+    if (!jumpPending.current) return;
+    jumpPending.current = false;
+    jumpToCatalog();
+  }, [category]);
   const browseCategory = (next: MarketplaceCategoryId | null) => {
     setQuery("");
+    jumpPending.current = next !== category;
     writeCategory(next);
-    requestAnimationFrame(jumpToCatalog);
+    if (next === category) jumpToCatalog();
   };
   const browsing = category === null && query.trim() === "";
   return (

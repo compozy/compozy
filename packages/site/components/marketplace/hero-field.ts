@@ -1,5 +1,5 @@
 /** The hero's floating logo field, filled from the live catalog. */
-import type { MarketplaceCard } from "@/lib/marketplace-view";
+import type { MarketplaceCard } from "@/lib/marketplace-cards";
 
 /** position across its gutter %, top px, drift depth, tile size. Depth reads as distance: far tiles are smaller and dimmer. */
 type Slot = readonly [number, number, number, "md" | "lg" | "xl"];

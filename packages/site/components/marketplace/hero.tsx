@@ -13,7 +13,7 @@ import { CONTAINER } from "@/components/site/layout";
 import { Marquee } from "@/components/site/motion";
 import { H1, LandingEyebrow, Lead, Plate } from "@/components/site/primitives";
 import { fieldTiles, type Tile } from "@/components/marketplace/hero-field";
-import type { MarketplaceCard } from "@/lib/marketplace-view";
+import type { MarketplaceCard } from "@/lib/marketplace-cards";
 
 /** Half of the centered column, plus air: the logos live only in the gutters beside it. */
 const COLUMN_HALF = "calc(50% + 380px)";
