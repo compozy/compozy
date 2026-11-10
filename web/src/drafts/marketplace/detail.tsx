@@ -65,15 +65,15 @@ export function EntryDetail({
           <div className="rounded-[20px] border border-[color:var(--light-100)] bg-[color:var(--light-030)] p-6">
             <H3 className="md:text-[22px]">Add it from the app</H3>
             <Muted className="mt-2">
-              Open Marketplace in Compozy and add {entry.name} from there, or find it from the
+              Open Marketplace in CompozyOS and add {entry.name} from there, or find it from the
               terminal.
             </Muted>
             <InstallCommand
               command={`compozy marketplace search ${entry.id}`}
-              className="mt-5 flex w-full justify-between h-auto min-h-[52px] rounded-[16px] py-2 [&_code]:[overflow-wrap:anywhere] [&_code]:whitespace-normal"
+              className="mt-5 flex w-full justify-between h-auto min-h-[52px] rounded-[16px] py-2 [&_code]:[overflow-wrap:anywhere] [&_code]:flex-1 [&_code]:whitespace-normal"
             />
             <div className="mt-4 [&_button]:w-full">
-              <PrimaryCta icon={Download}>Download Compozy</PrimaryCta>
+              <PrimaryCta icon={Download}>Download CompozyOS</PrimaryCta>
             </div>
             <dl className="m-0 mt-6">
               <Row term="Type">{entry.kind === "extension" ? "Extension" : "Plugin"}</Row>

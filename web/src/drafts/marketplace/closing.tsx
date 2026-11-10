@@ -40,7 +40,7 @@ export function FromTheApp() {
         <Reveal delay={0.08} className="mt-14">
           <Shot
             src={marketplace}
-            alt="The Marketplace in the Compozy app, by category, with one-step Add"
+            alt="The Marketplace in the CompozyOS app, by category, with one-step Add"
           />
         </Reveal>
         <ul className="m-0 mt-14 grid list-none gap-10 p-0 md:grid-cols-3">
@@ -104,14 +104,14 @@ export function SourcesAndIncluded() {
             </Muted>
             <InstallCommand
               command="compozy marketplace sources add example/team-plugins --name team"
-              className="flex w-full justify-between h-auto min-h-[52px] rounded-[16px] py-2 [&_code]:[overflow-wrap:anywhere] [&_code]:whitespace-normal"
+              className="flex w-full justify-between h-auto min-h-[52px] rounded-[16px] py-2 [&_code]:[overflow-wrap:anywhere] [&_code]:flex-1 [&_code]:whitespace-normal"
             />
           </div>
         </Reveal>
         <Reveal delay={0.1}>
-          <H3>Included with Compozy</H3>
+          <H3>Included with CompozyOS</H3>
           <Rows rows={INCLUDED} />
-          <Muted className="mt-6">Nothing to install. Updating Compozy updates these.</Muted>
+          <Muted className="mt-6">Nothing to install. Updating CompozyOS updates these.</Muted>
         </Reveal>
       </div>
     </section>
