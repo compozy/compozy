@@ -177,7 +177,7 @@ export function ScrollWords({ text, className }: { text: string; className?: str
   );
 }
 
-/** Counts from zero to `value` once in view; reduced motion shows it settled after hydration. */
+/** Serves `value` in the HTML; a stat that starts out of view counts up to it once scrolled in. */
 export function CountUp({ value, className }: { value: number; className?: string }) {
   const { ref, text } = useCountUp(value);
   return (

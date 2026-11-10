@@ -45,7 +45,7 @@ Evidence for every row lives under `.compozy/tasks/site-redesign/qa/R4/<scenario
 ### Release count baked as a dash by local production builds
 - **Symptom:** the landing's releases stat served "—" after `bunx turbo run build`, until ISR regenerated the page.
 - **Root cause:** Turbo's strict environment mode does not pass `COMPOZY_SITE_GITHUB_TOKEN` to the site build, so the build called GitHub anonymously and got 403. Vercel runs `next build` and was not affected.
-- **Fix:** `packages/site/turbo.json` passes the token through to `build`; the count now logs why it gives up.
+- **Fix:** the root `turbo.json` passes the token through to `@compozy/site#build` (`passThroughEnv`); the count now logs why it gives up.
 - **Regression test:** none; a rebuild from an empty fetch cache bakes 78 into `index.html`.
 - **Retested:** landing at 1440 and 390.
 
