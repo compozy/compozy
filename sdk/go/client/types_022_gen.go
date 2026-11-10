@@ -89,6 +89,12 @@ type SettingsProviderCredentialStatusPayload struct {
 	Source    string `json:"source,omitempty"`
 }
 
+// SettingsProviderEnabledResponse is a daemon API value.
+type SettingsProviderEnabledResponse struct {
+	Provider SettingsProviderItemPayload `json:"provider"`
+	Apply    SettingsApplyResponse       `json:"apply"`
+}
+
 // SettingsProviderFallbackPayload is a daemon API value.
 type SettingsProviderFallbackPayload struct {
 	Source   SettingsSourceRefPayload        `json:"source"`
@@ -174,6 +180,7 @@ type SettingsProviderSettingsPayload struct {
 	Command           string                                  `json:"command,omitempty"`
 	CommandInherited  bool                                    `json:"command_inherited,omitempty"`
 	DisplayName       string                                  `json:"display_name,omitempty"`
+	Enabled           bool                                    `json:"enabled"`
 	Models            *SettingsProviderModelsPayload          `json:"models,omitzero"`
 	Harness           string                                  `json:"harness,omitempty"`
 	RuntimeProvider   string                                  `json:"runtime_provider,omitempty"`
