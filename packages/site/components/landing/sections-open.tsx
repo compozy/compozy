@@ -1,20 +1,6 @@
 /** Hero and the agents CompozyOS runs. */
 import { cn } from "@compozy/ui";
 import { Download } from "@compozy/ui/icons";
-import {
-  ClaudeLogo,
-  CopilotLogo,
-  CursorLogo,
-  GeminiLogo,
-  KimiLogo,
-  OpenAILogo,
-  OpenCodeLogo,
-  OpenRouterLogo,
-  QwenLogo,
-  VercelLogo,
-  XAILogo,
-} from "@compozy/ui/logos";
-import type { ComponentType, SVGProps } from "react";
 
 import {
   HERO_CATEGORY,
@@ -24,9 +10,10 @@ import {
   INSTALL_COMMAND,
 } from "@/components/landing/content";
 import { HeroScene } from "@/components/landing/hero-scene";
+import { ProviderMarquees } from "@/components/landing/provider-marquees";
 import { BUILTIN_PROVIDER_COUNT } from "@/components/landing/provider-data";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { CountUp, Marquee, Reveal, WordsIn } from "@/components/site/motion";
+import { CountUp, Entrance, Reveal, WordsIn } from "@/components/site/motion";
 import {
   H1,
   H2,
@@ -42,18 +29,18 @@ import {
 export function Hero() {
   return (
     <HeroScene>
-      <Reveal y={10}>
+      <Entrance y={10}>
         <LandingEyebrow>{HERO_CATEGORY}</LandingEyebrow>
-      </Reveal>
+      </Entrance>
       <div className="mx-auto max-w-[1080px]">
         <H1>
           <WordsIn text={HERO_HEADLINE} delay={0.1} />
         </H1>
       </div>
-      <Reveal delay={0.55} y={16}>
+      <Entrance delay={0.55} y={16}>
         <Lead className="mx-auto max-w-[720px]">{HERO_SUBHEAD}</Lead>
-      </Reveal>
-      <Reveal delay={0.75} y={16}>
+      </Entrance>
+      <Entrance delay={0.75} y={16}>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta icon={Download} href={HREF.download}>
             Download for macOS
@@ -67,57 +54,8 @@ export function Hero() {
             macOS, Linux, and Windows
           </Small>
         </div>
-      </Reveal>
+      </Entrance>
     </HeroScene>
-  );
-}
-
-function WordmarkGlyph({ className }: SVGProps<SVGSVGElement>) {
-  return <OpenCodeLogo className={className} viewBox="0 0 30 42" />;
-}
-function CodexGlyph({ className }: SVGProps<SVGSVGElement>) {
-  return <OpenAILogo className={className} />;
-}
-
-type Mark = ComponentType<SVGProps<SVGSVGElement>>;
-const ROW_ONE: ReadonlyArray<readonly [string, Mark]> = [
-  ["Claude Code", ClaudeLogo],
-  ["Codex", CodexGlyph],
-  ["Cursor", CursorLogo],
-  ["Gemini", GeminiLogo],
-  ["OpenCode", WordmarkGlyph],
-  ["GitHub Copilot", CopilotLogo],
-];
-const ROW_TWO: ReadonlyArray<readonly [string, Mark]> = [
-  ["Qwen Code", QwenLogo],
-  ["Kimi", KimiLogo],
-  ["OpenRouter", OpenRouterLogo],
-  ["Moonshot", KimiLogo],
-  ["xAI", XAILogo],
-  ["Vercel AI Gateway", VercelLogo],
-];
-
-function ProviderRow({
-  items,
-  reverse,
-  seconds,
-}: {
-  items: typeof ROW_ONE;
-  reverse?: boolean;
-  seconds: number;
-}) {
-  return (
-    <Marquee reverse={reverse} seconds={seconds}>
-      {items.map(([name, Glyph]) => (
-        <span
-          key={name}
-          className="flex h-[84px] items-center gap-3.5 rounded-[18px] border border-site-light-090 bg-site-light-030 pr-7 pl-5 backdrop-blur-md"
-        >
-          <Glyph className="size-7 shrink-0" aria-hidden />
-          <span className="text-[17px] whitespace-nowrap text-fg">{name}</span>
-        </span>
-      ))}
-    </Marquee>
   );
 }
 
@@ -141,10 +79,7 @@ export function Providers() {
           </p>
         </Reveal>
       </div>
-      <div className="mt-16 space-y-3 md:mt-20">
-        <ProviderRow items={ROW_ONE} seconds={38} />
-        <ProviderRow items={ROW_TWO} seconds={46} reverse />
-      </div>
+      <ProviderMarquees />
       <div className={cn(CONTAINER, "mt-12 flex flex-wrap items-center justify-between gap-5")}>
         <Muted>
           Your subscriptions and API keys stay yours. CompozyOS resells no model access.

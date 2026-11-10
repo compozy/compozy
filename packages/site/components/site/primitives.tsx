@@ -144,6 +144,8 @@ interface CtaProps {
   children: ReactNode;
   icon?: Icon;
   href?: string;
+  /** `href` is a file to download: it stays in this tab, whatever its origin. */
+  download?: boolean;
   className?: string;
 }
 
@@ -151,16 +153,19 @@ type CtaVariant = "primary" | "outline";
 
 /**
  * One call to action: a real link (no button role) when it navigates, a button otherwise. The link
- * wears the button's classes, so both look the same; external URLs open in a new tab.
+ * wears the button's classes, so both look the same; external pages open in a new tab, files to
+ * download do not.
  */
 function Cta({
   children,
   href,
+  download = false,
   variant,
   className,
 }: {
   children: ReactNode;
   href?: string;
+  download?: boolean;
   variant: CtaVariant;
   className: string;
 }) {
@@ -172,6 +177,13 @@ function Cta({
     );
   }
   const linkClass = cn(buttonVariants({ size: "cta-lg", variant }), className);
+  if (download) {
+    return (
+      <a href={href} data-slot="button" className={linkClass}>
+        {children}
+      </a>
+    );
+  }
   return isExternalHref(href) ? (
     <Link
       href={href}
@@ -189,10 +201,11 @@ function Cta({
   );
 }
 
-export function PrimaryCta({ children, icon: Glyph, href, className }: CtaProps) {
+export function PrimaryCta({ children, icon: Glyph, href, download, className }: CtaProps) {
   return (
     <Cta
       href={href}
+      download={download}
       variant="primary"
       className={cn(
         "group/cta relative h-[52px] overflow-hidden bg-[image:var(--gradient-brand)] bg-[length:190%_100%] bg-left px-7 text-[15.5px] text-[color:var(--color-on-gradient)] shadow-[0_0_44px_-6px_rgba(29,240,215,0.5)] transition-[background-position,box-shadow] duration-500 hover:bg-right hover:shadow-[0_0_56px_-4px_rgba(29,240,215,0.75)]",
@@ -209,10 +222,11 @@ export function PrimaryCta({ children, icon: Glyph, href, className }: CtaProps)
   );
 }
 
-export function SecondaryCta({ children, icon: Glyph, href, className }: CtaProps) {
+export function SecondaryCta({ children, icon: Glyph, href, download, className }: CtaProps) {
   return (
     <Cta
       href={href}
+      download={download}
       variant="outline"
       className={cn(
         "h-[52px] border-site-light-150 bg-site-light-030 px-7 text-[15.5px] backdrop-blur-md",

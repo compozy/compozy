@@ -17,11 +17,13 @@ import {
 } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
+import Image from "next/image";
+
 import { ASSET } from "@/components/landing/assets";
 import { QUOTES } from "@/components/landing/content";
 import { DetailPanels } from "@/components/landing/detail-panels";
 import { LiveCount, LiveStars } from "@/components/landing/live-count";
-import { CONTAINER, HAIRLINE } from "@/components/site/layout";
+import { CONTAINER, HAIRLINE, SHOT_SIZES } from "@/components/site/layout";
 import { Reveal, ScrollWords } from "@/components/site/motion";
 import {
   H2,
@@ -109,12 +111,14 @@ export function UseCases() {
           {USE_CASES.map((item, index) => (
             <Reveal key={item.title} delay={index * 0.05} className={item.span}>
               <article className="group relative h-[420px] overflow-hidden rounded-[22px] border border-site-light-090 bg-black">
-                <img
+                <Image
                   src={item.art}
                   alt=""
                   aria-hidden
+                  fill
+                  sizes="(min-width: 1280px) 700px, (min-width: 1024px) 58vw, 100vw"
                   draggable={false}
-                  className="absolute inset-0 size-full object-cover opacity-85 transition-transform duration-[1400ms] ease-out group-hover:scale-110"
+                  className="object-cover opacity-85 transition-transform duration-[1400ms] ease-out group-hover:scale-110"
                 />
                 <div
                   aria-hidden
@@ -274,11 +278,13 @@ export function Orchestrate() {
         </div>
         <Reveal className="mt-14 md:mt-20">
           <ProductWindow>
-            <img
+            <Image
               src={ASSET.subagents}
               alt="A session with its three subagents open and running, and nested child sessions in the sidebar"
+              fill
+              sizes={SHOT_SIZES}
               draggable={false}
-              className="block size-full object-cover"
+              className="object-cover"
             />
           </ProductWindow>
         </Reveal>

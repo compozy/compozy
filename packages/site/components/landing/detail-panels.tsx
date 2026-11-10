@@ -6,6 +6,8 @@ import { Bookmark, GitPullRequest, Hand } from "@compozy/ui/icons";
 import { m } from "motion/react";
 import { useEffect, useState } from "react";
 
+import Image from "next/image";
+
 import { ASSET } from "@/components/landing/assets";
 import type { Icon } from "@/components/site/primitives";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
@@ -13,6 +15,9 @@ import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion
 const DETAIL_PANELS: ReadonlyArray<{
   icon: Icon;
   src: string;
+  /** The capture's pixel size: it sits at its own aspect, so the box is known before it loads. */
+  width: number;
+  height: number;
   art: string;
   alt: string;
   text: string;
@@ -20,6 +25,8 @@ const DETAIL_PANELS: ReadonlyArray<{
   {
     icon: Hand,
     src: ASSET.cropApproval,
+    width: 1240,
+    height: 815,
     art: ASSET.ucGate,
     alt: "A tool call waiting for Don't allow, Always allow or Allow once",
     text: "Approve a tool call in one click, from the session or the bell.",
@@ -27,6 +34,8 @@ const DETAIL_PANELS: ReadonlyArray<{
   {
     icon: Bookmark,
     src: ASSET.cropLater,
+    width: 1400,
+    height: 885,
     art: ASSET.ucBrief,
     alt: "The Move to Later dialog with a reason and a reminder date",
     text: "Park a session for later, with a reason and a date.",
@@ -34,6 +43,8 @@ const DETAIL_PANELS: ReadonlyArray<{
   {
     icon: GitPullRequest,
     src: ASSET.cropReview,
+    width: 615,
+    height: 515,
     art: ASSET.plateBranch,
     alt: "The In review column with each session's pull request",
     text: "A pull request moves its session to In review on its own.",
@@ -79,13 +90,15 @@ export function DetailPanels() {
               on ? "border-site-light-250 lg:grow-[2.7]" : "border-site-light-100 lg:grow"
             )}
           >
-            <img
+            <Image
               src={panel.art}
               alt=""
               aria-hidden
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
               draggable={false}
               className={cn(
-                "absolute inset-0 size-full object-cover transition-opacity duration-700",
+                "object-cover transition-opacity duration-700",
                 on ? "opacity-70" : "opacity-40"
               )}
             />
@@ -94,9 +107,12 @@ export function DetailPanels() {
               className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,10,0.1)_40%,rgba(10,10,10,0.94)_84%)]"
             />
             <div className="absolute inset-x-6 top-6 bottom-[150px] flex items-center justify-center">
-              <img
+              <Image
                 src={panel.src}
                 alt={panel.alt}
+                width={panel.width}
+                height={panel.height}
+                sizes="(min-width: 1024px) 640px, 100vw"
                 draggable={false}
                 className={cn(
                   "max-h-full max-w-full rounded-[14px] border border-site-light-150 object-contain shadow-[0_30px_80px_-10px_#000] transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",

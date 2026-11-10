@@ -75,3 +75,40 @@ html:has(.site-marketing) {
     opacity: 0;
   }
 }
+
+/*
+ * Above-the-fold entrance (`Entrance`, `WordsIn`). A CSS animation runs from the first paint,
+ * so the served HTML is the settled content: it shows without JavaScript and before hydration,
+ * and hydration does not restart it. Per element: --site-enter-y, -blur, -duration, -delay.
+ */
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--site-enter-y, 28px));
+    filter: blur(var(--site-enter-blur, 8px));
+  }
+}
+
+.site-enter {
+  animation: site-enter var(--site-enter-duration, 0.9s) cubic-bezier(0.16, 1, 0.3, 1)
+    var(--site-enter-delay, 0s) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-enter {
+    animation: none;
+  }
+}
+
+/*
+ * The landing hero window's tilt on wide screens, straightened by `--hero-flat` (0 → 1 as the hero
+ * scrolls away). CSS decides where it applies, so the served HTML is already tilted and hydration
+ * does not move the window.
+ */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .site-hero-tilt {
+    /* Same order motion wrote it in: scale, then the tilt. */
+    transform: scale(calc(0.86 + var(--hero-flat, 0) * 0.14))
+      rotateX(calc((1 - var(--hero-flat, 0)) * 24deg));
+  }
+}

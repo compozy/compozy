@@ -64,8 +64,7 @@ export function FromTheTerminal({ tag }: { tag: string | null }) {
         </Reveal>
         <Reveal delay={0.1}>
           <div className="min-w-0 rounded-[22px] border border-site-light-120 bg-[#101010] p-2">
-            {/* `flex-col` works around the site's missing Tabs orientation variants (fixed in the shared slice). */}
-            <Tabs defaultValue="Installer" className="flex-col gap-0">
+            <Tabs defaultValue="Installer" className="gap-0">
               <TabsList className="h-auto flex-wrap gap-1 border-b-0">
                 {methods.map(item => (
                   <TabsTrigger key={item.id} value={item.id} className={TAB}>

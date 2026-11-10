@@ -1,16 +1,15 @@
 "use client";
 
 /** The interactive and motion-backed marketing primitives: install command, product camera, windows, plates. */
-import { Button, cn } from "@compozy/ui";
-import { Check, Copy } from "@compozy/ui/icons";
+import { CopyIconButton, cn } from "@compozy/ui";
 import { m, type MotionStyle } from "motion/react";
-import { useState, type ReactNode } from "react";
+import Image from "next/image";
+import type { ReactNode } from "react";
 
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
-import { WHOLE, focusToTransform, type Focus } from "@/components/site/layout";
+import { SHOT_SIZES, WHOLE, focusToTransform, type Focus } from "@/components/site/layout";
 
 export function InstallCommand({ command, className }: { command: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div
       className={cn(
@@ -22,21 +21,30 @@ export function InstallCommand({ command, className }: { command: string; classN
         $
       </span>
       <code className="truncate font-mono text-[13.5px] text-fg">{command}</code>
-      <Button
-        aria-label={copied ? "Copied" : "Copy command"}
+      <CopyIconButton
+        value={command}
+        copyLabel="Copy command"
         size="icon-sm"
         variant="quiet"
-        onClick={() => {
-          void navigator.clipboard?.writeText(command).then(
-            () => setCopied(true),
-            () => setCopied(false)
-          );
-        }}
-      >
-        {copied ? <Check className="text-brand-strong" /> : <Copy />}
-      </Button>
+        className="[&_svg]:size-3.5 data-[copied=true]:text-brand-strong data-[copy-state=failed]:text-destructive"
+      />
     </div>
   );
+}
+
+/**
+ * How a capture loads: `lazy` (the default) waits until it nears the viewport, `eager` loads with
+ * the page, `priority` also asks for it first. Only the first viewport's art should not be lazy.
+ */
+export type ImageLoad = "lazy" | "eager" | "priority";
+
+function loadProps(load: ImageLoad) {
+  return load === "lazy"
+    ? { loading: "lazy" as const }
+    : {
+        loading: "eager" as const,
+        fetchPriority: load === "priority" ? ("high" as const) : undefined,
+      };
 }
 
 /** A real capture filmed through a camera: it moves to the part of the screen that matters. */
@@ -47,6 +55,8 @@ export function Camera({
   active = true,
   className,
   duration = 1.5,
+  sizes = SHOT_SIZES,
+  load = "lazy",
 }: {
   src: string;
   alt: string;
@@ -54,6 +64,8 @@ export function Camera({
   active?: boolean;
   className?: string;
   duration?: number;
+  sizes?: string;
+  load?: ImageLoad;
 }) {
   const reduced = useReducedMotionSafe();
   return (
@@ -64,15 +76,22 @@ export function Camera({
       transition={{ duration: reduced ? 0 : 0.7 }}
       aria-hidden={!active}
     >
-      <m.img
-        src={src}
-        alt={active ? alt : ""}
-        draggable={false}
-        className="block size-full origin-top-left object-cover"
+      <m.div
+        className="absolute inset-0 origin-top-left"
         initial={false}
         animate={focusToTransform(focus)}
         transition={{ duration: reduced ? 0 : duration, ease: [0.16, 1, 0.3, 1] }}
-      />
+      >
+        <Image
+          src={src}
+          alt={active ? alt : ""}
+          fill
+          sizes={sizes}
+          draggable={false}
+          className="object-cover"
+          {...loadProps(load)}
+        />
+      </m.div>
     </m.div>
   );
 }
@@ -118,45 +137,63 @@ export function Shot({
   alt,
   className,
   aspect,
+  sizes = SHOT_SIZES,
 }: {
   src: string;
   alt: string;
   className?: string;
   aspect?: string;
+  sizes?: string;
 }) {
   return (
     <ProductWindow className={className} aspect={aspect}>
-      <img
+      <Image
         src={src}
         alt={alt}
+        fill
+        sizes={sizes}
         draggable={false}
-        className="block size-full object-cover object-top"
+        className="object-cover object-top"
       />
     </ProductWindow>
   );
 }
 
-/** Generated brand art behind a section. Screen blending lets its black fall away into the page. */
+/**
+ * Generated brand art behind a section. Screen blending lets its black fall away into the page.
+ * `className` places and sizes the plate; the art covers that box, framed by `imageClassName`
+ * (an `object-position`, for example).
+ */
 export function Plate({
   src,
   className,
+  imageClassName,
   style,
+  sizes = "100vw",
+  load = "lazy",
 }: {
   src: string;
   className?: string;
+  imageClassName?: string;
   style?: MotionStyle;
+  sizes?: string;
+  load?: ImageLoad;
 }) {
   return (
-    <m.img
-      src={src}
-      alt=""
+    <m.div
       aria-hidden
-      draggable={false}
       style={style}
-      className={cn(
-        "pointer-events-none absolute select-none object-cover mix-blend-screen",
-        className
-      )}
-    />
+      className={cn("pointer-events-none absolute select-none mix-blend-screen", className)}
+    >
+      <Image
+        src={src}
+        alt=""
+        fill
+        sizes={sizes}
+        draggable={false}
+        className={cn("object-cover", imageClassName)}
+        {...loadProps(load)}
+      />
+    </m.div>
   );
 }

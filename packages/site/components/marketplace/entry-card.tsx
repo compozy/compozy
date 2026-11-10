@@ -58,6 +58,8 @@ export function EntryLogo({
       data-rung="icon"
       className={cn(base, entry.light ? "bg-white" : "bg-[#1c1c1c]")}
     >
+      {/* Positioned in the tile, so both percentages resolve against its square box: a non-square
+          icon in normal flow takes its height from its own aspect instead. */}
       <Image
         src={entry.icon}
         alt=""
@@ -67,7 +69,10 @@ export function EntryLogo({
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => setFailed(entry.icon)}
-        className={cn("block object-contain", entry.bleed ? "size-full" : "size-[66%]")}
+        className={cn(
+          "absolute object-contain",
+          entry.bleed ? "inset-0 size-full" : "inset-[17%] size-[66%]"
+        )}
       />
     </span>
   );

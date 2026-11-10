@@ -27,6 +27,7 @@ function FloatingLogo({ tile, index }: { tile: Tile; index: number }) {
     <div className="absolute" style={{ left: `${left}%`, top, transform: `translateX(-${left}%)` }}>
       <m.div style={{ y, opacity: 0.45 + depth * 0.55 }}>
         <m.div
+          data-site-reveal=""
           initial={{ opacity: 0, scale: 0.7, y: 24 }}
           animate={
             reduced ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, scale: 1, y: [0, -9, 0] }
@@ -73,7 +74,9 @@ export function MarketplaceHero({
     <section className="relative overflow-hidden pt-[150px] pb-20 md:min-h-[720px] md:pt-[190px]">
       <Plate
         src={ASSET.plateWatch}
-        className="inset-x-0 top-[420px] bottom-0 h-[calc(100%-420px)] w-full object-[50%_40%] opacity-75 [mask-image:linear-gradient(180deg,transparent,black_26%,black_56%,transparent_100%)]"
+        load="eager"
+        className="inset-x-0 top-[420px] bottom-0 h-[calc(100%-420px)] w-full opacity-75 [mask-image:linear-gradient(180deg,transparent,black_26%,black_56%,transparent_100%)]"
+        imageClassName="object-[50%_40%]"
       />
       <div
         aria-hidden

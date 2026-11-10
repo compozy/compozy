@@ -2,8 +2,10 @@
 
 /**
  * Scroll and entrance motion for the marketing surfaces. Every effect settles to its final state
- * under reduced motion. The preference is read hydration-safe: the first client render matches the
- * server's HTML and the reduced state applies right after, so no visitor hydrates different markup.
+ * under reduced motion. Above-the-fold entrances (`Entrance`, `WordsIn`) are CSS, so the served
+ * HTML shows its content with or without JavaScript. Scroll effects read the preference
+ * hydration-safe: the first client render matches the server's HTML and the reduced state applies
+ * right after, so no visitor hydrates different markup.
  */
 import { cn } from "@compozy/ui";
 import { m, useScroll, type MotionValue } from "motion/react";
@@ -31,6 +33,8 @@ export function Reveal({
   const reduced = useReducedMotionSafe();
   return (
     <m.div
+      // The no-JavaScript fallback in `SiteShell` shows what this hides until it scrolls into view.
+      data-site-reveal=""
       className={className}
       initial={{ opacity: 0, y, filter: "blur(8px)" }}
       animate={reduced ? SETTLED : undefined}
@@ -43,7 +47,53 @@ export function Reveal({
   );
 }
 
-/** A headline whose words arrive one by one, out of focus and into place. */
+type EnterStyle = CSSProperties & Record<`--site-enter-${string}`, string>;
+
+function enterStyle({
+  delay,
+  y,
+  blur,
+  duration,
+}: {
+  delay: number;
+  y: number;
+  blur: number;
+  duration: number;
+}): EnterStyle {
+  return {
+    "--site-enter-delay": `${delay}s`,
+    "--site-enter-y": `${y}px`,
+    "--site-enter-blur": `${blur}px`,
+    "--site-enter-duration": `${duration}s`,
+  };
+}
+
+/**
+ * `Reveal` for content above the fold: the same rise and focus, played by CSS from the first paint
+ * instead of on scroll, so the served HTML is visible without JavaScript and before hydration.
+ */
+export function Entrance({
+  children,
+  className,
+  delay = 0,
+  y = 28,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  y?: number;
+}) {
+  return (
+    <div
+      className={cn("site-enter", className)}
+      style={enterStyle({ delay, y, blur: 8, duration: 0.9 })}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A headline whose words arrive one by one, out of focus and into place, from the first paint. */
 export function WordsIn({
   text,
   delay = 0,
@@ -53,7 +103,6 @@ export function WordsIn({
   delay?: number;
   step?: number;
 }) {
-  const reduced = useReducedMotionSafe();
   return (
     <>
       <span className="sr-only">{text}</span>
@@ -61,15 +110,12 @@ export function WordsIn({
         {text.split(" ").map((word, index) => (
           <Fragment key={`${word}-${index}`}>
             {index === 0 ? null : " "}
-            <m.span
-              key={reduced ? "settled" : "moving"}
-              className="inline-block"
-              initial={reduced ? false : { opacity: 0, y: 26, filter: "blur(14px)" }}
-              animate={SETTLED}
-              transition={{ duration: 1, delay: delay + index * step, ease: EASE }}
+            <span
+              className="site-enter inline-block"
+              style={enterStyle({ delay: delay + index * step, y: 26, blur: 14, duration: 1 })}
             >
               {word}
-            </m.span>
+            </span>
           </Fragment>
         ))}
       </span>

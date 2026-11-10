@@ -11,6 +11,8 @@ import {
 import { GithubLogo, LinearLogo } from "@compozy/ui/logos";
 import type { ReactNode } from "react";
 
+import Image from "next/image";
+
 import { ASSET } from "@/components/landing/assets";
 import { HREF } from "@/components/landing/content";
 import { Typed } from "@/components/landing/typed";
@@ -153,10 +155,12 @@ const CATALOG_B: ReadonlyArray<readonly [string, ReactNode]> = [
 
 function CatalogMark({ src }: { src: string }) {
   return (
-    <img
+    <Image
       src={src}
       alt=""
       aria-hidden
+      width={22}
+      height={22}
       draggable={false}
       className="size-[22px] rounded-[5px] object-contain"
     />

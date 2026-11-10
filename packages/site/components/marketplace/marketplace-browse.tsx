@@ -17,8 +17,21 @@ import {
   type MarketplaceCategoryId,
 } from "@/lib/marketplace-cards";
 
-function jumpToCatalog() {
-  document.getElementById("catalog")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+function jumpToCatalog({ instant, focusSearch }: { instant: boolean; focusSearch: boolean }) {
+  document
+    .getElementById("catalog")
+    ?.scrollIntoView?.({ behavior: instant ? "instant" : "smooth", block: "start" });
+  if (focusSearch) {
+    document.querySelector<HTMLInputElement>("#catalog input")?.focus({ preventScroll: true });
+  }
+}
+
+/** The view a jump waits for: it runs after the render that shows this category and query. */
+interface JumpTarget {
+  category: MarketplaceCategoryId | null;
+  query: string;
+  instant: boolean;
+  focusSearch: boolean;
 }
 
 /** Native `replaceState` keeps `useSearchParams` in sync without a navigation or a scroll reset. */
@@ -44,19 +57,31 @@ export function MarketplaceBrowse({
   const [query, setQuery] = useState("");
   const featured = entries.filter(entry => entry.featured);
   const categoryCount = categoriesWithEntries(entries).length;
-  // The jump waits for the render the new category causes: Featured leaves the page with it, so
-  // jumping earlier would aim at where the catalog used to be.
-  const jumpPending = useRef(false);
+  // A jump waits for the render that shows its target: Featured leaves or returns with the category
+  // and the query, so jumping earlier would aim at where the catalog used to be. The category
+  // arrives through the URL, possibly a render later; `jumpRequest` makes sure the check runs even
+  // when nothing else changes.
+  const pendingJump = useRef<JumpTarget | null>(null);
+  const [jumpRequest, setJumpRequest] = useState(0);
   useEffect(() => {
-    if (!jumpPending.current) return;
-    jumpPending.current = false;
-    jumpToCatalog();
-  }, [category]);
+    const target = pendingJump.current;
+    if (!target || target.category !== category || target.query !== query) return;
+    pendingJump.current = null;
+    jumpToCatalog(target);
+  }, [jumpRequest, category, query]);
+  const requestJump = (target: JumpTarget) => {
+    pendingJump.current = target;
+    setJumpRequest(count => count + 1);
+  };
+  // A hard load of `#catalog` lands where the prerendered page (always All, with Featured) put the
+  // catalog. This tree mounts with the URL's category already rendered, so land again from here.
+  useEffect(() => {
+    if (window.location.hash === "#catalog") jumpToCatalog({ instant: true, focusSearch: false });
+  }, []);
   const browseCategory = (next: MarketplaceCategoryId | null) => {
     setQuery("");
-    jumpPending.current = next !== category;
-    writeCategory(next);
-    if (next === category) jumpToCatalog();
+    requestJump({ category: next, query: "", instant: false, focusSearch: false });
+    if (next !== category) writeCategory(next);
   };
   const browsing = category === null && query.trim() === "";
   return (
@@ -67,12 +92,9 @@ export function MarketplaceBrowse({
         query={query}
         onQuery={value => {
           setQuery(value);
-          requestAnimationFrame(() => {
-            jumpToCatalog();
-            document
-              .querySelector<HTMLInputElement>("#catalog input")
-              ?.focus({ preventScroll: true });
-          });
+          // Instant: typing moves on in the catalog's input, and a caret the browser keeps in view
+          // would cut a smooth scroll short.
+          requestJump({ category, query: value, instant: true, focusSearch: true });
         }}
       />
       {browsing ? <Featured entries={featured} /> : null}
@@ -81,7 +103,14 @@ export function MarketplaceBrowse({
         category={category}
         query={query}
         onCategory={browseCategory}
-        onQuery={setQuery}
+        onQuery={value => {
+          setQuery(value);
+          // Featured leaving or returning above would move the catalog out from under the reader.
+          const nextBrowsing = category === null && value.trim() === "";
+          if (nextBrowsing !== browsing) {
+            requestJump({ category, query: value, instant: true, focusSearch: false });
+          }
+        }}
       />
     </>
   );

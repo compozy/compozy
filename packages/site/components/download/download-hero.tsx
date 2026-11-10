@@ -2,10 +2,11 @@
 
 /** One clear action for this machine, with the app itself right underneath. */
 import { Button, Logo, Tabs, TabsList, TabsTrigger, cn } from "@compozy/ui";
-import { Check, Copy, Download, ExternalLink } from "@compozy/ui/icons";
-import { useState, type ComponentType, type SVGProps } from "react";
+import { Check, Copy, Download, ExternalLink, TriangleAlert } from "@compozy/ui/icons";
+import type { ComponentType, SVGProps } from "react";
 
 import { ASSET } from "@/components/landing/assets";
+import { useCopyFeedback } from "@/components/site/hooks/use-copy-feedback";
 import { CONTAINER } from "@/components/site/layout";
 import { H1, Lead, Plate, PrimaryCta, Small } from "@/components/site/primitives";
 import type { DesktopRelease } from "@/lib/release/desktop-downloads";
@@ -82,12 +83,7 @@ function Picker({
   onPlatform: (platform: Platform) => void;
 }) {
   return (
-    // `flex-col` works around the site's missing Tabs orientation variants (fixed in the shared slice).
-    <Tabs
-      value={platform}
-      onValueChange={value => onPlatform(value as Platform)}
-      className="flex-col gap-0"
-    >
+    <Tabs value={platform} onValueChange={value => onPlatform(value as Platform)} className="gap-0">
       <TabsList className="h-auto gap-1 rounded-[14px] border border-site-light-100 bg-site-dark-400 p-1 backdrop-blur-md">
         {PLATFORMS.map(([id, label, Mark]) => (
           <TabsTrigger key={id} value={id} className="h-9 gap-2 rounded-[10px] px-3.5 text-[14px]">
@@ -102,22 +98,26 @@ function Picker({
   );
 }
 
+const COPY_LINK = {
+  idle: { label: "Copy the download link", Glyph: Copy },
+  copied: { label: "Link copied", Glyph: Check },
+  failed: { label: "Couldn't copy the link", Glyph: TriangleAlert },
+} as const;
+
 function CopyLink() {
-  const [copied, setCopied] = useState(false);
+  const { state, copy } = useCopyFeedback(DOWNLOAD_PAGE_URL);
+  const { label, Glyph } = COPY_LINK[state];
   return (
     <Button
       size="cta-lg"
       variant="outline"
-      className="h-[52px] px-7 text-[15.5px]"
-      onClick={() => {
-        void navigator.clipboard?.writeText(DOWNLOAD_PAGE_URL).then(
-          () => setCopied(true),
-          () => setCopied(false)
-        );
-      }}
+      aria-live="polite"
+      data-copy-state={state}
+      className="h-[52px] px-7 text-[15.5px] data-[copy-state=failed]:text-destructive"
+      onClick={() => void copy()}
     >
-      {copied ? <Check /> : <Copy />}
-      {copied ? "Link copied" : "Copy the download link"}
+      <Glyph />
+      {label}
     </Button>
   );
 }
@@ -161,7 +161,8 @@ function Actions({ mode, release, choice, onPlatform, onArch }: HeroProps) {
   return (
     <div className="mt-9 flex flex-col items-center gap-5">
       <Picker platform={choice.platform} onPlatform={onPlatform} />
-      <PrimaryCta icon={Download} href={offer.item.href}>
+      {/* A listed file downloads in place; without one the button opens the release on GitHub. */}
+      <PrimaryCta icon={Download} href={offer.item.href} download={offer.item.fileName !== null}>
         {offer.cta}
       </PrimaryCta>
       <p className="m-0 font-mono text-[13px] text-muted-foreground">{facts.join(" · ")}</p>
@@ -175,7 +176,9 @@ export function DownloadHero(props: HeroProps) {
     <section className="relative overflow-x-clip pb-40 md:pb-44">
       <Plate
         src={ASSET.plateWatch}
-        className="inset-x-0 bottom-0 h-[300px] w-full object-[50%_34%] opacity-70 [mask-image:linear-gradient(180deg,transparent,black_30%,black_55%,transparent)]"
+        load="eager"
+        className="inset-x-0 bottom-0 h-[300px] w-full opacity-70 [mask-image:linear-gradient(180deg,transparent,black_30%,black_55%,transparent)]"
+        imageClassName="object-[50%_34%]"
       />
       <div
         className={cn(

@@ -44,12 +44,18 @@ function NavLink({
   label,
   current,
   onNavigate,
+  inBar = false,
   className,
 }: {
   href: string;
   label: string;
   current: boolean;
   onNavigate?: () => void;
+  /**
+   * In the header bar the link stretches to the bar's full height, so an outer focus ring would be
+   * cut by the bar's clipping; the ring goes around the label instead.
+   */
+  inBar?: boolean;
   className?: string;
 }) {
   return (
@@ -60,11 +66,17 @@ function NavLink({
       className={cn(
         "relative flex items-center rounded-[6px] text-[14px] transition-colors",
         current ? "text-fg" : "text-fg/70 hover:text-fg",
-        FOCUS,
+        inBar ? "group/nav outline-none" : FOCUS,
         className
       )}
     >
-      {label}
+      {inBar ? (
+        <span className="-mx-1.5 rounded-[6px] px-1.5 py-0.5 group-focus-visible/nav:ring-2 group-focus-visible/nav:ring-brand">
+          {label}
+        </span>
+      ) : (
+        label
+      )}
       {current ? (
         <span
           aria-hidden
@@ -105,6 +117,7 @@ export function SiteHeader() {
               href={link.href}
               label={link.label}
               current={isCurrentSection(pathname, link.href)}
+              inBar
             />
           ))}
         </nav>

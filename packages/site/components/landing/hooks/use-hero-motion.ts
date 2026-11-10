@@ -13,11 +13,10 @@ export function useHeroMotion() {
   const reduced = useReducedMotionSafe();
   const desktop = useIsDesktop();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const tilted = desktop && !reduced;
-  const rotateX = useScrollTransform(scrollYProgress, [0, 0.38], tilted ? [24, 0] : [0, 0]);
-  const scale = useScrollTransform(scrollYProgress, [0, 0.38], tilted ? [0.86, 1] : [1, 1]);
+  // How far the window has straightened; `.site-hero-tilt` turns it into the tilt where it applies.
+  const flat = useScrollTransform(scrollYProgress, [0, 0.38], [0, 1]);
   const plateY = useScrollTransform(scrollYProgress, [0, 1], reduced ? [0, 0] : [0, 260]);
   const copyY = useScrollTransform(scrollYProgress, [0, 0.3], reduced ? [0, 0] : [0, -90]);
   const copyOpacity = useScrollTransform(scrollYProgress, [0, 0.22], reduced ? [1, 1] : [1, 0]);
-  return { ref, reduced, desktop, rotateX, scale, plateY, copyY, copyOpacity };
+  return { ref, reduced, desktop, flat, plateY, copyY, copyOpacity };
 }

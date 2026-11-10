@@ -1,6 +1,8 @@
 /** Layout constants and the capture-camera geometry shared by the marketing surfaces. */
 export const CONTAINER = "mx-auto w-full max-w-[1280px] px-6 md:px-10";
 export const HAIRLINE = "border-site-light-080";
+/** `sizes` for a capture in a product window: the container width, at most 1280px. */
+export const SHOT_SIZES = "(min-width: 1280px) 1200px, 100vw";
 /** Pinned stages fade into the page instead of starting at a hard edge. */
 export const STAGE_FADE =
   "[mask-image:linear-gradient(180deg,transparent,black_20%,black_80%,transparent),linear-gradient(90deg,transparent,black_14%,black_86%,transparent)] [mask-composite:intersect]";

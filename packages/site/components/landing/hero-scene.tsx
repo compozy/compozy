@@ -2,7 +2,7 @@
 
 /** The hero's moving parts: the parallax plate, the dust, the lifting copy and the tilted product window. */
 import { cn } from "@compozy/ui";
-import { m } from "motion/react";
+import { m, type MotionStyle } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ASSET } from "@/components/landing/assets";
@@ -35,6 +35,8 @@ const CLIP: ReadonlyArray<{ src: string; alt: string; from: Focus; to: Focus }> 
   },
 ];
 const STEP_MS = 5600;
+/** The hero window spans the page up to 1560px. */
+const HERO_SIZES = "(min-width: 1560px) 1560px, 100vw";
 const POSTER = CLIP.length - 1;
 
 /** Stands in for the recorded hero clip: real frames, filmed in the order the clip will follow. */
@@ -66,6 +68,8 @@ function HeroClip() {
           active={index === shown}
           focus={index === shown && (settled || reduced) ? item.to : item.from}
           duration={3.4}
+          sizes={HERO_SIZES}
+          load={index === 0 ? "priority" : "lazy"}
         />
       ))}
       <div aria-hidden className="absolute inset-x-5 bottom-4 z-10 flex gap-1.5">
@@ -91,12 +95,13 @@ function HeroClip() {
 }
 
 export function HeroScene({ children }: { children: ReactNode }) {
-  const { ref, reduced, desktop, rotateX, scale, plateY, copyY, copyOpacity } = useHeroMotion();
+  const { ref, reduced, desktop, flat, plateY, copyY, copyOpacity } = useHeroMotion();
   return (
     <section ref={ref} id="hero" className="relative overflow-x-clip pb-20 md:pb-32">
       <Plate
         src={ASSET.plateHero}
         style={{ y: plateY }}
+        load="eager"
         className="inset-x-0 top-0 h-[1120px] w-full [mask-image:linear-gradient(180deg,black_62%,transparent)]"
       />
       {desktop && !reduced ? (
@@ -112,7 +117,10 @@ export function HeroScene({ children }: { children: ReactNode }) {
         {children}
       </m.div>
       <div className="relative z-20 mx-auto mt-14 w-full max-w-[1560px] px-4 [perspective:1500px] md:mt-20 md:px-8">
-        <ProductWindow style={{ rotateX, scale, transformOrigin: "50% 0%" }}>
+        <ProductWindow
+          className="site-hero-tilt"
+          style={{ "--hero-flat": flat, transformOrigin: "50% 0%" } as MotionStyle}
+        >
           <HeroClip />
         </ProductWindow>
       </div>

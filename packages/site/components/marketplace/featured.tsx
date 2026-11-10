@@ -1,5 +1,6 @@
 /** Featured comes from the catalog's own curation; the art only frames it. */
 import { cn } from "@compozy/ui";
+import Image from "next/image";
 import Link from "next/link";
 
 import { ASSET } from "@/components/landing/assets";
@@ -35,12 +36,14 @@ export function Featured({ entries }: { entries: readonly MarketplaceCard[] }) {
               className="group/feat block w-full cursor-pointer overflow-hidden rounded-[20px] border border-site-light-080 bg-site-light-025 p-0 text-left outline-none transition-[border-color] duration-300 hover:border-site-light-200 focus-visible:ring-2 focus-visible:ring-brand"
             >
               <span className="relative grid h-[210px] place-items-center overflow-hidden bg-black">
-                <img
+                <Image
                   src={ART[index % ART.length]}
                   alt=""
                   aria-hidden
+                  fill
+                  sizes="(min-width: 1280px) 300px, (min-width: 640px) 50vw, 100vw"
                   draggable={false}
-                  className="absolute inset-0 size-full object-cover opacity-75 transition-transform duration-[1200ms] ease-out group-hover/feat:scale-[1.07]"
+                  className="object-cover opacity-75 transition-transform duration-[1200ms] ease-out group-hover/feat:scale-[1.07]"
                 />
                 <span
                   aria-hidden

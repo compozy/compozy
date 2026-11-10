@@ -5,6 +5,8 @@ import { AgentAvatar, cn } from "@compozy/ui";
 import { MotionConfig, m, useMotionValueEvent, useTransform, type MotionValue } from "motion/react";
 import { useState } from "react";
 
+import Image from "next/image";
+
 import { ASSET } from "@/components/landing/assets";
 import { useProblemStage } from "@/components/landing/hooks/use-problem-stage";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
@@ -88,11 +90,13 @@ export function ProblemStage() {
           className="relative w-[min(1500px,84vw,calc(76vh*1.6))]"
         >
           <ProductWindow>
-            <img
+            <Image
               src={ASSET.board}
               alt="One sessions board sorted by who owns the next step"
+              fill
+              sizes="(min-width: 1024px) 84vw, 100vw"
               draggable={false}
-              className="block size-full object-cover"
+              className="object-cover"
             />
           </ProductWindow>
         </m.div>
@@ -116,6 +120,7 @@ export function Faces() {
         {FACES.map((seed, index) => (
           <m.span
             key={seed}
+            data-site-reveal=""
             initial={{ opacity: 0, y: 14, scale: 0.7 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true }}
