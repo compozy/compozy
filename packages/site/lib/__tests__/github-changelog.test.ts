@@ -79,7 +79,6 @@ describe("GitHub changelog boundary", () => {
           version: "v0.3.0-beta.3",
           body: releaseFixture.body,
           channel: "beta",
-          categories: [{ id: "runtime", label: "Runtime", itemCount: 1 }],
           pullRequestNumbers: [123],
           assets: [expect.objectContaining({ name: "compozy_darwin_arm64.tar.gz", size: 42 })],
         }),

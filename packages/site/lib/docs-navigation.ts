@@ -152,7 +152,6 @@ export function collectPageUrls(nodes: readonly Node[], into = new Set<string>()
 }
 
 const SECTIONS = new WeakMap<Root, DocsSection[]>();
-const SECTION_BY_URL = new WeakMap<Root, Map<string, DocsSection>>();
 
 /**
  * The section tabs: the root page tree split on its labeled separators, in sidebar order. The pages
@@ -176,19 +175,6 @@ export function docsSections(tree: Root): DocsSection[] {
   for (const section of sections) section.count = collectPageUrls(section.items).size;
   SECTIONS.set(tree, sections);
   return sections;
-}
-
-/** The section a page belongs to, or `null` for pages outside every section. */
-export function sectionOf(tree: Root, url: string): DocsSection | null {
-  let byUrl = SECTION_BY_URL.get(tree);
-  if (!byUrl) {
-    byUrl = new Map();
-    for (const section of docsSections(tree)) {
-      for (const pageUrl of collectPageUrls(section.items)) byUrl.set(pageUrl, section);
-    }
-    SECTION_BY_URL.set(tree, byUrl);
-  }
-  return byUrl.get(normalizeDocsUrl(url)) ?? null;
 }
 
 /** Where a section tab lands: the first page of its first folder. */

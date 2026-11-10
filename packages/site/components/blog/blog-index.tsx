@@ -191,7 +191,7 @@ export function BlogIndex({
       )}
       <section
         id="all-posts"
-        className={cn("scroll-mt-28", filtering ? "mt-12" : "mt-24 border-t pt-16", HAIRLINE)}
+        className={cn("scroll-mt-6", filtering ? "mt-12" : "mt-24 border-t pt-16", HAIRLINE)}
       >
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <H2 size="sm">All posts</H2>

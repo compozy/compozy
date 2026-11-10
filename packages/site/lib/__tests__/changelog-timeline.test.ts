@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseReleaseNotes } from "../changelog/release-notes";
-import { groupEras, listState, stableLine, type LineItem } from "../changelog/timeline";
+import { groupEras, listState, pulseSlots, stableLine, type LineItem } from "../changelog/timeline";
 
 function at(version: string, date: string) {
   return { version, date: `${date}T12:00:00Z`, pre: version.includes("-") };
@@ -203,5 +203,24 @@ describe("parseReleaseNotes", () => {
       ],
     });
     expect(parsed.extras).toEqual([{ heading: "Verification", body: "Checksums are signed." }]);
+  });
+});
+
+describe("pulseSlots", () => {
+  it("gives each bar its own stretch of the line, so close releases never cover each other", () => {
+    // Newest first, as the chart receives them: two releases close together, one a little earlier.
+    const slots = pulseSlots([100, 99, 90, 0]);
+
+    expect(slots.map(slot => slot.at)).toEqual([100, 99, 90, 0]);
+    expect(slots[0]).toEqual({ at: 100, from: 99.5, to: null });
+    expect(slots[1]).toEqual({ at: 99, from: 94.5, to: 99.5 });
+    expect(slots[3]).toEqual({ at: 0, from: null, to: 45 });
+    const line = slots.toSorted((a, b) => a.at - b.at);
+    for (const [index, slot] of line.entries()) {
+      const next = line[index + 1];
+      if (next) expect(slot.to).toBe(next.from);
+      if (slot.from !== null) expect(slot.from).toBeLessThanOrEqual(slot.at);
+      if (slot.to !== null) expect(slot.to).toBeGreaterThanOrEqual(slot.at);
+    }
   });
 });

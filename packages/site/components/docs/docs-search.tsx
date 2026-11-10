@@ -84,79 +84,94 @@ function pathOf(hit: SearchPageHit) {
   return hit.breadcrumbs.join(" / ");
 }
 
-function Results(
-  props: DocsSearchProps & { query: string; tag: string | null; onOpen: (url: string) => void }
-) {
-  const { hits, loading, failed, retry } = useDocsSearch(props.query, props.tag);
-  if (!props.query.trim()) {
-    return (
-      <CommandGroup heading="Start here">
-        {props.suggested.map(page => (
-          <ResultRow
-            key={page.url}
-            url={page.url}
-            title={page.title}
-            detail={page.description}
-            path=""
-            icon={props.icons[headOf(page.url)]}
-            onOpen={props.onOpen}
-          />
-        ))}
-      </CommandGroup>
-    );
+interface Row {
+  url: string;
+  title: string;
+  detail: string;
+  path: string;
+}
+
+interface ResultGroup {
+  key: string;
+  heading: string;
+  rows: Row[];
+}
+
+function rowOf(hit: SearchPageHit): Row {
+  return { url: hit.url, title: hit.title, detail: hit.excerpt ?? pathOf(hit), path: pathOf(hit) };
+}
+
+/** The palette's groups, in display order: suggestions for an empty query, else hits by section. */
+function resultGroups(
+  props: DocsSearchProps,
+  query: string,
+  hits: readonly SearchPageHit[],
+  tag: string | null
+): ResultGroup[] {
+  if (!query.trim()) {
+    const rows = props.suggested.map(page => ({
+      url: page.url,
+      title: page.title,
+      detail: page.description,
+      path: "",
+    }));
+    return [{ key: "suggested", heading: "Start here", rows }];
   }
-  if (failed) {
+  // Pages that sit before the first section (the docs home, "How to use these docs") get their own group.
+  const sectioned = new Set(props.tabs.flatMap(tab => tab.heads));
+  const intro = tag === null ? hits.filter(hit => !sectioned.has(headOf(hit.url))) : [];
+  const groups: ResultGroup[] = [];
+  if (intro.length > 0)
+    groups.push({
+      key: "intro",
+      heading: `Docs · ${intro.length}`,
+      rows: intro.slice(0, LIMIT).map(rowOf),
+    });
+  for (const tab of props.tabs) {
+    const matched = hits.filter(hit => tab.heads.includes(headOf(hit.url)));
+    if (matched.length === 0) continue;
+    groups.push({
+      key: tab.id,
+      heading: `${tab.label} · ${matched.length}`,
+      rows: matched.slice(0, LIMIT).map(rowOf),
+    });
+  }
+  return groups;
+}
+
+function Results(props: {
+  groups: readonly ResultGroup[];
+  query: string;
+  loading: boolean;
+  failed: boolean;
+  retry: () => void;
+  icons: DocsSearchProps["icons"];
+  onOpen: (url: string) => void;
+}) {
+  if (props.failed && props.query.trim()) {
     return (
       <div role="status" className="flex flex-col items-center gap-4 px-4 py-10 text-center">
         <p className="m-0 text-[14px] text-muted-foreground">Search is unavailable right now.</p>
-        <Button type="button" variant="outline" size="sm" onClick={retry}>
+        <Button type="button" variant="outline" size="sm" onClick={props.retry}>
           Try again
         </Button>
       </div>
     );
   }
-  const sections = props.tabs.flatMap(tab => {
-    const matched = hits.filter(hit => tab.heads.includes(headOf(hit.url)));
-    return matched.length > 0 ? [{ tab, hits: matched }] : [];
-  });
-  // Pages that sit before the first section (the docs home, "How to use these docs") get their own group.
-  const sectioned = new Set(props.tabs.flatMap(tab => tab.heads));
-  const intro = props.tag === null ? hits.filter(hit => !sectioned.has(headOf(hit.url))) : [];
   return (
     <>
-      {loading && hits.length === 0 ? null : (
+      {props.loading && props.groups.length === 0 ? null : (
         <CommandEmpty className="px-4 py-10 text-center text-[14px] text-muted-foreground">
           No page matches “{props.query.trim()}”.
         </CommandEmpty>
       )}
-      {intro.length > 0 ? (
-        <CommandGroup heading={`Docs · ${intro.length}`}>
-          {intro.slice(0, LIMIT).map(hit => (
+      {props.groups.map(group => (
+        <CommandGroup key={group.key} heading={group.heading}>
+          {group.rows.map(row => (
             <ResultRow
-              key={hit.url}
-              url={hit.url}
-              title={hit.title}
-              detail={hit.excerpt ?? pathOf(hit)}
-              path={pathOf(hit)}
-              icon={props.icons[headOf(hit.url)]}
-              onOpen={props.onOpen}
-            />
-          ))}
-        </CommandGroup>
-      ) : null}
-      {sections.map(section => (
-        <CommandGroup
-          key={section.tab.id}
-          heading={`${section.tab.label} · ${section.hits.length}`}
-        >
-          {section.hits.slice(0, LIMIT).map(hit => (
-            <ResultRow
-              key={hit.url}
-              url={hit.url}
-              title={hit.title}
-              detail={hit.excerpt ?? pathOf(hit)}
-              path={pathOf(hit)}
-              icon={props.icons[headOf(hit.url)]}
+              key={row.url}
+              {...row}
+              icon={props.icons[headOf(row.url)]}
               onOpen={props.onOpen}
             />
           ))}
@@ -170,12 +185,24 @@ function Palette(props: DocsSearchProps & { onClose: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<DocsTab | null>(null);
+  const { hits, loading, failed, retry } = useDocsSearch(query, tag?.label ?? null);
+  const groups = resultGroups(props, query, hits, tag?.label ?? null);
+  const urls = groups.flatMap(group => group.rows.map(row => row.url));
+  // The highlighted row. cmdk moves it only when the query text changes, so a section filter that
+  // swaps the results would leave nothing for Enter to open: fall back to the first row shown.
+  const [picked, setPicked] = useState("");
+  const active = urls.includes(picked) ? picked : (urls[0] ?? "");
   const open = (url: string) => {
     props.onClose();
     router.push(url);
   };
   return (
-    <Command shouldFilter={false} className="bg-transparent">
+    <Command
+      shouldFilter={false}
+      value={active}
+      onValueChange={setPicked}
+      className="bg-transparent"
+    >
       <CommandInput
         autoFocus
         variant="quiet"
@@ -210,7 +237,15 @@ function Palette(props: DocsSearchProps & { onClose: () => void }) {
         ))}
       </div>
       <CommandList className="max-h-[min(440px,52vh)] p-2">
-        <Results {...props} query={query} tag={tag?.label ?? null} onOpen={open} />
+        <Results
+          groups={groups}
+          query={query}
+          loading={loading}
+          failed={failed}
+          retry={retry}
+          icons={props.icons}
+          onOpen={open}
+        />
       </CommandList>
       <div
         className={cn(

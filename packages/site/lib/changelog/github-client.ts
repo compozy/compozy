@@ -7,7 +7,6 @@ import {
 import {
   channelFromReleaseTag,
   extractPullRequestNumbers,
-  extractReleaseCategories,
   extractReleaseHeadings,
   releaseSummary,
   releaseTagIsAtOrAfter,
@@ -147,7 +146,6 @@ function buildRelease(payload: GitHubReleasePayload): ChangelogRelease | null {
       contentType: asset.content_type,
       downloadCount: asset.download_count,
     })),
-    categories: extractReleaseCategories(body),
     headings: extractReleaseHeadings(body),
     pullRequestNumbers: extractPullRequestNumbers(body),
   };

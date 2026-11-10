@@ -52,7 +52,6 @@ function release(version: string, overrides: Partial<ChangelogRelease> = {}): Ch
     sourceArchiveUrl: `https://api.github.com/repos/compozy/compozy/tarball/${version}`,
     sourceZipUrl: `https://api.github.com/repos/compozy/compozy/zipball/${version}`,
     assets: [],
-    categories: [],
     headings: [],
     pullRequestNumbers: [],
     ...overrides,

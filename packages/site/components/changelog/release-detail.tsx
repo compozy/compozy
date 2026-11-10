@@ -223,7 +223,7 @@ export function ReleaseDetail({
             </ProductWindow>
           ) : null}
           {groups.map(group => (
-            <section key={group} id={sectionSlug(group)} className="mt-14 scroll-mt-28">
+            <section key={group} id={sectionSlug(group)} className="mt-14 scroll-mt-6">
               <H2 className={cn(SECTION, group === "Breaking Changes" && "text-warning")}>
                 {group}
               </H2>

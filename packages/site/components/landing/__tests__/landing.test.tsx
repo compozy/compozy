@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadHero } from "@/components/download/download-hero";
@@ -93,6 +94,13 @@ describe("Comparison", () => {
 });
 
 describe("Community", () => {
+  it("serves the release count in the HTML, so it reads right before the count-up runs", () => {
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<Community releases={1234} />);
+    const releases = within(container).getByText("releases").closest("p");
+    expect(releases?.textContent).toBe("1,234releases");
+  });
+
   it("shows the live release count's absence instead of inventing a number", () => {
     render(<Community releases={null} />);
     const releases = screen.getByText("releases").closest("p");

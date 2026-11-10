@@ -109,7 +109,9 @@ export function Browser({
       className={cn(
         CONTAINER,
         "pb-28",
-        browsing ? "scroll-mt-24" : "scroll-mt-6 pt-16 md:scroll-mt-0 md:pt-24"
+        // The page's `scroll-padding-top` (88px, `site-shell.css`) already clears the header; these
+        // margins add only the draft's remaining offset, so a jump lands where the draft puts it.
+        browsing ? "scroll-mt-2" : "-scroll-mt-16 pt-16 md:-scroll-mt-22 md:pt-24"
       )}
     >
       <div className="grid gap-8 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-12">

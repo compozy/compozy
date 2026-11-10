@@ -130,6 +130,7 @@
         },
         "@compozy/site#build": {
             "dependsOn": ["generate:content", "^build"],
+            "passThroughEnv": ["COMPOZY_SITE_GITHUB_TOKEN"],
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "$TURBO_ROOT$/catalog/*.json",

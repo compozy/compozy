@@ -484,11 +484,8 @@ tokens:
       space-chart-tooltip-x: "8px"
   site:
     typography-clamps:
-      error-title: "clamp(2.6rem, 6vw, 4.8rem)"
-      doc-heading: "clamp(1.6rem, 2.6vw, 2.15rem)"
       group-label: "0.625rem"
       group-label--line-height: "0.75rem"
-      subheading: "clamp(1.25rem, 1.7vw, 1.45rem)"
     layout:
       light-025: "rgb(255 255 255 / 0.025)"
       light-030: "rgb(255 255 255 / 0.03)"
@@ -1356,13 +1353,10 @@ Figtree.
 
 <!-- BEGIN:tokens:site-clamps -->
 
-| Token                             | Value                            |
-| --------------------------------- | -------------------------------- |
-| `--text-site-error-title`         | `clamp(2.6rem, 6vw, 4.8rem)`     |
-| `--text-site-doc-heading`         | `clamp(1.6rem, 2.6vw, 2.15rem)`  |
-| `--text-group-label`              | `0.625rem`                       |
-| `--text-group-label--line-height` | `0.75rem`                        |
-| `--text-site-subheading`          | `clamp(1.25rem, 1.7vw, 1.45rem)` |
+| Token                             | Value      |
+| --------------------------------- | ---------- |
+| `--text-group-label`              | `0.625rem` |
+| `--text-group-label--line-height` | `0.75rem`  |
 
 <!-- END:tokens:site-clamps -->
 

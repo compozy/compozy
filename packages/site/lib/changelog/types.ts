@@ -24,12 +24,6 @@ export interface ChangelogHeading {
   level: number;
 }
 
-export interface ChangelogCategory {
-  id: string;
-  label: string;
-  itemCount: number;
-}
-
 export interface ChangelogRelease {
   version: string;
   name: string | null;
@@ -42,7 +36,6 @@ export interface ChangelogRelease {
   assets: ChangelogAsset[];
   sourceArchiveUrl: string;
   sourceZipUrl: string;
-  categories: ChangelogCategory[];
   headings: ChangelogHeading[];
   pullRequestNumbers: number[];
 }

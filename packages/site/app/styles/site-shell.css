@@ -52,7 +52,8 @@
   letter-spacing: normal;
 }
 
-/* Hash targets land below the floating marketing header. */
+/* Hash targets land below the floating marketing header. Element scroll margins (`scroll-mt-*`) add
+   to this, so they hold only the offset a draft sets beyond the header (draft 112px → scroll-mt-6). */
 html:has(.site-marketing) {
   scroll-padding-top: 88px;
 }
@@ -60,13 +61,6 @@ html:has(.site-marketing) {
 @keyframes landing-marquee {
   to {
     transform: translateX(-100%);
-  }
-}
-
-@keyframes landing-pulse {
-  50% {
-    opacity: 0.35;
-    transform: scale(1.5);
   }
 }
 

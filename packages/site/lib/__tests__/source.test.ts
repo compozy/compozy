@@ -13,7 +13,7 @@ import {
   DOCS_GROUP_BY_FOLDER,
   docsGroupForUrl,
   docsSections,
-  sectionOf,
+  sectionHeads,
 } from "../docs-navigation";
 import { overviewPageTransformer } from "../docs-overview-tree";
 
@@ -205,11 +205,12 @@ describe("docs sections", () => {
     expect([...seen.values()].every(times => times === 1)).toBe(true);
     expect(seen.size).toBe(sections.reduce((sum, section) => sum + section.count, 0));
 
-    expect(sectionOf(tree, "/docs/getting-started/quick/")?.label).toBe("Start here");
-    expect(sectionOf(tree, "/docs/migration")?.label).toBe("Start here");
-    expect(sectionOf(tree, "/docs/cli/session/prompt")?.label).toBe("Reference");
-    expect(sectionOf(tree, "/docs")).toBeNull();
-    expect(sectionOf(tree, "/docs/intro")).toBeNull();
+    const tabs = sections.map(section => ({ id: section.id, heads: sectionHeads(section) }));
+    expect(currentSectionId(tabs, "/docs/getting-started/quick/")).toBe("start-here");
+    expect(currentSectionId(tabs, "/docs/migration")).toBe("start-here");
+    expect(currentSectionId(tabs, "/docs/cli/session/prompt")).toBe("reference");
+    expect(currentSectionId(tabs, "/docs")).toBeNull();
+    expect(currentSectionId(tabs, "/docs/intro")).toBeNull();
   });
 
   it("Should match a pathname to the section owning its top-level folder", () => {

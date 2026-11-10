@@ -4,15 +4,15 @@ area: REL
 title: Judge the integrated OS claim from the public landing page
 persona: Cora
 journey: J-evaluate-compozy-beta
-expected: The locked hero pair, static shell capture, six ordered sections, and sourced proof make the product claim understandable without a generic dashboard or unsupported competitor assertion.
+expected: The locked hero pair, the ordered sections of the approved landing draft, and sourced proof (live provider and release counts, product captures, the comparison table) make the product claim understandable without a generic dashboard or unsupported competitor assertion.
 entry_points: Local site render (canonical origin declaration: https://compozy.com)
-qa_status: untested
+qa_status: partial
 bug_ids:
 fix_status: 
 retest_status: 
 fix_commits: 
-evidence: docs/qa/reports/2026-08-17-electron-shell.md
-last_report: docs/qa/reports/2026-08-17-electron-shell.md
+evidence: .compozy/tasks/site-redesign/qa/R4/ET-site-landing/walk.jsonl; .compozy/tasks/site-redesign/qa/R4/ET-site-landing/default-1440-site.jpg; .compozy/tasks/site-redesign/qa/R4/ET-site-landing/default-390-site.jpg; .compozy/tasks/site-redesign/qa/R4/ET-site-landing/outline-1440.json
+last_report: docs/qa/reports/2026-11-10-site-redesign-r4.md
 overlaps: ET-compozy-public-brand-navigation; REL-beta-install-paths
 ---
 
@@ -48,3 +48,5 @@ tiles, and section order are untouched. Status stays untested pending the same f
 QA impact 2026-10-07 (memory removal): the landing's Memory & Dream section was deleted, the bento is two cards, and the positioning and comparison copy no longer name memory (the Hero Lock is unchanged). Count the ordered sections from the rendered page when walking; do not expect a memory or Dream proof. Stale pass verdict reset to untested; historical evidence preserved; no QA session ran.
 
 QA impact 2026-11-10 (site redesign): the landing was rebuilt from the approved landing draft on live numbers. The OS shell capture (`/images/hero/os-shell-capture-v2.png`) and the old hero background were deleted with the old landing sections; the hero still equals the COPY.md Hero Lock. Walk the claim on ET-site-landing; earlier notes above are history.
+
+QA result 2026-11-10 (R4 walk on ET-site-landing): partial. The Hero Lock pair, the ordered sections of the approved landing draft and the live proof (providers, releases, captures, quotes) read as one product claim without a generic dashboard. Not verified: the comparison table still carries "to verify" cells and a literal `<date>` that wait on the owner; whether it makes an unsupported competitor assertion cannot be judged until that content lands.

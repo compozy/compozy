@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { marketplacePresetsSchema } from "../lib/marketplace-catalog-schema";
 import type { PluginSnapshot, SnapshotPlugin } from "../lib/marketplace-plugins-schema";
 import { pluginSnapshotSchema } from "../lib/marketplace-plugins-schema";
 import { iconHints, type IconHints } from "./marketplace-icon-hints";
@@ -227,9 +228,9 @@ async function decodePlugins(
   return decoded;
 }
 
-const presets = (
-  JSON.parse(readFileSync(presetsPath, "utf8")) as { entries: Json[] }
-).entries.filter(preset => preset.default === "on");
+const presets = marketplacePresetsSchema
+  .parse(JSON.parse(readFileSync(presetsPath, "utf8")))
+  .entries.filter(preset => preset.default === "on");
 rmSync(iconRoot, { recursive: true, force: true });
 const snapshot: PluginSnapshot = {
   snapshot_version: 1,
@@ -238,8 +239,8 @@ const snapshot: PluginSnapshot = {
   extension_icons: await extensionIconHints(),
 };
 for (const preset of presets) {
-  const name = text(preset.name);
-  const repository = githubRepository(text(preset.source));
+  const { name } = preset;
+  const repository = githubRepository(preset.source);
   const document = await fetchDocument(repository);
   // `curatedIdentity`: only the CompozyOS plugin source carries x-compozy curation.
   const curated = name === "compozy-plugins" && repository === "compozy/plugins";

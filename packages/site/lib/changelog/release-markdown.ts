@@ -1,4 +1,4 @@
-import type { ChangelogCategory, ChangelogHeading, ChangelogChannel } from "./types";
+import type { ChangelogHeading, ChangelogChannel } from "./types";
 
 interface ParsedSemver {
   major: number;
@@ -167,25 +167,6 @@ export function extractReleaseHeadings(body: string): ChangelogHeading[] {
   }
 
   return headings;
-}
-
-export function extractReleaseCategories(body: string): ChangelogCategory[] {
-  const categories: ChangelogCategory[] = [];
-  let current: ChangelogCategory | null = null;
-
-  for (const line of stripLeadingReleaseHeading(body).split("\n")) {
-    const heading = /^###\s+(.+?)\s*$/.exec(line.trim());
-    if (heading) {
-      const label = headingLabel(heading[1] ?? "");
-      if (/^release notes$/i.test(label)) break;
-      current = { id: slugifyHeading(label), label, itemCount: 0 };
-      categories.push(current);
-      continue;
-    }
-    if (current && /^[-*+]\s+/.test(line.trim())) current.itemCount += 1;
-  }
-
-  return categories;
 }
 
 export function extractPullRequestNumbers(body: string): number[] {

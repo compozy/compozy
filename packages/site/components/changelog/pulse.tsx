@@ -3,9 +3,12 @@
 /** Every release on one line. Taller bars shipped more changes. */
 import { cn } from "@compozy/ui";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
-import { formatDate, type TimelineRelease } from "@/lib/changelog/timeline";
+import { formatDate, pulseSlots, type TimelineRelease } from "@/lib/changelog/timeline";
+
+/** Half the widest hit area a bar takes, in px; neighbours closer than this share the gap. */
+const HIT_HALF = 6;
 
 function heightOf(release: TimelineRelease) {
   return Math.min(100, 14 + Math.sqrt(release.total) * 10);
@@ -34,6 +37,7 @@ export function ReleasePulse({
   const last = Math.max(...times);
   const position = (time: number) =>
     last === first ? 50 : ((time - first) / (last - first)) * 100;
+  const slots = pulseSlots(times);
   const months = Array.from(new Set(releases.map(release => release.date.slice(0, 7))))
     .toSorted()
     .flatMap(month => {
@@ -55,27 +59,35 @@ export function ReleasePulse({
       </div>
       <div className="relative mt-5 h-[104px]" onMouseLeave={() => setHovered(null)}>
         <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-site-light-100" />
-        {releases.map(release => {
+        {releases.map((release, index) => {
           const muted = release.pre && !showBetas;
+          const slot = slots[index];
+          if (!slot) return null;
+          const left = `calc(${slot.at}% - ${HIT_HALF}px)`;
+          const right = `calc(${100 - slot.at}% - ${HIT_HALF}px)`;
           return (
-            <Link
-              key={release.version}
-              href={`/changelog/${encodeURIComponent(release.version)}`}
-              aria-label={`${release.version}, ${formatDate(release.date)}`}
-              onMouseEnter={() => setHovered(release)}
-              onFocus={() => setHovered(release)}
-              className="group/bar absolute bottom-0 flex h-full w-3 -translate-x-1/2 cursor-pointer items-end justify-center bg-transparent p-0 outline-none"
-              style={{ left: `${position(Date.parse(release.date))}%` }}
-            >
+            <Fragment key={release.version}>
+              <Link
+                href={`/changelog/${encodeURIComponent(release.version)}`}
+                aria-label={`${release.version}, ${formatDate(release.date)}`}
+                onMouseEnter={() => setHovered(release)}
+                onFocus={() => setHovered(release)}
+                className="peer/bar absolute inset-y-0 cursor-pointer bg-transparent p-0 outline-none"
+                style={{
+                  left: slot.from === null ? left : `max(${left}, ${slot.from}%)`,
+                  right: slot.to === null ? right : `max(${right}, ${100 - slot.to}%)`,
+                }}
+              />
               <span
+                aria-hidden
                 className={cn(
-                  "block w-[3px] rounded-t-full transition-opacity group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100",
+                  "pointer-events-none absolute bottom-0 block w-[3px] -translate-x-1/2 rounded-t-full transition-opacity peer-hover/bar:opacity-100 peer-focus-visible/bar:opacity-100",
                   release.pre ? "bg-site-light-350" : "bg-[image:var(--gradient-brand)]",
                   muted ? "opacity-40" : "opacity-90"
                 )}
-                style={{ height: `${heightOf(release)}%` }}
+                style={{ left: `${slot.at}%`, height: `${heightOf(release)}%` }}
               />
-            </Link>
+            </Fragment>
           );
         })}
       </div>

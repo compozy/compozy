@@ -48,10 +48,6 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --height-button-default: 30px;
-  /* The hero's floating product window. The shared tokens retired the window
-     radius and shadow with the flat shell; the site keeps them for its mock. */
-  --radius-window: 12px;
-  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   /* Button labels moved to the 14.5px product body; the site keeps 12.5px. */
   --text-body: 0.78125rem;
   --text-empty-h1: 1.125rem;
@@ -74,15 +70,11 @@
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
-  --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
-  --text-site-doc-heading: clamp(1.6rem, 2.6vw, 2.15rem);
   --text-group-label: 0.625rem;
   --text-group-label--line-height: 0.75rem;
-  --text-site-subheading: clamp(1.25rem, 1.7vw, 1.45rem);
   --leading-small-body: var(--text-small-body--line-height);
   --radius-chip: var(--radius-chip);
   --radius-mono-badge: var(--radius-mono-badge);
-  --radius-diagram: var(--radius-xl);
   --radius-icon-well: 0.75rem;
   /* Translucent site tones (v1.2 redesign): `bg-site-light-040`, `border-site-light-100`,
      `bg-site-dark-400`. Values live in :root as `--site-light-*` / `--site-dark-*`. */

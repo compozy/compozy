@@ -28,9 +28,15 @@ async function releasePage(page: number, init: RequestInit) {
   url.searchParams.set("per_page", String(PER_PAGE));
   url.searchParams.set("page", String(page));
   const response = await fetch(url.toString(), init);
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.warn(`Release count unavailable: GitHub answered ${response.status} for page ${page}`);
+    return null;
+  }
   const parsed = githubReleaseListSchema.safeParse(await response.json());
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    console.warn(`Release count unavailable: unexpected release list on page ${page}`);
+    return null;
+  }
   // A page can come back short (GitHub hides some entries), so only the Link header ends the list.
   const more = /<[^>]+>;\s*rel="next"/.test(response.headers.get("link") ?? "");
   return { releases: parsed.data, more };
@@ -58,7 +64,8 @@ export async function countPublishedReleases(): Promise<number | null> {
       ).length;
       if (!result.more) return count;
     }
-  } catch {
+  } catch (error) {
+    console.warn("Release count unavailable: GitHub request failed", error);
     return null;
   }
   // More pages than the cap: the count would be short, so it is not shown.

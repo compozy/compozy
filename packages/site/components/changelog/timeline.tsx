@@ -135,7 +135,7 @@ function Entry({ release, branch }: { release: TimelineRelease; branch: boolean 
   const href = hrefOf(release.version);
   if (!rich) {
     return (
-      <li id={release.version} className="group/entry relative scroll-mt-28 py-3">
+      <li id={release.version} className="group/entry relative scroll-mt-6 py-3">
         <Node release={release} className={cn("top-[20px]", branch ? NODE_BRANCH : NODE_MAIN)} />
         <VersionLabel release={release} prominent={false} />
         <Link
@@ -152,7 +152,7 @@ function Entry({ release, branch }: { release: TimelineRelease; branch: boolean 
     );
   }
   return (
-    <li id={release.version} className="group/entry relative scroll-mt-28 py-4">
+    <li id={release.version} className="group/entry relative scroll-mt-6 py-4">
       <Node release={release} className={cn("top-[46px]", branch ? NODE_BRANCH : NODE_MAIN)} />
       <VersionLabel release={release} prominent />
       <span

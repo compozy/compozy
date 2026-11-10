@@ -22,7 +22,6 @@ function release(version: string): ChangelogRelease {
     sourceArchiveUrl: "https://example.invalid/tarball",
     sourceZipUrl: "https://example.invalid/zipball",
     assets: [],
-    categories: [],
     headings: [],
     pullRequestNumbers: [],
   };

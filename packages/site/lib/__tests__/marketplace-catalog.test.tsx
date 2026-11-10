@@ -42,23 +42,20 @@ import BundledExtensionPage, {
 import MarketplaceEntryPage, {
   generateStaticParams as generateMarketplaceEntryParams,
 } from "@/app/marketplace/[entryId]/page";
-import {
-  bundledSkills,
-  bundledExtensions,
-  parseBundledSkillFrontmatter,
-} from "../marketplace-bundled";
+import presetsFeed from "../../../../catalog/v3/marketplaces.json";
+import { bundledExtensions, parseBundledSkillFrontmatter } from "../marketplace-bundled";
 import {
   extensionEntries,
-  extensionEntrySchema,
-  extensionFeedSchema,
-  marketplacePresets,
-  marketplacePresetsSchema,
   findEntry,
   marketplaceEntryPath,
   installCommand,
   marketplaceSearchCommand,
-  parseMarketplaceCatalog,
 } from "../marketplace-catalog";
+import {
+  extensionEntrySchema,
+  extensionFeedSchema,
+  marketplacePresetsSchema,
+} from "../marketplace-catalog-schema";
 import {
   isCategoryId,
   listedPlugins,
@@ -107,7 +104,7 @@ describe("marketplace catalog", () => {
   });
 
   it("Should load all eighteen current packages without standalone skill entries", () => {
-    expect(parseMarketplaceCatalog(feed())).toEqual(extensionEntries);
+    expect(extensionFeedSchema.parse(feed()).entries).toEqual(extensionEntries);
     expect(extensionEntries).toHaveLength(18);
     expect(findEntry("context7")?.inputs).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "context7_api_key", type: "secret" })])
@@ -116,7 +113,7 @@ describe("marketplace catalog", () => {
   });
 
   it.each([undefined, 1, 2, 4])("Should reject unsupported feed version %s", manifest_version => {
-    expect(() => parseMarketplaceCatalog({ ...feed(), manifest_version })).toThrow(
+    expect(() => extensionFeedSchema.parse({ ...feed(), manifest_version })).toThrow(
       /manifest_version/
     );
   });
@@ -126,11 +123,11 @@ describe("marketplace catalog", () => {
       /generated_at/
     );
     const entry = extensionEntries[0];
-    expect(() => parseMarketplaceCatalog({ ...feed(), entries: [entry, entry] })).toThrow(
+    expect(() => extensionFeedSchema.parse({ ...feed(), entries: [entry, entry] })).toThrow(
       /duplicated/
     );
     expect(() =>
-      parseMarketplaceCatalog({ ...feed(), entries: [entry, { ...entry, entry_id: "other" }] })
+      extensionFeedSchema.parse({ ...feed(), entries: [entry, { ...entry, entry_id: "other" }] })
     ).toThrow(/install_slug/);
   });
 
@@ -205,6 +202,8 @@ describe("marketplace catalog", () => {
   });
 
   it("Should preserve preset order and reject duplicate or reserved names", () => {
+    // The plugin snapshot generator reads the shipped presets through this schema.
+    const marketplacePresets = marketplacePresetsSchema.parse(presetsFeed).entries;
     expect(marketplacePresets.map(entry => [entry.name, entry.default])).toEqual([
       ["claude-plugins-official", "on"],
       ["compozy-plugins", "on"],
@@ -378,23 +377,17 @@ describe("marketplace bundled resources", () => {
 
   it("reads every bundled skill's identity from its SKILL.md", () => {
     const skillRoot = resolve(repoRoot, "skills");
-    const expected = readdirSync(skillRoot, { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => {
-        const source = readFileSync(resolve(skillRoot, entry.name, "SKILL.md"), "utf8");
-        const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
-        if (!match?.[1]) throw new Error(`skills/${entry.name}/SKILL.md has no frontmatter`);
-        const metadata = parseYaml(match[1]) as { name?: string; description?: string };
-        return {
-          name: metadata.name,
-          description: metadata.description,
-        };
-      })
-      .sort((left, right) => left.name?.localeCompare(right.name ?? "") ?? 0);
-
-    expect(
-      bundledSkills.map(skill => ({ name: skill.name, description: skill.description }))
-    ).toEqual(expected);
+    for (const entry of readdirSync(skillRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const source = readFileSync(resolve(skillRoot, entry.name, "SKILL.md"), "utf8");
+      const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
+      if (!match?.[1]) throw new Error(`skills/${entry.name}/SKILL.md has no frontmatter`);
+      const metadata = parseYaml(match[1]) as { name?: string; description?: string };
+      expect(parseBundledSkillFrontmatter(source), entry.name).toEqual({
+        name: metadata.name,
+        description: metadata.description,
+      });
+    }
   });
 
   it("reads skill identity only from YAML frontmatter", () => {

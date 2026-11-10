@@ -18,7 +18,7 @@ export function AllChanges({
 }) {
   const [open, setOpen] = useState(startOpen);
   return (
-    <section id="all-changes" className={cn("mt-14 scroll-mt-28 border-t pt-10", HAIRLINE)}>
+    <section id="all-changes" className={cn("mt-14 scroll-mt-6 border-t pt-10", HAIRLINE)}>
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(value => !value)}>
         Every merged change · {total}
         <ChevronDown className={cn("transition-transform", open && "rotate-180")} />

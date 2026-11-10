@@ -62,7 +62,6 @@ function release(
       contentType: "application/octet-stream",
       downloadCount: 0,
     })),
-    categories: [],
     headings: [],
     pullRequestNumbers: [],
   };

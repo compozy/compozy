@@ -120,6 +120,8 @@ export function Faces() {
         {FACES.map((seed, index) => (
           <m.span
             key={seed}
+            // A flex box, so the site's taller body line-height adds no strut under the avatar.
+            className="flex"
             data-site-reveal=""
             initial={{ opacity: 0, y: 14, scale: 0.7 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}

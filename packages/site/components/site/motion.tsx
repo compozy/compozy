@@ -179,11 +179,11 @@ export function ScrollWords({ text, className }: { text: string; className?: str
 
 /** Counts from zero to `value` once in view; reduced motion shows it settled after hydration. */
 export function CountUp({ value, className }: { value: number; className?: string }) {
-  const { ref, shown } = useCountUp(value);
+  const { ref, text } = useCountUp(value);
   return (
-    <span ref={ref} className={cn("tabular-nums", className)}>
-      {shown.toLocaleString("en-US")}
-    </span>
+    <m.span ref={ref} className={cn("tabular-nums", className)}>
+      {text}
+    </m.span>
   );
 }
 

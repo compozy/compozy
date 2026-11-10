@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { allPosts, blogEntries, blogPostCover, postNumber } from "../blog";
-import { filterEntries, groupByMonth, monthOf, topTopics } from "../blog-index";
+import { filterEntries, formatPostDate, groupByMonth, monthOf, topTopics } from "../blog-index";
 
 const PUBLIC_DIR = join(__dirname, "..", "..", "public");
 
@@ -43,6 +43,11 @@ describe("blog loader", () => {
 });
 
 describe("blog index view model", () => {
+  it("formats post dates in UTC so midnight content dates do not drift by local timezone", () => {
+    expect(formatPostDate("2026-04-30T00:00:00.000Z")).toBe("Apr 30, 2026");
+    expect(monthOf("2026-05-01T00:00:00.000Z")).toBe("May 2026");
+  });
+
   it("groups the index by month without losing or reordering a post", () => {
     const entries = blogEntries();
     const months = groupByMonth(entries);

@@ -382,3 +382,34 @@ export function listHref(line: readonly Pick<Lineable, "version" | "pre">[], ver
   const query = params.toString();
   return `/changelog${query ? `?${query}` : ""}#${encodeURIComponent(version)}`;
 }
+
+/** Where a release sits on the pulse chart, and the stretch of the line its hit area may take. */
+export interface PulseSlot {
+  /** Position along the line, 0–100. */
+  at: number;
+  /** Midpoints to the neighbours on each side; `null` at either end of the line. */
+  from: number | null;
+  to: number | null;
+}
+
+/**
+ * Releases a few hours or days apart sit closer than a bar's hit area is wide. Each hit area stops
+ * halfway to its neighbours, so a click always opens the release drawn under the pointer.
+ */
+export function pulseSlots(times: readonly number[]): PulseSlot[] {
+  const first = Math.min(...times);
+  const last = Math.max(...times);
+  const slots: PulseSlot[] = times.map(time => ({
+    at: last === first ? 50 : ((time - first) / (last - first)) * 100,
+    from: null,
+    to: null,
+  }));
+  const line = slots.toSorted((a, b) => a.at - b.at);
+  line.forEach((slot, rank) => {
+    const previous = line[rank - 1];
+    const next = line[rank + 1];
+    if (previous) slot.from = (previous.at + slot.at) / 2;
+    if (next) slot.to = (slot.at + next.at) / 2;
+  });
+  return slots;
+}
