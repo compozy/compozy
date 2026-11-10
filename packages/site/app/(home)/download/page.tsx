@@ -16,10 +16,11 @@ export const metadata: Metadata = createPageMetadata({
 export default async function DownloadPage() {
   const release = await getDesktopRelease();
   return (
-    <>
+    // Pre-redesign body: offset below the floating header until the download slice replaces it.
+    <div className="site-home flex flex-1 flex-col bg-canvas pt-[76px]">
       <DownloadHero release={release} />
       <DownloadCatalog release={release} />
       <CommandInstall />
-    </>
+    </div>
   );
 }

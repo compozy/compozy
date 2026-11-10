@@ -9,7 +9,7 @@ const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
 const runtimeRoot = resolve(siteRoot, "content/docs");
 const providerSourceRoot = resolve(repoRoot, "internal/config");
-const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
+const serverLandingMetricModules = ["sections-open.tsx", "sections-proof.tsx"].map(file =>
   resolve(landingRoot, file)
 );
 const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;

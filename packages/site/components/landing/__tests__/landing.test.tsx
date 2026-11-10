@@ -1,173 +1,124 @@
-import { baseOptions } from "@/lib/layout.shared";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Mock next/link to render as a plain anchor
+import { COMPARE_COLUMNS } from "@/components/landing/content";
+import { Community, Comparison, FinalCta, Hero, Install } from "@/components/landing";
+import { siteConfig } from "@/lib/site-config";
+import {
+  NPM_INSTALL_COMMAND,
+  VERIFIED_INSTALLER_COMMAND,
+  goInstallCommand,
+} from "@/lib/release/install-commands";
+
 vi.mock("next/link", () => ({
   default: ({
     href,
     children,
-    className,
-  }: {
-    href: string;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <a href={href} className={className}>
+    ...props
+  }: { href: string; children: ReactNode } & Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    "href"
+  >) => (
+    <a href={href} {...props}>
       {children}
     </a>
   ),
 }));
 
-// Mock next/navigation
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+vi.mock("@/components/site/github-stars-api", () => ({
+  loadGithubStars: async () => null,
 }));
 
-import { AutonomyKernelSection } from "../autonomy-kernel-section";
-import { Comparison } from "../comparison";
-import { ExtensibilitySection } from "../extensibility-section";
-import { FinalCta } from "../final-cta";
-import { Hero } from "../hero";
-import { InstallSection } from "../install-section";
-import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provider-data";
-import { SupportedAgents } from "../supported-agents";
+const copyPath = resolve(process.env.COMPOZY_SITE_ROOT ?? process.cwd(), "../../COPY.md");
+
+/** The Hero Lock block of COPY.md §2: headline, subhead and category label. */
+function heroLock() {
+  const copy = readFileSync(copyPath, "utf8");
+  const section = copy.slice(copy.indexOf("### Hero Lock"), copy.indexOf("### Primary Promise"));
+  const quoted = section
+    .split("\n")
+    .filter(line => line.startsWith("> ") && line.length > 2)
+    .map(line => line.slice(2).trim());
+  const category = section.match(/with `([^`]+)` as a small category label/)?.[1];
+  if (quoted.length !== 2 || !category) throw new Error("COPY.md §2 Hero Lock is not parseable");
+  return { headline: quoted[0]!.replace(/^\*\*|\*\*$/g, ""), subhead: quoted[1]!, category };
+}
+
+afterEach(() => cleanup());
+
+/** The href behind a call to action, found by its visible label. */
+function ctaHref(label: string) {
+  return screen.getByText(label).closest("a")?.getAttribute("href");
+}
 
 describe("Hero", () => {
-  it("leads with the locked headline, subhead, desktop download, and command install CTAs", () => {
+  it("ships the COPY.md Hero Lock verbatim with the download and docs actions", () => {
+    const lock = heroLock();
     render(<Hero />);
-    // Locked hero pair (COPY.md §2 Hero Lock). The headline and the subhead ship verbatim, together.
-    expect(
-      screen.getByRole("heading", { level: 1, name: "The system around the agent, already built." })
-    ).toBeDefined();
-    expect(
-      screen.getByText(
-        "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
-      )
-    ).toBeDefined();
-    const download = screen.getByRole("link", { name: "Download CompozyOS" });
-    expect(download.getAttribute("href")).toBe("/download");
-    const command = screen.getByRole("link", { name: "Install the command" });
-    expect(command.getAttribute("href")).toBe("/docs/getting-started/installation");
-  });
-});
 
-describe("SupportedAgents", () => {
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Accessible-role traversal renders the complete provider logo strip; this deadline bounds DOM work, not synchronization.
-  it("renders as a compact support strip, not a hero section", () => {
-    render(<SupportedAgents />);
-    const list = screen.getByRole("list", { name: "Built-in provider integrations" });
-    const items = within(list).getAllByRole("listitem");
-
-    expect(items.map(item => item.getAttribute("aria-label"))).toEqual(
-      BUILTIN_PROVIDER_INTEGRATIONS.map(provider => provider.name)
+    expect(screen.getByRole("heading", { level: 1, name: lock.headline })).toBeDefined();
+    expect(screen.getByText(lock.subhead)).toBeDefined();
+    expect(screen.getByText(lock.category)).toBeDefined();
+    expect(ctaHref("Download for macOS")).toBe("/download");
+    expect(screen.getByRole("link", { name: /Open the runtime docs/ }).getAttribute("href")).toBe(
+      "/docs"
     );
-    expect(items).toHaveLength(BUILTIN_PROVIDER_COUNT);
-  }, 15_000);
-});
-
-describe("ExtensibilitySection", () => {
-  it("renders extensibility cards and docs link", () => {
-    render(<ExtensibilitySection />);
-    expect(screen.getAllByRole("article")).toHaveLength(5);
-    const eyebrows = ["Hooks", "Skills", "Automation", "Extensions"];
-    for (const label of eyebrows) {
-      expect(screen.getByText(label)).toBeDefined();
-    }
-    expect(screen.getByRole("link", { name: "Read extensions docs" }).getAttribute("href")).toBe(
-      "/docs/extensions"
-    );
-  });
-});
-
-describe("InstallSection", () => {
-  const goInstallCommand = "go install github.com/compozy/compozy@v9.9.9-beta.9";
-
-  it("shows method-specific bootstrap steps instead of repeating hosted bootstrap", () => {
-    render(<InstallSection goInstallCommand={goInstallCommand} />);
-    const installer = screen.getByRole("tab", { name: "Installer" });
-    const npm = screen.getByRole("tab", { name: "npm" });
-    expect(installer).toBeDefined();
-    expect(npm).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Go" })).toBeDefined();
-    expect(screen.getByText("curl -fsSL https://compozy.com/install.sh | sh")).toBeDefined();
-    expect(screen.queryByText("Bootstrap your CompozyOS home")).toBeNull();
-    expect(screen.getByText("Start the daemon")).toBeDefined();
-    expect(screen.getByText("Launch a real session")).toBeDefined();
-
-    fireEvent.click(npm);
-
-    expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
-  });
-
-  it("renders the resolved pinned Go command in the Go panel", () => {
-    render(<InstallSection goInstallCommand={goInstallCommand} />);
-
-    fireEvent.click(screen.getByRole("tab", { name: "Go" }));
-
-    expect(screen.getByText(goInstallCommand)).toBeDefined();
-  });
-
-  it("wires tab roles, panels, and keyboard navigation", () => {
-    render(<InstallSection goInstallCommand={goInstallCommand} />);
-
-    const installer = screen.getByRole("tab", { name: "Installer" });
-    const npm = screen.getByRole("tab", { name: "npm" });
-    const go = screen.getByRole("tab", { name: "Go" });
-
-    expect(installer.getAttribute("id")).toBe("install-tab-installer");
-    expect(installer.getAttribute("aria-controls")).toBe("install-panel-installer");
-    expect(installer.getAttribute("tabindex")).toBe("0");
-    expect(npm.getAttribute("tabindex")).toBe("-1");
-    expect(go.getAttribute("tabindex")).toBe("-1");
-
-    fireEvent.keyDown(installer, { key: "ArrowRight" });
-
-    expect(npm.getAttribute("aria-selected")).toBe("true");
-    let panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-npm");
-    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-npm");
-
-    fireEvent.keyDown(npm, { key: "End" });
-
-    expect(go.getAttribute("aria-selected")).toBe("true");
-    panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-go");
-
-    fireEvent.keyDown(go, { key: "Home" });
-
-    expect(installer.getAttribute("aria-selected")).toBe("true");
-    panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-installer");
+    expect(screen.getByText(VERIFIED_INSTALLER_COMMAND)).toBeDefined();
   });
 });
 
 describe("Comparison", () => {
-  it("keeps internal research paths out of the rendered page", () => {
+  it("names the comparison set as compression, never as a ranking (COPY.md §10)", () => {
     render(<Comparison />);
-    expect(screen.queryByText(/^Source:/)).toBeNull();
-    expect(screen.queryByText(/\.resources\//)).toBeNull();
+    const table = screen.getByRole("table");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map(header => header.textContent?.trim())
+      .filter(Boolean);
+
+    expect(headers).toEqual(["CompozyOS", ...COMPARE_COLUMNS]);
+    expect(headers).toContain("DIY stack");
+    expect(screen.getByText(/each prove demand for part of the system/)).toBeDefined();
+
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/\b(best|better than|beats|the only|#1|number one)\b/i);
+    expect(text).not.toMatch(/Source:|\.resources\//);
   });
 });
 
-describe("AutonomyKernelSection", () => {
-  it("links the autonomy guide CTA to the autonomy documentation", () => {
-    render(<AutonomyKernelSection />);
+describe("Community", () => {
+  it("shows the live release count's absence instead of inventing a number", () => {
+    render(<Community releases={null} />);
+    const releases = screen.getByText("releases").closest("p");
+    expect(releases?.textContent).toContain("—");
+    expect(within(releases as HTMLElement).getByLabelText("unavailable")).toBeDefined();
+  });
+});
 
-    expect(
-      screen.getByRole("link", { name: "Read the autonomy kernel guide" }).getAttribute("href")
-    ).toBe("/docs/autonomy");
+describe("Install", () => {
+  it("offers the desktop download and every terminal method, with Go pinned to the release", () => {
+    const tag = "v9.9.9-beta.9";
+    render(<Install releaseTag={tag} />);
+
+    expect(ctaHref("Download for macOS")).toBe("/download");
+    expect(screen.getByText("Start the daemon")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Installer" }));
+    expect(screen.getByText(VERIFIED_INSTALLER_COMMAND)).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "npm" }));
+    expect(screen.getByText(NPM_INSTALL_COMMAND)).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "Go" }));
+    expect(screen.getByText(goInstallCommand(tag))).toBeDefined();
   });
 });
 
 describe("FinalCta", () => {
-  it("links the final actions to the download page, installation guidance, and the repository", () => {
+  it("links the final actions to the download page and the repository", () => {
     render(<FinalCta />);
-    const download = screen.getByRole("link", { name: "Download CompozyOS" });
-    expect(download.getAttribute("href")).toBe("/download");
-    const spec = screen.getByText("Read the installation guide");
-    expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
-    const star = screen.getByText("Star on GitHub");
-    expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);
+    expect(ctaHref("Download CompozyOS")).toBe("/download");
+    expect(ctaHref("Star on GitHub")).toBe(siteConfig.repoUrl);
   });
 });

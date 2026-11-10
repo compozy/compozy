@@ -66,7 +66,7 @@ describe("public heading hierarchy", () => {
     // The h1 is the locked hero headline (COPY.md §2 Hero Lock). Section h2 copy is owned by
     // components/landing/__tests__/landing.test.tsx; this suite owns the hierarchy itself,
     // so it stays valid when the landing IA changes.
-    expectSingleH1("The system around the agent, already built.");
+    expectSingleH1("The autonomous control plane for your agents.");
     expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
     expectNoSkippedHeadingLevels();
   }, 15_000);
