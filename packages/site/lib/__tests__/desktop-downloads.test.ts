@@ -5,9 +5,15 @@ import {
   LATEST_RELEASE_URL,
   detectVisitorPlatform,
   getDesktopRelease,
-  primaryTargetFor,
   selectDesktopRelease,
 } from "../release/desktop-downloads";
+import {
+  choiceFor,
+  commandGroups,
+  desktopGroups,
+  heroModeFor,
+  offerFor,
+} from "../release/download-offer";
 
 vi.mock("../changelog/github-client", () => ({
   loadChangelogReleases: vi.fn(),
@@ -31,7 +37,11 @@ function release(
   const bare = version.replace(/^v/, "");
   const names = [
     "checksums.txt",
+    "checksums.txt.sigstore.json",
     "compozy_windows_x86_64.zip",
+    "compozy_darwin_arm64.tar.gz",
+    `compozy_${bare}_amd64.deb`,
+    `compozy-${bare}-1.aarch64.rpm`,
     ...(desktop ? DESKTOP_ASSETS.map(suffix => `CompozyOS-${bare}-${suffix}`) : []),
   ];
   return {
@@ -48,7 +58,7 @@ function release(
     assets: names.map(name => ({
       name,
       url: assetUrl(version, name),
-      size: 1024,
+      size: name.length * 1048576,
       contentType: "application/octet-stream",
       downloadCount: 0,
     })),
@@ -81,6 +91,12 @@ describe("desktop release selection", () => {
     ]);
     expect(selected.checksums?.url).toBe(assetUrl("v0.5.3", "checksums.txt"));
     expect(selected.windowsCommand?.url).toBe(assetUrl("v0.5.3", "compozy_windows_x86_64.zip"));
+    expect(selected.signature?.url).toBe(assetUrl("v0.5.3", "checksums.txt.sigstore.json"));
+    expect(selected.commandPackages.map(item => item.file.fileName)).toEqual([
+      "compozy_darwin_arm64.tar.gz",
+      "compozy_0.5.3_amd64.deb",
+      "compozy-0.5.3-1.aarch64.rpm",
+    ]);
   });
 
   it("skips a stable release that published no desktop packages", () => {
@@ -134,12 +150,60 @@ describe("visitor platform detection", () => {
     expect(detectVisitorPlatform(signals)).toBe(expected);
   });
 
-  it("offers the matching package first and no desktop package where none exists", () => {
-    expect(primaryTargetFor("mac-arm64")).toBe("mac-arm64");
-    expect(primaryTargetFor("mac")).toBe("mac-arm64");
-    expect(primaryTargetFor("mac-x64")).toBe("mac-x64");
-    expect(primaryTargetFor("linux")).toBe("linux-appimage");
-    expect(primaryTargetFor("windows")).toBeNull();
-    expect(primaryTargetFor("mobile")).toBeNull();
+  it("starts the platform switch where detection points", () => {
+    expect(choiceFor("mac-arm64")).toEqual({ platform: "macos", arch: "arm64" });
+    expect(choiceFor("mac")).toEqual({ platform: "macos", arch: "arm64" });
+    expect(choiceFor("unknown")).toEqual({ platform: "macos", arch: "arm64" });
+    expect(choiceFor("mac-x64")).toEqual({ platform: "macos", arch: "x64" });
+    expect(choiceFor("linux").platform).toBe("linux");
+    expect(choiceFor("windows").platform).toBe("windows");
+  });
+});
+
+describe("download offer", () => {
+  const ready = selectDesktopRelease([release("v0.5.5")]);
+  const fallback = { status: "fallback", releaseUrl: LATEST_RELEASE_URL } as const;
+
+  it.each([
+    [{ platform: "macos", arch: "arm64" }, "Download for macOS", "CompozyOS-0.5.5-mac-arm64.dmg"],
+    [{ platform: "macos", arch: "x64" }, "Download for macOS", "CompozyOS-0.5.5-mac-x64.dmg"],
+    [
+      { platform: "linux", arch: "arm64" },
+      "Download for Linux",
+      "CompozyOS-0.5.5-linux-x64.AppImage",
+    ],
+    [{ platform: "windows", arch: "arm64" }, "Download the command", "compozy_windows_x86_64.zip"],
+  ] as const)("offers %o the release's real file", (choice, cta, fileName) => {
+    const offer = offerFor(ready, choice);
+    expect(offer.cta).toBe(cta);
+    expect(offer.item.fileName).toBe(fileName);
+    expect(offer.item.href).toBe(assetUrl("v0.5.5", fileName));
+    expect(offer.item.size).toBe(fileName.length * 1048576);
+  });
+
+  it("sends every file to the latest release, with no invented names or sizes, when GitHub is unavailable", () => {
+    const items = [
+      offerFor(fallback, { platform: "macos", arch: "arm64" }).item,
+      ...desktopGroups(fallback).flatMap(group => group.items),
+      ...commandGroups(fallback).flatMap(group => group.items),
+    ];
+    for (const item of items) {
+      expect(item).toMatchObject({ href: LATEST_RELEASE_URL, fileName: null, size: null });
+    }
+    expect(heroModeFor(fallback, "mac-arm64")).toBe("unavailable");
+  });
+
+  it("lists only the packages a ready release published", () => {
+    expect(
+      commandGroups(ready).map(group => [group.label, group.items.map(item => item.fileName)])
+    ).toEqual([
+      ["macOS", ["compozy_darwin_arm64.tar.gz"]],
+      ["Linux", ["compozy_0.5.5_amd64.deb", "compozy-0.5.5-1.aarch64.rpm"]],
+    ]);
+  });
+
+  it("shows phones the copy-link state and desktops the ready state", () => {
+    expect(heroModeFor(ready, "mobile")).toBe("mobile");
+    expect(heroModeFor(ready, "linux")).toBe("ready");
   });
 });
