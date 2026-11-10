@@ -18,6 +18,28 @@ export const apiClient = createClient<compozyPaths>({
 
 export const clientID = `web-${createClientId()}`;
 
+function randomHex(bytes: number): string {
+  const values = globalThis.crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(values, value => value.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * A W3C `traceparent` with the sampled flag off (`-00`), so the daemon's sample ratio stays
+ * authoritative for traces the web client starts.
+ */
+export function formatTraceparent(traceId: string = randomHex(16)): string {
+  return `00-${traceId}-${randomHex(8)}-00`;
+}
+
+/**
+ * Scopes one trace id over the daemon requests a single user action issues: pass
+ * `headers: action()` on each call. Requests without one get a fresh trace id.
+ */
+export function startTraceAction(): () => { traceparent: string } {
+  const traceId = randomHex(16);
+  return () => ({ traceparent: formatTraceparent(traceId) });
+}
+
 /**
  * Single chokepoint for "this device's access ended". Only an explicit daemon
  * code on a 401 counts (see `gateway-access-signal`), so ordinary failures and
@@ -33,6 +55,11 @@ export const clientID = `web-${createClientId()}`;
 apiClient.use({
   onRequest({ request }) {
     request.headers.set("X-Compozy-Client-ID", clientID);
+    if (new URL(request.url).origin !== apiBaseUrl) {
+      request.headers.delete("traceparent");
+    } else if (!request.headers.has("traceparent")) {
+      request.headers.set("traceparent", formatTraceparent());
+    }
     return request;
   },
   async onResponse({ response }) {

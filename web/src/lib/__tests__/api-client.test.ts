@@ -8,7 +8,10 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
   runtimeFetch,
+  startTraceAction,
 } from "@/lib/api-client";
+
+const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/;
 
 function requestUrl(input: RequestInfo | URL): string {
   if (input instanceof Request) {
@@ -117,6 +120,67 @@ describe("api client", () => {
     );
     expect(first).toMatch(/^web-[a-zA-Z0-9_-]{1,76}$/);
     expect(second).toBe(first);
+  });
+});
+
+// Invariant: daemon-bound requests join one unsampled W3C trace per user action; other origins
+// never receive trace context.
+describe("api client trace propagation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch() {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } })
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    return (call: number) =>
+      (fetchMock.mock.calls[call]?.[0] as Request | undefined)?.headers.get("traceparent");
+  }
+
+  const traceId = (traceparent: string | null | undefined) => traceparent?.split("-")[1];
+
+  it("Should send an unsampled traceparent to the daemon base URL", async () => {
+    const traceparent = stubFetch();
+
+    await apiClient.GET("/api/status");
+    await apiClient.GET("/api/status");
+
+    expect(traceparent(0)).toMatch(TRACEPARENT);
+    expect(traceparent(1)).toMatch(TRACEPARENT);
+    expect(traceId(traceparent(1))).not.toBe(traceId(traceparent(0)));
+  });
+
+  it("Should not send a traceparent to another origin", async () => {
+    const traceparent = stubFetch();
+    const action = startTraceAction();
+
+    await apiClient.GET("/api/status", { baseUrl: "https://other.example" });
+    await apiClient.GET("/api/status", { baseUrl: "https://other.example", headers: action() });
+
+    expect(traceparent(0)).toBeNull();
+    expect(traceparent(1)).toBeNull();
+  });
+
+  it("Should share one trace id across the requests of one action", async () => {
+    const traceparent = stubFetch();
+    const first = startTraceAction();
+    const second = startTraceAction();
+
+    await apiClient.GET("/api/status", { headers: first() });
+    await apiClient.GET("/api/status", { headers: first() });
+    await apiClient.GET("/api/status", { headers: second() });
+
+    expect(traceparent(0)).toMatch(TRACEPARENT);
+    expect(traceparent(1)).toMatch(TRACEPARENT);
+    expect(traceparent(1)).not.toBe(traceparent(0));
+    expect(traceId(traceparent(1))).toBe(traceId(traceparent(0)));
+    expect(traceId(traceparent(2))).not.toBe(traceId(traceparent(0)));
   });
 });
 

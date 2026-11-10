@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RuntimeHealthMonitor } from "../runtime-health-monitor";
+import { daemonFetcher, RuntimeHealthMonitor } from "../runtime-health-monitor";
 import { monitorProductRuntime, type ProductRuntimeShell } from "../runtime-reconnect";
 
 const ORIGIN = "http://127.0.0.1:2123";
@@ -12,8 +12,49 @@ function runtimeFetcher(isUp: () => boolean) {
   };
 }
 
+const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/;
+
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+function stubFetch() {
+  const fetchMock = vi.fn(async (_input: string, _init?: RequestInit) => new Response(null));
+  vi.stubGlobal("fetch", fetchMock);
+  return (call: number) => new Headers(fetchMock.mock.calls[call]?.[1]?.headers).get("traceparent");
+}
+
+// Invariant: only daemon-origin requests carry trace context, always unsampled.
+describe("runtime health monitor trace propagation", () => {
+  it("Should send an unsampled traceparent on the default identity probe", async () => {
+    const traceparent = stubFetch();
+    const monitor = new RuntimeHealthMonitor({
+      origin: ORIGIN,
+      intervalMs: 1,
+      onDisconnected: async () => {},
+      onReconnected: async () => {},
+      onLost: async () => {},
+    });
+
+    monitor.start();
+    try {
+      await expect.poll(() => traceparent(0)).toMatch(TRACEPARENT);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should not send a traceparent to the update feed or other origins", async () => {
+    const traceparent = stubFetch();
+    const fetcher = daemonFetcher(ORIGIN);
+
+    await fetcher("https://github.com/compozy/compozy/releases/latest/download/latest.yml", {});
+    await fetcher("http://127.0.0.1:9999/api/status/identity", {});
+
+    expect(traceparent(0)).toBeNull();
+    expect(traceparent(1)).toBeNull();
+  });
 });
 
 // Invariant: a product window is never left bound to a runtime that stopped answering, and a
