@@ -8,6 +8,11 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Kbd,
   cn,
 } from "@compozy/ui";
@@ -16,7 +21,6 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { FOCUS, LINE } from "@/components/docs/docs-classes";
-import { DocsModal } from "@/components/docs/docs-modal";
 import { useDocsChrome } from "@/components/docs/hooks/use-docs-chrome";
 import { useDocsSearch, type SearchPageHit } from "@/components/docs/hooks/use-docs-search";
 import type { DocsTab } from "@/lib/docs-shell";
@@ -160,76 +164,84 @@ function Palette(props: DocsSearchProps & { onClose: () => void }) {
     router.push(url);
   };
   return (
-    <DocsModal
-      label="Search the docs"
-      onClose={props.onClose}
-      className="fixed inset-x-0 top-[12vh] bottom-auto mx-auto my-0 w-[calc(100%-2rem)] max-w-[680px] overflow-hidden rounded-[18px] border border-site-light-150 bg-[#111111] shadow-[0_40px_120px_var(--site-dark-600)]"
-    >
-      <Command shouldFilter={false} className="bg-transparent">
-        <CommandInput
-          autoFocus
-          variant="quiet"
-          value={query}
-          onValueChange={setQuery}
-          placeholder={`Search ${props.total} pages`}
-          className="h-12 text-[16px]"
-        />
-        <div
-          role="group"
-          aria-label="Section"
-          className={cn("docs-tabs flex gap-1.5 overflow-x-auto border-y px-3 py-2.5", LINE)}
+    <Command shouldFilter={false} className="bg-transparent">
+      <CommandInput
+        autoFocus
+        variant="quiet"
+        value={query}
+        onValueChange={setQuery}
+        placeholder={`Search ${props.total} pages`}
+        className="h-12 text-[16px]"
+      />
+      <div
+        role="group"
+        aria-label="Section"
+        className={cn("docs-tabs flex gap-1.5 overflow-x-auto border-y px-3 py-2.5", LINE)}
+      >
+        <button
+          type="button"
+          aria-pressed={tag === null}
+          onClick={() => setTag(null)}
+          className={cn(CHIP, tag === null ? CHIP_ON : CHIP_OFF)}
         >
+          All
+        </button>
+        {props.tabs.map(tab => (
           <button
+            key={tab.id}
             type="button"
-            aria-pressed={tag === null}
-            onClick={() => setTag(null)}
-            className={cn(CHIP, tag === null ? CHIP_ON : CHIP_OFF)}
+            aria-pressed={tag?.id === tab.id}
+            onClick={() => setTag(tab)}
+            className={cn(CHIP, tag?.id === tab.id ? CHIP_ON : CHIP_OFF)}
           >
-            All
+            {tab.label}
           </button>
-          {props.tabs.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              aria-pressed={tag?.id === tab.id}
-              onClick={() => setTag(tab)}
-              className={cn(CHIP, tag?.id === tab.id ? CHIP_ON : CHIP_OFF)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <CommandList className="max-h-[min(440px,52vh)] p-2">
-          <Results {...props} query={query} tag={tag?.label ?? null} onOpen={open} />
-        </CommandList>
-        <div
-          className={cn(
-            "flex items-center gap-5 border-t px-4 py-2.5 text-[12.5px] text-subtle",
-            LINE
-          )}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <Kbd>↑</Kbd>
-            <Kbd>↓</Kbd> Navigate
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Kbd>
-              <CornerDownRight className="size-3" aria-hidden />
-            </Kbd>
-            Open
-          </span>
-          <span className="ml-auto inline-flex items-center gap-1.5">
-            <Kbd>esc</Kbd> Close
-          </span>
-        </div>
-      </Command>
-    </DocsModal>
+        ))}
+      </div>
+      <CommandList className="max-h-[min(440px,52vh)] p-2">
+        <Results {...props} query={query} tag={tag?.label ?? null} onOpen={open} />
+      </CommandList>
+      <div
+        className={cn(
+          "flex items-center gap-5 border-t px-4 py-2.5 text-[12.5px] text-subtle",
+          LINE
+        )}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <Kbd>↑</Kbd>
+          <Kbd>↓</Kbd> Navigate
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Kbd>
+            <CornerDownRight className="size-3" aria-hidden />
+          </Kbd>
+          Open
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1.5">
+          <Kbd>esc</Kbd> Close
+        </span>
+      </div>
+    </Command>
   );
 }
 
-/** The palette, mounted only while open so every opening starts from an empty query. */
+/** The palette. Its body mounts only while open, so every opening starts from an empty query. */
 export function DocsSearch(props: DocsSearchProps) {
-  const { search, close } = useDocsChrome();
-  if (!search) return null;
-  return <Palette {...props} onClose={close} />;
+  const { search, close, searchOpener } = useDocsChrome();
+  return (
+    <Dialog open={search} onOpenChange={open => !open && close()}>
+      <DialogContent
+        unframed
+        showCloseButton={false}
+        finalFocus={searchOpener}
+        className="top-[12vh] w-[calc(100%-2rem)] max-w-[680px] translate-y-0 overflow-hidden rounded-[18px] border border-site-light-150 bg-[#111111] p-0 shadow-[0_40px_120px_var(--site-dark-600)] sm:max-w-[680px]"
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Search the docs</DialogTitle>
+          <DialogDescription>Search {props.total} pages</DialogDescription>
+        </DialogHeader>
+        <Palette {...props} onClose={close} />
+      </DialogContent>
+    </Dialog>
+  );
 }

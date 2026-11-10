@@ -1,77 +1,46 @@
 "use client";
 
 /** The docs overlays' shared state: the mobile drawer and the search palette, with ⌘K and Escape. */
-import { cn } from "@compozy/ui";
+import { Sheet, SheetClose, SheetContent, SheetTitle, cn } from "@compozy/ui";
 import { XIcon } from "@compozy/ui/icons";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { DocsChromeContext, type DocsChromeValue } from "@/components/docs/docs-chrome-context";
+import { DocsChromeContext } from "@/components/docs/docs-chrome-context";
 import { FOCUS, LINE } from "@/components/docs/docs-classes";
-import { DocsModal } from "@/components/docs/docs-modal";
 import { useDocsChrome } from "@/components/docs/hooks/use-docs-chrome";
+import { useDocsOverlays } from "@/components/docs/hooks/use-docs-overlays";
 
 export function DocsChromeProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const [overlay, setOverlay] = useState<{ kind: "menu" | "search" | null; path: string }>({
-    kind: null,
-    path: pathname,
-  });
-  // An overlay belongs to the page it was opened on: navigating closes it.
-  const kind = overlay.path === pathname ? overlay.kind : null;
-  const current = useRef(pathname);
-  useEffect(() => {
-    current.current = pathname;
-  }, [pathname]);
-  useEffect(() => {
-    const handle = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setOverlay({ kind: "search", path: current.current });
-      } else if (event.key === "Escape") {
-        setOverlay(state => ({ ...state, kind: null }));
-      }
-    };
-    window.addEventListener("keydown", handle);
-    return () => window.removeEventListener("keydown", handle);
-  }, []);
-  const value: DocsChromeValue = {
-    menu: kind === "menu",
-    search: kind === "search",
-    openMenu: () => setOverlay({ kind: "menu", path: pathname }),
-    openSearch: () => setOverlay({ kind: "search", path: pathname }),
-    close: () => setOverlay({ kind: null, path: pathname }),
-  };
+  const value = useDocsOverlays(usePathname());
   return <DocsChromeContext value={value}>{children}</DocsChromeContext>;
 }
 
 /** The sidebar as a drawer below `lg`, opened from the header button. */
 export function DocsDrawer({ children }: { children: ReactNode }) {
   const { menu, close } = useDocsChrome();
-  if (!menu) return null;
   return (
-    <DocsModal
-      label="Docs navigation"
-      onClose={close}
-      className={cn(
-        "docs-rail fixed inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-[min(340px,88vw)] max-w-none overflow-y-auto border-y-0 border-r border-l-0 bg-[#0c0c0c] lg:hidden",
-        LINE
-      )}
-    >
-      <div className="min-h-full px-4 pt-4 pb-10">
-        <button
-          type="button"
+    <Sheet open={menu} onOpenChange={open => !open && close()}>
+      <SheetContent
+        side="left"
+        showCloseButton={false}
+        className={cn(
+          "docs-rail w-[min(340px,88vw)] gap-0 overflow-y-auto rounded-none border-r bg-[#0c0c0c] px-4 pt-4 pb-10 sm:max-w-none lg:hidden",
+          LINE
+        )}
+      >
+        <SheetTitle className="sr-only">Docs navigation</SheetTitle>
+        <SheetClose
           aria-label="Close navigation"
-          onClick={close}
           className={cn(
-            "mb-4 ml-auto flex size-9 cursor-pointer items-center justify-center rounded-[10px] border border-site-light-120 bg-transparent text-fg/80",
+            "mb-4 ml-auto flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-site-light-120 bg-transparent text-fg/80",
             FOCUS
           )}
         >
           <XIcon className="size-4" aria-hidden />
-        </button>
+        </SheetClose>
         {children}
-      </div>
-    </DocsModal>
+      </SheetContent>
+    </Sheet>
   );
 }

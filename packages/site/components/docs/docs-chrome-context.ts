@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext } from "react";
+import { createContext, type RefObject } from "react";
 
 export interface DocsChromeValue {
   menu: boolean;
@@ -8,6 +8,8 @@ export interface DocsChromeValue {
   openMenu: () => void;
   openSearch: () => void;
   close: () => void;
+  /** What held focus when search opened: the palette hands focus back to it on close. */
+  searchOpener: RefObject<HTMLElement | null>;
 }
 
 export const DocsChromeContext = createContext<DocsChromeValue>({
@@ -16,4 +18,5 @@ export const DocsChromeContext = createContext<DocsChromeValue>({
   openMenu: () => {},
   openSearch: () => {},
   close: () => {},
+  searchOpener: { current: null },
 });

@@ -1,0 +1,46 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import type { DocsChromeValue } from "@/components/docs/docs-chrome-context";
+
+/** The drawer and palette state for one pathname, with the ⌘K and Escape shortcuts. */
+export function useDocsOverlays(pathname: string): DocsChromeValue {
+  const [overlay, setOverlay] = useState<{ kind: "menu" | "search" | null; path: string }>({
+    kind: null,
+    path: pathname,
+  });
+  // An overlay belongs to the page it was opened on: navigating closes it.
+  const kind = overlay.path === pathname ? overlay.kind : null;
+  const current = useRef(pathname);
+  const searchOpener = useRef<HTMLElement | null>(null);
+  const showSearch = (path: string) => {
+    const active = document.activeElement;
+    searchOpener.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+    setOverlay({ kind: "search", path });
+  };
+  useEffect(() => {
+    current.current = pathname;
+  }, [pathname]);
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        showSearch(current.current);
+      } else if (event.key === "Escape") {
+        setOverlay(state => ({ ...state, kind: null }));
+      }
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, []);
+  return {
+    menu: kind === "menu",
+    search: kind === "search",
+    openMenu: () => setOverlay({ kind: "menu", path: pathname }),
+    openSearch: () => showSearch(pathname),
+    close: () => setOverlay({ kind: null, path: pathname }),
+    searchOpener,
+  };
+}
