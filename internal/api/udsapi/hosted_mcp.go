@@ -269,6 +269,7 @@ func hostedMCPSafeError() error {
 	return errHostedMCPBackend
 }
 
+// hostedMCPJSONError uses fixed public text so bind failures cannot disclose backend details.
 func hostedMCPJSONError(err error) error {
 	if isHostedMCPToolError(err) {
 		return errors.New("hosted_mcp_tool_error: hosted tool request failed")
@@ -277,6 +278,10 @@ func hostedMCPJSONError(err error) error {
 		return hostedMCPSafeError()
 	}
 	switch {
+	case errors.Is(err, mcppkg.ErrHostedRunRequired):
+		return errors.New(
+			"hosted_mcp_run_required: terminal tools require an active prompt turn; retry from an active prompt turn",
+		)
 	case errors.Is(err, mcppkg.ErrHostedSessionRequired):
 		return errors.New("hosted_mcp_session_required: session_id is required")
 	case errors.Is(err, mcppkg.ErrHostedNonceRequired):
@@ -298,6 +303,7 @@ func hostedMCPJSONError(err error) error {
 	}
 }
 
+// hostedMCPStatus keeps caller-correctable binding refusals out of the server-error range.
 func hostedMCPStatus(err error) int {
 	switch {
 	case err == nil:
@@ -317,7 +323,8 @@ func hostedMCPStatus(err error) int {
 		errors.Is(err, mcppkg.ErrHostedNonceRequired),
 		errors.Is(err, mcppkg.ErrHostedBindRequired):
 		return http.StatusBadRequest
-	case errors.Is(err, mcppkg.ErrHostedNonceInvalid),
+	case errors.Is(err, mcppkg.ErrHostedRunRequired),
+		errors.Is(err, mcppkg.ErrHostedNonceInvalid),
 		errors.Is(err, mcppkg.ErrHostedNonceExpired),
 		errors.Is(err, mcppkg.ErrHostedPeerInvalid),
 		errors.Is(err, mcppkg.ErrHostedBinaryInvalid),
