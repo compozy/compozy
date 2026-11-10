@@ -2125,7 +2125,7 @@ func TestActionRegistryResultViewPins(t *testing.T) {
 	}
 }
 
-// UT-033: only the seven known output corrections translate pre-view pins.
+// UT-033: only the known output corrections translate pre-view pins.
 func TestActionRegistrySupersededOutputPins(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../tools/builtin/testdata/superseded-output-schemas.json")
@@ -2247,6 +2247,10 @@ func TestActionRegistrySupersededOutputPins(t *testing.T) {
 func correctedActionOutputSchema(t *testing.T, id string, old json.RawMessage) json.RawMessage {
 	t.Helper()
 	paths := map[string][]string{
+		"compozy__loop_nodes": {
+			"properties.items.items.properties.workspace_id",
+			"properties.items.items.properties.output.properties.session_id",
+		},
 		"compozy__loop_runs": {"properties.aggregates.properties.historical"},
 		"compozy__loop_status": {
 			"properties.generations.items.properties.outputs.items.properties.session_id",

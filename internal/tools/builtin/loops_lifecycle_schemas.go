@@ -77,6 +77,7 @@ const loopGenerationOutputSchema = `{
 		"status":{"type":"string"},
 		"output_ref":{"type":"string"},
 		"task_run_id":{"type":"string"},
+		"session_id":{"type":"string"},
 		"child_loop_run_id":{"type":"string"},
 		"resolved_runtime":{"type":"object"},
 		"attempt":{"type":"integer","minimum":1},
@@ -123,6 +124,7 @@ const loopNodesOutputSchema = `{
 				"type":"object",
 				"required":["state","loop_run_id","loop_name","generation","node_id","item_index","state_at"],
 				"properties":{
+					"workspace_id":{"type":"string"},
 					"state":{"type":"string","enum":["waiting","quarantined","attention","retrying"]},
 					"loop_run_id":{"type":"string","minLength":1},
 					"loop_name":{"type":"string","minLength":1},

@@ -295,5 +295,9 @@ var taskTools = []toolspkg.Descriptor{
 }
 
 func taskDescriptors() []toolspkg.Descriptor {
-	return taskTools
+	descriptors := make([]toolspkg.Descriptor, len(taskTools))
+	for i, d := range taskTools {
+		descriptors[i] = withTaskResultViews(d)
+	}
+	return descriptors
 }

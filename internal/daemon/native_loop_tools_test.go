@@ -252,7 +252,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopInspect,
-				Input:  json.RawMessage(`{"name":"release"}`),
+				Input:  json.RawMessage(`{"name":"release","result_view":"full"}`),
 			},
 		)
 		if err != nil {
@@ -1123,7 +1123,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{Operator: true, WorkspaceID: "registry-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopStatus,
-				Input:  json.RawMessage(`{"run_id":"run-1"}`),
+				Input:  json.RawMessage(`{"run_id":"run-1","result_view":"full"}`),
 			},
 		)
 		if err != nil {

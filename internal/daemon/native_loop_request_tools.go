@@ -33,9 +33,14 @@ func (n *daemonNativeTools) loopRequests(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(
+	return (resultViews[contract.LoopRequestsResponse]{
+		Compact: viewLoopRequests,
+		Preview: func(contract.LoopRequestsResponse) string {
+			return fmt.Sprintf("%d requests; %d pending", len(response.Items), response.Aggregates.Pending)
+		},
+	}).result(
+		req.View,
 		response,
-		fmt.Sprintf("%d requests; %d pending", len(response.Items), response.Aggregates.Pending),
 	)
 }
 
@@ -111,5 +116,13 @@ func (n *daemonNativeTools) loopNodeAmend(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("loop node %s amended", response.Amendment.NodeID))
+	return (resultViews[contract.LoopNodeAmendResponse]{
+		Compact: viewLoopAmend,
+		Preview: func(contract.LoopNodeAmendResponse) string {
+			return fmt.Sprintf("loop node %s amended", response.Amendment.NodeID)
+		},
+	}).result(
+		req.View,
+		response,
+	)
 }

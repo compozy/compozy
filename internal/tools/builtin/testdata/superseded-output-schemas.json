@@ -19,6 +19,128 @@
         },
         "additionalProperties": false
     },
+    "compozy__loop_nodes": {
+        "type": "object",
+        "required": [
+            "items"
+        ],
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "state",
+                        "loop_run_id",
+                        "loop_name",
+                        "generation",
+                        "node_id",
+                        "item_index",
+                        "state_at"
+                    ],
+                    "properties": {
+                        "state": {
+                            "type": "string",
+                            "enum": [
+                                "waiting",
+                                "quarantined",
+                                "attention",
+                                "retrying"
+                            ]
+                        },
+                        "loop_run_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "loop_name": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "generation": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "node_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "item_index": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "state_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "wait": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "control": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "output": {
+                            "type": "object",
+                            "required": [
+                                "node_id",
+                                "status"
+                            ],
+                            "properties": {
+                                "generation": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                },
+                                "node_id": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "item_index": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "status": {
+                                    "type": "string"
+                                },
+                                "output_ref": {
+                                    "type": "string"
+                                },
+                                "task_run_id": {
+                                    "type": "string"
+                                },
+                                "child_loop_run_id": {
+                                    "type": "string"
+                                },
+                                "resolved_runtime": {
+                                    "type": "object"
+                                },
+                                "attempt": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                },
+                                "next_attempt_at": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                },
+                                "failure_class": {
+                                    "type": "string"
+                                },
+                                "disposition": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "next_cursor": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": false
+    },
     "compozy__loop_request": {
         "type": "object",
         "required": [

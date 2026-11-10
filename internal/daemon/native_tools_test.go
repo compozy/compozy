@@ -18069,8 +18069,14 @@ func TestNativeCorrectedOutputSchemas(t *testing.T) {
 		Requests:     []contract.LoopRequestPayload{request},
 		Amendments:   []contract.LoopNodeAmendmentPayload{},
 	}
+	loopNodes := contract.LoopNodeInventoryResponse{Items: []contract.LoopNodeInventoryItem{{
+		WorkspaceID: "ws-a", State: contract.LoopNodeInventoryRetrying,
+		LoopRunID: "run-a", LoopName: "repair", Generation: 1, NodeID: "agent", StateAt: opened,
+		Output: &contract.LoopGenerationOutput{NodeID: "agent", Status: "failed", SessionID: "sess-a"},
+	}}}
 	loopRequests := contract.LoopRequestsResponse{Items: []contract.LoopRequestPayload{request}}
 	inputs := map[toolspkg.ToolID]string{
+		toolspkg.ToolIDLoopNodes:         `{"state":"retrying"}`,
 		toolspkg.ToolIDLoopRuns:          `{}`,
 		toolspkg.ToolIDLoopStatus:        `{"run_id":"run-a"}`,
 		toolspkg.ToolIDLoopRequests:      `{}`,
@@ -18087,6 +18093,9 @@ func TestNativeCorrectedOutputSchemas(t *testing.T) {
 		t.Run("Should accept returned fields for "+descriptor.ID.String(), func(t *testing.T) {
 			t.Parallel()
 			service := &nativeLoopServiceStub{
+				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+					return loopNodes, nil
+				},
 				listLoopRunsFn: func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
 					return loopRuns, nil
 				},
@@ -18147,6 +18156,67 @@ func TestNativeCorrectedOutputSchemas(t *testing.T) {
 				descriptor.OutputSchema = views.Full.Schema
 			}
 			requireNativeOutputSchemaAccepts(t, descriptor, result.Structured)
+		})
+	}
+	mutation := contract.LoopMutationResponse{
+		OK: true, RunID: "run-a", NodeID: "agent", ItemIndex: new(1), Status: "paused",
+		Provenance: &contract.LoopControlProvenancePayload{
+			ActorKind: "human", ActorID: "user-a", Reason: "repair", RuleID: "rule-a", RequestedAt: opened,
+		},
+		Control: &contract.LoopNodeControlPayload{
+			LoopRunID: "run-a", NodeID: "agent", Paused: true, Quarantined: true,
+			QuarantineEntry: json.RawMessage(`{"failure":"provider unavailable"}`),
+			AttentionFlag:   "blocked", AttentionReason: "repair", AttentionProducerNodeID: "producer",
+			CancelState: "requested", DeathResumeStreak: 2, Revision: 3, UpdatedAt: opened,
+		},
+	}
+	singleResults := map[toolspkg.ToolID]any{
+		toolspkg.ToolIDLoopCancel:      mutation,
+		toolspkg.ToolIDLoopNodeCancel:  mutation,
+		toolspkg.ToolIDLoopNodePause:   mutation,
+		toolspkg.ToolIDLoopNodeRequeue: mutation,
+		toolspkg.ToolIDLoopNodeResume:  mutation,
+		toolspkg.ToolIDLoopRequest:     request,
+		toolspkg.ToolIDLoopRespond: contract.RespondLoopRequestResponse{
+			OK: true, RunID: "run-a", NodeID: "ask", Decision: "respond", State: "answered",
+			Provenance: contract.LoopRequestProvenance{ActorKind: "human", ActorID: "user-a", AnsweredAt: opened},
+		},
+		toolspkg.ToolIDLoopRerun: contract.RerunLoopResponse{
+			RunID:            "run-a",
+			Generation:       2,
+			ParentGeneration: 1,
+			RerunNodes:       []string{"agent"},
+			Carried:          1,
+			Replayed:         true,
+		},
+		toolspkg.ToolIDLoopDiff: contract.LoopDiffResponse{
+			Kind: "generation", DefinitionDivergence: true,
+			Base:    contract.LoopDiffEndpoint{RunID: "run-a", Generation: 1, Status: "failed", AsOf: true},
+			Against: contract.LoopDiffEndpoint{RunID: "run-a", Generation: 2, Status: "done", AsOf: true},
+			Inputs: []contract.LoopDiffInputRow{{
+				Key: "brief", Base: contract.LoopDiffValue{Inline: json.RawMessage(`"original"`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Nodes: []contract.LoopDiffNodeRow{{
+				NodeID: "agent", ItemIndex: 1, Change: "changed", Cause: "repair",
+				Base:    contract.LoopDiffValue{Inline: json.RawMessage(`{"error":"provider unavailable"}`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Terminal: &contract.LoopDiffTerminalRow{Base: "failed", Against: "done"},
+		},
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		payload, ok := singleResults[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should retain populated single-result fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, data)
 		})
 	}
 }

@@ -15,11 +15,6 @@ const (
 	nativeReviewToolsReviewKey = "review"
 )
 
-const (
-	nativeReviewToolsCreatedKey = "created"
-	nativeReviewToolsReviewsKey = "reviews"
-)
-
 type submitRunReviewInput struct {
 	ReviewID          string   `json:"review_id"`
 	RunID             string   `json:"run_id"`
@@ -75,9 +70,14 @@ func (n *daemonNativeTools) taskRunReviewRequest(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{nativeReviewToolsReviewKey: review, nativeReviewToolsCreatedKey: created},
-		fmt.Sprintf("review %s", review.ReviewID),
+	return (resultViews[taskReviewRequestResult]{
+		Compact: viewTaskReviewRequest,
+		Preview: func(taskReviewRequestResult) string {
+			return fmt.Sprintf("review %s", review.ReviewID)
+		},
+	}).result(
+		req.View,
+		taskReviewRequestResult{Review: review, Created: created},
 	)
 }
 
@@ -102,9 +102,14 @@ func (n *daemonNativeTools) taskRunReviewList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{nativeReviewToolsReviewsKey: reviews},
-		fmt.Sprintf("%d reviews", len(reviews)),
+	return (resultViews[taskReviewsResult]{
+		Compact: viewTaskReviews,
+		Preview: func(taskReviewsResult) string {
+			return fmt.Sprintf("%d reviews", len(reviews))
+		},
+	}).result(
+		req.View,
+		taskReviewsResult{Reviews: reviews},
 	)
 }
 
@@ -184,13 +189,18 @@ func (n *daemonNativeTools) submitRunReview(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{
-			nativeReviewToolsReviewKey: result.Review,
-			"continuation_run":         result.ContinuationRun,
-			"circuit_opened":           result.CircuitOpened,
+	return (resultViews[taskReviewSubmitResult]{
+		Compact: viewTaskReviewSubmit,
+		Preview: func(taskReviewSubmitResult) string {
+			return submitRunReviewPreview(result)
 		},
-		submitRunReviewPreview(result),
+	}).result(
+		req.View,
+		taskReviewSubmitResult{
+			Review:          result.Review,
+			ContinuationRun: result.ContinuationRun,
+			CircuitOpened:   result.CircuitOpened,
+		},
 	)
 }
 

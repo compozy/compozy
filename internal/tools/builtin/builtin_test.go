@@ -254,6 +254,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		descriptor := descriptors[toolspkg.ToolIDGoalControl]
+		descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 		var output struct {
 			Required             []string                   `json:"required"`
 			AdditionalProperties bool                       `json:"additionalProperties"`
@@ -869,7 +870,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		status := descriptors[toolspkg.ToolIDLoopStatus]
+		status.OutputSchema = status.ResultViews().Full.Schema
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		runs.OutputSchema = runs.ResultViews().Full.Schema
 		var runsInput struct {
 			Properties map[string]struct {
 				Type        string `json:"type"`
@@ -904,13 +907,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
+		nodes.OutputSchema = nodes.ResultViews().Full.Schema
 		requests := descriptors[toolspkg.ToolIDLoopRequests]
+		requests.OutputSchema = requests.ResultViews().Full.Schema
 		request := descriptors[toolspkg.ToolIDLoopRequest]
 		respond := descriptors[toolspkg.ToolIDLoopRespond]
 		amend := descriptors[toolspkg.ToolIDLoopNodeAmend]
+		amend.OutputSchema = amend.ResultViews().Full.Schema
 		diff := descriptors[toolspkg.ToolIDLoopDiff]
 		rerun := descriptors[toolspkg.ToolIDLoopRerun]
 		fork := descriptors[toolspkg.ToolIDLoopFork]
+		fork.OutputSchema = fork.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
