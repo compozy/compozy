@@ -20,6 +20,7 @@ func (s *service) classifyProviderWrite(
 	ctx context.Context,
 	name string,
 	settings ProviderSettings,
+	windowOnly bool,
 ) (providerWriteClassification, error) {
 	currentConfig, _, err := s.loadConfig(ctx, ScopeUser, "", "")
 	if err != nil {
@@ -34,6 +35,11 @@ func (s *service) classifyProviderWrite(
 	nextConfig.Providers = make(map[string]compozyconfig.ProviderConfig, len(currentConfig.Providers)+1)
 	maps.Copy(nextConfig.Providers, currentConfig.Providers)
 	nextConfig.Providers[name] = providerConfigFromSettings(settings)
+	if windowOnly {
+		provider := currentConfig.Providers[name]
+		provider.AutoCompactWindow = settings.AutoCompactWindow
+		nextConfig.Providers[name] = provider
+	}
 	if err := nextConfig.Validate(); err != nil {
 		return providerWriteClassification{}, validationError(
 			fmt.Errorf("validate provider %q mutation: %w", name, err),

@@ -113,6 +113,8 @@ func TestSessionWakeBridge(t *testing.T) {
 		}
 		if wakeErr := bridge.WakeSpawnCreator(t.Context(), "parent", event); !errors.Is(wakeErr, ledgerErr) {
 			t.Fatalf("uncertain admission was silently acknowledged: %v", wakeErr)
+		} else if !errors.Is(wakeErr, session.ErrSpawnWakeRetryable) {
+			t.Fatalf("pre-dispatch lookup error does not permit retry: %v", wakeErr)
 		}
 		t.Log("same attention revision: 3 deliveries -> 1 admission; new revision: 1 -> 1")
 	})

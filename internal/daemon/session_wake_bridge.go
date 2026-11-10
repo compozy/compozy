@@ -98,7 +98,9 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	)
 	if ledgerErr != nil {
 		complete()
-		return ledgerErr
+		// No dispatch was attempted. A retry rechecks the durable identity before
+		// enqueueing, including when this failed read hid an earlier admission.
+		return fmt.Errorf("%w: %w", session.ErrSpawnWakeRetryable, ledgerErr)
 	}
 	if alreadyAdmitted {
 		complete()

@@ -713,3 +713,28 @@ git diff --check
 ```
 
 The test-shape checker reports no new findings: each modified suite was compared with its prior committed version. Existing file-wide/legacy-shape findings remain unchanged; the daemon, hosted-tool and transcript-upgrade suites pass outright. CI on `46c918028` had completed Preflight (including generators), Go lint, Desktop and React Doctor successfully when inspected; those results do not certify the next correction head. Full/race/E2E validation, live-provider savings and production-wide repair remain CI-owned or unverified as specified above.
+
+## PR #1437 — provider preservation and wake retry review round
+
+Greptile and CodeRabbit found that accepting a window-only PUT was insufficient: the settings writer still replaced the provider table, losing authored command, endpoint, display name and home policy. The existing settings-service suite reproduced that loss against a real isolated configuration file. A window-only edit now validates and classifies the existing provider with just that scalar changed, then edits only `auto_compact_window` in the overlay. Full provider PUT replacement semantics remain intact. The regression covers both a built-in provider override and a custom provider, repeated writes, and preserved raw model curation.
+
+CodeRabbit also found that a failed durable wake lookup left the caller's in-memory reservation intact. The existing session and bridge suites reproduced the suppressed retry and missing error classification. The bridge now marks this pre-dispatch failure as retryable; the session owner releases only that event's reservation and eviction entry. Every retry still checks durable admission. Successful/admitted wakes and errors with uncertain dispatch outcomes retain duplicate suppression. No automatic retry loop or extra wake turn was introduced.
+
+The API contract suite independently asserts the optional integer type of `auto_compact_window` and optional boolean type of `lean_environment` on their six affected schemas. These assertions supplement the narrow historical compatibility allowance without copying requiredness or types from the current schema.
+
+Focused verification commands:
+
+```sh
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/settings ./internal/api/spec ./internal/api/core -run '^(TestProviderSettingsUsesMergedCatalogProjection|TestCollectionMutationsProviderAndHook|TestCollectionMutationsCodexNativeProviderOverlay|TestProviderACPMethodMutationSemantics|TestProviderSecretOnlyMutationStoresVaultSecret|TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets|TestDocumentTracksRequiredFieldsAndEnums|TestDocumentPreservesSchemaSemantics|TestSettingsCollectionHandlersDelegateValidPayloads)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test ./internal/session ./internal/daemon -run '^(TestManagerDispatchSpawnWake|TestSessionWakeBridge|TestSpawnWakeEventContract|TestSpawnWakeReasonForBadge|TestEnqueueSyntheticWakeRunsOnceWithoutADeliveryStream)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" go test -tags=integration ./internal/settings ./internal/session -run '^(TestProviderSettingsUsesMergedCatalogProjection|TestProviderOverlayDeleteRevealsBuiltinFallbackMetadataCorrectly|TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart|TestConfigApplyServiceAppliesProviderModelOnlyChangesLive|TestConfigApplyServiceCuratesProviderModelsLive|TestFinishPromptPumpSpawnWakeCancelSuppression)$' -count=1
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/session ./internal/daemon' make go-lint
+GOCACHE="$PWD/.tmp/go-build-delivery" GOLANGCI_LINT_CACHE="$PWD/.tmp/golangci-delivery" COMPOZY_GO_LINT_SCOPES='./internal/settings ./internal/api/spec' make go-lint
+git diff --check
+```
+
+The focused and integration selections passed. Both scoped lint selections passed with zero normal/integration issues. A final settings fixture expansion exposed one trailing blank line, corrected before the successful final lint run. The wake suites pass the test-shape checker; the settings and API suites retain exactly their pre-existing findings (13 and 1). This round changes no public schema or migration bytes and therefore requires no generator run. No new provider-backed token savings, browser QA or production-wide repair measurements were made.
+
+The unverified symlink-skip suggestion was not applied: existing Windows filesystem contracts explicitly require a runner capable of creating symlinks (`internal/fileutil/nofollow_windows_test.go`). Setup failures remain visible instead of silently skipping the catalog invariant. CodeRabbit also emitted a generic docstring-coverage warning without identifying missing functions; no coverage threshold was changed, and this warning is not represented as passing verification.
+
+CI run `42728543950` on `c6f3493a3` failed the SQLite paired experiment because baseline trial 0 had a transcript-write deadline failure, leaving its tail comparison incomplete. The four head trials had zero operation failures, no invalid trials and no throughput regressions; the remaining three complete tail ratios had median 0.6911. The failure is retained, not averaged away. The 1 GB fixture's all-column digest, observe results and sequence fences matched after upgrade/reopen, and the separate real-daemon thirty-session job passed. These are CI receipts for the earlier head, not approval of the next head. The acceptance criteria and baseline are unchanged; the next push reruns this lane.

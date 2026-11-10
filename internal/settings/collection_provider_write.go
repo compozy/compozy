@@ -75,6 +75,9 @@ func (s *service) putProvider(
 	modelCuration *ProviderModelCurationRequest,
 	secrets []ProviderSecretWrite,
 ) (MutationResult, error) {
+	// A newly supported window-only request edits one value, not the provider's
+	// authored launch policy. Keep full provider PUT replacement semantics intact.
+	windowOnly := settings.AutoCompactWindow != nil && !settings.ModelsSet && len(providerSettingsMap(settings)) == 1
 	reconciledSettings, err := s.reconcileProviderCuratedWrite(ctx, name, settings, modelCuration)
 	if err != nil {
 		return MutationResult{}, err
@@ -99,7 +102,7 @@ func (s *service) putProvider(
 		if err != nil {
 			return MutationResult{}, err
 		}
-		classification, err = s.classifyProviderWrite(ctx, name, settings)
+		classification, err = s.classifyProviderWrite(ctx, name, settings, windowOnly)
 		if err != nil {
 			return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 		}
@@ -123,6 +126,9 @@ func (s *service) putProvider(
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			path := []string{string(CollectionProviders), name}
+			if windowOnly {
+				return editor.SetValue(append(path, "auto_compact_window"), *settings.AutoCompactWindow)
+			}
 			if err := editor.Delete(path); err != nil {
 				return err
 			}
