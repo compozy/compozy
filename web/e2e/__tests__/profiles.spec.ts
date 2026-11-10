@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Route } from "@playwright/test";
 
 import { expect, test } from "../fixtures/test";
 import {
@@ -152,6 +152,29 @@ async function tabUntilFocused(
     await page.keyboard.press(key);
   }
   await expect(target).toBeFocused();
+}
+
+/**
+ * Keeps the selection write unanswered until the returned function runs, so a journey can land a
+ * reload inside the window between the optimistic switch and the daemon's answer.
+ */
+async function holdSelectionWrite(page: Page): Promise<() => Promise<void>> {
+  const pattern = "**/api/profiles/selection";
+  let release: () => void = () => undefined;
+  const released = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const hold = async (route: Route) => {
+    if (route.request().method() !== "PUT") return await route.fallback();
+    await released;
+    // The document that sent the write is gone by now; only its delivery is left to finish.
+    await route.continue().catch(() => undefined);
+  };
+  await page.route(pattern, hold);
+  return async () => {
+    release();
+    await page.unroute(pattern, hold);
+  };
 }
 
 /** The workspace the shell is running in — desks are per (workspace, profile). */
@@ -450,11 +473,14 @@ test.describe("Profiles", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
 
-    // Leaving the aggregate returns to a real profile, and a fresh client resolves it.
+    // Leaving the aggregate returns to a real profile, and a fresh client resolves it. The reload
+    // lands before the write answers: the dying document must not restore All profiles (#1436).
+    const releaseSelectionWrite = await holdSelectionWrite(appPage);
     await ui.switcher.click();
     await ui.switcherOption("marketing").click();
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     await appPage.reload({ waitUntil: "domcontentloaded" });
+    await releaseSelectionWrite();
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     const selections =
       await runtime.requestJSON<Array<{ scope: string; profile: string }>>(

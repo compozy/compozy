@@ -118,3 +118,10 @@ by an immediate reload, after its optimistic identity was already visible; the f
 restored All profiles in local storage. The selection request now uses the existing settings
 transport's keepalive pattern. The unchanged E2E-013 journey owns the real-browser replay of step 7;
 current-head evidence is tracked in PR #983. Earlier scenario verdicts do not verify this revision.
+
+qa-impact: 2026-11-09 issue #1436. Keepalive did not close the step 7 race: a reload still rejects
+the write in the old document, including a write the daemon applies, and the rollback wrote All
+profiles back for the next document to boot from. A rollback now restores the view on screen without
+changing the persisted choice, so a reload after any failed write defers to the daemon. E2E-013 holds
+the write unanswered across the reload, which makes step 7 deterministic: 3/3 failed before the
+repair, 10/10 passed after it on a local production build.

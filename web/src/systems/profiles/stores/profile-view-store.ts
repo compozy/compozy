@@ -15,6 +15,8 @@ interface ProfileViewContext {
   switchEpoch: number;
   /** The switch (its epoch) that produced the current view; 0 when no switch did. */
   viewSwitch: number;
+  /** The current view is what a failed switch left behind, not something the operator chose. */
+  viewRolledBack: boolean;
   /**
    * Switches whose persist has not settled, by epoch, with the view each one replaced. Switches
    * can overlap, so a failure rolls back along this chain rather than to a captured snapshot: a
@@ -40,22 +42,35 @@ interface PendingSwitch {
  * moving an open client. All profiles is the one view the daemon cannot store,
  * so it is the only answer persisted here — it survives a reload, and the
  * remembered choice underneath it stays the creation destination.
+ *
+ * A rollback restores the screen, never the choice a reload starts from. A reload rejects the
+ * write it interrupts, even a keepalive write the daemon goes on to apply, so a failure cannot
+ * prove the operator stayed in All profiles; the next document defers to the daemon (#1436).
  */
 export const profileViewStore = createStore({
-  context: { view: null, switchEpoch: 0, viewSwitch: 0, pending: {} } as ProfileViewContext,
+  context: {
+    view: null,
+    switchEpoch: 0,
+    viewSwitch: 0,
+    viewRolledBack: false,
+    pending: {},
+  } as ProfileViewContext,
   on: {
     viewEntered: (context, event: { view: ProfileView }) => {
       if (context.view !== null) return undefined;
       return { ...context, view: event.view };
     },
     viewChanged: (context, event: { view: ProfileView }) => {
-      if (context.view && sameView(context.view, event.view)) return undefined;
+      if (context.view && sameView(context.view, event.view)) {
+        return context.viewRolledBack ? { ...context, viewRolledBack: false } : undefined;
+      }
       const epoch = context.switchEpoch + 1;
       return {
         ...context,
         view: event.view,
         switchEpoch: epoch,
         viewSwitch: epoch,
+        viewRolledBack: false,
         pending: {
           ...context.pending,
           [epoch]: { previous: context.view, previousSwitch: context.viewSwitch },
@@ -81,7 +96,13 @@ export const profileViewStore = createStore({
         pending[Number(id)] = entry.previousSwitch === event.switch ? { ...failed } : entry;
       }
       if (context.viewSwitch !== event.switch) return { ...context, pending };
-      return { ...context, view: failed.previous, viewSwitch: failed.previousSwitch, pending };
+      return {
+        ...context,
+        view: failed.previous,
+        viewSwitch: failed.previousSwitch,
+        viewRolledBack: true,
+        pending,
+      };
     },
     viewCleared: context =>
       context.view === null ? undefined : { ...context, view: null, viewSwitch: 0 },
@@ -96,7 +117,9 @@ export const profileViewStore = createStore({
   persist({
     name: PROFILE_VIEW_PERSIST_KEY,
     version: 1,
-    pick: context => ({ view: context.view?.kind === "aggregate" ? context.view : null }),
+    pick: context => ({
+      view: context.view?.kind === "aggregate" && !context.viewRolledBack ? context.view : null,
+    }),
   })
 );
 
