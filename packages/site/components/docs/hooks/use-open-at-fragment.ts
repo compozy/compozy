@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { fragmentId } from "@/lib/url-fragment";
+
 /**
  * Opens a closed `hiddenUntilFound` panel when the page was loaded with a fragment to an id inside
  * it. After hydration the browser opens such a panel itself on find-in-page and on a fragment
@@ -15,7 +17,7 @@ export function useOpenAtFragment<T extends HTMLElement>(
   const ref = useRef<T>(null);
   const target = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
+    const id = fragmentId(window.location.hash);
     const element = id ? document.getElementById(id) : null;
     if (!element || !ref.current?.contains(element)) return;
     target.current = element;

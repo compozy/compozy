@@ -7,19 +7,15 @@
  */
 import { useEffect, useSyncExternalStore } from "react";
 
+import { fragmentId } from "@/lib/url-fragment";
+
 function subscribe(listener: () => void): () => void {
   window.addEventListener("hashchange", listener);
   return () => window.removeEventListener("hashchange", listener);
 }
 
 function readHash(): string {
-  const hash = window.location.hash.slice(1);
-  try {
-    return decodeURIComponent(hash);
-  } catch {
-    // A malformed escape names no method.
-    return hash;
-  }
+  return fragmentId(window.location.hash);
 }
 
 export function useLinkedMethod(ids: readonly string[], preview: number): boolean {

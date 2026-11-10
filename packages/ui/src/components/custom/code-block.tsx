@@ -22,6 +22,12 @@ export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "child
   copyLabel?: string;
   density?: CodeBlockDensity;
   highlightLines?: readonly number[];
+  /**
+   * Lines the caller already highlighted (for example at build time by an MDX pipeline). They are
+   * rendered inside the frame as given, so their colours are in the served HTML, and the client
+   * highlighter does not run. `code` still feeds the copy button.
+   */
+  highlighted?: React.ReactNode;
   language?: string;
   showLineNumbers?: boolean;
   showPrompt?: boolean;
@@ -166,6 +172,7 @@ function CodeBlock({
   truncateLines,
   showLineNumbers = false,
   highlightLines,
+  highlighted,
   wrapLines = false,
   className,
   ...props
@@ -178,7 +185,14 @@ function CodeBlock({
     highlightState,
     normalizedLanguage,
     resolvedThemeName,
-  } = useCodeBlock({ code, highlightLines, language, themeMode, truncateLines });
+  } = useCodeBlock({
+    code,
+    highlightLines,
+    language,
+    prerendered: highlighted !== undefined,
+    themeMode,
+    truncateLines,
+  });
   const label = caption ?? language;
 
   return (
@@ -231,19 +245,21 @@ function CodeBlock({
           wrapLines,
         })}
       >
-        <code data-slot="code-block-code">
-          {displayLines.map(({ id, line, lineNumber }, index) => (
-            <CodeBlockLine
-              key={id}
-              highlighted={highlightedLineNumbers.has(lineNumber)}
-              line={line}
-              lineNumber={lineNumber}
-              showLineNumbers={showLineNumbers}
-              tokens={highlightedCode?.[index]?.tokens}
-              withPrompt={showPrompt && shouldRenderPrompt(line)}
-            />
-          ))}
-        </code>
+        {highlighted ?? (
+          <code data-slot="code-block-code">
+            {displayLines.map(({ id, line, lineNumber }, index) => (
+              <CodeBlockLine
+                key={id}
+                highlighted={highlightedLineNumbers.has(lineNumber)}
+                line={line}
+                lineNumber={lineNumber}
+                showLineNumbers={showLineNumbers}
+                tokens={highlightedCode?.[index]?.tokens}
+                withPrompt={showPrompt && shouldRenderPrompt(line)}
+              />
+            ))}
+          </code>
+        )}
       </pre>
     </div>
   );

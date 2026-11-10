@@ -25,7 +25,13 @@ export function generateStaticParams() {
 
 /** Next hands the segment back percent-encoded when it holds a reserved character. */
 function lookup(entryId: string) {
-  const id = decodeURIComponent(entryId);
+  let id: string;
+  try {
+    id = decodeURIComponent(entryId);
+  } catch {
+    // A malformed escape (`/marketplace/100%`) names no entry.
+    notFound();
+  }
   const entry = findEntry(id);
   if (entry) return { kind: "extension" as const, entry };
   const plugin = findPlugin(id);

@@ -89,6 +89,32 @@ export const UnknownLanguageFallback: Story = {
   },
 };
 
+export const PrerenderedLines: Story = {
+  args: {
+    code: "compozy daemon start",
+    language: "bash",
+    highlighted: (
+      <code>
+        <span style={{ color: "#4d9375" }}>compozy</span>{" "}
+        <span style={{ color: "#c98a7d" }}>daemon start</span>
+      </code>
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Lines highlighted by the caller at build time (the site's MDX pipeline) render inside the frame as given; the client highlighter does not run.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const root = canvasElement.querySelector('[data-slot="code-block"]');
+    await expect(root).toHaveAttribute("data-highlight-state", "highlighted");
+    await expect(within(canvasElement).getByText("compozy")).toBeVisible();
+  },
+};
+
 export const LineNumbersAndHighlights: Story = {
   args: {
     showLineNumbers: true,

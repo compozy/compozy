@@ -161,6 +161,12 @@ describe("useOpenAtFragment", () => {
     }
   });
 
+  it("leaves the page working when the fragment is a malformed escape", () => {
+    window.location.hash = "#100%";
+    render(<Panel />);
+    expect(screen.getByText("closed")).toBeTruthy();
+  });
+
   it("leaves the panel closed when the fragment names an id outside it", () => {
     document.body.innerHTML = '<h2 id="elsewhere">Elsewhere</h2>';
     window.location.hash = "#elsewhere";
