@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
+import { EntryDetail } from "@/components/marketplace/entry-detail";
 import { findEntry, extensionEntries, marketplaceEntryPath } from "@/lib/marketplace-catalog";
 import { createPageMetadata } from "@/lib/site-config";
 
@@ -29,5 +29,5 @@ export default async function MarketplaceEntryPage(props: PageProps) {
   const entry = findEntry(entryId);
   if (!entry) notFound();
 
-  return <MarketplaceEntryDetail entry={entry} />;
+  return <EntryDetail entry={entry} />;
 }

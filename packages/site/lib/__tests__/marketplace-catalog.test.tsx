@@ -3,6 +3,7 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { parse as parseYaml } from "yaml";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.unmock("next/image");
@@ -22,15 +23,14 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { MarketplaceCatalogBrowser } from "@/components/marketplace/marketplace-catalog-browser";
-import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
-import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
-import { MarketplaceEntryLogo } from "@/components/marketplace/marketplace-entry-logo";
-import { MarketplaceBundledSection } from "@/components/marketplace/marketplace-bundled-section";
+import { Browser } from "@/components/marketplace/browser";
+import { SourcesAndIncluded } from "@/components/marketplace/closing";
+import { EntryCard, EntryLogo } from "@/components/marketplace/entry-card";
+import { EntryDetail } from "@/components/marketplace/entry-detail";
+import { fieldTiles } from "@/components/marketplace/hero-field";
 import BundledExtensionPage, {
   generateStaticParams as generateBundledExtensionParams,
 } from "@/app/marketplace/bundled/[name]/page";
-import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
 import MarketplaceEntryPage, {
   generateStaticParams as generateMarketplaceEntryParams,
 } from "@/app/marketplace/[entryId]/page";
@@ -51,6 +51,13 @@ import {
   marketplaceSearchCommand,
   parseMarketplaceCatalog,
 } from "../marketplace-catalog";
+import {
+  categoriesWithEntries,
+  marketplaceCards,
+  relatedCards,
+  toCard,
+  type MarketplaceCategoryId,
+} from "../marketplace-view";
 
 // Invariant: only the current extension feed reaches rendering, with validated identity, inputs and icons.
 // Owner: site catalog boundary. Canonical suite: marketplace-catalog.test.tsx.
@@ -65,7 +72,7 @@ describe("marketplace catalog", () => {
     const entry = findEntry("context7");
     expect(entry).toBeDefined();
     if (!entry) throw new Error("The curated Context7 package is required for this journey");
-    const { container } = render(<MarketplaceEntryLogo entry={entry} size="lg" />);
+    const { container } = render(<EntryLogo entry={toCard(entry)} size="lg" />);
     const icon = container.querySelector("img");
     expect(icon).not.toBeNull();
     if (!icon) throw new Error("The catalog icon did not render");
@@ -75,7 +82,7 @@ describe("marketplace catalog", () => {
     expect(icon.srcset.split(",")).toHaveLength(2);
     fireEvent.error(icon);
     expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector('[data-rung="brand"], [data-rung="marble"]')).not.toBeNull();
+    expect(container.querySelector('[data-rung="monogram"]')?.textContent).toBe("C");
   });
 
   it("Should load all eighteen current packages without standalone skill entries", () => {
@@ -329,7 +336,7 @@ describe("marketplace bundled resources", () => {
   );
 
   it("offers inspection and a detail page for each bundled extension", async () => {
-    render(<MarketplaceBundledSection />);
+    render(<SourcesAndIncluded />);
     expect(generateBundledExtensionParams()).toEqual([
       { name: "spec-cycle" },
       { name: "open-design" },
@@ -388,48 +395,97 @@ description: body content must not override metadata
 });
 
 describe("marketplace rendering boundary", () => {
+  function renderBrowser(category: MarketplaceCategoryId | null = null) {
+    const onCategory = vi.fn();
+    function Harness() {
+      const [query, setQuery] = useState("");
+      return (
+        <Browser
+          entries={marketplaceCards}
+          category={category}
+          query={query}
+          onCategory={onCategory}
+          onQuery={setQuery}
+        />
+      );
+    }
+    return { ...render(<Harness />), onCategory };
+  }
+
+  // Invariant: the page view model keeps every current entry, in the daemon's category order, with
+  // only categories that have entries. Owner: lib/marketplace-view. Canonical suite: this file.
+  it("Should derive cards, categories with counts and related entries from the current catalog", () => {
+    expect(marketplaceCards.map(card => card.id)).toEqual(
+      extensionEntries.map(entry => entry.entry_id)
+    );
+    const categories = categoriesWithEntries(marketplaceCards);
+    expect(categories.every(category => category.count > 0)).toBe(true);
+    expect(categories.reduce((sum, category) => sum + category.count, 0)).toBe(
+      extensionEntries.length
+    );
+    expect(marketplaceCards.filter(card => card.featured).map(card => card.id)).toEqual(
+      extensionEntries.filter(entry => entry["x-compozy"]?.featured).map(entry => entry.entry_id)
+    );
+    const postgres = toCard(findEntry("postgres")!);
+    expect(postgres).toMatchObject({ category: "data", href: "/marketplace/postgres" });
+    const related = relatedCards(postgres);
+    expect(related.some(card => card.id === "postgres")).toBe(false);
+    expect(related.every(card => card.category === "data")).toBe(true);
+  });
+
+  it("Should fill the hero field with distinct live entries that have icons", () => {
+    const { left, right } = fieldTiles(marketplaceCards);
+    const ids = [...left, ...right].map(tile => tile.entry.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...left, ...right].every(tile => tile.entry.icon)).toBe(true);
+    expect(ids).toContain("linear");
+  });
+
   // Invariant: catalog search filters current entries and recovers from an empty result.
   // Owner: public catalog browser. Canonical suite: marketplace-catalog.test.tsx.
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Full-catalog accessible-name queries take about 4s alone and exceed 5s under CI contention, as documented below.
-  it("Should filter the current catalog and restore all entries when search is cleared", () => {
-    render(<MarketplaceCatalogBrowser entries={extensionEntries} />);
-    const search = screen.getByRole("searchbox", { name: "Search extensions" });
-    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(18);
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Full-catalog accessible-name queries are slow in jsdom under CI contention.
+  it("Should filter the current catalog and restore browsing when search is cleared", () => {
+    const { onCategory } = renderBrowser();
+    const search = screen.getByRole("searchbox", { name: "Search the catalog" });
     fireEvent.change(search, { target: { value: "  CONTEXT7  " } });
-    expect(screen.getByRole("link", { name: "View details" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Context7" }).getAttribute("href")).toBe(
       "/marketplace/context7"
     );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
     fireEvent.change(search, { target: { value: "no-such-package" } });
-    expect(screen.queryByRole("link", { name: "View details" })).toBeNull();
-    expect(screen.getByText(/No extensions match/)).toBeTruthy();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByText(/Nothing matches/)).toBeTruthy();
     fireEvent.change(search, { target: { value: "" } });
-    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(18);
-    // Accessible-name role queries over the full catalog run ~4s in jsdom and exceed the
-    // 5s default when turbo runs every workspace suite concurrently on CI.
+    expect(screen.getByRole("heading", { name: /^All/ })).toBeDefined();
+    const nav = screen.getByRole("navigation", { name: "Categories" });
+    expect(within(nav).getAllByRole("button")).toHaveLength(
+      categoriesWithEntries(marketplaceCards).length + 1
+    );
+    fireEvent.click(within(nav).getByRole("button", { name: /Data & Analytics/ }));
+    expect(onCategory).toHaveBeenCalledWith("data");
   }, 15_000);
 
-  it("Should render truthful dates and current detail links without invented trust signals", () => {
-    const entry = {
-      ...extensionEntries[0],
-      published_at: "2026-07-17T00:40:00Z",
-      updated_at: undefined,
-    };
-    const card = render(<MarketplaceEntryCard entry={entry} />);
-    expect(card.getByText(/^Published /)).toBeDefined();
-    expect(card.getByRole("link", { name: "View details" }).getAttribute("href")).toBe(
+  it("Should list every entry of a category with its count", () => {
+    renderBrowser("data");
+    const expected = marketplaceCards.filter(card => card.category === "data");
+    expect(
+      screen.getByRole("heading", { name: `Data & Analytics ${expected.length}` })
+    ).toBeDefined();
+    expect(screen.getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(
+      expected.map(card => card.href)
+    );
+  });
+
+  it("Should link cards to their detail page without invented trust signals", () => {
+    const entry = extensionEntries[0];
+    const card = render(<EntryCard entry={toCard(entry)} />);
+    expect(card.getByRole("link", { name: entry.name }).getAttribute("href")).toBe(
       marketplaceEntryPath(entry)
     );
     expect(card.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
     card.unmount();
-    const detail = render(<MarketplaceEntryDetail entry={entry} />);
-    expect(detail.getAllByText(/Jul 17, 2026/).length).toBeGreaterThan(0);
+    const detail = render(<EntryDetail entry={entry} />);
     expect(detail.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
-  });
-
-  it("Should direct the static listing to search the active daemon catalog", () => {
-    render(<MarketplaceHero />);
-    expect(screen.getAllByText("compozy marketplace search").length).toBeGreaterThan(0);
-    expect(screen.getByText(/checked-in catalog snapshot/)).toBeDefined();
   });
 
   it("Should show declared extension inputs with the owning install command", () => {
@@ -457,13 +513,12 @@ describe("marketplace rendering boundary", () => {
         },
       ],
     });
-    render(<MarketplaceEntryDetail entry={withDefaults} />);
-    const table = screen.getByRole("table");
-    expect(within(table).getByRole("columnheader", { name: "Default" })).toBeDefined();
-    expect(within(table).getByRole("cell", { name: "west" })).toBeDefined();
-    expect(within(table).getByRole("cell", { name: "false" })).toBeDefined();
-    expect(within(table).getByText("Secret")).toBeDefined();
-    expect(within(table).getByText("Boolean")).toBeDefined();
+    render(<EntryDetail entry={withDefaults} />);
+    const inputs = screen.getByRole("heading", { name: "Inputs" }).closest("section")!;
+    expect(within(inputs).getByText("west")).toBeDefined();
+    expect(within(inputs).getByText("false")).toBeDefined();
+    expect(within(inputs).getByText("Secret")).toBeDefined();
+    expect(within(inputs).getByText("Boolean")).toBeDefined();
     expect(screen.getByText(installCommand(entry))).toBeDefined();
     expect(screen.getByText(marketplaceSearchCommand(entry))).toBeDefined();
     expect(screen.getByText(entry.inputs[0].prompt)).toBeDefined();
