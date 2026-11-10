@@ -852,6 +852,47 @@ func TestDisabledProviderGate(t *testing.T) {
 	})
 }
 
+// A logical session (CreateAccepted) carries provider and model metadata before any bind accepts
+// them, so its first prompt is a new route, not recovery of an accepted one (BR-5).
+func TestDisabledProviderGateFirstBind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse the first prompt of a never-bound session on a disabled provider", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		cleanupTestManager(t, h.manager)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "claude", Model: "sonnet"},
+		}))
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		logical, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find the logical session", created.ID)
+		}
+		meta := readMeta(t, logical.MetaPath())
+		if meta.Provider != "claude" || meta.Model != "sonnet" || meta.AcceptedRoute != nil {
+			t.Fatalf("logical meta = provider %q model %q accepted %v, want claude/sonnet unbound",
+				meta.Provider, meta.Model, meta.AcceptedRoute)
+		}
+		setHarnessProviderEnabled(t, h, "claude", false)
+
+		_, err = h.manager.Prompt(t.Context(), created.ID, "hello")
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Prompt() error = %v, want ErrProviderDisabled for the first bind", err)
+		}
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(
+			t.Context(), logical, logical.Info().EffectiveRuntime(), "", nil,
+		); !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("preparePromptRuntimePlanForRoute(unbound route) error = %v, want ErrProviderDisabled", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+	})
+}
+
 func TestRuntimeChangeAdmission(t *testing.T) {
 	t.Parallel()
 

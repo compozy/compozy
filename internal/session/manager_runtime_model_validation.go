@@ -40,7 +40,7 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	admission := admissionRuntimeChange
 	if session != nil {
 		admission = runtimeChangeAdmission(
-			acceptedRoute{provider: meta.Provider, model: meta.Model},
+			boundRoute(meta),
 			acceptedRoute{provider: providerID, model: selection.Model},
 		)
 	}

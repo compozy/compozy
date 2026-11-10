@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // runtimeAdmission names why a runtime is being resolved, so the disabled-provider gate can
@@ -40,7 +41,7 @@ func (a runtimeAdmission) surface() string {
 // route, including a selection that omits the model and resolves to the bound one.
 func specAdmission(spec *sessionStartSpec, resolved acceptedRoute) runtimeAdmission {
 	if spec.admission == admissionRuntimeChange {
-		return runtimeChangeAdmission(acceptedRoute{provider: spec.boundProvider, model: spec.boundModel}, resolved)
+		return runtimeChangeAdmission(spec.boundRoute, resolved)
 	}
 	if spec.admission == admissionNewWork && spec.startAction == sessionStartActionResume {
 		return admissionStoppedResume
@@ -53,6 +54,16 @@ func specAdmission(spec *sessionStartSpec, resolved acceptedRoute) runtimeAdmiss
 type acceptedRoute struct {
 	provider string
 	model    string
+}
+
+// boundRoute is the route a session's recovery may keep: its provider and model, but only once a
+// start or prompt bind has accepted that route (AcceptedRoute). A logical session that has never
+// bound one has no bound route, so its first bind is gated like any other runtime change.
+func boundRoute(meta *store.SessionMeta) acceptedRoute {
+	if meta == nil || meta.AcceptedRoute == nil {
+		return acceptedRoute{}
+	}
+	return acceptedRoute{provider: meta.Provider, model: meta.Model}
 }
 
 // runtimeChangeAdmission exempts only the route the session is already bound to (BR-5): the same

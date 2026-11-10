@@ -32,10 +32,9 @@ type sessionStartSpec struct {
 	provider                  string
 	// admission is why the runtime is resolved; the zero value is new work.
 	admission runtimeAdmission
-	// boundProvider is the provider a runtime plan's session is already bound to.
-	boundProvider string
-	// boundModel is the model of that bound route; a different model is a runtime change.
-	boundModel         string
+	// boundRoute is the accepted route a runtime plan's session is already bound to; empty for a
+	// session no bind has accepted yet. A different provider or model is a runtime change.
+	boundRoute         acceptedRoute
 	commandFingerprint string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
