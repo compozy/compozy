@@ -163,6 +163,10 @@ Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compo
 turn when it fires, which is the only way background work can resume you after your turn ends. Use one
 for every wait on external work, inside or outside your turn; `terminal.md` describes the shell-wait
 guard that refuses `gh run watch`, long `sleep`, and polling loops, and points `gh pr checks --watch` here.
+Claude provider-native subagents share the parent's MCP session identity and cannot receive their own
+monitor wakes. A provider PreToolUse hook refuses their registrations when `agent_id` is present.
+Return pending work and any terminal ID to the parent for monitoring and resumption, or use a separate
+CompozyOS child session. Parent-session monitors are unchanged.
 Provider-internal background shells, monitors, scheduled wakeups, and "I will report back" promises
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go

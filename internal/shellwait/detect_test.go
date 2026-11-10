@@ -371,6 +371,41 @@ func TestRunHook(t *testing.T) {
 		}
 	})
 
+	for _, tool := range []string{"compozy__monitor_create", "mcp__compozy__compozy__monitor_create"} {
+		for _, kind := range []string{"terminal", "timer"} {
+			t.Run("Should refuse subagent "+tool+" "+kind+" registration", func(t *testing.T) {
+				t.Parallel()
+				input := `{"agent_id":"agent-child","tool_name":"` + tool + `","tool_input":{"kind":"` + kind + `","description":"wait","delay_seconds":5,"terminal_id":"term-1"}}`
+				output := hookOutput(t, input)
+				var decision map[string]hookDecision
+				if err := json.Unmarshal([]byte(output), &decision); err != nil {
+					t.Fatal(err)
+				}
+				got := decision["hookSpecificOutput"]
+				if got.PermissionDecision != "deny" ||
+					!strings.Contains(got.PermissionDecisionReason, "Return the pending work") {
+					t.Fatalf("decision = %+v", got)
+				}
+				parentInput := strings.Replace(input, `"agent_id":"agent-child",`, "", 1)
+				if output := hookOutput(t, parentInput); output != "" {
+					t.Fatalf("parent registration refused: %s", output)
+				}
+			})
+		}
+	}
+	t.Run("Should return subagent shell waits to the parent without a monitor redirect", func(t *testing.T) {
+		t.Parallel()
+		for _, tool := range []string{"Bash", "PowerShell"} {
+			input := `{"agent_id":"child","tool_name":"` + tool + `","tool_input":{"command":"sleep 30"}}`
+			if tool == "PowerShell" {
+				input = strings.Replace(input, "sleep 30", "Start-Sleep 30", 1)
+			}
+			if output := hookOutput(t, input); !strings.Contains(output, "Return the pending work") {
+				t.Fatalf("missing subagent guidance: %s", output)
+			}
+		}
+	})
+
 	t.Run("Should use PowerShell rules for the PowerShell tool", func(t *testing.T) {
 		t.Parallel()
 		input := `{"tool_name":"PowerShell","tool_input":{"command":"while ($true) { Start-Sleep 2 }"}}`

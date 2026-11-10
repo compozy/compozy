@@ -59,6 +59,9 @@ func monitorCreateDescriptor() toolspkg.Descriptor {
 		"monitor_create",
 		"Monitor Create",
 		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires. Use it "+
+			"only from a CompozyOS session execution. Claude provider-native subagents cannot receive monitor wakes; "+
+			"their registrations are refused by the provider hook. Return pending work and any terminal_id to the parent "+
+			"so it can register and resume the subagent, or use a separate CompozyOS child session. Use it "+
 			"for every wait on external work, inside or outside your turn: pull request checks and reviews, deploys, "+
 			"builds, polling remote state, or a delay. kind=pull_request is the wait for a pull request: the daemon "+
 			"reads its forge about once a minute and wakes you when merge conflicts appear, checks fail, "+
