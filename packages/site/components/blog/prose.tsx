@@ -1,12 +1,8 @@
-import { Eyebrow, cn } from "@compozy/ui";
-import { isValidElement, type ComponentProps, type ReactNode } from "react";
+/** The reading column: MDX elements set as long-form type, ported from the blog draft. */
+import { cn } from "@compozy/ui";
+import type { ComponentProps, ReactNode } from "react";
 
-function textFromNode(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(textFromNode).join("");
-  if (isValidElement<{ children?: ReactNode }>(node)) return textFromNode(node.props.children);
-  return "";
-}
+import { textOf } from "./text-of";
 
 function slugifyHeading(heading: string): string {
   return heading
@@ -18,19 +14,19 @@ function slugifyHeading(heading: string): string {
     .replace(/\s+/g, "-");
 }
 
-function resolveHeadingID(id: string | undefined, children: ReactNode): string | undefined {
+function headingId(id: string | undefined, children: ReactNode): string | undefined {
   if (id && id !== "$undefined") return id;
-  const generated = slugifyHeading(textFromNode(children));
+  const generated = slugifyHeading(textOf(children));
   return generated.length > 0 ? generated : undefined;
 }
 
 export function ProseH2({ id, children, className, ...props }: ComponentProps<"h2">) {
   return (
     <h2
-      id={resolveHeadingID(id, children)}
+      id={headingId(id, children)}
       {...props}
       className={cn(
-        "mt-16 border-t border-line pt-4 font-sans text-site-doc-heading font-semibold leading-tight tracking-tight text-fg",
+        "mt-12 mb-2.5 scroll-mt-28 font-display text-[30px]/[1.15] font-normal tracking-[-0.02em] text-balance text-fg md:text-[34px]/[1.15]",
         className
       )}
     >
@@ -42,29 +38,12 @@ export function ProseH2({ id, children, className, ...props }: ComponentProps<"h
 export function ProseH3({ id, children, className, ...props }: ComponentProps<"h3">) {
   return (
     <h3
-      id={resolveHeadingID(id, children)}
+      id={headingId(id, children)}
       {...props}
-      className={cn(
-        "mt-10 font-sans text-site-subheading font-semibold leading-tight tracking-tight text-fg",
-        className
-      )}
+      className={cn("mt-8 mb-1.5 scroll-mt-28 text-[21px]/[1.3] font-medium text-fg", className)}
     >
       {children}
     </h3>
-  );
-}
-
-export function ProseParagraph({ children, className, ...props }: ComponentProps<"p">) {
-  return (
-    <p
-      {...props}
-      className={cn(
-        "mt-5 max-w-[72ch] font-sans text-base leading-doc-body text-muted-foreground",
-        className
-      )}
-    >
-      {children}
-    </p>
   );
 }
 
@@ -73,20 +52,68 @@ export function ProseLink({ className, ...props }: ComponentProps<"a">) {
     <a
       {...props}
       className={cn(
-        "font-medium text-brand-strong underline decoration-brand/35 underline-offset-4 hover:decoration-brand",
+        "text-fg-2 underline decoration-fg-2 decoration-1 underline-offset-[3px] hover:decoration-2",
         className
       )}
     />
   );
 }
 
+export function ProseList({ className, ...props }: ComponentProps<"ul">) {
+  return <ul {...props} className={cn("list-disc pl-6 marker:text-muted-foreground", className)} />;
+}
+
+export function ProseOrderedList({ className, ...props }: ComponentProps<"ol">) {
+  return (
+    <ol
+      {...props}
+      className={cn(
+        "list-decimal pl-6 marker:text-muted-foreground marker:tabular-nums",
+        className
+      )}
+    />
+  );
+}
+
+export function ProseListItem({ className, ...props }: ComponentProps<"li">) {
+  return <li {...props} className={cn("pl-0.5", className)} />;
+}
+
+export function ProseBlockquote({ className, ...props }: ComponentProps<"blockquote">) {
+  return (
+    <blockquote
+      {...props}
+      className={cn(
+        "my-8 border-l-2 border-site-light-250 pl-5 text-muted-foreground [&>:first-child]:mt-0 [&>:last-child]:mb-0",
+        className
+      )}
+    />
+  );
+}
+
+/** The highlighter's wrapper around fenced code; the frame owns the spacing. */
+export function ProseFigure({ className, ...props }: ComponentProps<"figure">) {
+  return <figure {...props} className={cn("m-0", className)} />;
+}
+
+export function ProseRule({ className, ...props }: ComponentProps<"hr">) {
+  return <hr {...props} className={cn("my-12 border-site-light-080", className)} />;
+}
+
+/** Tables keep their columns and scroll inside the reading column instead of the page. */
 export function ProseTable({ className, ...props }: ComponentProps<"table">) {
   return (
-    <div className="mt-6 overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
+    <div
+      data-slot="blog-table"
+      role="region"
+      aria-label="Table"
+      tabIndex={0}
+      className="my-8 w-full overflow-x-auto rounded-sm border border-line-strong outline-none [scrollbar-width:thin] focus-visible:ring-2 focus-visible:ring-brand"
+    >
       <table
         {...props}
         className={cn(
-          "w-full min-w-xl border-collapse text-sm leading-7 text-muted-foreground",
+          "w-full min-w-[560px] border-collapse tabular-nums [&_tr:last-child>td]:border-b-0",
           className
         )}
       />
@@ -99,78 +126,45 @@ export function ProseTableHeader({ className, ...props }: ComponentProps<"th">) 
     <th
       scope="col"
       {...props}
-      className={cn("border-b border-line px-3 py-2 text-left font-semibold text-fg", className)}
+      className={cn(
+        "border-b border-line px-3 py-2 text-left text-[15px] font-medium text-muted-foreground",
+        className
+      )}
     />
   );
 }
 
 export function ProseTableCell({ className, ...props }: ComponentProps<"td">) {
-  return <td {...props} className={cn("border-b border-line px-3 py-2 align-top", className)} />;
-}
-
-export function ProseList({ children, className, ...props }: ComponentProps<"ul">) {
   return (
-    <ul
+    <td
       {...props}
       className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-disc text-base leading-7 text-muted-foreground marker:text-subtle [&>li+li]:mt-2",
+        "border-b border-line px-3 py-2 align-top text-[15px] leading-[1.6]",
         className
       )}
-    >
-      {children}
-    </ul>
+    />
   );
 }
 
-export function ProseOrderedList({ children, className, ...props }: ComponentProps<"ol">) {
-  return (
-    <ol
-      {...props}
-      className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-decimal text-base leading-7 text-muted-foreground marker:text-subtle [&>li+li]:mt-2",
-        className
-      )}
-    >
-      {children}
-    </ol>
-  );
-}
-
-export function PullQuote({ children, className, ...props }: ComponentProps<"blockquote">) {
-  return (
-    <blockquote
-      {...props}
-      className={cn(
-        "mt-9 mb-3 max-w-[40ch] border-l-2 border-brand pl-6 font-display text-site-quote font-normal leading-tight tracking-tight text-fg",
-        className
-      )}
-    >
-      {children}
-    </blockquote>
-  );
-}
-
-export interface MonoProps extends ComponentProps<"code"> {
+export interface InlineCodeProps extends ComponentProps<"code"> {
   "data-language"?: string;
   "data-theme"?: string;
 }
 
-export function Mono({ children, className, ...props }: MonoProps) {
-  const isHighlightedBlock = Boolean(props["data-language"] || props["data-theme"]);
-
-  if (isHighlightedBlock) {
+/** Inline code gets a chip; code inside a highlighted block keeps the highlighter's tokens. */
+export function ProseCode({ className, children, ...props }: InlineCodeProps) {
+  if (props["data-language"] || props["data-theme"]) {
     return (
       <code {...props} className={cn("font-mono text-inherit", className)}>
         {children}
       </code>
     );
   }
-
   return (
     <code
       {...props}
       className={cn(
-        "rounded-md border border-line bg-elevated px-1.5 py-0.5 font-mono text-inline-code text-fg",
+        "rounded-[6px] bg-site-light-080 px-1.5 py-0.5 font-mono text-[0.86em] text-fg",
         className
       )}
     >
@@ -183,84 +177,30 @@ export interface CalloutProps {
   tone?: "brand" | "success" | "destructive" | "warning" | "info";
   eyebrow?: string;
   children?: ReactNode;
-  className?: string;
 }
 
-const calloutBorderClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
-  brand: "border-l-brand",
-  success: "border-l-success",
-  destructive: "border-l-destructive",
-  warning: "border-l-warning",
-  info: "border-l-info",
+const TONE: Partial<Record<NonNullable<CalloutProps["tone"]>, string>> = {
+  warning: "border-warning/40 [&_.callout-label]:text-warning",
+  destructive: "border-danger/45 [&_.callout-label]:text-danger",
+  brand: "border-brand/45 [&_.callout-label]:text-brand-strong",
+  success: "border-success/40 [&_.callout-label]:text-success",
 };
 
-const calloutEyebrowToneClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
-  brand: "text-brand-strong",
-  success: "text-success",
-  destructive: "text-destructive",
-  warning: "text-warning",
-  info: "text-info",
-};
-
-export function Callout({ tone = "brand", eyebrow, children, className }: CalloutProps) {
+export function Callout({ tone = "brand", eyebrow, children }: CalloutProps) {
   return (
     <aside
       role="note"
       className={cn(
-        "mt-7 rounded-xl border border-line border-l-4 bg-canvas-soft p-5",
-        calloutBorderClass[tone],
-        className
+        "my-9 rounded-[16px] border bg-site-light-025 p-6",
+        TONE[tone] ?? "border-site-light-120 [&_.callout-label]:text-fg"
       )}
     >
-      {eyebrow && (
-        <Eyebrow className={cn("block tracking-badge", calloutEyebrowToneClass[tone])}>
-          {eyebrow}
-        </Eyebrow>
-      )}
-      <div className="mt-3 font-sans text-item-title leading-7 text-fg">{children}</div>
+      {eyebrow ? (
+        <p className="callout-label m-0! mb-2! text-[14px] font-medium">{eyebrow}</p>
+      ) : null}
+      <div className="text-[16.5px] leading-[1.7] text-fg/85 [&_p]:my-3.5! [&>:first-child]:mt-0! [&>:last-child]:mb-0! [&_strong]:text-fg">
+        {children}
+      </div>
     </aside>
-  );
-}
-
-export interface BlogWireCardRow {
-  label: string;
-  value: string;
-  tone?: "neutral" | "brand" | "success" | "destructive" | "warning" | "info";
-}
-
-const wireValueToneClass: Record<NonNullable<BlogWireCardRow["tone"]>, string> = {
-  neutral: "text-fg",
-  brand: "text-brand-strong",
-  success: "text-success",
-  destructive: "text-destructive",
-  warning: "text-warning",
-  info: "text-info",
-};
-
-export interface BlogWireCardProps {
-  kind: string;
-  rows: BlogWireCardRow[];
-  protocol?: string;
-}
-
-export function BlogWireCard({ kind, rows, protocol = "v0" }: BlogWireCardProps) {
-  return (
-    <div className="mt-7 max-w-wire-card overflow-hidden rounded-md border border-line bg-canvas-soft">
-      <Eyebrow className="block border-b border-line bg-rail px-3 py-1.5 text-subtle">
-        kind={kind} · {protocol}
-      </Eyebrow>
-      <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 p-3 font-mono text-eyebrow leading-7">
-        {rows.map(row => (
-          <div key={row.label} className="contents">
-            <span className="text-subtle">{row.label}</span>
-            <span className={wireValueToneClass[row.tone ?? "neutral"]}>{row.value}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-3 border-t border-line bg-rail px-3 py-1.5">
-        <Eyebrow className="text-subtle">Inspect →</Eyebrow>
-        <Eyebrow className="text-subtle">Replay</Eyebrow>
-      </div>
-    </div>
   );
 }

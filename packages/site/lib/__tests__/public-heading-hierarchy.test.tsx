@@ -73,14 +73,15 @@ describe("public heading hierarchy", () => {
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
     render(await BlogIndexPage());
-    expectSingleH1("Practical engineering for working with AI agents.");
+    // The approved blog draft titles the front page and every category view "Blog".
+    expectSingleH1("Blog");
     cleanup();
 
     const category =
       BLOG_CATEGORIES.find(candidate => postsByCategory(candidate).length === 0) ??
       BLOG_CATEGORIES[0];
     render(await CategoryArchivePage({ params: Promise.resolve({ category }) }));
-    expectSingleH1(new RegExp(`^${category}`, "i"));
+    expectSingleH1("Blog");
   });
 
   it("keeps generated blog article pages to one primary heading", async () => {

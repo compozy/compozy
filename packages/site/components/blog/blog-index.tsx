@@ -1,0 +1,206 @@
+"use client";
+
+/** The blog front page: a lead story, the latest as posters, then a numbered index of everything. */
+import { Empty, SearchInput, cn } from "@compozy/ui";
+import { SearchX } from "@compozy/ui/icons";
+import Link from "next/link";
+import { useState } from "react";
+
+import { CONTAINER, HAIRLINE } from "@/components/site/layout";
+import { Reveal } from "@/components/site/motion";
+import { H1, H2, Lead, SecondaryCta } from "@/components/site/primitives";
+import type { PostAuthor } from "@/lib/blog";
+import {
+  filterEntries,
+  groupByMonth,
+  isFiltering,
+  topTopics,
+  topicLabel,
+  type BlogEntry,
+  type BlogFilters,
+} from "@/lib/blog-index";
+
+import { IndexRow, LeadStory, PosterCard } from "./cards";
+import { categoryLabel } from "./format";
+
+const CHIP =
+  "inline-flex h-8 items-center gap-2 rounded-[9px] bg-transparent px-3 text-[14px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand";
+
+function categoryHref(id: string | null) {
+  return id ? `/blog/categories/${id}` : "/blog";
+}
+
+function Toolbar({
+  entries,
+  categories,
+  filters,
+  onTopic,
+  onQuery,
+}: {
+  entries: readonly BlogEntry[];
+  categories: readonly string[];
+  filters: BlogFilters;
+  onTopic: (topic: string | null) => void;
+  onQuery: (query: string) => void;
+}) {
+  const tabs = [null, ...categories];
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <nav
+          aria-label="Category"
+          className="inline-flex gap-1 rounded-[12px] border border-site-light-100 p-1"
+        >
+          {tabs.map(id => {
+            const current = filters.category === id;
+            return (
+              <Link
+                key={id ?? "all"}
+                href={categoryHref(id)}
+                scroll={false}
+                aria-current={current ? "page" : undefined}
+                className={cn(
+                  CHIP,
+                  current ? "bg-site-light-100 text-fg" : "text-muted-foreground hover:text-fg"
+                )}
+              >
+                {id ? categoryLabel(id) : "All"}
+                <span className="font-mono text-[12px] text-subtle tabular-nums">
+                  {id ? entries.filter(entry => entry.category === id).length : entries.length}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+        <SearchInput
+          value={filters.query}
+          onChange={onQuery}
+          placeholder="Search posts"
+          aria-label="Search posts"
+          containerClassName="h-10 w-full sm:w-[280px] [&_input]:text-[14px]"
+        />
+      </div>
+      <div role="group" aria-label="Topic" className="mt-4 flex flex-wrap gap-2">
+        {topTopics(entries).map(({ tag, count }) => (
+          <button
+            key={tag}
+            type="button"
+            aria-pressed={filters.topic === tag}
+            onClick={() => onTopic(filters.topic === tag ? null : tag)}
+            className={cn(
+              "inline-flex h-8 cursor-pointer items-center gap-2 rounded-pill border px-3.5 text-[13.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
+              filters.topic === tag
+                ? "border-site-light-350 bg-site-light-100 text-fg"
+                : "border-site-light-100 bg-transparent text-muted-foreground hover:text-fg"
+            )}
+          >
+            {topicLabel(tag)}
+            <span className="font-mono text-[12px] text-subtle tabular-nums">{count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export interface BlogIndexProps {
+  /** Every post, newest first. */
+  entries: BlogEntry[];
+  categories: readonly string[];
+  /** The category route's category; `null` on `/blog`. */
+  category: string | null;
+  lead: BlogEntry;
+  author: PostAuthor;
+}
+
+export function BlogIndex({ entries, categories, category, lead, author }: BlogIndexProps) {
+  const [topic, setTopic] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const filters: BlogFilters = { category, topic, query };
+  const filtering = isFiltering(filters);
+  const found = filterEntries(entries, filters);
+  const latest = entries.filter(entry => entry.slug !== lead.slug).slice(0, 3);
+  return (
+    <div className={cn(CONTAINER, "pt-32 pb-28 md:pt-40")}>
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <div className="[&_h1]:md:text-[80px]">
+            <H1>Blog</H1>
+          </div>
+          <Lead className="mt-4 max-w-[560px] md:text-[19px]">
+            Practical engineering for working with AI agents.
+          </Lead>
+        </div>
+        <SecondaryCta href="/blog/feed.xml">RSS feed</SecondaryCta>
+      </div>
+      {filtering ? null : (
+        <>
+          <Reveal className="mt-12">
+            <LeadStory entry={lead} author={author} />
+          </Reveal>
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {latest.map((entry, order) => (
+              <Reveal key={entry.slug} delay={order * 0.07}>
+                <PosterCard entry={entry} />
+              </Reveal>
+            ))}
+          </div>
+        </>
+      )}
+      <section
+        id="all-posts"
+        className={cn("scroll-mt-28", filtering ? "mt-12" : "mt-24 border-t pt-16", HAIRLINE)}
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <H2 size="sm">All posts</H2>
+          <p className="m-0 font-mono text-[13.5px] text-muted-foreground">
+            {found.length} of {entries.length}
+          </p>
+        </div>
+        <div className="mt-8">
+          <Toolbar
+            entries={entries}
+            categories={categories}
+            filters={filters}
+            onTopic={setTopic}
+            onQuery={setQuery}
+          />
+        </div>
+        <div className="mt-10">
+          {found.length === 0 ? (
+            <Empty
+              framed
+              icon={SearchX}
+              title="No post matches that"
+              description="Try another word, or clear the category and topic."
+            />
+          ) : (
+            groupByMonth(found).map(month => (
+              <div
+                key={month.label}
+                className={cn(
+                  "grid gap-x-12 border-t py-2 lg:grid-cols-[190px_minmax(0,1fr)]",
+                  HAIRLINE
+                )}
+              >
+                <div className="pt-6 lg:sticky lg:top-28 lg:self-start">
+                  <p className="m-0 font-display text-[22px] leading-none tracking-[-0.01em] text-fg">
+                    {month.label}
+                  </p>
+                  <p className="m-0 mt-2 text-[13.5px] text-subtle">
+                    {month.entries.length} {month.entries.length === 1 ? "post" : "posts"}
+                  </p>
+                </div>
+                <ol className="m-0 list-none p-0">
+                  {month.entries.map(entry => (
+                    <IndexRow key={entry.slug} entry={entry} />
+                  ))}
+                </ol>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

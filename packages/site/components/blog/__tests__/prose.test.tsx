@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ProseH2, ProseH3 } from "../prose";
+import { ProseH2, ProseH3, ProseTable } from "../prose";
 
-describe("blog prose headings", () => {
+describe("blog prose", () => {
   it("derives stable anchors when compiled blog headings do not pass an id", () => {
     render(
       <>
@@ -23,5 +23,21 @@ describe("blog prose headings", () => {
     render(<ProseH2 id="custom-anchor">Custom Anchor</ProseH2>);
 
     expect(screen.getByRole("heading", { name: "Custom Anchor" }).id).toBe("custom-anchor");
+  });
+
+  it("puts tables in a keyboard-reachable region that scrolls on its own", () => {
+    render(
+      <ProseTable>
+        <tbody>
+          <tr>
+            <td>cell</td>
+          </tr>
+        </tbody>
+      </ProseTable>
+    );
+
+    const region = screen.getByRole("region", { name: "Table" });
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(region.querySelector("table")).not.toBeNull();
   });
 });
