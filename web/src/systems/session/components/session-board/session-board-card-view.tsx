@@ -424,7 +424,7 @@ function SessionBoardCardRollupMark({
       >
         <ListTree aria-hidden="true" className="size-3 text-subtle" />
         {rollup.total}
-        {rollup.needsYou ? <Pill.Dot className="ml-px" tone="brand" /> : null}
+        {rollup.needsYou ? <Pill.Dot className="ml-px" tone="attn" /> : null}
       </TooltipTrigger>
       <TooltipContent className="flex-col items-stretch gap-0">
         <div>

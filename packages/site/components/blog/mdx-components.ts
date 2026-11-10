@@ -1,20 +1,20 @@
 import type { ComponentType } from "react";
-import { BlogCodeBlock } from "./code-block";
-import { MonoBadge } from "./mono-badge";
+import { CodeFrame } from "./code-frame";
 import {
-  BlogWireCard,
   Callout,
-  Mono,
+  ProseBlockquote,
+  ProseCode,
+  ProseFigure,
   ProseH2,
   ProseH3,
   ProseLink,
   ProseList,
+  ProseListItem,
   ProseOrderedList,
-  ProseParagraph,
+  ProseRule,
   ProseTable,
   ProseTableCell,
   ProseTableHeader,
-  PullQuote,
 } from "./prose";
 
 export type MdxComponents = Record<string, ComponentType<Record<string, unknown>>>;
@@ -22,17 +22,17 @@ export type MdxComponents = Record<string, ComponentType<Record<string, unknown>
 export const mdxComponents = {
   h2: ProseH2,
   h3: ProseH3,
-  p: ProseParagraph,
   a: ProseLink,
   table: ProseTable,
   th: ProseTableHeader,
   td: ProseTableCell,
   ul: ProseList,
   ol: ProseOrderedList,
-  blockquote: PullQuote,
-  code: Mono,
-  pre: BlogCodeBlock,
+  li: ProseListItem,
+  blockquote: ProseBlockquote,
+  hr: ProseRule,
+  code: ProseCode,
+  pre: CodeFrame,
+  figure: ProseFigure,
   Callout,
-  WireCard: BlogWireCard,
-  MonoBadge,
 } as unknown as MdxComponents;

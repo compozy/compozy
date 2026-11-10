@@ -155,6 +155,7 @@ Makefile|backend desktop
 desktop/src/main.ts|desktop
 web/src/app.tsx|web
 packages/ui/src/index.ts|web
+packages/brand/src/routes/index.tsx|web
 bun.lock|web
 catalog/icons/github.svg|web
 catalog/marketplaces.json|backend web desktop unclassified

@@ -103,21 +103,21 @@ export function TypographySection() {
       id="typography"
       data-testid="section-typography"
       label={<SectionLink section={sectionById("typography")}>Foundations: Typography</SectionLink>}
-      right={<Pill mono>Inter · Geist Mono · NuixyberNext</Pill>}
+      right={<Pill mono>Figtree · Geist Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Heading · Inter 17/500</CardTitle>
+            <CardTitle>Heading · Figtree 17/500</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-heading font-medium tracking-tight">Runtime sessions overview</p>
             <p className="text-body text-muted-foreground">
-              Body · Inter 14.5px at 425, −0.01em. The default reading text; quiet secondary copy
+              Body · Figtree 14.5px at 450, −0.01em. The default reading text; quiet secondary copy
               uses muted, never a dimmed body.
             </p>
             <p className="text-meta text-subtle">
-              Meta · Inter 13px, helper text, captions, meta rows.
+              Meta · Figtree 13px, helper text, captions, meta rows.
             </p>
           </CardContent>
         </Card>
@@ -126,7 +126,7 @@ export function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow className="text-muted-foreground">Eyebrow · Inter 12/500/-0.005em</Eyebrow>
+            <Eyebrow className="text-muted-foreground">Eyebrow · Figtree 12/500/-0.005em</Eyebrow>
             <p className="font-mono text-meta text-fg">compozy · run_id_01hq8… · Geist Mono</p>
             <div className="flex items-center gap-3">
               <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">

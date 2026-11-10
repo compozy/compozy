@@ -6,6 +6,13 @@ import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
 import { bundledExtensionDescription, MARKETPLACE_DESCRIPTION } from "@/lib/marketplace-copy";
 import { extensionEntries, marketplaceEntryPath, installCommand } from "@/lib/marketplace-catalog";
+import {
+  marketplacePluginPath,
+  marketplacePlugins,
+  pluginDisplayName,
+  pluginSearchCommand,
+} from "@/lib/marketplace-plugins";
+import { sdkSearchData } from "@/lib/sdk-reference-markdown";
 import { docsSource } from "@/lib/source";
 
 type SearchPage = {
@@ -31,6 +38,7 @@ type TocHeading = {
 const DOC_PATH_LABELS: Readonly<Record<string, string>> = {
   cli: "CLI reference",
   api: "API reference",
+  sdk: "SDK reference",
   protocol: "Protocol spec",
   guide: "Implementation guide",
   mcp: "MCP",
@@ -104,7 +112,7 @@ function buildDocIndexes(pages: SearchPage[]): AdvancedIndex[] {
   return sortedByURL(pages).map(page => ({
     title: page.data.title,
     description: page.data.description,
-    structuredData: page.data.structuredData,
+    structuredData: sdkSearchData(page.url, page.data.structuredData),
     id: page.url,
     url: page.url,
     breadcrumbs: buildDocBreadcrumbs(page.url),
@@ -198,6 +206,24 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
+  const plugins = marketplacePlugins.map<AdvancedIndex>(entry => ({
+    id: marketplacePluginPath(entry),
+    url: marketplacePluginPath(entry),
+    title: pluginDisplayName(entry.plugin),
+    description: entry.plugin.description ?? "",
+    breadcrumbs: ["Marketplace"],
+    tag: "Marketplace",
+    structuredData: {
+      headings: [],
+      contents: [
+        {
+          heading: undefined,
+          content: joinContent(entry.plugin.description ?? "", pluginSearchCommand(entry)),
+        },
+      ],
+    },
+  }));
+
   const bundled = bundledExtensions.map<AdvancedIndex>(extension => ({
     id: extension.path,
     url: extension.path,
@@ -223,7 +249,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
-  return [overview, ...entries, ...bundled];
+  return [overview, ...entries, ...plugins, ...bundled];
 }
 
 export async function buildPublicSearchIndexes(): Promise<AdvancedIndex[]> {

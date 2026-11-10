@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { THEME_CHROME_COLOR, applyTheme } from "../lib/apply-theme";
 import {
+  DEFAULT_FONT_LABEL,
+  FONT_CATALOG,
   FONT_STORAGE_KEY,
   applyFontAppearance,
   cssFontFamily,
@@ -284,8 +286,18 @@ describe("font appearance runtime", () => {
     }
   );
 
+  it("Should name Figtree as the built-in face and keep stored catalog choices resolving", () => {
+    expect(DEFAULT_FONT_LABEL.sans).toBe("Figtree");
+    expect(FONT_CATALOG.some(entry => /inter/i.test(entry.family))).toBe(false);
+    // A choice stored before the brand change still paints and downloads its face.
+    applyFontAppearance(root, { sans: "", mono: "JetBrains Mono Variable" });
+    expect(fontVariables().mono).toBe('"JetBrains Mono Variable"');
+    writeFontAppearanceCache({ sans: "", mono: "JetBrains Mono Variable" });
+    expect(readBundledFontCache()).toEqual({ mono: "JetBrains Mono Variable" });
+  });
+
   it("Should preview the Default entry in the built-in face, never an inherited one", () => {
-    expect(previewFontFamily("", "sans")).toBe('"Inter Variable", sans-serif');
+    expect(previewFontFamily("", "sans")).toBe('"Figtree Variable", sans-serif');
     expect(previewFontFamily("", "mono")).toBe('"Geist Mono Variable", monospace');
     expect(previewFontFamily("Fira Code", "mono")).toBe('"Fira Code", monospace');
   });

@@ -1,38 +1,47 @@
 "use client";
 
-import { Eyebrow } from "@compozy/ui";
+/** The root render failure, set like the site's 404: the marketing shell, a label, a headline. */
+import { Button, cn } from "@compozy/ui";
+
+import { CONTAINER } from "@/components/site/layout";
+import { H1, Lead, PrimaryCta, Small } from "@/components/site/primitives";
+import { SiteShell } from "@/components/site/site-shell";
 
 export default function Error({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   const detail = error.digest ? `Digest ${error.digest}` : "Runtime boundary failure";
 
   return (
-    <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
-      <section className="mx-auto w-full max-w-190 rounded-diagram border border-line bg-canvas-soft p-8 md:p-10">
-        <Eyebrow className="text-destructive">Render failure</Eyebrow>
-        <h1 className="mt-5 max-w-[13ch] text-site-error-title leading-none font-normal tracking-tight text-fg">
-          The site hit a recoverable boundary.
-        </h1>
-        <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted-foreground">
-          The page failed while rendering. Retry the boundary; if it repeats, capture the detail
-          below with the current route.
-        </p>
-        <p className="mt-4 rounded-lg border border-line bg-rail px-4 py-3 font-mono text-xs text-subtle">
-          {detail}
-        </p>
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-hover active:translate-y-px"
-        >
-          Retry boundary
-        </button>
+    <SiteShell>
+      <section
+        className={cn(CONTAINER, "flex flex-1 flex-col justify-center pt-40 pb-32 md:pt-48")}
+      >
+        <Small className="font-mono text-destructive">Render failure</Small>
+        <div className="mt-5 max-w-[760px]">
+          <H1>The site hit a recoverable boundary.</H1>
+          <Lead className="max-w-[560px]">
+            The page failed while rendering. Retry the boundary; if it repeats, capture the detail
+            below with the current route.
+          </Lead>
+        </div>
+        <Small className="mt-6 font-mono">{detail}</Small>
+        <div className="mt-10 flex flex-wrap gap-3">
+          <PrimaryCta href="/">Back to home</PrimaryCta>
+          <Button
+            variant="outline"
+            size="cta-lg"
+            onClick={retry}
+            className="h-[52px] border-site-light-150 bg-site-light-030 px-7 text-[15.5px]"
+          >
+            Retry boundary
+          </Button>
+        </div>
       </section>
-    </main>
+    </SiteShell>
   );
 }

@@ -84,7 +84,7 @@ export function Hero({
         >
           <StatusDot
             size="sm"
-            tone={state === "working" ? "success" : state === "needs-you" ? "brand" : "faint"}
+            tone={state === "working" ? "success" : state === "needs-you" ? "attn" : "faint"}
           />
           {line}
         </p>

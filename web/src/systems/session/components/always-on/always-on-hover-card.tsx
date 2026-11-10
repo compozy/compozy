@@ -32,7 +32,7 @@ import { formatRelativeClock } from "@/systems/agent";
 import { heldPhrase } from "../../lib/session-pause";
 
 const STATE_TONE: Partial<Record<AgentAvatarState, PillTone>> = {
-  "needs-you": "brand",
+  "needs-you": "attn",
   working: "success",
   failed: "destructive",
 };

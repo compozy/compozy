@@ -33,7 +33,7 @@ export default defineConfig({
           category: s.enum(blogCategories),
           tags: s.array(s.string()).default([]),
           author: s.string(),
-          cover: s.image().optional(),
+          cover: s.image(),
           featured: s.boolean().default(false),
           excerpt: s.excerpt({ length: 240 }),
           metadata: s.metadata(),

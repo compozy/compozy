@@ -80,12 +80,12 @@ describe("session badge dictionary", () => {
   });
 
   it("Should map each badge to its canonical state glyph and tone (UT-050)", () => {
-    // Needs-you is the brand-orange attention dot (never the warning amber),
+    // Needs-you is the amber attention dot (`attn`, never the volt brand),
     // failures and a stuck runtime are the danger ring, work in flight is the
     // mint running ring, and resting states stay neutral.
     for (const badge of WAITING_ON_YOU) {
       expect(SESSION_BADGE_SIGNAL[badge].state).toBe("attention");
-      expect(SESSION_BADGE_SIGNAL[badge].tone).toBe("brand");
+      expect(SESSION_BADGE_SIGNAL[badge].tone).toBe("attn");
     }
     for (const badge of ["failed", "hung", "unhealthy"] as const) {
       expect(SESSION_BADGE_SIGNAL[badge].state).toBe("failed");

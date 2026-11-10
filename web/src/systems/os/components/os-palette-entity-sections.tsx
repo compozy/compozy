@@ -126,7 +126,7 @@ export function OsPaletteEntitySections({
               <span className="min-w-0 truncate leading-none">{tab.label}</span>
               {tab.needsInput ? (
                 <span
-                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-brand px-1 font-mono text-pill-group-badge leading-none font-semibold text-brand-ink"
+                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-attn px-1 font-mono text-pill-group-badge leading-none font-semibold text-canvas"
                   data-slot="os-palette-tab-attention"
                 >
                   1

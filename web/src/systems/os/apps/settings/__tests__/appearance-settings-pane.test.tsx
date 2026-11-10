@@ -199,7 +199,7 @@ describe("AppearanceSettingsPane", () => {
     renderPane();
 
     const trigger = screen.getByTestId("os-appearance-font-sans");
-    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await waitFor(() => expect(trigger).toHaveTextContent("Figtree"));
     await user.click(trigger);
     await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
 
@@ -220,7 +220,7 @@ describe("AppearanceSettingsPane", () => {
         config: { sessions: {}, appearance: { ui_font: "" } },
       })
     );
-    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await waitFor(() => expect(trigger).toHaveTextContent("Figtree"));
     await waitFor(() =>
       expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe("")
     );
@@ -382,7 +382,7 @@ describe("AppearanceSettingsPane", () => {
     pending[1]?.();
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
     expect(code).toHaveTextContent("Geist Mono");
-    expect(ui).toHaveTextContent("Inter");
+    expect(ui).toHaveTextContent("Figtree");
   });
 
   it("Should offer installed fonts, and only monospace ones for Code", async () => {

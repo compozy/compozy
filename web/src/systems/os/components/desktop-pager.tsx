@@ -115,7 +115,7 @@ function desktopLabel(control: DesktopControl, total: number, active: boolean): 
 
 /**
  * Topbar desktop navigation (shell-rail v2 `.dots`): 6px dots, the active
- * desktop as an 18px pill, an orange dot for an off-screen desktop that needs
+ * desktop as an 18px pill, an amber dot for an off-screen desktop that needs
  * you. Dots only select; the ±2 overflow controls open the overview.
  */
 export function DesktopPager({

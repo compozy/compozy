@@ -36,13 +36,12 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline / DESIGN.md §9: Inter 425 at 13.5px, −0.01em, and
-       Inter's cv11 (single-storey a), as the brand reference sets it. */
+    /* Body baseline / DESIGN.md §9: Figtree 450 at 13.5px, −0.01em, as the
+       brand v1.2 reference sets the UI face. */
     font-size: var(--text-body);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
     letter-spacing: var(--tracking-body);
-    font-feature-settings: "cv11";
     text-rendering: optimizeLegibility;
   }
 

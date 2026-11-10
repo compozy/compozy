@@ -1,0 +1,1256 @@
+{
+    "tag": "sessions",
+    "operations": [
+        {
+            "id": "createSession",
+            "method": "POST",
+            "path": "/api/sessions",
+            "summary": "Create a session",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Act as this profile by name"
+                }
+            ],
+            "body": [
+                { "name": "agent_name", "type": "string", "required": false, "description": "" },
+                { "name": "folder_id", "type": "string", "required": false, "description": "" },
+                { "name": "lineage_kind", "type": "string", "required": false, "description": "" },
+                { "name": "name", "type": "string", "required": false, "description": "" },
+                {
+                    "name": "new_worktree",
+                    "type": "NewSessionWorktreeRequest | null",
+                    "required": false,
+                    "description": ""
+                },
+                {
+                    "name": "parent_session_id",
+                    "type": "string",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "scope", "type": "string", "required": false, "description": "" },
+                { "name": "workspace", "type": "string", "required": false, "description": "" },
+                {
+                    "name": "workspace_path",
+                    "type": "string",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "worktree", "type": "string", "required": false, "description": "" }
+            ],
+            "bodyType": "CreateSessionRequest",
+            "responses": [
+                { "code": "201", "description": "Created" },
+                { "code": "400", "description": "Invalid create request" },
+                { "code": "404", "description": "Workspace not found" },
+                { "code": "409", "description": "Session creation conflict" },
+                { "code": "500", "description": "Internal server error" },
+                {
+                    "code": "503",
+                    "description": "New-work admission is unavailable while the daemon is draining"
+                }
+            ],
+            "response": "{\n  \"session\": {\n    \"activity\": {\n      \"current_tool\": \"string\",\n      \"deadline_at\": \"string\",\n      \"elapsed_ms\": 0,\n      \"elapsed_seconds\": 0,\n      \"idle_seconds\": 0,\n      \"iteration_current\": 0,\n      \"iteration_max\": 0\n    },\n    \"agent_name\": \"string\",\n    \"archived_at\": \"string\",\n    \"attach_expires_at\": \"string\",\n    \"attachable\": false,\n    \"attached_to\": \"string\",\n    \"attention\": \"string\"\n  }\n}",
+            "samples": {
+                "curl": "curl -X POST \"http://localhost:2123/api/sessions\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"agent_name\": \"string\", \"folder_id\": \"string\", \"lineage_kind\": \"string\"}'",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.createSession({ body: { /* request fields */ } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CreateSession(ctx, client.CreateSessionParams{}, client.CreateSessionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "listSessions",
+            "method": "GET",
+            "path": "/api/sessions",
+            "summary": "List sessions",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "workspace_id",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Workspace id or path"
+                },
+                {
+                    "name": "all_workspaces",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Use the explicit all-workspaces aggregate"
+                },
+                {
+                    "name": "workspace_ids",
+                    "in": "query",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "Project IDs or @user; repeatable, requires all_workspaces"
+                },
+                {
+                    "name": "include_health",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Include metadata-only health for returned sessions"
+                },
+                {
+                    "name": "skip_total",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Omit the exact catalog count for a bounded cursor read"
+                },
+                {
+                    "name": "exclude_instance_main",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Exclude always-on main sessions from the page and its total"
+                },
+                {
+                    "name": "exclude_finished_automation",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it"
+                },
+                {
+                    "name": "exclude_automation",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Exclude every automation job or trigger run session the operator has not prompted, whatever its state; search, type, parent, root, archive=only and later=only reads ignore it"
+                },
+                {
+                    "name": "state",
+                    "in": "query",
+                    "type": "\"starting\" | \"active\" | \"stopping\" | \"stopped\"",
+                    "required": false,
+                    "description": "Filter by exact session state"
+                },
+                {
+                    "name": "type",
+                    "in": "query",
+                    "type": "\"user\" | \"system\" | \"coordinator\" | \"spawned\"",
+                    "required": false,
+                    "description": "Filter by exact session type"
+                },
+                {
+                    "name": "agent",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Filter by exact agent definition name"
+                },
+                {
+                    "name": "subagents",
+                    "in": "query",
+                    "type": "\"include\" | \"exclude\" | \"only\"",
+                    "required": false,
+                    "description": "Subagent session visibility (default include)"
+                },
+                {
+                    "name": "children",
+                    "in": "query",
+                    "type": "\"include\" | \"exclude\"",
+                    "required": false,
+                    "description": "Managed child visibility"
+                },
+                {
+                    "name": "parent",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Filter by exact parent session id"
+                },
+                {
+                    "name": "root",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Filter by exact root session id (includes the root itself)"
+                },
+                {
+                    "name": "worktree",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Filter by exact bound worktree id"
+                },
+                {
+                    "name": "q",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Search session id, name, agent, or provider; title_agent searches visible title and agent"
+                },
+                {
+                    "name": "search_fields",
+                    "in": "query",
+                    "type": "\"title_agent\"",
+                    "required": false,
+                    "description": "Select visible title/agent search instead of the default catalog fields"
+                },
+                {
+                    "name": "resumable",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Only list sessions eligible for explicit attach"
+                },
+                {
+                    "name": "attention",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Only list sessions in the needs-you attention class"
+                },
+                {
+                    "name": "board_column",
+                    "in": "query",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done"
+                },
+                {
+                    "name": "badge",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Filter by comma-separated exact session badges"
+                },
+                {
+                    "name": "archive",
+                    "in": "query",
+                    "type": "\"exclude\" | \"only\" | \"include\"",
+                    "required": false,
+                    "description": "Archived session visibility"
+                },
+                {
+                    "name": "later",
+                    "in": "query",
+                    "type": "\"exclude\" | \"only\" | \"include\"",
+                    "required": false,
+                    "description": "Visibility of sessions parked in Later; excluded by default"
+                },
+                {
+                    "name": "sort",
+                    "in": "query",
+                    "type": "\"recent\" | \"created\" | \"name\" | \"last_activity\" | \"attention\" | \"navigator\"",
+                    "required": false,
+                    "description": "Stable session ordering"
+                },
+                {
+                    "name": "cursor",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Opaque next_cursor from the previous page"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "type": "integer",
+                    "required": false,
+                    "description": "Sessions per page (1-100)"
+                },
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Read one profile's rows by name"
+                },
+                {
+                    "name": "all_profiles",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Read the owner-labeled all-profiles aggregate"
+                }
+            ],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "400", "description": "Invalid session list query or cursor" },
+                { "code": "404", "description": "Workspace not found" },
+                { "code": "410", "description": "Workspace root is missing" },
+                { "code": "500", "description": "Internal server error" },
+                {
+                    "code": "503",
+                    "description": "Paged session catalog or workspace resolver is unavailable"
+                }
+            ],
+            "response": "{\n  \"page\": {\n    \"has_more\": false,\n    \"limit\": 0,\n    \"next_cursor\": \"string\",\n    \"total\": 0\n  },\n  \"sessions\": [\n    {\n      \"agent_name\": \"string\",\n      \"archived_at\": \"string\",\n      \"attach_expires_at\": \"string\",\n      \"attachable\": false,\n      \"attached_to\": \"string\",\n      \"attention\": \"string\"\n    }\n  ]\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessions();",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessions(ctx, client.ListSessionsParams{})\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "getSessionByID",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}",
+            "summary": "Get one session snapshot by id",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "session_id",
+                    "in": "path",
+                    "type": "string",
+                    "required": true,
+                    "description": "Session id"
+                },
+                {
+                    "name": "include_health",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Include metadata-only session health when available"
+                },
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Read one profile's rows by name"
+                },
+                {
+                    "name": "all_profiles",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Read the owner-labeled all-profiles aggregate"
+                }
+            ],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "404", "description": "Session not found" },
+                { "code": "500", "description": "Internal server error" }
+            ],
+            "response": "{\n  \"session\": {\n    \"activity\": {\n      \"current_tool\": \"string\",\n      \"deadline_at\": \"string\",\n      \"elapsed_ms\": 0,\n      \"elapsed_seconds\": 0,\n      \"idle_seconds\": 0,\n      \"iteration_current\": 0,\n      \"iteration_max\": 0\n    },\n    \"agent_name\": \"string\",\n    \"archived_at\": \"string\",\n    \"attach_expires_at\": \"string\",\n    \"attachable\": false,\n    \"attached_to\": \"string\",\n    \"attention\": \"string\"\n  }\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions/{session_id}\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionByID({ path: { \"session_id\": \"session_id\" } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionByID(ctx, client.GetSessionByIDParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "getGlobalSessionStatus",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/status",
+            "summary": "Read compact session status and wake eligibility for a Global session",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "session_id",
+                    "in": "path",
+                    "type": "string",
+                    "required": true,
+                    "description": "Session id"
+                },
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Read one profile's rows by name"
+                },
+                {
+                    "name": "all_profiles",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Read the owner-labeled all-profiles aggregate"
+                }
+            ],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "403", "description": "Forbidden - workspace or permission mismatch" },
+                { "code": "404", "description": "Session not found" },
+                { "code": "500", "description": "Internal server error" }
+            ],
+            "response": "{\n  \"active_prompt\": false,\n  \"agent_name\": \"string\",\n  \"attachable\": false,\n  \"attention\": \"string\",\n  \"badge\": \"running\",\n  \"derivation\": {\n    \"first_prompt\": \"string\",\n    \"kind\": \"\",\n    \"native_fork_error\": \"string\",\n    \"native_state\": \"string\",\n    \"seed\": \"string\",\n    \"source_session_id\": \"string\"\n  },\n  \"diagnostics\": [\n    {\n      \"category\": \"string\",\n      \"code\": \"string\",\n      \"data_freshness\": \"string\",\n      \"doc_url\": \"string\",\n      \"id\": \"string\",\n      \"message\": \"string\"\n    }\n  ]\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions/{session_id}/status\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getGlobalSessionStatus({ path: { \"session_id\": \"session_id\" } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetGlobalSessionStatus(ctx, client.GetGlobalSessionStatusParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "listGlobalSessionEvents",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/events",
+            "summary": "List persisted session events for a Global session",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "session_id",
+                    "in": "path",
+                    "type": "string",
+                    "required": true,
+                    "description": "Session id"
+                },
+                {
+                    "name": "since",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Only events emitted since this timestamp"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "type": "integer",
+                    "required": false,
+                    "description": "Maximum number of records to return; defaults to the newest 200 and is capped at 1000"
+                },
+                {
+                    "name": "after_sequence",
+                    "in": "query",
+                    "type": "integer",
+                    "required": false,
+                    "description": "Only return events after this sequence number"
+                },
+                {
+                    "name": "type",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Event type"
+                },
+                {
+                    "name": "agent_name",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Agent name"
+                },
+                {
+                    "name": "turn_id",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Turn id"
+                },
+                {
+                    "name": "archive",
+                    "in": "query",
+                    "type": "\"active\" | \"archived\" | \"all\"",
+                    "required": false,
+                    "description": "Select active, archived, or all events"
+                },
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Read one profile's rows by name"
+                },
+                {
+                    "name": "all_profiles",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Read the owner-labeled all-profiles aggregate"
+                }
+            ],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "400", "description": "Invalid filter" },
+                { "code": "404", "description": "Session not found" },
+                { "code": "500", "description": "Internal server error" }
+            ],
+            "response": "{\n  \"events\": [\n    {\n      \"actor_id\": \"string\",\n      \"actor_kind\": \"string\",\n      \"agent_name\": \"string\",\n      \"claim_token_hash\": \"string\",\n      \"coordinator_session_id\": \"string\"\n    }\n  ]\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions/{session_id}/events\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listGlobalSessionEvents({ path: { \"session_id\": \"session_id\" } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListGlobalSessionEvents(ctx, client.ListGlobalSessionEventsParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "getGlobalSessionHistory",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/history",
+            "summary": "List grouped session turn history for a Global session",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "session_id",
+                    "in": "path",
+                    "type": "string",
+                    "required": true,
+                    "description": "Session id"
+                },
+                {
+                    "name": "since",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Only events emitted since this timestamp"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "type": "integer",
+                    "required": false,
+                    "description": "Maximum number of turns to return; defaults to the newest 200 and is capped at 1000"
+                },
+                {
+                    "name": "after_sequence",
+                    "in": "query",
+                    "type": "integer",
+                    "required": false,
+                    "description": "Only return events after this sequence number"
+                },
+                {
+                    "name": "type",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Event type"
+                },
+                {
+                    "name": "agent_name",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Agent name"
+                },
+                {
+                    "name": "turn_id",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Turn id"
+                },
+                {
+                    "name": "archive",
+                    "in": "query",
+                    "type": "\"active\" | \"archived\" | \"all\"",
+                    "required": false,
+                    "description": "Select active, archived, or all events"
+                },
+                {
+                    "name": "profile",
+                    "in": "query",
+                    "type": "string",
+                    "required": false,
+                    "description": "Read one profile's rows by name"
+                },
+                {
+                    "name": "all_profiles",
+                    "in": "query",
+                    "type": "boolean",
+                    "required": false,
+                    "description": "Read the owner-labeled all-profiles aggregate"
+                }
+            ],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "400", "description": "Invalid filter" },
+                { "code": "404", "description": "Session not found" },
+                { "code": "500", "description": "Internal server error" }
+            ],
+            "response": "{\n  \"history\": [\n    {\n      \"turn_id\": \"string\"\n    }\n  ]\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions/{session_id}/history\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getGlobalSessionHistory({ path: { \"session_id\": \"session_id\" } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetGlobalSessionHistory(ctx, client.GetGlobalSessionHistoryParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "spawnAgentSession",
+            "method": "POST",
+            "path": "/api/agent/spawn",
+            "summary": "Spawn a narrowed child session for the calling agent",
+            "transports": ["http", "uds"],
+            "params": [
+                {
+                    "name": "X-Compozy-Session-ID",
+                    "in": "header",
+                    "type": "string",
+                    "required": true,
+                    "description": "Daemon-issued active session id"
+                },
+                {
+                    "name": "X-Compozy-Agent",
+                    "in": "header",
+                    "type": "string",
+                    "required": true,
+                    "description": "Daemon-issued session agent name"
+                }
+            ],
+            "body": [
+                {
+                    "name": "acp_options",
+                    "type": "AgentACPOptionSelection[]",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "agent_name", "type": "string", "required": true, "description": "" },
+                {
+                    "name": "auto_stop_on_parent",
+                    "type": "boolean",
+                    "required": true,
+                    "description": ""
+                },
+                {
+                    "name": "idempotency_key",
+                    "type": "string",
+                    "required": false,
+                    "description": ""
+                },
+                {
+                    "name": "inherit_permissions",
+                    "type": "boolean",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "model", "type": "string", "required": false, "description": "" },
+                { "name": "name", "type": "string", "required": false, "description": "" },
+                {
+                    "name": "new_worktree",
+                    "type": "SpawnNewWorktreeRequest | null",
+                    "required": false,
+                    "description": ""
+                },
+                {
+                    "name": "notify_creator",
+                    "type": "boolean",
+                    "required": false,
+                    "description": ""
+                },
+                {
+                    "name": "permissions",
+                    "type": "SpawnPermissionRequestPayload",
+                    "required": true,
+                    "description": ""
+                },
+                { "name": "prompt", "type": "string", "required": false, "description": "" },
+                {
+                    "name": "prompt_overlay",
+                    "type": "string",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "provider", "type": "string", "required": false, "description": "" },
+                {
+                    "name": "reasoning_effort",
+                    "type": "string",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "spawn_role", "type": "string", "required": true, "description": "" },
+                {
+                    "name": "speed",
+                    "type": "\"normal\" | \"fast\"",
+                    "required": false,
+                    "description": ""
+                },
+                { "name": "toolsets", "type": "string[]", "required": false, "description": "" },
+                { "name": "ttl_seconds", "type": "integer", "required": true, "description": "" },
+                { "name": "workspace", "type": "string", "required": false, "description": "" },
+                { "name": "worktree", "type": "string", "required": false, "description": "" }
+            ],
+            "bodyType": "AgentSpawnRequest",
+            "responses": [
+                { "code": "201", "description": "Created" },
+                { "code": "401", "description": "Agent caller identity is missing" },
+                { "code": "403", "description": "Spawn permission denied" },
+                { "code": "409", "description": "Spawn limit conflict" },
+                { "code": "422", "description": "Invalid spawn request" },
+                { "code": "500", "description": "Internal server error" },
+                { "code": "503", "description": "Service unavailable - dependent service missing" }
+            ],
+            "response": "{\n  \"spawn\": {\n    \"lineage\": {\n      \"auto_stop_on_parent\": false,\n      \"kind\": \"\",\n      \"notify_creator\": false,\n      \"origin_agent_name\": \"string\",\n      \"origin_message_id\": \"string\",\n      \"parent_session_id\": \"string\"\n    },\n    \"permissions\": {},\n    \"prompt\": {\n      \"error\": \"string\",\n      \"message_id\": \"string\",\n      \"reply_watch_id\": \"string\",\n      \"reply_watch_state\": \"string\",\n      \"status\": \"string\"\n    },\n    \"session\": {\n      \"agent_name\": \"string\",\n      \"archived_at\": \"string\",\n      \"attach_expires_at\": \"string\",\n      \"attachable\": false,\n      \"attached_to\": \"string\",\n      \"attention\": \"string\"\n    },\n    \"worktree\": {\n      \"base_sha\": \"string\",\n      \"branch\": \"string\",\n      \"created\": false,\n      \"id\": \"string\",\n      \"name\": \"string\",\n      \"path\": \"string\"\n    }\n  }\n}",
+            "samples": {
+                "curl": "curl -X POST \"http://localhost:2123/api/agent/spawn\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"acp_options\": \"string\", \"agent_name\": \"string\", \"auto_stop_on_parent\": \"string\"}'",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agent.spawnAgentSession({ headers: { \"X-Compozy-Session-ID\": \"X-Compozy-Session-ID\", \"X-Compozy-Agent\": \"X-Compozy-Agent\" }, body: { /* request fields */ } });",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SpawnAgentSession(ctx, client.SpawnAgentSessionParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\"}, client.AgentSpawnRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "getSessionAttentionSummary",
+            "method": "GET",
+            "path": "/api/sessions/attention-summary",
+            "summary": "Get exact session attention counts",
+            "transports": ["http", "uds"],
+            "params": [],
+            "body": [],
+            "bodyType": "",
+            "responses": [
+                { "code": "200", "description": "OK" },
+                { "code": "403", "description": "Agent identity is denied" },
+                { "code": "500", "description": "Internal server error" },
+                { "code": "503", "description": "Session attention is unavailable" }
+            ],
+            "response": "{\n  \"by_workspace\": [\n    {\n      \"finished\": 0,\n      \"needs_you\": 0,\n      \"workspace_id\": \"string\"\n    }\n  ],\n  \"finished\": 0,\n  \"needs_you\": 0,\n  \"terminal_approvals\": [\n    {\n      \"count\": 0,\n      \"profile_id\": \"string\",\n      \"workspace_id\": \"string\"\n    }\n  ]\n}",
+            "samples": {
+                "curl": "curl \"http://localhost:2123/api/sessions/attention-summary\"",
+                "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionAttentionSummary();",
+                "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionAttentionSummary(ctx)\nif err != nil { return err }\nfmt.Println(result)"
+            }
+        },
+        {
+            "id": "listProcesses",
+            "method": "GET",
+            "path": "/api/processes",
+            "summary": "List processes grouped by session, including left-running processes"
+        },
+        {
+            "id": "terminateProcesses",
+            "method": "POST",
+            "path": "/api/processes/terminate",
+            "summary": "Terminate identity-verified processes with missing or retained session owners"
+        },
+        {
+            "id": "streamSessionCatalog",
+            "method": "GET",
+            "path": "/api/sessions/catalog-stream",
+            "summary": "Stream session catalog changes across workspaces"
+        },
+        {
+            "id": "listSessionFacets",
+            "method": "GET",
+            "path": "/api/sessions/facets",
+            "summary": "Count session catalog facets"
+        },
+        {
+            "id": "getSessionOwner",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/owner",
+            "summary": "Get a session owner; Global history has an empty workspace id"
+        },
+        {
+            "id": "refreshSessionPullRequest",
+            "method": "POST",
+            "path": "/api/sessions/{session_id}/pull-request/refresh",
+            "summary": "Refresh a session pull request"
+        },
+        {
+            "id": "streamGlobalSession",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/stream",
+            "summary": "Stream raw session events or fenced transcript changes for a Global session"
+        },
+        {
+            "id": "getGlobalSessionTranscript",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/transcript",
+            "summary": "Get a bounded materialized transcript page for a Global session"
+        },
+        {
+            "id": "getGlobalSessionTranscriptOutline",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/transcript/outline",
+            "summary": "Get the full retained operator-message trail with reply previews for a Global session"
+        },
+        {
+            "id": "searchGlobalSessionTranscript",
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/transcript/search",
+            "summary": "Search retained transcript messages with bounded literal matches for a Global session"
+        },
+        {
+            "id": "listSessionFolders",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/session-folders",
+            "summary": "List session folders in manual order"
+        },
+        {
+            "id": "createSessionFolder",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/session-folders",
+            "summary": "Create a session folder"
+        },
+        {
+            "id": "deleteSessionFolder",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
+            "summary": "Delete a session folder; its sessions return to the workspace root"
+        },
+        {
+            "id": "renameSessionFolder",
+            "method": "PATCH",
+            "path": "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
+            "summary": "Rename a session folder"
+        },
+        {
+            "id": "reorderSessionFolders",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/session-order/folders",
+            "summary": "Set the complete session folder order"
+        },
+        {
+            "id": "reorderSessions",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/session-order/sessions",
+            "summary": "Set the manual session order in a folder or the workspace root"
+        },
+        {
+            "id": "listWorkspaceSessions",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions",
+            "summary": "List sessions"
+        },
+        {
+            "id": "deleteSession",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}",
+            "summary": "Delete one session and remove it from persisted history"
+        },
+        {
+            "id": "getSession",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}",
+            "summary": "Get one session snapshot"
+        },
+        {
+            "id": "renameSession",
+            "method": "PATCH",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}",
+            "summary": "Rename one user session"
+        },
+        {
+            "id": "approveSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+            "summary": "Approve or deny an interactive permission request"
+        },
+        {
+            "id": "archiveSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
+            "summary": "Archive a stopped session, or stop and archive a live session with stop=true"
+        },
+        {
+            "id": "attachSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+            "summary": "Attach to a resumable live session"
+        },
+        {
+            "id": "uploadSessionAttachment",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+            "summary": "Upload a session attachment"
+        },
+        {
+            "id": "deleteSessionAttachment",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
+            "summary": "Delete a session attachment"
+        },
+        {
+            "id": "readSessionAttachmentBytes",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
+            "summary": "Read session attachment bytes"
+        },
+        {
+            "id": "listSessionClarifications",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
+            "summary": "List the live pending clarification for a session"
+        },
+        {
+            "id": "answerSessionClarification",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
+            "summary": "Answer a live session clarification"
+        },
+        {
+            "id": "clearSessionConversation",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/clear",
+            "summary": "Clear conversation history and restart the session context"
+        },
+        {
+            "id": "getSessionCommands",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
+            "summary": "List commands available to a session"
+        },
+        {
+            "id": "compactSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/compact",
+            "summary": "Request advertised native agent compaction (experimental)"
+        },
+        {
+            "id": "continueSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
+            "summary": "Continue a session with another agent, runtime, or declared route"
+        },
+        {
+            "id": "previewSessionDerive",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
+            "summary": "Preview what a continue or fork of a session would carry"
+        },
+        {
+            "id": "listSessionDescendants",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants",
+            "summary": "List a session's child sessions, recursively"
+        },
+        {
+            "id": "listSessionEvents",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+            "summary": "List persisted session events"
+        },
+        {
+            "id": "searchSessionFiles",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/files",
+            "summary": "Search files and folders under a session's working directory"
+        },
+        {
+            "id": "forkSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+            "summary": "Fork a session with the same agent, whole or through one user message and its turn"
+        },
+        {
+            "id": "getSessionHealth",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
+            "summary": "Read metadata-only session health and wake eligibility"
+        },
+        {
+            "id": "getSessionHistory",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+            "summary": "List grouped session turn history"
+        },
+        {
+            "id": "inspectSession",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect",
+            "summary": "Inspect session health, wake audit, and policy correlation metadata"
+        },
+        {
+            "id": "listSessionInteractions",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+            "summary": "List pending session interactions"
+        },
+        {
+            "id": "moveSessionToLater",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/later",
+            "summary": "Stop a session and its children and park them in Later, with an optional reason and return time"
+        },
+        {
+            "id": "searchSessionWorkCandidates",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates",
+            "summary": "Search this project for link candidates"
+        },
+        {
+            "id": "removeSessionWorkLink",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+            "summary": "Unlink session work"
+        },
+        {
+            "id": "listSessionLinkedWork",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+            "summary": "List session linked work"
+        },
+        {
+            "id": "addSessionWorkLink",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+            "summary": "Link work to a session"
+        },
+        {
+            "id": "refreshSessionWorkLink",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh",
+            "summary": "Ask the forge again about one linked item"
+        },
+        {
+            "id": "markSessionSeen",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+            "summary": "Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused"
+        },
+        {
+            "id": "listSessionMonitors",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
+            "summary": "List a session's monitors"
+        },
+        {
+            "id": "cancelSessionMonitor",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel",
+            "summary": "Cancel a session monitor without waking the session"
+        },
+        {
+            "id": "moveSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
+            "summary": "Move a session into a folder or back to the workspace root"
+        },
+        {
+            "id": "moveSessionToProfile",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile",
+            "summary": "Copy a stopped user session into another profile and archive the original"
+        },
+        {
+            "id": "clearSessionParent",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
+            "summary": "Make an adopted child session top-level, or take over a stopped spawned worker"
+        },
+        {
+            "id": "setSessionParent",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
+            "summary": "Adopt a parentless user session as a child of another session"
+        },
+        {
+            "id": "listSessionPendingInteractions",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+            "summary": "List pending session interactions"
+        },
+        {
+            "id": "updateSessionPresence",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
+            "summary": "Update operator session presence"
+        },
+        {
+            "id": "listSessionProcesses",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/processes",
+            "summary": "List attributed session processes"
+        },
+        {
+            "id": "terminateSessionProcesses",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate",
+            "summary": "Terminate identity-verified session processes"
+        },
+        {
+            "id": "sendSessionPrompt",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
+            "summary": "Send, queue, interrupt, or steer a session prompt"
+        },
+        {
+            "id": "cancelSessionPrompt",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel",
+            "summary": "Cancel the active session prompt"
+        },
+        {
+            "id": "clearSessionInputs",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+            "summary": "Clear queued input with attributed per-entry traces"
+        },
+        {
+            "id": "listSessionInputs",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+            "summary": "List pending session input"
+        },
+        {
+            "id": "cancelQueuedSessionPrompt",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+            "summary": "Cancel a queued session prompt entry"
+        },
+        {
+            "id": "replaceSessionInput",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+            "summary": "Replace queued session input atomically"
+        },
+        {
+            "id": "promoteSessionInput",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
+            "summary": "Promote queued session input to steering"
+        },
+        {
+            "id": "getSessionRecap",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+            "summary": "Get a deterministic session recap"
+        },
+        {
+            "id": "repairSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
+            "summary": "Inspect and repair an interrupted session transcript"
+        },
+        {
+            "id": "resumeSessionFromLater",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later",
+            "summary": "Return a parked session, and optionally its parked children, to the normal flow"
+        },
+        {
+            "id": "rewindSessionConversation",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind",
+            "summary": "Rewind a conversation before one durable user message"
+        },
+        {
+            "id": "clearSessionRuntime",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+            "summary": "Clear the default runtime for future prompts"
+        },
+        {
+            "id": "setSessionRuntime",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+            "summary": "Select the default runtime for future prompts"
+        },
+        {
+            "id": "refreshSessionSoul",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh",
+            "summary": "Refresh an idle session's Soul snapshot through body-level CAS"
+        },
+        {
+            "id": "getSessionStatus",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/status",
+            "summary": "Read compact session status and wake eligibility"
+        },
+        {
+            "id": "steerSessionPrompt",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
+            "summary": "Stage steering input for the active session turn"
+        },
+        {
+            "id": "stopSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
+            "summary": "Stop a session without deleting persisted history"
+        },
+        {
+            "id": "streamSession",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+            "summary": "Stream raw session events or fenced transcript changes"
+        },
+        {
+            "id": "listSessionSubagents",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
+            "summary": "List a session's subagents"
+        },
+        {
+            "id": "listSessionTools",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
+            "summary": "List session-callable registry tools"
+        },
+        {
+            "id": "searchSessionTools",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
+            "summary": "Search session-callable registry tools"
+        },
+        {
+            "id": "getSessionTranscript",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+            "summary": "Get a bounded materialized transcript page"
+        },
+        {
+            "id": "getSessionTranscriptOutline",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+            "summary": "Get the full retained operator-message trail with reply previews"
+        },
+        {
+            "id": "searchSessionTranscript",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
+            "summary": "Search retained transcript messages with bounded literal matches"
+        },
+        {
+            "id": "unarchiveSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
+            "summary": "Restore an archived session"
+        },
+        {
+            "id": "getSessionUsage",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
+            "summary": "Get aggregated token usage for a session"
+        },
+        {
+            "id": "getSessionUsageTurns",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+            "summary": "Get per-turn session usage and native compaction markers"
+        },
+        {
+            "id": "waitForSession",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
+            "summary": "Wait for a session state"
+        },
+        {
+            "id": "unbindSessionWorktree",
+            "method": "DELETE",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
+            "summary": "Return an idle session to the workspace root in place"
+        },
+        {
+            "id": "bindSessionWorktree",
+            "method": "PUT",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
+            "summary": "Bind an idle existing session to a ready worktree in place"
+        },
+        {
+            "id": "forkSessionToWorktree",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+            "summary": "Fork a live session into a worktree"
+        },
+        {
+            "id": "getSubagent",
+            "method": "GET",
+            "path": "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
+            "summary": "Read one subagent"
+        },
+        {
+            "id": "cancelSubagent",
+            "method": "POST",
+            "path": "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel",
+            "summary": "Cancel a delegated subagent"
+        }
+    ]
+}

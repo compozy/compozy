@@ -63,10 +63,15 @@ api_identifiers='(?x:
   | \bOperationStrategy\.single\(\{\s*root:[\t ]*"Compozy"
   | \bCompozy[\t ]+\w+[\t ]+\x60json:"compozy"\x60
 )'
-pattern="${api_identifiers}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
+# Words other people wrote stay as written: one beta-program quote shown on the landing.
+verbatim_quotes='(?x: \bemployee\x20of\x20the\x20week\x20is\x20going\x20to\x20be\x20Compozy\b )'
+# Published GitHub release notes are immutable history. The changelog prototype carries a snapshot of
+# them; the site itself reads them from GitHub at build time.
+history_snapshots=(--glob '!web/src/drafts/changelog/releases.json')
+pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
 
 set +e
-matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "$pattern" -- "${paths[@]}" 2>&1)"
+matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "${history_snapshots[@]}" "$pattern" -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 
@@ -115,6 +120,7 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
+    web/src/drafts/changelog/releases.json) return 0 ;;
     RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md | .release-notes/remove-agent-kind-aliases.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
@@ -206,6 +212,62 @@ done <<<"$rule_b_files"
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
   echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in removed-input diagnostics." >&2
+  failed=1
+fi
+
+# Retired built-in identity (brand identity v1.2, business rule 8, UT-012): the orange accent and the
+# Inter/Playfair/JetBrains Mono default stacks. Explicit user-chosen fonts stay legal: the Appearance
+# catalog and its loaders (in font-appearance.ts, which also owns the DEFAULT_FONT_* defaults, so only
+# its catalog/loader stacks are exempt) and their tests are allowlisted, as are the identity palette
+# and the tests that assert the retired values are gone.
+identity_roots=(packages/ui packages/site packages/launch-video packages/brand web/src desktop/src README.md)
+retired_color='(?i:e8572a|rgba\(\s*232\s*,\s*87\s*,\s*42\b)'
+retired_font='(?:Inter[\t ]+Variable|Playfair|JetBrains[\t ]+Mono)'
+retired_default="\\bDEFAULT_FONT_\\w*[^=\\n]*=\\s*\\{[^}]*?${retired_font}"
+retired_stack="(?:--font-[\\w-]+\\s*:|font-family\\s*:|fontFamily\\s*[:=])[^;{}\\[\\]]*?${retired_font}|${retired_default}"
+
+rule_c_in_scope() {
+  local rel="$1" root
+  for root in "${identity_roots[@]}"; do
+    [[ "$rel" == "$root" || "$rel" == "$root"/* ]] && return 0
+  done
+  return 1
+}
+
+rule_c_allowed() {
+  case "$1" in
+    web/src/systems/theme/__tests__/theme-runtime.test.ts) return 0 ;;
+    web/src/systems/os/apps/settings/__tests__/appearance-settings-pane.test.tsx) return 0 ;;
+    packages/ui/src/lib/identity-palette.ts | packages/ui/src/lib/__tests__/identity-palette.test.ts) return 0 ;;
+    packages/site/lib/__tests__/opengraph-image.test.tsx | packages/ui/src/components/custom/__tests__/logo.test.tsx) return 0 ;;
+  esac
+  return 1
+}
+
+if ((explicit)); then
+  rule_c_paths=("${paths[@]}")
+else
+  rule_c_paths=("${identity_roots[@]}")
+fi
+identity_findings=()
+rule_c_files="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_stack}" -- "${rule_c_paths[@]}")"
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  rel="$(relative_path "$file")"
+  rule_c_in_scope "$rel" || continue
+  rule_c_allowed "$rel" && continue
+  if [[ "$rel" == web/src/systems/theme/lib/font-appearance.ts ]]; then
+    # The catalog owner: its catalog entries and loaders name user-chosen fonts; only the orange
+    # accent and the DEFAULT_FONT_* built-in defaults are enforced there.
+    remaining="$(kind_scan "Rule C" --multiline "${retired_color}|${retired_default}" -- "$file")"
+    [[ -n "$remaining" ]] || continue
+  fi
+  identity_findings+=("Rule C: $file ($rel) keeps the retired orange accent or a retired default font stack")
+done <<<"$rule_c_files"
+
+if ((${#identity_findings[@]} > 0)); then
+  printf '%s\n' "${identity_findings[@]}" >&2
+  echo "Retired brand identity found. Use the volt brand tokens and the Figtree / Instrument Sans / Geist Mono defaults." >&2
   failed=1
 fi
 

@@ -19,14 +19,20 @@ agent name in the example.
 
 From the project directory you want the agent to inspect:
 
+<section id="sdk-install-ts">
+
 ```bash
 npm install --save-exact @compozy/client
 ```
 
+</section>
+
 Expected result: your `package.json` and lockfile contain an exact `@compozy/client` version. Use the
 SDK version matching your daemon release. Save the following as `run.mjs`:
 
-```js
+<section id="sdk-run-ts">
+
+```js title="run.mjs"
 import { Compozy } from "@compozy/client";
 
 const compozy = await Compozy.connect();
@@ -50,6 +56,8 @@ if (reply.kind === "stream") {
   console.log(reply.result.status, reply.result.queue_position);
 }
 ```
+
+</section>
 
 Run it:
 

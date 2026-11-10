@@ -4,9 +4,9 @@ area: ET
 title: Docs shell typography matches OpenDesign three-voice ramp
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: On a runtime docs page (e.g. /docs/loops), Playfair Display appears only on the page title and h2 (retuned heading clamp, hairline top); h3 is Geist 600 at 1.25rem/1.25; lead is 18px muted at 64ch; body is Geist 16px/1.8 muted at 72ch with strong at 600 and underlined links; sidebar section labels use mono badge (10.5px accent-mix) and in-folder groups use mono group-label (10px subtle 72%) — no Geist uppercase, no weight 700, no Playfair below display size.
+expected: On a runtime docs page (e.g. /docs/loops), Instrument Sans (`--font-display`, weight 400) appears only on the page title and h2 (retuned heading clamp, hairline top); h3 is Figtree 600 at 1.25rem/1.25; lead is 18px muted at 64ch; body is Figtree 16px/1.8 muted at 72ch with strong at 600 and underlined links; code and sidebar labels use Geist Mono — section labels as mono badge (10.5px accent-mix) and in-folder groups as mono group-label (10px subtle 72%) — no sans uppercase, no weight 700, no Instrument Sans below display size, and no Playfair, Geist sans, Inter or JetBrains Mono face loads.
 entry_points: compozy.com /docs/loops; docs/design/opendesign/_done/site/site-docs-sidebar.html; docs/design/opendesign/_done/site/site-example-page.html
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -44,3 +44,7 @@ computed-style probes after `document.fonts.ready`.
 
 Evidence: `computed-styles.json`, `computed-styles-2.json`, `site-docs-loops.png` under the
 `evidence:` path.
+
+qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The site faces moved: display Playfair Display → Instrument Sans, sans Geist → Figtree, mono JetBrains Mono → Geist Mono (`packages/site/app/global.css`). The 2026-08-09 walk below verified the retired faces; status reset to untested for a re-walk on the new faces.
+
+QA impact 2026-11-10 (site redesign): the three-voice docs ramp and its `--text-site-doc-*` / `--site-doc-*` tokens were replaced by the docs draft's reading type; the unused tokens were deleted and DESIGN.md regenerated. Current coverage is ET-site-docs-shell; this file stays as history and is reset to untested so no stale verdict counts.

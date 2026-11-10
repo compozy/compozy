@@ -1,7 +1,9 @@
 @import "tailwindcss";
-/* Inter Variable (wght 100–900) carries the 425 regular; Geist Mono Variable
-   covers code, paths and the terminal. */
-@import "@fontsource-variable/inter";
+/* Figtree Variable (wght 300–900) carries the 450 UI regular; Instrument Sans
+   Variable is the display face (logo/wordmark and site display only); Geist
+   Mono Variable covers code, paths and the terminal. */
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/geist-mono";
 @import "@compozy/ui/tokens.css";
 @import "shadcn/tailwind.css";

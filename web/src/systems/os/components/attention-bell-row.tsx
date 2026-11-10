@@ -31,7 +31,7 @@ function loopIcon(state: "waiting" | "attention"): LucideIcon {
   return state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
 }
 
-const NEEDS_YOU_TONE = "bg-brand-tint text-brand";
+const NEEDS_YOU_TONE = "bg-attn-tint text-attn";
 
 function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   return (

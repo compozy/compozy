@@ -7,10 +7,7 @@ describe("cn", () => {
   it("Should keep a project font-size utility that shares a call with a color utility", () => {
     // tailwind-merge reads an unregistered `text-*` class as a color and drops it
     // as a conflict. This silently flattened blog article headings to body size.
-    expect(cn("text-site-doc-heading text-fg").split(" ")).toEqual([
-      "text-site-doc-heading",
-      "text-fg",
-    ]);
+    expect(cn("text-prose-h2 text-fg").split(" ")).toEqual(["text-prose-h2", "text-fg"]);
   });
 
   it("Should keep every generated font-size class alongside a color utility", () => {
@@ -21,7 +18,7 @@ describe("cn", () => {
   });
 
   it("Should still resolve two font-size utilities to the last one", () => {
-    expect(cn("text-site-doc-heading text-site-subheading")).toBe("text-site-subheading");
+    expect(cn("text-prose-h1 text-prose-h2")).toBe("text-prose-h2");
   });
 
   it("Should still resolve two color utilities to the last one", () => {

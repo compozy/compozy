@@ -61,16 +61,16 @@ function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | 
     case "failed":
       return { label: "Failed", tone: "destructive" };
     case "waiting-for-auth":
-      return { label: "Auth", tone: "brand" };
+      return { label: "Auth", tone: "attn" };
     case "waiting-for-input":
       return pendingPermissionCount(session) > 0
-        ? { label: "Approval", tone: "brand" }
-        : { label: "Input", tone: "brand" };
+        ? { label: "Approval", tone: "attn" }
+        : { label: "Input", tone: "attn" };
     case "needs-attention":
-      if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "brand" };
+      if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "attn" };
       if (session.attention === ENDED_EARLY_ATTENTION)
-        return { label: "Stopped early", tone: "brand" };
-      return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "brand" };
+        return { label: "Stopped early", tone: "attn" };
+      return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "attn" };
     default:
       return null;
   }

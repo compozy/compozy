@@ -75,7 +75,6 @@ const config = {
       "../../extensions/open-design/loops/*/loop.yaml",
       "../../extensions/open-design/agents/*/AGENT.md",
       "../../extensions/open-design/skills/*/SKILL.md",
-      "../../skills/**/SKILL.md",
     ],
   },
   images: {

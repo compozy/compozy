@@ -43,7 +43,7 @@ if lane == 'lint':
     run('bun', 'run', 'lint')
 else:
     turbo(['typecheck', 'test'], names)
-    turbo(['build'], [name for name in names if name in {'compozy-web', '@compozy/site', '@compozy/example-prompt-enhancer'}])
+    turbo(['build'], [name for name in names if name in {'compozy-web', '@compozy/site', '@compozy/brand', '@compozy/example-prompt-enhancer'}])
     if '@compozy/client' in names:
         turbo(['test:package'], ['@compozy/client'])
     if lane == 'site-sdk' and (all_packages or any(name.startswith('@compozy/') for name in selected)):

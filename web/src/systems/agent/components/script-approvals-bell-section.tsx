@@ -40,7 +40,7 @@ function ScriptRow({
       >
         <span
           aria-hidden="true"
-          className="grid size-4.5 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"
+          className="grid size-4.5 shrink-0 place-items-center rounded-full bg-attn-tint text-attn"
         >
           <Icon as={SquareTerminal} size="xs" />
         </span>

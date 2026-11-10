@@ -87,14 +87,14 @@ const BEAT_REGISTER: Record<LoopTimelineEntry["kind"], BeatRegister> = {
   node_requeued: { tone: "info", icon: "requeued" },
   node_amended: { tone: "info", icon: "amended" },
   // Waiting on people or on the world
-  needs_approval: { tone: "brand", icon: "approval" },
-  request_opened: { tone: "brand", icon: "request-opened" },
+  needs_approval: { tone: "attn", icon: "approval" },
+  request_opened: { tone: "attn", icon: "request-opened" },
   request_answered: { tone: "info", icon: "request-answered" },
   request_expired: { tone: "destructive", icon: "request-expired" },
   request_canceled: { tone: "neutral", icon: "canceled" },
   node_wait_started: { tone: "neutral", icon: "waiting" },
   node_wait_resumed: { tone: "info", icon: "resumed" },
-  node_attention_flagged: { tone: "brand", icon: "attention" },
+  node_attention_flagged: { tone: "attn", icon: "attention" },
   node_attention_cleared: { tone: "info", icon: "attention-cleared" },
   // Shape
   gate_verdict: { tone: "info", icon: "check-pass" },

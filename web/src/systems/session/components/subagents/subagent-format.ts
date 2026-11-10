@@ -23,7 +23,7 @@ export function subagentDot(status: SubagentStatus): SubagentDotSignal {
     case "running":
       return { tone: "success", pulse: true };
     case "waiting":
-      return { tone: "brand", pulse: false };
+      return { tone: "attn", pulse: false };
     case "completed":
       return { tone: "success", pulse: false };
     case "failed":

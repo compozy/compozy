@@ -40,7 +40,7 @@ function SessionGroupSignal({ group }: { group: SessionListGroupSpec }) {
   const label = sessionListGroupSignalLabel(group);
   if (label === null) return null;
   if (group.needsYou > 0) {
-    return <StatusDot tone="brand" size="sm" label={label} data-slot="session-group-needs-you" />;
+    return <StatusDot tone="attn" size="sm" label={label} data-slot="session-group-needs-you" />;
   }
   return <StatusDot tone="success" size="sm" label={label} data-slot="session-group-working" />;
 }

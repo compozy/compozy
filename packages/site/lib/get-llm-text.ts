@@ -1,25 +1,50 @@
 import type { InferPageType } from "fumadocs-core/source";
-import { remarkInclude } from "fumadocs-mdx/config";
-import { remark } from "remark";
-import remarkGfm from "remark-gfm";
-import remarkMdx from "remark-mdx";
-import type { docsSource } from "@/lib/source";
+import { expandApiOperations } from "@/lib/api-reference-markdown";
+import { SDK_GUIDE_PAGES } from "@/lib/sdk-reference-build";
+import {
+  expandSdkLanguages,
+  expandSdkOverview,
+  expandSdkResources,
+  type SdkGuideLink,
+} from "@/lib/sdk-reference-markdown";
+import { docsSource } from "@/lib/source";
 import { absoluteUrl } from "@/lib/site-config";
 
-const processor = remark().use(remarkMdx).use(remarkInclude).use(remarkGfm);
-
 type DocsPage = InferPageType<typeof docsSource>;
-type DocsPageDataExtras = DocsPage["data"] & {
-  _file?: { absolutePath: string };
-  content?: string;
-};
+
+/**
+ * Both texts below are compiled into the page module by `source.config.ts`, so a revalidating route
+ * never reads `content/docs` from disk: a deployed function does not ship those files.
+ */
+
+/** The page's MDX body as authored, without its frontmatter: what the page templates parse. */
+export function getDocsPageSource(page: DocsPage): string {
+  const raw = page.data._exports.rawSource;
+  if (typeof raw !== "string") {
+    throw new Error(
+      `${page.path} has no compiled rawSource: check postprocess in source.config.ts`
+    );
+  }
+  return raw;
+}
+
+/** The client guides the SDK overview lists, in sidebar order. */
+function sdkGuides(): SdkGuideLink[] {
+  return SDK_GUIDE_PAGES.flatMap(slug => {
+    const page = docsSource.getPage(["sdk", slug]);
+    return page
+      ? [{ url: page.url, title: page.data.title, description: page.data.description ?? "" }]
+      : [];
+  });
+}
 
 export async function getLLMText(page: DocsPage): Promise<string> {
-  const data = page.data as DocsPageDataExtras;
-  const value = data.content ?? "";
-  const path = data._file?.absolutePath ?? page.url;
-  const processed = await processor.process({ path, value });
+  // The authored Markdown with its includes embedded and its imports and exports dropped.
+  const processed = await page.data.getText("processed");
   const description = page.data.description ?? "";
+  // A generated API page keeps its operations in the export the processed text drops.
+  const value =
+    page.slugs[0] === "api" ? expandApiOperations(processed, getDocsPageSource(page)) : processed;
 
   return [
     `# ${page.data.title}`,
@@ -27,6 +52,7 @@ export async function getLLMText(page: DocsPage): Promise<string> {
     "",
     description,
     "",
-    String(processed.value),
+    // SDK pages hold components; their Markdown lists what they render.
+    expandSdkLanguages(expandSdkOverview(expandSdkResources(value), sdkGuides)),
   ].join("\n");
 }

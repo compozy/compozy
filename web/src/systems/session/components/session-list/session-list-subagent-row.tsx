@@ -136,7 +136,7 @@ function NeedsYouWord({ display }: { display: SubagentDisplay }) {
       aria-hidden="true"
       className={cn(
         "min-w-0 truncate",
-        SESSION_TONE_WORD_CLASS[display.tone === "attention" ? "brand" : "destructive"]
+        SESSION_TONE_WORD_CLASS[display.tone === "attention" ? "attn" : "destructive"]
       )}
     >
       {display.word}

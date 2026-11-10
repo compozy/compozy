@@ -62,7 +62,7 @@ const ATTENTION: OsAttentionModel = {
   loading: false,
 };
 
-/** Four desktops; Review holds a session that needs you (orange dot while off-screen). */
+/** Four desktops; Review holds a session that needs you (amber dot while off-screen). */
 const PAGER_DESKTOPS: DesktopPagerItem[] = [
   { id: "control", name: "Control" },
   { id: "build", name: "Build" },

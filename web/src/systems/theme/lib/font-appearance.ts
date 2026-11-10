@@ -9,7 +9,7 @@
 
 export type FontRole = "sans" | "mono";
 
-/** One family name per role; `""` keeps the built-in stack (Inter / Geist Mono). */
+/** One family name per role; `""` keeps the built-in stack (Figtree / Geist Mono). */
 export type FontAppearance = Record<FontRole, string>;
 
 export const DEFAULT_FONT_APPEARANCE: FontAppearance = { sans: "", mono: "" };
@@ -44,13 +44,13 @@ export const FONT_CATALOG: readonly FontCatalogEntry[] = [
 
 /** Built-in faces each role falls back to, named for the Default entry. */
 export const DEFAULT_FONT_LABEL: Record<FontRole, string> = {
-  sans: "Inter",
+  sans: "Figtree",
   mono: "Geist Mono",
 };
 
 /** The built-in face itself, so the Default entry previews it rather than inheriting. */
 const DEFAULT_FONT_FAMILY: Record<FontRole, string> = {
-  sans: "Inter Variable",
+  sans: "Figtree Variable",
   mono: "Geist Mono Variable",
 };
 

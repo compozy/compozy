@@ -1,4 +1,4 @@
-import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
+import { DocsCode } from "@/components/docs/docs-prose";
 import { getCurrentRelease } from "@/lib/release/current-release";
 import {
   curlEnvInstallCommand,
@@ -16,7 +16,7 @@ export type InstallCommandMethod = keyof typeof COMMAND_BUILDERS;
 
 export async function InstallCommand({ method }: { method: InstallCommandMethod }) {
   const release = await getCurrentRelease();
-  return <DynamicCodeBlock lang="bash" code={COMMAND_BUILDERS[method](release.tag)} />;
+  return <DocsCode language="bash" code={COMMAND_BUILDERS[method](release.tag)} />;
 }
 
 export async function CurrentReleaseTag() {

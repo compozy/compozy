@@ -10,12 +10,14 @@ export interface OGFont {
   style: "normal";
 }
 
+// Static latin WOFF cuts from @fontsource (SIL OFL 1.1): Satori reads TTF/OTF/WOFF, not the
+// variable WOFF2 builds the site and product load.
 const FONT_MANIFEST: ReadonlyArray<{ file: string; name: string; weight: FontWeight }> = [
-  { file: "Geist-Regular.ttf", name: "Geist", weight: 400 },
-  { file: "Geist-Medium.ttf", name: "Geist", weight: 500 },
-  { file: "Geist-SemiBold.ttf", name: "Geist", weight: 600 },
-  { file: "PlayfairDisplay-Regular.ttf", name: "Playfair Display", weight: 400 },
-  { file: "JetBrainsMono-Medium.ttf", name: "JetBrains Mono", weight: 500 },
+  { file: "figtree-latin-400-normal.woff", name: "Figtree", weight: 400 },
+  { file: "figtree-latin-500-normal.woff", name: "Figtree", weight: 500 },
+  { file: "figtree-latin-600-normal.woff", name: "Figtree", weight: 600 },
+  { file: "instrument-sans-latin-400-normal.woff", name: "Instrument Sans", weight: 400 },
+  { file: "geist-mono-latin-500-normal.woff", name: "Geist Mono", weight: 500 },
 ];
 
 let cached: ReadonlyArray<OGFont> | null = null;

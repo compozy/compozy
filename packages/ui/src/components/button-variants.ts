@@ -12,7 +12,7 @@ const PRESSED_PLATE = "aria-pressed:bg-surface-2 aria-pressed:text-fg";
 // A pressed quiet icon toggle (window and session head toggles) is its glyph in
 // brand ink and nothing else: no plate, so selection never reads as hover.
 const PRESSED_BRAND_INK =
-  "aria-pressed:bg-transparent aria-pressed:text-brand aria-pressed:hover:text-brand";
+  "aria-pressed:bg-transparent aria-pressed:text-brand-strong aria-pressed:hover:text-brand-strong";
 
 // Geometry (polish contract P4): every size pairs one height with one text
 // tier and one glyph size — xs 22 / 12 / 12 · sm 26 / 12.5 / 14 · default
@@ -30,7 +30,7 @@ const buttonVariants = cva(
         ghost: `text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-fg ${PRESSED_PLATE} ${DISABLED_BARE}`,
         quiet: `text-muted-foreground hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg ${PRESSED_BRAND_INK} ${DISABLED_BARE}`,
         destructive: `bg-destructive-tint text-destructive hover:bg-destructive-tint hover:opacity-90 ${DISABLED_FILLED}`,
-        "destructive-solid": `bg-destructive text-brand-ink hover:bg-[color-mix(in_srgb,var(--color-destructive)_88%,black)] ${DISABLED_FILLED}`,
+        "destructive-solid": `bg-destructive text-destructive-ink hover:bg-[color-mix(in_srgb,var(--color-destructive)_88%,black)] ${DISABLED_FILLED}`,
         success: `bg-success-tint text-success hover:opacity-90 ${DISABLED_FILLED}`,
         /** Text link ("Edit ›", "View all ›"): muted ink that steps to `fg` on hover, no plate. */
         link: `text-muted-foreground hover:text-fg aria-expanded:text-fg ${DISABLED_BARE}`,

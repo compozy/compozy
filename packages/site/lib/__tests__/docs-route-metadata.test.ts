@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockedPageRender = vi.hoisted(() => ({
-  mastheads: [] as Array<{ pageUrl?: string }>,
+  mastheads: [] as Array<{ pageUrl?: string; githubUrl?: string }>,
   breadcrumbs: [] as Array<{ items: Array<{ name: string; path: string }> }>,
   articles: [] as Array<{ imageUrl: string }>,
 }));
@@ -16,6 +16,7 @@ const mockedDocs = vi.hoisted(() => {
       path: string;
       title: string;
       description: string;
+      source?: string;
     }>
   ) {
     return {
@@ -29,6 +30,9 @@ const mockedDocs = vi.hoisted(() => {
                 ...page,
                 body: () => null,
                 toc: [],
+                // What `source.config.ts` compiles into each page module.
+                _exports: { rawSource: page.source ?? "Body text" },
+                getText: async () => page.source ?? "Body text",
               },
             }
           : null;
@@ -65,6 +69,23 @@ const mockedDocs = vi.hoisted(() => {
       title: "Implementation Status",
       description: "Understand the current Loop grammar.",
     },
+    {
+      slugs: ["api", "sessions"],
+      url: "/docs/api/sessions",
+      path: "api/sessions.mdx",
+      title: "Sessions",
+      description: "CompozyOS Sessions HTTP endpoints.",
+      source:
+        '<OpenAPIPage document="compozy" operations={[{"path":"/api/sessions","method":"get"}]} />',
+    },
+    {
+      slugs: ["sdk", "sessions"],
+      url: "/docs/sdk/sessions",
+      path: "sdk/sessions.mdx",
+      title: "Sessions",
+      description: "Methods on the Sessions resource.",
+      source: '<SdkResource id="sessions" />',
+    },
   ];
 
   return {
@@ -77,17 +98,44 @@ vi.mock("@/lib/source", () => ({
   docsSource: mockedDocs.docsSource,
 }));
 
-vi.mock("fumadocs-ui/page", () => ({
-  DocsBody: ({ children }: { children?: ReactNode }) => children,
-  DocsPage: ({ children }: { children?: ReactNode }) => children,
-}));
-
-vi.mock("@/components/docs/doc-page-masthead", () => ({
-  DocPageMasthead: (props: { pageUrl?: string }) => {
-    mockedPageRender.mastheads.push(props);
+vi.mock("@/components/docs/docs-masthead", () => ({
+  DocsMasthead: (props: { actions: { pageUrl?: string; githubUrl?: string } }) => {
+    mockedPageRender.mastheads.push(props.actions);
     return null;
   },
+  DocsPager: () => null,
 }));
+
+vi.mock("@/components/docs/docs-toc", () => ({
+  DocsPageFrame: ({ children }: { children?: ReactNode }) => children,
+  DocsTocDisclosure: () => null,
+}));
+
+vi.mock("@/lib/docs-shell", () => {
+  const shell = {
+    total: mockedDocs.docsPages.length,
+    sections: [],
+    tabs: [],
+    pages: [],
+    byUrl: new Map(
+      mockedDocs.docsPages.map(page => [
+        page.url,
+        {
+          url: page.url,
+          title: page.title,
+          description: page.description,
+          section: null,
+          trail: [],
+          node: { key: page.url, name: page.title, url: page.url },
+        },
+      ])
+    ),
+  };
+  return {
+    getDocsShell: () => shell,
+    neighboursOf: () => ({ previous: null, next: null }),
+  };
+});
 
 vi.mock("@/components/seo/structured-data", () => ({
   BreadcrumbListJsonLd: (props: { items: Array<{ name: string; path: string }> }) => {
@@ -102,15 +150,6 @@ vi.mock("@/components/seo/structured-data", () => ({
 
 vi.mock("@/mdx-components", () => ({
   getMDXComponents: () => ({}),
-}));
-
-vi.mock("@/lib/doc-masthead-meta", () => ({
-  resolveDocMastheadMeta: () => ({
-    audience: "operators",
-    crumbs: [],
-    product: "CompozyOS",
-    sectionPageCount: 1,
-  }),
 }));
 
 vi.mock("@/lib/openapi", () => ({
@@ -176,5 +215,18 @@ describe("docs route metadata", () => {
     expect(mockedPageRender.articles.at(-1)?.imageUrl).toBe(
       "/og/docs/loops/reference-model/image.png"
     );
+  });
+
+  it("opens hand-written pages on GitHub at their own file and generated ones at their source", async () => {
+    const blob = "https://github.com/compozy/compozy/blob/main";
+    const cases: [string[], string][] = [
+      [["loops", "reference"], `${blob}/packages/site/content/docs/loops/reference-model.mdx`],
+      [["api", "sessions"], `${blob}/openapi/compozy.json`],
+      [["sdk", "sessions"], `${blob}/packages/site/scripts/generate-sdk-reference.ts`],
+    ];
+    for (const [slug, githubUrl] of cases) {
+      render(await DocsRoutePage(pageProps(slug)));
+      expect(mockedPageRender.mastheads.at(-1)?.githubUrl, slug.join("/")).toBe(githubUrl);
+    }
   });
 });

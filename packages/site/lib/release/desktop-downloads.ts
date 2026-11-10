@@ -31,6 +31,7 @@ export const DESKTOP_TARGETS: readonly DesktopTarget[] = [
 
 const WINDOWS_COMMAND_ASSET = "compozy_windows_x86_64.zip";
 const CHECKSUMS_ASSET = "checksums.txt";
+const SIGNATURE_ASSET = "checksums.txt.sigstore.json";
 const STABLE_TAG_PATTERN = /^v\d+\.\d+\.\d+$/;
 
 export interface DesktopDownload {
@@ -43,6 +44,52 @@ export interface DesktopDownload {
 export interface ReleaseFile {
   fileName: string;
   url: string;
+  size: number;
+}
+
+/** One command-line package of a release (GoReleaser artifact names). */
+export interface CommandTarget {
+  os: "macOS" | "Linux";
+  arch: string;
+  format: string;
+  /** Asset name; `{version}` stands for the bare release version (plain data, so it reaches client components). */
+  pattern: string;
+}
+
+export const COMMAND_TARGETS: readonly CommandTarget[] = [
+  {
+    os: "macOS",
+    arch: "Apple silicon",
+    format: "tar.gz",
+    pattern: "compozy_darwin_arm64.tar.gz",
+  },
+  { os: "macOS", arch: "Intel", format: "tar.gz", pattern: "compozy_darwin_x86_64.tar.gz" },
+  { os: "Linux", arch: "x64", format: "tar.gz", pattern: "compozy_linux_x86_64.tar.gz" },
+  { os: "Linux", arch: "ARM64", format: "tar.gz", pattern: "compozy_linux_arm64.tar.gz" },
+  { os: "Linux", arch: "x64", format: "deb", pattern: "compozy_{version}_amd64.deb" },
+  {
+    os: "Linux",
+    arch: "ARM64",
+    format: "deb",
+    pattern: "compozy_{version}_arm64.deb",
+  },
+  {
+    os: "Linux",
+    arch: "x64",
+    format: "rpm",
+    pattern: "compozy-{version}-1.x86_64.rpm",
+  },
+  {
+    os: "Linux",
+    arch: "ARM64",
+    format: "rpm",
+    pattern: "compozy-{version}-1.aarch64.rpm",
+  },
+];
+
+export interface CommandPackage {
+  target: CommandTarget;
+  file: ReleaseFile;
 }
 
 export type DesktopRelease =
@@ -53,7 +100,9 @@ export type DesktopRelease =
       publishedAt: string;
       downloads: DesktopDownload[];
       checksums: ReleaseFile | null;
+      signature: ReleaseFile | null;
       windowsCommand: ReleaseFile | null;
+      commandPackages: CommandPackage[];
     }
   | { status: "fallback"; releaseUrl: string };
 
@@ -63,7 +112,15 @@ export function desktopAssetName(tag: string, target: DesktopTarget): string {
 
 function releaseFile(release: ChangelogRelease, fileName: string): ReleaseFile | null {
   const asset = release.assets.find(item => item.name === fileName);
-  return asset ? { fileName: asset.name, url: asset.url } : null;
+  return asset ? { fileName: asset.name, url: asset.url, size: asset.size } : null;
+}
+
+function commandPackages(release: ChangelogRelease): CommandPackage[] {
+  const version = release.version.replace(/^v/, "");
+  return COMMAND_TARGETS.flatMap(target => {
+    const file = releaseFile(release, target.pattern.replace("{version}", version));
+    return file ? [{ target, file }] : [];
+  });
 }
 
 function desktopDownloads(release: ChangelogRelease): DesktopDownload[] {
@@ -93,7 +150,9 @@ export function selectDesktopRelease(releases: readonly ChangelogRelease[]): Des
       publishedAt: release.publishedAt,
       downloads,
       checksums: releaseFile(release, CHECKSUMS_ASSET),
+      signature: releaseFile(release, SIGNATURE_ASSET),
       windowsCommand: releaseFile(release, WINDOWS_COMMAND_ASSET),
+      commandPackages: commandPackages(release),
     };
   }
   return { status: "fallback", releaseUrl: LATEST_RELEASE_URL };
@@ -150,22 +209,4 @@ export function detectVisitorPlatform(signals: PlatformSignals): VisitorPlatform
   if (/Windows/.test(ua)) return "windows";
   if (/Linux|X11/.test(ua) && !/CrOS/.test(ua)) return "linux";
   return "unknown";
-}
-
-/** Desktop package offered first for a platform; `null` when no desktop build fits. */
-export function primaryTargetFor(platform: VisitorPlatform): DesktopTargetId | null {
-  switch (platform) {
-    case "mac-arm64":
-    case "mac":
-    case "unknown":
-      return "mac-arm64";
-    case "mac-x64":
-      return "mac-x64";
-    // The AppImage is the Linux package the app can update in place.
-    case "linux":
-      return "linux-appimage";
-    case "windows":
-    case "mobile":
-      return null;
-  }
 }

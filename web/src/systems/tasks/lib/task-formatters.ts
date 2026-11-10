@@ -30,7 +30,7 @@ import type {
 /**
  * Maps a task status onto the canonical `StateGlyph` state (shell-rail brand
  * rule 4): running work spins, queued work is a dashed ring, finished work is a
- * mint check, work that needs a person is the orange attention dot, failures
+ * mint check, work that needs a person is the amber attention dot, failures
  * carry the danger mark and deliberate stops read as stopped. `blocked` and
  * `needs_attention` both wait on someone, so both read as attention; their
  * labels keep them distinct. Used by the list table, detail header, kanban,

@@ -52,7 +52,7 @@ function tokenize(text: string): RenderEntry[] {
 }
 
 const KIND_CLASS: Record<RenderEntry["kind"], string> = {
-  key: "text-brand",
+  key: "text-brand-strong",
   string: "text-success",
   number: "text-info",
   boolean: "text-warning",

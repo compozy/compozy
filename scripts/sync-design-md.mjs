@@ -12,7 +12,10 @@ const runtimeCss = ["tokens.css", "terminal-tokens.css"]
 // The light theme re-declares theme-scoped tokens under `[data-theme="light"]:root`;
 // every other value is shared with the (default) dark theme.
 const lightCss = readFileSync(join(root, "packages/ui/src/tokens-light.css"), "utf8");
-const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8");
+// The site's theme lives in global.css; the redesign's shell tokens sit in their own file.
+const siteCss = ["packages/site/app/global.css", "packages/site/app/styles/site-shell.css"]
+  .map(file => readFileSync(join(root, file), "utf8"))
+  .join("\n");
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp":
@@ -21,7 +24,7 @@ const colorGroups = {
   "text-ladder": "fg fg-strong fg-2 fg-3 muted-foreground subtle faint",
   primary: "primary primary-hover primary-foreground",
   brand:
-    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow attn",
+    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow brand-volt brand-sky brand-teal brand-cyan brand-glint brand-deep attn attn-tint",
   "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
@@ -83,6 +86,10 @@ function replaceGeneratedSections(text) {
   const sections = [
     ...Object.entries(colorGroups).map(([id, stems]) => [id, themedTable(colorNames(stems))]),
     ["signal", signalTable()],
+    [
+      "gradients",
+      themedTable(namedRows(runtimeDecls, /^gradient-/).map(([name]) => name.slice(2))),
+    ],
     ["owner-avatar", themedTable(prefixNames(runtimeTheme, "color-avatar-"))],
     ["terminal-ansi", themedTable(terminalRampNames())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],

@@ -1,0 +1,62 @@
+/* The render host fits the app's full-height shell; the landing scrolls the document, as compozy.com does. */
+html:has(#landing) {
+  height: auto;
+  overflow: visible auto;
+}
+
+html:has(#landing) body,
+html:has(#landing) body > * {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+:where(#landing) {
+  --dark-600: rgb(0 0 0 / 0.6);
+  --spot-teal: rgb(29 240 215 / 0.14);
+  --dark-030: rgb(0 0 0 / 0.03);
+  --dark-100: rgb(0 0 0 / 0.1);
+  --dark-150: rgb(0 0 0 / 0.15);
+  --dark-400: rgb(0 0 0 / 0.4);
+  --dark-450: rgb(0 0 0 / 0.45);
+  --dark-550: rgb(0 0 0 / 0.55);
+  --dark-600: rgb(0 0 0 / 0.6);
+  --dark-700: rgb(0 0 0 / 0.7);
+  --light-025: rgb(255 255 255 / 0.025);
+  --light-030: rgb(255 255 255 / 0.03);
+  --light-040: rgb(255 255 255 / 0.04);
+  --light-050: rgb(255 255 255 / 0.05);
+  --light-060: rgb(255 255 255 / 0.06);
+  --light-070: rgb(255 255 255 / 0.07);
+  --light-080: rgb(255 255 255 / 0.08);
+  --light-090: rgb(255 255 255 / 0.09);
+  --light-100: rgb(255 255 255 / 0.1);
+  --light-120: rgb(255 255 255 / 0.12);
+  --light-150: rgb(255 255 255 / 0.15);
+  --light-200: rgb(255 255 255 / 0.2);
+  --light-250: rgb(255 255 255 / 0.25);
+  --light-350: rgb(255 255 255 / 0.35);
+}
+
+.marketplace-count {
+  letter-spacing: normal;
+}
+
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes landing-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes landing-caret {
+  50% {
+    opacity: 0;
+  }
+}

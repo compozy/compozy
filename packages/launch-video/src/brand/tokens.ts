@@ -7,29 +7,29 @@
 
 export const color = {
   /** --color-rail */
-  rail: "#0c0b0b",
+  rail: "#0a0a0a",
   /** --color-canvas */
-  canvas: "#171615",
+  canvas: "#131313",
   /** --color-canvas-soft */
-  canvasSoft: "#1f1e1c",
+  canvasSoft: "#1a1a1a",
   /** --color-elevated */
-  elevated: "#2a2927",
+  elevated: "#1b1b1b",
   /** --color-fg */
-  fg: "#eeedeb",
+  fg: "#ececec",
   /** --color-fg-strong */
-  fgStrong: "#f7f6f4",
+  fgStrong: "#ffffff",
   /** --color-muted-foreground */
-  mutedForeground: "#a4a29e",
+  mutedForeground: "#989898",
   /** --color-brand */
-  brand: "#e8572a",
+  brand: "#2f5bff",
   /** --color-brand-ink */
-  brandInk: "#17110f",
+  brandInk: "#ffffff",
   /** --color-brand-tint-strong */
-  brandTintStrong: "rgba(232, 87, 42, 0.16)",
+  brandTintStrong: "rgba(47, 91, 255, 0.16)",
   /** --color-line */
-  line: "rgba(255, 255, 255, 0.055)",
+  line: "#262626",
   /** --color-line-strong */
-  lineStrong: "rgba(255, 255, 255, 0.09)",
+  lineStrong: "#383838",
   /** --wallpaper-teal — the only second hue, wallpaper depth only */
   wallpaperTeal: "#225555",
   /** --wallpaper-grid dot ink */
@@ -43,11 +43,7 @@ export const radius = {
   md: 10,
 } as const;
 
-/**
- * The product's --font-weight-medium is 510, a half-step only a variable Geist can hit. Google
- * Fonts ships Geist as static instances (100..900 by hundreds), so the renderable medium here is
- * 500 — asking for 510 would silently snap to it anyway.
- */
+/** --font-weight-medium is 500; Figtree's UI weight (450) stays a product-only step. */
 export const weight = {
   normal: 400,
   medium: 500,
@@ -58,7 +54,7 @@ export const tracking = {
   /** --tracking-tight */
   tight: "-0.014em",
   /** --tracking-body */
-  body: "-0.006em",
+  body: "-0.01em",
   /** --tracking-eyebrow-caps, also the mono metadata rail tracking */
   wide: "0.06em",
 } as const;

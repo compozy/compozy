@@ -148,4 +148,4 @@ export const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAIAAABvFaqvAAAAMklEQVR4nGNQwwAvwrXQEDFqGEYNoqNB5GnDVDNqED0NIk/bkEiQw9igwZeORg0iqAYA2EMWf0r4Y2EAAAAASUVORK5CYII=";
 
 export const SVG_WITH_SCRIPT =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><script>document.title="pwned"</script><circle cx="32" cy="32" r="24" fill="#e8572a"/></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><script>document.title="pwned"</script><circle cx="32" cy="32" r="24" fill="#2f5bff"/></svg>';

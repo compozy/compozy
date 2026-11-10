@@ -197,7 +197,7 @@ function SessionLinkedWorkCount({
     >
       <Icon as={GitPullRequest} size="sm" />
       {label}
-      {attention ? <Pill.Dot size="sm" tone="brand" /> : null}
+      {attention ? <Pill.Dot size="sm" tone="attn" /> : null}
     </SessionLinkedWorkPopover>
   );
 }
