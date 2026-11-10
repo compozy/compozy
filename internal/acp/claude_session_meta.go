@@ -68,10 +68,7 @@ func claudeShellHook(goos string, posixCommand string, powerShellCommand string)
 // lets the command run.
 const claudeShellWaitHookTimeoutSeconds = 5
 
-// claudeShellWaitDenyHook redirects a foreground wait to a daemon-owned monitor.
-// A shell-builtin prefilter keeps ordinary commands free of a process spawn;
-// only input that mentions a wait reaches the compozy binary, which parses the
-// command. A missing binary or any other failure lets the command run.
+// claudeShellWaitDenyHook guards waits before MCP loses the provider-native subagent identity.
 func claudeShellWaitDenyHook(goos string) map[string]any {
 	verb := "__internal " + shellwait.HookCommandName
 	hook := claudeShellHook(

@@ -30,7 +30,7 @@ type hookDecision struct {
 	PermissionDecisionReason string `json:"permissionDecisionReason"`
 }
 
-// RunHook refuses unsupported waits; malformed input fails open.
+// RunHook emits Claude deny decisions for shell waits and subagent monitors; malformed input fails open.
 func RunHook(stdin io.Reader, stdout io.Writer) {
 	var input hookInput
 	if err := json.NewDecoder(stdin).Decode(&input); err != nil {
