@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { railSections } from "../heading-slug";
 import { ProseH2, ProseH3, ProseTable } from "../prose";
 
 describe("blog prose", () => {
@@ -17,6 +18,15 @@ describe("blog prose", () => {
       "why-agents-need-a-workplace"
     );
     expect(screen.getByRole("heading", { name: "Tools and MCP" }).id).toBe("tools-and-mcp");
+  });
+
+  it("links the section rail to the heading id when the heading has punctuation", () => {
+    const title = "Retries & idempotency: what's safe?";
+    render(<ProseH2>{title}</ProseH2>);
+
+    const [section] = railSections([{ title }]);
+    expect(section?.id).toBe("retries-idempotency-whats-safe");
+    expect(screen.getByRole("heading", { name: title }).id).toBe(section?.id);
   });
 
   it("preserves explicit heading ids from MDX when present", () => {

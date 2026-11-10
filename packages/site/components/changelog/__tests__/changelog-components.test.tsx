@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import ChangelogPage from "@/app/changelog/page";
+import ChangelogReleaseError from "@/app/changelog/[version]/error";
+import ChangelogReleaseNotFound from "@/app/changelog/[version]/not-found";
 import ChangelogReleasePage, { generateMetadata } from "@/app/changelog/[version]/page";
 import type { ChangelogRelease } from "@/lib/changelog/types";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
@@ -14,6 +16,11 @@ const changelogClient = vi.hoisted(() => ({
 vi.mock("@/lib/changelog/github-client", () => changelogClient);
 
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+
+vi.mock("next/navigation", async importOriginal => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -94,6 +101,14 @@ const PUBLISHED_BODY = [
   "Every archive is signed.",
 ].join("\n");
 
+/** Document-order heading levels never jump by more than one (h1 → h2 → h3). */
+function expectNoSkippedHeadingLevels() {
+  const levels = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).map(heading =>
+    Number(heading.tagName.slice(1))
+  );
+  expect(levels.filter((level, index) => index > 0 && level - levels[index - 1]! > 1)).toEqual([]);
+}
+
 describe("changelog release page", () => {
   it("keeps every published section, the migration and each pull request link", async () => {
     const current = release("v0.5.0", {
@@ -145,8 +160,15 @@ describe("changelog release page", () => {
       })
     ).toBeDefined();
     for (const group of ["Highlights", "Breaking Changes", "Features", "Fixes", "Verification"]) {
-      expect(screen.getByRole("heading", { name: group })).toBeDefined();
+      expect(screen.getByRole("heading", { level: 2, name: group })).toBeDefined();
     }
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Spec delivery moves from Loops to agents" })
+    ).toBeDefined();
+    expectNoSkippedHeadingLevels();
+    expect(screen.getByRole("link", { name: "Changelog" }).getAttribute("href")).toBe(
+      "/changelog#v0.5.0"
+    );
     expect(screen.getByText("Migration")).toBeDefined();
     expect(screen.getByText(/needs deleting/)).toBeDefined();
     expect(screen.getByText("Every archive is signed.")).toBeDefined();
@@ -192,6 +214,9 @@ describe("changelog release page", () => {
     expect(
       screen.getByRole("link", { name: "Compare with v0.3.0-beta.21" }).getAttribute("href")
     ).toBe("https://github.com/compozy/compozy/compare/v0.3.0-beta.21...v0.3.0-beta.22");
+    expect(screen.getByRole("link", { name: "Changelog" }).getAttribute("href")).toBe(
+      "/changelog?betas=1#v0.3.0-beta.22"
+    );
   });
 
   it("keeps a genuinely missing exact release on the not-found path", async () => {
@@ -249,7 +274,64 @@ describe("changelog release page", () => {
   });
 });
 
+describe("changelog fallbacks", () => {
+  it("sends readers to GitHub Releases when a release page cannot load", () => {
+    const retry = vi.fn();
+    render(<ChangelogReleaseError retry={retry} />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "The release notes couldn't be loaded" })
+    ).toBeDefined();
+    expect(screen.getByRole("link", { name: "GitHub Releases" }).getAttribute("href")).toBe(
+      "https://github.com/compozy/compozy/releases"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a missing version without a second main landmark", () => {
+    const { container } = render(<ChangelogReleaseNotFound />);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "This version is not in the public changelog.",
+      })
+    ).toBeDefined();
+    expect(container.querySelector("main")).toBeNull();
+    expect(screen.getByRole("link", { name: "Browse all releases" }).getAttribute("href")).toBe(
+      "/changelog"
+    );
+  });
+});
+
 describe("changelog index", () => {
+  it("summarises each beta run with the stable release it led to", async () => {
+    const stable = (version: string, publishedAt: string) =>
+      release(version, { prerelease: false, channel: "stable", publishedAt });
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [
+        release("v0.6.0-beta.1", { publishedAt: "2026-11-12T00:00:00Z" }),
+        stable("v0.5.0", "2026-11-03T00:00:00Z"),
+        stable("v0.4.0", "2026-10-24T00:00:00Z"),
+        release("v0.3.0-beta.2", { publishedAt: "2026-07-29T00:00:00Z" }),
+        release("v0.3.0-beta.1", { publishedAt: "2026-07-28T00:00:00Z" }),
+      ],
+    });
+
+    render(await ChangelogPage());
+
+    const runs = screen.getAllByRole("region", { name: "Beta releases" });
+    expect(runs.map(run => run.querySelector("p.font-medium")?.textContent)).toEqual([
+      "1 beta so far toward 0.6",
+      "2 betas led to 0.4.0",
+    ]);
+    expect(within(runs[1]!).getByText(/merged back when CompozyOS went stable/)).toBeDefined();
+    expect(document.getElementById("v0.6.0-beta.1")).toBeNull();
+    expect(document.getElementById("v0.5.0")).not.toBeNull();
+  });
+
   it("renders the unavailable state when GitHub release data cannot be loaded", async () => {
     changelogClient.loadChangelogReleases.mockResolvedValueOnce({
       status: "unavailable",

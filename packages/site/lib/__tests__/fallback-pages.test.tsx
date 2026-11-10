@@ -37,13 +37,13 @@ describe("fallback pages", () => {
   });
 
   it("lets operators retry recoverable render failures without exposing raw errors", () => {
-    const reset = vi.fn();
+    const retry = vi.fn();
     const error = new Error("postgres://user:password@example.invalid") as Error & {
       digest?: string;
     };
     error.digest = "digest-123";
 
-    render(<ErrorPage error={error} reset={reset} />);
+    render(<ErrorPage error={error} retry={retry} />);
 
     expect(screen.getByText("Render failure")).toBeDefined();
     expect(
@@ -54,13 +54,11 @@ describe("fallback pages", () => {
     expect(screen.queryByText(/postgres:\/\/user:password/)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry boundary" }));
-    expect(reset).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   it("uses a stable fallback detail when the runtime does not provide a digest", () => {
-    const reset = vi.fn();
-
-    render(<ErrorPage error={new Error("render failed")} reset={reset} />);
+    render(<ErrorPage error={new Error("render failed")} retry={vi.fn()} />);
 
     expect(screen.getByText("Runtime boundary failure")).toBeDefined();
     expect(screen.queryByText("render failed")).toBeNull();

@@ -77,7 +77,7 @@ export function ReadingLayout({
       <div ref={body} className="blog-prose min-w-0 lg:col-start-2">
         {children}
       </div>
-      <SectionRail sections={sections} body={body} />
+      {sections.length > 0 ? <SectionRail sections={sections} body={body} /> : null}
     </div>
   );
 }

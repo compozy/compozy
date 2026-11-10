@@ -27,6 +27,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/server", () => ({
@@ -102,7 +103,7 @@ describe("public heading hierarchy", () => {
     expectSingleH1("This page is not here.");
     cleanup();
 
-    render(<ErrorPage error={new Error("render failed")} reset={vi.fn()} />);
+    render(<ErrorPage error={new Error("render failed")} retry={vi.fn()} />);
     expectSingleH1("The site hit a recoverable boundary.");
   });
 });

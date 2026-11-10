@@ -1,6 +1,6 @@
 "use client";
 
-/** One continuous release line. Betas run as a side branch that forks before 0.4 and merges back at 0.4. */
+/** One continuous release line. Betas run as a side branch that forks off a stable release and merges back at the one they led to. */
 import { Button, cn } from "@compozy/ui";
 import { GitBranch } from "@compozy/ui/icons";
 import { m, useInView, useScroll } from "motion/react";
@@ -14,20 +14,12 @@ import { Muted, ProductWindow, TextLink } from "@/components/site/primitives";
 import { releaseCapture } from "@/lib/changelog/captures";
 import {
   formatDate,
-  groupEras,
   isMajor,
+  type BetaRun,
   type Era,
+  type LineItem,
   type TimelineRelease,
 } from "@/lib/changelog/timeline";
-
-/** The beta era that branches off the main line, and the stable era it merges back into. */
-const BETA_ERA = "0.3";
-const MERGE_ERA = "0.4";
-
-export interface BetaBranch {
-  count: number;
-  range: string;
-}
 
 function hrefOf(version: string) {
   return `/changelog/${encodeURIComponent(version)}`;
@@ -252,25 +244,47 @@ function EraSection({ era }: { era: Era<TimelineRelease> }) {
   );
 }
 
-function BetaLoop({ betas, onShow }: { betas: BetaBranch; onShow: () => void }) {
+function plainVersion(version: string) {
+  return version.replace(/^v/, "");
+}
+
+function runStory(run: BetaRun) {
+  const many = run.count !== 1;
+  const subject = many ? "They" : "It";
+  const after = plainVersion(run.after);
+  if (!run.target) {
+    return {
+      headline: `${run.count} ${many ? "betas" : "beta"} so far toward ${run.minor}`,
+      detail: `${subject} branched off after ${after}. The stable release has not shipped yet.`,
+    };
+  }
+  const target = plainVersion(run.target);
+  return {
+    headline: `${run.count} ${many ? "betas" : "beta"} led to ${target}`,
+    detail: run.firstStable
+      ? `${subject} branched off after ${after} and merged back when CompozyOS went stable.`
+      : `${subject} branched off after ${after} and merged back at ${target}.`,
+  };
+}
+
+function BetaLoop({ run, onShow }: { run: BetaRun; onShow: () => void }) {
+  const story = runStory(run);
   return (
     <section aria-label="Beta releases" className={cn(GRID, "py-8")}>
       <BranchBracket className="inset-y-8" />
       <div className="col-start-2 mb-2 pt-8 pl-3 lg:col-start-1 lg:row-start-1 lg:mb-0 lg:pt-6 lg:pl-0">
         <p className="m-0 font-display text-[30px] leading-none tracking-[-0.01em] text-fg/60">
-          {BETA_ERA} betas
+          {run.minor} betas
         </p>
-        <p className="m-0 mt-2 text-[13.5px] text-subtle">{betas.range}</p>
+        <p className="m-0 mt-2 text-[13.5px] text-subtle">{run.range}</p>
       </div>
       <div className="col-start-2 flex min-h-[132px] flex-wrap items-center justify-between gap-4 pl-6 lg:col-start-3 lg:pl-8">
         <div>
           <p className="m-0 inline-flex items-center gap-2.5 text-[17px] font-medium text-fg">
             <GitBranch aria-hidden className="size-4 text-subtle" />
-            {betas.count} betas led to {MERGE_ERA}.0
+            {story.headline}
           </p>
-          <Muted className="mt-1.5">
-            They branched off after 0.2.15 and merged back when CompozyOS went stable.
-          </Muted>
+          <Muted className="mt-1.5">{story.detail}</Muted>
         </div>
         <Button variant="outline" onClick={onShow}>
           Show betas
@@ -280,35 +294,32 @@ function BetaLoop({ betas, onShow }: { betas: BetaBranch; onShow: () => void }) 
   );
 }
 
+/** The line as the list hands it over: eras, with folded beta runs where the Stable view has them. */
 export function ReleaseTimeline({
-  releases,
-  showBetas,
-  betas,
+  items,
   onShowBetas,
 }: {
-  releases: readonly TimelineRelease[];
-  showBetas: boolean;
-  betas: BetaBranch;
+  items: readonly LineItem<TimelineRelease>[];
   onShowBetas: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const eras = groupEras(releases);
-  const keys = eras.map(era => era.key);
-  const loopAt =
-    !showBetas && betas.count > 0 && keys.includes(MERGE_ERA) ? keys.indexOf(MERGE_ERA) + 1 : -1;
   return (
     <div
       ref={root}
       className="relative [--branch:12px] [--rail:18px] lg:[--branch:22px] lg:[--rail:218px]"
     >
       <Spine target={root} />
-      {eras.map((era, index) => (
-        <div key={`${era.key}-${era.releases[0]?.version}`}>
-          {index === loopAt ? <BetaLoop betas={betas} onShow={onShowBetas} /> : null}
-          <EraSection era={era} />
-        </div>
-      ))}
-      {loopAt === eras.length ? <BetaLoop betas={betas} onShow={onShowBetas} /> : null}
+      {items.map(item =>
+        item.kind === "era" ? (
+          <EraSection key={`${item.era.key}-${item.era.releases[0]?.version}`} era={item.era} />
+        ) : (
+          <BetaLoop
+            key={`betas-${item.run.minor}-${item.run.after}`}
+            run={item.run}
+            onShow={onShowBetas}
+          />
+        )
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import {
   type ReleaseExtra,
   type ReleaseNote,
 } from "./release-notes";
-import type { ChangelogRelease } from "./types";
+import { CHANGELOG_BASE_TAG, type ChangelogRelease } from "./types";
 
 export { GROUP_ORDER, type CommitLine, type ReleaseExtra, type ReleaseNote } from "./release-notes";
 
@@ -201,18 +201,18 @@ export function monthLabel(iso: string) {
 }
 
 /**
- * Cuts the line into eras: runs of consecutive releases on the same minor version. The input
- * order is kept, so betas published between two stable releases form their own era there.
+ * Cuts the line into eras: runs of consecutive releases on the same minor version and channel. The
+ * input order is kept, so betas published between two stable releases form their own era there,
+ * even when they share a minor version with those stable releases.
  */
-export function groupEras<T extends { version: string; date: string; pre: boolean }>(
-  list: readonly T[]
-): Era<T>[] {
+export function groupEras<T extends Lineable>(list: readonly T[]): Era<T>[] {
   const runs: Array<{ key: string; releases: T[] }> = [];
   for (const release of list) {
     const key = minorOf(release.version);
     const last = runs[runs.length - 1];
-    if (last && last.key === key) last.releases.push(release);
-    else runs.push({ key, releases: [release] });
+    if (last && last.key === key && last.releases[0]!.pre === release.pre) {
+      last.releases.push(release);
+    } else runs.push({ key, releases: [release] });
   }
   return runs.map(({ key, releases }) => {
     const newest = monthLabel(releases[0]!.date);
@@ -226,18 +226,158 @@ export function groupEras<T extends { version: string; date: string; pre: boolea
   });
 }
 
-/** The beta side branch as the list summarises it: how many betas, over which months. */
-export function betaBranch(list: readonly TimelineRelease[]) {
-  const betas = list.filter(release => release.pre);
-  const newest = betas[0];
-  const oldest = betas[betas.length - 1];
-  if (!newest || !oldest) return { count: 0, range: "" };
+interface Lineable {
+  version: string;
+  date: string;
+  pre: boolean;
+}
+
+/** A run of consecutive betas on the line, folded into one row of the Stable view. */
+export interface BetaRun {
+  /** The minor version the newest beta was cut for: "0.3". */
+  minor: string;
+  count: number;
+  /** The months the run spans: "Jul to Oct 2026". */
+  range: string;
+  /** The stable release the betas led to; `null` while it has not shipped. */
+  target: string | null;
+  /** The target is the first stable release on the line: CompozyOS went stable there. */
+  firstStable: boolean;
+  /** The stable release the betas branched off. */
+  after: string;
+}
+
+export type LineItem<T> = { kind: "era"; era: Era<T> } | { kind: "betas"; run: BetaRun };
+
+function coreOf(version: string) {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+/** Whether `stable` ships at or after the version the beta was cut for. */
+function reaches(stable: string, beta: string) {
+  const [to, from] = [coreOf(stable), coreOf(beta)];
+  if (!to || !from) return false;
+  const order = to.findIndex((part, index) => part !== from[index]);
+  return order === -1 || to[order]! > from[order]!;
+}
+
+function monthRange(newestIso: string, oldestIso: string) {
   const month = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
   const year = (iso: string) => new Date(iso).getUTCFullYear();
-  const range =
-    year(oldest.date) === year(newest.date)
-      ? `${month(oldest.date)} to ${month(newest.date)} ${year(newest.date)}`
-      : `${monthLabel(oldest.date)} to ${monthLabel(newest.date)}`;
-  return { count: betas.length, range };
+  if (monthLabel(newestIso) === monthLabel(oldestIso)) return monthLabel(newestIso);
+  return year(oldestIso) === year(newestIso)
+    ? `${month(oldestIso)} to ${month(newestIso)} ${year(newestIso)}`
+    : `${monthLabel(oldestIso)} to ${monthLabel(newestIso)}`;
+}
+
+/**
+ * The run of betas starting at `start` (newest first): the first stable release published after it
+ * that reaches the betas' version is the one they led to, so a later patch of an older minor never
+ * claims them. A run that reaches the end of the line branched off the
+ * release before the cutoff.
+ */
+function betaRunAt<T extends Lineable>(list: readonly T[], start: number) {
+  let end = start;
+  while (end + 1 < list.length && list[end + 1]!.pre) end += 1;
+  const newest = list[start]!;
+  const oldest = list[end]!;
+  let target = -1;
+  for (let index = start - 1; index >= 0; index -= 1) {
+    const candidate = list[index]!;
+    if (!candidate.pre && reaches(candidate.version, newest.version)) {
+      target = index;
+      break;
+    }
+  }
+  const before = list[end + 1];
+  const run: BetaRun = {
+    minor: minorOf(newest.version),
+    count: end - start + 1,
+    range: monthRange(newest.date, oldest.date),
+    target: target === -1 ? null : list[target]!.version,
+    firstStable: target !== -1 && list.slice(target + 1).every(release => release.pre),
+    after: before?.version ?? CHANGELOG_BASE_TAG,
+  };
+  return { run, end };
+}
+
+/**
+ * The Stable view of the line, newest first: stable releases grouped into eras, and every run of
+ * betas folded into one item at its place. `limit` caps the stable releases shown; when it cuts an
+ * era, a fold that follows that era still shows at the end, so the branch is visible from the
+ * first page on.
+ */
+export function stableLine<T extends Lineable>(list: readonly T[], limit: number): LineItem<T>[] {
+  const items: LineItem<T>[] = [];
+  let segment: T[] = [];
+  const flush = () => {
+    for (const era of groupEras(segment)) items.push({ kind: "era", era });
+    segment = [];
+  };
+  let shown = 0;
+  let index = 0;
+  while (index < list.length) {
+    const release = list[index]!;
+    if (release.pre) {
+      const { run, end } = betaRunAt(list, index);
+      flush();
+      items.push({ kind: "betas", run });
+      index = end + 1;
+    } else if (shown < limit) {
+      segment.push(release);
+      shown += 1;
+      index += 1;
+    } else {
+      const last = segment[segment.length - 1];
+      const minor = minorOf(release.version);
+      let next = index;
+      while (next < list.length && !list[next]!.pre && minorOf(list[next]!.version) === minor) {
+        next += 1;
+      }
+      flush();
+      if (last && minorOf(last.version) === minor && next < list.length) {
+        items.push({ kind: "betas", run: betaRunAt(list, next).run });
+      }
+      return items;
+    }
+  }
+  flush();
+  return items;
+}
+
+/** How many releases one page of the list shows. */
+export const CHANGELOG_PAGE = 12;
+
+/** The list's view as the URL carries it: `?betas=1`, `?q=` and `?page=` (pages loaded). */
+export interface ListState {
+  betas: boolean;
+  query: string;
+  pages: number;
+}
+
+export function listState(params: Pick<URLSearchParams, "get">): ListState {
+  const pages = Number.parseInt(params.get("page") ?? "", 10);
+  return {
+    betas: params.get("betas") === "1",
+    query: params.get("q") ?? "",
+    pages: Number.isInteger(pages) && pages > 1 ? pages : 1,
+  };
+}
+
+/**
+ * Where a release sits on the list: the channel that shows it and enough pages to reach it, with
+ * its entry as the anchor. The release page links back there.
+ */
+export function listHref(line: readonly Pick<Lineable, "version" | "pre">[], version: string) {
+  const current = line.find(release => release.version === version);
+  if (!current) return "/changelog";
+  const channel = current.pre ? line : line.filter(release => !release.pre);
+  const pages = Math.ceil((channel.indexOf(current) + 1) / CHANGELOG_PAGE);
+  const params = new URLSearchParams();
+  if (current.pre) params.set("betas", "1");
+  if (pages > 1) params.set("page", String(pages));
+  const query = params.toString();
+  return `/changelog${query ? `?${query}` : ""}#${encodeURIComponent(version)}`;
 }

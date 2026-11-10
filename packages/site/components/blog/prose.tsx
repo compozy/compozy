@@ -2,21 +2,12 @@
 import { cn } from "@compozy/ui";
 import type { ComponentProps, ReactNode } from "react";
 
+import { headingSlug } from "./heading-slug";
 import { textOf } from "./text-of";
-
-function slugifyHeading(heading: string): string {
-  return heading
-    .replace(/<[^>]+>/g, "")
-    .replace(/`([^`]+)`/g, "$1")
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
-    .replace(/\s+/g, "-");
-}
 
 function headingId(id: string | undefined, children: ReactNode): string | undefined {
   if (id && id !== "$undefined") return id;
-  const generated = slugifyHeading(textOf(children));
+  const generated = headingSlug(textOf(children));
   return generated.length > 0 ? generated : undefined;
 }
 
@@ -26,7 +17,7 @@ export function ProseH2({ id, children, className, ...props }: ComponentProps<"h
       id={headingId(id, children)}
       {...props}
       className={cn(
-        "mt-12 mb-2.5 scroll-mt-28 font-display text-[30px]/[1.15] font-normal tracking-[-0.02em] text-balance text-fg md:text-[34px]/[1.15]",
+        "mt-8 mb-2.5 scroll-mt-28 font-display text-[30px]/[1.15] font-normal tracking-[-0.02em] text-balance text-fg md:text-[34px]/[1.15]",
         className
       )}
     >
@@ -40,7 +31,7 @@ export function ProseH3({ id, children, className, ...props }: ComponentProps<"h
     <h3
       id={headingId(id, children)}
       {...props}
-      className={cn("mt-8 mb-1.5 scroll-mt-28 text-[21px]/[1.3] font-medium text-fg", className)}
+      className={cn("mt-6 mb-1.5 scroll-mt-28 text-[21px]/[1.3] font-medium text-fg", className)}
     >
       {children}
     </h3>

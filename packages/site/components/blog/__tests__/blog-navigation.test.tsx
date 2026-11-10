@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BLOG_CATEGORIES, blogEntries, blogEntry, featuredPost, postAuthor } from "@/lib/blog";
+import { topTopics, topicLabel } from "@/lib/blog-index";
 
 import { BlogIndex } from "../blog-index";
 import { IndexRow, PosterCard } from "../cards";
@@ -24,6 +25,8 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
+
+afterEach(() => window.history.replaceState(null, "", "/"));
 
 function renderIndex(category: string | null = null) {
   const lead = featuredPost();
@@ -113,8 +116,59 @@ describe("blog navigation", () => {
 
     fireEvent.click(firstTopic);
     fireEvent.change(screen.getByLabelText("Search posts"), { target: { value: "fax machine" } });
+    expect(window.location.search).toBe("?q=fax+machine");
     expect(screen.getByText("No post matches that")).toBeDefined();
     expect(indexRows()).toHaveLength(0);
+  });
+
+  it("keeps the topic and search when switching category", () => {
+    renderIndex();
+    const topics = screen.getByRole("group", { name: "Topic" });
+    const [firstTopic] = within(topics).getAllByRole("button");
+    fireEvent.click(firstTopic);
+    fireEvent.change(screen.getByLabelText("Search posts"), { target: { value: "agent" } });
+    const topic = new URLSearchParams(window.location.search).get("topic");
+
+    expect(topic).not.toBeNull();
+    const categories = screen.getByRole("navigation", { name: "Category" });
+    const [, first] = within(categories).getAllByRole("link");
+    const href = new URL(first!.getAttribute("href")!, "https://compozy.com");
+    expect(href.pathname).toBe(`/blog/categories/${BLOG_CATEGORIES[0]}`);
+    expect(href.searchParams.get("topic")).toBe(topic);
+    expect(href.searchParams.get("q")).toBe("agent");
+  });
+
+  it("opens on the topic and search the URL carries", () => {
+    const lead = featuredPost()!;
+    const [{ tag }] = topTopics(blogEntries());
+    render(
+      <BlogIndex
+        entries={blogEntries()}
+        categories={BLOG_CATEGORIES}
+        category={null}
+        lead={blogEntry(lead)}
+        author={postAuthor(lead)}
+        initialTopic={tag}
+        initialQuery="agent"
+      />
+    );
+
+    const topics = screen.getByRole("group", { name: "Topic" });
+    expect(within(topics).getByRole("button", { pressed: true }).textContent).toContain(
+      topicLabel(tag)
+    );
+    expect((screen.getByLabelText("Search posts") as HTMLInputElement).value).toBe("agent");
+  });
+
+  it("leaves the rail out when a post has no sections", () => {
+    render(
+      <ReadingLayout sections={[]}>
+        <p>One short paragraph.</p>
+      </ReadingLayout>
+    );
+
+    expect(screen.queryByRole("navigation", { name: "On this page" })).toBeNull();
+    expect(screen.queryByText("On this page")).toBeNull();
   });
 
   it("numbers the section rail and links each entry to its heading", () => {

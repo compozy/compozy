@@ -1,9 +1,10 @@
 import { connection } from "next/server";
+import { Suspense } from "react";
 
-import { ChangelogList } from "@/components/changelog/changelog-list";
+import { ChangelogList, ChangelogListFromUrl } from "@/components/changelog/changelog-list";
 import { ChangelogUnavailable } from "@/components/changelog/changelog-unavailable";
 import { loadChangelogReleases } from "@/lib/changelog/github-client";
-import { betaBranch, toReleaseView, toTimelineRelease } from "@/lib/changelog/timeline";
+import { toReleaseView, toTimelineRelease } from "@/lib/changelog/timeline";
 import { changelogMetadata } from "./metadata";
 
 export const metadata = changelogMetadata;
@@ -14,5 +15,11 @@ export default async function ChangelogPage() {
   const result = await loadChangelogReleases();
   if (result.status === "unavailable") return <ChangelogUnavailable />;
   const releases = result.releases.map(release => toTimelineRelease(toReleaseView(release)));
-  return <ChangelogList releases={releases} betas={betaBranch(releases)} />;
+  return (
+    // The page renders per request, so the URL's view is known on the server and the fallback only
+    // stands in when that is not the case.
+    <Suspense fallback={<ChangelogList releases={releases} />}>
+      <ChangelogListFromUrl releases={releases} />
+    </Suspense>
+  );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseReleaseNotes } from "../changelog/release-notes";
-import { groupEras } from "../changelog/timeline";
+import { groupEras, listState, stableLine, type LineItem } from "../changelog/timeline";
 
 function at(version: string, date: string) {
   return { version, date: `${date}T12:00:00Z`, pre: version.includes("-") };
@@ -46,6 +46,90 @@ describe("groupEras", () => {
     ];
 
     expect(groupEras(interleaved).flatMap(era => era.releases)).toEqual(interleaved);
+  });
+});
+
+type Line = Parameters<typeof stableLine>[0][number];
+
+/** The Stable view as one line of text per item: era versions, or the folded run's summary. */
+function describeLine(items: LineItem<Line>[]) {
+  return items.map(item =>
+    item.kind === "era"
+      ? item.era.releases.map(release => release.version).join(" ")
+      : `${item.run.count} betas of ${item.run.minor} (${item.run.range}) after ${item.run.after} to ${item.run.target ?? "nothing yet"}${item.run.firstStable ? ", first stable" : ""}`
+  );
+}
+
+describe("stableLine", () => {
+  it("folds the 0.3 betas into the run that led to the first stable release", () => {
+    expect(describeLine(stableLine(LINE, 12))).toEqual([
+      "v0.5.1 v0.5.0",
+      "v0.4.1 v0.4.0",
+      "3 betas of 0.3 (Jul to Oct 2026) after v0.2.15 to v0.4.0, first stable",
+    ]);
+  });
+
+  it("keeps a beta published after the latest stable out of the 0.3 summary", () => {
+    const line = [at("v0.6.0-beta.1", "2026-11-12"), ...LINE];
+
+    expect(describeLine(stableLine(line, 12))).toEqual([
+      "1 betas of 0.6 (Nov 2026) after v0.5.1 to nothing yet",
+      "v0.5.1 v0.5.0",
+      "v0.4.1 v0.4.0",
+      "3 betas of 0.3 (Jul to Oct 2026) after v0.2.15 to v0.4.0, first stable",
+    ]);
+  });
+
+  it("branches a beta inside a minor that already has stable releases", () => {
+    const line = [
+      at("v0.5.2", "2026-11-08"),
+      at("v0.5.2-beta.1", "2026-11-06"),
+      ...LINE.slice(0, 2),
+    ];
+
+    expect(describeLine(stableLine(line, 12))).toEqual([
+      "v0.5.2",
+      "1 betas of 0.5 (Nov 2026) after v0.5.1 to v0.5.2",
+      "v0.5.1 v0.5.0",
+    ]);
+    const betaEra = groupEras(line).find(era => era.beta);
+    expect(betaEra?.releases.map(release => release.version)).toEqual(["v0.5.2-beta.1"]);
+  });
+
+  it("does not credit betas to a later patch of an older minor", () => {
+    const line = [
+      at("v0.5.2", "2026-11-14"),
+      at("v0.6.0-beta.1", "2026-11-12"),
+      ...LINE.slice(0, 2),
+    ];
+
+    expect(describeLine(stableLine(line, 12))[1]).toBe(
+      "1 betas of 0.6 (Nov 2026) after v0.5.1 to nothing yet"
+    );
+  });
+
+  it("shows the fold once the era it merged into is on the page", () => {
+    expect(describeLine(stableLine(LINE, 3))).toEqual([
+      "v0.5.1 v0.5.0",
+      "v0.4.1",
+      "3 betas of 0.3 (Jul to Oct 2026) after v0.2.15 to v0.4.0, first stable",
+    ]);
+    expect(describeLine(stableLine(LINE, 2))).toEqual(["v0.5.1 v0.5.0"]);
+  });
+});
+
+describe("listState", () => {
+  it("reads the channel, search and loaded pages back from the URL", () => {
+    expect(listState(new URLSearchParams("betas=1&q=worktree&page=3"))).toEqual({
+      betas: true,
+      query: "worktree",
+      pages: 3,
+    });
+    expect(listState(new URLSearchParams("page=zero"))).toEqual({
+      betas: false,
+      query: "",
+      pages: 1,
+    });
   });
 });
 

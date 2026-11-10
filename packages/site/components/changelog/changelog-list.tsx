@@ -1,31 +1,65 @@
 "use client";
 
-/** The list: a line of every release, then the releases themselves, newest first. */
+/**
+ * The list: a line of every release, then the releases themselves, newest first. The channel and
+ * the loaded pages live in the URL (`?betas=1`, `?page=2`) and the search is mirrored to `?q=`, so
+ * coming back from a release page restores the view it left.
+ */
 import { Button, Empty, SearchInput, cn } from "@compozy/ui";
 import { SearchX } from "@compozy/ui/icons";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { CONTAINER } from "@/components/site/layout";
 import { H1, Lead, SecondaryCta } from "@/components/site/primitives";
-import { matchesSearch, type TimelineRelease } from "@/lib/changelog/timeline";
+import {
+  CHANGELOG_PAGE,
+  groupEras,
+  listState,
+  matchesSearch,
+  stableLine,
+  type ListState,
+  type TimelineRelease,
+} from "@/lib/changelog/timeline";
 import { ReleasePulse } from "./pulse";
-import { ReleaseTimeline, type BetaBranch } from "./timeline";
+import { ReleaseTimeline } from "./timeline";
 
-const PAGE = 12;
+/** Native `replaceState` keeps `useSearchParams` in sync without a navigation or a scroll reset. */
+function writeState(state: ListState) {
+  const url = new URL(window.location.href);
+  const set = (name: string, value: string | null) =>
+    value ? url.searchParams.set(name, value) : url.searchParams.delete(name);
+  set("betas", state.betas ? "1" : null);
+  set("q", state.query);
+  set("page", state.pages > 1 ? String(state.pages) : null);
+  window.history.replaceState(null, "", url);
+}
 
+/**
+ * Controlled by the URL for the channel and the loaded pages; the search box stays local while
+ * typing and the URL only carries it for the way back.
+ */
 export function ChangelogList({
   releases,
-  betas,
+  state = { betas: false, query: "", pages: 1 },
 }: {
   releases: readonly TimelineRelease[];
-  betas: BetaBranch;
+  /** The view the URL asks for. */
+  state?: ListState;
 }) {
-  const [showBetas, setShowBetas] = useState(false);
-  const [query, setQuery] = useState("");
-  const [shown, setShown] = useState(PAGE);
+  const { betas: showBetas, pages } = state;
+  const [query, setQuery] = useState(state.query);
+  const update = (next: Partial<ListState>) =>
+    writeState({ betas: showBetas, pages, query, ...next });
+  const setShowBetas = (betas: boolean) => update({ betas });
+  const shown = pages * CHANGELOG_PAGE;
   const needle = query.trim().toLowerCase();
   const channel = showBetas ? releases : releases.filter(release => !release.pre);
   const found = needle ? channel.filter(release => matchesSearch(release, needle)) : channel;
+  const items =
+    showBetas || needle
+      ? groupEras(found.slice(0, shown)).map(era => ({ kind: "era" as const, era }))
+      : stableLine(releases, shown);
   return (
     <div className="relative overflow-x-clip">
       <div className={cn(CONTAINER, "relative pt-32 pb-24 md:pt-40")}>
@@ -68,7 +102,10 @@ export function ChangelogList({
           </div>
           <SearchInput
             value={query}
-            onChange={setQuery}
+            onChange={value => {
+              setQuery(value);
+              update({ query: value });
+            }}
             placeholder="Search releases"
             aria-label="Search releases"
             containerClassName="h-10 w-full sm:w-[280px] [&_input]:text-[14px]"
@@ -89,16 +126,14 @@ export function ChangelogList({
           ) : (
             <ReleaseTimeline
               key={`${showBetas}-${needle}-${shown}`}
-              releases={found.slice(0, shown)}
-              showBetas={showBetas || Boolean(needle)}
-              betas={betas}
+              items={items}
               onShowBetas={() => setShowBetas(true)}
             />
           )}
         </div>
         {found.length > shown ? (
           <div className="mt-6 flex justify-center">
-            <Button variant="outline" onClick={() => setShown(value => value + PAGE)}>
+            <Button variant="outline" onClick={() => update({ pages: pages + 1 })}>
               Older releases
             </Button>
           </div>
@@ -106,4 +141,9 @@ export function ChangelogList({
       </div>
     </div>
   );
+}
+
+/** Reads the view from the URL on every change; render it inside a Suspense boundary. */
+export function ChangelogListFromUrl({ releases }: { releases: readonly TimelineRelease[] }) {
+  return <ChangelogList releases={releases} state={listState(useSearchParams())} />;
 }

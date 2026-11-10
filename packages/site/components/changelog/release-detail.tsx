@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 
 import { formatBytes } from "@/components/blog/format";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
-import { H1, H3, Muted, ProductWindow } from "@/components/site/primitives";
+import { H1, H2, Muted, ProductWindow } from "@/components/site/primitives";
 import { releaseCapture } from "@/lib/changelog/captures";
 import {
   COMMIT_TITLES,
@@ -40,6 +40,9 @@ export interface ReleaseRecord {
   comparison: { version: string; url: string } | null;
 }
 
+/** A section heading: the second level of the page, set at the draft's third-level display size. */
+const SECTION = "text-[24px]/[1.15] md:text-[30px]/[1.12]";
+
 /** The draft's prose size: the app's 13.5px body token (the site's own `--text-body` is smaller). */
 const PROSE = "text-[13.5px]";
 
@@ -62,7 +65,7 @@ function Note({ note }: { note: ReleaseNote }) {
   return (
     <div className="mt-9 first:mt-0">
       {note.title ? (
-        <h4 className="m-0 text-[20px]/[1.3] font-medium text-fg">{note.title}</h4>
+        <h3 className="m-0 text-[20px]/[1.3] font-medium text-fg">{note.title}</h3>
       ) : null}
       <div className="mt-3 max-w-[72ch] text-[16px] text-fg/80">
         <Markdown className={PROSE}>{note.body}</Markdown>
@@ -163,11 +166,14 @@ export function ReleaseDetail({
   release,
   line,
   record,
+  back,
 }: {
   release: ReleaseView;
   /** Every release on the same channel as this one, newest first. */
   line: readonly TrailRelease[];
   record: ReleaseRecord;
+  /** The list, at this release's place in it. */
+  back: string;
 }) {
   const capture = releaseCapture(release.version);
   const known = new Set<string>(GROUP_ORDER);
@@ -182,7 +188,7 @@ export function ReleaseDetail({
   return (
     <div className={cn(CONTAINER, "pt-[120px] pb-24 md:pt-[136px]")}>
       <Link
-        href="/changelog"
+        href={back}
         className="inline-flex cursor-pointer items-center gap-2 bg-transparent p-0 text-[14px] text-muted-foreground outline-none transition-colors hover:text-fg focus-visible:text-fg"
       >
         <ArrowLeft aria-hidden className="size-4" /> Changelog
@@ -218,7 +224,9 @@ export function ReleaseDetail({
           ) : null}
           {groups.map(group => (
             <section key={group} id={sectionSlug(group)} className="mt-14 scroll-mt-28">
-              <H3 className={group === "Breaking Changes" ? "text-warning" : undefined}>{group}</H3>
+              <H2 className={cn(SECTION, group === "Breaking Changes" && "text-warning")}>
+                {group}
+              </H2>
               <div className="mt-6">
                 {release.notes.flatMap((note, noteIndex) =>
                   note.group === group ? [<Note key={`${group}-${noteIndex}`} note={note} />] : []
@@ -228,7 +236,7 @@ export function ReleaseDetail({
           ))}
           {release.extras.map((extra, extraIndex) => (
             <section key={`${extraIndex}-${extra.heading}`} className="mt-14">
-              <H3>{extra.heading}</H3>
+              <H2 className={SECTION}>{extra.heading}</H2>
               <div className="mt-5 max-w-[72ch] text-[16px] text-fg/80">
                 <Markdown className={PROSE}>{extra.body}</Markdown>
               </div>

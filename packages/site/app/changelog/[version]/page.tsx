@@ -8,7 +8,7 @@ import {
   loadReleasePullRequests,
 } from "@/lib/changelog/github-client";
 import { compareReleaseTags } from "@/lib/changelog/release-markdown";
-import { toReleaseView } from "@/lib/changelog/timeline";
+import { listHref, toReleaseView } from "@/lib/changelog/timeline";
 import {
   COMPOZY_REPOSITORY,
   type ChangelogRelease,
@@ -91,5 +91,10 @@ export default async function ChangelogReleasePage({ params }: PageProps) {
     item.prerelease === release.prerelease ? [{ version: item.version, pre: item.prerelease }] : []
   );
 
-  return <ReleaseDetail release={view} line={line} record={record} />;
+  const back = listHref(
+    lookup.releases.map(item => ({ version: item.version, pre: item.prerelease })),
+    release.version
+  );
+
+  return <ReleaseDetail release={view} line={line} record={record} back={back} />;
 }

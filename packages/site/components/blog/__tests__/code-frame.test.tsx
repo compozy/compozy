@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 describe("blog CodeFrame", () => {
-  it("labels the language in its own header and copies the block's text", async () => {
+  it("sets fenced code in the shared CodeBlock with its language and a copy button", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 
@@ -22,9 +22,10 @@ describe("blog CodeFrame", () => {
       </CodeFrame>
     );
 
-    const pre = container.querySelector("pre");
+    const block = container.querySelector('[data-slot="code-block"]');
+    expect(block?.getAttribute("data-language")).toBe("bash");
     expect(screen.getByText("bash").closest("pre")).toBeNull();
-    expect(pre?.textContent).toContain("compozy daemon start");
+    expect(block?.querySelector("pre")?.textContent).toContain("compozy daemon start");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
@@ -42,6 +43,9 @@ describe("blog CodeFrame", () => {
     );
 
     expect(screen.queryByText("text")).toBeNull();
+    expect(container.querySelector('[data-slot="code-block"]')?.hasAttribute("data-language")).toBe(
+      false
+    );
     expect(container.querySelector("pre")?.textContent).toBe("plain output");
   });
 });

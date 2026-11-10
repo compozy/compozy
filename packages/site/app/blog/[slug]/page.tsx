@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { categoryLabel } from "@/components/blog/format";
+import { railSections } from "@/components/blog/heading-slug";
 import { MdxContent } from "@/components/blog/mdx-content";
 import { PostArticle } from "@/components/blog/post-article";
 import {
@@ -63,11 +64,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       googleBot: { index: true, follow: true, "max-image-preview": "large" },
     },
   };
-}
-
-/** The post's numbered sections: its second-level headings, as the rail lists them. */
-function railSections(toc: ReadonlyArray<{ title: string; url: string }>) {
-  return toc.map(item => ({ id: item.url.replace(/^#/, ""), text: item.title }));
 }
 
 export default async function BlogPostPage({ params }: PageProps) {

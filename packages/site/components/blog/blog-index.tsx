@@ -1,9 +1,14 @@
 "use client";
 
-/** The blog front page: a lead story, the latest as posters, then a numbered index of everything. */
+/**
+ * The blog front page: a lead story, the latest as posters, then a numbered index of everything.
+ * The topic and search are mirrored to `?topic=` and `?q=`, and the category links carry them, so
+ * switching category or coming back from a post keeps the filters.
+ */
 import { Empty, SearchInput, cn } from "@compozy/ui";
 import { SearchX } from "@compozy/ui/icons";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
@@ -26,8 +31,26 @@ import { categoryLabel } from "./format";
 const CHIP =
   "inline-flex h-8 items-center gap-2 rounded-[9px] bg-transparent px-3 text-[14px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand";
 
-function categoryHref(id: string | null) {
-  return id ? `/blog/categories/${id}` : "/blog";
+function filterQuery(topic: string | null, query: string) {
+  const params = new URLSearchParams();
+  if (topic) params.set("topic", topic);
+  if (query) params.set("q", query);
+  const value = params.toString();
+  return value ? `?${value}` : "";
+}
+
+function categoryHref(id: string | null, topic: string | null, query: string) {
+  return `${id ? `/blog/categories/${id}` : "/blog"}${filterQuery(topic, query)}`;
+}
+
+/** Native `replaceState` keeps `useSearchParams` in sync without a navigation or a scroll reset. */
+function writeFilters(topic: string | null, query: string) {
+  const url = new URL(window.location.href);
+  if (topic) url.searchParams.set("topic", topic);
+  else url.searchParams.delete("topic");
+  if (query) url.searchParams.set("q", query);
+  else url.searchParams.delete("q");
+  window.history.replaceState(null, "", url);
 }
 
 function Toolbar({
@@ -56,7 +79,7 @@ function Toolbar({
             return (
               <Link
                 key={id ?? "all"}
-                href={categoryHref(id)}
+                href={categoryHref(id, filters.topic, filters.query)}
                 scroll={false}
                 aria-current={current ? "page" : undefined}
                 className={cn(
@@ -111,12 +134,31 @@ export interface BlogIndexProps {
   category: string | null;
   lead: BlogEntry;
   author: PostAuthor;
+  /** The filters the URL opened the page with; the index owns them from there. */
+  initialTopic?: string | null;
+  initialQuery?: string;
 }
 
-export function BlogIndex({ entries, categories, category, lead, author }: BlogIndexProps) {
-  const [topic, setTopic] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+export function BlogIndex({
+  entries,
+  categories,
+  category,
+  lead,
+  author,
+  initialTopic = null,
+  initialQuery = "",
+}: BlogIndexProps) {
+  const [topic, setTopic] = useState(initialTopic);
+  const [query, setQuery] = useState(initialQuery);
   const filters: BlogFilters = { category, topic, query };
+  const changeTopic = (next: string | null) => {
+    setTopic(next);
+    writeFilters(next, query);
+  };
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    writeFilters(topic, next);
+  };
   const filtering = isFiltering(filters);
   const found = filterEntries(entries, filters);
   const latest = entries.filter(entry => entry.slug !== lead.slug).slice(0, 3);
@@ -162,8 +204,8 @@ export function BlogIndex({ entries, categories, category, lead, author }: BlogI
             entries={entries}
             categories={categories}
             filters={filters}
-            onTopic={setTopic}
-            onQuery={setQuery}
+            onTopic={changeTopic}
+            onQuery={changeQuery}
           />
         </div>
         <div className="mt-10">
@@ -202,5 +244,20 @@ export function BlogIndex({ entries, categories, category, lead, author }: BlogI
         </div>
       </section>
     </div>
+  );
+}
+
+/** Opens the index on the URL's topic and search; render it inside a Suspense boundary. */
+export function BlogIndexFromUrl(props: Omit<BlogIndexProps, "initialTopic" | "initialQuery">) {
+  const params = useSearchParams();
+  const requested = params.get("topic");
+  // Only a topic the toolbar offers, so an active filter always has a pressed chip to clear it.
+  const known = topTopics(props.entries).some(({ tag }) => tag === requested);
+  return (
+    <BlogIndex
+      {...props}
+      initialTopic={known ? requested : null}
+      initialQuery={params.get("q") ?? ""}
+    />
   );
 }
