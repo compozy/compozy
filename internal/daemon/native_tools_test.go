@@ -3340,9 +3340,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			definition string
 			wantCode   toolspkg.ErrorCode
 			wantCause  error
+			wantReason toolspkg.ReasonCode
 		}{
-			{name: "Should report a missing authored agent as unavailable", wantCode: toolspkg.ErrorCodeUnavailable, wantCause: skills.ErrAgentNotFound},
-			{name: "Should report an invalid authored agent as invalid input", definition: "---\nname: [invalid\n---\n", wantCode: toolspkg.ErrorCodeInvalidInput, wantCause: skills.ErrAgentLocalInvalid},
+			{name: "Should report a missing authored agent as unavailable", wantCode: toolspkg.ErrorCodeUnavailable, wantCause: skills.ErrAgentNotFound, wantReason: toolspkg.ReasonDependencyMissing},
+			{name: "Should report an invalid authored agent as invalid input", definition: "---\nname: [invalid\n---\n", wantCode: toolspkg.ErrorCodeInvalidInput, wantCause: skills.ErrAgentLocalInvalid, wantReason: toolspkg.ReasonSchemaInvalid},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -3405,6 +3406,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
 				if !ok || toolErr.Code != tc.wantCode || !errors.Is(err, tc.wantCause) {
 					t.Fatalf("skill_view error = %#v, want %s wrapping %v", err, tc.wantCode, tc.wantCause)
+				}
+				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) {
+					t.Fatalf("skill_view reasons = %v, want %q", toolErr.ReasonCodes, tc.wantReason)
 				}
 				if toolErr.Operator == nil || toolErr.Operator.Recovery == "" ||
 					slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
