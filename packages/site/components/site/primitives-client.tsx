@@ -26,8 +26,10 @@ export function InstallCommand({ command, className }: { command: string; classN
         size="icon-sm"
         variant="quiet"
         onClick={() => {
-          void navigator.clipboard?.writeText(command);
-          setCopied(true);
+          void navigator.clipboard?.writeText(command).then(
+            () => setCopied(true),
+            () => setCopied(false)
+          );
         }}
       >
         {copied ? <Check className="text-brand-strong" /> : <Copy />}

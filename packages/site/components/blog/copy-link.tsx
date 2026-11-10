@@ -12,8 +12,11 @@ export function CopyLink({ permalink }: { permalink: string }) {
     <Button
       variant="outline"
       onClick={() => {
-        void navigator.clipboard?.writeText(absoluteUrl(`${permalink}/`));
-        setCopied(true);
+        // Success shows only once the browser confirms the write; a blocked clipboard stays "Copy link".
+        void navigator.clipboard?.writeText(absoluteUrl(`${permalink}/`)).then(
+          () => setCopied(true),
+          () => setCopied(false)
+        );
       }}
     >
       {copied ? <Check /> : <Link2 />}
