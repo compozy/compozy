@@ -90,6 +90,7 @@ export const UnknownLanguageFallback: Story = {
 };
 
 export const PrerenderedLines: Story = {
+  tags: ["play-fn"],
   args: {
     code: "compozy daemon start",
     language: "bash",
