@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -209,6 +211,43 @@ func seedCostRepairLedger(t *testing.T, globalPath, sessionID, workspaceID, agen
 // incomplete history unknown without changing tokens, counts, IDs or timestamps.
 func TestGlobalDBUsageCostRepair(t *testing.T) {
 	t.Parallel()
+	// Repair preflight must reject a session path escaping its data home before
+	// inspecting recovery markers or opening the other home's canonical ledger.
+	t.Run("Should reject a session directory symlink escaping the repair root", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		outside := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		owner := store.SessionDBOwner{SessionID: "sess-outside", WorkspaceID: "ws-cost"}
+		seedCostRepairLedger(t, outside, owner.SessionID, owner.WorkspaceID, "coder", []float64{1, 3})
+		outsideDir := filepath.Join(filepath.Dir(outside), "sessions", owner.SessionID)
+		ledgerPath := store.SessionDBFile(outsideDir)
+		before, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := filepath.Join(filepath.Dir(path), "sessions")
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outsideDir, filepath.Join(root, owner.SessionID)); err != nil {
+			t.Fatal(err)
+		}
+		usage, err := migrationSessionUsage(t.Context(), path, owner, "coder")
+		if _, ok := errors.AsType[*os.PathError](
+			err,
+		); !ok ||
+			!strings.Contains(err.Error(), "inspect cost repair ledger recovery") ||
+			len(usage) != 0 {
+			t.Fatalf("escaped repair = %+v, %v; want preflight refusal", usage, err)
+		}
+		after, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatal("outside ledger changed during rejected repair")
+		}
+	})
 	// Invariant: cost repair cannot invalidate clear recovery's byte hashes.
 	for _, suffix := range []string{".clear-manifest", ".clear-committed", ".clear-backup", "-wal.clear-backup", "-shm.clear-backup", "-journal.clear-backup"} {
 		t.Run("Should leave a ledger awaiting clear recovery untouched "+suffix, func(t *testing.T) {

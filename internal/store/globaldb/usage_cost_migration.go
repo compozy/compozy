@@ -164,14 +164,10 @@ func migrationSessionUsage(
 	if filepath.Base(owner.SessionID) != owner.SessionID || owner.SessionID == "." || owner.SessionID == ".." {
 		return nil, errors.New("store: invalid cost repair session identity")
 	}
-	root := filepath.Join(filepath.Dir(path), "sessions", owner.SessionID)
-	ledgerPath := store.SessionDBFile(root)
-	if err := requireCostRepairLedgerReady(ledgerPath); err != nil {
+	sessionsRoot := filepath.Join(filepath.Dir(path), "sessions")
+	ledgerPath := store.SessionDBFile(filepath.Join(sessionsRoot, owner.SessionID))
+	if err := requireCostRepairLedgerReady(sessionsRoot, owner.SessionID); err != nil {
 		return nil, err
-	}
-	// #nosec G703 -- session identity is validated by the owning sessiondb opener below.
-	if _, err := os.Lstat(ledgerPath); err != nil {
-		return nil, err // Never create an empty database for missing historical evidence.
 	}
 	ledger, err := sessiondb.OpenSessionDB(ctx, owner, ledgerPath)
 	if err != nil {
@@ -202,16 +198,26 @@ func migrationSessionUsage(
 
 // Clear recovery owns byte-hashed database/WAL snapshots. Boot cost repair runs
 // before the session manager can settle them, so never open/migrate that family.
-func requireCostRepairLedgerReady(path string) error {
+func requireCostRepairLedgerReady(sessionsRoot, sessionID string) (retErr error) {
+	root, err := os.OpenRoot(sessionsRoot)
+	if err != nil {
+		return fmt.Errorf("store: open cost repair sessions directory: %w", err)
+	}
+	defer func() { retErr = errors.Join(retErr, root.Close()) }()
+	path := store.SessionDBFile(sessionID)
 	for _, suffix := range []string{
 		".clear-manifest", ".clear-committed", ".clear-backup",
 		"-wal.clear-backup", "-shm.clear-backup", "-journal.clear-backup",
 	} {
-		if _, err := os.Lstat(path + suffix); err == nil {
+		if _, err := root.Lstat(path + suffix); err == nil {
 			return errors.New("store: cost repair ledger awaits clear recovery")
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("store: inspect cost repair ledger recovery: %w", err)
 		}
+	}
+	// Missing history must not cause the owning opener to create an empty ledger.
+	if _, err := root.Lstat(path); err != nil {
+		return fmt.Errorf("store: inspect cost repair ledger: %w", err)
 	}
 	return nil
 }
