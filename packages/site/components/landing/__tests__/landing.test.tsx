@@ -8,7 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadHero } from "@/components/download/download-hero";
 import { AllDownloads } from "@/components/download/sections";
-import { COMPARE_COLUMNS, INSTALL_STEPS } from "@/components/landing/content";
+import {
+  COMPARE_CHECKED_ON,
+  COMPARE_COLUMNS,
+  COMPARE_ROWS,
+  COMPARE_SOURCES,
+  COMPARE_VERDICTS,
+  INSTALL_STEPS,
+} from "@/components/landing/content";
 import { SiteMotionProvider } from "@/components/site/motion-provider";
 import { InstallCommand } from "@/components/site/primitives";
 import { Automations, Community, Comparison, FinalCta, Hero, Install } from "@/components/landing";
@@ -172,6 +179,32 @@ describe("Comparison", () => {
     const text = document.body.textContent ?? "";
     expect(text).not.toMatch(/\b(best|better than|beats|the only|#1|number one)\b/i);
     expect(text).not.toMatch(/Source:|\.resources\//);
+  });
+
+  it("states each documented verdict, with the date and the docs it was checked against", () => {
+    render(<Comparison />);
+    const table = screen.getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(COMPARE_ROWS.length);
+    rows.forEach((row, index) => {
+      const cells = within(row).getAllByRole("cell").slice(2);
+      const labels = cells.map(cell =>
+        cell.querySelector("[aria-label]")?.getAttribute("aria-label")
+      );
+      expect(labels).toEqual(
+        COMPARE_COLUMNS.map(
+          column =>
+            ({ yes: "Yes", partial: "Partial", no: "No" })[COMPARE_VERDICTS[column][index] ?? "no"]
+        )
+      );
+    });
+
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/to verify|<date>/);
+    expect(text).toContain(COMPARE_CHECKED_ON);
+    for (const [name, href] of Object.entries(COMPARE_SOURCES)) {
+      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
   });
 });
 

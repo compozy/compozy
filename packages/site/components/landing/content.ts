@@ -140,7 +140,57 @@ export const DETAILS: ReadonlyArray<readonly [LucideIcon, string, string]> = [
   [HeartPulse, "Health", "Spot stuck or unhealthy sessions."],
 ];
 
-export const COMPARE_COLUMNS = ["Synara", "T3 Code", "Hermes", "OpenClaw", "DIY stack"];
+export const COMPARE_COLUMNS = ["Synara", "T3 Code", "Hermes", "OpenClaw", "DIY stack"] as const;
+
+export type CompareColumn = (typeof COMPARE_COLUMNS)[number];
+export type CompareVerdict = "yes" | "partial" | "no";
+type CompareRowVerdicts = readonly [
+  CompareVerdict,
+  CompareVerdict,
+  CompareVerdict,
+  CompareVerdict,
+  CompareVerdict,
+  CompareVerdict,
+];
+
+/** When each product's public documentation was last checked for the table below. */
+export const COMPARE_CHECKED_ON = "November 10, 2026";
+
+/** The public documentation each product column was checked against. */
+export const COMPARE_SOURCES: Record<Exclude<CompareColumn, "DIY stack">, string> = {
+  Synara: "https://www.trysynara.com/docs",
+  "T3 Code": "https://github.com/pingdotgg/t3code",
+  Hermes: "https://hermes-agent.nousresearch.com/docs",
+  OpenClaw: "https://docs.openclaw.ai",
+};
+
+/**
+ * One verdict per row of `COMPARE_ROWS`, in order, from each product's own documentation
+ * (checked on `COMPARE_CHECKED_ON`). "partial" means the docs cover part of the row: for example
+ * approvals without an audit trail, or schedules without event triggers. Rows a product's docs do
+ * not mention read "no". The DIY stack column is the assembled alternative (agent CLIs plus cron,
+ * scripts and terminals), so it is a judgment rather than a documented product.
+ */
+export const COMPARE_VERDICTS: Record<CompareColumn, CompareRowVerdicts> = {
+  // Agent CLIs: yes. Heartbeat runs and goals, no proactive agent: partial. "Awaiting you" board:
+  // yes. Schedules and loops, no event triggers: partial. Approvals, audit only for external MCP:
+  // partial. Local, MIT: yes.
+  Synara: ["yes", "partial", "yes", "partial", "partial", "yes"],
+  // Agent CLIs: yes. Background service and push alerts, no proactive agent: partial. Sidebar by
+  // working state, not a board: partial. Goals, schedules, webhooks: yes. Permission modes, no
+  // audit log: partial. Local, MIT: yes.
+  "T3 Code": ["yes", "partial", "partial", "yes", "partial", "yes"],
+  // Its own agent; Codex only as an opt-in runtime: partial. Heartbeat and goals: yes. Task kanban
+  // by status: partial. Loops, cron, GitHub webhooks: yes. Approvals, session history but no
+  // audit: partial. Local, MIT: yes.
+  Hermes: ["partial", "yes", "partial", "yes", "partial", "yes"],
+  // ACP coding harnesses: yes. Proactive check job: yes. No board by next owner: no. Scheduler and
+  // webhooks, no goal loops: partial. Exec approvals, no audit trail: partial. Local, MIT: yes.
+  OpenClaw: ["yes", "yes", "no", "partial", "partial", "yes"],
+  // The CLIs run as they are; nothing checks in, nothing groups sessions; cron and scripts cover
+  // part of loops; each CLI prompts on its own with no shared record; licences vary by tool.
+  "DIY stack": ["yes", "no", "no", "partial", "partial", "partial"],
+};
 
 export const COMPARE_ROWS = [
   "Runs the agents you already use",

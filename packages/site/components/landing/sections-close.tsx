@@ -1,10 +1,14 @@
 /** Closing: the side-by-side comparison, install, and the final call to action. */
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from "@compozy/ui";
-import { Download, Star } from "@compozy/ui/icons";
+import { Check, Download, Star } from "@compozy/ui/icons";
 
 import {
+  COMPARE_CHECKED_ON,
   COMPARE_COLUMNS,
   COMPARE_ROWS,
+  COMPARE_SOURCES,
+  COMPARE_VERDICTS,
+  type CompareVerdict,
   HREF,
   INSTALL_COMMAND,
   INSTALL_STEPS,
@@ -26,6 +30,24 @@ import {
   TextLink,
 } from "@/components/site/primitives";
 import { siteConfig } from "@/lib/site-config";
+
+const VERDICT_LABEL: Record<CompareVerdict, string> = {
+  yes: "Yes",
+  partial: "Partial",
+  no: "No",
+};
+
+/** A competitor's cell: a check, the word "Partial", or a dash, each named for screen readers. */
+function Verdict({ value }: { value: CompareVerdict }) {
+  if (value === "yes") {
+    return <Check aria-label="Yes" className="mx-auto size-5 text-[#0a0a0a]" />;
+  }
+  return (
+    <span aria-label={VERDICT_LABEL[value]} className="font-mono text-[12px] text-site-dark-450">
+      {value === "partial" ? "Partial" : "—"}
+    </span>
+  );
+}
 
 export function Comparison() {
   return (
@@ -74,11 +96,8 @@ export function Comparison() {
                     <PopCheck index={index} />
                   </td>
                   {COMPARE_COLUMNS.map(column => (
-                    <td
-                      key={column}
-                      className="px-4 text-center font-mono text-[12px] text-site-dark-400"
-                    >
-                      to verify
+                    <td key={column} className="px-4 text-center">
+                      <Verdict value={COMPARE_VERDICTS[column][index] ?? "no"} />
                     </td>
                   ))}
                 </tr>
@@ -91,7 +110,21 @@ export function Comparison() {
           objects, so nothing has to be glued together.
         </p>
         <p className="m-0 mt-3 text-[13px] text-site-dark-450">
-          Checked against each product's public documentation on &lt;date&gt;.
+          Checked against the public documentation of{" "}
+          {Object.entries(COMPARE_SOURCES).map(([name, href], index, all) => (
+            <span key={name}>
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-site-dark-200 underline-offset-2 hover:text-[#0a0a0a]"
+              >
+                {name}
+              </a>
+              {index < all.length - 2 ? ", " : index === all.length - 2 ? " and " : ""}
+            </span>
+          ))}{" "}
+          on {COMPARE_CHECKED_ON}. Partial means the docs cover part of the row.
         </p>
       </div>
     </section>
