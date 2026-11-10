@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,6 +72,7 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	requestedOptions := slices.Clone(spec.acpOptions)
 	if err := spec.applyResolvedRuntimeDefaults(
 		resolved,
 		m.startPermissions(startSpecPermissions(spec, resolved.Permissions)),
@@ -88,6 +90,14 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	if err := m.applyInstanceCeiling(ctx, spec, &resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	// An instance ceiling can lower the level after the agent layer was merged.
+	spec.excludeInheritedUnrestrictedOptions(
+		resolved.Provider,
+		m.startPermissions(startSpecPermissions(spec, resolved.Permissions)),
+		agentDef.ACPOptionsValue(),
+		requestedOptions,
+		dropInheritedUnrestricted,
+	)
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
 		nativeToolsUnavailable: resolved.Harness == compozyconfig.ProviderHarnessPiACP,
