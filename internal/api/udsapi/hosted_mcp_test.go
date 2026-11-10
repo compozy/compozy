@@ -354,6 +354,41 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 func TestHostedMCPJSONRouteErrors(t *testing.T) {
 	t.Parallel()
 
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDTerminalRead, toolspkg.ToolIDTerminalExec} {
+		t.Run("Should diagnose missing active run for "+toolID.String(), func(t *testing.T) {
+			t.Parallel()
+			registry, err := toolspkg.NewRegistry()
+			if err != nil {
+				t.Fatal(err)
+			}
+			router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
+			const sessionID = "sess-terminal-run"
+			bind := launchAndBindHostedMCP(t, service, peer, sessionID)
+			service.ReleaseRun(sessionID, "run-"+sessionID, 1)
+			for _, generation := range []int64{2, 3} {
+				recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, toolID.String())
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if recorder.Code != http.StatusForbidden ||
+					!strings.Contains(payload.Error, "hosted_mcp_run_required") ||
+					!strings.Contains(payload.Error, "active prompt turn") {
+					t.Fatalf("inactive terminal response status=%d payload=%#v", recorder.Code, payload)
+				}
+				if err := service.BindRun(t.Context(), sessionID, "run-next", generation); err != nil {
+					t.Fatal(err)
+				}
+				recorder = postHostedMCPToolCall(t, router, peer, bind.BindID, toolID.String())
+				toolPayload := decodeHostedMCPToolError(t, recorder)
+				if recorder.Code != http.StatusNotFound || toolPayload.Error.Code != toolspkg.ErrorCodeNotFound {
+					t.Fatalf("active run did not reach registry: status=%d payload=%#v", recorder.Code, toolPayload)
+				}
+				service.ReleaseRun(sessionID, "run-next", generation)
+			}
+		})
+	}
+
 	t.Run("Should return actionable Windows requirements on every peer gated route", func(t *testing.T) {
 		t.Parallel()
 		router, _ := newHostedMCPRouteTestHarness(t)
