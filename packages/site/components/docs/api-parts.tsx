@@ -5,8 +5,7 @@
  * `fumadocs-openapi` has no slot markup for. Each reads the page's own OpenAPI document through the
  * library's hooks, so nothing here keeps a second copy of the API.
  */
-import { Button, Tabs, TabsContent, TabsList, TabsTrigger, cn } from "@compozy/ui";
-import { ChevronRight } from "@compozy/ui/icons";
+import { Button, Disclosure, Tabs, TabsContent, TabsList, TabsTrigger, cn } from "@compozy/ui";
 import { useComponents, useOpenAPI, type OperationItem } from "fumadocs-openapi";
 import { useCodeUsage, useOperation, type ResponseTab } from "fumadocs-openapi/operation";
 import { useState, type ComponentProps, type ReactNode } from "react";
@@ -180,21 +179,18 @@ export function ApiResponses({ schema }: { schema: ReactNode }) {
         ))}
       </dl>
       {schema ? (
-        <details className="group/schema mt-3">
-          <summary
-            className={cn(
-              "inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-[8px] text-[13.5px] text-muted-foreground transition-colors hover:text-fg [&::-webkit-details-marker]:hidden",
-              FOCUS
-            )}
-          >
-            <ChevronRight
-              aria-hidden
-              className="size-3.5 text-subtle transition-transform group-open/schema:rotate-90"
-            />
-            Response schema
-          </summary>
-          <div className="api-response-schema mt-3">{schema}</div>
-        </details>
+        <Disclosure
+          label="Response schema"
+          size="md"
+          // Kept in the DOM while closed, as the `<details>` it replaces was: find-in-page and the
+          // schema's anchors still reach it.
+          keepMounted
+          className="mt-3"
+          triggerProps={{ className: "h-8 py-0 text-[13.5px] font-normal" }}
+          contentProps={{ className: "api-response-schema pt-3" }}
+        >
+          {schema}
+        </Disclosure>
       ) : null}
     </div>
   );

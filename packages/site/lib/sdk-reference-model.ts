@@ -3,6 +3,11 @@
  * `web/src/drafts/docs/sdk.ts`. Pure: no data loading, so client components can import it.
  */
 
+/** A count with its noun, singular for one: "1 method", "98 methods". */
+export function countOf(count: number, noun: string, plural = `${noun}s`): string {
+  return `${count} ${count === 1 ? noun : plural}`;
+}
+
 export type SdkLang = "ts" | "go";
 export type SdkKind = "json" | "sse" | "websocket" | "prompt";
 
@@ -12,6 +17,8 @@ export interface SdkField {
   required: boolean;
   description: string;
   in?: "path" | "query" | "header";
+  /** The name each client takes this option under; `null` where that client does not take it. */
+  client: Record<SdkLang, string | null>;
 }
 
 /** How the TypeScript client reaches an operation, read from `@compozy/client`'s generated types. */
@@ -112,6 +119,26 @@ export function returnsOf(method: SdkMethod, lang: SdkLang) {
   if (method.kind === "sse") return `AsyncIterable<StreamEvent<SseFrame<"${method.id}">>>`;
   if (!method.ts) return null;
   return `Promise<${method.ts.returns}>`;
+}
+
+/** One option as a reader of one client sees it. */
+export interface SdkOption {
+  field: SdkField;
+  name: string;
+}
+
+/**
+ * The options one client takes for a method, under that client's names: Go reads them from the
+ * method's `…Params` struct, TypeScript from its `path`, `query` and `headers` (never headers for
+ * `compozy.events()`), prompts from `PromptInput`. A WebSocket route has no client method, so its
+ * route parameters keep their HTTP names.
+ */
+export function optionsOf(method: SdkMethod, lang: SdkLang): SdkOption[] {
+  if (method.kind === "websocket") return method.params.map(field => ({ field, name: field.name }));
+  return method.params.flatMap(field => {
+    const name = field.client[lang];
+    return name === null ? [] : [{ field, name }];
+  });
 }
 
 /** The request body type each client takes, or an empty string. */

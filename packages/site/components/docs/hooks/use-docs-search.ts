@@ -48,40 +48,62 @@ export function groupHits(hits: readonly SearchHit[]): SearchPageHit[] {
   return [...pages.values()].filter(page => page.title !== "");
 }
 
-/** Queries the site's search index (the same Orama route that powered the old dialog). */
+/** The search route as the site serves it: `trailingSlash` would answer `/api/search` with a 308. */
+const SEARCH_PATH = "/api/search/";
+
+interface SearchState {
+  key: string;
+  attempt: number;
+  hits: SearchPageHit[];
+  failed: boolean;
+}
+
+/**
+ * Queries the site's search index (the same Orama route that powered the old dialog). Only answers
+ * are cached; a failed request shows as `failed` and `retry` asks again.
+ */
 export function useDocsSearch(query: string, tag: string | null) {
   const needle = query.trim();
   const key = `${needle}\n${tag ?? ""}`;
-  const [state, setState] = useState<{ key: string; hits: SearchPageHit[] }>({
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<SearchState>({
     key: "",
+    attempt: 0,
     hits: [],
+    failed: false,
   });
   useEffect(() => {
     if (!needle) return;
     if (cache.has(key)) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      const url = new URL("/api/search", window.location.origin);
+      const url = new URL(SEARCH_PATH, window.location.origin);
       url.searchParams.set("query", needle);
       if (tag) url.searchParams.set("tag", tag);
       fetch(url, { signal: controller.signal })
-        .then(response => (response.ok ? response.json() : []))
-        .then((hits: SearchHit[]) => {
+        .then(response => {
+          if (!response.ok) throw new Error(`Search answered ${response.status}`);
+          return response.json() as Promise<SearchHit[]>;
+        })
+        .then(hits => {
           const pages = groupHits(hits);
           cache.set(key, pages);
-          setState({ key, hits: pages });
+          setState({ key, attempt, hits: pages, failed: false });
         })
         .catch(() => {
-          if (!controller.signal.aborted) setState({ key, hits: [] });
+          if (!controller.signal.aborted) setState({ key, attempt, hits: [], failed: true });
         });
     }, DELAY_MS);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [key, needle, tag]);
+  }, [key, needle, tag, attempt]);
+  const retry = () => setAttempt(current => current + 1);
   const cached = cache.get(key);
-  if (!needle) return { hits: [], loading: false };
+  if (!needle) return { hits: [], loading: false, failed: false, retry };
+  if (cached) return { hits: cached, loading: false, failed: false, retry };
+  const settled = state.key === key && state.attempt === attempt;
   // While a new query is in flight the previous results stay up, so the list does not flash empty.
-  return { hits: cached ?? state.hits, loading: !cached && state.key !== key };
+  return { hits: state.hits, loading: !settled, failed: settled && state.failed, retry };
 }

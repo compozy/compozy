@@ -5,10 +5,12 @@ import { CodeBlock, cn } from "@compozy/ui";
 
 import { BELOW_HEADER, LINE } from "@/components/docs/docs-classes";
 import { CodeFrame } from "@/components/docs/docs-prose";
+import { SDK_METHOD_ANCHOR } from "@/components/sdk/sdk-classes";
 import { SdkFieldRow, SdkFields } from "@/components/sdk/sdk-symbol";
 import {
   bodyOf,
   methodName,
+  optionsOf,
   returnsOf,
   signatureOf,
   type SdkLang,
@@ -85,11 +87,13 @@ export function SdkMethodEntry({
 }) {
   const sample = method.samples[lang];
   const body = bodyOf(method, lang);
+  const options = optionsOf(method, lang);
   return (
     <section
       id={method.id}
       className={cn(
-        "grid scroll-mt-[64px] gap-x-14 gap-y-7 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
+        "grid gap-x-14 gap-y-7 border-t py-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]",
+        SDK_METHOD_ANCHOR,
         LINE
       )}
     >
@@ -99,13 +103,13 @@ export function SdkMethodEntry({
         </h2>
         <p className="mt-2 mb-0 text-[16px]/[1.6] text-fg/80">{method.summary}</p>
         <CallShape resource={resource} method={method} lang={lang} />
-        {method.params.length > 0 ? (
+        {options.length > 0 ? (
           <div className="mt-7">
-            <SdkFields title="Options">
-              {method.params.map(field => (
+            <SdkFields title={method.kind === "websocket" ? "Route parameters" : "Options"}>
+              {options.map(({ field, name }) => (
                 <SdkFieldRow
                   key={`${field.in ?? ""}${field.name}`}
-                  name={field.name}
+                  name={name}
                   type={field.type}
                   required={field.required}
                   in={field.in}

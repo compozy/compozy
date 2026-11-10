@@ -25,7 +25,7 @@ export function DocsDrawer({ children }: { children: ReactNode }) {
         side="left"
         showCloseButton={false}
         className={cn(
-          "docs-rail w-[min(340px,88vw)] gap-0 overflow-y-auto rounded-none border-r bg-[#0c0c0c] px-4 pt-4 pb-10 sm:max-w-none lg:hidden",
+          "site-docs docs-rail w-[min(340px,88vw)] gap-0 overflow-y-auto rounded-none border-r bg-[#0c0c0c] px-4 pt-4 pb-10 sm:max-w-none lg:hidden",
           LINE
         )}
       >

@@ -1,7 +1,8 @@
 /*
  * Docs shell (`app/docs/layout.tsx`, ported from the approved `web/src/drafts/docs` draft).
  * The draft reads on the neutral text ramp, as the marketing shell does; the warm D9 pins in
- * global.css stay for everything outside these two shells.
+ * global.css stay for everything outside these two shells. The drawer and the search palette
+ * portal to `body`, outside the shell, so their panels carry the class too.
  */
 .site-docs {
   --color-fg: #ececec;

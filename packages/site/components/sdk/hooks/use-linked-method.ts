@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * The method the URL hash names on a resource page. A link to a method past the preview (from search,
- * another page, or the method index) has no target until the list renders it, so the page shows every
- * method and scrolls to it once it exists.
+ * The method the URL hash names on a resource page. A method past the preview waits in a closed
+ * `<details>`; a link to it (from search, another page, or the method index) opens the full list and
+ * scrolls to the method once it is shown.
  */
 import { useEffect, useSyncExternalStore } from "react";
 

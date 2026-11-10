@@ -9,7 +9,7 @@ import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion
 import { useScrollTransform } from "@/components/site/hooks/use-scroll-transform";
 import { Small } from "@/components/site/primitives";
 
-import { useActiveHeading } from "./hooks/use-active-heading";
+import { useActiveHeading } from "@/components/site/hooks/use-active-heading";
 
 export interface RailSection {
   id: string;

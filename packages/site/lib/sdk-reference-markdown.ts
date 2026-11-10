@@ -3,14 +3,17 @@ import type { AdvancedIndex } from "fumadocs-core/search/server";
 
 import {
   bodyOf,
+  countOf,
   methodName,
+  optionsOf,
   returnsOf,
   signatureOf,
   type SdkLang,
   type SdkMethod,
+  type SdkOption,
   type SdkResource,
 } from "@/lib/sdk-reference-model";
-import { sdkResourceById, sdkResourceForUrl } from "@/lib/sdk-reference";
+import { sdkReference, sdkResourceById, sdkResourceForUrl } from "@/lib/sdk-reference";
 
 const LANG_LABEL: Record<SdkLang, string> = { ts: "TypeScript", go: "Go" };
 const FENCE: Record<SdkLang, string> = { ts: "ts", go: "go" };
@@ -27,6 +30,12 @@ function callLine(resource: SdkResource, method: SdkMethod, lang: SdkLang): stri
   ].join("");
 }
 
+function optionLine({ field, name }: SdkOption): string {
+  const required = field.required ? ", required" : "";
+  const description = field.description ? `: ${field.description}` : "";
+  return `- \`${name}\` (${field.in}, \`${field.type}\`${required})${description}`;
+}
+
 function methodMarkdown(resource: SdkResource, method: SdkMethod): string {
   const lines = [
     `## ${methodName(method, "ts")}`,
@@ -38,12 +47,15 @@ function methodMarkdown(resource: SdkResource, method: SdkMethod): string {
     callLine(resource, method, "ts"),
     callLine(resource, method, "go"),
   ];
-  if (method.params.length > 0) {
-    lines.push("", "Options:", "");
-    for (const field of method.params) {
-      const required = field.required ? ", required" : "";
-      const description = field.description ? `: ${field.description}` : "";
-      lines.push(`- \`${field.name}\` (${field.in}, \`${field.type}\`${required})${description}`);
+  if (method.kind === "websocket") {
+    const fields = optionsOf(method, "ts");
+    if (fields.length > 0) lines.push("", "Route parameters:", "", ...fields.map(optionLine));
+  } else {
+    for (const lang of ["ts", "go"] as const) {
+      const fields = optionsOf(method, lang);
+      if (fields.length > 0) {
+        lines.push("", `${LANG_LABEL[lang]} options:`, "", ...fields.map(optionLine));
+      }
     }
   }
   for (const lang of ["ts", "go"] as const) {
@@ -69,6 +81,41 @@ export function expandSdkResources(source: string): string {
     const resource = sdkResourceById(id);
     return resource ? sdkResourceMarkdown(resource) : tag;
   });
+}
+
+/** A hand-written SDK page the overview links to. */
+export interface SdkGuideLink {
+  url: string;
+  title: string;
+  description: string;
+}
+
+/** The language switch is page chrome: it says nothing in Markdown. */
+const LANG_BAR_TAG = /^<SdkLangBar\s*\/>\n+/gm;
+const GUIDE_LINKS_TAG = /<SdkGuideLinks\s*\/>/g;
+const RESOURCE_GRID_TAG = /<SdkResourceGrid\s*\/>/g;
+
+/**
+ * Replaces the SDK overview's `<SdkGuideLinks />` and `<SdkResourceGrid />` with the lists they
+ * render: the client guides (read only when the tag is there), and every resource with its method
+ * count.
+ */
+export function expandSdkOverview(source: string, guides: () => readonly SdkGuideLink[]): string {
+  return source
+    .replace(LANG_BAR_TAG, "")
+    .replace(GUIDE_LINKS_TAG, () =>
+      guides()
+        .map(guide => `- [${guide.title}](${guide.url}): ${guide.description}`)
+        .join("\n")
+    )
+    .replace(RESOURCE_GRID_TAG, () =>
+      sdkReference()
+        .resources.map(
+          resource =>
+            `- [${resource.title}](/docs/sdk/${resource.slug}): ${countOf(resource.ops.length, "method")}, \`compozy.${resource.id}\` in TypeScript`
+        )
+        .join("\n")
+    );
 }
 
 /** One search entry per method, so a method name or summary finds its resource page. */

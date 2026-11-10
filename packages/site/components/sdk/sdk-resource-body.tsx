@@ -1,14 +1,16 @@
 "use client";
 
 /** One SDK resource: every method listed, then each with its call, its options and a sample. */
-import { Button, SearchInput, cn } from "@compozy/ui";
+import { SearchInput, buttonVariants, cn } from "@compozy/ui";
 import { useState } from "react";
 
 import { LINE } from "@/components/docs/docs-classes";
 import { useLinkedMethod } from "@/components/sdk/hooks/use-linked-method";
+import { useOpenDetails } from "@/components/sdk/hooks/use-open-details";
 import { useSdkLang } from "@/components/sdk/hooks/use-sdk-lang";
 import { SdkMethodEntry } from "@/components/sdk/sdk-method";
 import {
+  countOf,
   methodName,
   type SdkLang,
   type SdkMethod,
@@ -55,14 +57,20 @@ export function SdkResourceBody({ resource }: { resource: SdkResource }) {
         `${method.id} ${methodName(method, lang)} ${method.summary}`.toLowerCase().includes(needle)
       )
     : resource.ops;
-  const shown = all || linked || needle ? matched : matched.slice(0, PREVIEW);
+  const expanded = all || linked || needle !== "";
+  const more = useOpenDetails(expanded);
+  const head = matched.slice(0, PREVIEW);
+  const rest = matched.slice(PREVIEW);
+  const entry = (method: SdkMethod) => (
+    <SdkMethodEntry key={method.id} resource={resource} method={method} lang={lang} />
+  );
   return (
     <>
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
         <SearchInput
           value={query}
           onChange={setQuery}
-          placeholder={`Filter ${resource.ops.length} methods`}
+          placeholder={`Filter ${countOf(resource.ops.length, "method")}`}
           aria-label="Filter methods"
           containerClassName="h-10 w-full sm:w-[320px] [&_input]:text-[14px]"
         />
@@ -71,15 +79,31 @@ export function SdkResourceBody({ resource }: { resource: SdkResource }) {
         </p>
       </div>
       <MethodIndex methods={matched} lang={lang} />
-      <div className="mt-12">
-        {shown.map(method => (
-          <SdkMethodEntry key={method.id} resource={resource} method={method} lang={lang} />
-        ))}
-      </div>
-      {shown.length < matched.length ? (
-        <Button variant="outline" size="sm" onClick={() => setAll(true)}>
-          Show all {matched.length} methods
-        </Button>
+      <div className="mt-12">{head.map(entry)}</div>
+      {rest.length > 0 ? (
+        // Every method is in the server HTML, so the index's anchors and crawlers reach them; past
+        // the preview they wait in a closed `<details>`, which a browser opens for a link to one of
+        // them (or find in page) even before the page hydrates.
+        <details
+          ref={more}
+          // Chrome opens it for a URL fragment while the HTML loads, before React hydrates: `open`
+          // is the browser's state here, not a server/client difference.
+          suppressHydrationWarning
+          onToggle={event => {
+            if (event.currentTarget.open) setAll(true);
+          }}
+          className="group/more"
+        >
+          <summary
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "w-fit list-none group-open/more:hidden [&::-webkit-details-marker]:hidden"
+            )}
+          >
+            Show all {countOf(matched.length, "method")}
+          </summary>
+          {rest.map(entry)}
+        </details>
       ) : null}
     </>
   );

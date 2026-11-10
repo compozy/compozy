@@ -3,11 +3,9 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 
 import { CliBody } from "@/components/docs/cli-page";
-import { DocsDrawer } from "@/components/docs/docs-chrome";
-import { BELOW_HEADER, DOCS_PROSE, LINE, textOf } from "@/components/docs/docs-classes";
+import { DOCS_PROSE, textOf } from "@/components/docs/docs-classes";
 import { DocsHome } from "@/components/docs/docs-home";
 import { DocsMasthead, DocsPager } from "@/components/docs/docs-masthead";
-import { DocsSidebar, type DocsSidebarGroup } from "@/components/docs/docs-sidebar";
 import { DocsPageFrame, DocsTocDisclosure, type DocsTocItem } from "@/components/docs/docs-toc";
 import {
   BreadcrumbListJsonLd,
@@ -17,12 +15,18 @@ import {
 import { apiOperationCount } from "@/lib/api-reference";
 import { cliToc, readCliDoc, type CliDoc } from "@/lib/cli-doc";
 import { getDocsPageSource } from "@/lib/get-llm-text";
-import { getDocsShell, neighboursOf, type DocsShell } from "@/lib/docs-shell";
+import { getDocsShell, neighboursOf } from "@/lib/docs-shell";
 import { normalizeDocsUrl } from "@/lib/docs-navigation";
 import { openapi } from "@/lib/openapi";
-import { isSdkUrl, sdkFacts, sdkResourceForUrl } from "@/lib/sdk-reference";
+import { countOf, isSdkUrl, sdkFacts, sdkResourceForUrl } from "@/lib/sdk-reference";
 import { SDK_PROSE } from "@/components/sdk/sdk-classes";
-import { absoluteUrl, canonicalPath, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
+import {
+  absoluteUrl,
+  canonicalPath,
+  createPageMetadata,
+  docsSourceUrl,
+  siteConfig,
+} from "@/lib/site-config";
 import { docsSource } from "@/lib/source";
 import { cn } from "@compozy/ui";
 import { getMDXComponents } from "@/mdx-components";
@@ -33,11 +37,21 @@ interface PageProps {
 
 const WORDS_PER_MINUTE = 220;
 
-function buildActionUrls(pageUrl: string, slug: string[], relativePath: string | undefined) {
+/**
+ * Where "Open on GitHub" goes: generated API and SDK resource pages are gitignored build output, so
+ * they link to what they are generated from; every other page links to its own MDX file.
+ */
+function sourceUrlOf(template: DocTemplate, relativePath: string): string {
+  const blob = `${siteConfig.repoUrl}/blob/${siteConfig.repoBranch}`;
+  if (template.kind === "api") return `${blob}/openapi/compozy.json`;
+  if (template.kind === "sdk") return `${blob}/packages/site/scripts/generate-sdk-reference.ts`;
+  return docsSourceUrl(relativePath);
+}
+
+function buildActionUrls(pageUrl: string, slug: string[], githubUrl: string) {
   const slugSegment = slug.length ? `${slug.join("/")}/` : "";
   const markdownUrl = `/llms.mdx/docs/${slugSegment}`;
   const canonicalPageUrl = absoluteUrl(canonicalPath(pageUrl));
-  const githubUrl = docsSourceUrl(relativePath ?? "");
   return { markdownUrl, pageUrl: canonicalPageUrl, githubUrl };
 }
 
@@ -78,14 +92,6 @@ function tocIdOf(url: string): string {
   return url.startsWith("#") ? url.slice(1) : (url.split("#")[1] ?? url);
 }
 
-/** The sidebar shows the page's section; pages outside every section see all of them. */
-function sidebarGroups(shell: DocsShell, sectionId: string | null): DocsSidebarGroup[] {
-  const sections = sectionId
-    ? shell.sections.filter(section => section.id === sectionId)
-    : shell.sections;
-  return sections.map(({ id, label, count, nodes }) => ({ id, label, count, nodes }));
-}
-
 /** Which template a page renders through: generated references get their own layouts. */
 type DocTemplate =
   | { kind: "cli"; cli: CliDoc }
@@ -124,7 +130,7 @@ function tocOf(template: DocTemplate, pageToc: PageToc): DocsTocItem[] {
 /** The masthead facts the draft shows: endpoints for API pages, method counts for SDK pages, nothing for CLI commands. */
 function factsOf(template: DocTemplate, url: string, content: string): string | undefined {
   if (template.kind === "cli") return undefined;
-  if (template.kind === "api") return `${template.endpoints} endpoints`;
+  if (template.kind === "api") return countOf(template.endpoints, "endpoint");
   return sdkFacts(url) ?? `${readingMinutes(content)} min read`;
 }
 
@@ -163,7 +169,6 @@ export default async function Page(props: PageProps) {
   const breadcrumbs = buildBreadcrumbs(resolvedSlug, page.data.title);
   const ogImagePath = `/og/docs/${resolvedSlug.length ? `${resolvedSlug.join("/")}/` : ""}image.png`;
   const openapiPreload = slug[0] === "api" ? await openapi.preloadOpenAPIPage(page) : undefined;
-  const groups = sidebarGroups(shell, place?.section?.id ?? null);
   const seo = (
     <>
       <TechArticleJsonLd
@@ -175,12 +180,6 @@ export default async function Page(props: PageProps) {
       <BreadcrumbListJsonLd items={breadcrumbs} />
     </>
   );
-  const drawer = (
-    <DocsDrawer>
-      <DocsSidebar groups={groups} activeUrl={url} />
-    </DocsDrawer>
-  );
-
   if (url === "/docs" || !place) {
     return (
       <>
@@ -188,29 +187,19 @@ export default async function Page(props: PageProps) {
         <DocsHome shell={shell}>
           <MDX components={getMDXComponents(openapiPreload)} />
         </DocsHome>
-        {drawer}
       </>
     );
   }
 
-  const content = await getDocsPageSource(page);
+  const content = getDocsPageSource(page);
   const template = templateOf(slug, url, content, page.data.description ?? "");
   const toc = tocOf(template, page.data.toc);
   const layout = layoutOf(template, url);
   const { previous, next } = neighboursOf(shell, url);
 
   return (
-    <div className="mx-auto grid max-w-[1600px] lg:grid-cols-[296px_minmax(0,1fr)]">
+    <>
       {seo}
-      <aside
-        className={cn(
-          "docs-rail sticky hidden h-[calc(100vh-104px)] overflow-y-auto border-r px-4 pt-8 pb-12 lg:block",
-          BELOW_HEADER,
-          LINE
-        )}
-      >
-        <DocsSidebar groups={groups} activeUrl={url} />
-      </aside>
       <DocsPageFrame toc={toc} wide={layout.wide}>
         <div className={layout.chromeClass}>
           <DocsMasthead
@@ -218,7 +207,7 @@ export default async function Page(props: PageProps) {
             title={mastheadTitle(template, place.title)}
             facts={factsOf(template, url, content)}
             maturity={page.data.maturity}
-            actions={buildActionUrls(page.url, slug, page.path)}
+            actions={buildActionUrls(page.url, slug, sourceUrlOf(template, page.path))}
             toc={layout.disclosure ? <DocsTocDisclosure toc={toc} /> : null}
           />
         </div>
@@ -235,8 +224,7 @@ export default async function Page(props: PageProps) {
           <DocsPager previous={previous} next={next} />
         </div>
       </DocsPageFrame>
-      {drawer}
-    </div>
+    </>
   );
 }
 

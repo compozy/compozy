@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { BEAM_X, FOCUS, LINE } from "@/components/docs/docs-classes";
+import { useCurrentTabInView } from "@/components/docs/hooks/use-current-tab-in-view";
 import { useDocsChrome } from "@/components/docs/hooks/use-docs-chrome";
 import { STAR_FORMAT, useGithubStarCount } from "@/components/site/hooks/use-github-star-count";
 import { currentSectionId } from "@/lib/docs-navigation";
@@ -40,8 +41,10 @@ function SearchTrigger({ onSearch }: { onSearch: () => void }) {
 }
 
 function SectionTabs({ tabs, current }: { tabs: readonly DocsTab[]; current: string | null }) {
+  const strip = useCurrentTabInView(current);
   return (
     <nav
+      ref={strip}
       aria-label="Sections"
       className="docs-tabs mx-auto flex h-12 max-w-[1600px] items-stretch gap-1 overflow-x-auto px-3 md:px-6"
     >

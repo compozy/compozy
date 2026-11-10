@@ -74,7 +74,13 @@ function toNavNodes(nodes: readonly Node[]): DocsNavNode[] {
     }
     if (node.type === "page") {
       const url = normalizeDocsUrl(node.url);
-      out.push({ key: url, name: nameOf(node.name), url, icon: node.icon });
+      // Only rows that have an icon carry one: the layout ships every section's nodes to the client.
+      out.push({
+        key: url,
+        name: nameOf(node.name),
+        url,
+        ...(node.icon ? { icon: node.icon } : {}),
+      });
       return;
     }
     const indexUrl = node.index ? normalizeDocsUrl(node.index.url) : undefined;

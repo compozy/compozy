@@ -7,7 +7,8 @@ import { m, useScroll } from "motion/react";
 import { useRef, type ReactNode } from "react";
 
 import { BEAM, BELOW_HEADER, LINE } from "@/components/docs/docs-classes";
-import { useActiveHeading } from "@/components/docs/hooks/use-active-heading";
+import { useRevealCurrent } from "@/components/docs/hooks/use-reveal-current";
+import { useActiveHeading } from "@/components/site/hooks/use-active-heading";
 import { useReducedMotionSafe } from "@/components/site/hooks/use-reduced-motion-safe";
 
 export interface DocsTocItem {
@@ -58,6 +59,8 @@ export function DocsPageFrame({
   const body = useRef<HTMLElement>(null);
   const ids = toc.map(item => item.id);
   const active = useActiveHeading(ids);
+  // A long page's list scrolls inside its rail: the current entry stays in view as you read.
+  const rail = useRevealCurrent<HTMLElement>(active ?? "", "toc", '[aria-current="location"]');
   const reduced = useReducedMotionSafe();
   const { scrollYProgress } = useScroll({ target: body, offset: ["start 35%", "end 65%"] });
   return (
@@ -77,6 +80,7 @@ export function DocsPageFrame({
         <div className="hidden xl:block" />
       ) : (
         <nav
+          ref={rail}
           aria-label="On this page"
           className={cn(
             "docs-rail hidden max-h-[calc(100vh-136px)] overflow-y-auto pt-10 pb-10 xl:sticky xl:block xl:self-start",

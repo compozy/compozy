@@ -4,6 +4,7 @@
  */
 import type { SDKSampleManifest } from "@/lib/sdk-samples";
 import {
+  countOf,
   kebabCase,
   type SdkField,
   type SdkGoCall,
@@ -50,6 +51,8 @@ export interface SdkReferenceInputs {
   tsTypes: string;
   /** `sdk/client/src/generated/sse/types.gen.ts`: the operations `compozy.events()` reads. */
   tsSseTypes: string;
+  /** `sdk/client/src/prompt.ts`: the `PromptInput` that `compozy.prompt()` takes. */
+  tsPrompt: string;
 }
 
 const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete"]);
@@ -131,6 +134,100 @@ export function tsCallOf(tsTypes: string, operationId: string): SdkTsCall | null
   return { options, body, returns };
 }
 
+/**
+ * The option keys of `export type <name> = { … };`, as `<group>:<key>` for its nested `path`,
+ * `query` and `headers` object types.
+ */
+function nestedKeys(source: string, name: string): Set<string> {
+  const keys = new Set<string>();
+  const start = source.indexOf(`export type ${name} = {\n`);
+  if (start === -1) return keys;
+  let group: string | null = null;
+  for (const line of source.slice(start, source.indexOf("\n};", start)).split("\n")) {
+    const opener = /^ {2}(\w+)\??: \{$/.exec(line);
+    if (opener) group = opener[1] ?? null;
+    else if (/^ {2}\S/.test(line)) group = null;
+    // A union type may continue on the next lines (`status?:` then `| "draft"`).
+    const match = group ? /^ {4}"?([\w-]+)"?\??:(?: |$)/.exec(line) : null;
+    if (match?.[1]) keys.add(`${group}:${match[1]}`);
+  }
+  return keys;
+}
+
+/** Field names of `<keyword> <name> {` … `}` (a TS interface or a Go struct), `,`-lists split. */
+function declaredFields(source: string, opener: string): string[] {
+  const start = source.indexOf(`${opener} {\n`);
+  if (start === -1) return [];
+  const body = source.slice(start, source.indexOf("\n}", start)).split("\n").slice(1);
+  return body.flatMap(line => {
+    const ts = /^ {2}(\w+)\??:/.exec(line);
+    if (ts?.[1]) return [ts[1]];
+    const go = /^\t([\w, ]+?)\s+[\w.*[\]]+$/.exec(line);
+    return go?.[1] ? go[1].split(",").map(name => name.trim()) : [];
+  });
+}
+
+/** `url:"<http name>"` → Go field, for each field of `type <name> struct { … }`. */
+function goParamFields(goSource: string, name: string): Map<string, string> {
+  const fields = new Map<string, string>();
+  const start = goSource.indexOf(`type ${name} struct {\n`);
+  if (start === -1) return fields;
+  const body = goSource.slice(start, goSource.indexOf("\n}", start));
+  for (const match of body.matchAll(/^\t(\w+)\s+\S+\s+`url:"([^"]+)"`/gm)) {
+    if (match[1] && match[2]) fields.set(match[2], match[1]);
+  }
+  return fields;
+}
+
+/** `workspace_id`, `workspaceId` and `WorkspaceID` name the same option. */
+function sameOption(left: string, right: string): boolean {
+  const flat = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return flat(left) === flat(right);
+}
+
+const TS_GROUP: Record<NonNullable<SdkField["in"]>, string> = {
+  path: "path",
+  query: "query",
+  header: "headers",
+};
+
+/** Sets each option's name in the TypeScript and Go clients, `null` where a client lacks it. */
+function nameOptions(
+  fields: SdkField[],
+  method: Pick<SdkMethod, "id" | "kind" | "go">,
+  inputs: SdkReferenceInputs
+): SdkField[] {
+  if (method.kind === "websocket" || fields.length === 0) return fields;
+  if (method.kind === "prompt") {
+    // `compozy.prompt()` and `c.Prompt()` take a `PromptInput`, not the route's options.
+    const ts = declaredFields(inputs.tsPrompt, "export interface PromptInput");
+    const go = declaredFields(inputs.goSource, "type PromptInput struct");
+    return fields.map(field => ({
+      ...field,
+      client: {
+        ts: ts.find(name => sameOption(name, field.name)) ?? null,
+        go: go.find(name => sameOption(name, field.name)) ?? null,
+      },
+    }));
+  }
+  const sse = method.kind === "sse";
+  const tsKeys = nestedKeys(
+    sse ? inputs.tsSseTypes : inputs.tsTypes,
+    `${pascalCase(method.id)}Data`
+  );
+  const goArg = method.go?.args.find(arg => arg.endsWith("Params"));
+  const goFields = goArg ? goParamFields(inputs.goSource, goArg) : new Map<string, string>();
+  return fields.map(field => {
+    const place = field.in ?? "query";
+    // `compozy.events()` forwards no headers (`SseOptions` keeps `path`, `query` and `body`).
+    const tsTakes = !(sse && place === "header") && tsKeys.has(`${TS_GROUP[place]}:${field.name}`);
+    return {
+      ...field,
+      client: { ts: tsTakes ? field.name : null, go: goFields.get(field.name) ?? null },
+    };
+  });
+}
+
 /** `events()` forwards only `path`, `query` and `body` of the generated SSE options (`SseOptions`). */
 function sseCallOf(tsSseTypes: string, operationId: string): SdkTsCall | null {
   const call = tsCallOf(tsSseTypes, operationId);
@@ -171,6 +268,7 @@ function paramsOf(operation: Operation): SdkField[] {
       type: schemaType(param.schema),
       required: Boolean(param.required),
       description: param.description ?? "",
+      client: { ts: null, go: null },
     });
   }
   return fields;
@@ -198,6 +296,12 @@ export function buildSdkReference(inputs: SdkReferenceInputs): SdkReference {
     if (!entry) throw new Error(`sdk-samples.json names ${id}, which openapi/compozy.json lacks.`);
     const kind = sample.kind as SdkKind;
     const realtime = kind === "websocket" || kind === "prompt";
+    const ts = realtime
+      ? null
+      : kind === "sse"
+        ? sseCallOf(inputs.tsSseTypes, id)
+        : tsCallOf(inputs.tsTypes, id);
+    const go = kind === "prompt" ? (goMethods.get("Prompt") ?? null) : goMethodOf(goMethods, id);
     const method: SdkMethod = {
       id,
       summary: entry.operation.summary ?? "",
@@ -205,13 +309,9 @@ export function buildSdkReference(inputs: SdkReferenceInputs): SdkReference {
       path: entry.path,
       kind,
       app: sample.app_access === "allowed",
-      params: paramsOf(entry.operation),
-      ts: realtime
-        ? null
-        : kind === "sse"
-          ? sseCallOf(inputs.tsSseTypes, id)
-          : tsCallOf(inputs.tsTypes, id),
-      go: kind === "prompt" ? (goMethods.get("Prompt") ?? null) : goMethodOf(goMethods, id),
+      params: nameOptions(paramsOf(entry.operation), { id, kind, go }, inputs),
+      ts,
+      go,
       samples: { ts: sample.typescript ?? "", go: sample.go ?? "" },
     };
     const list = grouped.get(sample.resource) ?? [];
@@ -250,7 +350,7 @@ export function renderResourceStub(resource: SdkResource): string {
   return [
     "---",
     `title: ${yamlString(resource.title)}`,
-    `description: ${yamlString(`${resource.ops.length} methods on the ${resource.title} resource.`)}`,
+    `description: ${yamlString(`${countOf(resource.ops.length, "method")} on the ${resource.title} resource.`)}`,
     `_generated: ${SDK_GENERATED_MARKER}`,
     "---",
     "",

@@ -1,7 +1,8 @@
 /**
  * Writes the SDK Reference: one `content/docs/sdk/<resource>.mdx` stub per SDK resource, the
  * section's `meta.json`, and `lib/sdk-reference-data.json` (the model the stubs render). Inputs are
- * the OpenAPI document, the SDK samples, and the TypeScript and Go clients' generated sources.
+ * the OpenAPI document, the SDK samples, the TypeScript and Go clients' generated sources, and the
+ * TypeScript `PromptInput`.
  */
 import path from "node:path";
 import { promises as fs } from "node:fs";
@@ -24,6 +25,7 @@ const DATA_FILE = path.join(SITE, "lib/sdk-reference-data.json");
 const GO_CLIENT = path.join(REPO_ROOT, "sdk/go/client");
 const TS_TYPES = path.join(REPO_ROOT, "sdk/client/src/generated/sdk/types.gen.ts");
 const TS_SSE_TYPES = path.join(REPO_ROOT, "sdk/client/src/generated/sse/types.gen.ts");
+const TS_PROMPT = path.join(REPO_ROOT, "sdk/client/src/prompt.ts");
 
 async function readJson<T>(file: string): Promise<T> {
   return JSON.parse(await fs.readFile(file, "utf8")) as T;
@@ -57,14 +59,22 @@ async function cleanGenerated(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const [openapi, samples, goSource, tsTypes, tsSseTypes] = await Promise.all([
+  const [openapi, samples, goSource, tsTypes, tsSseTypes, tsPrompt] = await Promise.all([
     readJson<OpenAPIDocument>(path.join(REPO_ROOT, "openapi/compozy.json")),
     readJson<SDKSampleManifest>(path.join(REPO_ROOT, "openapi/sdk-samples.json")),
     readGoSource(),
     fs.readFile(TS_TYPES, "utf8"),
     fs.readFile(TS_SSE_TYPES, "utf8"),
+    fs.readFile(TS_PROMPT, "utf8"),
   ]);
-  const reference = buildSdkReference({ openapi, samples, goSource, tsTypes, tsSseTypes });
+  const reference = buildSdkReference({
+    openapi,
+    samples,
+    goSource,
+    tsTypes,
+    tsSseTypes,
+    tsPrompt,
+  });
   await fs.mkdir(OUT_DIR, { recursive: true });
   await cleanGenerated();
   await Promise.all([

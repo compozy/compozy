@@ -4,8 +4,7 @@
 import { cn } from "@compozy/ui";
 import { ChevronRight } from "@compozy/ui/icons";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { BEAM, FOCUS } from "@/components/docs/docs-classes";
 import { useRevealCurrent } from "@/components/docs/hooks/use-reveal-current";
@@ -70,6 +69,25 @@ function LeafRow({ node, depth, active }: { node: DocsNavNode; depth: number; ac
   );
 }
 
+/** A plain left click; modified clicks keep the browser's own handling (new tab, new window). */
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <ChevronRight
+      aria-hidden
+      className={cn("size-3.5 shrink-0 text-subtle transition-transform", open && "rotate-90")}
+    />
+  );
+}
+
+/**
+ * A folder row. With a landing page the name is a real link (middle click, new tab, crawlers) and
+ * the chevron is its own toggle; clicking the name of the folder being read toggles it, as in the
+ * draft. A folder without a landing page is one toggle button.
+ */
 function FolderRow(props: {
   node: DocsNavNode;
   depth: number;
@@ -77,34 +95,49 @@ function FolderRow(props: {
   active: boolean;
   onToggle: () => void;
 }) {
-  const router = useRouter();
-  const { node } = props;
-  const pick = () => {
-    if (node.url === undefined || props.active) props.onToggle();
-    if (node.url !== undefined && !props.active) router.push(node.url);
-  };
-  return (
-    <button
-      type="button"
-      aria-expanded={props.open}
-      aria-current={props.active ? "page" : undefined}
-      onClick={pick}
-      className={cn(
-        ROW,
-        props.active || (props.open && props.depth === 0) ? "text-fg" : "text-fg/75 hover:text-fg",
-        props.active && "bg-site-light-060"
-      )}
-    >
-      {props.depth === 0 ? <Glyph icon={node.icon} /> : null}
+  const { node, open, active, depth } = props;
+  const tone = active || (open && depth === 0) ? "text-fg" : "text-fg/75 hover:text-fg";
+  const label = (
+    <>
+      {depth === 0 ? <Glyph icon={node.icon} /> : null}
       <span className="min-w-0 flex-1 break-words">{shortLabel(node.name)}</span>
-      <ChevronRight
-        aria-hidden
+    </>
+  );
+  if (node.url === undefined) {
+    return (
+      <button type="button" aria-expanded={open} onClick={props.onToggle} className={cn(ROW, tone)}>
+        {label}
+        <Chevron open={open} />
+      </button>
+    );
+  }
+  return (
+    <div className={cn("flex items-center rounded-[8px]", active && "bg-site-light-060")}>
+      <Link
+        href={node.url}
+        aria-current={active ? "page" : undefined}
+        onClick={event => {
+          if (!active || !isPlainClick(event)) return;
+          event.preventDefault();
+          props.onToggle();
+        }}
+        className={cn(ROW, "min-w-0 flex-1 pr-1", tone)}
+      >
+        {label}
+      </Link>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`${open ? "Collapse" : "Expand"} ${shortLabel(node.name)}`}
+        onClick={props.onToggle}
         className={cn(
-          "size-3.5 shrink-0 text-subtle transition-transform",
-          props.open && "rotate-90"
+          "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[8px] bg-transparent",
+          FOCUS
         )}
-      />
-    </button>
+      >
+        <Chevron open={open} />
+      </button>
+    </div>
   );
 }
 
@@ -157,16 +190,22 @@ function Tree({ nodes, depth, active, toggled, onToggle }: TreeProps) {
   );
 }
 
-/** The current section's tree; pages outside every section get all of them. */
+/**
+ * The current section's tree. The folder state is owned by the docs frame, so the rail and the
+ * drawer share it and it survives client navigations.
+ */
 export function DocsSidebar({
   groups,
   activeUrl,
+  toggled,
+  onToggle,
 }: {
   groups: readonly DocsSidebarGroup[];
   activeUrl: string;
+  toggled: Record<string, boolean>;
+  onToggle: (key: string, open: boolean) => void;
 }) {
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  const nav = useRevealCurrent<HTMLElement>(activeUrl);
+  const nav = useRevealCurrent<HTMLElement>(activeUrl, groups.map(group => group.id).join(" "));
   return (
     <nav ref={nav} aria-label="Docs navigation" className="flex flex-col gap-7">
       {groups.map(group => (
@@ -180,7 +219,7 @@ export function DocsSidebar({
             depth={0}
             active={activeUrl}
             toggled={toggled}
-            onToggle={(key, open) => setToggled(current => ({ ...current, [key]: open }))}
+            onToggle={onToggle}
           />
         </div>
       ))}

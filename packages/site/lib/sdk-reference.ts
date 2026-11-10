@@ -4,7 +4,7 @@
  * one resource at a time.
  */
 import data from "@/lib/sdk-reference-data.json";
-import type { SdkReference, SdkResource } from "@/lib/sdk-reference-model";
+import { countOf, type SdkReference, type SdkResource } from "@/lib/sdk-reference-model";
 
 export * from "@/lib/sdk-reference-model";
 
@@ -35,11 +35,11 @@ export function sdkFacts(url: string): string | undefined {
   const resource = sdkResourceForUrl(url);
   if (resource) {
     const allowed = resource.ops.filter(method => method.app).length;
-    return `${resource.ops.length} methods · ${allowed} available to app tokens`;
+    return `${countOf(resource.ops.length, "method")} · ${allowed} available to app tokens`;
   }
   if (/^\/docs\/sdk\/?$/.test(url)) {
     const { stats } = REFERENCE;
-    return `${stats.operations} operations · ${stats.resources} resources · ${stats.app} available to app tokens`;
+    return `${countOf(stats.operations, "operation")} · ${countOf(stats.resources, "resource")} · ${stats.app} available to app tokens`;
   }
   return undefined;
 }

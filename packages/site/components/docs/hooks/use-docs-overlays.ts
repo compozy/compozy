@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 
 import type { DocsChromeValue } from "@/components/docs/docs-chrome-context";
 
+/** Tailwind's `lg`: from here the sidebar is a rail beside the page, not a drawer. */
+const RAIL_QUERY = "(min-width: 64rem)";
+
 /** The drawer and palette state for one pathname, with the ⌘K and Escape shortcuts. */
 export function useDocsOverlays(pathname: string): DocsChromeValue {
   const [overlay, setOverlay] = useState<{ kind: "menu" | "search" | null; path: string }>({
@@ -30,6 +33,20 @@ export function useDocsOverlays(pathname: string): DocsChromeValue {
   useEffect(() => {
     current.current = pathname;
   }, [pathname]);
+  const menuOpen = kind === "menu";
+  // A drawer left open while the window widens past `lg` has no panel to show (the rail takes
+  // over), so it closes instead of leaving its scrim and scroll lock behind.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const rail = window.matchMedia(RAIL_QUERY);
+    const closeAtRail = () => {
+      if (rail.matches)
+        setOverlay(state => (state.kind === "menu" ? { ...state, kind: null } : state));
+    };
+    closeAtRail();
+    rail.addEventListener("change", closeAtRail);
+    return () => rail.removeEventListener("change", closeAtRail);
+  }, [menuOpen]);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -43,7 +60,7 @@ export function useDocsOverlays(pathname: string): DocsChromeValue {
     return () => window.removeEventListener("keydown", handle);
   }, []);
   return {
-    menu: kind === "menu",
+    menu: menuOpen,
     search: kind === "search",
     openMenu: () => setOverlay({ kind: "menu", path: pathname }),
     openSearch: () => showSearch(pathname),

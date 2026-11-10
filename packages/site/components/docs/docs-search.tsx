@@ -2,6 +2,7 @@
 
 /** Search across every docs page: grouped by section, filterable, keyboard-driven, on the site's index. */
 import {
+  Button,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -86,7 +87,7 @@ function pathOf(hit: SearchPageHit) {
 function Results(
   props: DocsSearchProps & { query: string; tag: string | null; onOpen: (url: string) => void }
 ) {
-  const { hits, loading } = useDocsSearch(props.query, props.tag);
+  const { hits, loading, failed, retry } = useDocsSearch(props.query, props.tag);
   if (!props.query.trim()) {
     return (
       <CommandGroup heading="Start here">
@@ -102,6 +103,16 @@ function Results(
           />
         ))}
       </CommandGroup>
+    );
+  }
+  if (failed) {
+    return (
+      <div role="status" className="flex flex-col items-center gap-4 px-4 py-10 text-center">
+        <p className="m-0 text-[14px] text-muted-foreground">Search is unavailable right now.</p>
+        <Button type="button" variant="outline" size="sm" onClick={retry}>
+          Try again
+        </Button>
+      </div>
     );
   }
   const sections = props.tabs.flatMap(tab => {
@@ -234,7 +245,7 @@ export function DocsSearch(props: DocsSearchProps) {
         unframed
         showCloseButton={false}
         finalFocus={searchOpener}
-        className="top-[12vh] w-[calc(100%-2rem)] max-w-[680px] translate-y-0 overflow-hidden rounded-[18px] border border-site-light-150 bg-[#111111] p-0 shadow-[0_40px_120px_var(--site-dark-600)] sm:max-w-[680px]"
+        className="site-docs top-[12vh] w-[calc(100%-2rem)] max-w-[680px] translate-y-0 overflow-hidden rounded-[18px] border border-site-light-150 bg-[#111111] p-0 shadow-[0_40px_120px_var(--site-dark-600)] sm:max-w-[680px]"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Search the docs</DialogTitle>

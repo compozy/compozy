@@ -14,7 +14,15 @@ import {
   type OpenAPIDocument,
   type SdkReferenceInputs,
 } from "@/lib/sdk-reference-build";
-import { returnsOf, signatureOf, type SdkLang, type SdkReference } from "@/lib/sdk-reference-model";
+import {
+  optionsOf,
+  returnsOf,
+  signatureOf,
+  type SdkLang,
+  type SdkReference,
+} from "@/lib/sdk-reference-model";
+import { expandSdkOverview, sdkResourceMarkdown } from "@/lib/sdk-reference-markdown";
+import { sdkFacts } from "@/lib/sdk-reference";
 import type { SDKSampleManifest } from "@/lib/sdk-samples";
 
 const repoRoot = resolve(siteRoot, "../..");
@@ -33,6 +41,7 @@ function inputs(): SdkReferenceInputs {
     goSource,
     tsTypes: read("sdk/client/src/generated/sdk/types.gen.ts"),
     tsSseTypes: read("sdk/client/src/generated/sse/types.gen.ts"),
+    tsPrompt: read("sdk/client/src/prompt.ts"),
   };
 }
 
@@ -150,5 +159,76 @@ describe("SDK call shapes", () => {
         if (method.samples.go) expect(method.samples.go).toContain(`c.${method.go?.name}(`);
       }
     }
+  });
+});
+
+describe("SDK options per client", () => {
+  const names = (id: string, lang: SdkLang) =>
+    optionsOf(find(reference, id).method, lang).map(option => option.name);
+
+  it("names a route's options as each client takes them", () => {
+    expect(names("getSession", "ts")).toEqual([
+      "workspace_id",
+      "session_id",
+      "include_health",
+      "profile",
+      "all_profiles",
+    ]);
+    expect(names("getSession", "go")).toEqual([
+      "WorkspaceID",
+      "SessionID",
+      "IncludeHealth",
+      "Profile",
+      "AllProfiles",
+    ]);
+  });
+
+  it("lists Last-Event-ID for Go streams only: compozy.events() forwards no headers", () => {
+    expect(names("streamSession", "ts")).not.toContain("Last-Event-ID");
+    expect(names("streamSession", "ts")).toContain("after_sequence");
+    expect(names("streamSession", "go")).toContain("LastEventID");
+  });
+
+  it("reads multi-line union options from the TypeScript types", () => {
+    expect(names("listTasks", "ts")).toContain("status");
+    expect(names("listTasks", "go")).toContain("Status");
+  });
+
+  it("names prompt options from PromptInput and drops what neither client takes", () => {
+    expect(names("sendSessionPrompt", "ts")).toEqual(["workspaceId", "sessionId"]);
+    expect(names("sendSessionPrompt", "go")).toEqual(["WorkspaceID", "SessionID"]);
+  });
+
+  it("keeps a WebSocket route's parameters under their HTTP names", () => {
+    const { method } = find(reference, "streamTerminal");
+    expect(names("streamTerminal", "go")).toEqual(method.params.map(field => field.name));
+  });
+
+  it("writes each client's options into the llms Markdown", () => {
+    const { resource } = find(reference, "streamSession");
+    const markdown = sdkResourceMarkdown(resource);
+    expect(markdown).toContain("Go options:");
+    expect(markdown).toContain("- `LastEventID` (header");
+    expect(markdown).not.toContain("- `Last-Event-ID`");
+  });
+});
+
+describe("SDK counts and overview Markdown", () => {
+  it("says 1 method, not 1 methods, wherever a resource count is printed", () => {
+    const single = reference.resources.find(resource => resource.ops.length === 1);
+    if (!single) throw new Error("no single-method resource to check");
+    expect(renderResourceStub(single)).toContain(`"1 method on the ${single.title} resource."`);
+    expect(sdkFacts(`/docs/sdk/${single.slug}`)).toMatch(/^1 method · /);
+  });
+
+  it("expands the overview's guide links and resource grid into Markdown lists", () => {
+    const markdown = expandSdkOverview(
+      "<SdkLangBar />\n\n## Client\n\n<SdkGuideLinks />\n\n<SdkResourceGrid />\n",
+      () => [{ url: "/docs/sdk/client", title: "Client", description: "Create a client." }]
+    );
+    expect(markdown).not.toMatch(/<Sdk(LangBar|GuideLinks|ResourceGrid)/);
+    expect(markdown).toContain("- [Client](/docs/sdk/client): Create a client.");
+    const first = reference.resources[0];
+    expect(markdown).toContain(`- [${first?.title}](/docs/sdk/${first?.slug}): `);
   });
 });

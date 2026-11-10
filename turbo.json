@@ -87,6 +87,7 @@
             ]
         },
         "@compozy/site#generate:sdk": {
+            "cache": false,
             "inputs": [
                 "scripts/generate-sdk-reference.ts",
                 "lib/sdk-reference-build.ts",
@@ -95,6 +96,7 @@
                 "$TURBO_ROOT$/openapi/sdk-samples.json",
                 "$TURBO_ROOT$/sdk/client/src/generated/sdk/types.gen.ts",
                 "$TURBO_ROOT$/sdk/client/src/generated/sse/types.gen.ts",
+                "$TURBO_ROOT$/sdk/client/src/prompt.ts",
                 "$TURBO_ROOT$/sdk/go/client/*.go"
             ],
             "outputs": [
