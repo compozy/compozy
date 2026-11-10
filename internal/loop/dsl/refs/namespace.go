@@ -243,19 +243,21 @@ func childSchema(current any, segment string) (any, bool) {
 		return childSchema(map[string]any(typed), segment)
 	case map[string]any:
 		if properties, ok := typed["properties"]; ok {
-			if child, found := childFromProperties(properties, segment); found {
-				return child, true
-			}
-		}
-		if child, ok := typed[segment]; ok {
-			return child, true
+			return childFromProperties(properties, segment)
 		}
 		if typed["type"] == "array" {
 			if items, ok := typed["items"]; ok {
 				return childSchema(items, segment)
 			}
 		}
-		return nil, false
+		if _, isTypedSchema := typed["type"]; isTypedSchema {
+			return nil, false
+		}
+		if _, hasAdditionalProperties := typed["additionalProperties"]; hasAdditionalProperties {
+			return nil, false
+		}
+		child, ok := typed[segment]
+		return child, ok
 	case map[string]Schema:
 		child, ok := typed[segment]
 		return child, ok

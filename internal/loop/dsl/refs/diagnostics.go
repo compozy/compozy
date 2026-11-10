@@ -27,6 +27,9 @@ func availableSchemaFields(current any) []string {
 		if _, isTypedSchema := typed["type"]; isTypedSchema {
 			return nil
 		}
+		if _, hasAdditionalProperties := typed["additionalProperties"]; hasAdditionalProperties {
+			return nil
+		}
 		return sortedMapKeys(typed)
 	case map[string]Schema:
 		available := slices.AppendSeq(make([]string, 0, len(typed)), maps.Keys(typed))

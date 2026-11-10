@@ -2106,7 +2106,7 @@ func TestActionRegistryResultViewPins(t *testing.T) {
 			_, err = executor.Execute(
 				t.Context(),
 				node,
-				loop.ActionExecutionInput{AdmittedParams: dsl.NodeParams{"id": "edited"}},
+				loop.ActionExecutionInput{AdmittedParams: dsl.NodeParams{"id": "edited", "result_view": "edited-view"}},
 			)
 			if err != nil {
 				t.Fatal(err)

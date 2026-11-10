@@ -55,7 +55,9 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 	for _, path := range declaredOutputPaths(convertSchema(node.Produces)) {
 		path = append([]string{namespaceNodesKey, string(node.ID), namespaceOutputKey}, path...)
 		if err := namespace.ValidatePath(path); err != nil {
-			c.addRefsError(node.ID, err)
+			if !c.addToolResultViewReferenceError(node.ID, node, err) {
+				c.addRefsError(node.ID, err)
+			}
 		} else {
 			c.warnUnknownOutputReferences(
 				node.ID,
@@ -76,11 +78,22 @@ func (c *lintContext) toolAllowsOpenOutput(node dsl.Node) bool {
 
 func (c *lintContext) addResultViewReferenceError(consumer dsl.NodeID, refErr *refs.Error) bool {
 	path := nodeOutputReferencePath(refErr.ReferencePath)
-	if refErr.Code != refs.CodeUnresolvablePath || len(path) < 4 || c.linter.tools == nil {
+	if len(path) < 4 {
 		return false
 	}
 	node, ok := c.nodeByID[dsl.NodeID(path[1])]
-	if !ok || node.Class != dsl.NodeClassAction || nodeResultView(node) == tools.ResultViewFull {
+	if !ok || len(node.Produces) > 0 {
+		return false
+	}
+	return c.addToolResultViewReferenceError(consumer, node, refErr)
+}
+
+func (c *lintContext) addToolResultViewReferenceError(
+	consumer dsl.NodeID, node dsl.Node, refErr *refs.Error,
+) bool {
+	path := nodeOutputReferencePath(refErr.ReferencePath)
+	if refErr.Code != refs.CodeUnresolvablePath || len(path) < 4 || c.linter.tools == nil ||
+		node.Class != dsl.NodeClassAction || nodeResultView(node) == tools.ResultViewFull {
 		return false
 	}
 	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
@@ -114,8 +127,23 @@ func (c *lintContext) addResultViewReferenceError(consumer dsl.NodeID, refErr *r
 	return true
 }
 
-func declaredOutputPaths(schema refs.Schema) [][]string {
-	properties := map[string]any(schema)
+func declaredOutputPaths(value any) [][]string {
+	if schema, ok := value.(refs.Schema); ok {
+		value = map[string]any(schema)
+	}
+	if items, ok := value.([]any); ok {
+		if len(items) == 0 {
+			return nil
+		}
+		return declaredOutputPaths(items[0])
+	}
+	properties, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if properties[jsonSchemaTypeKey] == jsonSchemaArrayType {
+		return declaredOutputPaths(properties[jsonSchemaItemsKey])
+	}
 	if declared, ok := properties[jsonSchemaPropertiesKey].(map[string]any); ok {
 		properties = declared
 	} else if _, ok := properties[jsonSchemaTypeKey]; ok {
@@ -123,23 +151,14 @@ func declaredOutputPaths(schema refs.Schema) [][]string {
 	}
 	var paths [][]string
 	for name, value := range properties {
-		nested, ok := normalizeSchemaValue(value).(map[string]any)
-		if ok {
-			if nested[jsonSchemaTypeKey] == jsonSchemaArrayType {
-				items, hasItems := nested[jsonSchemaItemsKey].(map[string]any)
-				if hasItems {
-					nested = items
-				}
-			}
-			children := declaredOutputPaths(nested)
-			if len(children) > 0 {
-				for _, child := range children {
-					paths = append(paths, append([]string{name}, child...))
-				}
-				continue
-			}
+		children := declaredOutputPaths(value)
+		if len(children) == 0 {
+			paths = append(paths, []string{name})
+			continue
 		}
-		paths = append(paths, []string{name})
+		for _, child := range children {
+			paths = append(paths, append([]string{name}, child...))
+		}
 	}
 	return paths
 }

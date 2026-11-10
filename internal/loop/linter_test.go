@@ -2760,11 +2760,19 @@ func TestLinterResultViewReferences(t *testing.T) {
 		full     string
 		path     string
 		produces bool
+		override dsl.Schema
 		want     string
 		warning  bool
 		prefix   string
 	}{
 		{name: "Should accept compact fields", path: "id"},
+		{name: "Should reject schema keywords on a closed compact node", path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject schema keywords on a closed full node", view: "full", path: "properties.id", want: refs.CodeUnresolvablePath},
+		{name: "Should reject keywords on a typeless closed object", view: "full", full: `{"additionalProperties":false}`, path: "additionalProperties", want: refs.CodeUnresolvablePath},
+		{name: "Should accept explicitly declared keyword-named fields", view: "full", full: `{"type":"object","properties":{"type":{"type":"string"}},"additionalProperties":false}`, path: "type"},
+		{name: "Should reject schema keywords on scalar full nodes", view: "full", full: `{"type":"string"}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should warn for keyword-named fields on an open full node", view: "full", full: `{"type":"object"}`, path: "type", warning: true},
+		{name: "Should preserve produces restrictions on compact references", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject moved fields from previous generations", prefix: "previous.", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
 		{name: "Should warn for open full fields from the best generation", prefix: "best.", view: "full", full: `{"type":"object"}`, path: "details.name", warning: true},
 		{name: "Should require full for a moved field", path: "details.name", want: loop.CodeResultViewFieldRequiresFull},
@@ -2779,6 +2787,8 @@ func TestLinterResultViewReferences(t *testing.T) {
 		{name: "Should reject children of a scalar full field", view: "full", path: "scalar.typo", want: refs.CodeUnresolvablePath},
 		{name: "Should reject children of a scalar root", view: "full", full: `{"type":"string"}`, path: "typo", want: refs.CodeUnresolvablePath},
 		{name: "Should reject children of an untyped array", view: "full", full: `{"type":"array"}`, path: "typo", want: refs.CodeUnresolvablePath},
+		{name: "Should check produced shorthand array fields against compact", compact: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, full: `{"type":"object"}`, path: "items.details", produces: true, override: dsl.Schema{"items": []any{map[string]any{"details": "string"}}}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject produced shorthand array fields absent from full", compact: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, full: `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false}}},"additionalProperties":false}`, path: "items.details", produces: true, override: dsl.Schema{"items": []any{map[string]any{"details": "string"}}}, want: refs.CodeUnresolvablePath},
 		{name: "Should require full for produced moved fields", path: "details.name", produces: true, want: loop.CodeResultViewFieldRequiresFull},
 		{name: "Should reject produced fields absent from both views", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
 		{name: "Should reject produced fields absent from full", view: "full", path: "details.typo", produces: true, want: refs.CodeUnresolvablePath},
@@ -2819,6 +2829,9 @@ func TestLinterResultViewReferences(t *testing.T) {
 					value = map[string]any{part: value}
 				}
 				inspect.Produces = dsl.Schema(value.(map[string]any))
+			}
+			if tc.override != nil {
+				inspect.Produces = tc.override
 			}
 			def := singleNodeDefinition(inspect)
 			def.Inputs = map[string]dsl.Input{"view": {Type: dsl.InputTypeString}}
