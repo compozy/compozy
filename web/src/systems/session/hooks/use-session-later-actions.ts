@@ -98,7 +98,7 @@ export function useResumeSessionFromLater() {
 /**
  * Move to Later and Back from Later for a session list host, single and bulk.
  * Move to Later always asks first (an optional reason and return date); Back
- * from Later runs at once. Batches run sequentially through `runSessionBatch`
+ * from Later runs at once. Batches run with bounded concurrency through `runSessionBatch`
  * and report once, as archive does. `busy` is the host's other lifecycle work:
  * while it runs, these verbs decline, and the host folds `pendingAction` back
  * into its own lock.
@@ -146,6 +146,7 @@ export function useSessionLaterActions({
       action,
       ids: sessions.map(session => session.id),
       previous: [],
+      sessions,
       execute: id => execute(byId.get(id)!),
       onProgress: results =>
         setBatch({

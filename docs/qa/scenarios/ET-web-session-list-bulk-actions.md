@@ -4,7 +4,7 @@ area: ET
 title: Select and act on sessions in the shared workspace list
 persona: Bruno
 journey: J-14
-expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run sequentially through existing session mutations. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
+expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run with bounded concurrency through existing session mutations; related session trees retain their ordering. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
 entry_points: SessionSidebar; Sessions modal in workspace scope; row checkboxes and modifier clicks; Selected sessions toolbar
 qa_status: skipped
 overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order
@@ -47,7 +47,7 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    preserves selection. With one selected session the existing singular dialog is
    unchanged before deletion. A one-session bulk failure shows the daemon error
    and offers Retry 1 and Close. More than five targets show five rows plus the overflow count.
-7. Confirm: deletion progresses sequentially, Cancel/close are unavailable, and
+7. Confirm: deletion progresses with at most three independent trees in flight, Cancel/close are unavailable, and
    neither the dialog nor its host dismisses on Esc/outside click. On success the
    dialog closes, one toast reports the deleted count, rows disappear from the
    real catalog, and selection clears while the host remains open.
@@ -127,3 +127,24 @@ grouped (Group by project under All projects).
    count without the selected child and unchecked. Check it and confirm: the parent's tree goes in
    one request, the selected child reads done without a second request, and a failure keeps its row
    in the result list. Bulk archive asks once with the same count, checked by default.
+
+## Batch menu parity and concurrency (#1464)
+
+Select dismissible Needs you sessions and provenance children alongside ordinary sessions. Both
+the selection toolbar and selected-row context menu offer Mark as seen, Make top-level and Copy
+titles with the row menu's eligibility. Copy titles preserves selection order. Rename, Fork and
+Continue with another agent remain single-session actions. Mark as seen clears only dismissible
+attention; Make top-level detaches only eligible nested user sessions. Ineligible rows are counted
+with a reason, and failed requests name each target without hiding successes.
+
+For about 15 sessions, exercise Stop, Archive, Stop and archive, Delete, Later, Unarchive and Mark
+as seen. Observe up to three independent trees progressing together; parent/child archive and
+delete operations retain root-before-covered-child ordering. Compare elapsed time with the
+sequential baseline, retaining errors and retry receipts. Verify a batch stays locked until its
+last outstanding request completes, even when later requests finish first.
+
+Issue #1464 evidence (2026-11-10): see
+[the targeted validation report](../reports/2026-11-10-issue-1464.md). The report distinguishes
+rendered session-menu/lifecycle checks, real API/Git timings, deterministic partial-failure
+coverage, and the public screenshot-upload blocker. This does not replace unrelated journeys
+in this scenario.

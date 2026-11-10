@@ -26,7 +26,7 @@ import {
   sessionLinkCandidatesOptions,
   sessionLinkedWorkOptions,
 } from "../lib/session-linked-work-options";
-import { settleBounded } from "../lib/settle-bounded";
+import { settleBounded } from "@/lib/settle-bounded";
 import { closeSessionLinkDialog } from "./use-session-link-dialog";
 import { useSessionLinkMutations } from "./use-session-linked-work";
 

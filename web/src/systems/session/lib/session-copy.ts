@@ -1,11 +1,12 @@
 import { toast } from "@compozy/ui";
 
-type SessionCopyKind = "Session ID" | "Session IDs" | "Title";
+type SessionCopyKind = "Session ID" | "Session IDs" | "Title" | "Titles";
 
 const COPY_NOUN: Record<SessionCopyKind, string> = {
   "Session ID": "session ID",
   "Session IDs": "session IDs",
   Title: "title",
+  Titles: "titles",
 };
 
 /** Copies session identifiers or a title with the row menus' clipboard and toast policy. */

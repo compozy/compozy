@@ -346,7 +346,7 @@ A session's profile never changes; **Move to profile** copies it into another pr
 
 **Mark as seen** clears one occurrence of Needs you the operator has looked at: a turn that ended early, a return from Later, or a stopped session's failure. It never mutes the session; the next occurrence raises Needs you again. Never "dismiss", "snooze", "ignore", or "acknowledge" in UI copy.
 
-- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). It shows only while the daemon reports `attention_dismissible`; a pending answer, sign-in, or stop keeps its own control and never gets this verb.
+- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). Single-session controls show only while the daemon reports `attention_dismissible`; selection menus show it with an eligible-session count and disable it at zero. A pending answer, sign-in, or stop keeps its own control and never gets this verb.
 - Toast fallback: "Couldn't mark the session as seen."; a newer occurrence reads "session: attention changed before it was marked as seen: {id}"; daemon refusals read "session {id} needs you to answer its permission request / answer its question / sign in to its provider / stop its agent process / resolve the work signal it cannot check before it can be marked as seen".
 
 ### Model List Issue Terms
@@ -952,3 +952,13 @@ The List toolbar and the Kanban header share one sliders button named "View opti
 "Hide child sessions" (Kanban only, because the List has no such filter), and one
 action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
 shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."
+
+### Batch session actions
+
+Selection menus use the same action vocabulary as single-session menus. **Mark as seen** and
+**Make top-level** include eligible-session counts and remain disabled when no selected session
+qualifies. Mark as seen acts only on `attention_dismissible` sessions; answers, sign-ins and work
+signals still require their own action. **Copy titles** copies display titles in selection order,
+one per line, and confirms with **Titles copied**. Rename, Fork and Continue with another agent
+remain single-session actions. Batch failures name the affected sessions and retain the daemon's
+error; ineligible selections are explained by reason.

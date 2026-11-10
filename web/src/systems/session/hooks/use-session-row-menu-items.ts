@@ -1,21 +1,8 @@
 import {
-  Archive,
-  ArrowRightLeft,
-  Bookmark,
-  CheckCheck,
-  Copy,
-  CornerLeftUp,
-  CornerDownRight,
-  Eraser,
-  GitFork,
-  Hash,
-  Pencil,
-  RotateCcw,
-  Square,
-  Trash2,
-  Undo2,
-  UserRound,
-} from "@compozy/ui/icons";
+  sessionRowAction,
+  sessionBatchAction,
+  type SessionMenuActionId,
+} from "../lib/session-menu-actions";
 import type { LucideIcon } from "@compozy/ui/icons";
 import { use } from "react";
 
@@ -37,35 +24,14 @@ import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession, sessionTreeParentId } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
-import {
-  sessionAdoptRefusal,
-  sessionCanMakeTopLevel,
-  sessionCanTakeOver,
-} from "../lib/session-reparent";
+import { sessionAdoptRefusal, sessionCanTakeOver } from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
 /** One lifecycle verb shared by the row's `…` menu and its context menu. */
 export interface SessionRowMenuItem {
   /** Stable verb id; test ids read `session-row-<id>-<session id>`. */
-  id:
-    | "rename"
-    | "mark-seen"
-    | "copy-id"
-    | "copy-title"
-    | "continue"
-    | "fork"
-    | "move-to-profile"
-    | "make-top-level"
-    | "take-over"
-    | "nest"
-    | "stop"
-    | "unarchive"
-    | "later"
-    | "back-from-later"
-    | "archive"
-    | "clear"
-    | "delete";
+  id: SessionMenuActionId;
   label: string;
   icon: LucideIcon;
   destructive?: boolean;
@@ -88,16 +54,12 @@ function sessionArchiveMenuItem(
   if (isSubagentSession(session)) return null;
   if (session.archived_at !== null) {
     return {
-      id: "unarchive",
-      label: "Unarchive session",
-      icon: RotateCcw,
+      ...sessionRowAction("unarchive", session),
       onSelect: () => actions.onUnarchive(session),
     };
   }
   return {
-    id: "archive",
-    label: session.state === "stopped" ? "Archive session" : "Stop and archive session",
-    icon: Archive,
+    ...sessionRowAction("archive", session),
     onSelect: () => actions.onArchive(session),
   };
 }
@@ -116,18 +78,14 @@ function sessionLaterMenuItem(
   if (sessionIsInLater(session)) {
     return onBackFromLater
       ? {
-          id: "back-from-later",
-          label: "Back from Later",
-          icon: Undo2,
+          ...sessionRowAction("back-from-later", session),
           onSelect: () => onBackFromLater(session),
         }
       : null;
   }
   return onMoveToLater
     ? {
-        id: "later",
-        label: "Move to Later…",
-        icon: Bookmark,
+        ...sessionRowAction("later", session),
         onSelect: () => onMoveToLater(session),
       }
     : null;
@@ -143,17 +101,13 @@ function sessionDeriveMenuItems(
   const items: SessionRowMenuItem[] = [];
   if (requestContinue) {
     items.push({
-      id: "continue",
-      label: "Continue with another agent…",
-      icon: ArrowRightLeft,
+      ...sessionRowAction("continue", session),
       onSelect: () => requestContinue(session),
     });
   }
   if (requestFork) {
     items.push({
-      id: "fork",
-      label: "Fork session…",
-      icon: GitFork,
+      ...sessionRowAction("fork", session),
       onSelect: () => requestFork(session),
     });
   }
@@ -175,9 +129,7 @@ function sessionProfileMoveMenuItem(
   const targets = profileMove.targets.filter(target => target.id !== session.profile_id);
   if (targets.length === 0) return null;
   return {
-    id: "move-to-profile",
-    label: "Move to profile",
-    icon: UserRound,
+    ...sessionRowAction("move-to-profile", session),
     choices: targets.map(target => ({
       id: target.id,
       label: target.name,
@@ -194,19 +146,15 @@ function sessionStateMenuItems(
   const items: SessionRowMenuItem[] = [];
   const { onMarkSeen } = actions;
   // Only a Needs you the daemon can clear: a pending answer, sign-in, or stop stays.
-  if (onMarkSeen && session.attention_dismissible) {
+  if (onMarkSeen && sessionBatchAction("mark-seen").eligible(session)) {
     items.push({
-      id: "mark-seen",
-      label: "Mark as seen",
-      icon: CheckCheck,
+      ...sessionRowAction("mark-seen", session),
       onSelect: () => onMarkSeen(session),
     });
   }
   if (session.archived_at === null && isStopEligible(session)) {
     items.push({
-      id: "stop",
-      label: "Stop session",
-      icon: Square,
+      ...sessionRowAction("stop", session),
       onSelect: () => actions.onStop(session),
     });
   }
@@ -230,23 +178,17 @@ export function useSessionRowMenuItems(
   const items: SessionRowMenuItem[] = [];
   if (userSession) {
     items.push({
-      id: "rename",
-      label: "Rename session",
-      icon: Pencil,
+      ...sessionRowAction("rename", session),
       onSelect: () => actions.onRename(session),
     });
   }
   items.push(
     {
-      id: "copy-id",
-      label: "Copy session ID",
-      icon: Hash,
+      ...sessionRowAction("copy-id", session),
       onSelect: () => void copySessionText(session.id, "Session ID"),
     },
     {
-      id: "copy-title",
-      label: "Copy title",
-      icon: Copy,
+      ...sessionRowAction("copy-title", session),
       onSelect: () => void copySessionText(getSessionDisplayTitle(session), "Title"),
     }
   );
@@ -255,36 +197,28 @@ export function useSessionRowMenuItems(
   if (profileMoveItem) items.push(profileMoveItem);
   items.push(...sessionNestMenuItems(session, actions));
   const { onMakeTopLevel } = actions;
-  if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {
+  if (onMakeTopLevel && sessionBatchAction("make-top-level").eligible(session)) {
     items.push({
-      id: "make-top-level",
-      label: "Make top-level",
-      icon: CornerLeftUp,
+      ...sessionRowAction("make-top-level", session),
       onSelect: () => onMakeTopLevel(session),
     });
   }
   if (onMakeTopLevel && sessionCanTakeOver(session)) {
     items.push({
-      id: "take-over",
-      label: "Take over session",
-      icon: CornerLeftUp,
+      ...sessionRowAction("take-over", session),
       onSelect: () => onMakeTopLevel(session),
     });
   }
   items.push(...sessionStateMenuItems(session, actions));
   if (userSession && clear?.sessionId === session.id) {
     items.push({
-      id: "clear",
-      label: "Clear conversation",
-      icon: Eraser,
+      ...sessionRowAction("clear", session),
       disabled: !clear.canClear,
       onSelect: clear.request,
     });
   }
   items.push({
-    id: "delete",
-    label: "Delete session",
-    icon: Trash2,
+    ...sessionRowAction("delete", session),
     destructive: true,
     onSelect: () => actions.onDelete(session),
   });
@@ -302,9 +236,7 @@ function sessionNestMenuItems(
     : [];
   if (onAdopt && parents.length > 0) {
     items.push({
-      id: "nest",
-      label: "Nest under…",
-      icon: CornerDownRight,
+      ...sessionRowAction("nest", session),
       choices: parents.map(parent => ({
         id: parent.id,
         label: getSessionDisplayTitle(parent),

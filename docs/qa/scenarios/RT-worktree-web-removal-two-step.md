@@ -96,3 +96,18 @@ files (and a detached HEAD's unique commits); confirming deletes the folder and 
 removal dialog shows the "lost its Git metadata" refusal with **Force remove…** as its primary. A
 genuine 500 shows "Git could not remove this worktree. The daemon log has the details." and the
 daemon log records the cause.
+
+## Bounded removal (#1464)
+
+Select about ten worktrees and confirm removal. Up to three singular lifecycle requests may be
+in flight; the daemon still serializes Git mutations by canonical repository, including across
+profiles. Verify every row settles, a refused row does not stop its neighbors, and retry preserves
+successful receipts. Compare elapsed time against sequential requests, recording same-repository
+serialization separately from independent-repository concurrency. Repeat with discovered, missing
+and registered rows and with the confirmed branch-deletion option.
+
+Issue #1464 evidence (2026-11-10): see
+[the targeted validation report](../reports/2026-11-10-issue-1464.md). The report distinguishes
+rendered session-menu/lifecycle checks, real API/Git timings, deterministic partial-failure
+coverage, and the public screenshot-upload blocker. This does not replace unrelated journeys
+in this scenario.
