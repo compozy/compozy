@@ -269,6 +269,7 @@ func hostedMCPSafeError() error {
 	return errHostedMCPBackend
 }
 
+// hostedMCPJSONError uses fixed public text so bind failures cannot disclose backend details.
 func hostedMCPJSONError(err error) error {
 	if isHostedMCPToolError(err) {
 		return errors.New("hosted_mcp_tool_error: hosted tool request failed")
@@ -302,6 +303,7 @@ func hostedMCPJSONError(err error) error {
 	}
 }
 
+// hostedMCPStatus keeps caller-correctable binding refusals out of the server-error range.
 func hostedMCPStatus(err error) int {
 	switch {
 	case err == nil:

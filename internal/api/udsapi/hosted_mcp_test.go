@@ -351,6 +351,7 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 	})
 }
 
+// TestHostedMCPJSONRouteErrors owns transport refusals that must remain actionable without exposing backend details.
 func TestHostedMCPJSONRouteErrors(t *testing.T) {
 	t.Parallel()
 
