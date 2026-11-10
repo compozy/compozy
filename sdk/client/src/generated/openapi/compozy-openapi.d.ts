@@ -14714,6 +14714,14 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
     };
+    ResultViewContract: {
+      digest?: string;
+      schema: unknown;
+    };
+    ResultViews: {
+      compact: components["schemas"]["ResultViewContract"];
+      full: components["schemas"]["ResultViewContract"];
+    };
     ResumeSessionFromLaterRequest: {
       with_children?: boolean;
     };
@@ -20401,6 +20409,7 @@ export interface components {
       open_world: boolean;
       output_schema?: unknown;
       output_schema_digest?: string;
+      output_views?: components["schemas"]["ResultViews"] | null;
       preview?: string;
       read_only: boolean;
       requires_interaction: boolean;

@@ -4229,6 +4229,127 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
 	})
 
+	t.Run("Should discover result view contracts through native catalog tools", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeTestSessionManager(""), Skills: bundledSkills,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{Operator: true}
+		view, err := registry.Get(t.Context(), scope, toolspkg.ToolIDSessionStatus)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDToolInfo, `{"tool_id":"compozy__session_status"}`},
+			{toolspkg.ToolIDToolSearch, `{"query":"compozy__session_status","limit":1}`},
+		} {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatalf("%s result was truncated", tc.id)
+			}
+			var payload struct {
+				Tool  toolspkg.ToolView   `json:"tool"`
+				Tools []toolspkg.ToolView `json:"tools"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			got := payload.Tool
+			if tc.id == toolspkg.ToolIDToolSearch {
+				if len(payload.Tools) != 1 {
+					t.Fatalf("search returned %d rows, want 1", len(payload.Tools))
+				}
+				got = payload.Tools[0]
+			}
+			if got.Descriptor.ID != view.Descriptor.ID || got.Descriptor.ResultViews() == nil {
+				t.Fatalf("%s omitted the requested descriptor or views", tc.id)
+			}
+			contracts := got.Descriptor.ResultViews()
+			wantJSON, err := json.Marshal(view.Descriptor.ResultViews())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want toolspkg.ResultViews
+			if err := json.Unmarshal(wantJSON, &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(contracts.Compact, want.Compact) || !reflect.DeepEqual(contracts.Full, want.Full) {
+				t.Fatalf("%s changed result contracts", tc.id)
+			}
+			if !bytes.Equal(got.Descriptor.OutputSchema, contracts.Compact.Schema) ||
+				got.Descriptor.OutputSchemaDigest != contracts.Compact.Digest {
+				t.Fatal("default output contract differs from compact")
+			}
+			t.Logf(
+				"%s input=%s structured_bytes=%d result_bytes=%d",
+				tc.id,
+				tc.input,
+				len(result.Structured),
+				result.Bytes,
+			)
+		}
+		foundViews, foundSingle := false, false
+		totalBytes := 0
+		for offset := 0; ; {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolList,
+				Input:  json.RawMessage(fmt.Sprintf(`{"offset":%d,"limit":100}`, offset)),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatal("tool_list page was truncated")
+			}
+			var page struct {
+				Tools []struct {
+					Descriptor map[string]json.RawMessage `json:"descriptor"`
+				} `json:"tools"`
+				NextOffset int  `json:"next_offset"`
+				HasMore    bool `json:"has_more"`
+			}
+			if err := json.Unmarshal(result.Structured, &page); err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range page.Tools {
+				switch string(row.Descriptor["id"]) {
+				case `"compozy__session_status"`:
+					foundViews = true
+					if string(row.Descriptor["has_result_views"]) != "true" {
+						t.Fatal("tool_list omitted has_result_views for session_status")
+					}
+				case `"compozy__skill_view"`:
+					foundSingle = true
+					if _, exists := row.Descriptor["has_result_views"]; exists {
+						t.Fatal("tool_list marked a single result tool")
+					}
+				}
+			}
+			totalBytes += len(result.Structured)
+			t.Logf("compozy__tool_list offset=%d limit=100 rows=%d structured_bytes=%d result_bytes=%d",
+				offset, len(page.Tools), len(result.Structured), result.Bytes)
+			if !page.HasMore {
+				break
+			}
+			if page.NextOffset <= offset {
+				t.Fatal("tool_list did not advance")
+			}
+			offset = page.NextOffset
+		}
+		if !foundViews || !foundSingle {
+			t.Fatal("tool_list omitted requested catalog rows")
+		}
+		t.Logf("compozy__tool_list all_pages_structured_bytes=%d", totalBytes)
+	})
+
 	t.Run("Should expose bootstrap diagnostics and exclude non-MVP lifecycle tools", func(t *testing.T) {
 		t.Parallel()
 

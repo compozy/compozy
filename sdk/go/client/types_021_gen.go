@@ -4,6 +4,15 @@ package client
 
 import "time"
 
+// SettingsConfigPathsPayload is a daemon API value.
+type SettingsConfigPathsPayload struct {
+	HomeDir          string `json:"home_dir"`
+	GlobalConfig     string `json:"global_config"`
+	GlobalMCPSidecar string `json:"global_mcp_sidecar"`
+	LogFile          string `json:"log_file"`
+	DaemonInfo       string `json:"daemon_info"`
+}
+
 // SettingsCoordinatorRoleConfigPayload is a daemon API value.
 type SettingsCoordinatorRoleConfigPayload struct {
 	Enabled                       bool                          `json:"enabled"`

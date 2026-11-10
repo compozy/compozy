@@ -11,16 +11,20 @@ import (
 )
 
 type nativeToolCatalogEntry struct {
-	ToolID               toolspkg.ToolID      `json:"tool_id"`
-	NativeName           string               `json:"native_name"`
-	Toolsets             []toolspkg.ToolsetID `json:"toolsets,omitempty"`
-	Risk                 toolspkg.RiskClass   `json:"risk"`
-	ReadOnly             bool                 `json:"read_only"`
-	Destructive          bool                 `json:"destructive"`
-	OpenWorld            bool                 `json:"open_world"`
-	InputSchemaDigest    string               `json:"input_schema_digest"`
-	OutputSchemaDigest   string               `json:"output_schema_digest,omitempty"`
-	RequiredCapabilities []string             `json:"required_capabilities,omitempty"`
+	ToolID                    toolspkg.ToolID                 `json:"tool_id"`
+	NativeName                string                          `json:"native_name"`
+	Toolsets                  []toolspkg.ToolsetID            `json:"toolsets,omitempty"`
+	Risk                      toolspkg.RiskClass              `json:"risk"`
+	ReadOnly                  bool                            `json:"read_only"`
+	Destructive               bool                            `json:"destructive"`
+	OpenWorld                 bool                            `json:"open_world"`
+	InputSchemaDigest         string                          `json:"input_schema_digest"`
+	OutputSchemaDigest        string                          `json:"output_schema_digest,omitempty"`
+	ResultContract            string                          `json:"result_contract"`
+	SingleResultReason        builtintools.SingleResultReason `json:"single_result_reason,omitempty"`
+	CompactOutputSchemaDigest string                          `json:"compact_output_schema_digest,omitempty"`
+	FullOutputSchemaDigest    string                          `json:"full_output_schema_digest,omitempty"`
+	RequiredCapabilities      []string                        `json:"required_capabilities,omitempty"`
 }
 
 func generateNativeToolCatalog() ([]byte, error) {
@@ -46,6 +50,14 @@ func generateNativeToolCatalog() ([]byte, error) {
 			InputSchemaDigest:    descriptor.InputSchemaDigest,
 			OutputSchemaDigest:   descriptor.OutputSchemaDigest,
 			RequiredCapabilities: append([]string(nil), descriptor.Backend.RequiresCapabilities...),
+		}
+		if views := descriptor.ResultViews(); views != nil {
+			entry.ResultContract = "compact_full"
+			entry.CompactOutputSchemaDigest = views.Compact.Digest
+			entry.FullOutputSchemaDigest = views.Full.Digest
+		} else {
+			entry.ResultContract = "single"
+			entry.SingleResultReason, _ = builtintools.SingleResultReasonFor(descriptor.ID)
 		}
 		slices.Sort(entry.Toolsets)
 		slices.Sort(entry.RequiredCapabilities)

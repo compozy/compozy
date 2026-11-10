@@ -6065,6 +6065,16 @@ export interface BackendRef {
   requires_capabilities?: string[];
 }
 
+export interface ResultViewContract {
+  schema: JSONValue;
+  digest?: string;
+}
+
+export interface ResultViews {
+  compact: ResultViewContract;
+  full: ResultViewContract;
+}
+
 export type ErrorCode = string;
 
 export type SourceKind = "builtin" | "mcp" | "extension" | "dynamic";
@@ -6091,6 +6101,7 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  output_views?: ResultViews;
   reserved_workspace_partition?: boolean;
   max_result_bytes?: number;
   idempotent?: boolean;

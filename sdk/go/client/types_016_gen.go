@@ -148,6 +148,18 @@ type ResultContract struct {
 // ResultTrust is a daemon API value.
 type ResultTrust string
 
+// ResultViewContract is a daemon API value.
+type ResultViewContract struct {
+	Schema json.RawMessage `json:"schema"`
+	Digest string          `json:"digest,omitempty"`
+}
+
+// ResultViews is a daemon API value.
+type ResultViews struct {
+	Compact ResultViewContract `json:"compact"`
+	Full    ResultViewContract `json:"full"`
+}
+
 // ResumeSessionFromLaterRequest is a daemon API value.
 type ResumeSessionFromLaterRequest struct {
 	WithChildren bool `json:"with_children,omitempty"`
@@ -429,18 +441,3 @@ type RunResponse struct {
 
 // RunReviewOutcome is a daemon API value.
 type RunReviewOutcome string
-
-// RunReviewRequest is a daemon API value.
-type RunReviewRequest struct {
-	TaskID         string       `json:"task_id"`
-	RunID          string       `json:"run_id"`
-	ReviewRound    int          `json:"review_round,omitzero"`
-	Attempt        int          `json:"attempt,omitzero"`
-	Policy         ReviewPolicy `json:"policy,omitempty"`
-	ParentReviewID string       `json:"parent_review_id,omitempty"`
-	Reason         string       `json:"reason,omitempty"`
-	DeadlineAt     time.Time    `json:"deadline_at"`
-}
-
-// RunReviewStatus is a daemon API value.
-type RunReviewStatus string

@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -24,6 +25,72 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+func TestToolDescriptorResultViews(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		views bool
+	}{
+		{name: "Should preserve both result contracts in descriptor payloads", views: true},
+		{name: "Should omit result views for single result descriptors"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			descriptor := testToolDescriptor(toolspkg.ToolIDSessionStatus,
+				toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"}, toolspkg.VisibilityModel)
+			descriptor.OutputSchema = json.RawMessage(`{"type":"object","additionalProperties":false}`)
+			if tc.views {
+				descriptor.InputSchema = json.RawMessage(
+					`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"]}}}`,
+				)
+				descriptor.SetResultViews(&toolspkg.ResultViews{
+					Compact:                  toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
+					Full:                     toolspkg.ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
+					PreViewInputSchemaDigest: "internal-only",
+				})
+			}
+			descriptor, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := core.ToolPayloadFromView(&toolspkg.ToolView{Descriptor: descriptor}).Descriptor
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			decodeToolJSON(t, raw, &fields)
+			if !tc.views {
+				if _, exists := fields["output_views"]; exists || payload.OutputViews != nil {
+					t.Fatalf("single result descriptor exposes output_views: %s", raw)
+				}
+				return
+			}
+			var views toolspkg.ResultViews
+			decodeToolJSON(t, fields["output_views"], &views)
+			want := descriptor.ResultViews()
+			if !bytes.Equal(views.Compact.Schema, want.Compact.Schema) ||
+				!bytes.Equal(views.Full.Schema, want.Full.Schema) ||
+				views.Compact.Digest != want.Compact.Digest || views.Full.Digest != want.Full.Digest {
+				t.Fatalf("result contracts = %#v, want %#v", views, want)
+			}
+			if !bytes.Equal(payload.OutputSchema, views.Compact.Schema) ||
+				payload.OutputSchemaDigest != views.Compact.Digest {
+				t.Fatal("default output contract differs from compact")
+			}
+			if bytes.Contains(raw, []byte("internal-only")) {
+				t.Fatal("descriptor exposes internal pre-view digest")
+			}
+			payload.OutputViews.Compact.Schema[0] = 'x'
+			payload.OutputViews.Full.Schema[0] = 'x'
+			if !bytes.Equal(descriptor.ResultViews().Compact.Schema, want.Compact.Schema) ||
+				!bytes.Equal(descriptor.ResultViews().Full.Schema, want.Full.Schema) {
+				t.Fatal("payload mutation changed registry-owned contracts")
+			}
+		})
+	}
+}
 
 func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 	t.Parallel()

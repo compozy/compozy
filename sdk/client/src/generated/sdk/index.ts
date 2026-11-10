@@ -3027,6 +3027,8 @@ export type {
   RestartActionResponse,
   RestartActionStatus,
   RestartProgress,
+  ResultViewContract,
+  ResultViews,
   ResumeAgentInstanceData,
   ResumeAgentInstanceError,
   ResumeAgentInstanceErrors,

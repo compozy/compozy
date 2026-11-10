@@ -312,6 +312,7 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),
 		OutputSchema:        cloneRawMessage(d.OutputSchema),
+		OutputViews:         d.ResultViews(),
 		InputSchemaDigest:   d.InputSchemaDigest,
 		OutputSchemaDigest:  d.OutputSchemaDigest,
 		Source:              toolSourcePayload(d.Source),
