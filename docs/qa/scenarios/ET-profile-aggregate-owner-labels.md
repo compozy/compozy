@@ -32,6 +32,14 @@ Walk:
    every owner, and agent activity and skill reviews refuse the aggregate with
    `profile_selection_conflict` (#1195).
 
+6. Filter the instance list to an absent agent in a profile with occupied capacity. Verify an empty
+   `instances` page can retain a positive `active_count`: the count covers every workspace in
+   selected profiles and ignores row filters, authorization filtering and pagination; the cap is per profile.
+   Compare CLI and native results, accounting for the native caller-agent default.
+7. Invoke native ensure-main with `dry_run: true` for a missing target and expect
+   `agent_instance_not_found`. For an existing authorized target expect `tool_invalid_input`
+   and no main session start. CLI `ensure-main` must reject `--dry-run`; `show` remains read-only.
+
 Expected evidence: CLI JSON and JSONL captures, HTTP and UDS payloads, owner comparisons, and the option
 conflict response.
 

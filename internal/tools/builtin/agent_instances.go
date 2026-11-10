@@ -43,11 +43,20 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		if required != "" {
 			schema = strings.TrimSuffix(schema, "}") + `,"required":["` + required + `"]}`
 		}
+		description := "Manage the caller's always-on agent instance: " + operation.name
+		if operation.name == "list" {
+			description += ". Defaults to the caller agent and workspace; only authorized instances are returned. " +
+				"active_count counts capacity across all workspaces in the selected profiles, " +
+				"regardless of list filters or pagination; max_active_instances is per profile. Use peers for reachable agents."
+		}
+		if operation.name == "ensure_main" {
+			description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
+		}
 		result = append(result, nativeDescriptor(
 			operation.id,
 			"agent_instance_"+operation.name,
 			"Agent Instance "+operation.name,
-			"Manage the caller's always-on agent instance: "+operation.name,
+			description,
 			schema,
 			risk,
 			operation.read,
