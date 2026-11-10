@@ -203,6 +203,10 @@ func (n *daemonNativeTools) invalidSkillDefinition(
 		return nil, false, err
 	}
 	diagnostics, err := registry.SkillDiagnostics(ctx, resolved, strings.TrimSpace(scope.AgentName))
+	if errors.Is(err, skills.ErrAgentNotFound) {
+		// Concrete session agents need not have an authored definition in this catalog.
+		diagnostics, err = registry.SkillDiagnostics(ctx, resolved, "")
+	}
 	if err != nil {
 		return nil, false, err
 	}

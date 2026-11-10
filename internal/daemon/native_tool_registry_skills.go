@@ -141,7 +141,7 @@ func (n *daemonNativeTools) skillView(
 	}
 	skill, err := n.resolveSkillViewTarget(ctx, scope, input)
 	if err != nil {
-		return toolspkg.ToolResult{}, skillViewBackendError(ctx, req.ToolID, "skill_catalog_resolve", err)
+		return toolspkg.ToolResult{}, skillViewCatalogError(ctx, req.ToolID, err)
 	}
 	file := strings.TrimSpace(input.File)
 	var content string
@@ -367,6 +367,33 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 		)
 	}
 	return candidate.Skill, nil
+}
+
+func skillViewCatalogError(ctx context.Context, id toolspkg.ToolID, err error) error {
+	if _, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		return err
+	}
+	switch {
+	case errors.Is(err, skillspkg.ErrAgentNotFound):
+		return toolspkg.NewOperatorToolError(toolspkg.ErrorCodeUnavailable, id,
+			"Skill catalog agent is unavailable in the selected scope.",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
+			"The session agent could not be resolved for this skill catalog.",
+			"Restore the agent definition in the selected workspace/profile, then retry skill_view.",
+			toolspkg.ReasonDependencyMissing)
+	case errors.Is(err, skillspkg.ErrAgentLocalInvalid):
+		return toolspkg.NewOperatorToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"Skill catalog agent definition or local skill layer is invalid.",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			"The session agent definition or its local skills failed validation.",
+			"Repair the selected agent's AGENT.md or local skills using agent/skill diagnostics, then retry skill_view.",
+			toolspkg.ReasonSchemaInvalid,
+		)
+	default:
+		return skillViewBackendError(ctx, id, "skill_catalog_resolve", err)
+	}
 }
 
 func skillViewBackendError(ctx context.Context, id toolspkg.ToolID, phase string, err error) error {
