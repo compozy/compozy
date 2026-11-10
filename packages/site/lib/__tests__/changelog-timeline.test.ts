@@ -116,6 +116,17 @@ describe("stableLine", () => {
     ]);
     expect(describeLine(stableLine(LINE, 2))).toEqual(["v0.5.1 v0.5.0"]);
   });
+
+  it("adds no beta fold when the page ends inside a minor that is followed by another stable", () => {
+    const stables = [
+      at("v0.5.2", "2026-11-12"),
+      at("v0.5.1", "2026-11-10"),
+      at("v0.5.0", "2026-11-05"),
+      at("v0.4.0", "2026-10-22"),
+    ];
+
+    expect(describeLine(stableLine(stables, 2))).toEqual(["v0.5.2 v0.5.1"]);
+  });
 });
 
 describe("listState", () => {

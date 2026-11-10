@@ -337,7 +337,8 @@ export function stableLine<T extends Lineable>(list: readonly T[], limit: number
         next += 1;
       }
       flush();
-      if (last && minorOf(last.version) === minor && next < list.length) {
+      // Only a beta run folds here: when the next release is another stable, nothing is hidden.
+      if (last && minorOf(last.version) === minor && next < list.length && list[next]!.pre) {
         items.push({ kind: "betas", run: betaRunAt(list, next).run });
       }
       return items;

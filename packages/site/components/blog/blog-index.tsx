@@ -9,8 +9,8 @@ import { Empty, SearchInput, cn } from "@compozy/ui";
 import { SearchX } from "@compozy/ui/icons";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
+import { useUrlBackedValue } from "@/components/site/hooks/use-url-backed-value";
 import { CONTAINER, HAIRLINE } from "@/components/site/layout";
 import { Reveal } from "@/components/site/motion";
 import { H1, H2, Lead, SecondaryCta } from "@/components/site/primitives";
@@ -134,7 +134,7 @@ export interface BlogIndexProps {
   category: string | null;
   lead: BlogEntry;
   author: PostAuthor;
-  /** The filters the URL opened the page with; the index owns them from there. */
+  /** The filters the URL carries; the index follows them, including changes made by navigation. */
   initialTopic?: string | null;
   initialQuery?: string;
 }
@@ -148,8 +148,8 @@ export function BlogIndex({
   initialTopic = null,
   initialQuery = "",
 }: BlogIndexProps) {
-  const [topic, setTopic] = useState(initialTopic);
-  const [query, setQuery] = useState(initialQuery);
+  const [topic, setTopic] = useUrlBackedValue(initialTopic);
+  const [query, setQuery] = useUrlBackedValue(initialQuery);
   const filters: BlogFilters = { category, topic, query };
   const changeTopic = (next: string | null) => {
     setTopic(next);

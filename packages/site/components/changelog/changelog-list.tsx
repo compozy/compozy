@@ -8,8 +8,8 @@
 import { Button, Empty, SearchInput, cn } from "@compozy/ui";
 import { SearchX } from "@compozy/ui/icons";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
+import { useUrlBackedValue } from "@/components/site/hooks/use-url-backed-value";
 import { CONTAINER } from "@/components/site/layout";
 import { H1, Lead, SecondaryCta } from "@/components/site/primitives";
 import {
@@ -48,7 +48,7 @@ export function ChangelogList({
   state?: ListState;
 }) {
   const { betas: showBetas, pages } = state;
-  const [query, setQuery] = useState(state.query);
+  const [query, setQuery] = useUrlBackedValue(state.query);
   const update = (next: Partial<ListState>) =>
     writeState({ betas: showBetas, pages, query, ...next });
   const setShowBetas = (betas: boolean) => update({ betas });
