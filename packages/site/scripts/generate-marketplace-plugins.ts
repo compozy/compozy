@@ -150,15 +150,17 @@ const ICON_MEDIA: Record<string, string> = {
  */
 async function extensionIconHints(): Promise<Record<string, IconHints>> {
   const feed = JSON.parse(readFileSync(extensionsPath, "utf8")) as { entries: Json[] };
-  const hints: Record<string, IconHints> = {};
-  for (const entry of feed.entries) {
-    const icon = text(entry.icon);
-    const match = /\/catalog\/icons\/([A-Za-z0-9._-]+(\.png|\.svg|\.webp))$/.exec(icon);
-    const file = match ? resolve(repoRoot, "catalog", "icons", match[1]) : "";
-    if (!match || !existsSync(file)) continue;
-    hints[text(entry.entry_id)] = await iconHints(readFileSync(file), ICON_MEDIA[match[2]]);
-  }
-  return hints;
+  // Each icon is analysed independently; the result keeps the feed's order.
+  const pairs = await Promise.all(
+    feed.entries.map(async (entry): Promise<[string, IconHints] | null> => {
+      const icon = text(entry.icon);
+      const match = /\/catalog\/icons\/([A-Za-z0-9._-]+(\.png|\.svg|\.webp))$/.exec(icon);
+      const file = match ? resolve(repoRoot, "catalog", "icons", match[1]) : "";
+      if (!match || !existsSync(file)) return null;
+      return [text(entry.entry_id), await iconHints(readFileSync(file), ICON_MEDIA[match[2]])];
+    })
+  );
+  return Object.fromEntries(pairs.filter(pair => pair !== null));
 }
 
 async function fetchDocument(repository: string) {
