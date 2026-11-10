@@ -52,9 +52,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 		return
 	}
 	// Native-work settlement may write parent attention; finish it before taking the publication lock.
-	if BadgeForInfo(before) != BadgeForInfo(after) {
-		m.publishSubagentLifecycleEdge(ctx, before, after)
-	}
+	m.publishSubagentLifecycleEdge(ctx, before, after)
 	// Lock contention cannot discard a committed edge; manager shutdown cancels the wait.
 	lockCtx := m.attentionReconciliation.ctx
 	if lockCtx == nil {

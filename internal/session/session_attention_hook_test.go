@@ -87,39 +87,119 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		}
 	})
 
-	t.Run("Should settle unfinished native work before locking lifecycle attention publication", func(t *testing.T) {
-		t.Parallel()
-		h, db := newMentionHarness(t)
-		sess := createSession(t, h)
-		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
-		service, _, _ := newSubagentTestService(t)
-		service.store = db
-		service.runtime = managerSubagentRuntime{m: h.manager}
-		h.manager.SetSubagentService(service)
-		if err := service.OnNativeToolEvent(t.Context(), sess.ID, NativeSubagentEvent{
-			WorkspaceID: h.workspaceID, ParentTurnID: "native-turn", ProviderToolCallID: "unfinished",
-			ToolName: "Agent", Status: "in_progress",
-		}); err != nil {
-			t.Fatal(err)
+	for _, pendingPermission := range []bool{false, true} {
+		name := "Should settle unfinished native work before locking lifecycle attention publication"
+		if pendingPermission {
+			name = "Should settle unfinished native work after delayed equal-badge permission snapshots"
 		}
-		before := sess.Info()
-		before.Liveness = &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "native-turn"}}
-		after := sess.Info()
-		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-		defer cancel()
-		h.manager.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "native-turn")
-		if err := ctx.Err(); err != nil {
-			t.Fatalf("native settlement blocked lifecycle publication: %v", err)
-		}
-		row, err := db.GetSubagent(t.Context(), h.workspaceID, subagentID(sess.ID, "unfinished"))
-		if err != nil || row.Status != store.SubagentStatusInterrupted {
-			t.Fatalf("unfinished native work: %+v, %v", row, err)
-		}
-		attention, err := db.GetSessionAttention(t.Context(), sess.ID)
-		if err != nil || attention.LastSettledRevision == 0 {
-			t.Fatalf("native parent did not settle: %+v, %v", attention, err)
-		}
-	})
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, db := newMentionHarness(t)
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			service, _, _ := newSubagentTestService(t)
+			service.store = db
+			service.runtime = managerSubagentRuntime{m: h.manager}
+			h.manager.SetSubagentService(service)
+			if err := service.OnNativeToolEvent(t.Context(), sess.ID, NativeSubagentEvent{
+				WorkspaceID: h.workspaceID, ParentTurnID: "native-turn", ProviderToolCallID: "unfinished",
+				ToolName: "Agent", Status: "in_progress",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var permission store.SessionAttentionCommit
+			if pendingPermission {
+				var err error
+				permission, err = h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: sess.ID, InteractionID: "native-permission", ProviderRequestID: "native-permission",
+					Kind: store.PendingInteractionKindPermission,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := sess.Info()
+			before.Liveness = &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "native-turn"}}
+			after := sess.Info()
+			var edges []hookspkg.SessionAttentionChangedPayload
+			h.manager.hooks.Attention = attentionHookFunc(
+				func(_ context.Context, p hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					edges = append(edges, p)
+					return p, nil
+				},
+			)
+			events, cancelEvents, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+				ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancelEvents()
+			if pendingPermission {
+				if BadgeForInfo(before) != BadgeWaitingForAuth || BadgeForInfo(after) != BadgeWaitingForAuth {
+					t.Fatal("permission did not mask the turn-end badge")
+				}
+				// Resolve before publishing the already captured lifecycle snapshots.
+				if _, err := h.manager.transitionPendingInteraction(
+					t.Context(),
+					sess.ID,
+					store.PendingInteractionTransition{
+						InteractionID: permission.Interaction.InteractionID,
+						Status:        store.PendingInteractionStatusResolved,
+						Resolution:    "allow",
+						ResolvedBy:    "operator",
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			h.manager.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "native-turn")
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("native settlement blocked lifecycle publication: %v", err)
+			}
+			row, err := db.GetSubagent(t.Context(), h.workspaceID, subagentID(sess.ID, "unfinished"))
+			if err != nil || row.Status != store.SubagentStatusInterrupted {
+				t.Fatalf("unfinished native work: %+v, %v", row, err)
+			}
+			attention, err := db.GetSessionAttention(t.Context(), sess.ID)
+			if err != nil || attention.LastSettledRevision == 0 {
+				t.Fatalf("native parent did not settle: %+v, %v", attention, err)
+			}
+			settledAt := row.SettledAt
+			if err := service.OnParentTurnSettled(ctx, sess.ID, "native-turn"); err != nil {
+				t.Fatal(err)
+			}
+			row, err = db.GetSubagent(t.Context(), h.workspaceID, subagentID(sess.ID, "unfinished"))
+			if err != nil || settledAt == nil || row.SettledAt == nil || !row.SettledAt.Equal(*settledAt) {
+				t.Fatalf("replayed publication settled native work again: %+v, %v", row, err)
+			}
+			canonical, err := db.GetSessionAttention(t.Context(), sess.ID)
+			if err != nil || !sessionAttentionProjectionEqual(canonical, attention) ||
+				!sessionAttentionProjectionEqual(canonical, attentionProjectionFromInfo(sess.Info())) {
+				t.Fatalf("resident/storage mismatch: %+v, %v", canonical, err)
+			}
+			if pendingPermission && (len(edges) != 2 || edges[0].From != string(BadgeWaitingForAuth) ||
+				edges[1].To != string(BadgeDone)) {
+				t.Fatalf("clearing and settlement hooks: %+v", edges)
+			}
+			catalogEdges := 0
+			for len(events) > 0 {
+				event := <-events
+				if event.Attention != nil {
+					if catalogEdges >= len(edges) || string(event.Attention.From) != edges[catalogEdges].From ||
+						string(event.Attention.To) != edges[catalogEdges].To {
+						t.Fatalf("catalog/hook mismatch: %+v, %+v", event, edges)
+					}
+					catalogEdges++
+				}
+			}
+			if catalogEdges != len(edges) || BadgeForInfo(sess.Info()) != BadgeDone {
+				t.Fatalf("final attention mismatch: catalog=%d hooks=%+v", catalogEdges, edges)
+			}
+		})
+	}
 
 	for _, badgeChanges := range []bool{false, true} {
 		name := "Should ignore a late same-badge supervision attention snapshot"
