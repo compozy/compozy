@@ -336,14 +336,11 @@ func TestManagerAttentionCommitOrdering(t *testing.T) {
 				}); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := h.manager.MarkAttentionSeen(
-					t.Context(),
-					sess.ID,
-				); !errors.Is(
-					err,
-					ErrAttentionRequiresAction,
-				) {
-					t.Fatalf("retry with new permission = %v, want refusal", err)
+				_, err = h.manager.MarkAttentionSeen(t.Context(), sess.ID)
+				refusal, refused := errors.AsType[*AttentionRequiresActionError](err)
+				if !errors.Is(err, ErrAttentionRequiresAction) || !refused ||
+					refusal.Blocker != AttentionBlockerPendingPermission {
+					t.Fatalf("retry with new permission = %v, want a pending_permission refusal", err)
 				}
 				current, err := db.GetSessionAttention(t.Context(), sess.ID)
 				if err != nil {
