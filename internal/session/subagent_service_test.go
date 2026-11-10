@@ -1959,6 +1959,54 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	// Invariant: a delayed cancellation only retires its own turn's native tracking; owner: native lifecycle.
+	t.Run("Should preserve newer native tracking after delayed interruption", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			old := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "old",
+				ToolName: "Agent", Status: "in_progress", Background: true,
+			}
+			newer := old
+			newer.ParentTurnID, newer.ProviderToolCallID = "next-turn", "newer"
+			queued := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "next-turn", ProviderToolCallID: "queued",
+				Task: &NativeSubagentTask{
+					Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted,
+					Summary: new("queued result"),
+				},
+			}
+			for _, ev := range []NativeSubagentEvent{old, newer, queued} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range 2 {
+				if err := s.OnParentTurnInterrupted(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if row := db.rows[subagentID("parent", "old")]; row.Status != store.SubagentStatusInterrupted {
+				t.Fatal(row)
+			}
+			launch := newer
+			launch.ProviderToolCallID = "queued"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "queued")]; row.Status != store.SubagentStatusCompleted ||
+				row.Result == nil || *row.Result != "queued result" {
+				t.Fatalf("newer turn lost queued task evidence: %#v", row)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "next-turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "newer")]; row.Status != store.SubagentStatusCompleted {
+				t.Fatalf("newer turn lost background tracking: %#v", row)
+			}
+		})
+	})
 	for _, edge := range []string{"settled", "interrupted", "stopped", "recovery", "terminal-first"} {
 		t.Run("Should finalize native work at "+edge, func(t *testing.T) {
 			t.Parallel()

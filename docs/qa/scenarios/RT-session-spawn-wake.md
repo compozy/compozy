@@ -196,3 +196,11 @@ permission-clearing edges. Owning SQLite/manager regression: the native-work cas
 `TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen`. Retain canceled-turn wake
 suppression, unrelated-session progress, and shutdown lock cancellation. CI owns the full
 public-surface walkthrough; focused daemon integration uses real ACP subprocesses and SQLite.
+
+QA impact 2026-11-10 (delayed native cancellation): cancel turn N while a follow-up prompt
+is queued, and delay N's native cleanup until N+1 records its background Agent calls and
+early task observations. N's unfinished native rows become interrupted exactly once;
+N+1 retains task-result stitching and completes on its own terminal evidence or turn-end
+fallback. Repeating N's interruption must not affect N+1 or emit a completed wake for N.
+The existing native service, native ACP daemon integration, and canceled-turn spawn-wake
+suites own these checks; CI owns the full public-surface journey.
