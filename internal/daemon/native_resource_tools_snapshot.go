@@ -16,9 +16,8 @@ func (n *daemonNativeTools) resourcesSnapshot(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := map[string]any{
-		"count":   len(records),
-		"records": records,
-	}
-	return structuredResult(payload, fmt.Sprintf("%d resources", len(records)))
+	return (resultViews[resourceListResult]{
+		Compact: compactResources,
+		Preview: func(resourceListResult) string { return fmt.Sprintf("%d resources", len(records)) },
+	}).result(req.View, resourceListResult{Count: new(len(records)), Records: records})
 }

@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,25 +39,41 @@ func (n *daemonNativeTools) marketplaceSearch(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	response, err := n.marketplaceSearchPage(ctx, scope, req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return (resultViews[contract.MarketplaceListResponse]{
+		Compact: compactMarketplace,
+		Preview: func(contract.MarketplaceListResponse) string {
+			return fmt.Sprintf("%d marketplace entries", len(response.Items))
+		},
+	}).result(req.View, response)
+}
+func (n *daemonNativeTools) marketplaceSearchPage(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (contract.MarketplaceListResponse, error) {
 	var input marketplaceSearchInput
 	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
+		return contract.MarketplaceListResponse{}, err
 	}
 	readScope, workspaceID, profileName, err := n.marketplaceToolScope(ctx, scope)
 	if err != nil {
-		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
+		return contract.MarketplaceListResponse{}, marketplaceNativeError(req.ToolID, err)
 	}
 	var actor *taskpkg.ActorContext
 	if workspaceID != "" || profileName != "" {
 		resolvedActor, actorErr := nativeExtensionScopedActorContext(scope, req)
 		if actorErr != nil {
-			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, actorErr)
+			return contract.MarketplaceListResponse{}, marketplaceNativeError(req.ToolID, actorErr)
 		}
 		actor = &resolvedActor
 	}
 	handlers := n.marketplaceHandlers()
 	if handlers == nil {
-		return toolspkg.ToolResult{}, marketplaceNativeError(
+		return contract.MarketplaceListResponse{}, marketplaceNativeError(
 			req.ToolID,
 			errors.Join(core.ErrMarketplaceUnavailable, errors.New("marketplace dependencies are not configured")),
 		)
@@ -68,9 +83,9 @@ func (n *daemonNativeTools) marketplaceSearch(
 		WorkspaceID: workspaceID, ProfileName: profileName, Actor: actor,
 	})
 	if err != nil {
-		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
+		return contract.MarketplaceListResponse{}, marketplaceNativeError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("%d marketplace entries", len(response.Items)))
+	return response, nil
 }
 
 func (n *daemonNativeTools) marketplaceCategories(
@@ -78,13 +93,8 @@ func (n *daemonNativeTools) marketplaceCategories(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	result, err := n.marketplaceSearch(ctx, scope, req)
+	page, err := n.marketplaceSearchPage(ctx, scope, req)
 	if err != nil {
-		return result, err
-	}
-	raw := result.Structured
-	var page contract.MarketplaceListResponse
-	if err := json.Unmarshal(raw, &page); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(
@@ -203,5 +213,10 @@ func (n *daemonNativeTools) marketplaceSources(
 	for _, state := range states {
 		response.Sources = append(response.Sources, core.MarketplaceSourcePayloadFromState(state))
 	}
-	return structuredResult(response, fmt.Sprintf("%d marketplace sources (experimental)", len(states)))
+	return (resultViews[contract.MarketplaceSourcesResponse]{
+		Compact: compactMarketplaceSources,
+		Preview: func(contract.MarketplaceSourcesResponse) string {
+			return fmt.Sprintf("%d marketplace sources (experimental)", len(states))
+		},
+	}).result(req.View, response)
 }

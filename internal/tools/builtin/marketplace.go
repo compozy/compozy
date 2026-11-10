@@ -17,7 +17,7 @@ var marketplaceTools = []toolspkg.Descriptor{
 		[]string{extensionsMarketplaceKey, "categories"},
 		[]string{"marketplace categories"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDMarketplaceSources,
 		"marketplace_sources",
 		"Marketplace Sources",
@@ -34,8 +34,8 @@ var marketplaceTools = []toolspkg.Descriptor{
 			"plugins",
 		},
 		[]string{"marketplace sources", "list plugin sources"},
-	),
-	nativeDescriptor(
+	), marketplaceSourcesCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDMarketplaceSearch,
 		"marketplace_search",
 		"Marketplace Search",
@@ -48,7 +48,7 @@ var marketplaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMarketplace},
 		[]string{extensionsMarketplaceKey, descriptorKeywordCatalog, "mcp", "extensions", "skills"},
 		[]string{"marketplace search", "discover capabilities", "find extensions", "find skills"},
-	),
+	), marketplaceSearchCompactOutputSchema, `{"type":"object"}`),
 }
 
 func marketplaceDescriptors() []toolspkg.Descriptor {

@@ -172,10 +172,10 @@ func (n *daemonNativeTools) extensionInstall(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError},
-		item.Name,
-	)
+	return (resultViews[*contract.InstallExtensionResponse]{
+		Compact: compactExtensionRecord,
+		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
+	}).result(req.View, &contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError})
 }
 
 func (n *daemonNativeTools) extensionUpdate(

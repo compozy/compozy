@@ -85,7 +85,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]string{workspaceWorkspaceKey, "info"},
 		[]string{"workspace info", "workspace record"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDWorkspaceDescribe,
 		"workspace_describe",
 		"Workspace Describe",
@@ -98,7 +98,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
 		[]string{workspaceWorkspaceKey, "describe"},
 		[]string{"workspace describe", "workspace detail"},
-	),
+	), workspaceDescribeCompactOutputSchema, `{"type":"object"}`),
 	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentCreate,
 		"agent_create",

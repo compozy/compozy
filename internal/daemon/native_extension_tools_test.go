@@ -864,7 +864,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext"}`),
+			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext","result_view":"full"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
