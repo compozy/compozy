@@ -6586,7 +6586,7 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 	if err := bridge.recover(testutil.Context(t)); err != nil {
 		t.Fatalf("recover() error = %v", err)
 	}
-	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
 		return sessions.syntheticPromptCount() == 2
 	})
 
