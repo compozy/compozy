@@ -55,6 +55,9 @@ func validateResultViews(d Descriptor) error {
 }
 
 func equalSchema(left, right json.RawMessage) bool {
+	if bytes.Equal(left, right) {
+		return json.Valid(left)
+	}
 	a, err := CanonicalJSON(left)
 	if err != nil {
 		return false
@@ -130,9 +133,14 @@ func populateResultViewDigests(d *Descriptor) error {
 		return nil
 	}
 	for name, contract := range map[string]*ResultViewContract{"compact": &views.Compact, "full": &views.Full} {
-		digest, err := SchemaDigest(contract.Schema)
-		if err != nil {
-			return wrapField(err, "output_views."+name+".schema")
+		// Identical schema bytes share the already-verified output digest.
+		digest := d.OutputSchemaDigest
+		if digest == "" || !bytes.Equal(contract.Schema, d.OutputSchema) {
+			var err error
+			digest, err = SchemaDigest(contract.Schema)
+			if err != nil {
+				return wrapField(err, "output_views."+name+".schema")
+			}
 		}
 		if existing := strings.TrimSpace(contract.Digest); existing != "" && existing != digest {
 			return NewValidationError(
