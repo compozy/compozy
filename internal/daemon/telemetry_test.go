@@ -349,6 +349,34 @@ func assertOwnerValidators(t *testing.T, ids map[attribute.Key]func(string) bool
 	}
 }
 
+// A daemon that exports nothing must not list the model catalog for telemetry.
+func TestTelemetryModelClassifierOnlyWhenExportIsRequested(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		obsEnabled  bool
+		otelEnabled bool
+		want        bool
+	}{
+		{name: "Should build no classifier when export is disabled", obsEnabled: true},
+		{name: "Should build no classifier when observability is off", otelEnabled: true},
+		{name: "Should build the classifier when export is requested", obsEnabled: true, otelEnabled: true, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := &bootState{modelCatalog: &modelCatalogRuntime{}}
+			state.cfg.Observability.Enabled = tc.obsEnabled
+			state.cfg.Observability.OTel.Enabled = tc.otelEnabled
+			if got := telemetryModelClassifier(state) != nil; got != tc.want {
+				t.Fatalf("telemetryModelClassifier() built = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
 	t.Parallel()
 

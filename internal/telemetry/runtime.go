@@ -79,6 +79,11 @@ func Meter(scope string) metric.Meter {
 	return otel.Meter(scope)
 }
 
+// ExportRequested reports whether cfg asks Init to start export, which may still come up degraded.
+func ExportRequested(cfg config.ObservabilityConfig) bool {
+	return cfg.Enabled && cfg.OTel.Enabled && !cfg.OTel.EnvDisabled()
+}
+
 // Init installs the global providers for cfg. Disabled or inactive export installs no-op providers. When export
 // cannot start (a header ref that does not resolve, an exporter that cannot be built) Init logs it, installs no-op
 // providers, and returns a runtime reporting StateDegraded: export never blocks daemon boot.

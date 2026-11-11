@@ -200,8 +200,11 @@ func providerMembership(configured map[string]compozyconfig.ProviderConfig) func
 }
 
 // telemetryModelClassifier returns the model catalog classifier, or nil (every model exports "other") without a
-// catalog.
+// catalog. A daemon whose configuration exports nothing builds none, so it never lists the catalog for telemetry.
 func telemetryModelClassifier(state *bootState) func(provider, model string) telemetry.ModelClass {
+	if !telemetry.ExportRequested(state.cfg.Observability) {
+		return nil
+	}
 	classes := newTelemetryModelClasses(state.modelCatalog, state.logger)
 	if classes == nil {
 		return nil
