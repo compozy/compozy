@@ -73,7 +73,9 @@ Prefer `tool approve --input <json>` with the same input you will invoke. Approv
 native workspace names, paths, and inherited operator workspace selection to the same canonical
 input as dispatch. The returned `input_digest` describes that bound input. If supplying both input
 and `--input-digest`, the supplied digest must match the submitted JSON before binding. Digest-only
-approval requires the digest of the already-bound input. A pre-call hook that changes the final
+approval requires the digest of the already-bound input. Approval digests exclude `result_view`:
+compute a supplied digest on the input without the selector, or pass `--input` and let the daemon
+compute it. A pre-call hook that changes the final
 input still requires a matching approval; tokens remain single-use.
 
 ## Oversized Tool Results
