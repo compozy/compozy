@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
@@ -266,6 +267,9 @@ func (b *loopActionSessionBinder) projectActionBindingSpeed(
 	}
 	if info.ACPCapsKnown {
 		binding.AppliedRuntime.Reasoning = info.EffectiveRuntime().ReasoningEffort
+		binding.AppliedRuntime.ACPOptions = loopACPOptionsFromSession(acp.ConfirmedSessionConfigOptionSelections(
+			loopACPOptionsForSession(binding.AppliedRuntime.ACPOptions), info.ACPCaps.ConfigOptions,
+		))
 	}
 	binding.SpeedResolution = speedpkg.CloneResolution(info.SpeedResolution)
 	return binding, nil

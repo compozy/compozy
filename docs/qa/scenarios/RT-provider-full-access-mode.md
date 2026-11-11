@@ -45,3 +45,22 @@ prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session 
 `yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
 (config negotiation cases); the live `agy` walk is unexecuted and this scenario remains `pass`
 only on its previously verified Codex/Claude branches.
+
+## Providers without a unique mode option
+
+Under `approve-all`, start providers that omit `mode` or advertise it more than once. Startup must
+skip the unrestricted-mode config selection and preserve the negotiated mode; model and reasoning
+negotiation and the first prompt must still complete. A unique `mode` option must still select and
+confirm the unrestricted value, and an unsupported value must fail. Change the model and reasoning
+on the same live process: the unchanged skipped mode must not prevent the change. A new explicit
+live mode, other options, and narrower modes still require unique advertisements. Loop applied runtime and provenance
+must omit skipped options while the session retains requested intent. Triage must refuse ambiguous
+mode options when no independently advertised read-only session mode is available.
+Rotate a Goal that requested both a skipped mode and a confirmed option: rebinding must preserve
+the full requested creation profile while its applied projection keeps only confirmed options.
+
+Regression ownership: `TestStartUnrestrictedModeAdvertisement` in the ACP startup contract suite.
+Real daemon/process-boundary coverage: `TestAgyACPBuiltInEntry`,
+`TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions`, and
+`TestLoopRuntimeSelectionIntegration` (integration tag). These checks use disposable homes and
+subprocess ACP providers; they do not establish live-provider or new browser evidence.

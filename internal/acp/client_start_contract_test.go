@@ -367,6 +367,106 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 }
 
+func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scenario, provider, value, wantError string
+		wantSelection                              bool
+	}{
+		{name: "Should start Claude without a mode option", scenario: "config_options", provider: "claude", value: "bypassPermissions"},
+		{name: "Should start Codex without a mode option", scenario: "config_options", provider: "codex", value: "agent-full-access"},
+		{name: "Should start agy without a mode option", scenario: "config_options", provider: "agy", value: "yolo"},
+		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
+		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
+		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
+		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "full-access-mode.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper", ProviderName: tc.provider,
+				Command: helperCommand(t), Cwd: t.TempDir(),
+				Env:         helperEnvWithCapture(tc.scenario, "", captureFile),
+				Permissions: compozyconfig.PermissionModeApproveAll,
+				ACPOptions:  []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+			})
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Start() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			if got := captureMethodExists(
+				t,
+				captureFile,
+				acpsdk.AgentMethodSessionSetConfigOption,
+			); got != tc.wantSelection {
+				t.Fatalf("set_config_option sent = %v, want %v", got, tc.wantSelection)
+			}
+			if tc.wantSelection {
+				assertConfigOption(
+					t,
+					proc.CapsSnapshot().ConfigOptions,
+					"mode",
+					tc.value,
+					"default",
+					"bypassPermissions",
+				)
+			} else {
+				runtime := RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+				}
+				if tc.scenario == "config_options" {
+					runtime.Model, runtime.ReasoningEffort = "other-model", "high"
+				}
+				if err := driver.ConfigureRuntime(t.Context(), proc, runtime); err != nil {
+					t.Fatalf("ConfigureRuntime() error = %v", err)
+				}
+				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
+				})
+				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
+				}
+				if runtime.Model != "" {
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"model",
+						"other-model",
+						"new-model",
+						"loaded-model",
+						"other-model",
+					)
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"reasoning_effort",
+						"high",
+						"minimal",
+						"none",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+						"ultra",
+					)
+				}
+			}
+		})
+	}
+}
+
 func TestProviderNativePermissionRequestMarksShellExecution(t *testing.T) {
 	t.Parallel()
 	title := "Run gh pr checks 1 --watch"
