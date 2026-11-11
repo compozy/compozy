@@ -6567,9 +6567,17 @@ func addNativeResultViewSchemas(value any) int {
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
-			view := map[string]any{"type": "object", "required": []any{"schema"}, "properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}}}
+			view := map[string]any{
+				"type":       "object",
+				"required":   []any{"schema"},
+				"properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}},
+			}
 			properties["output_views"] = map[string]any{"oneOf": []any{
-				map[string]any{"type": "object", "required": []any{"compact", "full"}, "properties": map[string]any{"compact": view, "full": view}},
+				map[string]any{
+					"type":       "object",
+					"required":   []any{"compact", "full"},
+					"properties": map[string]any{"compact": view, "full": view},
+				},
 				map[string]any{"enum": []any{nil}, "nullable": true},
 			}}
 			count++

@@ -2144,23 +2144,42 @@ func TestActionRegistryResultViewPins(t *testing.T) {
 			}
 			views := descriptor.ResultViews()
 			if views.PreViewInputSchemaDigest != tc.bounded {
-				t.Fatalf("pre-view digest = %s, want main's bounded input %s", views.PreViewInputSchemaDigest, tc.bounded)
+				t.Fatalf(
+					"pre-view digest = %s, want main's bounded input %s",
+					views.PreViewInputSchemaDigest,
+					tc.bounded,
+				)
 			}
 			registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{tc.id: {Descriptor: descriptor}}}
 			actions := newActionRegistryForTest(t, registry)
-			expected := loop.ToolSchemaSnapshot{ToolID: tc.id.String(), InputSchemaDigest: tc.bounded, OutputSchemaDigest: views.Full.Digest}
-			if _, err := actions.ResolvePinned(t.Context(), tools.Scope{}, tc.id.String(), &expected, tools.ResultViewCompact); err != nil {
+			expected := loop.ToolSchemaSnapshot{
+				ToolID:             tc.id.String(),
+				InputSchemaDigest:  tc.bounded,
+				OutputSchemaDigest: views.Full.Digest,
+			}
+			if _, err := actions.ResolvePinned(
+				t.Context(),
+				tools.Scope{},
+				tc.id.String(),
+				&expected,
+				tools.ResultViewCompact,
+			); err != nil {
 				t.Fatal(err)
 			}
 			expected.InputSchemaDigest = tc.beforeBounds
-			_, err = actions.ResolvePinned(t.Context(), tools.Scope{}, tc.id.String(), &expected, tools.ResultViewCompact)
+			_, err = actions.ResolvePinned(
+				t.Context(),
+				tools.Scope{},
+				tc.id.String(),
+				&expected,
+				tools.ResultViewCompact,
+			)
 			reason, ok := errors.AsType[*loop.ReasonError](err)
 			if !ok || reason.Code != loop.ReasonCodeActionContractStale {
 				t.Fatalf("pre-bounds pin error = %v, want action_contract_stale per bounded-read migration", err)
 			}
 		})
 	}
-
 }
 
 // UT-033: only the known output corrections translate pre-view pins.
