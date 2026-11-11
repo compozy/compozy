@@ -44,6 +44,7 @@ func OpenRestartCheckpointer(ctx context.Context, path string) (*PassiveCheckpoi
 	return openPassiveCheckpointer(ctx, path, true)
 }
 
+// openPassiveCheckpointer gives maintenance an independent lifetime and joins its handle on shutdown.
 func openPassiveCheckpointer(
 	ctx context.Context,
 	path string,
@@ -118,6 +119,7 @@ func optimizeSQLite(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// checkpoint keeps WAL reclamation on maintenance connections with nonwaiting SQLite lock admission.
 func (p *PassiveCheckpointer) checkpoint(ctx context.Context, db *sql.DB) error {
 	if p.restart != nil {
 		return p.restart.checkpoint(ctx, db)

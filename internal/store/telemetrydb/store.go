@@ -32,6 +32,7 @@ type Store struct {
 
 func Path(globalPath string) string { return globalPath + ".telemetry.db" }
 
+// Open separates FULL-synchronous ingestion from observation and WAL-maintenance connections.
 func Open(ctx context.Context, path string) (*Store, error) {
 	db, err := store.OpenSQLiteDatabaseWithPragmas(
 		ctx,
