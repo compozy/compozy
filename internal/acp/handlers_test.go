@@ -2678,8 +2678,8 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 				hasSummary: true,
 				terminal:   true,
 			},
-			{kind: NativeTaskKindSpawn, call: "toolu_resume", run: "0002"},
-			{kind: NativeTaskKindState, call: "toolu_resume", run: "0002", status: "killed", terminal: true},
+			{kind: NativeTaskKindSpawn, call: "toolu_background", run: "0002"},
+			{kind: NativeTaskKindState, call: "toolu_background", run: "0002", status: "killed", terminal: true},
 		}
 		got := collectEventsUntilCount(t, active.events, len(wants))
 		for i, want := range wants {

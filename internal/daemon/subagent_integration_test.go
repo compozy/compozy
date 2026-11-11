@@ -815,8 +815,9 @@ func nativeResumeSteps(t *testing.T) []acpmock.Step {
 	for _, message := range []string{
 		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","task_type":"local_agent","is_backgrounded":true}`,
 		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","status":"completed","summary":"First answer"}`,
-		`{"type":"system","subtype":"task_updated","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_background","patch":{"status":"running"}}`,
-		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_background","status":"completed","summary":"Second answer"}`,
+		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","task_type":"local_agent","is_backgrounded":true}`,
+		`{"type":"system","subtype":"task_updated","task_id":"agent-resume","run_id":"0002","patch":{"status":"running"}}`,
+		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","status":"completed","summary":"Second answer"}`,
 	} {
 		steps = append(
 			steps,

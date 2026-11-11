@@ -96,8 +96,9 @@ type claudeTaskTracker struct {
 const claudeTaskCallHistoryLimit = 8
 
 type claudeTrackedTask struct {
-	runID     string
-	toolUseID string
+	launchCallID string
+	runID        string
+	toolUseID    string
 	// earlier holds calls the task was bound to before toolUseID. A frame that
 	// names one is historical; a non-empty list makes a runless frame without
 	// an explicit call ambiguous.
@@ -180,6 +181,7 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 		if tracked != nil {
 			// A resumed task keeps its id; its earlier calls stay historical.
 			started.earlier, started.toolUseID = slices.Clone(tracked.earlier), tracked.toolUseID
+			started.launchCallID = tracked.launchCallID
 		}
 		started.rebind(message.RunID, message.ToolUseID)
 		tracked = started
@@ -193,11 +195,19 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 			return nil, reason
 		}
 	}
+	if tracked.launchCallID == "" {
+		tracked.launchCallID = cmp.Or(message.ToolUseID, tracked.toolUseID)
+	}
+	callID := cmp.Or(message.ToolUseID, tracked.toolUseID)
+	// A resumed SDK run names SendMessage; its stable task still belongs to the original launch.
+	if message.RunID != "" {
+		callID = tracked.launchCallID
+	}
 	observation := &NativeTaskObservation{
 		Source:     NativeTaskSourceClaudeSDK,
 		TaskID:     message.TaskID,
 		RunID:      message.RunID,
-		ToolCallID: cmp.Or(message.ToolUseID, tracked.toolUseID),
+		ToolCallID: callID,
 		EventUUID:  message.UUID,
 	}
 	if observation.ToolCallID == "" {
